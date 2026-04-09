@@ -215,7 +215,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -233,7 +233,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -250,7 +250,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.NotNull(aircraft.Phases?.AssignedRunway);
         Assert.Equal("28R", aircraft.Phases.AssignedRunway.Designator);
@@ -264,7 +264,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases.CurrentPhase);
@@ -279,7 +279,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("VOR99");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -293,7 +293,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Cannot determine airport", result.Message);
@@ -322,7 +322,7 @@ public class ApproachClearanceTests
         );
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.CurrentPhase);
@@ -337,7 +337,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("I28R", result.Message);
@@ -351,7 +351,7 @@ public class ApproachClearanceTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }

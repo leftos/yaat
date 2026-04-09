@@ -58,7 +58,7 @@ public class AtFixLookaheadTests(ITestOutputHelper output)
         Assert.Equal(2, parseResult.Value!.Blocks.Count);
 
         // Dispatch
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value, ac, null, Random.Shared, false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
 
         // Block 0 = DCT FIX_A FIX_B FIX_C (applied immediately)

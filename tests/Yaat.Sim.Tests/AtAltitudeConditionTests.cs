@@ -114,7 +114,7 @@ public class AtAltitudeConditionTests
         var compound = CommandParser.ParseCompound("AT 5000 CM 280");
         Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Single(aircraft.Queue.Blocks);
         Assert.Equal(BlockTriggerType.ReachAltitude, aircraft.Queue.Blocks[0].Trigger!.Type);
@@ -132,7 +132,7 @@ public class AtAltitudeConditionTests
         var compound = CommandParser.ParseCompound("AT 5000 CM 280");
         Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         // Move aircraft to within snap range of 5000
         aircraft.Altitude = 4998;
@@ -148,7 +148,7 @@ public class AtAltitudeConditionTests
         var compound = CommandParser.ParseCompound("AT 25000 DEL");
         Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Single(aircraft.Queue.Blocks);
         Assert.Equal(BlockTriggerType.ReachAltitude, aircraft.Queue.Blocks[0].Trigger!.Type);
@@ -163,7 +163,7 @@ public class AtAltitudeConditionTests
         var compound = CommandParser.ParseCompound("AT 3000 FH 270");
         Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         // Within snap range of 3000
         aircraft.Altitude = 3005;
@@ -181,7 +181,7 @@ public class AtAltitudeConditionTests
         var compound = CommandParser.ParseCompound("AT 5000 FH 180; AT 9000 FH 270");
         Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Equal(2, aircraft.Queue.Blocks.Count);
 

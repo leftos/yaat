@@ -23,14 +23,7 @@ public static class CommandDispatcher
     private static readonly CommandResult PhaseShouldBeCleared = new(true, "__CLEAR_PHASES__");
     private static readonly ILogger Log = SimLog.CreateLogger("CommandDispatcher");
 
-    public static CommandResult DispatchCompound(
-        CompoundCommand compound,
-        AircraftState aircraft,
-        AirportGroundLayout? groundLayout,
-        Random rng,
-        bool validateDctFixes,
-        bool autoCrossRunway = false
-    )
+    public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
         // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
@@ -53,14 +46,14 @@ public static class CommandDispatcher
         // without consulting phases, clearing the queue, or clearing deferred dispatches.
         if (aircraft.Phases?.CurrentPhase is not null && IsAllTransparent(compound))
         {
-            return ApplyTransparentCompound(compound, aircraft, rng);
+            return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
         // Phase interaction: check if aircraft has active phases
         bool shouldClearPhases = false;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, groundLayout, autoCrossRunway);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, ctx);
             if (ReferenceEquals(result, PhaseShouldBeCleared))
             {
                 // Phases need clearing, but defer until after validation succeeds.
@@ -75,10 +68,10 @@ public static class CommandDispatcher
                 if (result.Success && compound.Blocks.Count > 1)
                 {
                     var phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
-                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, rng, validateDctFixes);
+                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, ctx);
                     aircraft.DeferredDispatches.Clear();
 
-                    var remainingMessages = EnqueueBlocks(compound, 1, aircraft, rng, validateDctFixes);
+                    var remainingMessages = EnqueueBlocks(compound, 1, aircraft, ctx);
                     aircraft.Queue.Blocks.AddRange(phasePreserved);
                     if (remainingMessages.Count > 0)
                     {
@@ -95,7 +88,7 @@ public static class CommandDispatcher
         // Dry-run: validate all commands on a snapshot clone before touching the
         // real aircraft. This allows compound commands like "ERD 28R, CLAND" where
         // a later command depends on state created by an earlier one.
-        var dryRunError = DryRunValidate(compound, aircraft, groundLayout);
+        var dryRunError = DryRunValidate(compound, aircraft, ctx);
         if (dryRunError is not null)
         {
             return dryRunError;
@@ -104,8 +97,8 @@ public static class CommandDispatcher
         // Now that validation passed, clear phases if the command requires it
         if (shouldClearPhases)
         {
-            var ctx = BuildMinimalContext(aircraft);
-            aircraft.Phases?.Clear(ctx);
+            var phaseCtx = BuildMinimalContext(aircraft);
+            aircraft.Phases?.Clear(phaseCtx);
             aircraft.Phases = null;
             aircraft.Targets.TurnRateOverride = null;
             aircraft.Targets.HasExplicitTurnRate = false;
@@ -115,11 +108,11 @@ public static class CommandDispatcher
         // incoming command. Non-conflicting pending blocks are preserved and re-appended
         // after the new blocks.
         var incomingDims = CommandDescriber.GetCompoundDimensions(compound);
-        var preserved = ClearConflictingBlocks(aircraft, incomingDims, rng, validateDctFixes);
+        var preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx);
         aircraft.DeferredDispatches.Clear();
 
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
-        var messages = EnqueueBlocks(compound, 0, aircraft, rng, validateDctFixes);
+        var messages = EnqueueBlocks(compound, 0, aircraft, ctx);
         aircraft.Queue.Blocks.AddRange(preserved);
 
         // Apply the first NEW block immediately (if no trigger).
@@ -179,14 +172,20 @@ public static class CommandDispatcher
         return true;
     }
 
-    private static CommandResult ApplyTransparentCompound(CompoundCommand compound, AircraftState aircraft, Random rng)
+    private static CommandResult ApplyTransparentCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
+        // Transparent commands intentionally bypass DCT-fix validation — preserve that
+        // by overriding the flag on a per-call basis.
+        var transparentCtx = ctx with
+        {
+            ValidateDctFixes = false,
+        };
         var messages = new List<string>();
         foreach (var block in compound.Blocks)
         {
             foreach (var cmd in block.Commands)
             {
-                var result = ApplyCommand(cmd, aircraft, rng, false);
+                var result = ApplyCommand(cmd, aircraft, transparentCtx);
                 if (!result.Success)
                 {
                     return result;
@@ -202,36 +201,29 @@ public static class CommandDispatcher
         return new CommandResult(true, string.Join(", ", messages));
     }
 
-    public static CommandResult Dispatch(
-        ParsedCommand command,
-        AircraftState aircraft,
-        AirportGroundLayout? groundLayout,
-        Random rng,
-        bool validateDctFixes,
-        bool autoCrossRunway = false
-    )
+    public static CommandResult Dispatch(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
         // Route ground commands through DispatchCompound for phase interaction
         if (CommandDescriber.IsGroundCommand(command))
         {
             var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
-            return DispatchCompound(compound, aircraft, groundLayout, rng, validateDctFixes, autoCrossRunway);
+            return DispatchCompound(compound, aircraft, ctx);
         }
 
         // Phase-transparent commands: apply without clearing queue or phases
         if ((aircraft.Phases?.CurrentPhase is not null) && CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(command)))
         {
-            return ApplyCommand(command, aircraft, rng, validateDctFixes);
+            return ApplyCommand(command, aircraft, ctx);
         }
 
         // Selectively clear queue: remove only blocks whose dimensions conflict
         var singleDims = CommandDescriber.GetCommandDimension(command);
-        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, rng, validateDctFixes);
+        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, ctx);
         aircraft.Queue.Blocks.AddRange(singlePreserved);
 
         bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
         bool hadViaMode = aircraft.SidViaMode || aircraft.StarViaMode;
-        var result = ApplyCommand(command, aircraft, rng, validateDctFixes);
+        var result = ApplyCommand(command, aircraft, ctx);
         CheckVectoringWarning(aircraft, [command], hadProcedure, hadViaMode);
         return result;
     }
@@ -274,12 +266,15 @@ public static class CommandDispatcher
 
     private static readonly CommandResult VfrRequiredResult = new(false, "Command requires VFR aircraft. Use CIFR to cancel IFR flight plan");
 
-    private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, Random rng, bool validateDctFixes)
+    private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
         if (RequiresVfr(command) && !aircraft.IsVfr)
         {
             return VfrRequiredResult;
         }
+
+        var rng = ctx.Rng;
+        var validateDctFixes = ctx.ValidateDctFixes;
 
         switch (command)
         {
@@ -568,16 +563,23 @@ public static class CommandDispatcher
     /// snapshot clone of the aircraft. Returns the first error, or null if all
     /// commands are valid. The real aircraft is never mutated.
     /// </summary>
-    private static CommandResult? DryRunValidate(CompoundCommand compound, AircraftState aircraft, AirportGroundLayout? groundLayout)
+    private static CommandResult? DryRunValidate(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
-        var clone = AircraftState.FromSnapshot(aircraft.ToSnapshot(), groundLayout);
-        var dryRng = new Random(0);
+        var clone = AircraftState.FromSnapshot(aircraft.ToSnapshot(), ctx.GroundLayout);
+        // Dry-run uses a deterministic RNG and disables DCT-fix validation and
+        // auto-cross-runway side effects to match historical behavior.
+        var dryCtx = ctx with
+        {
+            Rng = new Random(0),
+            ValidateDctFixes = false,
+            AutoCrossRunway = false,
+        };
 
         foreach (var block in compound.Blocks)
         {
             foreach (var cmd in block.Commands)
             {
-                var result = DryRunApplyCommand(cmd, clone, groundLayout, dryRng);
+                var result = DryRunApplyCommand(cmd, clone, dryCtx);
                 if (!result.Success)
                 {
                     return result;
@@ -593,14 +595,14 @@ public static class CommandDispatcher
     /// commands (via ApplyCommand) and tower-only commands that are normally
     /// dispatched through TryApplyTowerCommand.
     /// </summary>
-    private static CommandResult DryRunApplyCommand(ParsedCommand cmd, AircraftState clone, AirportGroundLayout? groundLayout, Random rng)
+    private static CommandResult DryRunApplyCommand(ParsedCommand cmd, AircraftState clone, DispatchContext ctx)
     {
         // Try the tower-command path first if phases are active — it handles
         // CTO, CLAND, LUAW, go-around, pattern turns, etc.
         var currentPhase = clone.Phases?.CurrentPhase;
         if (currentPhase is not null)
         {
-            var towerResult = TryApplyTowerCommand(cmd, clone, currentPhase, groundLayout);
+            var towerResult = TryApplyTowerCommand(cmd, clone, currentPhase, ctx);
             if (towerResult is not null)
             {
                 return towerResult;
@@ -608,7 +610,7 @@ public static class CommandDispatcher
         }
 
         // Then try ApplyCommand — handles flight, nav, pattern entry, etc.
-        var result = ApplyCommand(cmd, clone, rng, false);
+        var result = ApplyCommand(cmd, clone, ctx);
         if (result.Message != "Unknown command")
         {
             return result;
@@ -770,13 +772,7 @@ public static class CommandDispatcher
     /// Returns a result if the command was handled (accepted or rejected),
     /// or null if phases were cleared and normal dispatch should proceed.
     /// </summary>
-    private static CommandResult? DispatchWithPhase(
-        CompoundCommand compound,
-        AircraftState aircraft,
-        Phase currentPhase,
-        AirportGroundLayout? groundLayout,
-        bool autoCrossRunway = false
-    )
+    private static CommandResult? DispatchWithPhase(CompoundCommand compound, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
@@ -792,7 +788,7 @@ public static class CommandDispatcher
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
         // Try tower/ground-specific handling first (phase-interactive commands)
-        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, groundLayout, autoCrossRunway);
+        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx);
         if (towerResult is not null)
         {
             if (towerResult.Success)
@@ -801,7 +797,7 @@ public static class CommandDispatcher
                 var block = compound.Blocks[0];
                 for (int i = 1; i < block.Commands.Count; i++)
                 {
-                    TryApplyTowerCommand(block.Commands[i], aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, groundLayout, autoCrossRunway);
+                    TryApplyTowerCommand(block.Commands[i], aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx);
                 }
             }
 
@@ -827,14 +823,10 @@ public static class CommandDispatcher
         return null;
     }
 
-    private static CommandResult? TryApplyTowerCommand(
-        ParsedCommand command,
-        AircraftState aircraft,
-        Phase currentPhase,
-        AirportGroundLayout? groundLayout,
-        bool autoCrossRunway = false
-    )
+    private static CommandResult? TryApplyTowerCommand(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
+        var groundLayout = ctx.GroundLayout;
+        var autoCrossRunway = ctx.AutoCrossRunway;
         if (RequiresVfr(command) && !aircraft.IsVfr)
         {
             return VfrRequiredResult;
@@ -1229,12 +1221,7 @@ public static class CommandDispatcher
     /// tracked commands as complete (superseded). Returns the preserved blocks (removed
     /// from the queue) so the caller can re-append them after enqueueing new blocks.
     /// </summary>
-    private static List<CommandBlock> ClearConflictingBlocks(
-        AircraftState aircraft,
-        CommandDimension incomingDimensions,
-        Random rng,
-        bool validateDctFixes
-    )
+    private static List<CommandBlock> ClearConflictingBlocks(AircraftState aircraft, CommandDimension incomingDimensions, DispatchContext ctx)
     {
         var queue = aircraft.Queue;
 
@@ -1266,7 +1253,7 @@ public static class CommandDispatcher
         for (int i = pendingStart; i < queue.Blocks.Count; i++)
         {
             var block = queue.Blocks[i];
-            var split = SplitBlockNonConflicting(block, incomingDimensions, rng, validateDctFixes);
+            var split = SplitBlockNonConflicting(block, incomingDimensions, ctx);
             if (split is not null)
             {
                 preserved.Add(split);
@@ -1287,7 +1274,7 @@ public static class CommandDispatcher
     /// if all commands conflict. If no commands conflict, returns the original block.
     /// For partial conflicts, rebuilds the block from the remaining ParsedCommands.
     /// </summary>
-    private static CommandBlock? SplitBlockNonConflicting(CommandBlock block, CommandDimension conflictingDims, Random rng, bool validateDctFixes)
+    private static CommandBlock? SplitBlockNonConflicting(CommandBlock block, CommandDimension conflictingDims, DispatchContext ctx)
     {
         // If the block has no dimensional overlap at all, keep it entirely
         if ((block.Dimensions & conflictingDims) == 0)
@@ -1336,7 +1323,7 @@ public static class CommandDispatcher
         return new CommandBlock
         {
             Trigger = block.Trigger,
-            ApplyAction = BuildApplyAction(keptParsed, rng, validateDctFixes),
+            ApplyAction = BuildApplyAction(keptParsed, ctx),
             ParsedCommands = keptParsed,
             Commands = keptTracked,
             Dimensions = keptDims,
@@ -1349,7 +1336,7 @@ public static class CommandDispatcher
         };
     }
 
-    private static List<string> EnqueueBlocks(CompoundCommand compound, int startIndex, AircraftState aircraft, Random rng, bool validateDctFixes)
+    private static List<string> EnqueueBlocks(CompoundCommand compound, int startIndex, AircraftState aircraft, DispatchContext ctx)
     {
         var messages = new List<string>();
 
@@ -1388,7 +1375,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, rng, validateDctFixes),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, ctx),
                 ParsedCommands = parsedBlock.Commands.ToList(),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
@@ -1417,8 +1404,10 @@ public static class CommandDispatcher
     /// <summary>
     /// Builds a deferred action that applies all commands in a block to the aircraft.
     /// This is stored on the CommandBlock and executed when the block becomes active.
+    /// Captures the dispatch context by reference so triggered commands see the same
+    /// weather, ground layout, and aircraft lookup as the original dispatch.
     /// </summary>
-    internal static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, Random rng, bool validateDctFixes)
+    internal static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx)
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();
@@ -1430,7 +1419,7 @@ public static class CommandDispatcher
 
             foreach (var cmd in captured)
             {
-                var result = ApplyCommand(cmd, ac, rng, validateDctFixes);
+                var result = ApplyCommand(cmd, ac, ctx);
                 if (!result.Success)
                 {
                     return result;

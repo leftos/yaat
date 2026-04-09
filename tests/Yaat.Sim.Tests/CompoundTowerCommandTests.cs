@@ -100,7 +100,7 @@ public class CompoundTowerCommandTests
         Assert.Equal(2, parseResult.Value!.Blocks.Count);
 
         // Dispatch the compound command
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value, ac, null, Random.Shared, false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
 
@@ -132,7 +132,7 @@ public class CompoundTowerCommandTests
         var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, Random.Shared, false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
 
         // Tick the simulation: PhaseRunner then FlightPhysics per tick
@@ -222,7 +222,7 @@ public class CompoundTowerCommandTests
         var parseResult = CommandParser.ParseCompound("ERD 28R, CL", ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.NotNull(ac.Phases);
@@ -243,7 +243,7 @@ public class CompoundTowerCommandTests
         var parseResult = CommandParser.ParseCompound("ERD 28R; CL", ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.NotNull(ac.Phases);
@@ -265,7 +265,7 @@ public class CompoundTowerCommandTests
         var parseResult = CommandParser.ParseCompound("CL", ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.False(result.Success, "CLAND without phases should fail");
     }
@@ -279,7 +279,7 @@ public class CompoundTowerCommandTests
         var parseResult = CommandParser.ParseCompound("TAXI A", ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.False(result.Success, "Ground command while airborne should fail");
     }

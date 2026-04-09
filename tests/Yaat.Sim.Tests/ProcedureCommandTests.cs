@@ -30,7 +30,7 @@ public class ProcedureCommandTests
         aircraft.ActiveSidId = "PORTE3";
         aircraft.SidViaMode = false;
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.SidViaMode);
@@ -43,7 +43,7 @@ public class ProcedureCommandTests
         var aircraft = CreateAircraft();
         aircraft.ActiveSidId = "PORTE3";
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(19000), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(19000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.SidViaMode);
@@ -55,7 +55,7 @@ public class ProcedureCommandTests
     {
         var aircraft = CreateAircraft();
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No active SID", result.Message);
@@ -69,7 +69,7 @@ public class ProcedureCommandTests
         var aircraft = CreateAircraft(altitude: 15000);
         aircraft.ActiveStarId = "BDEGA3";
 
-        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.StarViaMode);
@@ -82,7 +82,7 @@ public class ProcedureCommandTests
         var aircraft = CreateAircraft(altitude: 15000);
         aircraft.ActiveStarId = "BDEGA3";
 
-        var result = CommandDispatcher.Dispatch(new DescendViaCommand(10000), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new DescendViaCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.StarViaMode);
@@ -109,7 +109,7 @@ public class ProcedureCommandTests
             }
         );
 
-        var result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(35000), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(35000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(aircraft.SidViaMode);
@@ -140,7 +140,7 @@ public class ProcedureCommandTests
             }
         );
 
-        var result = CommandDispatcher.Dispatch(new DescendMaintainCommand(10000), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new DescendMaintainCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(aircraft.StarViaMode);
@@ -161,7 +161,7 @@ public class ProcedureCommandTests
         aircraft.ActiveStarId = "BDEGA3";
         aircraft.StarViaMode = true;
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Null(aircraft.ActiveSidId);
@@ -184,7 +184,7 @@ public class ProcedureCommandTests
         aircraft.SidViaMode = true;
 
         var fixes = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
-        var result = CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Null(aircraft.ActiveSidId);
@@ -200,7 +200,7 @@ public class ProcedureCommandTests
         aircraft.ActiveStarId = "BDEGA3";
         aircraft.StarViaMode = true;
 
-        var result = CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(180)), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(180)), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Null(aircraft.ActiveStarId);
@@ -214,7 +214,7 @@ public class ProcedureCommandTests
         aircraft.ActiveSidId = "PORTE3";
         aircraft.SidViaMode = true;
 
-        var result = CommandDispatcher.Dispatch(new TurnRightCommand(new MagneticHeading(90)), aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new TurnRightCommand(new MagneticHeading(90)), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Null(aircraft.ActiveSidId);
@@ -231,7 +231,7 @@ public class ProcedureCommandTests
         aircraft.SidViaMode = true;
         aircraft.Targets.TargetAltitude = 10000;
 
-        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Single(aircraft.PendingWarnings);
         Assert.Contains("without an altitude", aircraft.PendingWarnings[0]);
@@ -250,7 +250,7 @@ public class ProcedureCommandTests
             new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(70)), new DescendMaintainCommand(5000)]),
         ]);
 
-        CommandDispatcher.DispatchCompound(compound, aircraft, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Empty(aircraft.PendingWarnings);
     }
@@ -263,7 +263,7 @@ public class ProcedureCommandTests
         aircraft.StarViaMode = true;
         aircraft.Targets.TargetAltitude = 5000;
 
-        CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(270)), aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(270)), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Single(aircraft.PendingWarnings);
         Assert.Contains("without an altitude", aircraft.PendingWarnings[0]);
@@ -276,7 +276,7 @@ public class ProcedureCommandTests
         var aircraft = CreateAircraft();
         // No active procedure
 
-        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Empty(aircraft.PendingWarnings);
     }
@@ -289,7 +289,7 @@ public class ProcedureCommandTests
         aircraft.SidViaMode = true;
 
         // CM only disables via mode, doesn't clear the procedure
-        CommandDispatcher.Dispatch(new ClimbMaintainCommand(35000), aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new ClimbMaintainCommand(35000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Empty(aircraft.PendingWarnings);
         // SidId still active — only via mode was disabled

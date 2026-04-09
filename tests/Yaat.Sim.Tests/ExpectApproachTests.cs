@@ -72,7 +72,7 @@ public class ExpectApproachTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -86,7 +86,7 @@ public class ExpectApproachTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("I28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("Expecting", result.Message);
@@ -102,7 +102,7 @@ public class ExpectApproachTests
 
         // Explicit airport overrides destination
         var cmd = new ExpectApproachCommand("ILS28R", "OAK");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -116,7 +116,7 @@ public class ExpectApproachTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("VOR99", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -131,7 +131,7 @@ public class ExpectApproachTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -146,7 +146,7 @@ public class ExpectApproachTests
 
         // "ILS28R" should resolve to "I28R"
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);

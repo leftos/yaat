@@ -249,7 +249,7 @@ public class ProcedureLoadingTests
         var navDb = CreateNavDb(star: CreateTestStar());
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
@@ -280,7 +280,7 @@ public class ProcedureLoadingTests
         var navDb = CreateNavDb(star: CreateTestStar());
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
         Assert.False(aircraft.StarViaMode);
@@ -873,7 +873,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28L") };
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         var brixx = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "BRIXX");

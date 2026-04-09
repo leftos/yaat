@@ -55,7 +55,7 @@ public class VfrCommandGatingTests : IDisposable
 
     private CommandResult Dispatch(AircraftState aircraft, ParsedCommand command)
     {
-        return CommandDispatcher.Dispatch(command, aircraft, null, new Random(0), false);
+        return CommandDispatcher.Dispatch(command, aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
     }
 
     [Theory]
@@ -98,7 +98,7 @@ public class VfrCommandGatingTests : IDisposable
         var parseResult = CommandParser.ParseCompound(commandText, ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed for '{commandText}': {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(0), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         _output.WriteLine($"{commandText}: Success={result.Success} Message={result.Message}");
 
@@ -117,7 +117,7 @@ public class VfrCommandGatingTests : IDisposable
         var parseResult = CommandParser.ParseCompound(commandText, ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed for '{commandText}': {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(0), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         _output.WriteLine($"{commandText}: Success={result.Success} Message={result.Message}");
 

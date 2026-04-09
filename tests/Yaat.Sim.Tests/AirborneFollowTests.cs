@@ -245,7 +245,7 @@ public class AirborneFollowTests : IDisposable
         ac.Phases = new PhaseList();
         ac.Phases.Add(new DownwindPhase());
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
     }
@@ -256,7 +256,7 @@ public class AirborneFollowTests : IDisposable
         var ac = MakeAircraft();
         ac.Phases = null;
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
     }
@@ -268,7 +268,7 @@ public class AirborneFollowTests : IDisposable
         ac.IsOnGround = true;
 
         // Ground follow needs a ground layout — without one, it should fail gracefully
-        var result = CommandDispatcher.Dispatch(new FollowGroundCommand("LEAD"), ac, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new FollowGroundCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         // Ground handler rejects without ground layout
         Assert.False(result.Success);
@@ -310,7 +310,7 @@ public class AirborneFollowTests : IDisposable
         var ac = MakeAircraft();
         ac.HasReportedTrafficInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(ac.HasReportedTrafficInSight);
@@ -322,7 +322,7 @@ public class AirborneFollowTests : IDisposable
         var ac = MakeAircraft();
         ac.HasReportedFieldInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(ac.HasReportedFieldInSight);
@@ -335,7 +335,7 @@ public class AirborneFollowTests : IDisposable
         ac.HasReportedTrafficInSight = false;
 
         // Force traffic in sight via RTISF
-        CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         // Now CVA FOLLOW should work
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD");

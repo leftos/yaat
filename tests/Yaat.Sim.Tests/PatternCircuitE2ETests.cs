@@ -296,7 +296,7 @@ public class PatternCircuitE2ETests : IDisposable
 
         // Issue go-around command via DispatchCompound (phase interaction path)
         var compound = new CompoundCommand([new ParsedBlock(null, [new GoAroundCommand(null, null, null)])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, Random.Shared, true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared));
 
         // Go-around should succeed (clears phase, sets up GoAroundPhase)
         Assert.True(result.Success, $"Go-around should succeed, got: {result.Message}");

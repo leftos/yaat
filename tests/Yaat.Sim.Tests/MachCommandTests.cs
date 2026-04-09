@@ -29,7 +29,7 @@ public class MachCommandTests
         ac.Targets.SpeedFloor = 250;
         ac.Targets.SpeedCeiling = 320;
 
-        var result = CommandDispatcher.Dispatch(new MachCommand(0.82), ac, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new MachCommand(0.82), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(0.82, ac.Targets.TargetMach);
@@ -97,7 +97,7 @@ public class MachCommandTests
         var ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
-        CommandDispatcher.Dispatch(new SpeedCommand(250), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new SpeedCommand(250), ac, TestDispatch.Context(Random.Shared));
 
         Assert.Null(ac.Targets.TargetMach);
     }
@@ -108,7 +108,7 @@ public class MachCommandTests
         var ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
-        CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.Null(ac.Targets.TargetMach);
     }
@@ -119,7 +119,7 @@ public class MachCommandTests
         var ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
-        CommandDispatcher.Dispatch(new DeleteSpeedRestrictionsCommand(), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new DeleteSpeedRestrictionsCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.Null(ac.Targets.TargetMach);
     }
@@ -132,7 +132,7 @@ public class MachCommandTests
         var ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
-        CommandDispatcher.Dispatch(new ReduceToFinalApproachSpeedCommand(), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new ReduceToFinalApproachSpeedCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.Null(ac.Targets.TargetMach);
     }

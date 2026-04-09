@@ -48,7 +48,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         var parseResult = CommandParser.ParseCompound(command, ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(0), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         output.WriteLine($"{command}: Success={result.Success} Message={result.Message}");
 
@@ -80,7 +80,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         var parseResult = CommandParser.ParseCompound("R360", ac.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(0), false);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         output.WriteLine($"R360 with phases: Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, $"R360 with phases should succeed but got: {result.Message}");

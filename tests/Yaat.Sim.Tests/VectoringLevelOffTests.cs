@@ -101,7 +101,7 @@ public class VectoringLevelOffTests
     {
         var ac = CreateStarAircraft();
 
-        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.Null(ac.Targets.TargetAltitude);
         Assert.Null(ac.Targets.DesiredVerticalRate);
@@ -118,7 +118,7 @@ public class VectoringLevelOffTests
         var compound = new CompoundCommand([
             new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(270)), new DescendMaintainCommand(5000)]),
         ]);
-        CommandDispatcher.DispatchCompound(compound, ac, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared));
 
         Assert.Equal(5000.0, ac.Targets.TargetAltitude);
         Assert.Empty(ac.PendingWarnings);
@@ -130,7 +130,7 @@ public class VectoringLevelOffTests
         var ac = CreateStarAircraft();
         var fixes = new List<ResolvedFix> { new("ZZZZZ", 38.0, -123.0) };
 
-        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.Null(ac.ActiveStarId);
         Assert.Null(ac.Targets.TargetAltitude);
@@ -144,7 +144,7 @@ public class VectoringLevelOffTests
         var fixes = new List<ResolvedFix> { new("ZZZZZ", 38.0, -123.0) };
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new DirectToCommand(fixes, []), new DescendMaintainCommand(5000)])]);
-        CommandDispatcher.DispatchCompound(compound, ac, null, Random.Shared, false);
+        CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.Equal(5000.0, ac.Targets.TargetAltitude);
         Assert.Empty(ac.PendingWarnings);
@@ -155,7 +155,7 @@ public class VectoringLevelOffTests
     {
         var ac = CreateStarAircraft();
 
-        CommandDispatcher.Dispatch(new FlyPresentHeadingCommand(), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new FlyPresentHeadingCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.Null(ac.Targets.TargetAltitude);
         Assert.Single(ac.PendingWarnings);
@@ -168,7 +168,7 @@ public class VectoringLevelOffTests
         ac.Targets.TargetAltitude = 10000;
         ac.Targets.AssignedAltitude = 10000;
 
-        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), ac, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), ac, TestDispatch.Context(Random.Shared));
 
         // No procedure was active — altitude should not change
         Assert.Equal(10000.0, ac.Targets.TargetAltitude);
@@ -185,7 +185,7 @@ public class VectoringLevelOffTests
         var ac = CreateStarAircraft();
         var fixes = new List<ResolvedFix> { new("FIXBB", 37.6, -122.6) };
 
-        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.Equal("BDEGA3", ac.ActiveStarId);
     }
@@ -196,7 +196,7 @@ public class VectoringLevelOffTests
         var ac = CreateStarAircraft();
         var fixes = new List<ResolvedFix> { new("FIXBB", 37.6, -122.6) };
 
-        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.False(ac.StarViaMode);
     }
@@ -207,7 +207,7 @@ public class VectoringLevelOffTests
         var ac = CreateStarAircraft();
         var fixes = new List<ResolvedFix> { new("FIXBB", 37.6, -122.6) };
 
-        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         // Route should be [FIXBB, FIXCC] — FIXAA removed
         Assert.Equal(2, ac.Targets.NavigationRoute.Count);
@@ -224,7 +224,7 @@ public class VectoringLevelOffTests
         var ac = CreateStarAircraft();
         var fixes = new List<ResolvedFix> { new("FIXBB", 37.6, -122.6) };
 
-        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         // Via-mode disabled without altitude/DVIA → level off
         Assert.Null(ac.Targets.TargetAltitude);
@@ -239,7 +239,7 @@ public class VectoringLevelOffTests
 
         // DCT FIXBB, DVIA — parallel block
         var compound = new CompoundCommand([new ParsedBlock(null, [new DirectToCommand(fixes, []), new DescendViaCommand(null)])]);
-        CommandDispatcher.DispatchCompound(compound, ac, null, Random.Shared, false);
+        CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.True(ac.StarViaMode);
         Assert.Equal("BDEGA3", ac.ActiveStarId);
@@ -253,7 +253,7 @@ public class VectoringLevelOffTests
         var fixes = new List<ResolvedFix> { new("FIXBB", 37.6, -122.6) };
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new DirectToCommand(fixes, []), new DescendMaintainCommand(8000)])]);
-        CommandDispatcher.DispatchCompound(compound, ac, null, Random.Shared, false);
+        CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.Equal(8000.0, ac.Targets.TargetAltitude);
         Assert.Empty(ac.PendingWarnings);
@@ -265,7 +265,7 @@ public class VectoringLevelOffTests
         var ac = CreateStarAircraft();
         var fixes = new List<ResolvedFix> { new("ZZZZZ", 38.0, -123.0) };
 
-        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.Null(ac.ActiveStarId);
         Assert.False(ac.StarViaMode);
@@ -277,7 +277,7 @@ public class VectoringLevelOffTests
         var ac = CreateStarAircraft();
         var fixes = new List<ResolvedFix> { new("FIXBB", 37.6, -122.6) };
 
-        CommandDispatcher.Dispatch(new ForceDirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new ForceDirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.Equal("BDEGA3", ac.ActiveStarId);
         Assert.False(ac.StarViaMode);
@@ -291,7 +291,7 @@ public class VectoringLevelOffTests
         var ac = CreateSidAircraft();
         var fixes = new List<ResolvedFix> { new("SIDBB", 37.6, -122.6) };
 
-        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, null, Random.Shared, false);
+        CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.Equal("PORTE3", ac.ActiveSidId);
         Assert.False(ac.SidViaMode);

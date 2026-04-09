@@ -685,14 +685,8 @@ public sealed class SimulationEngine
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-        return CommandDispatcher.DispatchCompound(
-            parseResult.Value!,
-            aircraft,
-            groundLayout,
-            World.Rng,
-            Scenario?.ValidateDctFixes ?? true,
-            Scenario?.AutoCrossRunway ?? false
-        );
+        var dispatchCtx = new DispatchContext(groundLayout, World.Rng, Scenario?.ValidateDctFixes ?? true, Scenario?.AutoCrossRunway ?? false);
+        return CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
     }
 
     public AircraftState? FindAircraft(string callsign)
@@ -896,14 +890,13 @@ public sealed class SimulationEngine
                 EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
 
                 var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-                CommandDispatcher.DispatchCompound(
-                    d.Payload,
-                    aircraft,
+                var deferredCtx = new DispatchContext(
                     groundLayout,
                     World.Rng,
                     Scenario?.ValidateDctFixes ?? true,
                     Scenario?.AutoCrossRunway ?? false
                 );
+                CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
             }
         }
     }
@@ -1202,7 +1195,8 @@ public sealed class SimulationEngine
             }
 
             var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-            CommandDispatcher.DispatchCompound(compound, aircraft, groundLayout, World.Rng, scenario.ValidateDctFixes, scenario.AutoCrossRunway);
+            var presetCtx = new DispatchContext(groundLayout, World.Rng, scenario.ValidateDctFixes, scenario.AutoCrossRunway);
+            CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
             EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
         }
@@ -1295,7 +1289,8 @@ public sealed class SimulationEngine
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-        CommandDispatcher.DispatchCompound(compound, aircraft, groundLayout, World.Rng, Scenario!.ValidateDctFixes, Scenario!.AutoCrossRunway);
+        var singlePresetCtx = new DispatchContext(groundLayout, World.Rng, Scenario!.ValidateDctFixes, Scenario!.AutoCrossRunway);
+        CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
         EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
     }
@@ -1461,14 +1456,8 @@ public sealed class SimulationEngine
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-        CommandDispatcher.DispatchCompound(
-            replayResult.Value!,
-            aircraft,
-            groundLayout,
-            World.Rng,
-            Scenario?.ValidateDctFixes ?? true,
-            Scenario?.AutoCrossRunway ?? false
-        );
+        var replayCtx = new DispatchContext(groundLayout, World.Rng, Scenario?.ValidateDctFixes ?? true, Scenario?.AutoCrossRunway ?? false);
+        CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
     }
 
     private static bool IsTrackCommand(ParsedCommand cmd) => TrackEngine.IsTrackCommand(cmd);

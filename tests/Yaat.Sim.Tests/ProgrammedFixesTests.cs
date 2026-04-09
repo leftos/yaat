@@ -192,7 +192,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -205,7 +205,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -221,7 +221,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("GROVE", 37.78, -122.35)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -234,7 +234,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new ForceDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -247,7 +247,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -262,7 +262,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -275,7 +275,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: false);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.True(result.Success);
     }
@@ -288,7 +288,7 @@ public class ProgrammedFixesTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8), new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("RANDOM", result.Message);

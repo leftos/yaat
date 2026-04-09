@@ -50,7 +50,7 @@ public class PhaseTransparentCommandTests
     private static CommandResult DispatchSingle(AircraftState ac, ParsedCommand cmd)
     {
         var compound = new CompoundCommand([new ParsedBlock(null, [cmd])]);
-        return CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), false);
+        return CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class PhaseTransparentCommandTests
             new ParsedBlock(null, [new SquawkCommand(1234u)]),
             new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(360))]),
         ]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
         Assert.Equal(1234u, ac.BeaconCode);
@@ -154,7 +154,7 @@ public class PhaseTransparentCommandTests
 
         // SQ 1234, ID — both transparent, phases should survive
         var compound = new CompoundCommand([new ParsedBlock(null, [new SquawkCommand(1234u), new IdentCommand()])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
         Assert.Equal(1234u, ac.BeaconCode);

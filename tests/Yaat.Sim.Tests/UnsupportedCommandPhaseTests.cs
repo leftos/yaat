@@ -55,7 +55,7 @@ public class UnsupportedCommandPhaseTests
         // Dispatch an UnsupportedCommand (what "PS 0.5M" parses to)
         var unsupported = new UnsupportedCommand("PS 0.5M");
         var compound = new CompoundCommand([new ParsedBlock(null, [unsupported])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.False(result.Success);
         Assert.Contains("not yet supported", result.Message!);
@@ -74,7 +74,7 @@ public class UnsupportedCommandPhaseTests
         // A real heading command should clear phases (by design)
         var heading = new FlyHeadingCommand(new MagneticHeading(360));
         var compound = new CompoundCommand([new ParsedBlock(null, [heading])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), false);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
         Assert.Null(ac.Phases);
