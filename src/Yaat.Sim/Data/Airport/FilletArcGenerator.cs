@@ -212,6 +212,13 @@ public static class FilletArcGenerator
                 var (edgeA, otherA, bearingA) = edgeBearings[i];
                 var (edgeB, otherB, bearingB) = edgeBearings[j];
 
+                // Skip pairs where both edges go to the same node — they're overlapping
+                // edges (e.g., B and B5 sharing the same physical segment), not a real turn.
+                if (otherA.Id == otherB.Id)
+                {
+                    continue;
+                }
+
                 double turnAngle = ComputeTurnAngle(bearingA, bearingB);
 
                 if (turnAngle < CollinearThresholdDeg)
