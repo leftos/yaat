@@ -180,6 +180,15 @@ public static class CommandDescriber
             InitiateHandoffAllCommand => CanonicalCommandType.InitiateHandoffAll,
             PointOutCommand => CanonicalCommandType.PointOut,
             AcknowledgeCommand => CanonicalCommandType.Acknowledge,
+            RejectPointoutCommand => CanonicalCommandType.RejectPointout,
+            RetractPointoutCommand => CanonicalCommandType.RetractPointout,
+            AcknowledgeConflictAlertCommand => CanonicalCommandType.AcknowledgeConflictAlert,
+            InhibitConflictAlertCommand => CanonicalCommandType.InhibitConflictAlert,
+            PilotReportedAltitudeCommand => CanonicalCommandType.PilotReportedAltitude,
+            LeaderDirectionCommand => CanonicalCommandType.LeaderDirection,
+            JRingCommand => CanonicalCommandType.JRing,
+            ConeCommand => CanonicalCommandType.Cone,
+            GhostTrackCommand => CanonicalCommandType.GhostTrack,
             // Coordination commands — routed by RoomEngine before reaching dispatcher
             CoordinationReleaseCommand => CanonicalCommandType.CoordinationRelease,
             CoordinationHoldCommand => CanonicalCommandType.CoordinationHold,
@@ -732,6 +741,15 @@ public static class CommandDescriber
                 or CanonicalCommandType.Scratchpad1
                 or CanonicalCommandType.Scratchpad2
                 or CanonicalCommandType.TemporaryAltitude
+                or CanonicalCommandType.RejectPointout
+                or CanonicalCommandType.RetractPointout
+                or CanonicalCommandType.AcknowledgeConflictAlert
+                or CanonicalCommandType.InhibitConflictAlert
+                or CanonicalCommandType.PilotReportedAltitude
+                or CanonicalCommandType.LeaderDirection
+                or CanonicalCommandType.JRing
+                or CanonicalCommandType.Cone
+                or CanonicalCommandType.GhostTrack
                 or CanonicalCommandType.Consolidate
                 or CanonicalCommandType.ConsolidateFull
                 or CanonicalCommandType.Deconsolidate

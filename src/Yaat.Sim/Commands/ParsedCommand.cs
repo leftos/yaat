@@ -403,6 +403,24 @@ public record PointOutCommand(string? TcpCode = null) : ParsedCommand;
 
 public record AcknowledgeCommand : ParsedCommand;
 
+public record RejectPointoutCommand : ParsedCommand;
+
+public record RetractPointoutCommand : ParsedCommand;
+
+public record AcknowledgeConflictAlertCommand : ParsedCommand;
+
+public record InhibitConflictAlertCommand : ParsedCommand;
+
+public record PilotReportedAltitudeCommand(int AltitudeHundreds) : ParsedCommand;
+
+public record LeaderDirectionCommand(int Direction) : ParsedCommand;
+
+public record JRingCommand(bool Enable) : ParsedCommand;
+
+public record ConeCommand(bool Enable) : ParsedCommand;
+
+public record GhostTrackCommand(string? AirportCode, string RunwayId) : ParsedCommand;
+
 public record StripAnnotateCommand(int Box, string? Text) : ParsedCommand;
 
 public record StripPushCommand(string BayName) : ParsedCommand;

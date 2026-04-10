@@ -140,7 +140,7 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 
 ```
 # Core
-AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops, visual approach state, pattern overrides
+AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops, visual approach state, pattern overrides, ghost track fields (GhostAirportId/GhostRunwayId)
                                # GroundLayout is [JsonIgnore]; GroundLayoutAirportId preserves reference for archive restore
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
@@ -226,6 +226,9 @@ Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaini
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
 Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution, CancelTakeoff, ClearedTakeoffPresent (CTOPP)
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
+Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
+                                    # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
+                                    # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry
 
 # Phases/ — clearance-gated behavior

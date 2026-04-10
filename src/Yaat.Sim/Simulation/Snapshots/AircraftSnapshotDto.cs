@@ -123,6 +123,8 @@ public sealed class AircraftSnapshotDto
     public required bool IsUnsupported { get; init; }
     public double? UnsupportedLatitude { get; init; }
     public double? UnsupportedLongitude { get; init; }
+    public string? GhostAirportId { get; init; }
+    public string? GhostRunwayId { get; init; }
 
     // Conflict alert / display inhibitions
     public required bool IsCaInhibited { get; init; }

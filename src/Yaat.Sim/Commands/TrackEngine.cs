@@ -35,6 +35,15 @@ public static class TrackEngine
                 or CancelHandoffCommand
                 or PointOutCommand
                 or AcknowledgeCommand
+                or RejectPointoutCommand
+                or RetractPointoutCommand
+                or AcknowledgeConflictAlertCommand
+                or InhibitConflictAlertCommand
+                or PilotReportedAltitudeCommand
+                or LeaderDirectionCommand
+                or JRingCommand
+                or ConeCommand
+                or GhostTrackCommand
                 or Scratchpad1Command
                 or Scratchpad2Command
                 or TemporaryAltitudeCommand
@@ -238,5 +247,72 @@ public static class TrackEngine
         ac.OnHandoff = !ac.OnHandoff;
         var state = ac.OnHandoff ? "on" : "off";
         return new CommandResult(true, $"On-handoff {state} for {ac.Callsign}");
+    }
+
+    public static CommandResult HandleRejectPointout(AircraftState ac, TrackOwner identity)
+    {
+        if (ac.Pointout is null || !ac.Pointout.IsPending)
+        {
+            return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
+        }
+
+        if (ac.Pointout.Recipient.ToString() != $"{identity.Subset}{identity.SectorId}")
+        {
+            return new CommandResult(false, "Pointout not directed at you");
+        }
+
+        ac.Pointout.Status = StarsPointoutStatus.Rejected;
+        return new CommandResult(true, $"Rejected pointout for {ac.Callsign}");
+    }
+
+    public static CommandResult HandleRetractPointout(AircraftState ac, TrackOwner identity)
+    {
+        if (ac.Pointout is not { IsPending: true })
+        {
+            return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
+        }
+
+        var tcpStr = $"{identity.Subset}{identity.SectorId}";
+        if (ac.Pointout.Sender.ToString() != tcpStr)
+        {
+            return new CommandResult(false, "You are not the pointout sender");
+        }
+
+        ac.Pointout = null;
+        return new CommandResult(true, $"Retracted pointout for {ac.Callsign}");
+    }
+
+    public static CommandResult HandlePilotReportedAltitude(AircraftState ac, int altHundreds)
+    {
+        ac.PilotReportedAltitude = altHundreds == 0 ? null : altHundreds;
+        return new CommandResult(true, $"Pilot reported altitude: {(altHundreds == 0 ? "cleared" : $"{altHundreds * 100}")}");
+    }
+
+    public static CommandResult HandleInhibitConflictAlert(AircraftState ac)
+    {
+        ac.IsCaInhibited = !ac.IsCaInhibited;
+        var state = ac.IsCaInhibited ? "inhibited" : "enabled";
+        return new CommandResult(true, $"Conflict alert {state} for {ac.Callsign}");
+    }
+
+    public static CommandResult HandleLeaderDirection(AircraftState ac, int direction)
+    {
+        ac.GlobalLeaderDirection = direction == 5 ? null : direction;
+        return new CommandResult(true, $"Leader direction: {(direction == 5 ? "default" : $"{direction}")}");
+    }
+
+    private const int TpaJRing = 1;
+    private const int TpaCone = 2;
+
+    public static CommandResult HandleJRing(AircraftState ac, bool enable)
+    {
+        ac.TpaType = enable ? TpaJRing : null;
+        return new CommandResult(true, $"J-Ring {(enable ? "on" : "off")} for {ac.Callsign}");
+    }
+
+    public static CommandResult HandleCone(AircraftState ac, bool enable)
+    {
+        ac.TpaType = enable ? TpaCone : null;
+        return new CommandResult(true, $"Cone {(enable ? "on" : "off")} for {ac.Callsign}");
     }
 }

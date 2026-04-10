@@ -696,6 +696,20 @@ public static class CommandParser
             InitiateHandoffAll => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
             PointOut => PR.Ok(new PointOutCommand(arg?.Trim().ToUpperInvariant())),
             Acknowledge when arg is null => PR.Ok(new AcknowledgeCommand()),
+            RejectPointout when arg is null => PR.Ok(new RejectPointoutCommand()),
+            RetractPointout when arg is null => PR.Ok(new RetractPointoutCommand()),
+            AcknowledgeConflictAlert when arg is null => PR.Ok(new AcknowledgeConflictAlertCommand()),
+            InhibitConflictAlert when arg is null => PR.Ok(new InhibitConflictAlertCommand()),
+            PilotReportedAltitude => ParseAltitudeHundreds(arg, h => new PilotReportedAltitudeCommand(h)),
+            LeaderDirection when arg is not null && int.TryParse(arg.Trim(), out var ldr) && ldr >= 1 && ldr <= 9 => PR.Ok(
+                new LeaderDirectionCommand(ldr)
+            ),
+            LeaderDirection => PR.Fail("leader direction must be 1-9"),
+            JRing when arg is null => PR.Ok(new JRingCommand(false)),
+            JRing => PR.Ok(new JRingCommand(true)),
+            Cone when arg is null => PR.Ok(new ConeCommand(false)),
+            Cone => PR.Ok(new ConeCommand(true)),
+            GhostTrack when arg is not null => ParseGhostTrackArg(arg),
             // Data operations
             Annotate when arg is not null => ParseStripAnnotate(arg),
             StripPush when arg is not null => PR.Ok(new StripPushCommand(arg.Trim().ToUpperInvariant())),
@@ -943,6 +957,20 @@ public static class CommandParser
         }
 
         return PR.Ok(factory(value));
+    }
+
+    private static PR ParseGhostTrackArg(string arg)
+    {
+        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return parts.Length switch
+        {
+            // GHOST 28R (airport implied from scenario)
+            1 => PR.Ok(new GhostTrackCommand(null, parts[0].ToUpperInvariant())),
+            // GHOST KOAK 28R
+            2 => PR.Ok(new GhostTrackCommand(parts[0].ToUpperInvariant(), parts[1].ToUpperInvariant())),
+            _ => PR.Fail("GHOST requires [airport] runway (e.g. GHOST 28R or GHOST KOAK 28R)"),
+        };
     }
 
     /// <summary>

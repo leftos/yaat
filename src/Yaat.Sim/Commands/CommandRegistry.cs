@@ -724,6 +724,46 @@ public static class CommandRegistry
                 [O(null, [], "Point out"), O("Position", [R("position", "position ID")], "Point out to position")]
             ),
             Bare(Acknowledge, "Acknowledge", "Track Operations", false, ["OK"]),
+            Bare(RejectPointout, "Reject Pointout", "Track Operations", false, ["PORJ"]),
+            Bare(RetractPointout, "Retract Pointout", "Track Operations", false, ["PORT"]),
+            Bare(AcknowledgeConflictAlert, "Acknowledge Conflict Alert", "Track Operations", false, ["CAACK"]),
+            Bare(InhibitConflictAlert, "Inhibit Conflict Alert", "Track Operations", false, ["CAINH", "CAI"]),
+            Cmd(
+                PilotReportedAltitude,
+                "Pilot Reported Altitude",
+                "Data Operations",
+                false,
+                ["PRA"],
+                [O(null, [R("altitude", "altitude in hundreds (0 = clear)")], "Set pilot reported altitude")]
+            ),
+            Cmd(
+                LeaderDirection,
+                "Leader Direction",
+                "Display Operations",
+                false,
+                ["LDR"],
+                [O(null, [R("direction", "1-9 (5 = default)")], "Set leader line direction")]
+            ),
+            Cmd(
+                JRing,
+                "J-Ring",
+                "Display Operations",
+                false,
+                ["JRING"],
+                [O(null, [], "Clear J-Ring"), O(null, [R("radius", "radius")], "Set J-Ring")]
+            ),
+            Cmd(Cone, "Cone", "Display Operations", false, ["CONE"], [O(null, [], "Clear cone"), O(null, [R("radius", "radius")], "Set cone")]),
+            Cmd(
+                GhostTrack,
+                "Ghost Track",
+                "Track Operations",
+                false,
+                ["GHOST"],
+                [
+                    O(null, [R("runway", "runway designator")], "Create ghost track off runway (scenario airport)"),
+                    O("Airport", [R("airport", "airport ICAO"), R("runway", "runway designator")], "Create ghost track off runway at airport"),
+                ]
+            ),
         ];
 
     private static CommandDefinition[] DataCommands() =>

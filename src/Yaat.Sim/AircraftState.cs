@@ -260,6 +260,10 @@ public class AircraftState
     public double? UnsupportedLatitude { get; set; }
     public double? UnsupportedLongitude { get; set; }
 
+    // Ghost track runway association (for stagger ordering)
+    public string? GhostAirportId { get; set; }
+    public string? GhostRunwayId { get; set; }
+
     // Conflict alert
     public bool IsCaInhibited { get; set; }
 
@@ -375,6 +379,8 @@ public class AircraftState
             IsUnsupported = dto.IsUnsupported,
             UnsupportedLatitude = dto.UnsupportedLatitude,
             UnsupportedLongitude = dto.UnsupportedLongitude,
+            GhostAirportId = dto.GhostAirportId,
+            GhostRunwayId = dto.GhostRunwayId,
             IsCaInhibited = dto.IsCaInhibited,
             IsModeCInhibited = dto.IsModeCInhibited,
             IsMsawInhibited = dto.IsMsawInhibited,
@@ -518,6 +524,8 @@ public class AircraftState
             IsUnsupported = IsUnsupported,
             UnsupportedLatitude = UnsupportedLatitude,
             UnsupportedLongitude = UnsupportedLongitude,
+            GhostAirportId = GhostAirportId,
+            GhostRunwayId = GhostRunwayId,
             IsCaInhibited = IsCaInhibited,
             IsModeCInhibited = IsModeCInhibited,
             IsMsawInhibited = IsMsawInhibited,
