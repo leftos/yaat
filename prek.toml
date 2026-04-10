@@ -9,7 +9,10 @@ hooks = [
     { id = "end-of-file-fixer" },
     { id = "check-merge-conflict" },
     { id = "detect-private-key", exclude = "tools/discord-bot/" },
-    { id = "check-added-large-files", args = ["--maxkb=1024"] },
+    # 8 MB ceiling: accommodates recording bundles that include snapshots for hybrid-replay
+    # tests (RecordingArchive.ReadSnapshotAt). Bundles that only need command replay can be
+    # stripped to a few KB, but tests that exercise snapshot restore must keep them inline.
+    { id = "check-added-large-files", args = ["--maxkb=8192"] },
 ]
 
 [[repos]]
