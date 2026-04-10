@@ -190,8 +190,16 @@ public static class FilletArcGenerator
         // gets only one tangent point — the one closest to the intersection (largest
         // tangent distance wins because the radius is largest).
 
-        // Maps edge → (tangent lat, tangent lon, tangent distance from intersection)
-        var edgeTangentSpecs = new Dictionary<GroundEdge, (double Lat, double Lon, double TangentDistNm)>();
+        // Pre-compute taxiway walks per edge: how far along the taxiway chain we can
+        // extend if the first edge is too short for the desired tangent distance.
+        var edgeWalks = new Dictionary<GroundEdge, TaxiwayWalkResult>();
+        foreach (var (edge, _, _) in edgeBearings)
+        {
+            edgeWalks[edge] = WalkTaxiway(edge, intersection);
+        }
+
+        // Maps edge → tangent placement (position, distance, walk consumption info)
+        var edgeTangentSpecs = new Dictionary<GroundEdge, TangentPlacement>();
 
         // Planned arcs and collinear merges
         var plannedArcs = new List<(GroundEdge EdgeA, GroundEdge EdgeB, double RadiusFt, double TurnAngleDeg)>();
@@ -224,19 +232,19 @@ public static class FilletArcGenerator
                     double halfAngleRad = (turnAngle / 2.0) * (Math.PI / 180.0);
                     double tanHalf = Math.Tan(halfAngleRad);
 
-                    // Compute edge lengths from intersection to the other endpoint.
-                    // Cap at half the edge length when the other end is also an eligible
-                    // intersection — reserves the other half for the neighbor's fillet.
-                    double edgeALenFt =
-                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude) * GeoMath.FeetPerNm;
-                    double edgeBLenFt =
-                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude) * GeoMath.FeetPerNm;
-                    // Only cap for original intersections, not tangent nodes from prior fillets
-                    // (tangent nodes have SourceIntersectionPosition set — their side is already claimed).
-                    bool capA = IsEligibleForFilleting(otherA) && (otherA.SourceIntersectionPosition is null);
-                    bool capB = IsEligibleForFilleting(otherB) && (otherB.SourceIntersectionPosition is null);
-                    double maxTangentAFt = capA ? edgeALenFt / 2.0 : edgeALenFt;
-                    double maxTangentBFt = capB ? edgeBLenFt / 2.0 : edgeBLenFt;
+                    // Use taxiway walk lengths: short first edges no longer constrain the
+                    // radius — the tangent can walk along the taxiway chain to fit.
+                    var walkA = edgeWalks[edgeA];
+                    var walkB = edgeWalks[edgeB];
+                    double availableAFt = walkA.AvailableLengthFt;
+                    double availableBFt = walkB.AvailableLengthFt;
+
+                    // Cap at half the walked length when the terminal node is an original
+                    // intersection eligible for filleting — reserves the other half.
+                    bool capA = IsEligibleForFilleting(walkA.TerminalNode) && (walkA.TerminalNode.SourceIntersectionPosition is null);
+                    bool capB = IsEligibleForFilleting(walkB.TerminalNode) && (walkB.TerminalNode.SourceIntersectionPosition is null);
+                    double maxTangentAFt = capA ? availableAFt / 2.0 : availableAFt;
+                    double maxTangentBFt = capB ? availableBFt / 2.0 : availableBFt;
 
                     // Max radius that fits both edges: R = maxTangent / tan(θ/2)
                     double maxFitRadiusFt = Math.Min(maxTangentAFt, maxTangentBFt) / tanHalf;
@@ -249,15 +257,15 @@ public static class FilletArcGenerator
                     double tangentDistNm = tangentDistFt / GeoMath.FeetPerNm;
 
                     Log.LogDebug(
-                        "[Int#{IntId}] Pair {A}(→{OtherA}, {ALenFt:F0}ft)/{B}(→{OtherB}, {BLenFt:F0}ft): "
+                        "[Int#{IntId}] Pair {A}(→{OtherA}, avail={AAvail:F0}ft)/{B}(→{OtherB}, avail={BAvail:F0}ft): "
                             + "turn={Turn:F1}° radius={R:F0}ft(maxFit={MaxFit:F0}, maxType={MaxType:F0}) tangentDist={TD:F0}ft",
                         intersection.Id,
                         edgeA.TaxiwayName,
                         otherA.Id,
-                        edgeALenFt,
+                        availableAFt,
                         edgeB.TaxiwayName,
                         otherB.Id,
-                        edgeBLenFt,
+                        availableBFt,
                         turnAngle,
                         radiusFt,
                         maxFitRadiusFt,
@@ -266,9 +274,10 @@ public static class FilletArcGenerator
                     );
 
                     // Record tangent point for each edge — keep the one farthest from intersection
-                    // (largest tangent distance) so the arc radius is honored
-                    RecordTangentPoint(edgeTangentSpecs, edgeA, intersection, bearingA, tangentDistNm);
-                    RecordTangentPoint(edgeTangentSpecs, edgeB, intersection, bearingB, tangentDistNm);
+                    // (largest tangent distance) so the arc radius is honored.
+                    // Pass walk info so tangent can be placed beyond the first edge if needed.
+                    RecordTangentPoint(edgeTangentSpecs, edgeA, intersection, bearingA, tangentDistNm, walkA);
+                    RecordTangentPoint(edgeTangentSpecs, edgeB, intersection, bearingB, tangentDistNm, walkB);
 
                     plannedArcs.Add((edgeA, edgeB, radiusFt, turnAngle));
                 }
@@ -291,15 +300,15 @@ public static class FilletArcGenerator
 
         // --- Phase B: Create tangent-point nodes ---
         var edgeTangentNodes = new Dictionary<GroundEdge, GroundNode>();
-        foreach (var (edge, (lat, lon, _)) in edgeTangentSpecs)
+        foreach (var (edge, placement) in edgeTangentSpecs)
         {
             int id = nextNodeId++;
             var otherNode = edge.OtherNode(intersection);
             var node = new GroundNode
             {
                 Id = id,
-                Latitude = lat,
-                Longitude = lon,
+                Latitude = placement.Lat,
+                Longitude = placement.Lon,
                 Type = GroundNodeType.TaxiwayIntersection,
                 SourceIntersectionPosition = (intersection.Latitude, intersection.Longitude),
                 Origin = $"Fillet:tangent-node@{intersection.Id} on-{edge.TaxiwayName}(→{otherNode.Id})",
@@ -313,7 +322,7 @@ public static class FilletArcGenerator
                 id,
                 edge.TaxiwayName,
                 otherNode.Id,
-                edgeTangentSpecs[edge].TangentDistNm * GeoMath.FeetPerNm
+                placement.TangentDistNm * GeoMath.FeetPerNm
             );
         }
 
@@ -352,12 +361,14 @@ public static class FilletArcGenerator
             double depthA = kappa * edgeTangentSpecs[edgeA].TangentDistNm;
             double depthB = kappa * edgeTangentSpecs[edgeB].TangentDistNm;
 
-            // P1: from tanNodeA toward intersection (reverse of edge bearing from intersection)
-            double bearingAToIntersection = (bearingA + 180.0) % 360.0;
+            // P1: from tanNodeA toward intersection. When the tangent walked past
+            // a curve, use the bearing at the tangent's actual position instead of
+            // the initial bearing from the intersection.
+            double bearingAToIntersection = edgeTangentSpecs[edgeA].BearingTowardIntersectionDeg ?? (bearingA + 180.0) % 360.0;
             var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanNodeA.Latitude, tanNodeA.Longitude, bearingAToIntersection, depthA);
 
             // P2: from tanNodeB toward intersection
-            double bearingBToIntersection = (bearingB + 180.0) % 360.0;
+            double bearingBToIntersection = edgeTangentSpecs[edgeB].BearingTowardIntersectionDeg ?? (bearingB + 180.0) % 360.0;
             var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanNodeB.Latitude, tanNodeB.Longitude, bearingBToIntersection, depthB);
 
             var bezier = new CubicBezier(tanNodeA.Latitude, tanNodeA.Longitude, p1Lat, p1Lon, p2Lat, p2Lon, tanNodeB.Latitude, tanNodeB.Longitude);
@@ -395,9 +406,11 @@ public static class FilletArcGenerator
 
         var consumedEdges = new HashSet<GroundEdge>();
 
-        // Shorten edges that have tangent points
+        // Shorten edges that have tangent points. When the tangent walked beyond the
+        // first edge, consume the walked-through edges and connect from the far node.
         foreach (var (edge, tangentNode) in edgeTangentNodes)
         {
+            var placement = edgeTangentSpecs[edge];
             var otherNode = edge.OtherNode(intersection);
 
             // After merging, the tangent node might be the same as the other endpoint
@@ -408,14 +421,28 @@ public static class FilletArcGenerator
                 continue;
             }
 
-            double newDist = GeoMath.DistanceNm(otherNode.Latitude, otherNode.Longitude, tangentNode.Latitude, tangentNode.Longitude);
+            // Consume walked-through edges and remove orphaned shape-point nodes
+            foreach (var walkedEdge in placement.WalkedEdges)
+            {
+                consumedEdges.Add(walkedEdge);
+            }
+            foreach (var shapeNode in placement.WalkedShapeNodes)
+            {
+                layout.Nodes.Remove(shapeNode.Id);
+            }
+
+            // The far-side connection: if we walked, use the walk's known far node;
+            // otherwise connect from the original otherNode.
+            var farNode = placement.WalkFarNode ?? otherNode;
+
+            double newDist = GeoMath.DistanceNm(farNode.Latitude, farNode.Longitude, tangentNode.Latitude, tangentNode.Longitude);
 
             if (newDist * GeoMath.FeetPerNm < 1.0)
             {
                 Log.LogDebug(
                     "Fillet: near-zero shortened edge {Taxiway} ({NodeA}->{NodeB}) is {DistFt:F1}ft at intersection {IntId}",
                     edge.TaxiwayName,
-                    otherNode.Id,
+                    farNode.Id,
                     tangentNode.Id,
                     newDist * GeoMath.FeetPerNm,
                     intersection.Id
@@ -423,23 +450,52 @@ public static class FilletArcGenerator
             }
 
             Log.LogDebug(
-                "[Int#{IntId}] Phase D shorten: {Tw} #{Other}↔#{Tan} ({DistFt:F0}ft)",
+                "[Int#{IntId}] Phase D shorten: {Tw} #{Far}↔#{Tan} ({DistFt:F0}ft){Walk}",
                 intersection.Id,
                 edge.TaxiwayName,
-                otherNode.Id,
+                farNode.Id,
                 tangentNode.Id,
-                newDist * GeoMath.FeetPerNm
+                newDist * GeoMath.FeetPerNm,
+                placement.WalkedEdges.Count > 0 ? $" [walked {placement.WalkedEdges.Count} extra edges]" : ""
             );
 
             layout.Edges.Add(
                 new GroundEdge
                 {
-                    Nodes = [otherNode, tangentNode],
+                    Nodes = [farNode, tangentNode],
                     TaxiwayName = edge.TaxiwayName,
                     DistanceNm = newDist,
-                    Origin = $"Fillet:phase-d-shorten@{intersection.Id} {edge.TaxiwayName} #{otherNode.Id}↔#{tangentNode.Id}",
+                    Origin = $"Fillet:phase-d-shorten@{intersection.Id} {edge.TaxiwayName} #{farNode.Id}↔#{tangentNode.Id}",
                 }
             );
+
+            // Reconnect pass-through junction nodes (+ intersections with other-taxiway
+            // edges that the walk passed through). Connect to both the tangent node
+            // (intersection side) and the far node (continuation side).
+            foreach (var ptNode in placement.PassthroughNodes)
+            {
+                double ptToTanDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, tangentNode.Latitude, tangentNode.Longitude);
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [ptNode, tangentNode],
+                        TaxiwayName = edge.TaxiwayName,
+                        DistanceNm = ptToTanDist,
+                        Origin = $"Fillet:phase-d-passthrough@{intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{tangentNode.Id}",
+                    }
+                );
+                double ptToFarDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farNode.Latitude, farNode.Longitude);
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [ptNode, farNode],
+                        TaxiwayName = edge.TaxiwayName,
+                        DistanceNm = ptToFarDist,
+                        Origin = $"Fillet:phase-d-passthrough@{intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farNode.Id}",
+                    }
+                );
+            }
+
             consumedEdges.Add(edge);
         }
 
@@ -937,11 +993,12 @@ public static class FilletArcGenerator
     }
 
     private static void RecordTangentPoint(
-        Dictionary<GroundEdge, (double Lat, double Lon, double TangentDistNm)> specs,
+        Dictionary<GroundEdge, TangentPlacement> specs,
         GroundEdge edge,
         GroundNode intersection,
         double bearing,
-        double tangentDistNm
+        double tangentDistNm,
+        TaxiwayWalkResult walk
     )
     {
         double tangentDistFt = tangentDistNm * GeoMath.FeetPerNm;
@@ -962,8 +1019,44 @@ public static class FilletArcGenerator
         }
 
         bool replaced = specs.ContainsKey(edge);
-        var (lat, lon) = GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bearing, tangentDistNm);
-        specs[edge] = (lat, lon, tangentDistNm);
+        double firstEdgeFt = walk.Steps[0].CumulativeDistFt;
+
+        double lat;
+        double lon;
+        double? bearingAtTangent;
+        List<GroundEdge> walkedEdges;
+        List<GroundNode> walkedShapeNodes;
+        List<GroundNode> passthroughNodes;
+        GroundNode? walkFarNode;
+
+        if (tangentDistFt <= firstEdgeFt)
+        {
+            (lat, lon) = GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bearing, tangentDistNm);
+            bearingAtTangent = null;
+            walkedEdges = [];
+            walkedShapeNodes = [];
+            passthroughNodes = [];
+            walkFarNode = null;
+        }
+        else
+        {
+            (lat, lon, double walkBearing, walkedEdges, walkedShapeNodes, passthroughNodes, walkFarNode) = InterpolateAlongWalk(
+                walk,
+                intersection,
+                tangentDistFt
+            );
+            bearingAtTangent = walkBearing;
+            Log.LogDebug(
+                "[Int#{IntId}]   TangentPoint on {Tw}(→{Other}): walked {WalkEdges} extra edges past first ({FirstFt:F0}ft)",
+                intersection.Id,
+                edge.TaxiwayName,
+                edge.OtherNode(intersection).Id,
+                walkedEdges.Count,
+                firstEdgeFt
+            );
+        }
+
+        specs[edge] = new TangentPlacement(lat, lon, tangentDistNm, bearingAtTangent, walkedEdges, walkedShapeNodes, passthroughNodes, walkFarNode);
 
         Log.LogDebug(
             "[Int#{IntId}]   TangentPoint on {Tw}(→{Other}): {Action} at {Dist:F0}ft, bearing={Brg:F1}°",
@@ -1052,5 +1145,131 @@ public static class FilletArcGenerator
         }
 
         return DefaultRadiusFt;
+    }
+
+    private record TangentPlacement(
+        double Lat,
+        double Lon,
+        double TangentDistNm,
+        double? BearingTowardIntersectionDeg,
+        List<GroundEdge> WalkedEdges,
+        List<GroundNode> WalkedShapeNodes,
+        List<GroundNode> PassthroughNodes,
+        GroundNode? WalkFarNode
+    );
+
+    private record TaxiwayWalkResult(double AvailableLengthFt, GroundNode TerminalNode, List<TaxiwayWalkStep> Steps);
+
+    private record TaxiwayWalkStep(GroundEdge Edge, GroundNode FarNode, double CumulativeDistFt, bool HasOtherTaxiways);
+
+    /// <summary>
+    /// Walk along a taxiway chain from an intersection, following same-taxiway edges
+    /// through shape-point nodes. Stops at real junctions (multiple same-taxiway
+    /// continuations), non-intersection nodes, or dead ends.
+    /// </summary>
+    private static TaxiwayWalkResult WalkTaxiway(GroundEdge startEdge, GroundNode intersection)
+    {
+        var otherNode = startEdge.OtherNode(intersection);
+        double firstEdgeFt =
+            GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude) * GeoMath.FeetPerNm;
+
+        bool hasOtherTw = otherNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
+        var steps = new List<TaxiwayWalkStep> { new(startEdge, otherNode, firstEdgeFt, hasOtherTw) };
+
+        var currentNode = otherNode;
+        var prevEdge = startEdge;
+        double cumDist = firstEdgeFt;
+
+        while (true)
+        {
+            GroundEdge? continuation = null;
+            int count = 0;
+            foreach (var e in currentNode.Edges)
+            {
+                if ((e is GroundEdge ge) && (ge != prevEdge) && (ge.TaxiwayName == startEdge.TaxiwayName))
+                {
+                    continuation = ge;
+                    count++;
+                }
+            }
+
+            if ((count != 1) || (currentNode.Type != GroundNodeType.TaxiwayIntersection))
+            {
+                break;
+            }
+
+            var nextNode = continuation!.OtherNode(currentNode);
+            double edgeFt =
+                GeoMath.DistanceNm(currentNode.Latitude, currentNode.Longitude, nextNode.Latitude, nextNode.Longitude) * GeoMath.FeetPerNm;
+            cumDist += edgeFt;
+
+            bool nextHasOtherTw = nextNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
+            steps.Add(new TaxiwayWalkStep(continuation, nextNode, cumDist, nextHasOtherTw));
+
+            prevEdge = continuation;
+            currentNode = nextNode;
+        }
+
+        return new TaxiwayWalkResult(cumDist, currentNode, steps);
+    }
+
+    /// <summary>
+    /// Interpolate a position at the given distance along a taxiway walk chain.
+    /// Returns the position plus lists of fully consumed edges and pass-through junction nodes.
+    /// </summary>
+    private static (
+        double Lat,
+        double Lon,
+        double BearingTowardIntersectionDeg,
+        List<GroundEdge> ConsumedEdges,
+        List<GroundNode> ShapeNodes,
+        List<GroundNode> PassthroughNodes,
+        GroundNode FarNode
+    ) InterpolateAlongWalk(TaxiwayWalkResult walk, GroundNode intersection, double targetDistFt)
+    {
+        var consumed = new List<GroundEdge>();
+        var shapeNodes = new List<GroundNode>();
+        var passthrough = new List<GroundNode>();
+
+        for (int i = 0; i < walk.Steps.Count; i++)
+        {
+            var step = walk.Steps[i];
+            if (targetDistFt <= step.CumulativeDistFt)
+            {
+                double prevCum = i > 0 ? walk.Steps[i - 1].CumulativeDistFt : 0;
+                double edgeLen = step.CumulativeDistFt - prevCum;
+                double fraction = edgeLen > 0 ? (targetDistFt - prevCum) / edgeLen : 0;
+
+                var fromNode = i > 0 ? walk.Steps[i - 1].FarNode : intersection;
+                var toNode = step.FarNode;
+
+                double lat = fromNode.Latitude + (fraction * (toNode.Latitude - fromNode.Latitude));
+                double lon = fromNode.Longitude + (fraction * (toNode.Longitude - fromNode.Longitude));
+
+                // Bearing from tangent point back toward the intersection along the taxiway
+                double bearingToward = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, fromNode.Latitude, fromNode.Longitude);
+                return (lat, lon, bearingToward, consumed, shapeNodes, passthrough, toNode);
+            }
+
+            // Skip the starting edge (index 0) — it's consumed separately in Phase D.
+            // Only track edges beyond the first as walked-through extras.
+            if (i > 0)
+            {
+                consumed.Add(step.Edge);
+                if (step.HasOtherTaxiways)
+                {
+                    passthrough.Add(step.FarNode);
+                }
+                else
+                {
+                    shapeNodes.Add(step.FarNode);
+                }
+            }
+        }
+
+        var terminal = walk.Steps[^1].FarNode;
+        var prevNode = walk.Steps.Count > 1 ? walk.Steps[^2].FarNode : intersection;
+        double termBearing = GeoMath.BearingTo(terminal.Latitude, terminal.Longitude, prevNode.Latitude, prevNode.Longitude);
+        return (terminal.Latitude, terminal.Longitude, termBearing, consumed, shapeNodes, passthrough, terminal);
     }
 }
