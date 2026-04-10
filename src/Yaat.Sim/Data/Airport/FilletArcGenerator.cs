@@ -385,6 +385,7 @@ public static class FilletArcGenerator
         //   (c) Neither (orphan) → reconnect to nearest tangent node
 
         var consumedEdges = new HashSet<GroundEdge>();
+        var deferredShapeNodes = new List<GroundNode>();
 
         // Shorten edges that have tangent points. Per-pair tangents mean an edge can
         // have multiple tangent nodes at different distances. Sort by distance (farthest
@@ -437,13 +438,7 @@ public static class FilletArcGenerator
                 {
                     consumedEdges.Add(walkedEdge);
                 }
-                foreach (var shapeNode in farthest.Placement.WalkedShapeNodes)
-                {
-                    int shapeId = shapeNode.Id;
-                    int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == shapeId) || (e.Nodes[1].Id == shapeId));
-                    int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == shapeId) || (a.Nodes[1].Id == shapeId));
-                    layout.Nodes.Remove(shapeId);
-                }
+                deferredShapeNodes.AddRange(farthest.Placement.WalkedShapeNodes);
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
                 {
                     double ptToTanDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
@@ -491,24 +486,7 @@ public static class FilletArcGenerator
                 {
                     consumedEdges.Add(walkedEdge);
                 }
-                foreach (var shapeNode in farthest.Placement.WalkedShapeNodes)
-                {
-                    int shapeId = shapeNode.Id;
-                    int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == shapeId) || (e.Nodes[1].Id == shapeId));
-                    int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == shapeId) || (a.Nodes[1].Id == shapeId));
-                    layout.Nodes.Remove(shapeId);
-                    if ((removedEdges > 0) || (removedArcs > 0))
-                    {
-                        Log.LogDebug(
-                            "[Int#{IntId}] Walk cleanup: removed node #{ShapeId} ({Type}), purged {Edges} edge(s) and {Arcs} arc(s)",
-                            intersection.Id,
-                            shapeId,
-                            shapeNode.Type,
-                            removedEdges,
-                            removedArcs
-                        );
-                    }
-                }
+                deferredShapeNodes.AddRange(farthest.Placement.WalkedShapeNodes);
 
                 var farNode = farthest.Placement.WalkFarNode ?? otherNode;
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
@@ -695,7 +673,43 @@ public static class FilletArcGenerator
         }
 
         // Remove all original edges at this intersection
+        foreach (var ce in consumedEdges)
+        {
+            Log.LogDebug(
+                "[Int#{IntId}] Consuming edge {Tw}({A}↔{B}) origin={Origin}",
+                intersection.Id,
+                ce.TaxiwayName,
+                ce.Nodes[0].Id,
+                ce.Nodes[1].Id,
+                ce.Origin
+            );
+        }
         layout.Edges.RemoveAll(e => consumedEdges.Contains(e));
+
+        // Remove walked shape nodes. Deferred until after consumedEdges cleanup so
+        // we only remove nodes that truly have no remaining edges. Edges to surviving
+        // neighbors (not consumed by the walk) are left intact.
+        foreach (var shapeNode in deferredShapeNodes)
+        {
+            var remainingEdges = layout.Edges.Where(e => (e.Nodes[0].Id == shapeNode.Id) || (e.Nodes[1].Id == shapeNode.Id)).ToList();
+            var remainingArcs = layout.Arcs.Where(a => (a.Nodes[0].Id == shapeNode.Id) || (a.Nodes[1].Id == shapeNode.Id)).ToList();
+            if ((remainingEdges.Count == 0) && (remainingArcs.Count == 0))
+            {
+                layout.Nodes.Remove(shapeNode.Id);
+                Log.LogDebug("[Int#{IntId}] Removed shape node #{NodeId} (no remaining edges)", intersection.Id, shapeNode.Id);
+            }
+            else
+            {
+                Log.LogDebug(
+                    "[Int#{IntId}] Kept shape node #{NodeId} ({Edges} edges, {Arcs} arcs surviving: {Detail})",
+                    intersection.Id,
+                    shapeNode.Id,
+                    remainingEdges.Count,
+                    remainingArcs.Count,
+                    string.Join(", ", remainingEdges.Select(e => $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id})"))
+                );
+            }
+        }
 
         if (preserveNode)
         {
@@ -760,18 +774,33 @@ public static class FilletArcGenerator
             // may have created edges (shorten, passthrough, tangent-link) pointing to this
             // node, and original pre-fillet edges may have survived consumedEdges.
             int intId = intersection.Id;
-            int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == intId) || (e.Nodes[1].Id == intId));
-            int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == intId) || (a.Nodes[1].Id == intId));
-            layout.Nodes.Remove(intId);
-            if ((removedEdges > 0) || (removedArcs > 0))
+            var danglingEdges = layout.Edges.Where(e => (e.Nodes[0].Id == intId) || (e.Nodes[1].Id == intId)).ToList();
+            var danglingArcs = layout.Arcs.Where(a => (a.Nodes[0].Id == intId) || (a.Nodes[1].Id == intId)).ToList();
+            foreach (var de in danglingEdges)
             {
                 Log.LogDebug(
-                    "[Int#{IntId}] Node removal cleanup: purged {Edges} edge(s) and {Arcs} arc(s) referencing removed intersection",
+                    "[Int#{IntId}] Node removal purging edge {Tw}({A}↔{B}) origin={Origin}",
                     intId,
-                    removedEdges,
-                    removedArcs
+                    de.TaxiwayName,
+                    de.Nodes[0].Id,
+                    de.Nodes[1].Id,
+                    de.Origin
                 );
             }
+            foreach (var da in danglingArcs)
+            {
+                Log.LogDebug(
+                    "[Int#{IntId}] Node removal purging arc {Tw}({A}↔{B}) origin={Origin}",
+                    intId,
+                    da.TaxiwayName,
+                    da.Nodes[0].Id,
+                    da.Nodes[1].Id,
+                    da.Origin
+                );
+            }
+            layout.Edges.RemoveAll(e => (e.Nodes[0].Id == intId) || (e.Nodes[1].Id == intId));
+            layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == intId) || (a.Nodes[1].Id == intId));
+            layout.Nodes.Remove(intId);
         }
 
         return (true, arcsCreated, edgesMerged);
@@ -1477,6 +1506,25 @@ public static class FilletArcGenerator
                 enteredManualArc = true;
             }
 
+            // Step 0's FarNode sits between the starting edge and step 1's edge.
+            // When the walk continues past it (step 1+), both its edges get consumed
+            // (starting edge + step 1). Classify it so it gets cleaned up properly.
+            if ((i == 0) && (walk.Steps.Count > 1) && !step.IsManualArc)
+            {
+                bool step0Removable =
+                    !step.HasOtherTaxiways
+                    && (step.FarNode.Type == GroundNodeType.TaxiwayIntersection)
+                    && (step.FarNode.SourceIntersectionPosition is null);
+                if (step0Removable)
+                {
+                    shapeNodes.Add(step.FarNode);
+                }
+                else
+                {
+                    passthrough.Add(step.FarNode);
+                }
+            }
+
             if (targetDistFt <= step.CumulativeDistFt)
             {
                 double prevCum = i > 0 ? walk.Steps[i - 1].CumulativeDistFt : 0;
@@ -1513,6 +1561,16 @@ public static class FilletArcGenerator
                 }
 
                 consumed.Add(step.Edge);
+                Log.LogDebug(
+                    "  Walk step {I}: consumed edge {Tw}({A}↔{B}), farNode=#{Far} hasOtherTw={Other} isManualArc={Arc}",
+                    i,
+                    step.Edge.TaxiwayName,
+                    step.Edge.Nodes[0].Id,
+                    step.Edge.Nodes[1].Id,
+                    step.FarNode.Id,
+                    step.HasOtherTaxiways,
+                    step.IsManualArc
+                );
                 bool isRemovable =
                     !step.HasOtherTaxiways
                     && (step.FarNode.Type == GroundNodeType.TaxiwayIntersection)
@@ -1520,6 +1578,7 @@ public static class FilletArcGenerator
                 if (isRemovable)
                 {
                     shapeNodes.Add(step.FarNode);
+                    Log.LogDebug("  Walk step {I}: #{Far} classified as shape (removable)", i, step.FarNode.Id);
                 }
                 else
                 {
