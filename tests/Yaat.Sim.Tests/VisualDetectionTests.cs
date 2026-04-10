@@ -161,6 +161,108 @@ public class VisualDetectionTests
     }
 
     // -------------------------------------------------------------------------
+    // Multi-layer cloud obstruction
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CanSeeTraffic_ObstructingLayerBetween_False()
+    {
+        // Ownship 5000 MSL, target 8000 MSL, BKN at 6000 AGL (≈6009 MSL) → layer lies strictly between → fail MixedCeiling
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000);
+        var tgt = MakeAircraft(37.73, -122.221, heading: 180, altitude: 8000);
+        IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Broken, 6000)];
+        var result = VisualDetection.TryAcquireTraffic(own, tgt, layers, AptElev, 10.0, 0.0);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.MixedCeiling, result.Reason);
+        Assert.NotNull(result.BindingLayer);
+        Assert.Equal(MetarParser.CloudCover.Broken, result.BindingLayer.Cover);
+        Assert.Equal(6000, result.BindingLayer.BaseFeetAgl);
+    }
+
+    [Fact]
+    public void CanSeeTraffic_ScatteredLayerBetween_True()
+    {
+        // Same altitudes but SCT instead of BKN — scattered has gaps and should not obstruct
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000);
+        var tgt = MakeAircraft(37.73, -122.221, heading: 180, altitude: 8000);
+        IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Scattered, 6000)];
+        Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, layers, AptElev, 10.0, 0.0).Acquired);
+    }
+
+    [Fact]
+    public void CanSeeTraffic_BothBelowMultipleLayers_True()
+    {
+        // Both aircraft below SCT020 / BKN070 / OVC200 — all layers above both → visible
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 1500);
+        var tgt = MakeAircraft(37.73, -122.221, heading: 180, altitude: 1800);
+        IReadOnlyList<MetarParser.CloudLayer> layers =
+        [
+            new(MetarParser.CloudCover.Scattered, 2000),
+            new(MetarParser.CloudCover.Broken, 7000),
+            new(MetarParser.CloudCover.Overcast, 20000),
+        ];
+        Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, layers, AptElev, 10.0, 0.0).Acquired);
+    }
+
+    [Fact]
+    public void CanSeeTraffic_MixedAcrossHigherLayer_IgnoresLowerScattered()
+    {
+        // Ownship 5000, target 22000, layers SCT020 BKN070 OVC200. The BKN070
+        // (7000 AGL → ~7009 MSL) is strictly between them → fail, binding = BKN070.
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000);
+        var tgt = MakeAircraft(37.73, -122.221, heading: 180, altitude: 22000);
+        IReadOnlyList<MetarParser.CloudLayer> layers =
+        [
+            new(MetarParser.CloudCover.Scattered, 2000),
+            new(MetarParser.CloudCover.Broken, 7000),
+            new(MetarParser.CloudCover.Overcast, 20000),
+        ];
+        var result = VisualDetection.TryAcquireTraffic(own, tgt, layers, AptElev, 10.0, 0.0);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.MixedCeiling, result.Reason);
+        Assert.NotNull(result.BindingLayer);
+        Assert.Equal(7000, result.BindingLayer.BaseFeetAgl);
+    }
+
+    [Fact]
+    public void CanSeeAirport_BetweenTwoBknLayers_False()
+    {
+        // Aircraft at 10,000 MSL with BKN050 + OVC200 → above BKN050, binding = BKN050
+        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 10000);
+        IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Broken, 5000), new(MetarParser.CloudCover.Overcast, 20000)];
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.AboveCeiling, result.Reason);
+        Assert.NotNull(result.BindingLayer);
+        Assert.Equal(5000, result.BindingLayer.BaseFeetAgl);
+    }
+
+    [Fact]
+    public void CanSeeAirport_AboveHighOvc_WithLowerSctBelow_False()
+    {
+        // Regression: SCT020 (not a ceiling) + OVC150. Aircraft at 16,000 MSL is
+        // below FL180 so InClassA doesn't fire, but it's above the OVC150 layer →
+        // fail AboveCeiling with binding = OVC150. The scattered layer appears in
+        // Layers but is correctly ignored.
+        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 16000);
+        IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Overcast, 15000)];
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.AboveCeiling, result.Reason);
+        Assert.NotNull(result.BindingLayer);
+        Assert.Equal(MetarParser.CloudCover.Overcast, result.BindingLayer.Cover);
+        Assert.Equal(15000, result.BindingLayer.BaseFeetAgl);
+    }
+
+    [Fact]
+    public void CanSeeAirport_BelowAllLayers_True()
+    {
+        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 1500);
+        IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Broken, 7000)];
+        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0).Acquired);
+    }
+
+    // -------------------------------------------------------------------------
     // Bank angle occlusion
     // -------------------------------------------------------------------------
 

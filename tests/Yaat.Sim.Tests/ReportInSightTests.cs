@@ -86,7 +86,25 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.False(result.Success);
-        Assert.Contains("layer", result.Message, StringComparison.OrdinalIgnoreCase);
+        // Message should name the binding layer (OVC020) rather than say "the layer".
+        Assert.Contains("OVC020", result.Message);
+    }
+
+    [Fact]
+    public void Rfis_Fails_AboveHighOvc_WithLowerScattered_NamesHighLayer()
+    {
+        // Multi-layer regression: SCT020 (not a ceiling) over OVC150. Aircraft at
+        // 16,000 MSL is below FL180 but above the OVC at 15,000 AGL → fail with
+        // binding = OVC150. The scattered layer is present in Layers but does not
+        // mislead the check.
+        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 16000, destination: "KOAK");
+        var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM SCT020 OVC150 20/12 A2992"] };
+        var ctx = TestDispatch.Context(Random.Shared, weather: weather);
+
+        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+
+        Assert.False(result.Success);
+        Assert.Contains("OVC150", result.Message);
     }
 
     [Fact]
@@ -216,7 +234,9 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.False(result.Success);
-        Assert.Contains("cloud layer", result.Message, StringComparison.OrdinalIgnoreCase);
+        // Message should name the binding layer (OVC030) rather than just "cloud layer".
+        Assert.Contains("OVC030", result.Message);
+        Assert.Contains("between us", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     // -------------------------------------------------------------------------

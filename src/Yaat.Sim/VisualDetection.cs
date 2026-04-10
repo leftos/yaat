@@ -36,15 +36,27 @@ public enum VisualAcquisitionFailure
 /// <summary>
 /// Result of a visual acquisition attempt. Always carries the computed distance
 /// and the maximum range used for the distance check so failure messages can
-/// say "5 nm too far" instead of just "too far".
+/// say "5 nm too far" instead of just "too far". For <see cref="VisualAcquisitionFailure.AboveCeiling"/>
+/// and <see cref="VisualAcquisitionFailure.MixedCeiling"/> failures, <see cref="BindingLayer"/>
+/// identifies the specific BKN/OVC layer that blocked the view so messages can
+/// name it ("below BKN070" rather than "below the layer").
 /// </summary>
 public readonly record struct VisualAcquisitionResult(bool Acquired, VisualAcquisitionFailure Reason, double DistanceNm, double MaxRangeNm)
 {
+    public MetarParser.CloudLayer? BindingLayer { get; init; }
+
     public static VisualAcquisitionResult Success(double distanceNm, double maxRangeNm) =>
         new(true, VisualAcquisitionFailure.None, distanceNm, maxRangeNm);
 
     public static VisualAcquisitionResult Fail(VisualAcquisitionFailure reason, double distanceNm, double maxRangeNm) =>
         new(false, reason, distanceNm, maxRangeNm);
+
+    public static VisualAcquisitionResult FailLayer(
+        VisualAcquisitionFailure reason,
+        double distanceNm,
+        double maxRangeNm,
+        MetarParser.CloudLayer bindingLayer
+    ) => new(false, reason, distanceNm, maxRangeNm) { BindingLayer = bindingLayer };
 }
 
 /// <summary>
@@ -125,18 +137,12 @@ public static class VisualDetection
             maxRange = Math.Min(visibilitySm.Value * SmToNm, maxRange);
         }
 
-        // Both must be on same side of the lowest BKN/OVC layer (FEW/SCT ignored).
-        // C2 will replace this with a per-layer obstruction check.
-        int? lowestObstructingAgl = LowestObstructingLayerAgl(layers);
-        if (lowestObstructingAgl is not null)
+        // Any BKN/OVC layer whose base lies strictly between the two altitudes
+        // obstructs the line of sight. FEW/SCT have too many gaps to reliably block.
+        var obstructing = FindObstructingLayerBetween(ownship.Altitude, target.Altitude, airportElevation, layers);
+        if (obstructing is { } mixed)
         {
-            double ceilingMsl = lowestObstructingAgl.Value + airportElevation;
-            bool ownBelow = ownship.Altitude < ceilingMsl;
-            bool tgtBelow = target.Altitude < ceilingMsl;
-            if (ownBelow != tgtBelow)
-            {
-                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.MixedCeiling, distance, maxRange);
-            }
+            return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.MixedCeiling, distance, maxRange, mixed);
         }
 
         // Forward hemisphere check
@@ -224,16 +230,13 @@ public static class VisualDetection
             return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.InClassA, distance, maxRange);
         }
 
-        // Must be below the lowest BKN/OVC layer (FEW/SCT ignored).
-        // C2 will replace this with an "above any BKN/OVC" check that surfaces the binding layer.
-        int? lowestObstructingAgl = LowestObstructingLayerAgl(layers);
-        if (lowestObstructingAgl is not null)
+        // Aircraft must be below every BKN/OVC layer — if it's at or above any of
+        // them, the deck obstructs the view of the field. Surface the lowest such
+        // layer as the binding one so the failure message can name it.
+        var binding = FindBindingCeilingAbove(aircraft.Altitude, airportElevation, layers);
+        if (binding is { } above)
         {
-            double ceilingMsl = lowestObstructingAgl.Value + airportElevation;
-            if (aircraft.Altitude >= ceilingMsl)
-            {
-                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.AboveCeiling, distance, maxRange);
-            }
+            return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.AboveCeiling, distance, maxRange, above);
         }
 
         // Forward hemisphere check: bearing to airport within ±90° of heading
@@ -273,23 +276,79 @@ public static class VisualDetection
         return VisualAcquisitionResult.Success(distance, maxRange);
     }
 
-    private static int? LowestObstructingLayerAgl(IReadOnlyList<MetarParser.CloudLayer>? layers)
+    /// <summary>
+    /// Returns the lowest BKN/OVC layer whose base MSL lies strictly between the
+    /// two aircraft altitudes, i.e. one aircraft is below the layer and the other
+    /// is at or above it. Returns null if no obstructing layer separates them.
+    /// FEW and SCT layers are ignored — they have gaps and don't reliably block
+    /// the line of sight.
+    /// </summary>
+    public static MetarParser.CloudLayer? FindObstructingLayerBetween(
+        double altitudeMslA,
+        double altitudeMslB,
+        double airportElevation,
+        IReadOnlyList<MetarParser.CloudLayer>? layers
+    )
     {
         if (layers is null)
         {
             return null;
         }
-        int? lowest = null;
+        double low = Math.Min(altitudeMslA, altitudeMslB);
+        double high = Math.Max(altitudeMslA, altitudeMslB);
+        MetarParser.CloudLayer? binding = null;
         foreach (var layer in layers)
         {
-            if (layer.Cover is MetarParser.CloudCover.Broken or MetarParser.CloudCover.Overcast)
+            if (layer.Cover is not (MetarParser.CloudCover.Broken or MetarParser.CloudCover.Overcast))
             {
-                if (lowest is null || layer.BaseFeetAgl < lowest)
+                continue;
+            }
+            double baseMsl = layer.BaseFeetAgl + airportElevation;
+            // Strictly between: low aircraft is genuinely below the base, high aircraft
+            // is at or above it. Preserves the original "(A < base) != (B < base)" semantic.
+            if (low < baseMsl && baseMsl <= high)
+            {
+                if (binding is null || layer.BaseFeetAgl < binding.BaseFeetAgl)
                 {
-                    lowest = layer.BaseFeetAgl;
+                    binding = layer;
                 }
             }
         }
-        return lowest;
+        return binding;
+    }
+
+    /// <summary>
+    /// Returns the lowest BKN/OVC layer that the aircraft is at or above. Any such
+    /// layer blocks the view of the ground (and therefore the field) for an
+    /// observer above it. Returns null if the aircraft is below every BKN/OVC
+    /// layer — i.e. the view downward is clear.
+    /// </summary>
+    public static MetarParser.CloudLayer? FindBindingCeilingAbove(
+        double altitudeMsl,
+        double airportElevation,
+        IReadOnlyList<MetarParser.CloudLayer>? layers
+    )
+    {
+        if (layers is null)
+        {
+            return null;
+        }
+        MetarParser.CloudLayer? binding = null;
+        foreach (var layer in layers)
+        {
+            if (layer.Cover is not (MetarParser.CloudCover.Broken or MetarParser.CloudCover.Overcast))
+            {
+                continue;
+            }
+            double baseMsl = layer.BaseFeetAgl + airportElevation;
+            if (altitudeMsl >= baseMsl)
+            {
+                if (binding is null || layer.BaseFeetAgl < binding.BaseFeetAgl)
+                {
+                    binding = layer;
+                }
+            }
+        }
+        return binding;
     }
 }

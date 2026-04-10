@@ -73,6 +73,124 @@ public class MetarParserTests
         Assert.Equal(3500, result.CeilingFeetAgl);
     }
 
+    [Fact]
+    public void Parse_MultipleLayers_AllLayersRecorded()
+    {
+        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM SCT020 BKN070 OVC200 20/12 A2992");
+        Assert.NotNull(result);
+        Assert.Equal(3, result.Layers.Count);
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Scattered, 2000), result.Layers[0]);
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, 7000), result.Layers[1]);
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Overcast, 20000), result.Layers[2]);
+        Assert.Equal(7000, result.CeilingFeetAgl);
+    }
+
+    [Fact]
+    public void Parse_FewAndScattered_PresentInLayersButNotCeiling()
+    {
+        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM FEW010 SCT025 20/12 A2992");
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Layers.Count);
+        Assert.Equal(MetarParser.CloudCover.Few, result.Layers[0].Cover);
+        Assert.Equal(1000, result.Layers[0].BaseFeetAgl);
+        Assert.Equal(MetarParser.CloudCover.Scattered, result.Layers[1].Cover);
+        Assert.Equal(2500, result.Layers[1].BaseFeetAgl);
+        Assert.Null(result.CeilingFeetAgl);
+    }
+
+    [Fact]
+    public void Parse_Layers_SortedAscendingByBase()
+    {
+        // Intentionally list layers out of order in the raw METAR — parser must sort.
+        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM OVC200 BKN070 SCT020 20/12 A2992");
+        Assert.NotNull(result);
+        Assert.Equal([2000, 7000, 20000], result.Layers.Select(l => l.BaseFeetAgl));
+    }
+
+    // -------------------------------------------------------------------------
+    // InterpolateLayers — temporal pairwise interpolation
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void InterpolateLayers_EqualCount_PairsByIndex()
+    {
+        IReadOnlyList<MetarParser.CloudLayer> from = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Broken, 7000)];
+        IReadOnlyList<MetarParser.CloudLayer> to = [new(MetarParser.CloudCover.Broken, 4000), new(MetarParser.CloudCover.Overcast, 10000)];
+
+        var mid = MetarParser.InterpolateLayers(from, to, 0.5);
+        Assert.Equal(2, mid.Count);
+        // At t=0.5 cover steps to the destination (t < 0.5 uses from, t >= 0.5 uses to)
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, 3000), mid[0]);
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Overcast, 8500), mid[1]);
+    }
+
+    [Fact]
+    public void InterpolateLayers_CoverStepsAtMidpoint()
+    {
+        IReadOnlyList<MetarParser.CloudLayer> from = [new(MetarParser.CloudCover.Scattered, 2000)];
+        IReadOnlyList<MetarParser.CloudLayer> to = [new(MetarParser.CloudCover.Broken, 4000)];
+
+        var early = MetarParser.InterpolateLayers(from, to, 0.25);
+        Assert.Equal(MetarParser.CloudCover.Scattered, early[0].Cover);
+        Assert.Equal(2500, early[0].BaseFeetAgl);
+
+        var late = MetarParser.InterpolateLayers(from, to, 0.75);
+        Assert.Equal(MetarParser.CloudCover.Broken, late[0].Cover);
+        Assert.Equal(3500, late[0].BaseFeetAgl);
+    }
+
+    [Fact]
+    public void InterpolateLayers_DifferentCount_ExtrasPassThrough()
+    {
+        IReadOnlyList<MetarParser.CloudLayer> from = [new(MetarParser.CloudCover.Broken, 7000)];
+        IReadOnlyList<MetarParser.CloudLayer> to = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Overcast, 10000)];
+
+        var result = MetarParser.InterpolateLayers(from, to, 0.3);
+        Assert.Equal(2, result.Count);
+        // Paired layer 0: from BKN070 → SCT020, base lerps to 7000 + 0.3*(2000-7000) = 5500, t<0.5 → Broken
+        // Extra layer (to[1]): OVC100 passes through unchanged
+        // Result sorted ascending → paired layer (5500) first, extra (10000) second
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, 5500), result[0]);
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Overcast, 10000), result[1]);
+    }
+
+    [Fact]
+    public void InterpolateLayers_CeilingFromLayers_DerivesLowestBknOvc()
+    {
+        IReadOnlyList<MetarParser.CloudLayer> layers =
+        [
+            new(MetarParser.CloudCover.Few, 500),
+            new(MetarParser.CloudCover.Scattered, 2000),
+            new(MetarParser.CloudCover.Broken, 7000),
+            new(MetarParser.CloudCover.Overcast, 20000),
+        ];
+
+        Assert.Equal(7000, MetarParser.CeilingFromLayers(layers));
+    }
+
+    [Fact]
+    public void InterpolateLayers_CeilingFromLayers_NoBknOvc_ReturnsNull()
+    {
+        IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Few, 500), new(MetarParser.CloudCover.Scattered, 2000)];
+
+        Assert.Null(MetarParser.CeilingFromLayers(layers));
+    }
+
+    // -------------------------------------------------------------------------
+    // Parse — VV (vertical visibility / indefinite ceiling)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Parse_VV_RepresentedAsSyntheticOvcLayer()
+    {
+        var result = MetarParser.Parse("KOAK 121853Z 00000KT 1/4SM FG VV003 18/18 A2992");
+        Assert.NotNull(result);
+        Assert.Equal(300, result.CeilingFeetAgl);
+        // VV shows up as a synthetic OVC layer so obstruction logic treats it consistently.
+        Assert.Single(result.Layers);
+        Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Overcast, 300), result.Layers[0]);
+    }
+
     // -------------------------------------------------------------------------
     // Parse — station ID
     // -------------------------------------------------------------------------

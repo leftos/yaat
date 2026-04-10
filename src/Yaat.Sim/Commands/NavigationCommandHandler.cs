@@ -1106,7 +1106,7 @@ internal static class NavigationCommandHandler
         r.Reason switch
         {
             VisualAcquisitionFailure.InClassA => "Unable visual, in Class Alpha",
-            VisualAcquisitionFailure.AboveCeiling => $"Unable, {airportId} below the layer, ceiling {metar?.CeilingFeetAgl ?? 0} AGL",
+            VisualAcquisitionFailure.AboveCeiling => $"Unable, {airportId} below {FormatLayer(r.BindingLayer)}",
             VisualAcquisitionFailure.BehindOwnship => $"Unable, {airportId} behind us (outside forward hemisphere)",
             VisualAcquisitionFailure.OccludedByBank => $"Unable, {airportId} lost visual in the turn (high wing blocking view)",
             VisualAcquisitionFailure.OutOfRange =>
@@ -1118,13 +1118,36 @@ internal static class NavigationCommandHandler
     private static string FormatTrafficFailure(VisualAcquisitionResult r, AircraftState target) =>
         r.Reason switch
         {
-            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {target.Callsign}, cloud layer between us",
+            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {target.Callsign}, {FormatLayer(r.BindingLayer)} between us",
             VisualAcquisitionFailure.BehindOwnship => $"Unable, {target.Callsign} behind us (outside forward hemisphere)",
             VisualAcquisitionFailure.OccludedByBank => $"Unable, {target.Callsign} lost visual in the turn (high wing blocking view)",
             VisualAcquisitionFailure.OutOfRange =>
                 $"Negative contact, {target.Callsign}, {r.DistanceNm:F1} miles out (detection range {r.MaxRangeNm:F1} nm for {target.AircraftType})",
             _ => $"Negative contact, {target.Callsign}",
         };
+
+    /// <summary>
+    /// Formats a cloud layer as the 6-character METAR-style code controllers and
+    /// pilots actually read out loud, e.g. BKN070 or OVC200. Falls back to a
+    /// generic "cloud layer" if no binding layer was recorded on the result.
+    /// </summary>
+    private static string FormatLayer(MetarParser.CloudLayer? layer)
+    {
+        if (layer is null)
+        {
+            return "cloud layer";
+        }
+        string prefix = layer.Cover switch
+        {
+            MetarParser.CloudCover.Few => "FEW",
+            MetarParser.CloudCover.Scattered => "SCT",
+            MetarParser.CloudCover.Broken => "BKN",
+            MetarParser.CloudCover.Overcast => "OVC",
+            _ => "CLD",
+        };
+        int hundreds = layer.BaseFeetAgl / 100;
+        return $"{prefix}{hundreds:D3}";
+    }
 
     /// <summary>
     /// Clarifies the max-range qualifier for field acquisition: airport detection
