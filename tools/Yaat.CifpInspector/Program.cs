@@ -164,7 +164,7 @@ public static class Program
                 return a;
             }
         }
-        // Case-insensitive contains (handles trailing spaces, partial typing)
+        // Case-insensitive after trimming (handles trailing space padding from CIFP records)
         foreach (var a in approaches)
         {
             if (a.ApproachId.Trim().Equals(id, StringComparison.OrdinalIgnoreCase))
@@ -284,7 +284,10 @@ public static class Program
     private static void PrintFinalCourseAnalysis(CifpApproachProcedure a, bool json)
     {
         // Identify the "final approach leg" using a few candidate strategies and report each.
-        var finalByMahp = FinalLegBeforeMahp(a);
+        // The "Extractor (MAP leg itself)" strategy mirrors what FinalApproachCourseExtractor
+        // actually uses in production — the others are diagnostic alternatives.
+        var finalByExtractor = ExtractorMapLeg(a);
+        var finalByMahp = FinalLegBeforeMap(a);
         var finalByRwFix = FinalLegToRwFix(a);
         var finalByLastBeforeCa = FinalLegBeforeCa(a);
 
@@ -297,7 +300,8 @@ public static class Program
                 a.Runway,
                 Strategies = new
                 {
-                    BeforeMahp = LegSummary(finalByMahp),
+                    Extractor = LegSummary(finalByExtractor),
+                    BeforeMap = LegSummary(finalByMahp),
                     ToRwFix = LegSummary(finalByRwFix),
                     LastBeforeCa = LegSummary(finalByLastBeforeCa),
                 },
@@ -309,7 +313,8 @@ public static class Program
         Console.WriteLine($"=== Final-course analysis: {a.ApproachId} ({a.ApproachTypeName}, runway {a.Runway}) ===");
         Console.WriteLine();
         Console.WriteLine("Strategy candidates:");
-        PrintStrategy("Leg before MAHP fix", finalByMahp);
+        PrintStrategy("Extractor (MAP leg itself)", finalByExtractor);
+        PrintStrategy("Leg before MAP fix", finalByMahp);
         PrintStrategy("Leg terminating at RW## fix", finalByRwFix);
         PrintStrategy("Last leg before CA missed start", finalByLastBeforeCa);
         Console.WriteLine();
@@ -347,13 +352,31 @@ public static class Program
     }
 
     /// <summary>
-    /// Strategy 1: walk back to find the leg whose fix is marked MAHP, then return the leg before it.
+    /// Strategy 0 (production): the MAP-marked leg itself. This is what
+    /// FinalApproachCourseExtractor uses — its OutboundCourse (CF/FA) or computed bearing
+    /// from the previous fix (TF/DF) is the published final approach course.
     /// </summary>
-    private static CifpLeg? FinalLegBeforeMahp(CifpApproachProcedure a)
+    private static CifpLeg? ExtractorMapLeg(CifpApproachProcedure a)
+    {
+        foreach (var leg in a.CommonLegs)
+        {
+            if (leg.FixRole == CifpFixRole.MAP)
+            {
+                return leg;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Strategy 1: walk back to find the leg whose fix is marked MAP, then return the leg
+    /// IMMEDIATELY BEFORE it. Diagnostic alternative to the extractor's logic.
+    /// </summary>
+    private static CifpLeg? FinalLegBeforeMap(CifpApproachProcedure a)
     {
         for (int i = 0; i < a.CommonLegs.Count; i++)
         {
-            if (a.CommonLegs[i].FixRole == CifpFixRole.MAHP && i > 0)
+            if (a.CommonLegs[i].FixRole == CifpFixRole.MAP && i > 0)
             {
                 return a.CommonLegs[i - 1];
             }

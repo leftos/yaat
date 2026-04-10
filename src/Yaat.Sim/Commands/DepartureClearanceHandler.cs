@@ -952,7 +952,7 @@ internal static class DepartureClearanceHandler
                     SpeedRestriction = leg.Speed,
                     IsFlyOver =
                         leg.IsFlyOver
-                        || leg.FixRole is CifpFixRole.FAF or CifpFixRole.MAHP
+                        || leg.FixRole is CifpFixRole.FAF or CifpFixRole.MAP
                         || leg.PathTerminator is CifpPathTerminator.HA or CifpPathTerminator.HF or CifpPathTerminator.HM,
                 }
             );

@@ -471,7 +471,7 @@ public static partial class CifpParser
                 'A' or 'I' => CifpFixRole.IAF,
                 'B' => CifpFixRole.IF,
                 'D' or 'F' => CifpFixRole.FAF,
-                'M' => CifpFixRole.MAHP,
+                'M' => CifpFixRole.MAP,
                 _ => CifpFixRole.None,
             };
         }
@@ -644,7 +644,7 @@ public static partial class CifpParser
         var transitionLegs = new Dictionary<string, List<CifpLeg>>(StringComparer.Ordinal);
         var commonLegs = new List<CifpLeg>();
         var missedLegs = new List<CifpLeg>();
-        bool pastMahp = false;
+        bool pastMap = false;
         CifpLeg? holdInLieuLeg = null;
 
         // Sort by route type then sequence for deterministic ordering
@@ -680,13 +680,13 @@ public static partial class CifpParser
             else
             {
                 // Common leg or missed approach leg
-                if (pastMahp || raw.FixRole == CifpFixRole.MAHP)
+                if (pastMap || raw.FixRole == CifpFixRole.MAP)
                 {
-                    if (raw.FixRole == CifpFixRole.MAHP)
+                    if (raw.FixRole == CifpFixRole.MAP)
                     {
-                        // MAHP itself goes in common legs; legs after it are missed approach
+                        // MAP itself goes in common legs; legs after it are missed approach
                         commonLegs.Add(leg);
-                        pastMahp = true;
+                        pastMap = true;
                     }
                     else
                     {

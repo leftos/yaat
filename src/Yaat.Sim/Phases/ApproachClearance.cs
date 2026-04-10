@@ -42,7 +42,7 @@ public sealed class ApproachClearance
     public MissedApproachHold? MapHold { get; init; }
 
     /// <summary>
-    /// Altitude (MSL) at the missed approach point, extracted from the MAHP leg's
+    /// Altitude (MSL) at the missed approach point, extracted from the MAP leg's
     /// altitude restriction. Represents DA for precision approaches, MDA for non-precision.
     /// Null for visual approaches and non-CIFP cases; FinalApproachPhase falls back
     /// to threshold elevation + 200ft when null.
@@ -50,8 +50,8 @@ public sealed class ApproachClearance
     public int? MapAltitudeFt { get; init; }
 
     /// <summary>
-    /// Distance (nm) from the MAHP fix to the runway threshold. Derived from the MAHP
-    /// fix position in CIFP data. Null when CIFP data is unavailable or the MAHP fix
+    /// Distance (nm) from the MAP fix to the runway threshold. Derived from the MAP
+    /// fix position in CIFP data. Null when CIFP data is unavailable or the MAP fix
     /// can't be resolved; FinalApproachPhase falls back to 0.5nm.
     /// </summary>
     public double? MapDistanceNm { get; init; }

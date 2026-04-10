@@ -531,9 +531,9 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // Should include CCR transition fixes
         Assert.Contains("CCR", names);
 
-        // Should include common leg fixes (before MAHP)
+        // Should include common leg fixes (before MAP)
         var commonFixNames = procedure
-            .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && l.FixRole != CifpFixRole.MAHP)
+            .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && l.FixRole != CifpFixRole.MAP)
             .Select(l => l.FixIdentifier)
             .ToList();
         foreach (var fix in commonFixNames)
@@ -541,11 +541,11 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             Assert.Contains(fix, names);
         }
 
-        // MAHP (RW19L) should be excluded
-        var mahp = procedure.CommonLegs.FirstOrDefault(l => l.FixRole == CifpFixRole.MAHP);
-        if (mahp is not null && !string.IsNullOrEmpty(mahp.FixIdentifier))
+        // MAP (RW19L) should be excluded
+        var map = procedure.CommonLegs.FirstOrDefault(l => l.FixRole == CifpFixRole.MAP);
+        if (map is not null && !string.IsNullOrEmpty(map.FixIdentifier))
         {
-            Assert.DoesNotContain(mahp.FixIdentifier, names);
+            Assert.DoesNotContain(map.FixIdentifier, names);
         }
     }
 

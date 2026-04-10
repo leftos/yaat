@@ -49,32 +49,32 @@ public static class FinalApproachCourseExtractor
         double declination = MagneticDeclination.GetDeclination(runway.ThresholdLatitude, runway.ThresholdLongitude);
         var navDb = NavigationDatabase.Instance;
 
-        var (mahpLeg, mahpIndex) = FindMahpLeg(procedure.CommonLegs);
-        if (mahpLeg is null)
+        var (mapLeg, mapIndex) = FindMapLeg(procedure.CommonLegs);
+        if (mapLeg is null)
         {
-            Log.LogDebug("[FacExtract] {ApproachId}: no MAHP leg found in CommonLegs, falling back to runway heading", procedure.ApproachId);
+            Log.LogDebug("[FacExtract] {ApproachId}: no MAP leg found in CommonLegs, falling back to runway heading", procedure.ApproachId);
             return new FinalApproachCourseResult(runway.TrueHeading, AnchorLat: null, AnchorLon: null);
         }
 
-        TrueHeading? course = mahpLeg.PathTerminator switch
+        TrueHeading? course = mapLeg.PathTerminator switch
         {
-            CifpPathTerminator.CF or CifpPathTerminator.FA => CourseFromOutboundField(mahpLeg, declination),
-            CifpPathTerminator.TF or CifpPathTerminator.DF => CourseFromBearing(procedure.CommonLegs, mahpIndex, runway, navDb),
+            CifpPathTerminator.CF or CifpPathTerminator.FA => CourseFromOutboundField(mapLeg, declination),
+            CifpPathTerminator.TF or CifpPathTerminator.DF => CourseFromBearing(procedure.CommonLegs, mapIndex, runway, navDb),
             _ => null,
         };
 
         if (course is null)
         {
             Log.LogDebug(
-                "[FacExtract] {ApproachId}: could not extract course from MAHP leg ({Pt} {Fix}), falling back to runway heading",
+                "[FacExtract] {ApproachId}: could not extract course from MAP leg ({Pt} {Fix}), falling back to runway heading",
                 procedure.ApproachId,
-                mahpLeg.PathTerminator,
-                mahpLeg.FixIdentifier
+                mapLeg.PathTerminator,
+                mapLeg.FixIdentifier
             );
             course = runway.TrueHeading;
         }
 
-        var (anchorLat, anchorLon) = DetermineAnchor(mahpLeg, runway, navDb);
+        var (anchorLat, anchorLon) = DetermineAnchor(mapLeg, runway, navDb);
 
         Log.LogDebug(
             "[FacExtract] {ApproachId}: course={Course:F1} (rwy {RwyHdg:F1}, declination {Dec:F1}), anchor={Anchor}",
@@ -88,11 +88,11 @@ public static class FinalApproachCourseExtractor
         return new FinalApproachCourseResult(course.Value, anchorLat, anchorLon);
     }
 
-    private static (CifpLeg? Leg, int Index) FindMahpLeg(IReadOnlyList<CifpLeg> legs)
+    private static (CifpLeg? Leg, int Index) FindMapLeg(IReadOnlyList<CifpLeg> legs)
     {
         for (int i = 0; i < legs.Count; i++)
         {
-            if (legs[i].FixRole == CifpFixRole.MAHP)
+            if (legs[i].FixRole == CifpFixRole.MAP)
             {
                 return (legs[i], i);
             }
@@ -109,28 +109,28 @@ public static class FinalApproachCourseExtractor
         return new MagneticHeading(magCourse).ToTrue(declination);
     }
 
-    private static TrueHeading? CourseFromBearing(IReadOnlyList<CifpLeg> legs, int mahpIndex, RunwayInfo runway, NavigationDatabase navDb)
+    private static TrueHeading? CourseFromBearing(IReadOnlyList<CifpLeg> legs, int mapIndex, RunwayInfo runway, NavigationDatabase navDb)
     {
-        var prev = FindPreviousLeg(legs, mahpIndex);
+        var prev = FindPreviousLeg(legs, mapIndex);
         if (prev is null)
         {
             return null;
         }
 
         var prevPos = ResolveFixPosition(prev.FixIdentifier, runway, navDb);
-        var mahpPos = ResolveFixPosition(legs[mahpIndex].FixIdentifier, runway, navDb);
-        if (prevPos is null || mahpPos is null)
+        var mapPos = ResolveFixPosition(legs[mapIndex].FixIdentifier, runway, navDb);
+        if (prevPos is null || mapPos is null)
         {
             return null;
         }
 
-        double bearing = GeoMath.BearingTo(prevPos.Value.Lat, prevPos.Value.Lon, mahpPos.Value.Lat, mahpPos.Value.Lon);
+        double bearing = GeoMath.BearingTo(prevPos.Value.Lat, prevPos.Value.Lon, mapPos.Value.Lat, mapPos.Value.Lon);
         return new TrueHeading(bearing);
     }
 
-    private static CifpLeg? FindPreviousLeg(IReadOnlyList<CifpLeg> legs, int mahpIndex)
+    private static CifpLeg? FindPreviousLeg(IReadOnlyList<CifpLeg> legs, int mapIndex)
     {
-        for (int i = mahpIndex - 1; i >= 0; i--)
+        for (int i = mapIndex - 1; i >= 0; i--)
         {
             var leg = legs[i];
             // Skip continuation records (parser tags them with PathTerminator.Other and may have empty fix id)
@@ -157,15 +157,15 @@ public static class FinalApproachCourseExtractor
         return navDb.GetFixPosition(fixId);
     }
 
-    private static (double? Lat, double? Lon) DetermineAnchor(CifpLeg mahpLeg, RunwayInfo runway, NavigationDatabase navDb)
+    private static (double? Lat, double? Lon) DetermineAnchor(CifpLeg mapLeg, RunwayInfo runway, NavigationDatabase navDb)
     {
         // Runway pseudo-fixes always anchor at the threshold — no offset.
-        if (mahpLeg.FixIdentifier.StartsWith("RW", StringComparison.Ordinal))
+        if (mapLeg.FixIdentifier.StartsWith("RW", StringComparison.Ordinal))
         {
             return (null, null);
         }
 
-        var pos = navDb.GetFixPosition(mahpLeg.FixIdentifier);
+        var pos = navDb.GetFixPosition(mapLeg.FixIdentifier);
         if (pos is null)
         {
             return (null, null);

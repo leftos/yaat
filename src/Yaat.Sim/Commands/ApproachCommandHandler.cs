@@ -808,14 +808,14 @@ public static class ApproachCommandHandler
             }
         }
 
-        // Collect common segment fixes (stop before MAHP)
+        // Collect common segment fixes (stop before MAP)
         foreach (var leg in procedure.CommonLegs)
         {
             if (string.IsNullOrEmpty(leg.FixIdentifier))
             {
                 continue;
             }
-            if (leg.FixRole == CifpFixRole.MAHP)
+            if (leg.FixRole == CifpFixRole.MAP)
             {
                 break;
             }
@@ -827,13 +827,13 @@ public static class ApproachCommandHandler
 
     /// <summary>
     /// Extracts the altitude at the missed approach point (DA for precision, MDA for non-precision)
-    /// from the MAHP-role leg in CommonLegs. Returns null if no MAHP with altitude found.
+    /// from the MAP-role leg in CommonLegs. Returns null if no MAP with altitude found.
     /// </summary>
     public static int? ExtractMapAltitude(CifpApproachProcedure procedure)
     {
         foreach (var leg in procedure.CommonLegs)
         {
-            if (leg.FixRole == CifpFixRole.MAHP && leg.Altitude is not null)
+            if (leg.FixRole == CifpFixRole.MAP && leg.Altitude is not null)
             {
                 return leg.Altitude.Altitude1Ft;
             }
@@ -843,15 +843,15 @@ public static class ApproachCommandHandler
     }
 
     /// <summary>
-    /// Computes the distance (nm) from the MAHP fix to the runway threshold.
-    /// Returns null if no MAHP fix found or its position can't be resolved.
+    /// Computes the distance (nm) from the MAP fix to the runway threshold.
+    /// Returns null if no MAP fix found or its position can't be resolved.
     /// </summary>
     public static double? ExtractMapDistance(CifpApproachProcedure procedure, RunwayInfo runway)
     {
         var navDb = NavigationDatabase.Instance;
         foreach (var leg in procedure.CommonLegs)
         {
-            if (leg.FixRole != CifpFixRole.MAHP || string.IsNullOrEmpty(leg.FixIdentifier))
+            if (leg.FixRole != CifpFixRole.MAP || string.IsNullOrEmpty(leg.FixIdentifier))
             {
                 continue;
             }
@@ -1217,8 +1217,8 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            // Skip past MAHP (missed approach) — those are in MissedApproachLegs already
-            if (stopAtMahp && leg.FixRole == CifpFixRole.MAHP)
+            // Skip past MAP (missed approach) — those are in MissedApproachLegs already
+            if (stopAtMahp && leg.FixRole == CifpFixRole.MAP)
             {
                 break;
             }
@@ -1286,7 +1286,7 @@ public static class ApproachCommandHandler
                     leg.Altitude,
                     leg.Speed?.SpeedKts,
                     leg.FixRole,
-                    leg.IsFlyOver || leg.FixRole is CifpFixRole.FAF or CifpFixRole.MAHP
+                    leg.IsFlyOver || leg.FixRole is CifpFixRole.FAF or CifpFixRole.MAP
                 )
             );
             previousFixPos = (pos.Value.Lat, pos.Value.Lon);

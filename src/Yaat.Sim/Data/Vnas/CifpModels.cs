@@ -19,7 +19,14 @@ public enum CifpFixRole
     IAF,
     IF,
     FAF,
-    MAHP,
+
+    /// <summary>
+    /// Missed Approach Point. ARINC 424 §5.17 Waypoint Description Code position 4
+    /// character 'M' identifies the fix at which the FAS ends and the missed-approach
+    /// segment begins. This is NOT the missed-approach holding point (MAHP), which is
+    /// a separate concept further along the missed-approach procedure.
+    /// </summary>
+    MAP,
 }
 
 public enum CifpPathTerminator

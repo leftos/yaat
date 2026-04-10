@@ -47,7 +47,7 @@ public class ProgrammedFixesTests
                 new CifpLeg("GROVE", CifpPathTerminator.IF, null, null, null, CifpFixRole.IAF, 10, null, null, null),
                 new CifpLeg("FITKI", CifpPathTerminator.TF, null, null, null, CifpFixRole.IF, 20, null, null, null),
                 new CifpLeg("BERYL", CifpPathTerminator.TF, null, null, null, CifpFixRole.FAF, 30, null, null, null),
-                new CifpLeg("RW28R", CifpPathTerminator.TF, null, null, null, CifpFixRole.MAHP, 40, null, null, null),
+                new CifpLeg("RW28R", CifpPathTerminator.TF, null, null, null, CifpFixRole.MAP, 40, null, null, null),
             ],
             new Dictionary<string, CifpTransition>(),
             [],
@@ -111,7 +111,7 @@ public class ProgrammedFixesTests
         Assert.Contains("GROVE", fixes);
         Assert.Contains("FITKI", fixes);
         Assert.Contains("BERYL", fixes);
-        // MAHP (RW28R) should NOT be included — stops before MAHP
+        // MAP (RW28R) should NOT be included — stops before MAP
         Assert.DoesNotContain("RW28R", fixes);
     }
 

@@ -159,7 +159,7 @@ public class CifpParserTests
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "FITKI", CifpFixRole.IF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "MUXED", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAP, "CF"),
         };
 
         var tmpFile = Path.GetTempFileName();
@@ -183,7 +183,7 @@ public class CifpParserTests
             Assert.Equal("MUXED", proc.CommonLegs[2].FixIdentifier);
             Assert.Equal(CifpFixRole.FAF, proc.CommonLegs[2].FixRole);
             Assert.Equal("RW28L", proc.CommonLegs[3].FixIdentifier);
-            Assert.Equal(CifpFixRole.MAHP, proc.CommonLegs[3].FixRole);
+            Assert.Equal(CifpFixRole.MAP, proc.CommonLegs[3].FixRole);
             Assert.Empty(proc.Transitions);
             Assert.Empty(proc.MissedApproachLegs);
         }
@@ -204,7 +204,7 @@ public class CifpParserTests
             // Common legs
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "FITKI", CifpFixRole.IF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "MUXED", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "RW28L", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "RW28L", CifpFixRole.MAP, "CF"),
         };
 
         var tmpFile = Path.GetTempFileName();
@@ -234,7 +234,7 @@ public class CifpParserTests
         {
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.IF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "MUXED", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "RW28L", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "RW28L", CifpFixRole.MAP, "CF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "GROVE", CifpFixRole.None, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "SUNOL", CifpFixRole.None, "DF"),
         };
@@ -246,7 +246,7 @@ public class CifpParserTests
             var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
             var proc = approaches[0];
-            // MAHP itself is in common legs (3 = IF, FAF, MAHP)
+            // MAP itself is in common legs (3 = IF, FAF, MAP)
             Assert.Equal(3, proc.CommonLegs.Count);
             Assert.Equal(2, proc.MissedApproachLegs.Count);
             Assert.Equal("GROVE", proc.MissedApproachLegs[0].FixIdentifier);
@@ -267,7 +267,7 @@ public class CifpParserTests
             // HA = hold-in-lieu path terminator
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "FITKI", CifpFixRole.IF, "HA"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "MUXED", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAP, "CF"),
         };
 
         var tmpFile = Path.GetTempFileName();
@@ -293,7 +293,7 @@ public class CifpParserTests
         var lines = new[]
         {
             BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
-            BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "TF"),
+            BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 20, "RW28L", CifpFixRole.MAP, "TF"),
         };
 
         var tmpFile = Path.GetTempFileName();
@@ -319,9 +319,9 @@ public class CifpParserTests
         var lines = new[]
         {
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAP, "CF"),
             BuildFullApproachLine("KOAK", "I30   ", ' ', "", 10, "DUMBA", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I30   ", ' ', "", 20, "RW30 ", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I30   ", ' ', "", 20, "RW30 ", CifpFixRole.MAP, "CF"),
         };
 
         var tmpFile = Path.GetTempFileName();
@@ -881,7 +881,7 @@ public class CifpParserTests
             CifpFixRole.IAF => 'A',
             CifpFixRole.IF => 'B',
             CifpFixRole.FAF => 'F',
-            CifpFixRole.MAHP => 'M',
+            CifpFixRole.MAP => 'M',
             _ => ' ',
         };
 
