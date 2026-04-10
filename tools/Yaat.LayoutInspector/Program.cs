@@ -154,7 +154,7 @@ public static class Program
             Console.Error.WriteLine($"VALIDATION: {warnings.Count} warning(s):");
             foreach (var w in warnings)
             {
-                Console.Error.WriteLine($"  [{w.Code}] {w.Message}");
+                Console.Error.WriteLine($"  [{w.Code}] {w.Message}{(w.Origin is not null ? $" (origin: {w.Origin})" : "")}");
             }
 
             Console.Error.WriteLine();

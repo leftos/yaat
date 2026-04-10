@@ -391,7 +391,21 @@ public static class FilletArcGenerator
             }
             foreach (var shapeNode in farthest.Placement.WalkedShapeNodes)
             {
-                layout.Nodes.Remove(shapeNode.Id);
+                int shapeId = shapeNode.Id;
+                int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == shapeId) || (e.Nodes[1].Id == shapeId));
+                int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == shapeId) || (a.Nodes[1].Id == shapeId));
+                layout.Nodes.Remove(shapeId);
+                if ((removedEdges > 0) || (removedArcs > 0))
+                {
+                    Log.LogDebug(
+                        "[Int#{IntId}] Walk cleanup: removed node #{ShapeId} ({Type}), purged {Edges} edge(s) and {Arcs} arc(s)",
+                        intersection.Id,
+                        shapeId,
+                        shapeNode.Type,
+                        removedEdges,
+                        removedArcs
+                    );
+                }
             }
 
             // Reconnect pass-through nodes from the farthest walk
@@ -631,8 +645,23 @@ public static class FilletArcGenerator
         }
         else
         {
-            // Standard fillet: remove the intersection node entirely
-            layout.Nodes.Remove(intersection.Id);
+            // Standard fillet: remove the intersection node entirely.
+            // Also remove any edges/arcs still referencing it — earlier fillet iterations
+            // may have created edges (shorten, passthrough, tangent-link) pointing to this
+            // node, and original pre-fillet edges may have survived consumedEdges.
+            int intId = intersection.Id;
+            int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == intId) || (e.Nodes[1].Id == intId));
+            int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == intId) || (a.Nodes[1].Id == intId));
+            layout.Nodes.Remove(intId);
+            if ((removedEdges > 0) || (removedArcs > 0))
+            {
+                Log.LogDebug(
+                    "[Int#{IntId}] Node removal cleanup: purged {Edges} edge(s) and {Arcs} arc(s) referencing removed intersection",
+                    intId,
+                    removedEdges,
+                    removedArcs
+                );
+            }
         }
 
         return (true, arcsCreated, edgesMerged);
@@ -1182,13 +1211,22 @@ public static class FilletArcGenerator
             if (i > 0)
             {
                 consumed.Add(step.Edge);
-                if (step.HasOtherTaxiways)
+                // A walked-through node is removable (shape node) only if it's a plain
+                // shape-point intersection with no other taxiways and no prior fillet
+                // tangent. Tangent nodes from prior fillets (SourceIntersectionPosition),
+                // hold-short nodes, and nodes with other taxiways are passthrough — they
+                // must be preserved and reconnected.
+                bool isRemovable =
+                    !step.HasOtherTaxiways
+                    && (step.FarNode.Type == GroundNodeType.TaxiwayIntersection)
+                    && (step.FarNode.SourceIntersectionPosition is null);
+                if (isRemovable)
                 {
-                    passthrough.Add(step.FarNode);
+                    shapeNodes.Add(step.FarNode);
                 }
                 else
                 {
-                    shapeNodes.Add(step.FarNode);
+                    passthrough.Add(step.FarNode);
                 }
             }
         }

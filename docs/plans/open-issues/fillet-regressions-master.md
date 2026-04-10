@@ -36,38 +36,46 @@ Tracks all open fillet arc geometry bugs. Supersedes four sub-plans:
 - [x] **Effective turn angle** (`552a8ea`): Phase C recomputes the turn angle from bearings at the tangent points (not the intersection) when the tangent walked past a curve. Fixes near-collinear arcs where taxiways diverge.
 - [x] **Same-node pair skip** (`642fd40`): Skip pairs where both edges go to the same destination node (overlapping edges like B and B5 sharing the same physical segment).
 - [x] **Per-pair tangent nodes** (`b5ff95f`): Each arc pair computes its own tangent positions independently. Near-collinear pairs with huge tangent distances no longer corrupt other pairs' arcs via max-wins. Coincident positions on the same edge are deduplicated (5ft threshold).
+- [x] **Dangling edge/arc cleanup**: When removing intersection nodes or walk shape-point nodes, also remove all edges and arcs still referencing them. Prevents dangling references from cross-intersection fillet edges.
+- [x] **Walk shape-node classification**: `InterpolateAlongWalk` now only classifies nodes as removable shape nodes if they are `TaxiwayIntersection` type with no `SourceIntersectionPosition`. Tangent nodes from prior fillets and hold-short nodes are treated as passthrough (preserved and reconnected).
 
 ### Current metrics (after all fixes)
 
 | Metric | Baseline | Current | Delta |
 |--------|----------|---------|-------|
-| SFO degenerate-radius | 115 | **41** | **-74** |
-| OAK degenerate-radius | 79 | **27** | **-52** |
-| SFO tangent-misaligned | 1920 | 2009 | +89 |
-| OAK tangent-misaligned | 1009 | 1074 | +65 |
-| SFO edge-missing-node | 0 | **42** | +42 |
-| OAK edge-missing-node | 1 | **30** | +29 |
+| SFO degenerate-radius | 115 | **34** | **-81** |
+| OAK degenerate-radius | 79 | **25** | **-54** |
+| SFO tangent-misaligned | 1920 | **1990** | +70 |
+| OAK tangent-misaligned | 1009 | **1069** | +60 |
+| SFO edge-missing-node | 0 | **0** | **0** |
+| OAK edge-missing-node | 1 | **0** | **-1** |
+| SFO arc-missing-node | — | **0** | **0** |
+| OAK arc-missing-node | — | **0** | **0** |
+| SFO orphan-node | — | 37 | — |
+| OAK orphan-node | — | 17 | — |
 
 ### Test status
 - [x] Plan B: SKW3078 — **PASS** (as of `d1f1a8f`)
 - [x] Plan C: SFO T6/T6B stub symmetry — **PASS** (as of `e4621d7`)
 - [x] Plan D: OAK G/D arcs — **PASS** (as of `d1f1a8f`)
-- [ ] Plan B: DAL2581 — **UNKNOWN** (test hangs at 30s timeout, likely due to edge-missing-node)
-- [ ] GenuineTurnArcs — **FAIL** (41 SFO degenerate turn arcs)
+- [ ] Plan B: DAL2581 — **HANG** (test hangs at 30s timeout due to degenerate arcs, not edge-missing-node)
+- [ ] GenuineTurnArcs — **FAIL** (34 SFO degenerate turn arcs)
 
-**IMPORTANT**: Simulation tests (DAL2581, SKW3078) are hanging due to `edge-missing-node` dangling references. The per-pair tangent change (`b5ff95f`) introduced 42+30 dangling edge refs. These cause the A* pathfinder to loop indefinitely. Must fix edge-missing-node before sim tests will pass. This was not investigated yet — it's the top priority for the next session.
+**NOTE**: The edge-missing-node issue is fully resolved (0 on both SFO and OAK). DAL2581 hang is caused by degenerate arcs (Issue #3 / #5), not dangling edges. SKW3078 passes because its taxi route doesn't traverse a degenerate arc.
 
 ## Open issues
 
 Issues are ordered by priority.
 
-### 1. edge-missing-node: dangling edge references after walk (CRITICAL — blocks sim tests)
+### 1. ~~edge-missing-node: dangling edge references after walk~~ — **FIXED**
 
-The taxiway walk consumes intermediate edges and removes shape-point nodes, but edges created by PRIOR fillet iterations that reference the removed nodes are not cleaned up. When those nodes are later filleted and removed, edges pointing to them become dangling references.
+Three sources of dangling references, all fixed:
 
-**Root cause**: When intersection X is filleted, edges created by earlier intersections (e.g., shortened edges from int Y's fillet) that reference X's node are not in X's `consumedEdges` set. X gets removed but the edge survives.
+1. **Intersection node removal** (13 shorten + 12 preserve + 8 passthrough + 2 tangent-link): When removing an intersection node, edges/arcs from other intersections' fillet iterations referencing it were not cleaned up. **Fix**: `layout.Edges.RemoveAll` + `layout.Arcs.RemoveAll` for the removed intersection ID.
 
-**Suspected fix**: When removing an intersection node (non-preserve case), also remove all edges referencing it: `layout.Edges.RemoveAll(e => e.Nodes[0].Id == intId || e.Nodes[1].Id == intId)`. This was tried earlier in the session and worked, but needs to be re-verified with the per-pair changes.
+2. **Walk shape-node removal** (5 TaxiwayGraphBuilder + 2 RunwayCrossing): Walking through shape-point nodes removed them but left edges from other taxiways/fillets dangling. **Fix**: Same `RemoveAll` pattern for each walked shape node.
+
+3. **Walk consuming non-shape-point nodes** (tangent nodes from prior fillets, RunwayHoldShort nodes): `InterpolateAlongWalk` classified all non-other-taxiway nodes as removable shape nodes, including tangent nodes from prior fillets (`SourceIntersectionPosition` set) and non-`TaxiwayIntersection` nodes (hold-short). **Fix**: Only classify as shape node if `Type == TaxiwayIntersection` AND `SourceIntersectionPosition is null`; otherwise treat as passthrough (preserve and reconnect).
 
 ### 2. Pre-existing manual arcs destroyed by filleting (MEDIUM — visual quality)
 
