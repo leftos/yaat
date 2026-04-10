@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Layout Inspector</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0d1117; overflow:hidden; font-family:Consolas,monospace; }
+canvas { display:block; cursor:grab; }
+canvas:active { cursor:grabbing; }
+#tooltip {
+  position:fixed; display:none; pointer-events:none;
+  background:#161b22; border:1px solid #30363d; border-radius:6px;
+  padding:8px 12px; color:#c9d1d9; font-size:12px; line-height:1.5;
+  max-width:420px; z-index:10;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+#tooltip .t-title { color:#f0883e; font-weight:bold; font-size:13px; }
+#tooltip .t-type { color:#8b949e; }
+#tooltip .t-edge { color:#58a6ff; display:block; }
+#tooltip .t-ann { color:#ff6a00; font-weight:bold; display:block; margin-top:4px; }
+#hud {
+  position:fixed; top:8px; left:8px; color:#484f58; font-size:11px;
+  pointer-events:none;
+}
+#legend {
+  position:fixed; bottom:8px; left:8px; background:#0d1117ee;
+  border:1px solid #30363d; border-radius:6px; padding:8px 12px;
+  color:#8b949e; font-size:11px; line-height:1.8;
+}
+.lc { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+.ls { margin-left:10px; }
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="tooltip"></div>
+<div id="hud"></div>
+<div id="legend">
+  <span class="lc" style="background:#3fb950"></span>Taxiway
+  <span class="lc ls" style="background:#58a6ff"></span>RWY CL
+  <span class="lc ls" style="background:#8957e5"></span>Arc
+  <span class="lc ls" style="background:#8b949e"></span>Ramp
+  <span class="lc ls" style="background:#f85149"></span>HS
+  <span class="lc ls" style="background:#ff6a00"></span>Route
+  <br><span style="color:#484f58">scroll=zoom  drag=pan  hover=inspect</span>
+</div>
+<script>
+"use strict";
+const D = /*__DATA__*/;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const tip = document.getElementById('tooltip');
+const hud = document.getElementById('hud');
+
+const nodeMap = {};
+D.nodes.forEach(n => { nodeMap[n.id] = n; });
+const routeSet = new Set(D.route);
+const hlTwySet = new Set(D.hlTaxiways.map(s => s.toUpperCase()));
+const hasHl = hlTwySet.size > 0 || D.hlRunways.length > 0;
+
+function twyMatch(name) {
+  return hlTwySet.has(name.toUpperCase()) ||
+    name.split(' \u00b7 ').some(p => hlTwySet.has(p.toUpperCase()));
+}
+
+// Bounds
+let minLat = 1e9, maxLat = -1e9, minLon = 1e9, maxLon = -1e9;
+D.nodes.forEach(n => {
+  if (n.lat < minLat) minLat = n.lat;
+  if (n.lat > maxLat) maxLat = n.lat;
+  if (n.lon < minLon) minLon = n.lon;
+  if (n.lon > maxLon) maxLon = n.lon;
+});
+const padLat = (maxLat - minLat) * 0.05 + 0.0001;
+const padLon = (maxLon - minLon) * 0.05 + 0.0001;
+minLat -= padLat; maxLat += padLat;
+minLon -= padLon; maxLon += padLon;
+
+let W, H, scale = 1, panX = 0, panY = 0;
+let dragging = false, dragX = 0, dragY = 0;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  draw();
+}
+window.addEventListener('resize', resize);
+
+function toScreen(lat, lon) {
+  const x = (lon - minLon) / (maxLon - minLon) * W;
+  const y = (1 - (lat - minLat) / (maxLat - minLat)) * H;
+  return [(x + panX) * scale + W * (1 - scale) / 2,
+          (y + panY) * scale + H * (1 - scale) / 2];
+}
+
+function fromScreen(sx, sy) {
+  const x = (sx - W * (1 - scale) / 2) / scale - panX;
+  const y = (sy - H * (1 - scale) / 2) / scale - panY;
+  return [(1 - y / H) * (maxLat - minLat) + minLat,
+          x / W * (maxLon - minLon) + minLon];
+}
+
+function drawLine(x1, y1, x2, y2) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // 1. Runway surfaces
+  D.runways.forEach(r => {
+    if (r.coords.length < 2) return;
+    const [x1, y1] = toScreen(r.coords[0][0], r.coords[0][1]);
+    const c = r.coords;
+    const [x2, y2] = toScreen(c[c.length - 1][0], c[c.length - 1][1]);
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const widthPx = Math.max(4, r.widthFt * len / 6000);
+    ctx.strokeStyle = r.hl ? '#2d333b' : '#1c2128';
+    ctx.lineWidth = widthPx; ctx.lineCap = 'round';
+    drawLine(x1, y1, x2, y2);
+    ctx.strokeStyle = r.hl ? '#444c56' : '#21262d';
+    ctx.lineWidth = 1.5; ctx.setLineDash([12, 8]);
+    drawLine(x1, y1, x2, y2); ctx.setLineDash([]);
+    // Label
+    ctx.fillStyle = '#484f58'; ctx.font = '11px Consolas,monospace'; ctx.textAlign = 'center';
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    ctx.save(); ctx.translate(mx, my - widthPx / 2 - 6);
+    let ang = Math.atan2(y1 - y2, x2 - x1);
+    if (ang > Math.PI / 2) ang -= Math.PI;
+    if (ang < -Math.PI / 2) ang += Math.PI;
+    ctx.rotate(-ang); ctx.fillText(r.name, 0, 0); ctx.restore();
+  });
+
+  // 2. Non-highlighted edges
+  ctx.lineCap = 'butt';
+  D.edges.forEach(e => {
+    if (e.hl) return;
+    const na = nodeMap[e.a], nb = nodeMap[e.b];
+    if (!na || !nb) return;
+    const [x1, y1] = toScreen(na.lat, na.lon);
+    const [x2, y2] = toScreen(nb.lat, nb.lon);
+    ctx.globalAlpha = hasHl ? 0.1 : 0.3;
+    ctx.strokeStyle = e.rwy ? '#58a6ff' : e.ramp ? '#8b949e' : '#3fb950';
+    ctx.lineWidth = 0.7;
+    if (e.rwy) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
+    drawLine(x1, y1, x2, y2);
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  });
+
+  // 3. Non-highlighted arcs
+  D.arcs.forEach(a => {
+    if (a.hl) return;
+    ctx.globalAlpha = hasHl ? 0.1 : 0.3;
+    ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 0.7; ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    a.pts.forEach((p, i) => {
+      const [x, y] = toScreen(p[0], p[1]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  });
+
+  // 4. Highlighted edges
+  D.edges.filter(e => e.hl).forEach(e => {
+    const na = nodeMap[e.a], nb = nodeMap[e.b];
+    if (!na || !nb) return;
+    const [x1, y1] = toScreen(na.lat, na.lon);
+    const [x2, y2] = toScreen(nb.lat, nb.lon);
+    ctx.strokeStyle = e.rwy ? '#79c0ff' : '#56d364';
+    ctx.lineWidth = 2;
+    if (e.rwy) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
+    drawLine(x1, y1, x2, y2); ctx.setLineDash([]);
+  });
+
+  // 5. Highlighted arcs
+  D.arcs.filter(a => a.hl).forEach(a => {
+    ctx.strokeStyle = a.rwyJunction ? '#bc8cff' : '#d2a8ff';
+    ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    a.pts.forEach((p, i) => {
+      const [x, y] = toScreen(p[0], p[1]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+
+  // 6. Route overlay
+  if (D.route.length >= 2) {
+    function routePath() {
+      ctx.beginPath();
+      let first = true;
+      for (let i = 0; i < D.route.length - 1; i++) {
+        const fid = D.route[i], tid = D.route[i + 1];
+        const arc = D.arcs.find(a => (a.a === fid && a.b === tid) || (a.a === tid && a.b === fid));
+        if (arc) {
+          const pts = arc.a !== fid ? [...arc.pts].reverse() : arc.pts;
+          pts.forEach((p, j) => {
+            const [x, y] = toScreen(p[0], p[1]);
+            first ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            first = false;
+          });
+        } else {
+          const na = nodeMap[fid], nb = nodeMap[tid];
+          if (na && nb) {
+            const [x1, y1] = toScreen(na.lat, na.lon);
+            const [x2, y2] = toScreen(nb.lat, nb.lon);
+            if (first) { ctx.moveTo(x1, y1); first = false; }
+            ctx.lineTo(x2, y2);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#ff6a0040'; ctx.lineWidth = 6; routePath();
+    ctx.strokeStyle = '#ff6a00'; ctx.lineWidth = 2.5; routePath();
+
+    // Numbered markers
+    D.route.forEach((id, i) => {
+      const n = nodeMap[id]; if (!n) return;
+      const [x, y] = toScreen(n.lat, n.lon);
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff6a00'; ctx.fill();
+      ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#0d1117'; ctx.font = 'bold 8px Consolas,monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(i.toString(), x, y);
+    });
+  }
+
+  // 7. Nodes
+  D.nodes.forEach(n => {
+    if (routeSet.has(n.id)) return;
+    const [x, y] = toScreen(n.lat, n.lon);
+    const isHS = n.type === 'RunwayHoldShort';
+    const isSpot = n.type === 'Spot';
+    const isPark = n.type === 'Parking';
+    const isImportant = isHS || isSpot || isPark || n.hl;
+    const onHlTwy = n.edges && n.edges.some(e => twyMatch(e.twy));
+    if (hasHl && !isImportant && !onHlTwy && !n.ann) return;
+
+    const r = isImportant ? (n.hl ? 5 : 3) : 1.5;
+    const color = isHS ? '#f85149' : isSpot ? '#3fb950' : isPark ? '#58a6ff' : '#d29922';
+    ctx.globalAlpha = isImportant || onHlTwy ? 0.9 : 0.25;
+    ctx.beginPath(); ctx.arc(x, y, Math.max(r, r * Math.min(scale, 3) / 3), 0, Math.PI * 2);
+    if (isImportant) { ctx.fillStyle = color; ctx.fill(); }
+    else { ctx.strokeStyle = color; ctx.lineWidth = 0.8; ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  });
+
+  hud.textContent = 'zoom: ' + scale.toFixed(1) + 'x  |  ' + D.airportId;
+}
+
+// --- Interaction ---
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  // Zoom toward mouse position
+  const [lat, lon] = fromScreen(e.clientX, e.clientY);
+  scale = Math.max(0.5, Math.min(80, scale * factor));
+  // Adjust pan so lat/lon stays under mouse
+  const [nx, ny] = toScreen(lat, lon);
+  panX += (e.clientX - nx) / scale;
+  panY += (e.clientY - ny) / scale;
+  draw();
+}, { passive: false });
+
+canvas.addEventListener('mousedown', e => { dragging = true; dragX = e.clientX; dragY = e.clientY; });
+window.addEventListener('mouseup', () => { dragging = false; });
+
+canvas.addEventListener('mousemove', e => {
+  if (dragging) {
+    panX += (e.clientX - dragX) / scale;
+    panY += (e.clientY - dragY) / scale;
+    dragX = e.clientX; dragY = e.clientY;
+    draw();
+    return;
+  }
+  updateTooltip(e.clientX, e.clientY);
+});
+
+canvas.addEventListener('mouseleave', () => { dragging = false; tip.style.display = 'none'; });
+
+function updateTooltip(mx, my) {
+  const [lat, lon] = fromScreen(mx, my);
+  let closest = null, closestDist = Infinity;
+  const cosLat = Math.cos(lat * Math.PI / 180);
+  D.nodes.forEach(n => {
+    const d = Math.hypot((n.lat - lat) * 60, (n.lon - lon) * 60 * cosLat);
+    if (d < closestDist) { closestDist = d; closest = n; }
+  });
+  if (!closest) { tip.style.display = 'none'; return; }
+  const [sx, sy] = toScreen(closest.lat, closest.lon);
+  if (Math.hypot(sx - mx, sy - my) > 18) { tip.style.display = 'none'; return; }
+
+  // Build tooltip content safely using DOM
+  tip.textContent = '';
+  const titleEl = document.createElement('span');
+  titleEl.className = 't-title';
+  titleEl.textContent = '#' + closest.id;
+  tip.appendChild(titleEl);
+
+  const typeEl = document.createElement('span');
+  typeEl.className = 't-type';
+  typeEl.textContent = ' ' + closest.type;
+  tip.appendChild(typeEl);
+
+  if (closest.name) {
+    const b = document.createElement('b');
+    b.textContent = ' ' + closest.name;
+    tip.appendChild(b);
+  }
+  if (closest.rwyId) {
+    tip.appendChild(document.createTextNode(' rwy=' + closest.rwyId));
+  }
+
+  if (closest.edges && closest.edges.length > 0) {
+    closest.edges.forEach(e => {
+      const el = document.createElement('span');
+      el.className = 't-edge';
+      el.textContent = (e.arc ? 'arc ' : '') + e.twy + ' \u2192 #' + e.to +
+        ' (' + e.ft + 'ft)' + (e.rwy ? ' [RWY]' : '');
+      tip.appendChild(el);
+    });
+  }
+
+  if (closest.ann) {
+    const annEl = document.createElement('span');
+    annEl.className = 't-ann';
+    annEl.textContent = closest.ann;
+    tip.appendChild(annEl);
+  }
+
+  tip.style.display = 'block';
+  tip.style.left = (mx + 16) + 'px';
+  tip.style.top = (my - 10) + 'px';
+  const r = tip.getBoundingClientRect();
+  if (r.right > window.innerWidth) tip.style.left = (mx - r.width - 8) + 'px';
+  if (r.bottom > window.innerHeight) tip.style.top = (my - r.height - 8) + 'px';
+}
+
+resize();
+</script></body></html>

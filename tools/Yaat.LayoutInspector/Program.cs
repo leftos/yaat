@@ -32,6 +32,14 @@ public static class Program
         bool jsonOutput = false;
         bool dumpAll = false;
         bool noFillets = false;
+        string? svgOutput = null;
+        var svgHighlightTaxiways = new List<string>();
+        var svgHighlightRunways = new List<string>();
+        var svgHighlightNodes = new List<int>();
+        var svgAnnotations = new List<(int NodeId, string Text)>();
+        var svgRouteNodes = new List<int>();
+        int svgWidth = 4000;
+        int svgHeight = 3000;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -75,6 +83,37 @@ public static class Program
                 case "--no-fillets":
                     noFillets = true;
                     break;
+                case "--svg" when i + 1 < args.Length:
+                    svgOutput = args[++i];
+                    break;
+                case "--svg-taxiway" when i + 1 < args.Length:
+                    svgHighlightTaxiways.Add(args[++i].ToUpperInvariant());
+                    break;
+                case "--svg-runway" when i + 1 < args.Length:
+                    svgHighlightRunways.Add(args[++i].ToUpperInvariant());
+                    break;
+                case "--svg-node" when i + 1 < args.Length:
+                    svgHighlightNodes.Add(int.Parse(args[++i]));
+                    break;
+                case "--svg-annotate" when i + 2 < args.Length:
+                    svgAnnotations.Add((int.Parse(args[++i]), args[++i]));
+                    break;
+                case "--svg-route" when i + 1 < args.Length:
+                {
+                    foreach (string nid in args[++i].Split(','))
+                    {
+                        svgRouteNodes.Add(int.Parse(nid.Trim()));
+                    }
+
+                    break;
+                }
+                case "--svg-size" when i + 1 < args.Length:
+                {
+                    var parts = args[++i].Split('x');
+                    svgWidth = int.Parse(parts[0]);
+                    svgHeight = int.Parse(parts[1]);
+                    break;
+                }
                 default:
                     Console.Error.WriteLine($"Unknown flag: {args[i]}");
                     PrintUsage();
@@ -93,6 +132,70 @@ public static class Program
         {
             Console.Error.WriteLine($"Failed to parse GeoJSON: {ex.Message}");
             return 1;
+        }
+
+        if (svgOutput is not null)
+        {
+            var renderer = new SvgRenderer(analyzer.Layout);
+            foreach (string t in svgHighlightTaxiways)
+            {
+                renderer.HighlightTaxiway(t);
+            }
+
+            foreach (string r in svgHighlightRunways)
+            {
+                renderer.HighlightRunway(r);
+            }
+
+            foreach (int n in svgHighlightNodes)
+            {
+                renderer.HighlightNode(n);
+            }
+
+            foreach (var (nid, text) in svgAnnotations)
+            {
+                renderer.AnnotateNode(nid, text);
+            }
+
+            foreach (int nid in svgRouteNodes)
+            {
+                renderer.AddRouteNode(nid);
+            }
+
+            // If output ends in .html, render interactive HTML instead of SVG
+            if (svgOutput.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+            {
+                var htmlRenderer = new HtmlRenderer(analyzer.Layout);
+                foreach (string t in svgHighlightTaxiways)
+                {
+                    htmlRenderer.HighlightTaxiway(t);
+                }
+                foreach (string r in svgHighlightRunways)
+                {
+                    htmlRenderer.HighlightRunway(r);
+                }
+                foreach (int n in svgHighlightNodes)
+                {
+                    htmlRenderer.HighlightNode(n);
+                }
+                foreach (var (nid, text) in svgAnnotations)
+                {
+                    htmlRenderer.AnnotateNode(nid, text);
+                }
+                foreach (int nid in svgRouteNodes)
+                {
+                    htmlRenderer.AddRouteNode(nid);
+                }
+                string html = htmlRenderer.Render();
+                File.WriteAllText(svgOutput, html);
+                Console.Error.WriteLine($"Wrote interactive HTML to {svgOutput}");
+                return 0;
+            }
+
+            string svg = renderer.Render(svgWidth, svgHeight);
+            File.WriteAllText(svgOutput, svg);
+            Console.Error.WriteLine($"Wrote SVG ({svgWidth}x{svgHeight}) to {svgOutput}");
+            return 0;
         }
 
         if (dumpAll)
@@ -219,5 +322,13 @@ public static class Program
         Console.WriteLine("  --json                   Output as JSON");
         Console.WriteLine("  --airport-code <ICAO>    Airport code for NavData runway widths");
         Console.WriteLine("  --navdata <dir>          Path to NavData.dat + FAACIFP18.gz directory");
+        Console.WriteLine();
+        Console.WriteLine("SVG output:");
+        Console.WriteLine("  --svg <path>             Render full layout to SVG file");
+        Console.WriteLine("  --svg-taxiway <name>     Highlight a taxiway (repeatable)");
+        Console.WriteLine("  --svg-runway <desig>     Highlight a runway (repeatable)");
+        Console.WriteLine("  --svg-node <id>          Highlight a node (repeatable)");
+        Console.WriteLine("  --svg-annotate <id> <text>  Add annotation label to a node");
+        Console.WriteLine("  --svg-size <WxH>         Canvas size in pixels (default: 4000x3000)");
     }
 }

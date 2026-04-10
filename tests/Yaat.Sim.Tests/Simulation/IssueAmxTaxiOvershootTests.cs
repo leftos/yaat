@@ -84,14 +84,28 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
                 bool headingReasonable = (hdg >= 80) && (hdg <= 190);
                 Assert.True(headingReasonable, $"AMX669 heading {hdg:F0}° at 1L hold-short is outside expected M1 bearing range [80-190°]");
 
-                // Verify aircraft is near the hold-short node (#882)
+                // Verify aircraft is near a 1L hold-short node on M1
                 var layout = new TestAirportGroundData().GetLayout("SFO");
-                if (layout is not null && layout.Nodes.TryGetValue(882, out var hsNode))
+                if (layout is not null)
                 {
-                    double dist = GeoMath.DistanceNm(amx.Latitude, amx.Longitude, hsNode.Latitude, hsNode.Longitude);
-                    double distFt = dist * GeoMath.FeetPerNm;
-                    output.WriteLine($"Distance to hold-short node #882: {distFt:F0}ft");
-                    Assert.True(distFt < 150, $"Aircraft is {distFt:F0}ft from hold-short node, expected < 150ft");
+                    var rwy1L = RunwayIdentifier.Parse("1L/19R");
+                    var hsNode = layout
+                        .Nodes.Values.Where(n =>
+                            n.Type == GroundNodeType.RunwayHoldShort
+                            && n.RunwayId is { } rid
+                            && rid.Equals(rwy1L)
+                            && n.Edges.Any(e => e.MatchesTaxiway("M1"))
+                        )
+                        .OrderBy(n => GeoMath.DistanceNm(amx.Latitude, amx.Longitude, n.Latitude, n.Longitude))
+                        .FirstOrDefault();
+
+                    if (hsNode is not null)
+                    {
+                        double dist = GeoMath.DistanceNm(amx.Latitude, amx.Longitude, hsNode.Latitude, hsNode.Longitude);
+                        double distFt = dist * GeoMath.FeetPerNm;
+                        output.WriteLine($"Distance to hold-short node #{hsNode.Id}: {distFt:F0}ft");
+                        Assert.True(distFt < 150, $"Aircraft is {distFt:F0}ft from hold-short node, expected < 150ft");
+                    }
                 }
 
                 return;

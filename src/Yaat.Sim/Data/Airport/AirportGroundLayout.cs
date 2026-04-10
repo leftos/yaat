@@ -17,7 +17,7 @@ public sealed class GroundNode
     public required int Id { get; init; }
     public required double Latitude { get; init; }
     public required double Longitude { get; init; }
-    public required GroundNodeType Type { get; init; }
+    public required GroundNodeType Type { get; set; }
     public string? Name { get; init; }
 
     /// <summary>
@@ -28,7 +28,7 @@ public sealed class GroundNode
     /// <summary>
     /// Runway ID that this hold-short node protects. Only set for RunwayHoldShort nodes.
     /// </summary>
-    public RunwayIdentifier? RunwayId { get; init; }
+    public RunwayIdentifier? RunwayId { get; set; }
 
     /// <summary>
     /// Adjacent edges for graph traversal. Populated during layout construction.
@@ -739,12 +739,14 @@ public sealed class AirportGroundLayout
 
             // Skip arcs whose departure tangent faces away from the runway heading.
             // Threshold fillets create arcs for both runway directions — an arc designed
-            // for 10L traffic curves backward for a 28R aircraft.
+            // for 10L traffic curves backward for a 28R aircraft. Use 95° (not 90°)
+            // to avoid rejecting perpendicular exits (like OAK W1-W7 at 90° to RWY 30)
+            // whose arc tangent lands right at the boundary due to curve geometry.
             if (edge is GroundArc arc)
             {
                 double departureBearing = arc.TangentBearingAt(centerlineNode, centerlineNode, neighbor);
                 double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
-                if (bearingDiff > 90)
+                if (bearingDiff > 95)
                 {
                     continue;
                 }
@@ -1343,14 +1345,21 @@ public sealed class AirportGroundLayout
             return (parkingSide is not null) && (parkingSide != hsSide) ? parkingSide : hsSide;
         }
 
-        // No HS exits — check parallel runway for traffic flow inheritance.
+        // Parking proximity is the strongest non-HS signal — airports are designed
+        // so exit taxiways lead toward the terminal/ramp area. Only fall back to
+        // parallel-runway HS inference when parking proximity is inconclusive.
+        if (parkingSide is not null)
+        {
+            return parkingSide;
+        }
+
         ExitSide? parallelHsSide = FindParallelRunwayHsSide(runwayDesignator, runwayHeading);
         if (parallelHsSide is not null)
         {
             return parallelHsSide;
         }
 
-        return parkingSide;
+        return null;
     }
 
     /// <summary>
