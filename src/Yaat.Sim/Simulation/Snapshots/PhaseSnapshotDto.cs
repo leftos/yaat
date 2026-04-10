@@ -515,6 +515,22 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     public required bool TooHighGoAroundChecked { get; init; }
     public required bool FasSet { get; init; } = false;
     public required double MapDistNm { get; init; }
+
+    /// <summary>
+    /// True heading the aircraft tracks on final. For aligned approaches this matches the
+    /// runway heading; for offset approaches it differs by the published offset. Nullable
+    /// to round-trip pre-FAC-extractor snapshots which have only RunwayHeadingDeg.
+    /// </summary>
+    public double? FinalApproachCourseDeg { get; init; }
+
+    /// <summary>
+    /// Lateral cross-track reference latitude. Null = use the runway threshold (ordinary
+    /// approaches). Non-null for parallel-offset approaches whose published MAP fix is
+    /// laterally offset from the threshold (e.g. KDCA LDA-X 19).
+    /// </summary>
+    public double? AnchorLat { get; init; }
+
+    public double? AnchorLon { get; init; }
 }
 
 public sealed class LandingPhaseDto : PhaseDto

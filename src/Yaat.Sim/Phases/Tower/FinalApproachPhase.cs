@@ -26,7 +26,28 @@ public sealed class FinalApproachPhase : Phase
     private double _thresholdLat;
     private double _thresholdLon;
     private double _thresholdElevation;
+
+    /// <summary>
+    /// Physical runway heading — used only by the intercept-legality check (Issue #101 fallback).
+    /// All lateral guidance uses <see cref="_finalApproachCourse"/>, which may differ for offset
+    /// approaches (LDA, RNAV with offset CF leg, VOR offset).
+    /// </summary>
     private TrueHeading _runwayHeading;
+
+    /// <summary>
+    /// Published final approach course in true degrees, derived from CIFP via
+    /// <see cref="Data.Vnas.FinalApproachCourseExtractor"/>. Equals runway heading for
+    /// aligned approaches.
+    /// </summary>
+    private TrueHeading _finalApproachCourse;
+
+    /// <summary>
+    /// Cross-track reference point. For ordinary approaches this is the runway threshold;
+    /// for parallel-offset approaches (KDCA LDA-X 19) it is the published MAP fix coordinates.
+    /// </summary>
+    private double _anchorLat;
+
+    private double _anchorLon;
     private double _gsAngleDeg;
     private bool _goAroundTriggered;
     private bool _noClearanceWarningIssued;
@@ -55,6 +76,9 @@ public sealed class FinalApproachPhase : Phase
             ThresholdLon = _thresholdLon,
             ThresholdElevation = _thresholdElevation,
             RunwayHeadingDeg = _runwayHeading.Degrees,
+            FinalApproachCourseDeg = _finalApproachCourse.Degrees,
+            AnchorLat = _anchorLat == _thresholdLat ? null : _anchorLat,
+            AnchorLon = _anchorLon == _thresholdLon ? null : _anchorLon,
             GsAngleDeg = _gsAngleDeg,
             GoAroundTriggered = _goAroundTriggered,
             NoClearanceWarningIssued = _noClearanceWarningIssued,
@@ -75,6 +99,10 @@ public sealed class FinalApproachPhase : Phase
         phase._thresholdLon = dto.ThresholdLon;
         phase._thresholdElevation = dto.ThresholdElevation;
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        // Pre-FAC-extractor snapshots only have RunwayHeadingDeg; treat that as the FAC.
+        phase._finalApproachCourse = dto.FinalApproachCourseDeg is { } facDeg ? new TrueHeading(facDeg) : phase._runwayHeading;
+        phase._anchorLat = dto.AnchorLat ?? phase._thresholdLat;
+        phase._anchorLon = dto.AnchorLon ?? phase._thresholdLon;
         phase._gsAngleDeg = dto.GsAngleDeg;
         phase._goAroundTriggered = dto.GoAroundTriggered;
         phase._noClearanceWarningIssued = dto.NoClearanceWarningIssued;
@@ -97,11 +125,22 @@ public sealed class FinalApproachPhase : Phase
         _thresholdLon = ctx.Runway.ThresholdLongitude;
         _thresholdElevation = ctx.Runway.ElevationFt;
         _runwayHeading = ctx.Runway.TrueHeading;
+
+        // Pull the published final approach course and (optional) lateral anchor from the
+        // active approach clearance. The clearance is populated by ApproachCommandHandler
+        // (and the JFAC handler) via FinalApproachCourseExtractor. When the aircraft was
+        // spawned directly into final approach without a clearance, fall back to runway
+        // heading + threshold for both fields.
+        var clearance = ctx.Aircraft.Phases?.ActiveApproach;
+        _finalApproachCourse = clearance?.FinalApproachCourse ?? _runwayHeading;
+        _anchorLat = clearance?.FinalApproachAnchorLat ?? _thresholdLat;
+        _anchorLon = clearance?.FinalApproachAnchorLon ?? _thresholdLon;
+
         _gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         _isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
-        _mapDistNm = ctx.Aircraft.Phases?.ActiveApproach?.MapDistanceNm ?? 0.5;
+        _mapDistNm = clearance?.MapDistanceNm ?? 0.5;
 
-        ctx.Targets.TargetTrueHeading = _runwayHeading;
+        ctx.Targets.TargetTrueHeading = _finalApproachCourse;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
@@ -121,13 +160,14 @@ public sealed class FinalApproachPhase : Phase
         double startXte = GeoMath.SignedCrossTrackDistanceNm(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
-            _thresholdLat,
-            _thresholdLon,
-            _runwayHeading
+            _anchorLat,
+            _anchorLon,
+            _finalApproachCourse
         );
         ctx.Logger.LogDebug(
-            "[FinalApproach] {Callsign}: started, rwy hdg={Hdg:F0}, dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, fasSet={FasSet}, xte={Xte:F3}nm",
+            "[FinalApproach] {Callsign}: started, fac={Fac:F0} (rwy {Rwy:F0}), dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, fasSet={FasSet}, xte={Xte:F3}nm",
             ctx.Aircraft.Callsign,
+            _finalApproachCourse.Degrees,
             _runwayHeading.Degrees,
             startDist,
             ctx.Aircraft.Altitude,
@@ -168,16 +208,16 @@ public sealed class FinalApproachPhase : Phase
 
         CheckInterceptDistance(ctx, distNm);
 
-        // Lateral guidance: steer toward an aim point on the extended centerline.
+        // Lateral guidance: steer toward an aim point on the published final approach course.
+        // The cross-track / along-track reference is the lateral anchor (runway threshold for
+        // ordinary approaches, the published MAP fix for parallel-offset approaches like LDA).
         // Lead distance based on turn radius — the kinematically natural look-ahead.
-        // Far from centerline: lead ≈ turnRadius (smooth arc the aircraft can fly).
-        // Near centerline: lead → absXte (heading converges to runway heading).
         double signedXte = GeoMath.SignedCrossTrackDistanceNm(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
-            _thresholdLat,
-            _thresholdLon,
-            _runwayHeading
+            _anchorLat,
+            _anchorLon,
+            _finalApproachCourse
         );
         double absXte = Math.Abs(signedXte);
 
@@ -194,11 +234,11 @@ public sealed class FinalApproachPhase : Phase
         double minLead = Math.Max(turnRadiusNm * 0.3, AimPointMinNm);
         double leadNm = Math.Max(turnRadiusNm * xteRatio + absXte * (1.0 - xteRatio), minLead);
 
-        double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading);
+        double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _anchorLat, _anchorLon, _finalApproachCourse);
         double aimAlongTrack = Math.Min(alongTrack + leadNm, 0.0);
 
-        TrueHeading reciprocal = _runwayHeading.ToReciprocal();
-        var aimPoint = GeoMath.ProjectPoint(_thresholdLat, _thresholdLon, reciprocal, Math.Abs(aimAlongTrack));
+        TrueHeading reciprocal = _finalApproachCourse.ToReciprocal();
+        var aimPoint = GeoMath.ProjectPoint(_anchorLat, _anchorLon, reciprocal, Math.Abs(aimAlongTrack));
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, aimPoint.Lat, aimPoint.Lon);
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
 
@@ -320,10 +360,14 @@ public sealed class FinalApproachPhase : Phase
         }
 
         double crossTrack = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading)
+            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _anchorLat, _anchorLon, _finalApproachCourse)
         );
 
-        double headingDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading);
+        // Establishment check: aircraft must be aligned with the published final approach course.
+        // For the Issue #101 magnetic-variation case, also accept alignment with the runway heading
+        // (the older fallback behaviour) so we never tighten the establishment criterion below
+        // what previously worked.
+        double headingDiff = Math.Min(ctx.Aircraft.TrueHeading.AbsAngleTo(_finalApproachCourse), ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading));
 
         if (crossTrack >= InterceptCrossTrackThresholdNm || headingDiff >= InterceptHeadingThresholdDeg)
         {
@@ -346,7 +390,8 @@ public sealed class FinalApproachPhase : Phase
         // Use the capture angle (recorded at the actual intercept moment) when available.
         // At establishment time the aircraft is already aligned (< 15°), making the current
         // heading diff meaningless for scoring.
-        double interceptAngle = ctx.Aircraft.Phases?.ActiveApproach?.InterceptCaptureAngleDeg ?? ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading);
+        double interceptAngle =
+            ctx.Aircraft.Phases?.ActiveApproach?.InterceptCaptureAngleDeg ?? ctx.Aircraft.TrueHeading.AbsAngleTo(_finalApproachCourse);
 
         // Distance legality is checked at capture time (InterceptCoursePhase.Capture),
         // but recorded on the score for the approach report.
