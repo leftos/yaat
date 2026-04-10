@@ -273,14 +273,16 @@ public sealed class TaxiingPhase : Phase
             var phases = ctx.Aircraft.Phases;
             if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
             {
-                var parkingName = route.DestinationParking ?? route.DestinationSpot;
-                if (parkingName is not null)
+                if (route.DestinationParking is not null)
                 {
-                    ctx.Aircraft.ParkingSpot = parkingName;
+                    ctx.Aircraft.ParkingSpot = route.DestinationParking;
                     phases.InsertAfterCurrent(new AtParkingPhase());
                 }
                 else
                 {
+                    // DestinationSpot is an intermediate waypoint — the aircraft is awaiting
+                    // further instructions, not parked. HoldingInPositionPhase is the catch-all
+                    // idle state that accepts Taxi/Pushback/FollowGround/LineUpAndWait/etc.
                     phases.InsertAfterCurrent(new HoldingInPositionPhase());
                 }
             }

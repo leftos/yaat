@@ -759,9 +759,12 @@ internal static class GroundCommandHandler
             return new CommandResult(false, $"Cannot follow during {currentPhase.Name}");
         }
 
-        // Replace phases with FollowingPhase
+        // Replace phases with FollowingPhase. Clear() marks the active phase as Skipped
+        // and advances CurrentIndex past the end, but does not remove the phase entries —
+        // truncate the list before adding so Start() lands on the new FollowingPhase at index 0.
         var phases = aircraft.Phases!;
         phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout));
+        phases.Phases.Clear();
         phases.Phases.Add(new FollowingPhase(follow.TargetCallsign));
         phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout));
 
