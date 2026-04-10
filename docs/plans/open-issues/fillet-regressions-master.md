@@ -38,6 +38,7 @@ Tracks all open fillet arc geometry bugs. Supersedes four sub-plans:
 - [x] **Per-pair tangent nodes** (`b5ff95f`): Each arc pair computes its own tangent positions independently. Near-collinear pairs with huge tangent distances no longer corrupt other pairs' arcs via max-wins. Coincident positions on the same edge are deduplicated (5ft threshold).
 - [x] **Dangling edge/arc cleanup**: When removing intersection nodes or walk shape-point nodes, also remove all edges and arcs still referencing them. Prevents dangling references from cross-intersection fillet edges.
 - [x] **Walk shape-node classification**: `InterpolateAlongWalk` now only classifies nodes as removable shape nodes if they are `TaxiwayIntersection` type with no `SourceIntersectionPosition`. Tangent nodes from prior fillets and hold-short nodes are treated as passthrough (preserved and reconnected).
+- [x] **Manual arc detection**: `DetectManualArcNodes` identifies chains of shape-point nodes forming pre-existing curves (≥30° cumulative bearing change, ≥3 nodes). Excluded from filleting and from taxiway walk consumption.
 
 ### Current metrics (after all fixes)
 
@@ -77,15 +78,11 @@ Three sources of dangling references, all fixed:
 
 3. **Walk consuming non-shape-point nodes** (tangent nodes from prior fillets, RunwayHoldShort nodes): `InterpolateAlongWalk` classified all non-other-taxiway nodes as removable shape nodes, including tangent nodes from prior fillets (`SourceIntersectionPosition` set) and non-`TaxiwayIntersection` nodes (hold-short). **Fix**: Only classify as shape node if `Type == TaxiwayIntersection` AND `SourceIntersectionPosition is null`; otherwise treat as passthrough (preserve and reconnect).
 
-### 2. Pre-existing manual arcs destroyed by filleting (MEDIUM — visual quality)
+### 2. ~~Pre-existing manual arcs destroyed by filleting~~ — **FIXED**
 
-GeoJSON authors sometimes create manual arcs using chains of short edges with frequent nodes (e.g., OAK W5, W6, W7). The fillet generator treats the shape-point nodes in these chains as intersections eligible for filleting, destroying the original arc geometry and replacing it with straight edges + incorrect fillet arcs.
-
-**Example**: OAK W6 — original chain of short edges forming a smooth curve from W toward the runway. After filleting, the arc structure is destroyed: a fillet arc is added at one end (connecting to W7), but the rest of the original arc becomes a long straight edge (697→699).
-
-**Proposed approach**: Detect pre-existing manual arcs by identifying chains of shape-point nodes (2 edges, same taxiway) that form a curve (cumulative bearing change exceeds a threshold, e.g., 30°). Exclude these chains from filleting — they already provide the smooth curve geometry that fillets are designed to create.
-
-**Detection heuristic**: Walk same-taxiway shape-point chains. If the total bearing change from start to end exceeds ~30° AND the chain has 3+ nodes, it's a manual arc. Mark all nodes in the chain as non-eligible for filleting.
+Two-part fix:
+1. **Detection**: `DetectManualArcNodes` walks chains of shape-point nodes (2 edges, same taxiway, `TaxiwayIntersection` type) in both directions. If cumulative bearing change ≥ 30° and chain has ≥ 3 nodes, all chain nodes are excluded from filleting. OAK: 17 chains / 155 nodes (W1-W7, V, B, TE, R, B1, B5, A, J, D, F). SFO: 30 chains / 228 nodes.
+2. **Walk boundary**: `WalkTaxiway` stops at manual arc chain nodes so adjacent intersection fillets don't consume or destroy the arc geometry. The fillet at the intersection uses the first arc chain node as its tangent boundary.
 
 ### 3. Bezier control point depth formula (HIGH — root cause of remaining degenerate arcs)
 

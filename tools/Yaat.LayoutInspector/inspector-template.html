@@ -342,10 +342,16 @@ function updateTooltip(mx, my) {
     if (d < closestEdgeDist) { closestEdgeDist = d; closestEdge = e; }
   });
 
-  // Priority: arcs > edges > nodes
-  if (closestArc && closestArcDist <= EDGE_THRESH) {
-    const na = nodeMap[closestArc.a], nb = nodeMap[closestArc.b];
-    tip.textContent = '';
+  // Show all matching elements (arcs, edges, nodes) in the tooltip
+  const hasArc = closestArc && closestArcDist <= EDGE_THRESH;
+  const hasEdge = closestEdge && closestEdgeDist <= EDGE_THRESH;
+  const hasNode = closestNode && nodeScreenDist <= NODE_THRESH;
+
+  if (!hasArc && !hasEdge && !hasNode) { tip.style.display = 'none'; return; }
+
+  tip.textContent = '';
+
+  if (hasArc) {
     const titleEl = document.createElement('span');
     titleEl.className = 't-title';
     titleEl.textContent = 'Arc: ' + closestArc.twy;
@@ -359,13 +365,11 @@ function updateTooltip(mx, my) {
     if (closestArc.origin) {
       addLine('origin: ' + closestArc.origin);
     }
-    showTip(mx, my);
-    return;
   }
 
-  if (closestEdge && closestEdgeDist <= EDGE_THRESH) {
+  if (hasEdge) {
+    if (hasArc) { addLine('\u2500\u2500\u2500'); }
     const na = nodeMap[closestEdge.a], nb = nodeMap[closestEdge.b];
-    tip.textContent = '';
     const titleEl = document.createElement('span');
     titleEl.className = 't-title';
     titleEl.textContent = 'Edge: ' + closestEdge.twy;
@@ -374,11 +378,14 @@ function updateTooltip(mx, my) {
     if (closestEdge.origin) {
       addLine('origin: ' + closestEdge.origin);
     }
-    showTip(mx, my);
-    return;
   }
 
-  if (!closestNode || nodeScreenDist > NODE_THRESH) { tip.style.display = 'none'; return; }
+  if (hasArc || hasEdge) {
+    showTip(mx, my);
+    if (!hasNode) return;
+  }
+
+  if (!hasNode) { tip.style.display = 'none'; return; }
 
   // Build node tooltip content safely using DOM
   tip.textContent = '';

@@ -28,10 +28,23 @@ public static class FilletArcGenerator
     {
         int nextNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max() + 1;
 
+        // Pre-pass: detect pre-existing manual arcs (chains of shape-point nodes
+        // forming smooth curves) and exclude them from filleting.
+        var manualArcNodes = DetectManualArcNodes(layout);
+        if (manualArcNodes.Count > 0)
+        {
+            Log.LogDebug("Excluding {Count} nodes in pre-existing manual arc chains from filleting", manualArcNodes.Count);
+        }
+
         // Snapshot the intersection nodes to process — we'll be mutating the graph.
         var intersections = new List<(GroundNode Node, bool PreserveNode)>();
         foreach (var node in layout.Nodes.Values)
         {
+            if (manualArcNodes.Contains(node.Id))
+            {
+                continue;
+            }
+
             if (IsEligibleForFilleting(node, out bool preserve))
             {
                 intersections.Add((node, preserve));
@@ -60,7 +73,7 @@ public static class FilletArcGenerator
                 continue;
             }
 
-            var result = FilletNode(layout, node, preserveNode, ref nextNodeId);
+            var result = FilletNode(layout, node, preserveNode, manualArcNodes, ref nextNodeId);
             if (result.Success)
             {
                 filletedCount++;
@@ -150,6 +163,7 @@ public static class FilletArcGenerator
         AirportGroundLayout layout,
         GroundNode intersection,
         bool preserveNode,
+        HashSet<int> manualArcNodes,
         ref int nextNodeId
     )
     {
@@ -195,7 +209,7 @@ public static class FilletArcGenerator
         var edgeWalks = new Dictionary<GroundEdge, TaxiwayWalkResult>();
         foreach (var (edge, _, _) in edgeBearings)
         {
-            edgeWalks[edge] = WalkTaxiway(edge, intersection);
+            edgeWalks[edge] = WalkTaxiway(edge, intersection, manualArcNodes);
         }
 
         // Per-pair tangent placements: each arc pair computes its own tangent positions
@@ -385,87 +399,181 @@ public static class FilletArcGenerator
 
             // Consume walked-through edges from the farthest tangent (it walks the most)
             var farthest = sorted[0];
-            foreach (var walkedEdge in farthest.Placement.WalkedEdges)
+
+            if (farthest.Placement.LandsInManualArc)
             {
-                consumedEdges.Add(walkedEdge);
-            }
-            foreach (var shapeNode in farthest.Placement.WalkedShapeNodes)
-            {
-                int shapeId = shapeNode.Id;
-                int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == shapeId) || (e.Nodes[1].Id == shapeId));
-                int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == shapeId) || (a.Nodes[1].Id == shapeId));
-                layout.Nodes.Remove(shapeId);
-                if ((removedEdges > 0) || (removedArcs > 0))
+                // Manual arc tangent: the chain edges stay intact. Only split the edge
+                // where the tangent node lands — remove it and replace with two sub-edges.
+                var splitEdge = farthest.Placement.SplitEdge;
+                if (splitEdge is not null)
                 {
-                    Log.LogDebug(
-                        "[Int#{IntId}] Walk cleanup: removed node #{ShapeId} ({Type}), purged {Edges} edge(s) and {Arcs} arc(s)",
-                        intersection.Id,
-                        shapeId,
-                        shapeNode.Type,
-                        removedEdges,
-                        removedArcs
+                    var splitNodeA = splitEdge.Nodes[0];
+                    var splitNodeB = splitEdge.Nodes[1];
+                    consumedEdges.Add(splitEdge);
+
+                    double distA = GeoMath.DistanceNm(splitNodeA.Latitude, splitNodeA.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [splitNodeA, farthest.Node],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = distA,
+                            Origin = $"Fillet:phase-d-arc-split@{intersection.Id} {edge.TaxiwayName} #{splitNodeA.Id}↔#{farthest.Node.Id}",
+                        }
+                    );
+                    double distB = GeoMath.DistanceNm(farthest.Node.Latitude, farthest.Node.Longitude, splitNodeB.Latitude, splitNodeB.Longitude);
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [farthest.Node, splitNodeB],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = distB,
+                            Origin = $"Fillet:phase-d-arc-split@{intersection.Id} {edge.TaxiwayName} #{farthest.Node.Id}↔#{splitNodeB.Id}",
+                        }
+                    );
+                }
+                // Also consume any non-manual-arc walked edges before the chain
+                foreach (var walkedEdge in farthest.Placement.WalkedEdges)
+                {
+                    consumedEdges.Add(walkedEdge);
+                }
+                foreach (var shapeNode in farthest.Placement.WalkedShapeNodes)
+                {
+                    int shapeId = shapeNode.Id;
+                    int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == shapeId) || (e.Nodes[1].Id == shapeId));
+                    int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == shapeId) || (a.Nodes[1].Id == shapeId));
+                    layout.Nodes.Remove(shapeId);
+                }
+                foreach (var ptNode in farthest.Placement.PassthroughNodes)
+                {
+                    double ptToTanDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [ptNode, farthest.Node],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = ptToTanDist,
+                            Origin = $"Fillet:phase-d-passthrough@{intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farthest.Node.Id}",
+                        }
+                    );
+                }
+
+                // When farthest is in a manual arc but there are nearer tangents on the
+                // first edge (before the chain), create a shorten edge from otherNode to
+                // the nearest non-manual-arc tangent so the first edge isn't left dangling.
+                if (sorted.Count > 1)
+                {
+                    var nearest = sorted[^1];
+                    if (!nearest.Placement.LandsInManualArc)
+                    {
+                        double shortenDist = GeoMath.DistanceNm(
+                            otherNode.Latitude,
+                            otherNode.Longitude,
+                            nearest.Node.Latitude,
+                            nearest.Node.Longitude
+                        );
+                        layout.Edges.Add(
+                            new GroundEdge
+                            {
+                                Nodes = [otherNode, nearest.Node],
+                                TaxiwayName = edge.TaxiwayName,
+                                DistanceNm = shortenDist,
+                                Origin = $"Fillet:phase-d-shorten@{intersection.Id} {edge.TaxiwayName} #{otherNode.Id}↔#{nearest.Node.Id}",
+                            }
+                        );
+                    }
+                }
+            }
+            else
+            {
+                // Standard walk: consume edges, remove shape nodes, reconnect passthrough
+                foreach (var walkedEdge in farthest.Placement.WalkedEdges)
+                {
+                    consumedEdges.Add(walkedEdge);
+                }
+                foreach (var shapeNode in farthest.Placement.WalkedShapeNodes)
+                {
+                    int shapeId = shapeNode.Id;
+                    int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == shapeId) || (e.Nodes[1].Id == shapeId));
+                    int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == shapeId) || (a.Nodes[1].Id == shapeId));
+                    layout.Nodes.Remove(shapeId);
+                    if ((removedEdges > 0) || (removedArcs > 0))
+                    {
+                        Log.LogDebug(
+                            "[Int#{IntId}] Walk cleanup: removed node #{ShapeId} ({Type}), purged {Edges} edge(s) and {Arcs} arc(s)",
+                            intersection.Id,
+                            shapeId,
+                            shapeNode.Type,
+                            removedEdges,
+                            removedArcs
+                        );
+                    }
+                }
+
+                var farNode = farthest.Placement.WalkFarNode ?? otherNode;
+                foreach (var ptNode in farthest.Placement.PassthroughNodes)
+                {
+                    double ptToTanDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [ptNode, farthest.Node],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = ptToTanDist,
+                            Origin = $"Fillet:phase-d-passthrough@{intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farthest.Node.Id}",
+                        }
+                    );
+                    double ptToFarDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farNode.Latitude, farNode.Longitude);
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [ptNode, farNode],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = ptToFarDist,
+                            Origin = $"Fillet:phase-d-passthrough@{intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farNode.Id}",
+                        }
+                    );
+                }
+
+                // Shortened edge: farNode ↔ farthest tangent
+                if (farNode.Id != farthest.Node.Id)
+                {
+                    double shortenDist = GeoMath.DistanceNm(farNode.Latitude, farNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [farNode, farthest.Node],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = shortenDist,
+                            Origin = $"Fillet:phase-d-shorten@{intersection.Id} {edge.TaxiwayName} #{farNode.Id}↔#{farthest.Node.Id}",
+                        }
                     );
                 }
             }
 
-            // Reconnect pass-through nodes from the farthest walk
-            var farNode = farthest.Placement.WalkFarNode ?? otherNode;
-            foreach (var ptNode in farthest.Placement.PassthroughNodes)
-            {
-                double ptToTanDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
-                layout.Edges.Add(
-                    new GroundEdge
-                    {
-                        Nodes = [ptNode, farthest.Node],
-                        TaxiwayName = edge.TaxiwayName,
-                        DistanceNm = ptToTanDist,
-                        Origin = $"Fillet:phase-d-passthrough@{intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farthest.Node.Id}",
-                    }
-                );
-                double ptToFarDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farNode.Latitude, farNode.Longitude);
-                layout.Edges.Add(
-                    new GroundEdge
-                    {
-                        Nodes = [ptNode, farNode],
-                        TaxiwayName = edge.TaxiwayName,
-                        DistanceNm = ptToFarDist,
-                        Origin = $"Fillet:phase-d-passthrough@{intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farNode.Id}",
-                    }
-                );
-            }
-
-            // Shortened edge: farNode ↔ farthest tangent
-            if (farNode.Id != farthest.Node.Id)
-            {
-                double shortenDist = GeoMath.DistanceNm(farNode.Latitude, farNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
-                layout.Edges.Add(
-                    new GroundEdge
-                    {
-                        Nodes = [farNode, farthest.Node],
-                        TaxiwayName = edge.TaxiwayName,
-                        DistanceNm = shortenDist,
-                        Origin = $"Fillet:phase-d-shorten@{intersection.Id} {edge.TaxiwayName} #{farNode.Id}↔#{farthest.Node.Id}",
-                    }
-                );
-            }
-
-            // Connect intermediate tangent nodes with edge segments (farthest → next → ... → nearest)
+            // Connect intermediate tangent nodes with edge segments (farthest → next → ... → nearest).
+            // Skip tangent-links that would span across manual arc chains — the existing
+            // chain edges provide the connectivity between tangent nodes.
             for (int t = 0; t < sorted.Count - 1; t++)
             {
-                var fromTan = sorted[t].Node;
-                var toTan = sorted[t + 1].Node;
-                if (fromTan.Id == toTan.Id)
+                var fromTan = sorted[t];
+                var toTan = sorted[t + 1];
+                if (fromTan.Node.Id == toTan.Node.Id)
                 {
                     continue;
                 }
-                double segDist = GeoMath.DistanceNm(fromTan.Latitude, fromTan.Longitude, toTan.Latitude, toTan.Longitude);
+                if (fromTan.Placement.LandsInManualArc || toTan.Placement.LandsInManualArc)
+                {
+                    continue;
+                }
+                double segDist = GeoMath.DistanceNm(fromTan.Node.Latitude, fromTan.Node.Longitude, toTan.Node.Latitude, toTan.Node.Longitude);
                 layout.Edges.Add(
                     new GroundEdge
                     {
-                        Nodes = [fromTan, toTan],
+                        Nodes = [fromTan.Node, toTan.Node],
                         TaxiwayName = edge.TaxiwayName,
                         DistanceNm = segDist,
-                        Origin = $"Fillet:phase-d-tangent-link@{intersection.Id} {edge.TaxiwayName} #{fromTan.Id}↔#{toTan.Id}",
+                        Origin = $"Fillet:phase-d-tangent-link@{intersection.Id} {edge.TaxiwayName} #{fromTan.Node.Id}↔#{toTan.Node.Id}",
                     }
                 );
             }
@@ -592,15 +700,17 @@ public static class FilletArcGenerator
         if (preserveNode)
         {
             // Preserve: keep the intersection node, connect to the nearest tangent on each edge.
+            // When the tangent lands in a manual arc chain, connect to the edge's far node
+            // instead — the chain provides connectivity from there to the tangent.
             foreach (var (edge, tangentEntries) in edgeTangentNodes)
             {
-                // Nearest tangent = smallest tangent distance from intersection
                 var nearest = tangentEntries.MinBy(t => t.Placement.TangentDistNm);
-                double stubDist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, nearest.Node.Latitude, nearest.Node.Longitude);
+                var stubTarget = nearest.Placement.LandsInManualArc ? edge.OtherNode(intersection) : nearest.Node;
+                double stubDist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, stubTarget.Latitude, stubTarget.Longitude);
                 layout.Edges.Add(
                     new GroundEdge
                     {
-                        Nodes = [intersection, nearest.Node],
+                        Nodes = [intersection, stubTarget],
                         TaxiwayName = edge.TaxiwayName,
                         DistanceNm = stubDist,
                         Origin = $"Fillet:phase-d-preserve@{intersection.Id} {edge.TaxiwayName}",
@@ -925,6 +1035,8 @@ public static class FilletArcGenerator
         List<GroundNode> walkedShapeNodes;
         List<GroundNode> passthroughNodes;
         GroundNode? walkFarNode;
+        bool landsInManualArc;
+        GroundEdge? splitEdge;
 
         if (tangentDistFt <= firstEdgeFt)
         {
@@ -934,14 +1046,13 @@ public static class FilletArcGenerator
             walkedShapeNodes = [];
             passthroughNodes = [];
             walkFarNode = null;
+            landsInManualArc = false;
+            splitEdge = null;
         }
         else
         {
-            (lat, lon, double walkBearing, walkedEdges, walkedShapeNodes, passthroughNodes, walkFarNode) = InterpolateAlongWalk(
-                walk,
-                intersection,
-                tangentDistFt
-            );
+            (lat, lon, double walkBearing, walkedEdges, walkedShapeNodes, passthroughNodes, walkFarNode, landsInManualArc, splitEdge) =
+                InterpolateAlongWalk(walk, intersection, tangentDistFt);
             bearingAtTangent = walkBearing;
             Log.LogDebug(
                 "[Int#{IntId}]   TangentPoint on {Tw}(→{Other}): walked {WalkEdges} extra edges past first ({FirstFt:F0}ft)",
@@ -962,7 +1073,169 @@ public static class FilletArcGenerator
             bearing
         );
 
-        return new TangentPlacement(lat, lon, tangentDistNm, bearingAtTangent, walkedEdges, walkedShapeNodes, passthroughNodes, walkFarNode);
+        return new TangentPlacement(
+            lat,
+            lon,
+            tangentDistNm,
+            bearingAtTangent,
+            walkedEdges,
+            walkedShapeNodes,
+            passthroughNodes,
+            walkFarNode,
+            landsInManualArc,
+            splitEdge
+        );
+    }
+
+    /// <summary>
+    /// Detect chains of shape-point nodes that form pre-existing manual arcs.
+    /// A manual arc is a chain of 3+ TaxiwayIntersection nodes where each interior
+    /// node has exactly 2 edges on the same taxiway, and the cumulative bearing
+    /// change from start to end exceeds 30°.
+    /// Returns the set of interior node IDs that should be excluded from filleting.
+    /// </summary>
+    private static HashSet<int> DetectManualArcNodes(AirportGroundLayout layout)
+    {
+        const double bearingThresholdDeg = 30.0;
+        const int minChainNodes = 3;
+
+        var excluded = new HashSet<int>();
+        var visited = new HashSet<int>();
+
+        foreach (var startNode in layout.Nodes.Values)
+        {
+            if (visited.Contains(startNode.Id))
+            {
+                continue;
+            }
+
+            if (!IsShapePointNode(startNode))
+            {
+                continue;
+            }
+
+            // Walk in both directions from startNode to build the full chain.
+            var chain = WalkShapePointChain(startNode, visited);
+            if (chain.Count < minChainNodes)
+            {
+                continue;
+            }
+
+            // Compute cumulative bearing change across the chain
+            double totalBearingChange = 0;
+            for (int i = 0; i + 1 < chain.Count; i++)
+            {
+                if (i + 2 >= chain.Count)
+                {
+                    break;
+                }
+
+                double bearingIn = GeoMath.BearingTo(chain[i].Latitude, chain[i].Longitude, chain[i + 1].Latitude, chain[i + 1].Longitude);
+                double bearingOut = GeoMath.BearingTo(chain[i + 1].Latitude, chain[i + 1].Longitude, chain[i + 2].Latitude, chain[i + 2].Longitude);
+                double delta = bearingOut - bearingIn;
+                while (delta > 180)
+                {
+                    delta -= 360;
+                }
+                while (delta < -180)
+                {
+                    delta += 360;
+                }
+                totalBearingChange += Math.Abs(delta);
+            }
+
+            if (totalBearingChange >= bearingThresholdDeg)
+            {
+                string taxiway = chain[0].Edges.OfType<GroundEdge>().First().TaxiwayName;
+                Log.LogDebug(
+                    "Manual arc detected: {Taxiway} chain of {Count} nodes (#{First}..#{Last}), cumulative bearing change={Bearing:F1}°",
+                    taxiway,
+                    chain.Count,
+                    chain[0].Id,
+                    chain[^1].Id,
+                    totalBearingChange
+                );
+                foreach (var node in chain)
+                {
+                    excluded.Add(node.Id);
+                }
+            }
+        }
+
+        return excluded;
+    }
+
+    /// <summary>
+    /// Walk a chain of shape-point nodes in both directions from a start node.
+    /// Each shape-point has exactly 2 same-taxiway edges, so the chain is linear.
+    /// Marks all visited nodes in the visited set.
+    /// </summary>
+    private static List<GroundNode> WalkShapePointChain(GroundNode startNode, HashSet<int> visited)
+    {
+        visited.Add(startNode.Id);
+        var edges = startNode.Edges.OfType<GroundEdge>().ToList();
+
+        // Walk in direction A (first edge)
+        var dirA = WalkDirection(startNode, edges[0], visited);
+        // Walk in direction B (second edge)
+        var dirB = WalkDirection(startNode, edges[1], visited);
+
+        // Build chain: reverse of dirA + startNode + dirB
+        dirA.Reverse();
+        dirA.Add(startNode);
+        dirA.AddRange(dirB);
+        return dirA;
+    }
+
+    private static List<GroundNode> WalkDirection(GroundNode from, GroundEdge startEdge, HashSet<int> visited)
+    {
+        var result = new List<GroundNode>();
+        var current = startEdge.OtherNode(from);
+        var prevEdge = startEdge;
+
+        while (IsShapePointNode(current) && visited.Add(current.Id))
+        {
+            result.Add(current);
+            GroundEdge? next = null;
+            foreach (var e in current.Edges)
+            {
+                if ((e is GroundEdge ge) && (ge != prevEdge))
+                {
+                    next = ge;
+                    break;
+                }
+            }
+
+            if (next is null)
+            {
+                break;
+            }
+
+            prevEdge = next;
+            current = next.OtherNode(current);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// A shape-point node is a TaxiwayIntersection with exactly 2 GroundEdge edges
+    /// on the same taxiway (no other taxiways, no arcs in the mix).
+    /// </summary>
+    private static bool IsShapePointNode(GroundNode node)
+    {
+        if (node.Type != GroundNodeType.TaxiwayIntersection)
+        {
+            return false;
+        }
+
+        var edges = node.Edges.OfType<GroundEdge>().ToList();
+        if (edges.Count != 2)
+        {
+            return false;
+        }
+
+        return edges[0].TaxiwayName == edges[1].TaxiwayName;
     }
 
     private static GroundNode? FindNearestNode(GroundNode target, List<GroundNode> candidates)
@@ -1110,26 +1383,29 @@ public static class FilletArcGenerator
         List<GroundEdge> WalkedEdges,
         List<GroundNode> WalkedShapeNodes,
         List<GroundNode> PassthroughNodes,
-        GroundNode? WalkFarNode
+        GroundNode? WalkFarNode,
+        bool LandsInManualArc,
+        GroundEdge? SplitEdge
     );
 
     private record TaxiwayWalkResult(double AvailableLengthFt, GroundNode TerminalNode, List<TaxiwayWalkStep> Steps);
 
-    private record TaxiwayWalkStep(GroundEdge Edge, GroundNode FarNode, double CumulativeDistFt, bool HasOtherTaxiways);
+    private record TaxiwayWalkStep(GroundEdge Edge, GroundNode FarNode, double CumulativeDistFt, bool HasOtherTaxiways, bool IsManualArc);
 
     /// <summary>
     /// Walk along a taxiway chain from an intersection, following same-taxiway edges
     /// through shape-point nodes. Stops at real junctions (multiple same-taxiway
     /// continuations), non-intersection nodes, or dead ends.
     /// </summary>
-    private static TaxiwayWalkResult WalkTaxiway(GroundEdge startEdge, GroundNode intersection)
+    private static TaxiwayWalkResult WalkTaxiway(GroundEdge startEdge, GroundNode intersection, HashSet<int> manualArcNodes)
     {
         var otherNode = startEdge.OtherNode(intersection);
         double firstEdgeFt =
             GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude) * GeoMath.FeetPerNm;
 
         bool hasOtherTw = otherNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
-        var steps = new List<TaxiwayWalkStep> { new(startEdge, otherNode, firstEdgeFt, hasOtherTw) };
+        bool isManualArc = manualArcNodes.Contains(otherNode.Id);
+        var steps = new List<TaxiwayWalkStep> { new(startEdge, otherNode, firstEdgeFt, hasOtherTw, isManualArc) };
 
         var currentNode = otherNode;
         var prevEdge = startEdge;
@@ -1159,7 +1435,8 @@ public static class FilletArcGenerator
             cumDist += edgeFt;
 
             bool nextHasOtherTw = nextNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
-            steps.Add(new TaxiwayWalkStep(continuation, nextNode, cumDist, nextHasOtherTw));
+            bool nextIsManualArc = manualArcNodes.Contains(nextNode.Id);
+            steps.Add(new TaxiwayWalkStep(continuation, nextNode, cumDist, nextHasOtherTw, nextIsManualArc));
 
             prevEdge = continuation;
             currentNode = nextNode;
@@ -1179,16 +1456,27 @@ public static class FilletArcGenerator
         List<GroundEdge> ConsumedEdges,
         List<GroundNode> ShapeNodes,
         List<GroundNode> PassthroughNodes,
-        GroundNode FarNode
+        GroundNode FarNode,
+        bool LandsInManualArc,
+        GroundEdge? SplitEdge
     ) InterpolateAlongWalk(TaxiwayWalkResult walk, GroundNode intersection, double targetDistFt)
     {
         var consumed = new List<GroundEdge>();
         var shapeNodes = new List<GroundNode>();
         var passthrough = new List<GroundNode>();
 
+        bool enteredManualArc = false;
+        GroundEdge? splitEdge = null;
+
         for (int i = 0; i < walk.Steps.Count; i++)
         {
             var step = walk.Steps[i];
+
+            if (step.IsManualArc)
+            {
+                enteredManualArc = true;
+            }
+
             if (targetDistFt <= step.CumulativeDistFt)
             {
                 double prevCum = i > 0 ? walk.Steps[i - 1].CumulativeDistFt : 0;
@@ -1201,21 +1489,30 @@ public static class FilletArcGenerator
                 double lat = fromNode.Latitude + (fraction * (toNode.Latitude - fromNode.Latitude));
                 double lon = fromNode.Longitude + (fraction * (toNode.Longitude - fromNode.Longitude));
 
-                // Bearing from tangent point back toward the intersection along the taxiway
                 double bearingToward = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, fromNode.Latitude, fromNode.Longitude);
-                return (lat, lon, bearingToward, consumed, shapeNodes, passthrough, toNode);
+
+                // If the tangent lands inside a manual arc, record the edge being split
+                // so Phase D can split it instead of creating spanning edges.
+                if (enteredManualArc)
+                {
+                    splitEdge = step.Edge;
+                }
+
+                return (lat, lon, bearingToward, consumed, shapeNodes, passthrough, toNode, enteredManualArc, splitEdge);
             }
 
             // Skip the starting edge (index 0) — it's consumed separately in Phase D.
             // Only track edges beyond the first as walked-through extras.
             if (i > 0)
             {
+                // Manual arc edges and edges beyond them are left intact —
+                // the chain already provides connectivity.
+                if (step.IsManualArc || enteredManualArc)
+                {
+                    continue;
+                }
+
                 consumed.Add(step.Edge);
-                // A walked-through node is removable (shape node) only if it's a plain
-                // shape-point intersection with no other taxiways and no prior fillet
-                // tangent. Tangent nodes from prior fillets (SourceIntersectionPosition),
-                // hold-short nodes, and nodes with other taxiways are passthrough — they
-                // must be preserved and reconnected.
                 bool isRemovable =
                     !step.HasOtherTaxiways
                     && (step.FarNode.Type == GroundNodeType.TaxiwayIntersection)
@@ -1234,6 +1531,6 @@ public static class FilletArcGenerator
         var terminal = walk.Steps[^1].FarNode;
         var prevNode = walk.Steps.Count > 1 ? walk.Steps[^2].FarNode : intersection;
         double termBearing = GeoMath.BearingTo(terminal.Latitude, terminal.Longitude, prevNode.Latitude, prevNode.Longitude);
-        return (terminal.Latitude, terminal.Longitude, termBearing, consumed, shapeNodes, passthrough, terminal);
+        return (terminal.Latitude, terminal.Longitude, termBearing, consumed, shapeNodes, passthrough, terminal, enteredManualArc, splitEdge);
     }
 }
