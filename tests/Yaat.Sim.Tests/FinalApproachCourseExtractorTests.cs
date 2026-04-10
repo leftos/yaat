@@ -1,0 +1,219 @@
+using Xunit;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
+
+namespace Yaat.Sim.Tests;
+
+/// <summary>
+/// Unit tests for <see cref="FinalApproachCourseExtractor"/>.
+///
+/// Each approach was researched via tools/Yaat.CifpInspector against the bundled FAACIFP18.gz.
+/// The expected courses below come from the published CIFP records, not from Yaat's runtime.
+/// </summary>
+public class FinalApproachCourseExtractorTests
+{
+    private static (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? Load(
+        string airport,
+        string approachId,
+        string runwayDesignator
+    )
+    {
+        TestVnasData.EnsureInitialized();
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return null;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+
+        var procedure = navDb.GetApproach(airport, approachId);
+        var runway = navDb.GetRunway(airport, runwayDesignator);
+        if (procedure is null || runway is null)
+        {
+            return null;
+        }
+
+        return (navDb, procedure, runway);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Offset approaches — these MUST diverge from the runway heading
+    // ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Extract_KccrS19R_VorOffset_ReturnsOffsetCourse()
+    {
+        // KCCR VOR Rwy 19R: published final approach course is 171.7° magnetic via the CCR VOR.
+        // Runway 19R magnetic heading is ~190°. The approach is offset by ~18°.
+        var loaded = Load("CCR", "S19R", "19R");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (_, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+
+        // The offset should be at least 10° relative to the runway heading
+        double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
+        Assert.True(
+            diff > 10.0,
+            $"KCCR S19R is offset; FAC {result.Course.Degrees:F1}° vs runway {runway.TrueHeading.Degrees:F1}° (diff {diff:F1}°) — expected >10°"
+        );
+
+        // RW19R is a runway pseudo-fix, so no parallel-offset anchor
+        Assert.Null(result.AnchorLat);
+    }
+
+    [Fact]
+    public void Extract_KsfoR10L_RnavTfLegs_UsesComputedBearing()
+    {
+        // KSFO R10L is the user-reported bug: RNAV(GPS) approach with TF legs and no published
+        // OutboundCourse. The extractor must compute the bearing between fix endpoints.
+        // Runway 10L magnetic heading ~096°. Whether this approach is genuinely offset depends
+        // on the leg endpoints — the test asserts the extractor returns a sensible value (not
+        // the runway heading via fallback) and is in the general "easterly" sector.
+        var loaded = Load("SFO", "R10L", "10L");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (_, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+
+        // Course is in the easterly sector (50°-150° true).
+        Assert.InRange(result.Course.Degrees, 50.0, 150.0);
+
+        // The extractor must NOT silently fall back to runway heading. They may match within a
+        // few degrees if the TF legs happen to be aligned, but the path used must be the bearing
+        // computation, not the runway-heading fallback. This test catches the regression where
+        // the extractor fails to resolve fix coordinates and falls back.
+        // (We can't directly observe which path was taken, but we can verify the result is not
+        // numerically *exactly* equal to the runway heading.)
+        bool exactRunwayMatch = Math.Abs(result.Course.Degrees - runway.TrueHeading.Degrees) < 0.001;
+        Assert.False(exactRunwayMatch, "Computed bearing should differ from runway heading by at least floating-point noise");
+    }
+
+    [Fact]
+    public void Extract_KdcaX19Z_ParallelOffsetLda_ReturnsAnchorAndOffsetCourse()
+    {
+        // KDCA LDA-X RWY 19: classic parallel-offset LDA. Final course 147° magnetic to the
+        // ZAXEB MAP fix, which is laterally offset from runway 19's threshold. Runway 19
+        // magnetic heading ~190°. The extractor must:
+        //   1. Return a course significantly offset from runway heading
+        //   2. Provide a non-null anchor (ZAXEB lat/lon, not the runway threshold)
+        var loaded = Load("DCA", "X19-Z", "19");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (_, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+
+        double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
+        Assert.True(
+            diff > 30.0,
+            $"KDCA X19-Z is heavily offset; FAC {result.Course.Degrees:F1}° vs runway {runway.TrueHeading.Degrees:F1}° (diff {diff:F1}°) — expected >30°"
+        );
+
+        Assert.NotNull(result.AnchorLat);
+        Assert.NotNull(result.AnchorLon);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Aligned approaches — these must match runway heading within mag-variation tolerance
+    // ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Extract_KsfoI28R_AlignedIls_ReturnsCourseMatchingRunway()
+    {
+        var loaded = Load("SFO", "I28R", "28R");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (_, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+
+        double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
+        Assert.True(
+            diff < 3.0,
+            $"KSFO I28R is aligned; FAC {result.Course.Degrees:F1}° vs runway {runway.TrueHeading.Degrees:F1}° (diff {diff:F1}°) — expected <3°"
+        );
+
+        Assert.Null(result.AnchorLat);
+    }
+
+    [Fact]
+    public void Extract_KoakI12_AlignedIls_ReturnsCourseMatchingRunway()
+    {
+        // KOAK ILS 12 is the Issue #101 precedent: ~10° magnetic-vs-true variation between
+        // runway designator and CIFP course. Both should still resolve close together once
+        // the extractor converts mag→true.
+        var loaded = Load("OAK", "I12", "12");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (_, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+
+        double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
+        Assert.True(
+            diff < 3.0,
+            $"KOAK I12 is aligned; FAC {result.Course.Degrees:F1}° vs runway {runway.TrueHeading.Degrees:F1}° (diff {diff:F1}°) — expected <3°"
+        );
+
+        Assert.Null(result.AnchorLat);
+    }
+
+    [Fact]
+    public void Extract_KmceB12_LocBackCourse_ReturnsCourseMatchingRunway()
+    {
+        // KMCE LOC BC RWY 12: back-course approach. The CIFP CF leg publishes the inbound
+        // course to the runway directly (123° magnetic), so the extractor's CF path should
+        // give a result that aligns with runway 12's heading without any special back-course
+        // handling.
+        var loaded = Load("MCE", "B12", "12");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (_, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+
+        double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
+        Assert.True(
+            diff < 5.0,
+            $"KMCE B12 LOC BC is aligned; FAC {result.Course.Degrees:F1}° vs runway {runway.TrueHeading.Degrees:F1}° (diff {diff:F1}°) — expected <5°"
+        );
+    }
+
+    [Fact]
+    public void Extract_KccrR19R_AlignedRnav_ReturnsCourseFromBearing()
+    {
+        // KCCR RNAV (GPS) RWY 19R: aligned RNAV with TF legs (no OutboundCourse). The extractor
+        // must compute bearing from the FAF→MAP segment. Result should be close to runway 19R heading.
+        var loaded = Load("CCR", "R19R", "19R");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (_, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+
+        double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
+        Assert.True(
+            diff < 5.0,
+            $"KCCR R19R aligned RNAV; FAC {result.Course.Degrees:F1}° vs runway {runway.TrueHeading.Degrees:F1}° (diff {diff:F1}°) — expected <5°"
+        );
+    }
+}
