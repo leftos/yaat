@@ -158,6 +158,7 @@ When invoking aviation-sim-expert, always include:
 - **No synthetic data in tests**: Use `TestVnasData.EnsureInitialized()` (loads real `NavData.dat` and `FAACIFP18.gz` from `tests/Yaat.Sim.Tests/TestData/`). Synthetic stubs hide integration problems. If test data files absent, silently skip.
 - **Test access**: Making `internal` members `public` for tests is fine. No reflection or `InternalsVisibleTo` hacks.
 - **SimLog in tests**: `SimLog` falls back to `NullLoggerFactory` by default — all Yaat.Sim log output is silently swallowed in tests. To see logs, use `SimLogBuilder.CreateForTest(output).EnableCategory("ClassName", LogLevel.Debug).InitializeSimLog()`. Run with `dotnet test --logger "console;verbosity=detailed" 2>&1 | tee .tmp/test-output.log` to capture output.
+- **Test timeouts**: Always run test suites with `timeout 30` (e.g., `timeout 30 dotnet test ...`) to catch soft hangs from broken graph topology or infinite pathfinder loops. A test suite that hasn't finished in 30s is stuck, not slow.
 
 ### Code Style
 - **Line width**: 150 chars (CSharpier configured accordingly)
