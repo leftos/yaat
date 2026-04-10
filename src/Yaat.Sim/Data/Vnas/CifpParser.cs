@@ -6,6 +6,14 @@ namespace Yaat.Sim.Data.Vnas;
 /// <summary>
 /// Single-pass ARINC 424 CIFP parser that extracts FAF fix
 /// names per (airport, runway) and terminal waypoint coordinates.
+///
+/// Reference parsers for ARINC 424 column offsets and field meanings
+/// (cloned git-untracked into the repo — see CLAUDE.md):
+///   - reference/cifp/cifparse/  — Python (misterrodg/cifparse, AUTHORITATIVE for column widths;
+///     procedure leg widths in src/cifparse/records/procedure/widths.py PrimaryIndices class)
+///   - reference/cifp/parseCifp/ — Perl (rstory1/parseCifp, used by ZOA reference tooling)
+///
+/// Use tools/Yaat.CifpInspector to inspect parsed procedures from the CLI when debugging.
 /// </summary>
 public static partial class CifpParser
 {
@@ -479,18 +487,18 @@ public static partial class CifpParser
         string pathTermStr = line.Length > 48 ? line[47..49].Trim() : "";
         CifpPathTerminator pathTerm = ParsePathTerminator(pathTermStr);
 
-        // Altitude description at position 83 (0-indexed: 82)
+        // Altitude description at char 82
         char altDesc = line.Length > 82 ? line[82] : ' ';
 
-        // Altitude 1 at positions 84-88 (0-indexed: 83-87)
-        string alt1Str = line.Length > 87 ? line[83..88] : "";
+        // Altitude 1 at chars 84-88
+        string alt1Str = line.Length > 88 ? line[84..89] : "";
 
-        // Altitude 2 at positions 89-93 (0-indexed: 88-92)
-        string alt2Str = line.Length > 92 ? line[88..93] : "";
+        // Altitude 2 at chars 89-93
+        string alt2Str = line.Length > 93 ? line[89..94] : "";
 
         var altitude = ParseAltitudeRestriction(altDesc, alt1Str, alt2Str);
 
-        // Speed at positions 100-102 (0-indexed: 99-101)
+        // Speed limit at chars 99-101
         string speedStr = line.Length > 101 ? line[99..102].Trim() : "";
         CifpSpeedRestriction? speed = null;
         if (int.TryParse(speedStr, out int speedKts) && speedKts > 0)
@@ -498,57 +506,61 @@ public static partial class CifpParser
             speed = new CifpSpeedRestriction(speedKts, true);
         }
 
-        // Recommended navaid at positions 50-54 (0-indexed: 49-53)
+        // Column ranges below match cifparse PrimaryIndices
+        // (reference/cifp/cifparse/src/cifparse/records/procedure/widths.py).
+        // C# range syntax: [a..b] = chars at indices a..b-1 inclusive.
+
+        // Recommended navaid (rec_vhf) at chars 50-53
         string? recommendedNavaid = null;
         if (line.Length > 53)
         {
-            string navStr = line[49..54].Trim();
+            string navStr = line[50..54].Trim();
             if (navStr.Length > 0)
             {
                 recommendedNavaid = navStr;
             }
         }
 
-        // Arc radius at positions 56-61 (0-indexed: 55-60), thousandths of NM
+        // Arc radius at chars 56-61, thousandths of NM
         double? arcRadiusNm = null;
-        if (line.Length > 60 && int.TryParse(line[55..61].Trim(), out int arcRadiusRaw) && arcRadiusRaw > 0)
+        if (line.Length > 61 && int.TryParse(line[56..62].Trim(), out int arcRadiusRaw) && arcRadiusRaw > 0)
         {
             arcRadiusNm = arcRadiusRaw / 1000.0;
         }
 
-        // Theta at positions 62-65 (0-indexed: 61-64), tenths of degrees
+        // Theta at chars 62-65, tenths of degrees
         double? theta = null;
-        if (line.Length > 64 && int.TryParse(line[61..65].Trim(), out int thetaRaw) && thetaRaw > 0)
+        if (line.Length > 65 && int.TryParse(line[62..66].Trim(), out int thetaRaw) && thetaRaw > 0)
         {
             theta = thetaRaw / 10.0;
         }
 
-        // Rho at positions 66-69 (0-indexed: 65-68), tenths of NM
+        // Rho at chars 66-69, tenths of NM
         double? rho = null;
-        if (line.Length > 68 && int.TryParse(line[65..69].Trim(), out int rhoRaw) && rhoRaw > 0)
+        if (line.Length > 69 && int.TryParse(line[66..70].Trim(), out int rhoRaw) && rhoRaw > 0)
         {
             rho = rhoRaw / 10.0;
         }
 
-        // Outbound course at positions 70-73 (0-indexed: 69-72), tenths of degrees
+        // Outbound (magnetic) course at chars 70-73, tenths of degrees
         double? outboundCourse = null;
-        if (line.Length > 72 && int.TryParse(line[69..73].Trim(), out int courseRaw) && courseRaw > 0)
+        if (line.Length > 73 && int.TryParse(line[70..74].Trim(), out int courseRaw) && courseRaw > 0)
         {
             outboundCourse = courseRaw / 10.0;
         }
 
-        // Leg distance at positions 74-77 (0-indexed: 73-76), tenths of NM
+        // Leg distance / hold time (dist_time) at chars 74-77, tenths of NM
         double? legDistanceNm = null;
-        if (line.Length > 76 && int.TryParse(line[73..77].Trim(), out int distRaw) && distRaw > 0)
+        if (line.Length > 77 && int.TryParse(line[74..78].Trim(), out int distRaw) && distRaw > 0)
         {
             legDistanceNm = distRaw / 10.0;
         }
 
-        // Center fix identifier at positions 106-110 (0-indexed: 105-109)
+        // Center fix identifier at chars 106-110
         string? centerFixId = null;
-        if (line.Length > 109)
+        if (line.Length > 110)
         {
-            string cfStr = line[105..110].Trim();
+            string cfStr = line[106..111].Trim();
             if (cfStr.Length > 0)
             {
                 centerFixId = cfStr;
@@ -826,32 +838,25 @@ public static partial class CifpParser
 
     internal static int? ParseArinc424Altitude(string s)
     {
+        // Per cifparse field_530 (_get_altitude_fl): altitudes are stored either as
+        //   "FLnnn" — flight level nnn × 100 ft
+        //   "00000" — direct altitude in feet (5-digit zero-padded)
+        // The previous implementation here multiplied numeric values by 10 to compensate for
+        // a column off-by-one read; now that the column is correct, the value is feet directly.
         s = s.Trim();
         if (s.Length == 0)
         {
             return null;
         }
 
-        // Flight level: "FL280", "FL28", " FL28"
         if (s.StartsWith("FL", StringComparison.Ordinal))
         {
             string flStr = s[2..].Trim();
-            if (int.TryParse(flStr, out int fl))
-            {
-                return fl < 100 ? fl * 1000 : fl * 100;
-            }
-
-            return null;
+            return int.TryParse(flStr, out int fl) && fl > 0 ? fl * 100 : null;
         }
 
-        // Numeric: value in tens of feet (e.g., "1700" = 17000ft)
-        s = s.TrimStart('0');
-        if (s.Length == 0)
-        {
-            return null;
-        }
-
-        return int.TryParse(s, out int val) ? val * 10 : null;
+        // All-zero or empty altitude fields in CIFP indicate "no restriction" — treat as null.
+        return int.TryParse(s, out int val) && val > 0 ? val : null;
     }
 
     private sealed record RawProcedureLeg(

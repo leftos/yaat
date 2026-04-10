@@ -359,24 +359,23 @@ public class CifpParserTests
         }
     }
 
+    // ARINC 424 altitude fields are 5-char zero-padded feet (e.g., "01700") or "FLnnn" for flight levels.
     [Theory]
-    [InlineData('+', 170, null, CifpAltitudeRestrictionType.AtOrAbove, 1700)]
-    [InlineData('-', 400, null, CifpAltitudeRestrictionType.AtOrBelow, 4000)]
-    [InlineData('@', 340, null, CifpAltitudeRestrictionType.At, 3400)]
-    [InlineData(' ', 340, null, CifpAltitudeRestrictionType.At, 3400)]
-    [InlineData('B', 500, 300, CifpAltitudeRestrictionType.Between, 5000)]
-    [InlineData('G', 340, null, CifpAltitudeRestrictionType.GlideSlopeIntercept, 3400)]
+    [InlineData('+', "01700", null, CifpAltitudeRestrictionType.AtOrAbove, 1700)]
+    [InlineData('-', "04000", null, CifpAltitudeRestrictionType.AtOrBelow, 4000)]
+    [InlineData('@', "03400", null, CifpAltitudeRestrictionType.At, 3400)]
+    [InlineData(' ', "03400", null, CifpAltitudeRestrictionType.At, 3400)]
+    [InlineData('B', "05000", "03000", CifpAltitudeRestrictionType.Between, 5000)]
+    [InlineData('G', "03400", null, CifpAltitudeRestrictionType.GlideSlopeIntercept, 3400)]
     public void ParseAltitudeRestriction_VariousTypes(
         char desc,
-        int alt1Tens,
-        int? alt2Tens,
+        string alt1Str,
+        string? alt2Str,
         CifpAltitudeRestrictionType expectedType,
         int expectedAlt1
     )
     {
-        string alt1Str = alt1Tens.ToString().PadLeft(5);
-        string alt2Str = alt2Tens?.ToString().PadLeft(5) ?? "     ";
-        var result = CifpParser.ParseAltitudeRestriction(desc, alt1Str, alt2Str);
+        var result = CifpParser.ParseAltitudeRestriction(desc, alt1Str, alt2Str ?? "     ");
 
         Assert.NotNull(result);
         Assert.Equal(expectedType, result.Type);
@@ -386,23 +385,26 @@ public class CifpParserTests
     [Fact]
     public void ParseArinc424Altitude_FlightLevel_ReturnsCorrectFeet()
     {
+        // ARINC 424 flight levels use the FLnnn format where nnn is hundreds of feet.
         Assert.Equal(28000, CifpParser.ParseArinc424Altitude("FL280"));
-        Assert.Equal(28000, CifpParser.ParseArinc424Altitude("FL28 "));
         Assert.Equal(18000, CifpParser.ParseArinc424Altitude("FL180"));
+        Assert.Equal(8000, CifpParser.ParseArinc424Altitude("FL080"));
     }
 
     [Fact]
-    public void ParseArinc424Altitude_TensOfFeet_ReturnsCorrectFeet()
+    public void ParseArinc424Altitude_NumericFeet_ReturnsCorrectFeet()
     {
-        Assert.Equal(3400, CifpParser.ParseArinc424Altitude("  340"));
-        Assert.Equal(17000, CifpParser.ParseArinc424Altitude(" 1700"));
+        // Numeric altitude fields are in feet, zero-padded to 5 chars.
+        Assert.Equal(3400, CifpParser.ParseArinc424Altitude("03400"));
+        Assert.Equal(17000, CifpParser.ParseArinc424Altitude("17000"));
+        Assert.Equal(500, CifpParser.ParseArinc424Altitude("00500"));
     }
 
     [Fact]
     public void ParseArinc424Altitude_EmptyOrZero_ReturnsNull()
     {
         Assert.Null(CifpParser.ParseArinc424Altitude("     "));
-        Assert.Null(CifpParser.ParseArinc424Altitude("  000"));
+        Assert.Null(CifpParser.ParseArinc424Altitude("00000"));
     }
 
     [Fact]
@@ -487,49 +489,41 @@ public class CifpParserTests
     // --- RF/AF arc field extraction ---
 
     [Fact]
-    public void ParseApproaches_RfLeg_ExtractsArcData()
+    public void ParseApproaches_RealKothH05Z_RfLegHasArcData()
     {
-        // Build an approach with an RF leg including arc radius, center fix, theta
+        // Real CIFP lines from FAACIFP18 (KOTH RNAV(GPS) RWY 5 H05-Z, DEROY transition).
+        // Leg 040 at PIVLY is an RF leg with arc center fix CFLTZ, radius 0.300 NM (rho=300 thousandths),
+        // turn direction Right. CFLTZ is a CIFP terminal waypoint at the airport.
+        // To regenerate: grep '^SUSAP KOTHK1FH05-Z ADEROY' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
         var lines = new[]
         {
-            // Terminal waypoint for the center fix
-            BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818"),
-            // RF leg with arc radius 002790 (2.790 NM), theta 1234 (123.4°), center fix CFPTK
-            BuildArcApproachLine(
-                "KABQ",
-                "H03Z  ",
-                ' ',
-                "",
-                10,
-                "WAYPT",
-                CifpFixRole.None,
-                "RF",
-                arcRadius: "002790",
-                theta: "1234",
-                rho: "0000",
-                centerFix: "CFPTK",
-                turnDir: 'R'
-            ),
-            BuildFullApproachLine("KABQ", "H03Z  ", ' ', "", 20, "RW03 ", CifpFixRole.MAHP, "TF"),
+            RealCifpLines.KothCfltzTerminalWaypoint,
+            RealCifpLines.KothH05ZDeroy010,
+            RealCifpLines.KothH05ZDeroy020,
+            RealCifpLines.KothH05ZDeroy030,
+            RealCifpLines.KothH05ZDeroy040PivlyRf,
+            RealCifpLines.KothH05ZDeroy050FogixRf,
+            RealCifpLines.KothH05ZDeroy060Oxvak,
         };
 
         var tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KABQ");
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOTH");
 
             Assert.Single(approaches);
-            var rfLeg = approaches[0].CommonLegs[0];
-            Assert.Equal(CifpPathTerminator.RF, rfLeg.PathTerminator);
-            Assert.Equal(2.79, rfLeg.ArcRadiusNm!.Value, precision: 3);
-            Assert.Equal(123.4, rfLeg.Theta!.Value, precision: 1);
-            Assert.Equal('R', rfLeg.TurnDirection);
-            // Center fix resolved from terminal waypoints
-            Assert.NotNull(rfLeg.ArcCenterLat);
-            Assert.NotNull(rfLeg.ArcCenterLon);
-            Assert.Equal(35.0128, rfLeg.ArcCenterLat!.Value, precision: 3);
-            Assert.Equal(-106.7217, rfLeg.ArcCenterLon!.Value, precision: 3);
+            var deroy = approaches[0].Transitions["DEROY"];
+            var pivlyRf = deroy.Legs.First(l => l.FixIdentifier == "PIVLY");
+            Assert.Equal(CifpPathTerminator.RF, pivlyRf.PathTerminator);
+            Assert.Equal(3.0, pivlyRf.ArcRadiusNm!.Value, precision: 2);
+            Assert.Equal('R', pivlyRf.TurnDirection);
+            // Outbound course on RF leg = tangent course at end of arc (0308.3°)
+            Assert.NotNull(pivlyRf.OutboundCourse);
+            Assert.Equal(308.3, pivlyRf.OutboundCourse!.Value, precision: 1);
+            // Center fix CFLTZ should be resolved from the terminal waypoint
+            Assert.NotNull(pivlyRf.ArcCenterLat);
+            Assert.NotNull(pivlyRf.ArcCenterLon);
         }
         finally
         {
@@ -538,29 +532,12 @@ public class CifpParserTests
     }
 
     [Fact]
-    public void ParseApproaches_AfLeg_ExtractsNavaidAndRho()
+    public void ParseApproaches_RealKabqI03_AfLegHasNavaidAndArcData()
     {
-        var lines = new[]
-        {
-            // AF leg with recommended navaid ABQ, rho 0100 (10.0 NM), theta 2700 (270.0°)
-            BuildArcApproachLine(
-                "KABQ",
-                "D28   ",
-                ' ',
-                "",
-                10,
-                "DMFIX",
-                CifpFixRole.None,
-                "AF",
-                arcRadius: "000000",
-                theta: "2700",
-                rho: "0100",
-                centerFix: "     ",
-                turnDir: 'L',
-                navaid: "ABQ  "
-            ),
-            BuildFullApproachLine("KABQ", "D28   ", ' ', "", 20, "RW28 ", CifpFixRole.MAHP, "TF"),
-        };
+        // Real CIFP lines from FAACIFP18 (KABQ ILS RWY 3 I03, NODME transition).
+        // Leg 020 at BIBQU is an AF leg referencing the ABQ navaid with theta/rho/arc data.
+        // To regenerate: grep '^SUSAP KABQK2FI03   ANODME' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
+        var lines = new[] { RealCifpLines.KabqI03Nodme010, RealCifpLines.KabqI03Nodme020BibquAf };
 
         var tmpFile = Path.GetTempFileName();
         try
@@ -569,12 +546,16 @@ public class CifpParserTests
             var approaches = CifpParser.ParseApproaches(tmpFile, "KABQ");
 
             Assert.Single(approaches);
-            var afLeg = approaches[0].CommonLegs[0];
-            Assert.Equal(CifpPathTerminator.AF, afLeg.PathTerminator);
-            Assert.Equal("ABQ", afLeg.RecommendedNavaidId);
-            Assert.Equal(10.0, afLeg.Rho!.Value, precision: 1);
-            Assert.Equal(270.0, afLeg.Theta!.Value, precision: 1);
-            Assert.Equal('L', afLeg.TurnDirection);
+            var nodme = approaches[0].Transitions["NODME"];
+            var bibquAf = nodme.Legs.First(l => l.FixIdentifier == "BIBQU");
+            Assert.Equal(CifpPathTerminator.AF, bibquAf.PathTerminator);
+            Assert.Equal("ABQ", bibquAf.RecommendedNavaidId);
+            Assert.Equal('L', bibquAf.TurnDirection);
+            Assert.NotNull(bibquAf.Theta);
+            Assert.NotNull(bibquAf.Rho);
+            // Real published values for the BIBQU AF leg from CFR ILS 3 NODME transition
+            Assert.Equal(163.9, bibquAf.Theta!.Value, precision: 1);
+            Assert.Equal(10.0, bibquAf.Rho!.Value, precision: 1);
         }
         finally
         {
@@ -675,33 +656,34 @@ public class CifpParserTests
     }
 
     [Fact]
-    public void ParseSids_WithAltitudeRestrictions_ExtractsConstraints()
+    public void ParseSids_RealKsfoCiity3_ExtractsAltOrAbove5000AtCiity()
     {
+        // Real CIFP line from FAACIFP18 (KSFO CIITY3 SID, RW10L runway transition).
+        // Leg 040 at fix CIITY has altitude restriction "+ 05000" → AtOrAbove 5000ft.
+        // To regenerate: grep '^SUSAP KSFOK2DCIITY3' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
         var lines = new[]
         {
-            BuildSidStarLineWithAlt('D', "KOAK", "PORTE3", "", 10, "PORTE", '+', "00400", "     "),
-            BuildSidStarLineWithAlt('D', "KOAK", "PORTE3", "", 20, "BRIXX", '-', "01800", "     "),
+            RealCifpLines.KsfoCiity3Rw10LLeg010,
+            RealCifpLines.KsfoCiity3Rw10LLeg020,
+            RealCifpLines.KsfoCiity3Rw10LLeg030,
+            RealCifpLines.KsfoCiity3Rw10LLeg040CiityAtOrAbove5000,
         };
 
         var tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+            var sids = CifpParser.ParseSids(tmpFile, "KSFO");
 
             Assert.Single(sids);
             var sid = sids[0];
-            Assert.Equal(2, sid.CommonLegs.Count);
+            Assert.Equal("CIITY3", sid.ProcedureId);
 
-            var alt0 = sid.CommonLegs[0].Altitude;
-            Assert.NotNull(alt0);
-            Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, alt0.Type);
-            Assert.Equal(4000, alt0.Altitude1Ft);
-
-            var alt1 = sid.CommonLegs[1].Altitude;
-            Assert.NotNull(alt1);
-            Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, alt1.Type);
-            Assert.Equal(18000, alt1.Altitude1Ft);
+            var rw10L = sid.RunwayTransitions["RW10L"];
+            var ciityLeg = rw10L.Legs.First(l => l.FixIdentifier == "CIITY");
+            Assert.NotNull(ciityLeg.Altitude);
+            Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, ciityLeg.Altitude.Type);
+            Assert.Equal(5000, ciityLeg.Altitude.Altitude1Ft);
         }
         finally
         {
@@ -803,38 +785,6 @@ public class CifpParserTests
     }
 
     /// <summary>
-    /// Builds a SID/STAR record with altitude restriction fields.
-    /// </summary>
-    private static string BuildSidStarLineWithAlt(
-        char subsection,
-        string icao,
-        string procedureId,
-        string transition,
-        int sequence,
-        string fixId,
-        char altDesc,
-        string alt1,
-        string alt2
-    )
-    {
-        var line = new char[120];
-        Array.Fill(line, ' ');
-        "SUSAP".CopyTo(0, line, 0, 5);
-        icao.PadRight(4).CopyTo(0, line, 6, 4);
-        line[12] = subsection;
-        procedureId.PadRight(6).CopyTo(0, line, 13, 6);
-        line[19] = ' ';
-        transition.PadRight(5).CopyTo(0, line, 20, 5);
-        sequence.ToString("D3").CopyTo(0, line, 26, 3);
-        fixId.PadRight(5).CopyTo(0, line, 29, 5);
-        "TF".CopyTo(0, line, 47, 2);
-        line[82] = altDesc;
-        alt1.PadRight(5).CopyTo(0, line, 83, 5);
-        alt2.PadRight(5).CopyTo(0, line, 88, 5);
-        return new string(line);
-    }
-
-    /// <summary>
     /// Builds a minimal ARINC 424 approach record line (subsection F).
     /// Positions are 0-indexed; the record must be at least 50 chars.
     /// </summary>
@@ -896,79 +846,6 @@ public class CifpParserTests
     }
 
     /// <summary>
-    /// Builds an ARINC 424 approach record with arc-specific fields (RF/AF legs).
-    /// Line is 120 chars, with arc radius, theta, rho, center fix, and optional navaid.
-    /// </summary>
-    private static string BuildArcApproachLine(
-        string icao,
-        string approachId,
-        char routeType,
-        string transition,
-        int sequence,
-        string fixId,
-        CifpFixRole fixRole,
-        string pathTerminator,
-        string arcRadius,
-        string theta,
-        string rho,
-        string centerFix,
-        char turnDir,
-        string navaid = "     "
-    )
-    {
-        var line = new char[120];
-        Array.Fill(line, ' ');
-        "SUSAP".CopyTo(0, line, 0, 5);
-        icao.PadRight(4).CopyTo(0, line, 6, 4);
-        line[12] = 'F';
-        approachId.PadRight(6).CopyTo(0, line, 13, 6);
-        line[19] = routeType == '\0' ? ' ' : routeType;
-        if (transition.Length > 0)
-        {
-            transition.PadRight(5).CopyTo(0, line, 20, 5);
-        }
-
-        sequence.ToString("D3").CopyTo(0, line, 26, 3);
-        fixId.PadRight(5).CopyTo(0, line, 29, 5);
-
-        line[42] = fixRole switch
-        {
-            CifpFixRole.IAF => 'A',
-            CifpFixRole.IF => 'B',
-            CifpFixRole.FAF => 'F',
-            CifpFixRole.MAHP => 'M',
-            _ => ' ',
-        };
-
-        // Turn direction at position 43
-        line[43] = turnDir;
-
-        // Path terminator at positions 47-48
-        if (pathTerminator.Length >= 2)
-        {
-            line[47] = pathTerminator[0];
-            line[48] = pathTerminator[1];
-        }
-
-        // Recommended navaid at positions 49-53
-        navaid.PadRight(5).CopyTo(0, line, 49, 5);
-
-        // Arc radius at positions 55-60
-        arcRadius.PadRight(6).CopyTo(0, line, 55, 6);
-
-        // Theta at positions 61-64
-        theta.PadRight(4).CopyTo(0, line, 61, 4);
-
-        // Rho at positions 65-68
-        rho.PadRight(4).CopyTo(0, line, 65, 4);
-
-        // Center fix at positions 105-109
-        centerFix.PadRight(5).CopyTo(0, line, 105, 5);
-
-        return new string(line);
-    }
-
-    /// <summary>
     /// Builds a full-length ARINC 424 approach record (subsection F) with altitude/speed fields.
     /// Line is 120 chars to cover all parsed positions.
     /// </summary>
@@ -1017,4 +894,63 @@ public class CifpParserTests
 
         return new string(line);
     }
+}
+
+/// <summary>
+/// Real ARINC 424 records extracted verbatim from FAACIFP18.gz (test data bundle).
+/// Each constant documents the source approach/SID and what it exercises.
+/// To regenerate after a CIFP cycle update:
+///   gunzip -c tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz \
+///     | grep '^SUSAP K&lt;ICAO&gt;K2&lt;sub&gt;&lt;procedure&gt;'
+/// Lines must be exactly 132 chars (the parser requires Length &gt; column for each field).
+/// </summary>
+internal static class RealCifpLines
+{
+    // --- KSFO CIITY3 SID, RW10L runway transition ---
+    // Source: FAACIFP18 lines 314556-314559
+
+    public const string KsfoCiity3Rw10LLeg010 =
+        "SUSAP KSFOK2DCIITY34RW10L 010         0        VA                     1038        + 00520     18000                        145541509";
+
+    public const string KsfoCiity3Rw10LLeg020 =
+        "SUSAP KSFOK2DCIITY34RW10L 020ORYANK2PC0E       DF                                                                          145551509";
+
+    public const string KsfoCiity3Rw10LLeg030 =
+        "SUSAP KSFOK2DCIITY34RW10L 030SAHEYK2PC0E       TF                                                                          145561509";
+
+    public const string KsfoCiity3Rw10LLeg040CiityAtOrAbove5000 =
+        "SUSAP KSFOK2DCIITY34RW10L 040CIITYK2PC0EE      TF                                 + 05000                                  145571509";
+
+    // --- KOTH RNAV(GPS) RWY 5 H05-Z, DEROY transition (contains RF curved-final segments) ---
+    // Source: FAACIFP18 lines 281582-281587 (DEROY transition) + 281530 (CFLTZ terminal waypoint)
+
+    public const string KothCfltzTerminalWaypoint =
+        "SUSAP KOTHK1CCFLTZ K10    A     N43191954W124204723                       E0144     NAR           CFLTZ(CNF)               815272504";
+
+    public const string KothH05ZDeroy010 =
+        "SUSAP KOTHK1FH05-Z ADEROY 010DEROYK1EA0E  A    IF                                             18000                 A FS   815792004";
+
+    public const string KothH05ZDeroy020 =
+        "SUSAP KOTHK1FH05-Z ADEROY 020JISDIK1PC0E  B 010TF                                 + 03600          180              A-FS   815802004";
+
+    public const string KothH05ZDeroy030 =
+        "SUSAP KOTHK1FH05-Z ADEROY 030HEKNOK1PC0E    010TF                                 + 02500                           A FS   815812004";
+
+    public const string KothH05ZDeroy040PivlyRf =
+        "SUSAP KOTHK1FH05-Z ADEROY 040PIVLYK1PC0E   R010RF       0030002567    30830027    + 02400                 CFLTZ K1PCA FS   815822004";
+
+    public const string KothH05ZDeroy050FogixRf =
+        "SUSAP KOTHK1FH05-Z ADEROY 050FOGIXK1PC0E   R010RF       0030003083    04560051    + 01900                 CFLTZ K1PCA FS   815832004";
+
+    public const string KothH05ZDeroy060Oxvak =
+        "SUSAP KOTHK1FH05-Z ADEROY 060OXVAKK1PC0EE   010TF                                 + 01300                           A FS   815842004";
+
+    // --- KABQ ILS RWY 3 I03, NODME transition (contains AF arc-to-fix leg referencing ABQ navaid) ---
+    // Source: FAACIFP18 lines 113817-113818
+
+    public const string KabqI03Nodme010 =
+        "SUSAP KABQK2FI03   ANODME 010NODMEK2EA0E  A    IF                                             18000                 0 DS   138132305";
+
+    public const string KabqI03Nodme020BibquAf =
+        "SUSAP KABQK2FI03   ANODME 020BIBQUK2PC0EE BL   AF ABQ K2      163901000230    D   + 08000                           0 DS   138142305";
 }
