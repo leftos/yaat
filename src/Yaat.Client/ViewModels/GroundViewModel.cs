@@ -746,19 +746,19 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     public List<(string Label, string Command, TaxiRoute Preview)> BuildTaxiCrossingVariants(
         TaxiRoute route,
-        string? spotName = null,
-        string? pathOverride = null
+        TaxiSpotDestination? spot,
+        string? pathOverride
     )
     {
         var taxiways = pathOverride ?? BuildTaxiCommand(route);
-        var spotSuffix = spotName is not null ? $" @{spotName}" : "";
+        var spotSuffix = spot is not null ? $" {spot.Token}" : "";
 
         if (string.IsNullOrEmpty(taxiways))
         {
-            // No taxiway path but have a spot destination — route via @SPOT only
-            if (spotName is not null)
+            // No taxiway path but have a spot destination — route via prefixed token only
+            if (spot is not null)
             {
-                return [("", $"TAXI @{spotName}", route)];
+                return [("", $"TAXI {spot.Token}", route)];
             }
 
             return [];
@@ -816,10 +816,14 @@ public partial class GroundViewModel : ObservableObject
     ///   (separator)
     ///   HS 28R  |  CROSS 28R HS 28L  |  CROSS 28R 28L HS 30
     /// </summary>
-    public List<(string Label, string Command, TaxiRoute Preview)?> BuildTaxiDestVariants(TaxiRoute route, string destRunway, string? spotName = null)
+    public List<(string Label, string Command, TaxiRoute Preview)?> BuildTaxiDestVariants(
+        TaxiRoute route,
+        string destRunway,
+        TaxiSpotDestination? spot
+    )
     {
         var taxiways = BuildTaxiCommand(route);
-        var spotSuffix = spotName is not null ? $" @{spotName}" : "";
+        var spotSuffix = spot is not null ? $" {spot.Token}" : "";
 
         if (string.IsNullOrEmpty(taxiways))
         {
@@ -1431,3 +1435,16 @@ public partial class GroundViewModel : ObservableObject
 }
 
 public record ShownTaxiRouteEntry(string Callsign, TaxiRoute Route, SKColor Color);
+
+/// <summary>
+/// Destination spot for a TAXI/PUSH command. <see cref="IsTaxiSpot"/> selects the
+/// canonical prefix: `$` for taxi spots (GroundNodeType.Spot), `@` for parking stands
+/// and helipads. The two share a name space on the wire but resolve to different
+/// node lookups server-side, so the prefix must match the node kind exactly.
+/// </summary>
+public sealed record TaxiSpotDestination(string Name, bool IsTaxiSpot)
+{
+    public char Prefix => IsTaxiSpot ? '$' : '@';
+
+    public string Token => $"{Prefix}{Name}";
+}

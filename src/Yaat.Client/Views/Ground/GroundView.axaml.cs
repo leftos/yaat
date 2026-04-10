@@ -262,15 +262,23 @@ public partial class GroundView : UserControl
 
             if (fromNodeId is not null)
             {
-                string? spotName = node.Type is "Spot" or "Parking" or "Helipad" ? node.Name : null;
+                TaxiSpotDestination? spotDest = node.Type switch
+                {
+                    "Spot" when node.Name is not null => new TaxiSpotDestination(node.Name, IsTaxiSpot: true),
+                    "Parking" or "Helipad" when node.Name is not null => new TaxiSpotDestination(node.Name, IsTaxiSpot: false),
+                    _ => null,
+                };
                 string? destRunway = node.Type == "RunwayHoldShort" && node.RunwayId is not null ? RunwayIdentifier.Parse(node.RunwayId).End1 : null;
-                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId, spotName, destRunway);
+                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId, spotDest, destRunway);
             }
 
             if (node.Type is "Parking" or "Spot" && node.Name is not null && vm.SelectedAircraft.CurrentPhase == "At Parking")
             {
-                var spot = node.Name;
-                menu.Items.Add(CreateMenuItem($"Push to {spot}", () => vm.SendRawCommandAsync(callsign, initials, $"PUSH @{spot}")));
+                var spotName = node.Name;
+                var pushPrefix = node.Type == "Spot" ? '$' : '@';
+                menu.Items.Add(
+                    CreateMenuItem($"Push to {spotName}", () => vm.SendRawCommandAsync(callsign, initials, $"PUSH {pushPrefix}{spotName}"))
+                );
             }
 
             var nid = nodeId;
@@ -520,7 +528,7 @@ public partial class GroundView : UserControl
         var initials = GetInitials();
         var menu = new ContextMenu();
 
-        var variants = vm.BuildTaxiCrossingVariants(route, pathOverride: nodeRefPath);
+        var variants = vm.BuildTaxiCrossingVariants(route, spot: null, pathOverride: nodeRefPath);
         if (variants.Count <= 1)
         {
             var command = variants.Count == 1 ? variants[0].Command : "";
@@ -581,8 +589,8 @@ public partial class GroundView : UserControl
         string initials,
         int fromNodeId,
         int toNodeId,
-        string? spotName = null,
-        string? destRunway = null
+        TaxiSpotDestination? spot,
+        string? destRunway
     )
     {
         var routes = vm.FindRoutesToNode(fromNodeId, toNodeId);
@@ -596,14 +604,14 @@ public partial class GroundView : UserControl
 
         if (routes.Count == 1)
         {
-            AddSingleRouteItems(menu, vm, callsign, initials, routes[0], spotName, destRunway);
+            AddSingleRouteItems(menu, vm, callsign, initials, routes[0], spot, destRunway);
         }
         else
         {
             var parent = new MenuItem { Header = "Taxi here" };
             foreach (var route in routes)
             {
-                AddSingleRouteItems(parent, vm, callsign, initials, route, spotName, destRunway);
+                AddSingleRouteItems(parent, vm, callsign, initials, route, spot, destRunway);
             }
 
             menu.Items.Add(parent);
@@ -616,18 +624,18 @@ public partial class GroundView : UserControl
         string callsign,
         string initials,
         TaxiRoute route,
-        string? spotName = null,
-        string? destRunway = null
+        TaxiSpotDestination? spot,
+        string? destRunway
     )
     {
-        var displayName = spotName is not null ? $"to {spotName} {vm.GetTaxiwayDisplayName(route)}" : vm.GetTaxiwayDisplayName(route);
-        var variants = vm.BuildTaxiCrossingVariants(route, spotName);
+        var displayName = spot is not null ? $"to {spot.Name} {vm.GetTaxiwayDisplayName(route)}" : vm.GetTaxiwayDisplayName(route);
+        var variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
 
         // When destination is a runway hold-short, offer RWY and non-RWY variants
         // with progressive crossing options for each.
         if (destRunway is not null)
         {
-            var destVariants = vm.BuildTaxiDestVariants(route, destRunway, spotName);
+            var destVariants = vm.BuildTaxiDestVariants(route, destRunway, spot);
             if (destVariants.Count == 0)
             {
                 return;
@@ -880,10 +888,15 @@ public partial class GroundView : UserControl
 
         switch (node.Type)
         {
-            case "Parking" when node.Name is not null:
-                // "TAXI  @SPOT" — cursor between TAXI and @SPOT
+            case "Parking" or "Helipad" when node.Name is not null:
+                // "TAXI  @STAND" — cursor between TAXI and @STAND
                 var parkingSuffix = $"@{node.Name}";
                 return ($"{taxiPrefix} {parkingSuffix}", taxiPrefix.Length);
+
+            case "Spot" when node.Name is not null:
+                // "TAXI  $SPOT" — cursor between TAXI and $SPOT
+                var spotSuffixToken = $"${node.Name}";
+                return ($"{taxiPrefix} {spotSuffixToken}", taxiPrefix.Length);
 
             case "RunwayHoldShort" when node.RunwayId is not null:
                 // "RWY 30 TAXI " — cursor at end for user to add taxiway route
