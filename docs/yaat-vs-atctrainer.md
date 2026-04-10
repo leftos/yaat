@@ -242,6 +242,15 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Scratchpad | `SCRATCHPAD`/`SP` | `SP1`, `SP2` | YAAT has separate SP1/SP2 fields; bare `SP1`/`SP2` clears; undo/toggle on repeat |
 | Strip | `STRIP {bay}` | — | ATCTrainer-only |
 | Act As | — | `AS` + per-command prefix | YAAT-only, allows user to act as any TCP for one command, or switch to that TCP as their primary for commands, independent of CRC |
+| Reject pointout | — | `PORJ` | YAAT-only; rejects pending inbound pointout |
+| Retract pointout | — | `PORT` | YAAT-only; retracts your outbound pending pointout |
+| Ack conflict alert | — | `CAACK` | YAAT-only; acknowledges CA for a track |
+| Inhibit conflict alert | — | `CAINH` / `CAI` | YAAT-only; toggles CA inhibit |
+| Pilot reported altitude | — | `PRA {hundreds}` | YAAT-only; `PRA 0` clears |
+| Leader direction | — | `LDR {1-9}` | YAAT-only; `LDR 5` = default |
+| J-Ring | — | `JRING` / `JRING ON` | YAAT-only; toggle J-Ring |
+| Cone | — | `CONE` / `CONE ON` | YAAT-only; toggle cone |
+| Ghost track | — | `GHOST {cs} [apt] {rwy}` | YAAT-only; creates ghost track staggered off runway end |
 
 ### Coordination (YAAT-only)
 

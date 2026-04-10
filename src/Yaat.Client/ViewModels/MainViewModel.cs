@@ -1031,7 +1031,8 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.AcceptAllHandoffs
                 or CanonicalCommandType.InitiateHandoffAll
                 or CanonicalCommandType.CoordinationAutoAck
-                or CanonicalCommandType.TaxiAll;
+                or CanonicalCommandType.TaxiAll
+                or CanonicalCommandType.GhostTrack;
     }
 
     /// <summary>

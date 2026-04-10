@@ -757,12 +757,24 @@ public static class CommandRegistry
                 GhostTrack,
                 "Ghost Track",
                 "Track Operations",
-                false,
+                true,
                 ["GHOST"],
                 [
-                    O(null, [R("runway", "runway designator")], "Create ghost track off runway (scenario airport)"),
-                    O("Airport", [R("airport", "airport ICAO"), R("runway", "runway designator")], "Create ghost track off runway at airport"),
-                    O("Position", [R("lat", "latitude"), R("lon", "longitude")], "Create ghost track at exact position"),
+                    O(
+                        null,
+                        [R("callsign", "aircraft callsign"), R("runway", "runway designator")],
+                        "Create ghost track off runway (scenario airport)"
+                    ),
+                    O(
+                        "Airport",
+                        [R("callsign", "aircraft callsign"), R("airport", "airport ICAO"), R("runway", "runway designator")],
+                        "Create ghost track off runway at airport"
+                    ),
+                    O(
+                        "Position",
+                        [R("callsign", "aircraft callsign"), R("lat", "latitude"), R("lon", "longitude")],
+                        "Create ghost track at exact position"
+                    ),
                 ]
             ),
         ];

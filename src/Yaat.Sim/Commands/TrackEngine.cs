@@ -43,7 +43,6 @@ public static class TrackEngine
                 or LeaderDirectionCommand
                 or JRingCommand
                 or ConeCommand
-                or GhostTrackCommand
                 or Scratchpad1Command
                 or Scratchpad2Command
                 or TemporaryAltitudeCommand

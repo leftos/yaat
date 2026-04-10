@@ -963,23 +963,23 @@ public static class CommandParser
     {
         var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        // GHOST lat lon — exact position (used by CRC replay)
+        // GHOST callsign lat lon — exact position (CRC replay)
         if (
-            parts.Length == 2
-            && double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lat)
-            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lon)
+            parts.Length == 3
+            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lat)
+            && double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lon)
         )
         {
-            return PR.Ok(new GhostTrackCommand(null, null, lat, lon));
+            return PR.Ok(new GhostTrackCommand(parts[0].ToUpperInvariant(), null, null, lat, lon));
         }
 
         return parts.Length switch
         {
-            // GHOST 28R (airport implied from scenario)
-            1 => PR.Ok(new GhostTrackCommand(null, parts[0].ToUpperInvariant(), null, null)),
-            // GHOST KOAK 28R
-            2 => PR.Ok(new GhostTrackCommand(parts[0].ToUpperInvariant(), parts[1].ToUpperInvariant(), null, null)),
-            _ => PR.Fail("GHOST requires [airport] runway or lat lon"),
+            // GHOST callsign 28R (airport implied from scenario)
+            2 => PR.Ok(new GhostTrackCommand(parts[0].ToUpperInvariant(), null, parts[1].ToUpperInvariant(), null, null)),
+            // GHOST callsign KOAK 28R
+            3 => PR.Ok(new GhostTrackCommand(parts[0].ToUpperInvariant(), parts[1].ToUpperInvariant(), parts[2].ToUpperInvariant(), null, null)),
+            _ => PR.Fail("GHOST requires callsign [airport] runway or callsign lat lon"),
         };
     }
 

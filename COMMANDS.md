@@ -325,6 +325,21 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Handoff all | `HOALL 3Y` | — | — |
 | Pointout | `PO 3Y` | — | — |
 | Acknowledge | `OK` | — | — |
+| Reject pointout | `PORJ` | — | — |
+| Retract pointout | `PORT` | — | — |
+| Ack conflict alert | `CAACK` | — | — |
+| Inhibit conflict alert | `CAINH` | `CAI` | — |
+| Ghost track (runway) | `GHOST N12345 28R` | — | Global; callsign in args |
+| Ghost track (airport+runway) | `GHOST N12345 KOAK 28R` | — | Global; callsign in args |
+| Ghost track (lat/lon) | `GHOST N12345 37.7 -122.2` | — | Global; callsign in args |
+
+### Display Operations
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
+| Leader direction | `LDR 3` | — | — |
+| J-Ring | `JRING` (clear) / `JRING ON` (set) | — | — |
+| Cone | `CONE` (clear) / `CONE ON` (set) | — | — |
 
 ### Strip / Data Operations
 
@@ -336,6 +351,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Scratchpad 2 | `SP2 I8R` / `SP2` (clear) | — | — |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
 | Cruise | `CRUISE 240` | `QZ` | — |
+| Pilot reported altitude | `PRA 250` / `PRA 0` (clear) | — | — |
 | On-handoff | `ONHO` | `ONH` | — |
 
 ### Flight Plan
@@ -826,6 +842,13 @@ Changing your active position also updates the radar display:
 | `HOALL 3Y` | Handoff all your aircraft to TCP 3Y (global — no callsign needed) |
 | `PO 3Y` | Point out to TCP 3Y |
 | `OK` | Acknowledge a pending pointout |
+| `PORJ` | Reject a pending inbound pointout |
+| `PORT` | Retract your outbound pending pointout |
+| `CAACK` | Acknowledge conflict alerts for this aircraft |
+| `CAINH` / `CAI` | Toggle conflict alert inhibit on/off |
+| `GHOST N12345 28R` | Create ghost track off 28R (auto-stagger, scenario airport) |
+| `GHOST N12345 KOAK 28R` | Create ghost track off 28R at KOAK |
+| `GHOST N12345 37.7 -122.2` | Create ghost track at exact position |
 | `AN 3 RV` / `BOX 3 RV` | Write "RV" in strip annotation box 3 (boxes 1-9) |
 | `AN 3` | Clear strip annotation box 3 |
 | `STRIP Ground` | Push flight strip to "Ground" bay in vStrips |
@@ -838,7 +861,11 @@ Scratchpads support **undo/toggle**: entering the same value again restores the 
 
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |
+| `PRA 250` | Set pilot reported altitude (in hundreds; `PRA 0` clears) |
 | `ONHO` / `ONH` | Toggle on-handoff status |
+| `LDR 3` | Set leader line direction (1-9; `LDR 5` = default) |
+| `JRING` / `JRING ON` | Clear / set J-Ring |
+| `CONE` / `CONE ON` | Clear / set cone |
 
 #### Coordination (Rundown List)
 
