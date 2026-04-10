@@ -354,21 +354,27 @@ public static class FilletArcGenerator
             double bearingA = edgeBearings[idxA].Bearing;
             double bearingB = edgeBearings[idxB].Bearing;
 
+            // Control point bearings: use the bearing at the tangent's actual position
+            // when the tangent walked past a curve, otherwise the initial intersection bearing.
+            double bearingAToIntersection = edgeTangentSpecs[edgeA].BearingTowardIntersectionDeg ?? (bearingA + 180.0) % 360.0;
+            double bearingBToIntersection = edgeTangentSpecs[edgeB].BearingTowardIntersectionDeg ?? (bearingB + 180.0) % 360.0;
+
+            // Recompute the effective turn angle at the tangent points. When tangent
+            // points are further out (walked), the taxiways may have diverged from
+            // their near-parallel intersection geometry, giving a more accurate turn.
+            double effectiveTurnDeg = 180.0 - GeoMath.AbsBearingDifference(bearingAToIntersection, bearingBToIntersection);
+
             // Bezier control point depth: κ = (4/3) * tan(sweep/4)
-            double sweepRad = (180.0 - turnAngleDeg) * (Math.PI / 180.0);
+            double sweepRad = (180.0 - effectiveTurnDeg) * (Math.PI / 180.0);
             double kappa = (4.0 / 3.0) * Math.Tan(sweepRad / 4.0);
 
             double depthA = kappa * edgeTangentSpecs[edgeA].TangentDistNm;
             double depthB = kappa * edgeTangentSpecs[edgeB].TangentDistNm;
 
-            // P1: from tanNodeA toward intersection. When the tangent walked past
-            // a curve, use the bearing at the tangent's actual position instead of
-            // the initial bearing from the intersection.
-            double bearingAToIntersection = edgeTangentSpecs[edgeA].BearingTowardIntersectionDeg ?? (bearingA + 180.0) % 360.0;
+            // P1: from tanNodeA toward intersection
             var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanNodeA.Latitude, tanNodeA.Longitude, bearingAToIntersection, depthA);
 
             // P2: from tanNodeB toward intersection
-            double bearingBToIntersection = edgeTangentSpecs[edgeB].BearingTowardIntersectionDeg ?? (bearingB + 180.0) % 360.0;
             var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanNodeB.Latitude, tanNodeB.Longitude, bearingBToIntersection, depthB);
 
             var bezier = new CubicBezier(tanNodeA.Latitude, tanNodeA.Longitude, p1Lat, p1Lon, p2Lat, p2Lon, tanNodeB.Latitude, tanNodeB.Longitude);
@@ -391,7 +397,7 @@ public static class FilletArcGenerator
                     DistanceNm = arcLengthNm,
                     EdgeBearingAtNode0Deg = bearingA,
                     EdgeBearingAtNode1Deg = bearingB,
-                    TurnAngleDeg = turnAngleDeg,
+                    TurnAngleDeg = effectiveTurnDeg,
                     Origin = $"Fillet:phase-c-arc@{intersection.Id} {edgeA.TaxiwayName}/{edgeB.TaxiwayName}",
                 }
             );
