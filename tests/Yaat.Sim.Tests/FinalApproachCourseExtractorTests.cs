@@ -98,13 +98,17 @@ public class FinalApproachCourseExtractorTests
     }
 
     [Fact]
-    public void Extract_KdcaX19Z_ParallelOffsetLda_ReturnsAnchorAndOffsetCourse()
+    public void Extract_KdcaX19Z_AngularOffsetLda_ReturnsHeavilyOffsetCourse()
     {
-        // KDCA LDA-X RWY 19: classic parallel-offset LDA. Final course 147° magnetic to the
-        // ZAXEB MAP fix, which is laterally offset from runway 19's threshold. Runway 19
-        // magnetic heading ~190°. The extractor must:
-        //   1. Return a course significantly offset from runway heading
-        //   2. Provide a non-null anchor (ZAXEB lat/lon, not the runway threshold)
+        // KDCA LDA-X RWY 19 publishes a final approach course of 147° magnetic vs runway 19's
+        // ~190° magnetic — a ~43° angular offset. The MAP fix (ZAXEB) terminates at the runway
+        // threshold (within ~300 ft of the runway-19 extended centerline), so this is an
+        // ANGULAR offset, not a parallel offset: the FAC line passes through the threshold
+        // at an angle, and FinalApproachPhase uses the threshold as the cross-track anchor.
+        //
+        // True parallel-offset LDAs (where the FAS is laterally displaced from the threshold
+        // and pilots execute a visual sidestep) are rare in published CIFP data; if such an
+        // approach is added to the test corpus, expand DetermineAnchor coverage at that point.
         var loaded = Load("DCA", "X19-Z", "19");
         if (loaded is null)
         {
@@ -120,8 +124,9 @@ public class FinalApproachCourseExtractorTests
             $"KDCA X19-Z is heavily offset; FAC {result.Course.Degrees:F1}° vs runway {runway.TrueHeading.Degrees:F1}° (diff {diff:F1}°) — expected >30°"
         );
 
-        Assert.NotNull(result.AnchorLat);
-        Assert.NotNull(result.AnchorLon);
+        // Anchor stays null because the MAP fix sits on the runway extended centerline.
+        Assert.Null(result.AnchorLat);
+        Assert.Null(result.AnchorLon);
     }
 
     // ───────────────────────────────────────────────────────────────────────

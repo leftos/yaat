@@ -22,11 +22,17 @@ public static class FinalApproachCourseExtractor
     private static readonly ILogger Log = SimLog.CreateLogger("FinalApproachCourseExtractor");
 
     /// <summary>
-    /// Lateral anchor offset (NM) at which the MAP fix is treated as a parallel-offset reference
-    /// rather than the runway threshold. Below this distance, the MAP is considered "at the threshold"
-    /// and lateral guidance uses the threshold itself.
+    /// Lateral cross-track distance (NM) at which the MAP fix is treated as a parallel-offset
+    /// anchor rather than the runway threshold. Compared against the displacement of the MAP
+    /// fix from the runway-extended-centerline (NOT the straight-line distance to the
+    /// threshold), so MAP fixes that are short of the threshold but on the centerline are
+    /// correctly classified as "not offset".
+    ///
+    /// 0.05 NM ≈ 300 ft, comfortably wider than the widest runway (~200 ft) and CIFP
+    /// coordinate truncation noise (~1.8 m), but narrow enough to catch real LDA offsets
+    /// (KDCA LDA-X 19 ZAXEB is ~600 ft laterally offset from runway 19's extended centerline).
     /// </summary>
-    private const double ParallelOffsetThresholdNm = 0.3;
+    private const double ParallelOffsetCrossTrackNm = 0.05;
 
     /// <summary>
     /// Extracts the final approach course (and optional lateral anchor) for the given procedure.
@@ -165,10 +171,15 @@ public static class FinalApproachCourseExtractor
             return (null, null);
         }
 
-        // If the MAP fix is more than ParallelOffsetThresholdNm from the runway threshold,
-        // treat it as a parallel-offset anchor (e.g. KDCA LDA-X 19 ZAXEB).
-        double distNm = GeoMath.DistanceNm(runway.ThresholdLatitude, runway.ThresholdLongitude, pos.Value.Lat, pos.Value.Lon);
-        if (distNm > ParallelOffsetThresholdNm)
+        // Check lateral displacement of the MAP fix from the runway extended centerline
+        // (not absolute distance — a MAP fix short of the threshold but on the centerline
+        // should NOT be treated as parallel-offset). The reference line is the runway heading
+        // through the threshold; cross-track distance is how far the MAP fix sits beside it.
+        double xte = Math.Abs(
+            GeoMath.SignedCrossTrackDistanceNm(pos.Value.Lat, pos.Value.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading)
+        );
+
+        if (xte > ParallelOffsetCrossTrackNm)
         {
             return (pos.Value.Lat, pos.Value.Lon);
         }

@@ -23,6 +23,15 @@ public sealed class FinalApproachPhase : Phase
     private const double AimPointMinNm = 0.1;
     private const double FasTransitionDistanceNm = 5.0;
 
+    /// <summary>
+    /// Maximum FAC-vs-runway-heading difference at which an approach is considered "aligned"
+    /// for establishment-check fallback purposes. Below this, the runway-heading branch is
+    /// allowed (Issue #101 mag-variation tolerance); above it, only the FAC counts as
+    /// established. ~10° leaves headroom for the largest mag-variation discrepancies in CONUS
+    /// while still excluding genuine offset approaches like KCCR S19R (~18° offset).
+    /// </summary>
+    private const double IsAlignedToleranceDeg = 10.0;
+
     private double _thresholdLat;
     private double _thresholdLon;
     private double _thresholdElevation;
@@ -364,10 +373,16 @@ public sealed class FinalApproachPhase : Phase
         );
 
         // Establishment check: aircraft must be aligned with the published final approach course.
-        // For the Issue #101 magnetic-variation case, also accept alignment with the runway heading
-        // (the older fallback behaviour) so we never tighten the establishment criterion below
-        // what previously worked.
-        double headingDiff = Math.Min(ctx.Aircraft.TrueHeading.AbsAngleTo(_finalApproachCourse), ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading));
+        // For Issue #101 we kept a runway-heading fallback to absorb mag-variation noise where
+        // the published FAC differs from the runway-number heading by ~5-10°. Apply that
+        // fallback only when the FAC and runway heading are within IsAlignedToleranceDeg of
+        // each other — for genuine offset approaches (LDA, RNAV with offset CF leg, VOR offset
+        // like KCCR S19R) the runway heading must NOT be accepted as "established", or an
+        // aircraft tracking the runway centerline would silently pass establishment without
+        // ever flying the published course.
+        double facDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(_finalApproachCourse);
+        double facVsRwy = _finalApproachCourse.AbsAngleTo(_runwayHeading);
+        double headingDiff = facVsRwy < IsAlignedToleranceDeg ? Math.Min(facDiff, ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading)) : facDiff;
 
         if (crossTrack >= InterceptCrossTrackThresholdNm || headingDiff >= InterceptHeadingThresholdDeg)
         {

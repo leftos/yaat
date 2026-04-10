@@ -66,11 +66,19 @@ public sealed partial class InterceptCoursePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // For parallel-offset approaches the FAC line does not pass through the runway
+        // threshold, so we measure cross-track against the published anchor (e.g. the LDA's
+        // displaced MAP fix) when the active clearance carries one. For ordinary approaches
+        // the anchor is null and we fall back to the threshold, matching pre-anchor behaviour.
+        var clearance = ctx.Aircraft.Phases?.ActiveApproach;
+        double anchorLat = clearance?.FinalApproachAnchorLat ?? ThresholdLat;
+        double anchorLon = clearance?.FinalApproachAnchorLon ?? ThresholdLon;
+
         double signedCrossTrack = GeoMath.SignedCrossTrackDistanceNm(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
-            ThresholdLat,
-            ThresholdLon,
+            anchorLat,
+            anchorLon,
             FinalApproachCourse
         );
 

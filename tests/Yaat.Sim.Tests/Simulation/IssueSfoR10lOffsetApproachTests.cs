@@ -93,9 +93,11 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
     [Fact]
     public void Capp_PopulatesOffsetFinalApproachCourse()
     {
-        // Asserts the bug is fixed at the clearance level: when CAPP is issued for R10L,
-        // ApproachClearance.FinalApproachCourse should reflect the published RNAV course
-        // (computed bearing for TF legs), not the runway 10L heading.
+        // Regression guard: when CAPP is issued for R10L, ApproachClearance.FinalApproachCourse
+        // must come from FinalApproachCourseExtractor, NOT from the silent runway-heading
+        // fallback. The discriminating assertion is that the FAC is not bit-equal to the
+        // runway true heading — for R10L the published course is computed from fix-to-fix
+        // bearings on TF legs and is within a few degrees of (but not equal to) runway 10L.
         var recording = LoadRecording();
         var engine = BuildEngine();
         if (recording is null || engine is null)
@@ -109,16 +111,19 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         var clearance = aircraft.Phases?.ActiveApproach;
+        var assignedRunway = aircraft.Phases?.AssignedRunway;
         Assert.NotNull(clearance);
+        Assert.NotNull(assignedRunway);
         Assert.Equal("R10L", clearance.ApproachId);
 
-        // KSFO runway 10L is in the easterly sector. The FAC must be in the same general
-        // direction (50°-150° true), and crucially must NOT be the silent fallback to runway
-        // heading: at SFO, runway 10L true heading is approximately 110°. The published RNAV
-        // course is computed from fix-to-fix bearing on TF legs and may differ slightly. We
-        // assert the FAC is in a sensible easterly band; the diagnostic test prints the exact
-        // value for visual inspection.
+        // Sanity: FAC is in the easterly sector (the "is the value sane" check).
         Assert.InRange(clearance.FinalApproachCourse.Degrees, 80.0, 140.0);
+
+        // The actual regression guard: if FinalApproachPhase or ApproachCommandHandler ever
+        // silently regresses to using runway.TrueHeading, this assertion fails. The runway
+        // and the published FAC are derived through different code paths, so they are
+        // bitwise-distinct doubles in the success case.
+        Assert.NotEqual(assignedRunway.TrueHeading.Degrees, clearance.FinalApproachCourse.Degrees);
     }
 
     [Fact]
