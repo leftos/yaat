@@ -224,14 +224,22 @@ public static class FilletArcGenerator
                     double halfAngleRad = (turnAngle / 2.0) * (Math.PI / 180.0);
                     double tanHalf = Math.Tan(halfAngleRad);
 
-                    // Compute edge lengths from intersection to the other endpoint
+                    // Compute edge lengths from intersection to the other endpoint.
+                    // Cap at half the edge length when the other end is also an eligible
+                    // intersection — reserves the other half for the neighbor's fillet.
                     double edgeALenFt =
                         GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude) * GeoMath.FeetPerNm;
                     double edgeBLenFt =
                         GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude) * GeoMath.FeetPerNm;
+                    // Only cap for original intersections, not tangent nodes from prior fillets
+                    // (tangent nodes have SourceIntersectionPosition set — their side is already claimed).
+                    bool capA = IsEligibleForFilleting(otherA) && (otherA.SourceIntersectionPosition is null);
+                    bool capB = IsEligibleForFilleting(otherB) && (otherB.SourceIntersectionPosition is null);
+                    double maxTangentAFt = capA ? edgeALenFt / 2.0 : edgeALenFt;
+                    double maxTangentBFt = capB ? edgeBLenFt / 2.0 : edgeBLenFt;
 
-                    // Max radius that fits both edges: R = edgeLen / tan(θ/2)
-                    double maxFitRadiusFt = Math.Min(edgeALenFt, edgeBLenFt) / tanHalf;
+                    // Max radius that fits both edges: R = maxTangent / tan(θ/2)
+                    double maxFitRadiusFt = Math.Min(maxTangentAFt, maxTangentBFt) / tanHalf;
 
                     // Clamp to the configured max for this edge type
                     double maxRadiusFt = SelectMaxRadius(edgeA, edgeB, turnAngle);

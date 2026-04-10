@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Yaat.Sim;
 using Yaat.Sim.Testing;
 
 namespace Yaat.LayoutInspector;
@@ -32,6 +34,7 @@ public static class Program
         bool jsonOutput = false;
         bool dumpAll = false;
         bool noFillets = false;
+        bool debugFillets = false;
         string? svgOutput = null;
         var svgHighlightTaxiways = new List<string>();
         var svgHighlightRunways = new List<string>();
@@ -81,6 +84,9 @@ public static class Program
                 case "--no-fillets":
                     noFillets = true;
                     break;
+                case "--debug-fillets":
+                    debugFillets = true;
+                    break;
                 case "--svg" when i + 1 < args.Length:
                     svgOutput = args[++i];
                     break;
@@ -113,6 +119,21 @@ public static class Program
         }
 
         TryLoadNavData(navdataDir);
+
+        if (debugFillets)
+        {
+            var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddSimpleConsole(opts =>
+                {
+                    opts.SingleLine = true;
+                    opts.IncludeScopes = false;
+                });
+                builder.AddFilter("FilletArcGenerator", LogLevel.Debug);
+                builder.SetMinimumLevel(LogLevel.Warning);
+            });
+            SimLog.Initialize(loggerFactory);
+        }
 
         LayoutAnalyzer analyzer;
         try
@@ -293,6 +314,7 @@ public static class Program
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
         Console.WriteLine("  --no-fillets             Skip fillet arc generation (unfilleted graph for comparison)");
+        Console.WriteLine("  --debug-fillets          Enable debug logging for FilletArcGenerator");
         Console.WriteLine("  --dump                   Dump everything (nodes, taxiways, runways, exits) as JSON");
         Console.WriteLine("  --json                   Output as JSON");
         Console.WriteLine("  --airport-code <ICAO>    Airport code for NavData runway widths");
