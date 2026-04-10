@@ -280,6 +280,15 @@ public static class FilletArcGenerator
             return (false, 0, 0);
         }
 
+        // Preserve the intersection node when collinear pairs exist. The straight-through
+        // paths need the center node so each side keeps its correct taxiway name
+        // (e.g., W3 south of W, U north of W). Stubs from tangent nodes to the center
+        // replace the old collinear merge that lost name boundaries.
+        if (plannedMerges.Count > 0)
+        {
+            preserveNode = true;
+        }
+
         // --- Phase B: Create tangent-point nodes ---
         var edgeTangentNodes = new Dictionary<GroundEdge, GroundNode>();
         foreach (var (edge, (lat, lon, _)) in edgeTangentSpecs)
@@ -434,54 +443,67 @@ public static class FilletArcGenerator
             consumedEdges.Add(edge);
         }
 
-        // Merge collinear pairs — track which edges have been used in a merge to avoid
-        // creating duplicate edges when one edge participates in multiple collinear pairs
-        // (e.g., W collinear with both W1 and W2).
+        // Merge collinear pairs — skip when preserving the intersection node, because
+        // the preserve stubs handle straight-through connectivity with correct taxiway names.
+        // In preserve mode, still consume the original collinear edges so they don't become orphans.
         int edgesMerged = 0;
         var mergedEdges = new HashSet<GroundEdge>();
-        foreach (var (edgeA, otherA, edgeB, otherB) in plannedMerges)
+        if (preserveNode)
         {
-            if (mergedEdges.Contains(edgeA) || mergedEdges.Contains(edgeB))
+            foreach (var (edgeA, _, edgeB, _) in plannedMerges)
             {
-                continue;
+                consumedEdges.Add(edgeA);
+                consumedEdges.Add(edgeB);
             }
-
-            bool aHasTangent = edgeTangentNodes.TryGetValue(edgeA, out var tanA);
-            bool bHasTangent = edgeTangentNodes.TryGetValue(edgeB, out var tanB);
-
-            // Determine the effective endpoints after shortening
-            GroundNode endA = aHasTangent ? tanA! : otherA;
-            GroundNode endB = bHasTangent ? tanB! : otherB;
-
-            // Create the merged edge between the effective endpoints
-            double mergedDist = GeoMath.DistanceNm(endA.Latitude, endA.Longitude, endB.Latitude, endB.Longitude);
-
-            Log.LogDebug(
-                "[Int#{IntId}] Phase D collinear merge: {Tw} #{EndA}↔#{EndB} ({DistFt:F0}ft) [tangentA={HasA}, tangentB={HasB}]",
-                intersection.Id,
-                edgeA.TaxiwayName,
-                endA.Id,
-                endB.Id,
-                mergedDist * GeoMath.FeetPerNm,
-                aHasTangent,
-                bHasTangent
-            );
-
-            layout.Edges.Add(
-                new GroundEdge
+        }
+        else
+        {
+            // Track which edges have been used in a merge to avoid creating duplicate edges
+            // when one edge participates in multiple collinear pairs (e.g., W collinear with both W1 and W2).
+            foreach (var (edgeA, otherA, edgeB, otherB) in plannedMerges)
+            {
+                if (mergedEdges.Contains(edgeA) || mergedEdges.Contains(edgeB))
                 {
-                    Nodes = [endA, endB],
-                    TaxiwayName = edgeA.TaxiwayName,
-                    DistanceNm = mergedDist,
-                    Origin = $"Fillet:phase-d-merge@{intersection.Id} {edgeA.TaxiwayName} #{endA.Id}↔#{endB.Id}",
+                    continue;
                 }
-            );
 
-            consumedEdges.Add(edgeA);
-            consumedEdges.Add(edgeB);
-            mergedEdges.Add(edgeA);
-            mergedEdges.Add(edgeB);
-            edgesMerged++;
+                bool aHasTangent = edgeTangentNodes.TryGetValue(edgeA, out var tanA);
+                bool bHasTangent = edgeTangentNodes.TryGetValue(edgeB, out var tanB);
+
+                // Determine the effective endpoints after shortening
+                GroundNode endA = aHasTangent ? tanA! : otherA;
+                GroundNode endB = bHasTangent ? tanB! : otherB;
+
+                // Create the merged edge between the effective endpoints
+                double mergedDist = GeoMath.DistanceNm(endA.Latitude, endA.Longitude, endB.Latitude, endB.Longitude);
+
+                Log.LogDebug(
+                    "[Int#{IntId}] Phase D collinear merge: {Tw} #{EndA}↔#{EndB} ({DistFt:F0}ft) [tangentA={HasA}, tangentB={HasB}]",
+                    intersection.Id,
+                    edgeA.TaxiwayName,
+                    endA.Id,
+                    endB.Id,
+                    mergedDist * GeoMath.FeetPerNm,
+                    aHasTangent,
+                    bHasTangent
+                );
+
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [endA, endB],
+                        TaxiwayName = edgeA.TaxiwayName,
+                        DistanceNm = mergedDist,
+                        Origin = $"Fillet:phase-d-merge@{intersection.Id} {edgeA.TaxiwayName} #{endA.Id}↔#{endB.Id}",
+                    }
+                );
+
+                consumedEdges.Add(edgeA);
+                consumedEdges.Add(edgeB);
+                mergedEdges.Add(edgeA);
+                mergedEdges.Add(edgeB);
+                edgesMerged++;
+            }
         }
 
         // Collect all candidate reconnection nodes: tangent points + merge endpoints
