@@ -857,7 +857,8 @@ internal static class NavigationCommandHandler
             ? runway
             : runway.ForApproach(procedure.Runway);
 
-        TrueHeading finalCourse = approachRunway.TrueHeading;
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        TrueHeading finalCourse = facResult.Course;
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4
         aircraft.Targets.TargetSpeed = null;
@@ -894,6 +895,8 @@ internal static class NavigationCommandHandler
             AirportCode = airport,
             RunwayId = procedure.Runway,
             FinalApproachCourse = finalCourse,
+            FinalApproachAnchorLat = facResult.AnchorLat,
+            FinalApproachAnchorLon = facResult.AnchorLon,
             Procedure = procedure,
             MapAltitudeFt = ApproachCommandHandler.ExtractMapAltitude(procedure),
             MapDistanceNm = ApproachCommandHandler.ExtractMapDistance(procedure, approachRunway),

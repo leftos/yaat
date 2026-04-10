@@ -56,6 +56,16 @@ public sealed class ApproachClearanceDto
     public required string AirportCode { get; init; }
     public required string RunwayId { get; init; }
     public required double FinalApproachCourseDeg { get; init; }
+
+    /// <summary>
+    /// Optional lateral anchor (lat/lon) for parallel-offset approaches whose published MAP
+    /// is offset from the runway threshold. Null for ordinary approaches; pre-FAC-extractor
+    /// snapshots also have these as null and round-trip cleanly.
+    /// </summary>
+    public double? FinalApproachAnchorLat { get; init; }
+
+    public double? FinalApproachAnchorLon { get; init; }
+
     public required bool StraightIn { get; init; }
     public required bool Force { get; init; }
     public int? MapAltitudeFt { get; init; }

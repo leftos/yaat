@@ -15,6 +15,17 @@ public sealed class ApproachClearance
     public required string RunwayId { get; init; }
     public required TrueHeading FinalApproachCourse { get; init; }
 
+    /// <summary>
+    /// Optional lateral anchor (latitude) for parallel-offset approaches whose published
+    /// MAP is laterally offset from the runway threshold (e.g. KDCA LDA-X 19). When set,
+    /// FinalApproachPhase uses this point as the cross-track reference instead of the
+    /// runway threshold. Null for ordinary approaches that terminate at the threshold.
+    /// </summary>
+    public double? FinalApproachAnchorLat { get; init; }
+
+    /// <summary>Lateral anchor longitude; see <see cref="FinalApproachAnchorLat"/>.</summary>
+    public double? FinalApproachAnchorLon { get; init; }
+
     /// <summary>True when the aircraft is on a straight-in approach (no hold-in-lieu).</summary>
     public bool StraightIn { get; init; }
 
@@ -66,6 +77,8 @@ public sealed class ApproachClearance
             AirportCode = AirportCode,
             RunwayId = RunwayId,
             FinalApproachCourseDeg = FinalApproachCourse.Degrees,
+            FinalApproachAnchorLat = FinalApproachAnchorLat,
+            FinalApproachAnchorLon = FinalApproachAnchorLon,
             StraightIn = StraightIn,
             Force = Force,
             MapAltitudeFt = MapAltitudeFt,
@@ -83,6 +96,8 @@ public sealed class ApproachClearance
             AirportCode = dto.AirportCode,
             RunwayId = dto.RunwayId,
             FinalApproachCourse = new TrueHeading(dto.FinalApproachCourseDeg),
+            FinalApproachAnchorLat = dto.FinalApproachAnchorLat,
+            FinalApproachAnchorLon = dto.FinalApproachAnchorLon,
             StraightIn = dto.StraightIn,
             Force = dto.Force,
             MapAltitudeFt = dto.MapAltitudeFt,

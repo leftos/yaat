@@ -22,7 +22,8 @@ public static class ApproachCommandHandler
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
-        TrueHeading finalCourse = approachRunway.TrueHeading;
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        TrueHeading finalCourse = facResult.Course;
 
         // Build approach fix sequence, selecting best transition if available
         var transition = SelectBestTransition(procedure, aircraft);
@@ -49,7 +50,7 @@ public static class ApproachCommandHandler
 
             if (trimmedFixes.Count > 0 && atFixMatchesConnection && NavRouteContainsFix(aircraft, connectingFix))
             {
-                var clearance = BuildClearance(procedure, airport, finalCourse, approachRunway);
+                var clearance = BuildClearance(procedure, airport, facResult, approachRunway);
                 aircraft.PendingApproachClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
                 aircraft.DestinationRunway = approachRunway.Designator;
 
@@ -65,7 +66,7 @@ public static class ApproachCommandHandler
         // Clear existing phases
         ClearExistingPhases(aircraft);
 
-        var immClearance = BuildClearance(procedure, airport, finalCourse, approachRunway);
+        var immClearance = BuildClearance(procedure, airport, facResult, approachRunway);
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = immClearance };
         aircraft.DestinationRunway = approachRunway.Designator;
@@ -148,7 +149,8 @@ public static class ApproachCommandHandler
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
-        TrueHeading finalCourse = approachRunway.TrueHeading;
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        TrueHeading finalCourse = facResult.Course;
 
         // Build approach fix sequence, selecting best transition if available
         var transition = SelectBestTransition(procedure, aircraft);
@@ -172,6 +174,8 @@ public static class ApproachCommandHandler
             AirportCode = airport,
             RunwayId = procedure.Runway!,
             FinalApproachCourse = finalCourse,
+            FinalApproachAnchorLat = facResult.AnchorLat,
+            FinalApproachAnchorLon = facResult.AnchorLon,
             StraightIn = straightIn,
             Procedure = procedure,
             MissedApproachFixes = BuildMissedApproachFixes(procedure),
@@ -232,7 +236,8 @@ public static class ApproachCommandHandler
 
         var (procedure, approachRunway, airport) = resolved;
 
-        TrueHeading finalCourse = approachRunway.TrueHeading;
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        TrueHeading finalCourse = facResult.Course;
 
         // Resolve heading: explicit or present
         int heading = (int)Math.Round(cmd.MagneticHeading?.Degrees ?? aircraft.MagneticHeading.Degrees);
@@ -258,6 +263,8 @@ public static class ApproachCommandHandler
             AirportCode = airport,
             RunwayId = procedure.Runway!,
             FinalApproachCourse = finalCourse,
+            FinalApproachAnchorLat = facResult.AnchorLat,
+            FinalApproachAnchorLon = facResult.AnchorLon,
             Procedure = procedure,
             MissedApproachFixes = BuildMissedApproachFixes(procedure),
             MapHold = ExtractMissedApproachHold(procedure),
@@ -1333,7 +1340,7 @@ public static class ApproachCommandHandler
     private static ApproachClearance BuildClearance(
         CifpApproachProcedure procedure,
         string airport,
-        TrueHeading finalCourse,
+        FinalApproachCourseResult fac,
         RunwayInfo approachRunway
     )
     {
@@ -1342,7 +1349,9 @@ public static class ApproachCommandHandler
             ApproachId = procedure.ApproachId,
             AirportCode = airport,
             RunwayId = procedure.Runway!,
-            FinalApproachCourse = finalCourse,
+            FinalApproachCourse = fac.Course,
+            FinalApproachAnchorLat = fac.AnchorLat,
+            FinalApproachAnchorLon = fac.AnchorLon,
             Procedure = procedure,
             MissedApproachFixes = BuildMissedApproachFixes(procedure),
             MapHold = ExtractMissedApproachHold(procedure),
