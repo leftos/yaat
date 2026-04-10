@@ -268,4 +268,24 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
             Assert.Equal(0, badCount);
         }
     }
+
+    /// <summary>
+    /// Diagnostic: load OAK with FilletArcGenerator debug logging to trace
+    /// the fillet decisions at each intersection. Not an assertion test —
+    /// run with --logger "console;verbosity=detailed" and tee to a file.
+    /// </summary>
+    [Fact]
+    public void OAK_FilletArcGenerator_DebugTrace()
+    {
+        string path = Path.Combine("TestData", "oak.geojson");
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        SimLogBuilder.CreateForTest(output).EnableCategory("FilletArcGenerator", Microsoft.Extensions.Logging.LogLevel.Debug).InitializeSimLog();
+
+        var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
+        output.WriteLine($"OAK: {layout.Nodes.Count} nodes, {layout.Edges.Count} edges, {layout.Arcs.Count} arcs");
+    }
 }
