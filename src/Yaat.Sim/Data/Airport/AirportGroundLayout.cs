@@ -36,6 +36,22 @@ public sealed class GroundNode
     /// </summary>
     [JsonIgnore]
     public List<IGroundEdge> Edges { get; init; } = [];
+
+    /// <summary>
+    /// Diagnostic provenance: which code path created or last modified this node.
+    /// Not serialized — only populated during layout construction for debugging.
+    /// </summary>
+    [JsonIgnore]
+    public string? Origin { get; set; }
+
+    /// <summary>
+    /// For tangent-point nodes created by <see cref="FilletArcGenerator"/>: the position of
+    /// the intersection node this tangent was created for. Used during coincident-node merging
+    /// to position the merged node at the midpoint between two source intersections.
+    /// Null for non-tangent nodes.
+    /// </summary>
+    [JsonIgnore]
+    public (double Lat, double Lon)? SourceIntersectionPosition { get; set; }
 }
 
 /// <summary>
@@ -97,6 +113,12 @@ public interface IGroundEdge
     bool HasNode(int nodeId);
 
     /// <summary>
+    /// Diagnostic provenance: which code path created or last modified this edge/arc.
+    /// Not serialized — only populated during layout construction for debugging.
+    /// </summary>
+    string? Origin { get; set; }
+
+    /// <summary>
     /// Create a <see cref="DirectionalEdge"/> capturing a specific traversal direction.
     /// </summary>
     DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode);
@@ -137,6 +159,10 @@ public sealed class GroundEdge : IGroundEdge
     public required GroundNode[] Nodes { get; init; }
     public required string TaxiwayName { get; init; }
     public required double DistanceNm { get; set; }
+
+    /// <inheritdoc/>
+    [JsonIgnore]
+    public string? Origin { get; set; }
 
     /// <summary>
     /// Intermediate coordinates along this edge (lat, lon pairs) for curved paths.
@@ -193,6 +219,10 @@ public sealed class GroundArc : IGroundEdge
 {
     public required GroundNode[] Nodes { get; init; }
 
+    /// <inheritdoc/>
+    [JsonIgnore]
+    public string? Origin { get; set; }
+
     /// <summary>
     /// Bezier control points P1 and P2. P0 = Nodes[0].Lat/Lon, P3 = Nodes[1].Lat/Lon.
     /// P1 lies along edge-A direction from P0; P2 lies along edge-B direction from P3.
@@ -207,6 +237,31 @@ public sealed class GroundArc : IGroundEdge
     /// Used for worst-case speed constraint back-propagation.
     /// </summary>
     public required double MinRadiusOfCurvatureFt { get; set; }
+
+    // --- Fillet construction parameters (non-serialized) ---
+    // Stored so that later passes (e.g., MergeCoincidentNodes) can recompute P1/P2
+    // from the new node positions instead of translating stale control points.
+
+    /// <summary>
+    /// Bearing (degrees true) of the taxiway edge at Nodes[0], measured from Nodes[0]
+    /// away from the fillet intersection center. Used to recompute P1 after node merges.
+    /// </summary>
+    [JsonIgnore]
+    public double EdgeBearingAtNode0Deg { get; set; }
+
+    /// <summary>
+    /// Bearing (degrees true) of the taxiway edge at Nodes[1], measured from Nodes[1]
+    /// away from the fillet intersection center. Used to recompute P2 after node merges.
+    /// </summary>
+    [JsonIgnore]
+    public double EdgeBearingAtNode1Deg { get; set; }
+
+    /// <summary>
+    /// Turn angle (degrees) between the two edges that this arc bridges.
+    /// Used with kappa = (4/3) * tan(sweep/4) to compute control point depth.
+    /// </summary>
+    [JsonIgnore]
+    public double TurnAngleDeg { get; set; }
 
     public required double DistanceNm { get; set; }
 

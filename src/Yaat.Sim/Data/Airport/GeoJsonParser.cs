@@ -164,6 +164,7 @@ public static class GeoJsonParser
                 Longitude = spot.Lon,
                 Type = GroundNodeType.Spot,
                 Name = spot.Name,
+                Origin = "GeoJson:spot",
             };
             layout.Nodes[id] = node;
             coordIndex.Add(spot.Lat, spot.Lon, id);
@@ -214,6 +215,7 @@ public static class GeoJsonParser
                 Type = GroundNodeType.Parking,
                 Name = pkg.Name,
                 TrueHeading = new TrueHeading(pkg.Heading),
+                Origin = "GeoJson:parking",
             };
             layout.Nodes[id] = node;
 
@@ -232,6 +234,7 @@ public static class GeoJsonParser
                 Type = GroundNodeType.Helipad,
                 Name = hp.Name,
                 TrueHeading = new TrueHeading(hp.Heading),
+                Origin = "GeoJson:helipad",
             };
             layout.Nodes[id] = node;
 
@@ -296,6 +299,7 @@ public static class GeoJsonParser
             Nodes = [node, nearest],
             TaxiwayName = "RAMP",
             DistanceNm = nearestDist,
+            Origin = "GeoJson:taxiway-edge",
         };
 
         layout.Edges.Add(edge);

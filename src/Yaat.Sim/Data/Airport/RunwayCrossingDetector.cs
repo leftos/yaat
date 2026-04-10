@@ -216,6 +216,7 @@ internal static class RunwayCrossingDetector
             Longitude = hsLon,
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rect.CombinedId,
+            Origin = $"RunwayCrossing:hold-short@{rect.CombinedId}",
         };
         layout.Nodes[hsId] = hsNode;
         coordIndex.Add(hsLat, hsLon, hsId);
@@ -316,6 +317,7 @@ internal static class RunwayCrossingDetector
                 Nodes = [from, to],
                 TaxiwayName = rwyEdgeName,
                 DistanceNm = dist,
+                Origin = $"RunwayCrossing:rwy-edge@{rect.CombinedId}",
             };
 
             layout.Edges.Add(rwyEdge);
@@ -613,6 +615,7 @@ internal static class RunwayCrossingDetector
             Longitude = hsLon,
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rect.CombinedId,
+            Origin = $"RunwayCrossing:hold-short@{rect.CombinedId}",
         };
         layout.Nodes[hsId] = hsNode;
         coordIndex.Add(hsLat, hsLon, hsId);
@@ -735,6 +738,7 @@ internal static class RunwayCrossingDetector
             Longitude = hsLon,
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rect.CombinedId,
+            Origin = $"RunwayCrossing:hold-short@{rect.CombinedId}",
         };
         layout.Nodes[hsId] = hsNode;
         coordIndex.Add(hsLat, hsLon, hsId);
@@ -816,6 +820,7 @@ internal static class RunwayCrossingDetector
             Nodes = [nodeA, midNode],
             TaxiwayName = edge.TaxiwayName,
             DistanceNm = GeoMath.DistanceNm(nodeA.Latitude, nodeA.Longitude, midNode.Latitude, midNode.Longitude),
+            Origin = $"RunwayCrossing:split-edge({edge.Origin ?? edge.TaxiwayName})",
         };
 
         var edgeB = new GroundEdge
@@ -823,6 +828,7 @@ internal static class RunwayCrossingDetector
             Nodes = [midNode, nodeB],
             TaxiwayName = edge.TaxiwayName,
             DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, nodeB.Latitude, nodeB.Longitude),
+            Origin = $"RunwayCrossing:split-edge({edge.Origin ?? edge.TaxiwayName})",
         };
 
         layout.Edges.Add(edgeA);

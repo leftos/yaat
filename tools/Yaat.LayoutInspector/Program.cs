@@ -38,8 +38,6 @@ public static class Program
         var svgHighlightNodes = new List<int>();
         var svgAnnotations = new List<(int NodeId, string Text)>();
         var svgRouteNodes = new List<int>();
-        int svgWidth = 4000;
-        int svgHeight = 3000;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -107,13 +105,6 @@ public static class Program
 
                     break;
                 }
-                case "--svg-size" when i + 1 < args.Length:
-                {
-                    var parts = args[++i].Split('x');
-                    svgWidth = int.Parse(parts[0]);
-                    svgHeight = int.Parse(parts[1]);
-                    break;
-                }
                 default:
                     Console.Error.WriteLine($"Unknown flag: {args[i]}");
                     PrintUsage();
@@ -134,67 +125,51 @@ public static class Program
             return 1;
         }
 
+        // Always run validation and print warnings to stderr
+        var validator = new LayoutValidator(analyzer.Layout);
+        var warnings = validator.Validate();
+        if (warnings.Count > 0)
+        {
+            Console.Error.WriteLine($"VALIDATION: {warnings.Count} warning(s):");
+            foreach (var w in warnings)
+            {
+                Console.Error.WriteLine($"  [{w.Code}] {w.Message}");
+            }
+
+            Console.Error.WriteLine();
+        }
+
         if (svgOutput is not null)
         {
-            var renderer = new SvgRenderer(analyzer.Layout);
+            var htmlRenderer = new HtmlRenderer(analyzer.Layout);
             foreach (string t in svgHighlightTaxiways)
             {
-                renderer.HighlightTaxiway(t);
+                htmlRenderer.HighlightTaxiway(t);
             }
 
             foreach (string r in svgHighlightRunways)
             {
-                renderer.HighlightRunway(r);
+                htmlRenderer.HighlightRunway(r);
             }
 
             foreach (int n in svgHighlightNodes)
             {
-                renderer.HighlightNode(n);
+                htmlRenderer.HighlightNode(n);
             }
 
             foreach (var (nid, text) in svgAnnotations)
             {
-                renderer.AnnotateNode(nid, text);
+                htmlRenderer.AnnotateNode(nid, text);
             }
 
             foreach (int nid in svgRouteNodes)
             {
-                renderer.AddRouteNode(nid);
+                htmlRenderer.AddRouteNode(nid);
             }
 
-            // If output ends in .html, render interactive HTML instead of SVG
-            if (svgOutput.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
-            {
-                var htmlRenderer = new HtmlRenderer(analyzer.Layout);
-                foreach (string t in svgHighlightTaxiways)
-                {
-                    htmlRenderer.HighlightTaxiway(t);
-                }
-                foreach (string r in svgHighlightRunways)
-                {
-                    htmlRenderer.HighlightRunway(r);
-                }
-                foreach (int n in svgHighlightNodes)
-                {
-                    htmlRenderer.HighlightNode(n);
-                }
-                foreach (var (nid, text) in svgAnnotations)
-                {
-                    htmlRenderer.AnnotateNode(nid, text);
-                }
-                foreach (int nid in svgRouteNodes)
-                {
-                    htmlRenderer.AddRouteNode(nid);
-                }
-                string html = htmlRenderer.Render();
-                File.WriteAllText(svgOutput, html);
-                Console.Error.WriteLine($"Wrote interactive HTML to {svgOutput}");
-                return 0;
-            }
-
-            string svg = renderer.Render(svgWidth, svgHeight);
-            File.WriteAllText(svgOutput, svg);
-            Console.Error.WriteLine($"Wrote SVG ({svgWidth}x{svgHeight}) to {svgOutput}");
+            string html = htmlRenderer.Render();
+            File.WriteAllText(svgOutput, html);
+            Console.Error.WriteLine($"Wrote interactive HTML to {svgOutput}");
             return 0;
         }
 
@@ -329,6 +304,5 @@ public static class Program
         Console.WriteLine("  --svg-runway <desig>     Highlight a runway (repeatable)");
         Console.WriteLine("  --svg-node <id>          Highlight a node (repeatable)");
         Console.WriteLine("  --svg-annotate <id> <text>  Add annotation label to a node");
-        Console.WriteLine("  --svg-size <WxH>         Canvas size in pixels (default: 4000x3000)");
     }
 }

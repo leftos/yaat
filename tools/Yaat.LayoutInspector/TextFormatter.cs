@@ -72,6 +72,11 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
             w.WriteLine($"  Heading: {n.HeadingDeg:F0}°");
         }
 
+        if (n.Origin is not null)
+        {
+            w.WriteLine($"  Origin: {n.Origin}");
+        }
+
         w.WriteLine();
         w.WriteLine($"  Edges ({n.Edges.Count}):");
         foreach (var e in n.Edges)
@@ -89,7 +94,19 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
 
             neighbor += "]";
             string edgeType = e.IsArc ? " [arc]" : "";
-            w.WriteLine($"    -> Node {e.NeighborId} via {e.TaxiwayName} ({e.DistanceNm:F4}nm){edgeType}  {neighbor}");
+            string bearingStr = $" bearing={e.BearingDeg:F1}°";
+
+            string arcStr = "";
+            if (e.Arc is { } a)
+            {
+                arcStr =
+                    $"\n      arc: names=[{string.Join(",", a.TaxiwayNames)}] radius={a.MinRadiusOfCurvatureFt:F0}ft"
+                    + $" maxSafe={a.MaxSafeSpeedKts20:F1}kt tangent={a.TangentAtParentDeg:F1}°"
+                    + $" len={a.ArcLengthNm:F4}nm";
+            }
+
+            string originStr = (e.Origin is not null) ? $"\n      origin: {e.Origin}" : "";
+            w.WriteLine($"    -> Node {e.NeighborId} via {e.TaxiwayName} ({e.DistanceNm:F4}nm){edgeType}{bearingStr}  {neighbor}{arcStr}{originStr}");
         }
     }
 

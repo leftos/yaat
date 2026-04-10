@@ -841,6 +841,7 @@ public static class TaxiPathfinder
                         Nodes = [currentNode, rampTarget],
                         TaxiwayName = "RAMP",
                         DistanceNm = nearestDist,
+                        Origin = "Pathfinder:virtual-ramp-edge",
                     };
                     segments.Add(new TaxiRouteSegment { TaxiwayName = "RAMP", Edge = rampEdge.Directed(currentNode, rampTarget) });
 

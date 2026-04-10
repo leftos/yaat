@@ -33,6 +33,7 @@ internal static class TaxiwayGraphBuilder
                     Latitude = lat,
                     Longitude = lon,
                     Type = GroundNodeType.TaxiwayIntersection,
+                    Origin = "TaxiwayGraphBuilder:intermediate",
                 };
                 layout.Nodes[id] = node;
                 coordIndex.Add(lat, lon, id);
@@ -102,6 +103,7 @@ internal static class TaxiwayGraphBuilder
                 Nodes = [fromNode, toNode],
                 TaxiwayName = tw.Name,
                 DistanceNm = dist,
+                Origin = "TaxiwayGraphBuilder:edge",
             };
 
             layout.Edges.Add(edge);
@@ -145,6 +147,7 @@ internal static class TaxiwayGraphBuilder
                     Latitude = lat,
                     Longitude = lon,
                     Type = GroundNodeType.TaxiwayIntersection,
+                    Origin = $"TaxiwayGraphBuilder:intersection({tw1.Name}/{tw2.Name})",
                 };
                 layout.Nodes[id] = node;
                 coordIndex.Add(lat, lon, id);

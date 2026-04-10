@@ -21,7 +21,8 @@ public sealed record NodeInfo(
     string? Name,
     string? RunwayId,
     double? HeadingDeg,
-    List<EdgeInfo> Edges
+    List<EdgeInfo> Edges,
+    string? Origin
 );
 
 public sealed record EdgeInfo(
@@ -33,7 +34,31 @@ public sealed record EdgeInfo(
     string? NeighborRunwayId,
     bool IsArc,
     bool IsRunway,
-    bool IsRamp
+    bool IsRamp,
+    /// <summary>Bearing from the parent node toward the neighbor, in degrees true.</summary>
+    double BearingDeg,
+    ArcDetail? Arc,
+    string? Origin
+);
+
+/// <summary>
+/// Arc-specific geometry details. Only populated when the edge is a <see cref="Yaat.Sim.Data.Airport.AirportGroundLayout.GroundArc"/>.
+/// </summary>
+public sealed record ArcDetail(
+    string[] TaxiwayNames,
+    double MinRadiusOfCurvatureFt,
+    double MaxSafeSpeedKts20,
+    double ArcLengthNm,
+    /// <summary>Tangent direction (degrees true) at the parent node. For bezier arcs, this is the
+    /// direction from P0→P1 (when parent is Nodes[0]) or P3→P2 (when parent is Nodes[1]).</summary>
+    double TangentAtParentDeg,
+    double TurnAngleDeg,
+    double EdgeBearingAtNode0Deg,
+    double EdgeBearingAtNode1Deg,
+    double P1Lat,
+    double P1Lon,
+    double P2Lat,
+    double P2Lon
 );
 
 public sealed record TaxiwayResult(string Name, List<NodeInfo> Nodes, List<string> ConnectedTaxiways, int HoldShortCount);

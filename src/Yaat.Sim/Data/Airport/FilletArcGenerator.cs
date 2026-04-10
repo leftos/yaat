@@ -208,7 +208,11 @@ public static class FilletArcGenerator
                     double halfAngleRad = (turnAngle / 2.0) * (Math.PI / 180.0);
                     double tanHalf = Math.Tan(halfAngleRad);
 
-                    // Compute edge lengths from intersection to the other endpoint
+                    // Compute edge lengths from intersection to the other endpoint.
+                    // Use the FULL edge length as the fit constraint — if the other end
+                    // of the edge is another intersection that also gets filleted, both
+                    // tangent points will land near the midpoint and the global merge
+                    // will combine them into a shared node with chord-based recomputation.
                     double edgeALenFt =
                         GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude) * GeoMath.FeetPerNm;
                     double edgeBLenFt =
@@ -250,6 +254,8 @@ public static class FilletArcGenerator
                 Latitude = lat,
                 Longitude = lon,
                 Type = GroundNodeType.TaxiwayIntersection,
+                SourceIntersectionPosition = (intersection.Latitude, intersection.Longitude),
+                Origin = $"Fillet:tangent-node@{intersection.Id}",
             };
             layout.Nodes[id] = node;
             edgeTangentNodes[edge] = node;
@@ -316,6 +322,10 @@ public static class FilletArcGenerator
                     P2Lon = p2Lon,
                     MinRadiusOfCurvatureFt = minRadiusFt,
                     DistanceNm = arcLengthNm,
+                    EdgeBearingAtNode0Deg = bearingA,
+                    EdgeBearingAtNode1Deg = bearingB,
+                    TurnAngleDeg = turnAngleDeg,
+                    Origin = $"Fillet:phase-c-arc@{intersection.Id} {edgeA.TaxiwayName}/{edgeB.TaxiwayName}",
                 }
             );
             arcsCreated++;
@@ -362,6 +372,7 @@ public static class FilletArcGenerator
                     Nodes = [otherNode, tangentNode],
                     TaxiwayName = edge.TaxiwayName,
                     DistanceNm = newDist,
+                    Origin = $"Fillet:phase-d-shorten@{intersection.Id} {edge.TaxiwayName}",
                 }
             );
             consumedEdges.Add(edge);
@@ -386,6 +397,7 @@ public static class FilletArcGenerator
                     Nodes = [endA, endB],
                     TaxiwayName = edgeA.TaxiwayName,
                     DistanceNm = mergedDist,
+                    Origin = $"Fillet:phase-d-merge@{intersection.Id} {edgeA.TaxiwayName}",
                 }
             );
 
@@ -421,6 +433,7 @@ public static class FilletArcGenerator
                         Nodes = [otherNode, bestTarget],
                         TaxiwayName = edge.TaxiwayName,
                         DistanceNm = newDist,
+                        Origin = $"Fillet:phase-d-reconnect@{intersection.Id} {edge.TaxiwayName}",
                     }
                 );
             }
@@ -452,6 +465,7 @@ public static class FilletArcGenerator
                         Nodes = [intersection, tangentNode],
                         TaxiwayName = edge.TaxiwayName,
                         DistanceNm = stubDist,
+                        Origin = $"Fillet:phase-d-preserve@{intersection.Id} {edge.TaxiwayName}",
                     }
                 );
             }
@@ -471,6 +485,7 @@ public static class FilletArcGenerator
                             Nodes = [intersection, otherA],
                             TaxiwayName = edgeA.TaxiwayName,
                             DistanceNm = dist,
+                            Origin = $"Fillet:phase-d-preserve@{intersection.Id} {edgeA.TaxiwayName}",
                         }
                     );
                 }
@@ -484,6 +499,7 @@ public static class FilletArcGenerator
                             Nodes = [intersection, otherB],
                             TaxiwayName = edgeB.TaxiwayName,
                             DistanceNm = dist,
+                            Origin = $"Fillet:phase-d-preserve@{intersection.Id} {edgeB.TaxiwayName}",
                         }
                     );
                 }
@@ -510,13 +526,15 @@ public static class FilletArcGenerator
 
         for (int pass = 0; pass < 5; pass++)
         {
-            var mergeMap = BuildMergeMap(layout, thresholdNm);
+            var mergeMap = BuildMergeMap(layout, thresholdNm, out var repositioned);
             if (mergeMap.Count == 0)
             {
                 break;
             }
 
-            // Rewrite edge node references
+            // Rewrite edge node references:
+            // - victims → their survivor (possibly repositioned)
+            // - existing references to repositioned survivors → new node object
             foreach (var edge in layout.Edges)
             {
                 for (int k = 0; k < edge.Nodes.Length; k++)
@@ -525,35 +543,52 @@ public static class FilletArcGenerator
                     {
                         edge.Nodes[k] = survivor;
                     }
+                    else if (repositioned.TryGetValue(edge.Nodes[k].Id, out var newNode))
+                    {
+                        edge.Nodes[k] = newNode;
+                    }
                 }
             }
 
-            // Rewrite arc node references with bezier control point adjustment
+            // Rewrite arc node references and recompute bezier control points.
             foreach (var arc in layout.Arcs)
             {
+                bool node0Changed = false;
+                bool node1Changed = false;
+
                 for (int k = 0; k < arc.Nodes.Length; k++)
                 {
                     if (mergeMap.TryGetValue(arc.Nodes[k].Id, out var survivor))
                     {
-                        var victim = arc.Nodes[k];
-                        double dLat = survivor.Latitude - victim.Latitude;
-                        double dLon = survivor.Longitude - victim.Longitude;
-
-                        // Translate the corresponding control point to preserve the
-                        // tangent handle vector (P1-P0 or P2-P3) exactly.
+                        arc.Origin += $" +merge({arc.Nodes[k].Id}->{survivor.Id})";
+                        arc.Nodes[k] = survivor;
                         if (k == 0)
                         {
-                            arc.P1Lat += dLat;
-                            arc.P1Lon += dLon;
+                            node0Changed = true;
                         }
                         else
                         {
-                            arc.P2Lat += dLat;
-                            arc.P2Lon += dLon;
+                            node1Changed = true;
                         }
-
-                        arc.Nodes[k] = survivor;
                     }
+                    else if (repositioned.TryGetValue(arc.Nodes[k].Id, out var newNode))
+                    {
+                        arc.Origin += $" +repos({arc.Nodes[k].Id})";
+                        arc.Nodes[k] = newNode;
+                        if (k == 0)
+                        {
+                            node0Changed = true;
+                        }
+                        else
+                        {
+                            node1Changed = true;
+                        }
+                    }
+                }
+
+                if (node0Changed || node1Changed)
+                {
+                    RecomputeArcControlPoints(arc, node0Changed, node1Changed);
                 }
             }
 
@@ -609,13 +644,84 @@ public static class FilletArcGenerator
     }
 
     /// <summary>
+    /// Recompute bezier control points P1/P2 for an arc from its stored construction
+    /// parameters (edge bearings and turn angle) and current node positions.
+    /// Called after MergeCoincidentNodes moves an endpoint to a new position.
+    /// </summary>
+    /// <summary>
+    /// Recompute bezier control points after a node merge or reposition.
+    /// For each endpoint:
+    ///   - If it DIDN'T move: keep the original edge bearing (it still points toward the
+    ///     correct intersection center).
+    ///   - If it DID move (merged/repositioned): use the bearing toward the other endpoint
+    ///     as the tangent direction, since the original bearing is stale.
+    /// Depth is chord/3 — the mathematical limit for cubic bezier approximation of circular
+    /// arcs, and a safe general-purpose value after merge.
+    /// </summary>
+    private static void RecomputeArcControlPoints(GroundArc arc, bool node0Moved, bool node1Moved)
+    {
+        var nodeA = arc.Nodes[0];
+        var nodeB = arc.Nodes[1];
+
+        double chordNm = GeoMath.DistanceNm(nodeA.Latitude, nodeA.Longitude, nodeB.Latitude, nodeB.Longitude);
+
+        if (chordNm < 1e-9)
+        {
+            arc.P1Lat = nodeA.Latitude;
+            arc.P1Lon = nodeA.Longitude;
+            arc.P2Lat = nodeB.Latitude;
+            arc.P2Lon = nodeB.Longitude;
+            return;
+        }
+
+        double depth = chordNm / 3.0;
+
+        // P1 direction: if nodeA moved, use chord direction; otherwise keep original bearing
+        double p1Bearing;
+        if (node0Moved)
+        {
+            p1Bearing = GeoMath.BearingTo(nodeA.Latitude, nodeA.Longitude, nodeB.Latitude, nodeB.Longitude);
+        }
+        else
+        {
+            // Original edge bearing points AWAY from the intersection center.
+            // Control point goes TOWARD the center = reverse bearing.
+            p1Bearing = (arc.EdgeBearingAtNode0Deg + 180.0) % 360.0;
+        }
+
+        // P2 direction: if nodeB moved, use chord direction; otherwise keep original bearing
+        double p2Bearing;
+        if (node1Moved)
+        {
+            p2Bearing = GeoMath.BearingTo(nodeB.Latitude, nodeB.Longitude, nodeA.Latitude, nodeA.Longitude);
+        }
+        else
+        {
+            p2Bearing = (arc.EdgeBearingAtNode1Deg + 180.0) % 360.0;
+        }
+
+        var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(nodeA.Latitude, nodeA.Longitude, p1Bearing, depth);
+        var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(nodeB.Latitude, nodeB.Longitude, p2Bearing, depth);
+
+        arc.P1Lat = p1Lat;
+        arc.P1Lon = p1Lon;
+        arc.P2Lat = p2Lat;
+        arc.P2Lon = p2Lon;
+    }
+
+    /// <summary>
     /// Build a merge map of coincident TaxiwayIntersection node pairs within the given threshold.
     /// Returns victimId → survivorNode mapping. Later nodes in the candidate list are victims.
     /// </summary>
-    private static Dictionary<int, GroundNode> BuildMergeMap(AirportGroundLayout layout, double thresholdNm)
+    private static Dictionary<int, GroundNode> BuildMergeMap(
+        AirportGroundLayout layout,
+        double thresholdNm,
+        out Dictionary<int, GroundNode> repositionedSurvivors
+    )
     {
         var candidates = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).ToList();
         var mergeMap = new Dictionary<int, GroundNode>();
+        repositionedSurvivors = new Dictionary<int, GroundNode>();
 
         for (int i = 0; i < candidates.Count; i++)
         {
@@ -635,13 +741,44 @@ public static class FilletArcGenerator
 
                 if (dist <= thresholdNm)
                 {
+                    var survivor = candidates[i];
+                    var victim = candidates[j];
+
+                    // When two tangent nodes from DIFFERENT source intersections merge,
+                    // position the survivor at the midpoint between the two source
+                    // intersections. This gives arcs from both intersections equal room
+                    // for their curves, regardless of which intersection was processed first.
+                    if (
+                        survivor.SourceIntersectionPosition is { } srcPosA
+                        && victim.SourceIntersectionPosition is { } srcPosB
+                        && (GeoMath.DistanceNm(srcPosA.Lat, srcPosA.Lon, srcPosB.Lat, srcPosB.Lon) > 1e-9)
+                    )
+                    {
+                        double midLat = (srcPosA.Lat + srcPosB.Lat) / 2.0;
+                        double midLon = (srcPosA.Lon + srcPosB.Lon) / 2.0;
+
+                        var midNode = new GroundNode
+                        {
+                            Id = survivor.Id,
+                            Latitude = midLat,
+                            Longitude = midLon,
+                            Type = survivor.Type,
+                            SourceIntersectionPosition = survivor.SourceIntersectionPosition,
+                            Origin = survivor.Origin + $" +midpoint({victim.Id})",
+                        };
+                        layout.Nodes[survivor.Id] = midNode;
+                        candidates[i] = midNode;
+                        repositionedSurvivors[survivor.Id] = midNode;
+                        survivor = midNode;
+                    }
+
                     Log.LogDebug(
                         "Fillet cleanup: merging node {VictimId} into {SurvivorId} ({DistFt:F1}ft apart)",
-                        candidates[j].Id,
-                        candidates[i].Id,
+                        victim.Id,
+                        survivor.Id,
                         dist * GeoMath.FeetPerNm
                     );
-                    mergeMap[candidates[j].Id] = candidates[i];
+                    mergeMap[victim.Id] = survivor;
                 }
             }
         }

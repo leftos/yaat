@@ -99,6 +99,7 @@ public sealed class HtmlRenderer
             writer.WriteBoolean("rwy", e.IsRunwayCenterline);
             writer.WriteBoolean("ramp", e.IsRamp);
             writer.WriteBoolean("hl", IsHighlighted(e));
+            writer.WriteString("origin", e.Origin ?? "");
             writer.WriteEndObject();
         }
 
@@ -115,6 +116,19 @@ public sealed class HtmlRenderer
             writer.WriteNumber("ft", Math.Round(arc.DistanceNm * GeoMath.FeetPerNm));
             writer.WriteBoolean("rwyJunction", arc.IsRunwayJunction);
             writer.WriteBoolean("hl", IsHighlighted(arc));
+            writer.WriteString("origin", arc.Origin ?? "");
+            writer.WriteNumber("radius", Math.Round(arc.MinRadiusOfCurvatureFt, 1));
+            writer.WriteNumber("maxSafe", Math.Round(arc.MaxSafeSpeedKts(20.0), 1));
+            writer.WriteNumber("turnAngle", Math.Round(arc.TurnAngleDeg, 1));
+            writer.WriteStartArray("names");
+            foreach (string name in arc.TaxiwayNames)
+            {
+                writer.WriteStringValue(name);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteNumber("bearing0", Math.Round(arc.EdgeBearingAtNode0Deg, 1));
+            writer.WriteNumber("bearing1", Math.Round(arc.EdgeBearingAtNode1Deg, 1));
 
             var bez = arc.ToBezier();
             writer.WriteStartArray("pts");

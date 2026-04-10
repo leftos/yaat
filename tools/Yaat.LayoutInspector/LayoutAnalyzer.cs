@@ -76,6 +76,31 @@ public sealed class LayoutAnalyzer
         {
             int neighborId = edge.OtherNodeId(node.Id);
             Layout.Nodes.TryGetValue(neighborId, out var neighbor);
+
+            double bearing = (neighbor is not null) ? GeoMath.BearingTo(node.Latitude, node.Longitude, neighbor.Latitude, neighbor.Longitude) : 0;
+
+            ArcDetail? arcDetail = null;
+            if (edge is GroundArc arc)
+            {
+                bool parentIsNode0 = arc.Nodes[0].Id == node.Id;
+                double tangentDeg = ComputeArcTangentAtNode(arc, parentIsNode0);
+
+                arcDetail = new ArcDetail(
+                    arc.TaxiwayNames,
+                    arc.MinRadiusOfCurvatureFt,
+                    arc.MaxSafeSpeedKts(20.0),
+                    arc.DistanceNm,
+                    tangentDeg,
+                    arc.TurnAngleDeg,
+                    arc.EdgeBearingAtNode0Deg,
+                    arc.EdgeBearingAtNode1Deg,
+                    arc.P1Lat,
+                    arc.P1Lon,
+                    arc.P2Lat,
+                    arc.P2Lon
+                );
+            }
+
             edges.Add(
                 new EdgeInfo(
                     neighborId,
@@ -86,7 +111,10 @@ public sealed class LayoutAnalyzer
                     neighbor?.RunwayId?.ToString(),
                     edge is GroundArc,
                     edge.IsRunwayCenterline,
-                    edge.IsRamp
+                    edge.IsRamp,
+                    bearing,
+                    arcDetail,
+                    edge.Origin
                 )
             );
         }
@@ -99,8 +127,40 @@ public sealed class LayoutAnalyzer
             node.Name,
             node.RunwayId?.ToString(),
             node.TrueHeading?.Degrees,
-            edges
+            edges,
+            node.Origin
         );
+    }
+
+    /// <summary>
+    /// Compute the tangent direction (degrees true) of a bezier arc at a specific endpoint.
+    /// At Nodes[0]: direction from P0 toward P1 (departure tangent).
+    /// At Nodes[1]: direction from P3 toward P2 (arrival tangent, reversed to show departure direction).
+    /// </summary>
+    private static double ComputeArcTangentAtNode(GroundArc arc, bool atNode0)
+    {
+        double fromLat,
+            fromLon,
+            toLat,
+            toLon;
+        if (atNode0)
+        {
+            // Tangent at start: P0 → P1
+            fromLat = arc.Nodes[0].Latitude;
+            fromLon = arc.Nodes[0].Longitude;
+            toLat = arc.P1Lat;
+            toLon = arc.P1Lon;
+        }
+        else
+        {
+            // Tangent at end: P3 → P2 (reversed to show departure direction from this node)
+            fromLat = arc.Nodes[1].Latitude;
+            fromLon = arc.Nodes[1].Longitude;
+            toLat = arc.P2Lat;
+            toLon = arc.P2Lon;
+        }
+
+        return GeoMath.BearingTo(fromLat, fromLon, toLat, toLon);
     }
 
     public NodeInfo? GetNodeDetail(int id)

@@ -24,6 +24,7 @@ public static class VirtualNode
             Latitude = latitude,
             Longitude = longitude,
             Type = GroundNodeType.TaxiwayIntersection,
+            Origin = "VirtualNode:created",
         };
     }
 
@@ -38,6 +39,7 @@ public static class VirtualNode
             Nodes = [nodeA, nodeB],
             TaxiwayName = taxiwayName,
             DistanceNm = dist,
+            Origin = "VirtualNode:edge",
         };
     }
 
