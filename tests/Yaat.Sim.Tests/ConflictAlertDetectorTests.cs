@@ -501,9 +501,11 @@ public class ConflictAlertDetectorTests
     }
 
     [Fact]
-    public void FinalApproach_NonIcaoAirport_NotSuppressed()
+    public void FinalApproach_FaaLidAirport_Suppressed()
     {
-        // 3-char FAA LID airport → ICAO filter excludes it
+        // 3-char FAA LID airport in internal airports list → suppression applies just like
+        // a 4-char ICAO. Mirrors what CommandDispatcher.ResolveAirport produces at runtime
+        // (US destinations are stored as the 3-char FAA LID, with the leading K stripped).
         var faaLid = "OAK";
         var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
         using var _ = NavigationDatabase.ScopedOverride(navDb);
@@ -518,7 +520,7 @@ public class ConflictAlertDetectorTests
 
         var result = ConflictAlertDetector.Detect([onFinal, other], CtxWithAirports(faaLid));
 
-        Assert.Single(result);
+        Assert.Empty(result);
     }
 
     [Fact]
@@ -537,6 +539,36 @@ public class ConflictAlertDetectorTests
         follower.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
 
         var result = ConflictAlertDetector.Detect([leader, follower], CtxWithAirports(KoakIcao));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void BothOnFinalApproach_FaaLidAirport_Suppressed_RegressionForSfoBundle()
+    {
+        // Regression for the SFO S1-SFO-2 bug bundle: SKW3398 leading WJA1508 on I28R,
+        // both established on the localizer, ~2.3 NM apart and ~951 ft vertical
+        // separation. CA fired because IsInRunwayCorridor rejected airportCode "SFO"
+        // (3 chars) before consulting internalAirports. After deleting that guard the
+        // suppression must engage exactly like the ICAO case.
+        var faaLid = "SFO";
+        var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var outboundCourse = new TrueHeading(Koak10LHeading);
+
+        // Leader: 0.83 NM out, ~328 ft (mirrors SKW3398 at t=315 s)
+        var (leaderLat, leaderLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 0.83);
+        var leader = MakeAircraft("SKW3398", leaderLat, leaderLon, altitude: 328, heading: Koak28RHeading, groundSpeed: 126);
+        leader.Phases = MakeFinalApproachPhaseList(faaLid, "28R", Koak28RHeading);
+
+        // Follower: 3.16 NM out, ~1279 ft (mirrors WJA1508 at t=315 s).
+        // Δh ≈ 2.33 NM, Δv ≈ 951 ft — both inside the 3 NM / 1000 ft thresholds.
+        var (followerLat, followerLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.16);
+        var follower = MakeAircraft("WJA1508", followerLat, followerLon, altitude: 1279, heading: Koak28RHeading, groundSpeed: 144);
+        follower.Phases = MakeFinalApproachPhaseList(faaLid, "28R", Koak28RHeading);
+
+        var result = ConflictAlertDetector.Detect([leader, follower], CtxWithAirports(faaLid));
 
         Assert.Empty(result);
     }

@@ -190,7 +190,8 @@ public static class ConflictAlertDetector
     /// for <paramref name="approachAircraft"/>'s target runway. The corridor is
     /// anchored at the runway threshold, extends 30 NM along the extended centerline,
     /// is 4 NM wide, and ranges from field elevation to 1500 ft above the glideslope.
-    /// Only applies to airports with ICAO IDs (4-char codes) in the internal airports list.
+    /// Only applies to airports whose code (FAA LID or ICAO) is listed in the
+    /// facility's internalAirports.
     /// </summary>
     private static bool IsInRunwayCorridor(AircraftState approachAircraft, AircraftState other, List<string> internalAirports)
     {
@@ -201,12 +202,6 @@ public static class ConflictAlertDetector
         }
 
         string airportCode = approach.AirportCode;
-
-        // Only ICAO airports (4-char codes) in the internal airports list
-        if (airportCode.Length != 4)
-        {
-            return false;
-        }
 
         bool isInternal = false;
         foreach (var apt in internalAirports)
