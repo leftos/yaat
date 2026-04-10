@@ -117,6 +117,10 @@
             </MenuItem>
             <MenuItem Header="_Settings"
                         x:Name="SettingsMenuItem" />
+            <MenuItem Header="_Tools">
+                <MenuItem Header="Configure _CRC Environments"
+                          x:Name="ConfigureCrcMenuItem" />
+            </MenuItem>
         </Menu>
 
         <!-- Timeline bar -->
@@ -142,6 +146,9 @@
                 <Button Grid.Column="13" Content="Take Control" FontSize="11" Padding="6,2" Margin="4,0,0,0" Command="{Binding TakeControlCommand}" IsVisible="{Binding IsPlaybackMode}" />
             </Grid>
         </Border>
+
+        <!-- Update notification bar -->
+        <views:UpdateNotificationView DockPanel.Dock="Bottom" />
 
         <!-- Status bar -->
         <Border DockPanel.Dock="Bottom"

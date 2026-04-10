@@ -1,6 +1,9 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Microsoft.Extensions.Logging;
+using Velopack;
 using Yaat.Client.Logging;
+using Yaat.Client.Services;
 
 namespace Yaat.Client;
 
@@ -9,6 +12,14 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        var builder = VelopackApp.Build();
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            builder.OnAfterInstallFastCallback(v => CrcInstallPrompt.Show());
+        }
+
+        builder.Run();
+
         AppLog.Initialize();
         var log = AppLog.CreateLogger("Program");
         log.LogInformation("Log file: {LogPath}", AppLog.LogPath);

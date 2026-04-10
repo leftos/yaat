@@ -112,6 +112,12 @@ public partial class MainWindow : Window
             copyViewItem.SubmenuOpened += OnCopyViewSettingsSubmenuOpened;
         }
 
+        var crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
+        if (crcItem is not null)
+        {
+            crcItem.Click += OnConfigureCrcClick;
+        }
+
         var embeddedView = this.FindControl<DataGridView>("EmbeddedDataGridView");
         var dataGrid = embeddedView?.GetDataGrid();
         if (dataGrid is not null)
@@ -1294,6 +1300,63 @@ public partial class MainWindow : Window
         );
         connectWindow = new ConnectWindow(connectVm, vm.Preferences);
         await connectWindow.ShowDialog(this);
+    }
+
+    private void OnConfigureCrcClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (!CrcConfigService.IsCrcInstalled())
+        {
+            _ = ShowMessageAsync("CRC is not installed on this computer.");
+            return;
+        }
+
+        if (CrcConfigService.AreYaatEntriesPresent())
+        {
+            _ = ShowMessageAsync("CRC already has YAAT server environments configured.");
+            return;
+        }
+
+        CrcConfigService.Configure();
+        _ = ShowMessageAsync("YAAT server environments added to CRC. Restart CRC to pick up changes.");
+    }
+
+    private async Task ShowMessageAsync(string message)
+    {
+        var dialog = new Window
+        {
+            Title = "YAAT",
+            Width = 400,
+            Height = 140,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new Avalonia.Controls.StackPanel
+            {
+                Margin = new Avalonia.Thickness(20),
+                Spacing = 12,
+                Children =
+                {
+                    new Avalonia.Controls.TextBlock
+                    {
+                        Text = message,
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                        FontSize = 13,
+                    },
+                    new Avalonia.Controls.Button
+                    {
+                        Content = "OK",
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Width = 60,
+                    },
+                },
+            },
+        };
+
+        if (dialog.Content is Avalonia.Controls.StackPanel panel && panel.Children[1] is Avalonia.Controls.Button okBtn)
+        {
+            okBtn.Click += (_, _) => dialog.Close();
+        }
+
+        await dialog.ShowDialog(this);
     }
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

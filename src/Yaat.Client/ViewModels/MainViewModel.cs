@@ -5,6 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Velopack;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -278,6 +279,22 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _distanceReferenceFix = "";
 
+    // Auto-update state
+    private readonly UpdateService _updateService = new();
+    private UpdateInfo? _pendingUpdate;
+
+    [ObservableProperty]
+    private bool _isUpdateAvailable;
+
+    [ObservableProperty]
+    private string _updateVersion = "";
+
+    [ObservableProperty]
+    private int _updateProgress;
+
+    [ObservableProperty]
+    private bool _isDownloadingUpdate;
+
     public string WindowTitle
     {
         get
@@ -524,6 +541,7 @@ public partial class MainViewModel : ObservableObject
 
         _ = InitializeNavDataAsync();
         _ = _vnasConfigService.InitializeAsync();
+        _ = CheckForUpdateAsync();
     }
 
     private async Task InitializeNavDataAsync()
@@ -555,6 +573,57 @@ public partial class MainViewModel : ObservableObject
         {
             _log.LogError(ex, "Navdata initialization failed");
         }
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        // Delay to avoid slowing initial startup
+        await Task.Delay(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            var update = await _updateService.CheckForUpdateAsync();
+            if (update is null)
+            {
+                return;
+            }
+
+            _pendingUpdate = update;
+            UpdateVersion = update.TargetFullRelease.Version.ToString();
+            IsUpdateAvailable = true;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Update check failed");
+        }
+    }
+
+    [RelayCommand]
+    private async Task UpdateNowAsync()
+    {
+        if (_pendingUpdate is null)
+        {
+            return;
+        }
+
+        try
+        {
+            IsDownloadingUpdate = true;
+            await _updateService.DownloadUpdateAsync(_pendingUpdate, progress => UpdateProgress = progress);
+            _updateService.ApplyUpdateAndRestart(_pendingUpdate);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to download/apply update");
+            IsDownloadingUpdate = false;
+        }
+    }
+
+    [RelayCommand]
+    private void DismissUpdate()
+    {
+        IsUpdateAvailable = false;
+        _pendingUpdate = null;
     }
 
     partial void OnIsConnectedChanged(bool value)
