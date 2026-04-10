@@ -419,7 +419,7 @@ public record JRingCommand(bool Enable) : ParsedCommand;
 
 public record ConeCommand(bool Enable) : ParsedCommand;
 
-public record GhostTrackCommand(string? AirportCode, string RunwayId) : ParsedCommand;
+public record GhostTrackCommand(string? AirportCode, string? RunwayId, double? Latitude, double? Longitude) : ParsedCommand;
 
 public record StripAnnotateCommand(int Box, string? Text) : ParsedCommand;
 

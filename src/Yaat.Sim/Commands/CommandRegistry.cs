@@ -762,6 +762,7 @@ public static class CommandRegistry
                 [
                     O(null, [R("runway", "runway designator")], "Create ghost track off runway (scenario airport)"),
                     O("Airport", [R("airport", "airport ICAO"), R("runway", "runway designator")], "Create ghost track off runway at airport"),
+                    O("Position", [R("lat", "latitude"), R("lon", "longitude")], "Create ghost track at exact position"),
                 ]
             ),
         ];

@@ -8,6 +8,23 @@ public record TrackOwner(string Callsign, string? FacilityId, int? Subset, strin
 
     public bool IsTcp(Tcp tcp) => Subset == tcp.Subset && SectorId == tcp.SectorId;
 
+    /// <summary>
+    /// Returns true if this <see cref="TrackOwner"/> represents the same position as <paramref name="other"/>.
+    /// Matches by callsign first, then falls back to TCP identity (facility + subset + sector).
+    /// This mirrors the STARS scope matching where different callsigns can share a TCP
+    /// (e.g. OAK_TWR and OAK_GND both use TCP 3O).
+    /// </summary>
+    public bool MatchesPosition(TrackOwner other) =>
+        Callsign == other.Callsign
+        || (
+            FacilityId is not null
+            && Subset is not null
+            && SectorId is not null
+            && FacilityId == other.FacilityId
+            && Subset == other.Subset
+            && string.Equals(SectorId, other.SectorId, StringComparison.OrdinalIgnoreCase)
+        );
+
     public static TrackOwner CreateStars(string callsign, string facilityId, int subset, string sectorId) =>
         new(callsign, facilityId, subset, sectorId, TrackOwnerType.Stars);
 

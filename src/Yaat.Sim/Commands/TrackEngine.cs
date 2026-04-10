@@ -85,7 +85,7 @@ public static class TrackEngine
 
     public static CommandResult HandleDrop(AircraftState ac, TrackOwner identity)
     {
-        if (ac.Owner is null || ac.Owner.Callsign != identity.Callsign)
+        if (ac.Owner is null || !ac.Owner.MatchesPosition(identity))
         {
             return NotOwnedError(ac, identity);
         }
@@ -99,7 +99,7 @@ public static class TrackEngine
 
     public static CommandResult HandleAccept(AircraftState ac, TrackOwner identity)
     {
-        if (ac.HandoffPeer is null || ac.HandoffPeer.Callsign != identity.Callsign)
+        if (ac.HandoffPeer is null || !ac.HandoffPeer.MatchesPosition(identity))
         {
             return new CommandResult(false, $"No pending handoff to you for {ac.Callsign}");
         }
@@ -114,7 +114,7 @@ public static class TrackEngine
 
     public static CommandResult HandleCancel(AircraftState ac, TrackOwner identity)
     {
-        if (ac.Owner is null || ac.Owner.Callsign != identity.Callsign || ac.HandoffPeer is null)
+        if (ac.Owner is null || !ac.Owner.MatchesPosition(identity) || ac.HandoffPeer is null)
         {
             return new CommandResult(false, $"No pending outbound handoff for {ac.Callsign}");
         }
@@ -143,7 +143,7 @@ public static class TrackEngine
 
     public static CommandResult HandlePointOut(AircraftState ac, TrackOwner identity, Tcp targetTcp, Tcp senderTcp)
     {
-        if (ac.Owner is null || ac.Owner.Callsign != identity.Callsign)
+        if (ac.Owner is null || !ac.Owner.MatchesPosition(identity))
         {
             return NotOwnedError(ac, identity);
         }
