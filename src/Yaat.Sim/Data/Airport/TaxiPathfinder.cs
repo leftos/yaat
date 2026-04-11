@@ -815,92 +815,22 @@ public static class TaxiPathfinder
         {
             diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: no direct edge from node={startNodeId}, trying bridge strategies");
 
-            // Collect candidate bridge paths from multiple strategies, score them,
-            // and pick the best. This avoids BFS picking a suboptimal multi-taxiway
-            // hop when staying on the current taxiway would be more natural.
-            var bridgeCandidates = new List<(int EndId, List<TaxiRouteSegment> Segs, string Strategy)>();
-
-            // Strategy 1: BFS (short hop, max 3 hops)
-            var bfsSegs = new List<TaxiRouteSegment>();
-            (int bfsId, _) = BfsToTaxiway(layout, startNodeId, taxiwayName, bfsSegs);
-            if (bfsId != -1)
+            int bridgedTo = BridgeToTaxiway(
+                layout,
+                startNodeId,
+                taxiwayName,
+                segments,
+                currentNode,
+                allowCurrentTaxiwayWalk,
+                allowRampFallback,
+                diagnosticLog
+            );
+            if (bridgedTo == -1)
             {
-                diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: BFS candidate → node={bfsId} segs={bfsSegs.Count}");
-                bridgeCandidates.Add((bfsId, bfsSegs, "BFS"));
+                return false;
             }
 
-            // Strategy 2: Walk the current taxiway to reach the target
-            if (allowCurrentTaxiwayWalk)
-            {
-                var walkSegs = new List<TaxiRouteSegment>();
-                (int walkId, _) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, walkSegs);
-                if (walkId != -1)
-                {
-                    diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: WalkCurrentTaxiway candidate → node={walkId} segs={walkSegs.Count}");
-                    bridgeCandidates.Add((walkId, walkSegs, "WalkCurrent"));
-                }
-            }
-
-            if (bridgeCandidates.Count > 0)
-            {
-                // Pick the candidate with fewest taxiway transitions, then shortest distance
-                var best = bridgeCandidates.MinBy(c => ScoreBridgePath(c.Segs));
-                diagnosticLog?.Invoke(
-                    $"[WalkTaxiway] {taxiwayName}: picked {best.Strategy} → node={best.EndId} (score={ScoreBridgePath(best.Segs):F4})"
-                );
-                segments.AddRange(best.Segs);
-                startNodeId = best.EndId;
-            }
-            else
-            {
-                // Try bridging via runway centerline edges only. This
-                // handles cases like D→F where taxiways cross the same
-                // runway but aren't directly connected in the graph.
-                (int rwyEndId, _) = BridgeViaRunwayEdges(layout, startNodeId, taxiwayName, segments);
-
-                if (rwyEndId != -1)
-                {
-                    startNodeId = rwyEndId;
-                }
-                else if (allowRampFallback)
-                {
-                    // Graph is disconnected — straight-line fallback for
-                    // parking/ramp areas where connectivity may be missing
-                    (int nearestId, double nearestDist, _) = FindNearestNodeOnTaxiway(layout, currentNode, taxiwayName);
-
-                    if (nearestId == -1)
-                    {
-                        return false;
-                    }
-
-                    // Reject if the straight-line RAMP would cross a runway
-                    if (!layout.Nodes.TryGetValue(nearestId, out var rampTarget))
-                    {
-                        return false;
-                    }
-
-                    if (RampCrossesRunway(layout, currentNode, rampTarget))
-                    {
-                        diagnosticLog?.Invoke($"[WalkTaxiway] RAMP {startNodeId}→{nearestId} rejected: crosses runway");
-                        return false;
-                    }
-
-                    var rampEdge = new GroundEdge
-                    {
-                        Nodes = [currentNode, rampTarget],
-                        TaxiwayName = "RAMP",
-                        DistanceNm = nearestDist,
-                        Origin = "Pathfinder:virtual-ramp-edge",
-                    };
-                    segments.Add(new TaxiRouteSegment { TaxiwayName = "RAMP", Edge = rampEdge.Directed(currentNode, rampTarget) });
-
-                    startNodeId = nearestId;
-                }
-                else
-                {
-                    return false;
-                }
-            }
+            startNodeId = bridgedTo;
         }
 
         // If the start node already connects to the next taxiway, this taxiway name
@@ -1024,6 +954,94 @@ public static class TaxiPathfinder
 
         endNodeId = currentId;
         return segments.Count > 0;
+    }
+
+    /// <summary>
+    /// Try multiple strategies to bridge from <paramref name="startNodeId"/> to the
+    /// target taxiway when no direct edge exists. Returns the bridged-to node ID,
+    /// or -1 if all strategies fail.
+    /// </summary>
+    private static int BridgeToTaxiway(
+        AirportGroundLayout layout,
+        int startNodeId,
+        string taxiwayName,
+        List<TaxiRouteSegment> segments,
+        GroundNode currentNode,
+        bool allowCurrentTaxiwayWalk,
+        bool allowRampFallback,
+        Action<string>? diagnosticLog
+    )
+    {
+        var bridgeCandidates = new List<(int EndId, List<TaxiRouteSegment> Segs, string Strategy)>();
+
+        // Strategy 1: BFS (short hop, max 3 hops)
+        var bfsSegs = new List<TaxiRouteSegment>();
+        (int bfsId, _) = BfsToTaxiway(layout, startNodeId, taxiwayName, bfsSegs);
+        if (bfsId != -1)
+        {
+            diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: BFS candidate → node={bfsId} segs={bfsSegs.Count}");
+            bridgeCandidates.Add((bfsId, bfsSegs, "BFS"));
+        }
+
+        // Strategy 2: Walk the current taxiway to reach the target
+        if (allowCurrentTaxiwayWalk)
+        {
+            var walkSegs = new List<TaxiRouteSegment>();
+            (int walkId, _) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, walkSegs);
+            if (walkId != -1)
+            {
+                diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: WalkCurrentTaxiway candidate → node={walkId} segs={walkSegs.Count}");
+                bridgeCandidates.Add((walkId, walkSegs, "WalkCurrent"));
+            }
+        }
+
+        if (bridgeCandidates.Count > 0)
+        {
+            var best = bridgeCandidates.MinBy(c => ScoreBridgePath(c.Segs));
+            diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: picked {best.Strategy} → node={best.EndId} (score={ScoreBridgePath(best.Segs):F4})");
+            segments.AddRange(best.Segs);
+            return best.EndId;
+        }
+
+        // Strategy 3: Bridge via runway centerline edges (e.g., D→F across a runway)
+        (int rwyEndId, _) = BridgeViaRunwayEdges(layout, startNodeId, taxiwayName, segments);
+        if (rwyEndId != -1)
+        {
+            return rwyEndId;
+        }
+
+        if (!allowRampFallback)
+        {
+            return -1;
+        }
+
+        // Strategy 4: Straight-line RAMP fallback for disconnected parking/ramp areas
+        (int nearestId, double nearestDist, _) = FindNearestNodeOnTaxiway(layout, currentNode, taxiwayName);
+        if (nearestId == -1)
+        {
+            return -1;
+        }
+
+        if (!layout.Nodes.TryGetValue(nearestId, out var rampTarget))
+        {
+            return -1;
+        }
+
+        if (RampCrossesRunway(layout, currentNode, rampTarget))
+        {
+            diagnosticLog?.Invoke($"[WalkTaxiway] RAMP {startNodeId}→{nearestId} rejected: crosses runway");
+            return -1;
+        }
+
+        var rampEdge = new GroundEdge
+        {
+            Nodes = [currentNode, rampTarget],
+            TaxiwayName = "RAMP",
+            DistanceNm = nearestDist,
+            Origin = "Pathfinder:virtual-ramp-edge",
+        };
+        segments.Add(new TaxiRouteSegment { TaxiwayName = "RAMP", Edge = rampEdge.Directed(currentNode, rampTarget) });
+        return nearestId;
     }
 
     /// <summary>
