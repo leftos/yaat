@@ -86,18 +86,17 @@ public static class FilletArcGenerator
                 continue;
             }
 
-            // Snapshot runway edges before this fillet for validation
-            var rwyEdgesBefore = layout
+            // Snapshot runway edges before this fillet for validation.
+            // Use (nodeId, nodeId, taxiwayName) for identity — no double bearing
+            // in the HashSet, which would cause exact-equality mismatches.
+            // Store bearings separately for the tolerance-based validation check.
+            var rwyEdgesBefore = layout.Edges.Where(e => e.IsRunwayCenterline).Select(e => (e.Nodes[0].Id, e.Nodes[1].Id, e.TaxiwayName)).ToHashSet();
+            var rwyBearingsBefore = layout
                 .Edges.Where(e => e.IsRunwayCenterline)
                 .Select(e =>
-                    (
-                        e.Nodes[0].Id,
-                        e.Nodes[1].Id,
-                        e.TaxiwayName,
-                        Brg: GeoMath.BearingTo(e.Nodes[0].Latitude, e.Nodes[0].Longitude, e.Nodes[1].Latitude, e.Nodes[1].Longitude)
-                    )
+                    (e.TaxiwayName, Brg: GeoMath.BearingTo(e.Nodes[0].Latitude, e.Nodes[0].Longitude, e.Nodes[1].Latitude, e.Nodes[1].Longitude))
                 )
-                .ToHashSet();
+                .ToList();
 
             var result = FilletNode(layout, node, preserveNode, manualArcNodes, ref nextNodeId);
             if (result.Success)
@@ -117,16 +116,15 @@ public static class FilletArcGenerator
                     rwyEdge.Nodes[1].Longitude
                 );
 
-                // Find the original edge segment this belongs to (by checking if both
-                // nodes lie on the same original segment bearing)
-                bool isNew = !rwyEdgesBefore.Contains((rwyEdge.Nodes[0].Id, rwyEdge.Nodes[1].Id, rwyEdge.TaxiwayName, brg));
+                // Check if this exact edge (by node IDs + taxiway name) existed before
+                bool isNew = !rwyEdgesBefore.Contains((rwyEdge.Nodes[0].Id, rwyEdge.Nodes[1].Id, rwyEdge.TaxiwayName));
                 if (!isNew)
                 {
                     continue;
                 }
 
                 // New runway edge — check it matches one of the original segment bearings
-                bool bearingOk = rwyEdgesBefore.Any(orig =>
+                bool bearingOk = rwyBearingsBefore.Any(orig =>
                     (orig.TaxiwayName == rwyEdge.TaxiwayName) && (GeoMath.AbsBearingDifference(orig.Brg, brg) < 1.0)
                 );
                 if (!bearingOk)
