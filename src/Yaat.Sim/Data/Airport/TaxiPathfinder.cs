@@ -723,7 +723,6 @@ public static class TaxiPathfinder
         }
 
         // Find all edges on this taxiway from the current node.
-        // Find all edges on this taxiway from the current node.
         // Prefer straight edges over junction arcs — arcs are for transitions between taxiways,
         // not for continuing along the same taxiway.
         var straightCandidates = new List<IGroundEdge>();

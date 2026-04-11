@@ -40,7 +40,6 @@ public sealed class TaxiingPhase : Phase
 
         ctx.Aircraft.IsOnGround = true;
         _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
-        _nav.CornerSpeedKts = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
         SetupCurrentSegment(ctx, route);
 
         Log.LogDebug(
@@ -70,7 +69,6 @@ public sealed class TaxiingPhase : Phase
                 ctx.GroundLayout is not null ? "present" : "NULL"
             );
             _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
-            _nav.CornerSpeedKts = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
             SetupCurrentSegment(ctx, route);
         }
 
@@ -165,7 +163,6 @@ public sealed class TaxiingPhase : Phase
                 TargetLon = dto.TargetLon,
                 PrevDistToTarget = dto.PrevDistToTarget,
                 MaxSpeedKts = 30,
-                CornerSpeedKts = 15,
             };
             phase._nav.SetTargetNodeId(dto.TargetNodeId);
         }

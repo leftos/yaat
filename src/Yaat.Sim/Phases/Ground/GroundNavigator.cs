@@ -15,7 +15,7 @@ public enum NavigatorResult
 /// with angle-based scaling and multi-segment kinematic braking, and detects
 /// arrival/overshoot. Used by both TaxiingPhase and RunwayExitPhase.
 ///
-/// The owning phase configures MaxSpeedKts/CornerSpeedKts and handles what
+/// The owning phase configures MaxSpeedKts and handles what
 /// happens on arrival (hold-short insertion, route completion, etc.).
 /// </summary>
 public sealed class GroundNavigator
@@ -35,7 +35,6 @@ public sealed class GroundNavigator
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;
 
     public double MaxSpeedKts { get; set; }
-    public double CornerSpeedKts { get; set; }
 
     private double _currentNodeRequiredSpeed;
     private double? _nextSegmentBearing;
@@ -532,7 +531,6 @@ public sealed class GroundNavigator
             PrevDistToTarget = PrevDistToTarget,
             CurrentNodeRequiredSpeed = _currentNodeRequiredSpeed,
             MaxSpeedKts = MaxSpeedKts,
-            CornerSpeedKts = CornerSpeedKts,
             NextSegmentBearing = _nextSegmentBearing,
             SpeedConstraints =
                 _speedConstraints.Count > 0
@@ -567,7 +565,6 @@ public sealed class GroundNavigator
             PrevDistToTarget = dto.PrevDistToTarget,
             _currentNodeRequiredSpeed = dto.CurrentNodeRequiredSpeed,
             MaxSpeedKts = dto.MaxSpeedKts,
-            CornerSpeedKts = dto.CornerSpeedKts,
             _nextSegmentBearing = dto.NextSegmentBearing,
         };
 

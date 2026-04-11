@@ -362,7 +362,7 @@ public sealed class RunwayExitPhase : Phase
         // deceleration into the turn at the branch node.
         double maxSpeed = _coastSpeed;
 
-        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed, CornerSpeedKts = CategoryPerformance.TaxiCornerSpeed(ctx.Category) };
+        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
 
         _state = ExitState.FollowingExitPath;
