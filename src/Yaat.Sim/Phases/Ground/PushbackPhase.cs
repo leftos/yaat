@@ -15,6 +15,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class PushbackPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PushbackPhase");
+
     private const double DefaultPushbackDistanceNm = 0.015;
     private const double TargetReachedThresholdNm = 0.0005;
     private const double HeadingReachedDeg = 0.5;
@@ -73,7 +75,7 @@ public sealed class PushbackPhase : Phase
             }
         }
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Push] {Callsign}: started, aligned={Aligned}, pushHdg={PushHdg}, noseHdg={NoseHdg:F0}, targetHdg={TargetHdg}, pos=({Lat:F6},{Lon:F6})",
             ctx.Aircraft.Callsign,
             _isAligned,
@@ -85,7 +87,7 @@ public sealed class PushbackPhase : Phase
         );
         if (TargetLatitude is not null && TargetLongitude is not null)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Push] {Callsign}: target position ({TLat:F6},{TLon:F6}), totalDist={Dist:F4}nm",
                 ctx.Aircraft.Callsign,
                 TargetLatitude.Value,
@@ -123,7 +125,7 @@ public sealed class PushbackPhase : Phase
                     ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
                     _startLat = ctx.Aircraft.Latitude;
                     _startLon = ctx.Aircraft.Longitude;
-                    ctx.Logger.LogDebug("[Push] {Callsign}: alignment complete, starting push", ctx.Aircraft.Callsign);
+                    Log.LogDebug("[Push] {Callsign}: alignment complete, starting push", ctx.Aircraft.Callsign);
                 }
             }
             return false;
@@ -158,7 +160,7 @@ public sealed class PushbackPhase : Phase
         {
             _timeSinceLastLog = 0;
             double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[Push] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}, pos=({Lat:F6},{Lon:F6})",
                 ctx.Aircraft.Callsign,
                 distPushed,
@@ -184,7 +186,7 @@ public sealed class PushbackPhase : Phase
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
                 _reachedTarget = true;
-                ctx.Logger.LogDebug("[Push] {Callsign}: reached target position, rotating to heading", ctx.Aircraft.Callsign);
+                Log.LogDebug("[Push] {Callsign}: reached target position, rotating to heading", ctx.Aircraft.Callsign);
             }
             else
             {
@@ -278,7 +280,7 @@ public sealed class PushbackPhase : Phase
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
         double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Push] {Callsign}: OnEnd ({Status}), total dist={Dist:F4}nm, hdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             endStatus,

@@ -12,6 +12,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class CrossingRunwayPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("CrossingRunwayPhase");
+
     private const double ArrivalThresholdNm = 0.001;
     private const double LogIntervalSeconds = 3.0;
 
@@ -57,7 +59,7 @@ public sealed class CrossingRunwayPhase : Phase
         ctx.Targets.TargetSpeed = crossSpeed;
         ctx.Aircraft.IsOnGround = true;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Crossing] {Callsign}: crossing runway, target nodeId={NodeId}, initialized={Init}",
             ctx.Aircraft.Callsign,
             _targetNodeId,
@@ -105,7 +107,7 @@ public sealed class CrossingRunwayPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogTrace("[Crossing] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts", ctx.Aircraft.Callsign, dist, ctx.Aircraft.GroundSpeed);
+            Log.LogTrace("[Crossing] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts", ctx.Aircraft.Callsign, dist, ctx.Aircraft.GroundSpeed);
         }
 
         return false;
@@ -113,7 +115,7 @@ public sealed class CrossingRunwayPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        ctx.Logger.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+        Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
 
         if (endStatus == PhaseStatus.Completed)
         {

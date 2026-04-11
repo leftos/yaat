@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class AirTaxiPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("AirTaxiPhase");
+
     private const double ArrivalThresholdNm = 0.05;
     private const double LogIntervalSeconds = 3.0;
 
@@ -53,7 +55,7 @@ public sealed class AirTaxiPhase : Phase
             ctx.Targets.TargetAltitude = _targetAltitude;
         }
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[AirTaxi] {Callsign}: started → {Dest} at ({Lat:F6},{Lon:F6}), targetAlt={Alt:F0}, speed={Spd:F0}",
             ctx.Aircraft.Callsign,
             _destinationName ?? "direct",
@@ -107,7 +109,7 @@ public sealed class AirTaxiPhase : Phase
             {
                 _descending = true;
                 ctx.Targets.TargetSpeed = 0;
-                ctx.Logger.LogDebug("[AirTaxi] {Callsign}: arrived over {Dest}, hovering", ctx.Aircraft.Callsign, _destinationName ?? "destination");
+                Log.LogDebug("[AirTaxi] {Callsign}: arrived over {Dest}, hovering", ctx.Aircraft.Callsign, _destinationName ?? "destination");
             }
 
             // Complete when speed is near zero and hovering
@@ -133,7 +135,7 @@ public sealed class AirTaxiPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[AirTaxi] {Callsign}: dist={Dist:F3}nm, hdg={Hdg:F0}, brg={Brg:F0}, alt={Alt:F0}, gs={Gs:F0}",
                 ctx.Aircraft.Callsign,
                 dist,
@@ -149,7 +151,7 @@ public sealed class AirTaxiPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        ctx.Logger.LogDebug("[AirTaxi] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
+        Log.LogDebug("[AirTaxi] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

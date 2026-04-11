@@ -22,6 +22,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class VfrFollowPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("VfrFollowPhase");
+
     /// <summary>Distance from the lead's downwind abeam point at which we auto-join the pattern.</summary>
     public const double JoinRangeNm = 3.0;
 
@@ -61,7 +63,7 @@ public sealed class VfrFollowPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         _bestGapNm = double.PositiveInfinity;
         _runawayElapsed = 0;
-        ctx.Logger.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
+        Log.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -69,7 +71,7 @@ public sealed class VfrFollowPhase : Phase
         var lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
         if (lead is null)
         {
-            ctx.Logger.LogDebug("[VfrFollow] {Callsign}: target {Target} not found, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
+            Log.LogDebug("[VfrFollow] {Callsign}: target {Target} not found, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
             ctx.Aircraft.FollowingCallsign = null;
             ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow");
             return true;
@@ -77,7 +79,7 @@ public sealed class VfrFollowPhase : Phase
 
         if (lead.IsOnGround)
         {
-            ctx.Logger.LogDebug("[VfrFollow] {Callsign}: target {Target} on ground, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
+            Log.LogDebug("[VfrFollow] {Callsign}: target {Target} on ground, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
             ctx.Aircraft.FollowingCallsign = null;
             ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow");
             return true;
@@ -97,7 +99,7 @@ public sealed class VfrFollowPhase : Phase
             _runawayElapsed += ctx.DeltaSeconds;
             if (_runawayElapsed >= RunawayGraceSeconds)
             {
-                ctx.Logger.LogDebug(
+                Log.LogDebug(
                     "[VfrFollow] {Callsign}: gap to {Target} growing >30s (best={Best:F1}nm, now={Now:F1}nm), cancelling",
                     ctx.Aircraft.Callsign,
                     TargetCallsign,
@@ -123,7 +125,7 @@ public sealed class VfrFollowPhase : Phase
         ctx.Targets.TargetTrueHeading = new TrueHeading(targetBearing);
 
         double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-        ctx.Targets.TargetSpeed = AirborneFollowHelper.AdjustedFreeFlightSpeed(ctx.Aircraft, lead, minSpeed, ctx.Logger);
+        ctx.Targets.TargetSpeed = AirborneFollowHelper.AdjustedFreeFlightSpeed(ctx.Aircraft, lead, minSpeed, Log);
 
         return false;
     }
@@ -175,7 +177,7 @@ public sealed class VfrFollowPhase : Phase
             return false;
         }
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[VfrFollow] {Callsign}: joining pattern copied from {Lead} on runway {Rwy}, direction {Dir}, dist={Dist:F2}nm",
             ctx.Aircraft.Callsign,
             TargetCallsign,

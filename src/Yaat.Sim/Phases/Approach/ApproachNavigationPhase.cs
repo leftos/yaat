@@ -13,6 +13,8 @@ namespace Yaat.Sim.Phases.Approach;
 /// </summary>
 public sealed class ApproachNavigationPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("ApproachNavigationPhase");
+
     private const double FixArrivalThresholdNm = 0.5;
 
     private int _currentFixIndex;
@@ -27,7 +29,7 @@ public sealed class ApproachNavigationPhase : Phase
         _currentFixIndex = 0;
         NavigateToCurrentFix(ctx);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[ApproachNav] {Callsign}: started, {Count} fixes [{Names}]",
             ctx.Aircraft.Callsign,
             Fixes.Count,
@@ -85,7 +87,7 @@ public sealed class ApproachNavigationPhase : Phase
 
         if (shouldSequence)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[ApproachNav] {Callsign}: reached fix {Fix} ({Idx}/{Total}), alt={Alt:F0}ft, IAS={Ias:F0}kts",
                 ctx.Aircraft.Callsign,
                 fix.Name,

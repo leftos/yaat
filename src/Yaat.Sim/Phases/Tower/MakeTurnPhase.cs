@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class MakeTurnPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("MakeTurnPhase");
+
     private const double CompletionToleranceDeg = 5.0;
     private const double ExitAlignmentDeg = 10.0;
 
@@ -62,7 +64,7 @@ public sealed class MakeTurnPhase : Phase
         ctx.Targets.PreferredTurnDirection = Direction;
         ctx.Targets.NavigationRoute.Clear();
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[MakeTurn] {Callsign}: started {Dir}{Deg}° from hdg {Hdg:F0}",
             ctx.Aircraft.Callsign,
             Direction == TurnDirection.Left ? "L" : "R",
@@ -88,7 +90,7 @@ public sealed class MakeTurnPhase : Phase
         bool complete = _cumulativeTurn >= TargetDegrees - CompletionToleranceDeg;
         if (complete)
         {
-            ctx.Logger.LogDebug("[MakeTurn] {Callsign}: complete, turned {Turn:F0}°", ctx.Aircraft.Callsign, _cumulativeTurn);
+            Log.LogDebug("[MakeTurn] {Callsign}: complete, turned {Turn:F0}°", ctx.Aircraft.Callsign, _cumulativeTurn);
         }
 
         return complete;

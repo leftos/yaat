@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class CrosswindPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("CrosswindPhase");
+
     private const double ArrivalNm = 0.3;
 
     private double _targetLat;
@@ -54,7 +56,7 @@ public sealed class CrosswindPhase : Phase
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Crosswind] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
             ctx.Aircraft.Callsign,
             Waypoints.CrosswindHeading.Degrees,
@@ -81,7 +83,7 @@ public sealed class CrosswindPhase : Phase
         bool complete = dist < ArrivalNm || targetIsBehind;
         if (complete)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Crosswind] {Callsign}: downwind start {Reason}, alt={Alt:F0}ft",
                 ctx.Aircraft.Callsign,
                 targetIsBehind ? "passed (behind aircraft)" : "reached",

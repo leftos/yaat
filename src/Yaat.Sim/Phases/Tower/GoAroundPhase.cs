@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class GoAroundPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("GoAroundPhase");
+
     private const double NoTurnAgl = 400.0;
     private const double SelfClearAgl = 2000.0;
 
@@ -91,7 +93,7 @@ public sealed class GoAroundPhase : Phase
             }
         }
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[GoAround] {Callsign}: started, rwyHdg={Hdg:F0}, targetAlt={Alt:F0}ft, assignedHdg={AssHdg}",
             ctx.Aircraft.Callsign,
             _runwayTrueHeading.Degrees,
@@ -108,7 +110,7 @@ public sealed class GoAroundPhase : Phase
         {
             _headingAssigned = true;
             ctx.Targets.TargetTrueHeading = AssignedMagneticHeading.Value.ToTrue(ctx.Aircraft.Declination);
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[GoAround] {Callsign}: turning to assigned heading {Hdg} at {Agl:F0}ft AGL",
                 ctx.Aircraft.Callsign,
                 AssignedMagneticHeading.Value.Degrees,
@@ -121,7 +123,7 @@ public sealed class GoAroundPhase : Phase
         bool complete = agl >= targetAgl;
         if (complete)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[GoAround] {Callsign}: complete at {Agl:F0}ft AGL, IAS={Ias:F0}kts",
                 ctx.Aircraft.Callsign,
                 agl,

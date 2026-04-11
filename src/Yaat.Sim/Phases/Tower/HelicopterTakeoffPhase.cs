@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class HelicopterTakeoffPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("HelicopterTakeoffPhase");
+
     private const double CompletionAgl = 400.0;
 
     private double _fieldElevation;
@@ -72,7 +74,7 @@ public sealed class HelicopterTakeoffPhase : Phase
 
         ApplyDepartureHeading(ctx);
 
-        ctx.Logger.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft", ctx.Aircraft.Callsign, _fieldElevation + CompletionAgl);
+        Log.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft", ctx.Aircraft.Callsign, _fieldElevation + CompletionAgl);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -81,7 +83,7 @@ public sealed class HelicopterTakeoffPhase : Phase
         bool complete = agl >= CompletionAgl;
         if (complete)
         {
-            ctx.Logger.LogDebug("[Takeoff-H] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+            Log.LogDebug("[Takeoff-H] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
         }
 
         return complete;

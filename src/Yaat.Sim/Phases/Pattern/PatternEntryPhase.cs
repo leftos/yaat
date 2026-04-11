@@ -14,6 +14,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class PatternEntryPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PatternEntryPhase");
+
     public required double EntryLat { get; init; }
     public required double EntryLon { get; init; }
     public required double PatternAltitude { get; init; }
@@ -72,7 +74,7 @@ public sealed class PatternEntryPhase : Phase
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, EntryLat, EntryLon);
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[PatternEntry] {Callsign}: navigating to entry, dist={Dist:F1}nm, alt={Alt:F0}ft, tgtAlt={TgtAlt:F0}ft",
             ctx.Aircraft.Callsign,
             dist,

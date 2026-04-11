@@ -13,6 +13,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class HoldingInPositionPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("HoldingInPositionPhase");
+
     public override string Name => "Holding In Position";
 
     public override void OnStart(PhaseContext ctx)
@@ -23,7 +25,7 @@ public sealed class HoldingInPositionPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Hold] {Callsign}: holding in position at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             ctx.Aircraft.Latitude,

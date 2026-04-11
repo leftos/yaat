@@ -10,6 +10,8 @@ namespace Yaat.Sim.Phases;
 /// </summary>
 public static class AirborneFollowHelper
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("AirborneFollowHelper");
+
     /// <summary>Desired following distance when leader is a piston/helicopter (nm).</summary>
     private const double DesiredDistanceSmallNm = 1.0;
 
@@ -58,12 +60,12 @@ public static class AirborneFollowHelper
         if (target is null)
         {
             // Leader disappeared — clear follow state, continue with normal speed
-            ctx.Logger.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
+            Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
             ctx.Aircraft.FollowingCallsign = null;
             return null;
         }
 
-        return ComputeAdjustedSpeed(ctx.Aircraft, target, normalSpeed, minSpeed, ctx.Logger);
+        return ComputeAdjustedSpeed(ctx.Aircraft, target, normalSpeed, minSpeed, Log);
     }
 
     /// <summary>
@@ -160,7 +162,7 @@ public static class AirborneFollowHelper
         bool shouldExtend = distance < (desired * ExtendDownwindThreshold);
         if (shouldExtend)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Follow] {Callsign}: extending downwind, dist={Dist:F2}nm to {Target} (desired={Desired:F1}nm)",
                 ctx.Aircraft.Callsign,
                 distance,

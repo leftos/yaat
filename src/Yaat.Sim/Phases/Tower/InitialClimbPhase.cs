@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class InitialClimbPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("InitialClimbPhase");
+
     private const double DefaultSelfClearAgl = 1500.0;
     private const double HeadingToleranceDeg = 1.0;
     private const double VfrDerMinDistanceNm = 0.0;
@@ -174,7 +176,7 @@ public sealed class InitialClimbPhase : Phase
             ctx.Aircraft.SidViaMode = true;
         }
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[InitialClimb] {Callsign}: started, targetAlt={Alt:F0}ft, speed={Spd:F0}kts, sid={Sid}, route={RouteCount} fixes",
             ctx.Aircraft.Callsign,
             _targetAltitude,
@@ -229,7 +231,7 @@ public sealed class InitialClimbPhase : Phase
 
         if (complete)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[InitialClimb] {Callsign}: phase complete (hdg={Hdg}, alt={Alt:F0}ft, IAS={Ias:F0}kts)",
                 ctx.Aircraft.Callsign,
                 _departureHeading?.Degrees.ToString("F0") ?? "n/a",
@@ -309,7 +311,7 @@ public sealed class InitialClimbPhase : Phase
         // Load navigation route (OnCourse, DirectFix)
         SetupDepartureNavigation(ctx);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[InitialClimb] {Callsign}: VFR turn applied (alt={Alt:F0}ft, hdg={Hdg})",
             ctx.Aircraft.Callsign,
             ctx.Aircraft.Altitude,
@@ -342,7 +344,7 @@ public sealed class InitialClimbPhase : Phase
         // Owned by a non-tower TCP — accumulate post-handoff time.
         if (_rvSidHandoffElapsed == 0)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[InitialClimb] {Callsign}: RV SID track now owned by {Owner}, starting {Delay}s delay before vectoring to route",
                 ctx.Aircraft.Callsign,
                 currentOwner!.Callsign,
@@ -357,7 +359,7 @@ public sealed class InitialClimbPhase : Phase
             // Timer expired — load nav route and let FlightPhysics take over.
             _rvSidActive = false;
             SetupDepartureNavigation(ctx);
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[InitialClimb] {Callsign}: RV SID vectored to first fix after {Elapsed:F1}s post-handoff",
                 ctx.Aircraft.Callsign,
                 _rvSidHandoffElapsed

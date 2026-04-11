@@ -12,6 +12,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class LowApproachPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("LowApproachPhase");
+
     private const double SelfClearAgl = 1500.0;
 
     private double _fieldElevation;
@@ -72,7 +74,7 @@ public sealed class LowApproachPhase : Phase
         double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = approachSpeed;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[LowApproach] {Callsign}: started, goAroundAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             _goAroundAgl,
@@ -105,7 +107,7 @@ public sealed class LowApproachPhase : Phase
             if (agl <= _goAroundAgl)
             {
                 _climbingOut = true;
-                ctx.Logger.LogDebug("[LowApproach] {Callsign}: climbing out at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+                Log.LogDebug("[LowApproach] {Callsign}: climbing out at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
 
                 double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
                 double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
@@ -123,7 +125,7 @@ public sealed class LowApproachPhase : Phase
         bool complete = agl >= SelfClearAgl;
         if (complete)
         {
-            ctx.Logger.LogDebug("[LowApproach] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+            Log.LogDebug("[LowApproach] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
         }
 
         return complete;

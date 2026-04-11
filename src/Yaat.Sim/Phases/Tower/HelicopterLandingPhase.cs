@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class HelicopterLandingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("HelicopterLandingPhase");
+
     private double _fieldElevation;
     private bool _touchedDown;
 
@@ -44,7 +46,7 @@ public sealed class HelicopterLandingPhase : Phase
         ctx.Targets.TargetAltitude = _fieldElevation;
         ctx.Targets.TargetSpeed = 0;
 
-        ctx.Logger.LogDebug("[Landing-H] {Callsign}: started descent, fieldElev={Elev:F0}ft", ctx.Aircraft.Callsign, _fieldElevation);
+        Log.LogDebug("[Landing-H] {Callsign}: started descent, fieldElev={Elev:F0}ft", ctx.Aircraft.Callsign, _fieldElevation);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -67,7 +69,7 @@ public sealed class HelicopterLandingPhase : Phase
         if (agl <= 0)
         {
             _touchedDown = true;
-            ctx.Logger.LogDebug("[Landing-H] {Callsign}: touchdown", ctx.Aircraft.Callsign);
+            Log.LogDebug("[Landing-H] {Callsign}: touchdown", ctx.Aircraft.Callsign);
             ctx.Aircraft.IsOnGround = true;
             ctx.Aircraft.Altitude = _fieldElevation;
             ctx.Aircraft.VerticalSpeed = 0;

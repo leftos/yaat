@@ -13,6 +13,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class FollowingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("FollowingPhase");
+
     private const double FollowDistanceNm = 0.03; // ~180 ft
     private const double StopDistanceNm = 0.015; // ~90 ft
     private const double HoldShortDetectionNm = 0.02; // ~120 ft
@@ -34,7 +36,7 @@ public sealed class FollowingPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
-        ctx.Logger.LogDebug("[Follow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, _targetCallsign);
+        Log.LogDebug("[Follow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, _targetCallsign);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -56,7 +58,7 @@ public sealed class FollowingPhase : Phase
         var target = ctx.AircraftLookup?.Invoke(_targetCallsign);
         if (target is null || !target.IsOnGround)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Follow] {Callsign}: target {Target} {Reason}, stopping",
                 ctx.Aircraft.Callsign,
                 _targetCallsign,
@@ -112,7 +114,7 @@ public sealed class FollowingPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[Follow] {Callsign}: dist={Dist:F4}nm to {Target}, gs={Gs:F1}kts, targetGs={TGs:F1}kts",
                 ctx.Aircraft.Callsign,
                 dist,
@@ -193,7 +195,7 @@ public sealed class FollowingPhase : Phase
             }
 
             // Approaching a runway hold-short — stop and insert phases
-            ctx.Logger.LogDebug("[Follow] {Callsign}: hold short triggered at runway node {NodeId}", ctx.Aircraft.Callsign, node.Id);
+            Log.LogDebug("[Follow] {Callsign}: hold short triggered at runway node {NodeId}", ctx.Aircraft.Callsign, node.Id);
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 

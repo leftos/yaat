@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class BasePhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("BasePhase");
+
     private const double MinTurnRadiusNm = 0.15;
 
     private double _thresholdLat;
@@ -76,7 +78,7 @@ public sealed class BasePhase : Phase
         // Slow to base speed
         ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft, extended={Ext}",
             ctx.Aircraft.Callsign,
             Waypoints.BaseHeading.Degrees,
@@ -115,7 +117,7 @@ public sealed class BasePhase : Phase
         bool complete = crossTrack <= turnRadiusNm;
         if (complete)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft, xtrack={XT:F2}nm, turnR={R:F2}nm",
                 ctx.Aircraft.Callsign,
                 ctx.Aircraft.Altitude,

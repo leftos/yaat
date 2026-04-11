@@ -18,6 +18,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class LineUpPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("LineUpPhase");
+
     private const double CenterlineThresholdNm = 0.005;
     private const double HeadingToleranceDeg = 2.0;
     private const double LogIntervalSeconds = 3.0;
@@ -67,7 +69,7 @@ public sealed class LineUpPhase : Phase
 
         if (ctx.Runway is null)
         {
-            ctx.Logger.LogWarning("[LineUp] {Callsign}: no runway context, skipping", ctx.Aircraft.Callsign);
+            Log.LogWarning("[LineUp] {Callsign}: no runway context, skipping", ctx.Aircraft.Callsign);
             return;
         }
 
@@ -87,7 +89,7 @@ public sealed class LineUpPhase : Phase
 
         _initialized = true;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[LineUp] {Callsign}: perpHdg={PerpHdg:F0}, crossTrack={Cross:F4}nm, rwy hdg {Hdg:F0}",
             ctx.Aircraft.Callsign,
             _perpHeading.Degrees,
@@ -118,11 +120,7 @@ public sealed class LineUpPhase : Phase
 
             ctx.Aircraft.TrueHeading = _perpHeading;
             _perpAligned = true;
-            ctx.Logger.LogDebug(
-                "[LineUp] {Callsign}: perpendicular to centerline (hdg {Hdg:F0}), crossing",
-                ctx.Aircraft.Callsign,
-                _perpHeading.Degrees
-            );
+            Log.LogDebug("[LineUp] {Callsign}: perpendicular to centerline (hdg {Hdg:F0}), crossing", ctx.Aircraft.Callsign, _perpHeading.Degrees);
         }
 
         // Stage 2: drive straight across the runway (no heading change) until on centerline.
@@ -146,7 +144,7 @@ public sealed class LineUpPhase : Phase
             }
 
             _onCenterline = true;
-            ctx.Logger.LogDebug("[LineUp] {Callsign}: on centerline (crossTrack={Cross:F4}nm), turning to align", ctx.Aircraft.Callsign, crossTrack);
+            Log.LogDebug("[LineUp] {Callsign}: on centerline (crossTrack={Cross:F4}nm), turning to align", ctx.Aircraft.Callsign, crossTrack);
         }
 
         // Stage 3: turn to align with runway heading.
@@ -166,7 +164,7 @@ public sealed class LineUpPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
-        ctx.Logger.LogDebug("[LineUp] {Callsign}: aligned on runway, heading {Hdg:F0}", ctx.Aircraft.Callsign, _runwayHeading.Degrees);
+        Log.LogDebug("[LineUp] {Callsign}: aligned on runway, heading {Hdg:F0}", ctx.Aircraft.Callsign, _runwayHeading.Degrees);
         return true;
     }
 
@@ -198,7 +196,7 @@ public sealed class LineUpPhase : Phase
                 )
             );
             double hdgDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[LineUp] {Callsign}: crossTrack={Cross:F4}nm, hdgDiff={Diff:F1}, gs={Gs:F1}kts",
                 ctx.Aircraft.Callsign,
                 crossTrack,

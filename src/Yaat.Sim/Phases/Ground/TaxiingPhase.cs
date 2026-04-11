@@ -19,6 +19,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class TaxiingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("TaxiingPhase");
+
     private const double LogIntervalSeconds = 3.0;
 
     private GroundNavigator _nav = new();
@@ -32,11 +34,7 @@ public sealed class TaxiingPhase : Phase
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route is null || route.IsComplete)
         {
-            ctx.Logger.LogWarning(
-                "[Taxi] {Callsign}: OnStart but route is {State}",
-                ctx.Aircraft.Callsign,
-                route is null ? "null" : "already complete"
-            );
+            Log.LogWarning("[Taxi] {Callsign}: OnStart but route is {State}", ctx.Aircraft.Callsign, route is null ? "null" : "already complete");
             return;
         }
 
@@ -45,7 +43,7 @@ public sealed class TaxiingPhase : Phase
         _nav.CornerSpeedKts = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
         SetupCurrentSegment(ctx, route);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Taxi] {Callsign}: started, {SegCount} segments, first target node {NodeId} at ({Lat:F6}, {Lon:F6})",
             ctx.Aircraft.Callsign,
             route.Segments.Count,
@@ -60,13 +58,13 @@ public sealed class TaxiingPhase : Phase
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route is null || route.IsComplete)
         {
-            ctx.Logger.LogDebug("[Taxi] {Callsign}: OnTick exit — route {State}", ctx.Aircraft.Callsign, route is null ? "null" : "complete");
+            Log.LogDebug("[Taxi] {Callsign}: OnTick exit — route {State}", ctx.Aircraft.Callsign, route is null ? "null" : "complete");
             return true;
         }
 
         if (!_initialized)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Taxi] {Callsign}: late init in OnTick (groundLayout {HasLayout})",
                 ctx.Aircraft.Callsign,
                 ctx.GroundLayout is not null ? "present" : "NULL"
@@ -105,7 +103,7 @@ public sealed class TaxiingPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        ctx.Logger.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+        Log.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
 
         if (endStatus == PhaseStatus.Completed)
         {
@@ -179,7 +177,7 @@ public sealed class TaxiingPhase : Phase
     {
         if (route.CurrentSegment is null)
         {
-            ctx.Logger.LogWarning(
+            Log.LogWarning(
                 "[Taxi] {Callsign}: SetupCurrentSegment — no current segment (index={Idx})",
                 ctx.Aircraft.Callsign,
                 route.CurrentSegmentIndex
@@ -208,7 +206,7 @@ public sealed class TaxiingPhase : Phase
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
     {
-        ctx.Logger.LogTrace(
+        Log.LogTrace(
             "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
             ctx.Aircraft.Callsign,
             _nav.TargetNodeId,
@@ -231,7 +229,7 @@ public sealed class TaxiingPhase : Phase
             {
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
-                ctx.Logger.LogDebug(
+                Log.LogDebug(
                     "[Taxi] {Callsign}: hold-short node {NodeId} occupied by another aircraft, waiting",
                     ctx.Aircraft.Callsign,
                     _nav.TargetNodeId
@@ -239,7 +237,7 @@ public sealed class TaxiingPhase : Phase
                 return false;
             }
 
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason})",
                 ctx.Aircraft.Callsign,
                 _nav.TargetNodeId,
@@ -266,7 +264,7 @@ public sealed class TaxiingPhase : Phase
 
         if (route.IsComplete)
         {
-            ctx.Logger.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
+            Log.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
 
             ApplyDepartureClearanceIfPending(ctx);
 
@@ -389,7 +387,7 @@ public sealed class TaxiingPhase : Phase
             _timeSinceLastLog = 0;
             var seg = route.CurrentSegment;
             double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _nav.TargetLat, _nav.TargetLon);
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
                 ctx.Aircraft.Callsign,
                 route.CurrentSegmentIndex,
@@ -457,6 +455,6 @@ public sealed class TaxiingPhase : Phase
         }
 
         phases.DepartureClearance = null;
-        ctx.Logger.LogDebug("[Taxi] {Callsign}: departure clearance {Type} applied at route end", ctx.Aircraft.Callsign, dep.Type);
+        Log.LogDebug("[Taxi] {Callsign}: departure clearance {Type} applied at route end", ctx.Aircraft.Callsign, dep.Type);
     }
 }

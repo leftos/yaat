@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class LinedUpAndWaitingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("LinedUpAndWaitingPhase");
+
     public override string Name => "LinedUpAndWaiting";
 
     public override PhaseDto ToSnapshot() =>
@@ -51,7 +53,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
             ctx.Targets.TargetTrueHeading = ctx.Runway.TrueHeading;
         }
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[LineUp] {Callsign}: lined up and waiting, rwy={Rwy}, pos=({Lat:F6},{Lon:F6})",
             ctx.Aircraft.Callsign,
             ctx.Runway?.Designator ?? "?",

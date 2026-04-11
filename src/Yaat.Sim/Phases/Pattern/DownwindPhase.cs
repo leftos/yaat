@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class DownwindPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("DownwindPhase");
+
     private const double AlongTrackToleranceNm = 0.3;
 
     private double _baseTurnAlongTrack;
@@ -80,7 +82,7 @@ public sealed class DownwindPhase : Phase
         // Downwind speed (per-type if available)
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Downwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
             ctx.Aircraft.Callsign,
             Waypoints.DownwindHeading.Degrees,
@@ -120,7 +122,7 @@ public sealed class DownwindPhase : Phase
             if (aircraftAlongTrack >= _abeamAlongTrack - AlongTrackToleranceNm)
             {
                 _pastAbeam = true;
-                ctx.Logger.LogDebug("[Downwind] {Callsign}: abeam threshold, beginning descent", ctx.Aircraft.Callsign);
+                Log.LogDebug("[Downwind] {Callsign}: abeam threshold, beginning descent", ctx.Aircraft.Callsign);
                 double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
                 ctx.Targets.DesiredVerticalRate = -descentRate;
 
@@ -183,7 +185,7 @@ public sealed class DownwindPhase : Phase
         bool complete = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
         if (complete)
         {
-            ctx.Logger.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+            Log.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
         }
 
         return complete;

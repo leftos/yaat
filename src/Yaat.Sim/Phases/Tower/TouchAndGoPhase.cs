@@ -12,6 +12,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class TouchAndGoPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("TouchAndGoPhase");
+
     private const double LiftoffAgl = 400.0;
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
@@ -86,7 +88,7 @@ public sealed class TouchAndGoPhase : Phase
             - CategoryPerformance.RolloutDecelRate(ctx.Category) * _rolloutDuration;
         ctx.Targets.TargetSpeed = Math.Max(minSpeed, 40);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[TouchAndGo] {Callsign}: started, rollout={Roll:F1}s, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             _rolloutDuration,
@@ -115,7 +117,7 @@ public sealed class TouchAndGoPhase : Phase
         if (!_reaccelerating && _rolloutElapsed >= _rolloutDuration)
         {
             _reaccelerating = true;
-            ctx.Logger.LogDebug("[TouchAndGo] {Callsign}: rollout complete, reaccelerating", ctx.Aircraft.Callsign);
+            Log.LogDebug("[TouchAndGo] {Callsign}: rollout complete, reaccelerating", ctx.Aircraft.Callsign);
         }
 
         if (_reaccelerating && !_airborne)
@@ -135,7 +137,7 @@ public sealed class TouchAndGoPhase : Phase
             {
                 _airborne = true;
                 ctx.Aircraft.IsOnGround = false;
-                ctx.Logger.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
+                Log.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
                 double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
                 double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);

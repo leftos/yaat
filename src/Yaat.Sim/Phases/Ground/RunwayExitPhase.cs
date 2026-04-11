@@ -17,6 +17,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class RunwayExitPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RunwayExitPhase");
+
     private const double LogIntervalSeconds = 3.0;
 
     /// <summary>
@@ -81,15 +83,21 @@ public sealed class RunwayExitPhase : Phase
         if ((_lastResolvedPreference?.Side is null) && (ctx.GroundLayout is not null) && (_runwayId is not null))
         {
             _inferredSide = ctx.GroundLayout.InferPreferredExitSide(_runwayId, _runwayHeading);
-            if ((_inferredSide is not null) && (_lastResolvedPreference?.Taxiway is null))
+            Log.LogDebug(
+                "[Exit] {Callsign}: inferred exit side for {Rwy} = {Side}",
+                ctx.Aircraft.Callsign,
+                _runwayId,
+                _inferredSide?.ToString() ?? "none"
+            );
+            if (_inferredSide is not null)
             {
-                _lastResolvedPreference = new ExitPreference { Side = _inferredSide.Value };
+                _lastResolvedPreference = new ExitPreference { Side = _inferredSide.Value, Taxiway = _lastResolvedPreference?.Taxiway };
             }
         }
 
         if (ctx.GroundLayout is null)
         {
-            ctx.Logger.LogDebug("[Exit] {Callsign}: no ground layout, will stop immediately", ctx.Aircraft.Callsign);
+            Log.LogDebug("[Exit] {Callsign}: no ground layout, will stop immediately", ctx.Aircraft.Callsign);
             return;
         }
 
@@ -104,7 +112,7 @@ public sealed class RunwayExitPhase : Phase
         // Search for exits ahead immediately.
         TryFindExitAhead(ctx);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Exit] {Callsign}: rwy {Rwy}, hdg={Hdg:F0}, holdShort={HS}",
             ctx.Aircraft.Callsign,
             _runwayId ?? "?",
@@ -167,7 +175,7 @@ public sealed class RunwayExitPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[Exit] {Callsign}: rolling, gs={Gs:F1}kts, hdg={Hdg:F0}",
                 ctx.Aircraft.Callsign,
                 ctx.Aircraft.GroundSpeed,
@@ -245,7 +253,7 @@ public sealed class RunwayExitPhase : Phase
                 {
                     if ((preference != _lastResolvedPreference) && (_lastResolvedPreference?.Taxiway is not null))
                     {
-                        ctx.Logger.LogDebug(
+                        Log.LogDebug(
                             "[Exit] {Callsign}: preferred exit {Twy} not ahead, relaxed to {Actual}",
                             ctx.Aircraft.Callsign,
                             _lastResolvedPreference.Taxiway,
@@ -257,7 +265,7 @@ public sealed class RunwayExitPhase : Phase
                     _exitTaxiway = result.Value.Taxiway;
                     _exitPath = result.Value.Path;
 
-                    ctx.Logger.LogDebug(
+                    Log.LogDebug(
                         "[Exit] {Callsign}: found exit {Twy}, angle={Angle:F0}°, path=[{Path}]",
                         ctx.Aircraft.Callsign,
                         _exitTaxiway,
@@ -294,7 +302,7 @@ public sealed class RunwayExitPhase : Phase
     {
         if (_exitPath is null || _exitPath.Count < 2 || _exitTaxiway is null || ctx.GroundLayout is null)
         {
-            ctx.Logger.LogWarning("[Exit] {Callsign}: cannot build exit route", ctx.Aircraft.Callsign);
+            Log.LogWarning("[Exit] {Callsign}: cannot build exit route", ctx.Aircraft.Callsign);
             return false;
         }
 
@@ -322,7 +330,7 @@ public sealed class RunwayExitPhase : Phase
             var edge = FindEdgeBetween(fromNode, toNode.Id);
             if (edge is null)
             {
-                ctx.Logger.LogWarning("[Exit] {Callsign}: no edge between nodes {From} and {To}", ctx.Aircraft.Callsign, fromNode.Id, toNode.Id);
+                Log.LogWarning("[Exit] {Callsign}: no edge between nodes {From} and {To}", ctx.Aircraft.Callsign, fromNode.Id, toNode.Id);
                 return false;
             }
 
@@ -360,7 +368,7 @@ public sealed class RunwayExitPhase : Phase
         _state = ExitState.FollowingExitPath;
         ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Exit] {Callsign}: following exit path, {SegCount} segments on {Twy}, maxSpeed={Speed:F0}kts, path=[virtual→{Path}]",
             ctx.Aircraft.Callsign,
             segments.Count,
@@ -420,7 +428,7 @@ public sealed class RunwayExitPhase : Phase
         // Insert HoldingAfterExitPhase
         ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingAfterExitPhase(_runwayId, _exitTaxiway, _holdShortNode?.Id));
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Exit] {Callsign}: exit complete on {Twy}, holding at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             _exitTaxiway,
@@ -446,7 +454,7 @@ public sealed class RunwayExitPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        ctx.Logger.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
+        Log.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
     }
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
@@ -469,7 +477,7 @@ public sealed class RunwayExitPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[Exit] {Callsign}: rolling, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
                 ctx.Aircraft.Callsign,
                 dist,

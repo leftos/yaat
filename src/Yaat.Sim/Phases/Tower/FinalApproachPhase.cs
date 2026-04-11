@@ -16,6 +16,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class FinalApproachPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("FinalApproachPhase");
+
     private const double AutoGoAroundAgl = 200.0;
     private const double NoClearanceWarningDistNm = 1.0;
     private const double InterceptCrossTrackThresholdNm = 0.1;
@@ -173,7 +175,7 @@ public sealed class FinalApproachPhase : Phase
             _anchorLon,
             _finalApproachCourse
         );
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[FinalApproach] {Callsign}: started, fac={Fac:F0} (rwy {Rwy:F0}), dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, fasSet={FasSet}, xte={Xte:F3}nm",
             ctx.Aircraft.Callsign,
             _finalApproachCourse.Degrees,
@@ -201,7 +203,7 @@ public sealed class FinalApproachPhase : Phase
             double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             ctx.Targets.TargetSpeed = fas;
             _fasSet = true;
-            ctx.Logger.LogDebug("[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm", ctx.Aircraft.Callsign, fas, distNm);
+            Log.LogDebug("[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm", ctx.Aircraft.Callsign, fas, distNm);
         }
 
         // Follow speed adjustment (Vref floor — never below final approach speed)
@@ -307,7 +309,7 @@ public sealed class FinalApproachPhase : Phase
         if ((aglForClearance <= AutoGoAroundAgl) && !hasLandingClearance)
         {
             _goAroundTriggered = true;
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Agl:F0}ft AGL, {Dist:F2}nm)",
                 ctx.Aircraft.Callsign,
                 aglForClearance,
@@ -325,7 +327,7 @@ public sealed class FinalApproachPhase : Phase
             if (ctx.Aircraft.Altitude > mapAlt + 200)
             {
                 _goAroundTriggered = true;
-                ctx.Logger.LogDebug(
+                Log.LogDebug(
                     "[FinalApproach] {Callsign}: go-around triggered (too high at MAP: {Alt:F0}ft, MAP alt {MapAlt}ft, at {Dist:F2}nm)",
                     ctx.Aircraft.Callsign,
                     ctx.Aircraft.Altitude,
@@ -342,7 +344,7 @@ public sealed class FinalApproachPhase : Phase
         bool complete = distNm < 0.05 || agl < 5;
         if (complete)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[FinalApproach] {Callsign}: crossing threshold, dist={Dist:F3}nm, agl={Agl:F0}ft, gs={Gs:F0}kts",
                 ctx.Aircraft.Callsign,
                 distNm,

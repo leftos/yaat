@@ -13,6 +13,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class HoldingShortPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("HoldingShortPhase");
+
     private readonly HoldShortPoint _holdShort;
 
     public HoldingShortPhase(HoldShortPoint holdShort)
@@ -29,7 +31,7 @@ public sealed class HoldingShortPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[HoldShort] {Callsign}: holding short of {Target}, nodeId={NodeId}, reason={Reason}",
             ctx.Aircraft.Callsign,
             _holdShort.TargetName ?? "unknown",
@@ -54,7 +56,7 @@ public sealed class HoldingShortPhase : Phase
             if (req.IsSatisfied)
             {
                 _holdShort.IsCleared = true;
-                ctx.Logger.LogDebug("[HoldShort] {Callsign}: cleared at {Target}", ctx.Aircraft.Callsign, _holdShort.TargetName ?? "unknown");
+                Log.LogDebug("[HoldShort] {Callsign}: cleared at {Target}", ctx.Aircraft.Callsign, _holdShort.TargetName ?? "unknown");
                 return true;
             }
         }

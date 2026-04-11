@@ -10,6 +10,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class TakeoffPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("TakeoffPhase");
+
     private const double CompletionAgl = 400.0;
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
@@ -77,7 +79,7 @@ public sealed class TakeoffPhase : Phase
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
             ctx.Aircraft.Callsign,
             _runwayHeading.Degrees,
@@ -127,7 +129,7 @@ public sealed class TakeoffPhase : Phase
         {
             _airborne = true;
             ctx.Aircraft.IsOnGround = false;
-            ctx.Logger.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
+            Log.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
             // Set climb targets
             double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);

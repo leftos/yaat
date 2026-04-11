@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class MidfieldCrossingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("MidfieldCrossingPhase");
+
     private const double ArrivalNm = 0.5;
     private const double CrossingAltitudeOffsetFt = 500.0;
 
@@ -46,7 +48,7 @@ public sealed class MidfieldCrossingPhase : Phase
         // Downwind speed for the category
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[MidfieldCrossing] {Callsign}: started, crossingAlt={Alt:F0}ft",
             ctx.Aircraft.Callsign,
             Waypoints.PatternAltitude + CrossingAltitudeOffsetFt
@@ -64,7 +66,7 @@ public sealed class MidfieldCrossingPhase : Phase
         bool complete = dist < ArrivalNm;
         if (complete)
         {
-            ctx.Logger.LogDebug("[MidfieldCrossing] {Callsign}: midfield reached, transitioning to downwind", ctx.Aircraft.Callsign);
+            Log.LogDebug("[MidfieldCrossing] {Callsign}: midfield reached, transitioning to downwind", ctx.Aircraft.Callsign);
         }
 
         return complete;

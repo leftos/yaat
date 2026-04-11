@@ -14,6 +14,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class HoldingAfterExitPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("HoldingAfterExitPhase");
+
     private string? _runwayId;
     private string? _exitTaxiway;
     private int? _holdShortNodeId;
@@ -49,7 +51,7 @@ public sealed class HoldingAfterExitPhase : Phase
         string twy = _exitTaxiway ?? ctx.Aircraft.CurrentTaxiway ?? "taxiway";
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} clear of runway {rwy} at {twy}");
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Exit] {Callsign}: holding after exit at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             ctx.Aircraft.Latitude,

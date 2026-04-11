@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class AtParkingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("AtParkingPhase");
+
     public override string Name => "At Parking";
 
     public override void OnStart(PhaseContext ctx)
@@ -21,7 +23,7 @@ public sealed class AtParkingPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        ctx.Logger.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.ParkingSpot ?? "unknown");
+        Log.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.ParkingSpot ?? "unknown");
     }
 
     public override bool OnTick(PhaseContext ctx)

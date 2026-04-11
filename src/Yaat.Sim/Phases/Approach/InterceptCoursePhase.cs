@@ -28,6 +28,8 @@ namespace Yaat.Sim.Phases.Approach;
 /// </summary>
 public sealed partial class InterceptCoursePhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("InterceptCoursePhase");
+
     private const double AlreadyOnCourseThresholdNm = 0.15;
     private const double SpeedAnticipationThresholdNm = 2.0;
     private const double InterceptSpeedFasMultiplier = 1.3;
@@ -56,7 +58,7 @@ public sealed partial class InterceptCoursePhase : Phase
     {
         // Aircraft continues on its current heading — no target change.
         // Approach speed set by the phase that follows (FinalApproachPhase).
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[InterceptCourse] {Callsign}: started, hdg={Hdg:F0}, course={Crs:F0}",
             ctx.Aircraft.Callsign,
             ctx.Aircraft.TrueHeading.Degrees,
@@ -95,7 +97,7 @@ public sealed partial class InterceptCoursePhase : Phase
             double interceptSpeed = fas * InterceptSpeedFasMultiplier;
             ctx.Targets.TargetSpeed = interceptSpeed;
             _approachSpeedSet = true;
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[InterceptCourse] {Callsign}: slowing to {Spd:F0}kts (1.3×FAS {Fas:F0}, crossTrack={XT:F1}nm)",
                 ctx.Aircraft.Callsign,
                 interceptSpeed,
@@ -167,7 +169,7 @@ public sealed partial class InterceptCoursePhase : Phase
                 TrueHeading rwyHdg = GetRunwayHeading();
                 double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
                 double runwayHeadingDiff = aircraftHeading.AbsAngleTo(rwyHdg);
-                ctx.Logger.LogInformation(
+                Log.LogInformation(
                     "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}° (fac={FacDiff:F1}°, rwy={RwyDiff:F1}°), crossTrack flipped {Prev:F3}→{Now:F3}",
                     ctx.Aircraft.Callsign,
                     effectiveDiff,
@@ -186,7 +188,7 @@ public sealed partial class InterceptCoursePhase : Phase
         // Safety timeout
         if (ElapsedSeconds >= MaxElapsedSeconds)
         {
-            ctx.Logger.LogInformation(
+            Log.LogInformation(
                 "[InterceptCourse] {Callsign}: timeout after {Elapsed:F0}s — never captured course",
                 ctx.Aircraft.Callsign,
                 ElapsedSeconds
@@ -256,7 +258,7 @@ public sealed partial class InterceptCoursePhase : Phase
         }
 
         double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[InterceptCourse] {Callsign}: captured ({Reason}) — hdgDiff={HD:F1}°, crossTrack={XT:F3}nm",
             ctx.Aircraft.Callsign,
             reason,

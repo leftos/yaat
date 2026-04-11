@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class VfrHoldPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("VfrHoldPhase");
+
     private const double ArrivalNm = 0.5;
 
     private bool _atFix;
@@ -98,7 +100,7 @@ public sealed class VfrHoldPhase : Phase
                 }
             );
 
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[VfrHold] {Callsign}: started, fix={Fix}, orbit={Dir}",
                 ctx.Aircraft.Callsign,
                 FixName,
@@ -121,7 +123,7 @@ public sealed class VfrHoldPhase : Phase
                 SetOrbitTarget(ctx);
             }
 
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[VfrHold] {Callsign}: started, orbit={Dir}, alt={Alt:F0}ft",
                 ctx.Aircraft.Callsign,
                 OrbitDirection?.ToString() ?? "hover",
@@ -141,7 +143,7 @@ public sealed class VfrHoldPhase : Phase
             {
                 _atFix = true;
                 ctx.Targets.NavigationRoute.Clear();
-                ctx.Logger.LogDebug("[VfrHold] {Callsign}: arrived at {Fix}, holding", ctx.Aircraft.Callsign, FixName);
+                Log.LogDebug("[VfrHold] {Callsign}: arrived at {Fix}, holding", ctx.Aircraft.Callsign, FixName);
 
                 double maxHold = AircraftPerformance.HoldingSpeed(ctx.AircraftType, ctx.Aircraft.Altitude);
                 if (ctx.Targets.TargetSpeed is null || ctx.Targets.TargetSpeed > maxHold)

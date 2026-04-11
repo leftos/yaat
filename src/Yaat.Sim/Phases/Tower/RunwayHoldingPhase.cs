@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class RunwayHoldingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RunwayHoldingPhase");
+
     private readonly string _crossingRunwayId;
 
     public RunwayHoldingPhase(string crossingRunwayId)
@@ -44,7 +46,7 @@ public sealed class RunwayHoldingPhase : Phase
         ctx.Targets.TargetSpeed = 0;
         ctx.Targets.TargetTrueHeading = null;
 
-        ctx.Logger.LogDebug("[LAHSO] {Callsign}: holding short of runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
+        Log.LogDebug("[LAHSO] {Callsign}: holding short of runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
 
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} holding short runway {_crossingRunwayId}");
     }
@@ -57,7 +59,7 @@ public sealed class RunwayHoldingPhase : Phase
         {
             if (req.IsSatisfied)
             {
-                ctx.Logger.LogDebug("[LAHSO] {Callsign}: cleared past runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
+                Log.LogDebug("[LAHSO] {Callsign}: cleared past runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
                 return true;
             }
         }

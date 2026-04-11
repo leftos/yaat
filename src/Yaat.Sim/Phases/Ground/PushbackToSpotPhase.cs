@@ -13,6 +13,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class PushbackToSpotPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PushbackToSpotPhase");
+
     private const double NodeArrivalThresholdNm = 0.008;
     private const double FinalNodeArrivalThresholdNm = 0.0005;
     private const double HeadingReachedDeg = 2.0;
@@ -45,7 +47,7 @@ public sealed class PushbackToSpotPhase : Phase
         ctx.Aircraft.AssignedTaxiRoute = _route;
         SetupCurrentSegment(ctx);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[PushSpot] {Callsign}: started, {SegCount} segments, targetHdg={TargetHdg}",
             ctx.Aircraft.Callsign,
             _route.Segments.Count,
@@ -101,7 +103,7 @@ public sealed class PushbackToSpotPhase : Phase
             if (diff < HeadingReachedDeg)
             {
                 _pivoting = false;
-                ctx.Logger.LogDebug(
+                Log.LogDebug(
                     "[PushSpot] {Callsign}: pivot complete, pushHdg={PushHdg:F0}, resuming movement",
                     ctx.Aircraft.Callsign,
                     ctx.Aircraft.PushbackTrueHeading.Value.Degrees
@@ -140,7 +142,7 @@ public sealed class PushbackToSpotPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogTrace(
+            Log.LogTrace(
                 "[PushSpot] {Callsign}: seg {SegIdx}/{SegCount}, dist={Dist:F4}nm, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}",
                 ctx.Aircraft.Callsign,
                 _route.CurrentSegmentIndex,
@@ -157,12 +159,7 @@ public sealed class PushbackToSpotPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        ctx.Logger.LogDebug(
-            "[PushSpot] {Callsign}: OnEnd ({Status}), hdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            endStatus,
-            ctx.Aircraft.TrueHeading.Degrees
-        );
+        Log.LogDebug("[PushSpot] {Callsign}: OnEnd ({Status}), hdg={Hdg:F0}", ctx.Aircraft.Callsign, endStatus, ctx.Aircraft.TrueHeading.Degrees);
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
@@ -263,7 +260,7 @@ public sealed class PushbackToSpotPhase : Phase
 
     private bool ArriveAtNode(PhaseContext ctx)
     {
-        ctx.Logger.LogTrace(
+        Log.LogTrace(
             "[PushSpot] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
             ctx.Aircraft.Callsign,
             _targetNodeId,
@@ -279,7 +276,7 @@ public sealed class PushbackToSpotPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
             ctx.Aircraft.PushbackTrueHeading = null;
-            ctx.Logger.LogDebug("[PushSpot] {Callsign}: reached destination, rotating to final heading", ctx.Aircraft.Callsign);
+            Log.LogDebug("[PushSpot] {Callsign}: reached destination, rotating to final heading", ctx.Aircraft.Callsign);
 
             if (_targetHeading is null)
             {
@@ -303,7 +300,7 @@ public sealed class PushbackToSpotPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[PushSpot] {Callsign}: pivoting {HeadingChange:F0}° from {Current:F0} to {Target:F0}",
                 ctx.Aircraft.Callsign,
                 headingChange,

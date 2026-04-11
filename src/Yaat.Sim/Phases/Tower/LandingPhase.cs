@@ -15,6 +15,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class LandingPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("LandingPhase");
+
     private const double DefaultRolloutCompleteSpeed = 20.0;
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
@@ -211,7 +213,7 @@ public sealed class LandingPhase : Phase
         // Continue approach descent toward field elevation
         ctx.Targets.TargetAltitude = _fieldElevation;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts{Lahso}",
             ctx.Aircraft.Callsign,
             _fieldElevation,
@@ -260,7 +262,7 @@ public sealed class LandingPhase : Phase
                 ctx.Aircraft.IndicatedAirspeed = tdSpeed;
             }
 
-            ctx.Logger.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+            Log.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
         }
 
         return false;
@@ -310,7 +312,7 @@ public sealed class LandingPhase : Phase
                 // Past the hold-short point — stop immediately
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 StoppedForLahso = true;
-                ctx.Logger.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
+                Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
                 return true;
             }
         }
@@ -351,7 +353,7 @@ public sealed class LandingPhase : Phase
             {
                 // Missed this exit — broadcast unable, replan
                 string missedTaxiway = _candidateExit.TaxiwayName;
-                ctx.Logger.LogDebug(
+                Log.LogDebug(
                     "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts)",
                     ctx.Aircraft.Callsign,
                     missedTaxiway,
@@ -502,7 +504,7 @@ public sealed class LandingPhase : Phase
         if (_hasLahso && (ctx.Aircraft.IndicatedAirspeed <= 0))
         {
             StoppedForLahso = true;
-            ctx.Logger.LogDebug("[Landing] {Callsign}: LAHSO rollout complete, stopped", ctx.Aircraft.Callsign);
+            Log.LogDebug("[Landing] {Callsign}: LAHSO rollout complete, stopped", ctx.Aircraft.Callsign);
             return true;
         }
 
@@ -534,7 +536,7 @@ public sealed class LandingPhase : Phase
 
         if (!_hasLahso && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= targetSpeed))
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts, target={Target:F0}kts",
                 ctx.Aircraft.Callsign,
                 ctx.Aircraft.GroundSpeed,
@@ -607,7 +609,7 @@ public sealed class LandingPhase : Phase
                     BranchPointNode = exit.Value.Path[0],
                 };
 
-                ctx.Logger.LogDebug(
+                Log.LogDebug(
                     "[Landing] {Callsign}: candidate exit {Taxiway}, angle={Angle:F0}, turnOffSpeed={Speed:F0}kts, path=[{Path}]",
                     ctx.Aircraft.Callsign,
                     exit.Value.Taxiway,
@@ -646,7 +648,7 @@ public sealed class LandingPhase : Phase
             BranchPointNode = result.Value.Node,
         };
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Landing] {Callsign}: candidate exit (fallback) {Taxiway}, turnOffSpeed={Speed:F0}kts",
             ctx.Aircraft.Callsign,
             result.Value.Taxiway,

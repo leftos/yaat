@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class UpwindPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("UpwindPhase");
+
     private const double ArrivalNm = 0.3;
 
     private double _targetLat;
@@ -56,7 +58,7 @@ public sealed class UpwindPhase : Phase
         // Accelerate toward downwind speed
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[Upwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
             ctx.Aircraft.Callsign,
             Waypoints.UpwindHeading.Degrees,
@@ -87,7 +89,7 @@ public sealed class UpwindPhase : Phase
         bool complete = (dist < ArrivalNm || targetIsBehind) && altitudeReached;
         if (complete)
         {
-            ctx.Logger.LogDebug(
+            Log.LogDebug(
                 "[Upwind] {Callsign}: crosswind turn point {Reason}, alt={Alt:F0}ft",
                 ctx.Aircraft.Callsign,
                 targetIsBehind ? "passed (behind aircraft)" : "reached",

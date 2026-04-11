@@ -11,6 +11,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class STurnPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("STurnPhase");
+
     private const double TurnDeviationDeg = 30.0;
     private const double HeadingToleranceDeg = 5.0;
 
@@ -57,7 +59,7 @@ public sealed class STurnPhase : Phase
         // Start the first turn
         SetNextTurnTarget(ctx);
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[STurn] {Callsign}: started, {Count} S-turns, initial {Dir}",
             ctx.Aircraft.Callsign,
             Count,
@@ -93,7 +95,7 @@ public sealed class STurnPhase : Phase
                 {
                     ctx.Targets.TurnRateOverride = null;
                 }
-                ctx.Logger.LogDebug("[STurn] {Callsign}: complete after {Count} S-turns", ctx.Aircraft.Callsign, _turnsCompleted);
+                Log.LogDebug("[STurn] {Callsign}: complete after {Count} S-turns", ctx.Aircraft.Callsign, _turnsCompleted);
                 return true;
             }
 

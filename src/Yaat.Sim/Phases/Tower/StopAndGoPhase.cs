@@ -12,6 +12,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed class StopAndGoPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("StopAndGoPhase");
+
     private const double LiftoffAgl = 400.0;
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
@@ -84,7 +86,7 @@ public sealed class StopAndGoPhase : Phase
         // Decelerate to zero
         ctx.Targets.TargetSpeed = 0;
 
-        ctx.Logger.LogDebug(
+        Log.LogDebug(
             "[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             _pauseDuration,
@@ -115,7 +117,7 @@ public sealed class StopAndGoPhase : Phase
                 _stopped = true;
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
-                ctx.Logger.LogDebug("[StopAndGo] {Callsign}: full stop, pausing {Pause:F1}s", ctx.Aircraft.Callsign, _pauseDuration);
+                Log.LogDebug("[StopAndGo] {Callsign}: full stop, pausing {Pause:F1}s", ctx.Aircraft.Callsign, _pauseDuration);
             }
             return false;
         }
@@ -126,7 +128,7 @@ public sealed class StopAndGoPhase : Phase
             if (_pauseElapsed >= _pauseDuration || _goTriggered)
             {
                 _reaccelerating = true;
-                ctx.Logger.LogDebug("[StopAndGo] {Callsign}: pause complete, reaccelerating", ctx.Aircraft.Callsign);
+                Log.LogDebug("[StopAndGo] {Callsign}: pause complete, reaccelerating", ctx.Aircraft.Callsign);
             }
             return false;
         }
@@ -148,7 +150,7 @@ public sealed class StopAndGoPhase : Phase
             {
                 _airborne = true;
                 ctx.Aircraft.IsOnGround = false;
-                ctx.Logger.LogDebug("[StopAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
+                Log.LogDebug("[StopAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
                 double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
                 double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
