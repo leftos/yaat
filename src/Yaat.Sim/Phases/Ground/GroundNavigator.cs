@@ -42,17 +42,19 @@ public sealed class GroundNavigator
     private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
     /// <summary>
-    /// When the current segment is a <see cref="GroundArc"/>, this holds the arc geometry
-    /// and the traversal direction (from/to node). Null for straight edges.
-    /// </summary>
-    private (GroundArc Arc, bool FromNodeIsZero)? _currentArc;
-
-    /// <summary>
     /// Polyline waypoints for arc traversal. When entering an arc segment, the bezier
     /// is subdivided into short straight segments (~15ft). The navigator walks through
     /// these sequentially, only advancing the route segment when the queue is empty.
+    /// Non-null when traversing an arc; null for straight edges.
     /// </summary>
     private Queue<(double Lat, double Lon)>? _arcWaypoints;
+
+    /// <summary>
+    /// Min radius of curvature (ft) of the current arc segment. Zero when not on an arc.
+    /// Used to compute the arc speed limit without needing the full <see cref="GroundArc"/>
+    /// object, which enables snapshot restore.
+    /// </summary>
+    private double _arcMinRadiusFt;
 
     /// <summary>
     /// Distance in NM from the current arc waypoint through remaining waypoints to
@@ -94,7 +96,7 @@ public sealed class GroundNavigator
         if (seg.Edge.Edge is GroundArc arc)
         {
             bool fromIsZero = arc.Nodes[0].Id == seg.Edge.FromNode.Id;
-            _currentArc = (arc, fromIsZero);
+            _arcMinRadiusFt = arc.MinRadiusOfCurvatureFt;
             _arcWaypoints = SubdivideArc(arc, fromIsZero);
 
             // Target the first waypoint instead of the arc endpoint
@@ -119,12 +121,12 @@ public sealed class GroundNavigator
         }
         else
         {
-            _currentArc = null;
+            _arcMinRadiusFt = 0;
             _arcWaypoints = null;
             _remainingArcDistNm = 0;
         }
 
-        string segType = _currentArc is not null ? "arc" : "straight";
+        string segType = _arcWaypoints is not null ? "arc" : "straight";
         Log.LogDebug(
             "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} type={Type} edge={Edge} dist={Dist:F4}nm",
             route.CurrentSegmentIndex,
@@ -291,7 +293,7 @@ public sealed class GroundNavigator
         // edges. Fillet tangent nodes are often spaced 25-65ft apart and define
         // the shape of turns — the generous 91ft threshold skips them, causing
         // the aircraft to cut corners instead of following the path.
-        bool onArc = _currentArc is not null;
+        bool onArc = _arcWaypoints is not null;
         double edgeLengthNm = GeoMath.DistanceNm(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
         bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
         double arrivalThreshold = (isLastSegment || onArc || shortEdge) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
@@ -341,17 +343,18 @@ public sealed class GroundNavigator
         double arcSpeedLimit = double.MaxValue;
 
         // Apply arc speed limit when traversing an arc's polyline waypoints
-        if (_currentArc is { } ca)
+        if (_arcMinRadiusFt > 0)
         {
             double turnRateDegSec = CategoryPerformance.GroundTurnRate(ctx.Category);
-            arcSpeedLimit = ca.Arc.MaxSafeSpeedKts(turnRateDegSec);
+            double turnRateRadSec = turnRateDegSec * (Math.PI / 180.0);
+            arcSpeedLimit = turnRateRadSec * (_arcMinRadiusFt / GeoMath.FeetPerNm) * 3600.0;
         }
 
         // Pre-turning: when approaching a junction with a known next-segment bearing,
         // blend the steer target toward the outbound bearing. Scale the blend by
         // turn angle — gentle turns get full pre-turn, large turns (>60°) get very
         // little to avoid yanking inside the arc before entering it.
-        if (_nextSegmentBearing is { } nextBrg && _currentArc is null)
+        if (_nextSegmentBearing is { } nextBrg && _arcWaypoints is null)
         {
             double turnAngle = GeoMath.AbsBearingDifference(bearing, nextBrg);
             double angleScale = Math.Clamp(1.0 - ((turnAngle - 30.0) / 60.0), 0.0, 1.0);
@@ -412,7 +415,7 @@ public sealed class GroundNavigator
             targetSpeed,
             brakingLimit,
             arcSpeedLimit,
-            _currentArc is not null
+            onArc
         );
 
         double deviationFt = ComputePathDeviation(ctx, dist);
@@ -425,7 +428,7 @@ public sealed class GroundNavigator
             targetSpeed,
             brakingLimit,
             arcSpeedLimit,
-            _currentArc is not null,
+            onArc,
             _currentNodeRequiredSpeed,
             deviationFt,
             _segmentFromLat,
@@ -542,6 +545,14 @@ public sealed class GroundNavigator
                         })
                         .ToList()
                     : null,
+            ArcState = _arcWaypoints is not null
+                ? new ArcStateDto
+                {
+                    MinRadiusOfCurvatureFt = _arcMinRadiusFt,
+                    RemainingDistNm = _remainingArcDistNm,
+                    Waypoints = _arcWaypoints.Select(w => new[] { w.Lat, w.Lon }).ToList(),
+                }
+                : null,
         };
 
     public static GroundNavigator FromSnapshot(GroundNavigatorDto dto)
@@ -563,6 +574,13 @@ public sealed class GroundNavigator
         if (dto.SpeedConstraints is not null)
         {
             nav._speedConstraints = dto.SpeedConstraints.Select(c => (c.PathDistNm, c.RequiredSpeedKts, c.NodeId)).ToList();
+        }
+
+        if (dto.ArcState is not null)
+        {
+            nav._arcMinRadiusFt = dto.ArcState.MinRadiusOfCurvatureFt;
+            nav._remainingArcDistNm = dto.ArcState.RemainingDistNm;
+            nav._arcWaypoints = new Queue<(double Lat, double Lon)>(dto.ArcState.Waypoints.Select(w => (w[0], w[1])));
         }
 
         return nav;

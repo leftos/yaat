@@ -298,6 +298,14 @@ public sealed class GroundNavigatorDto
     public double CornerSpeedKts { get; init; }
     public double? NextSegmentBearing { get; init; }
     public List<SpeedConstraintDto>? SpeedConstraints { get; init; }
+    public ArcStateDto? ArcState { get; init; }
+}
+
+public sealed class ArcStateDto
+{
+    public double MinRadiusOfCurvatureFt { get; init; }
+    public double RemainingDistNm { get; init; }
+    public required List<double[]> Waypoints { get; init; }
 }
 
 public sealed class FollowingPhaseDto : PhaseDto
