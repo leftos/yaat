@@ -775,47 +775,74 @@ public sealed class AirportGroundLayout
         List<GroundNode>? bestPath = null;
         double bestScore = double.MaxValue;
 
+        // Expand starting node to include all nodes reachable via short runway
+        // tangent-link edges. Fillets create separate tangent nodes for each arc
+        // pair at the same intersection — e.g., #1293 connects to the south arc
+        // while #1289 connects to the north arc. Both are part of the same
+        // crossing and the BFS must see arcs from all of them.
+        const double tangentLinkThresholdNm = 0.03;
+        var clusterNodes = new List<GroundNode> { centerlineNode };
         var visited = new HashSet<int> { centerlineNode.Id };
-        var queue = new Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)>();
-
-        foreach (var edge in centerlineNode.Edges)
+        for (int ci = 0; ci < clusterNodes.Count; ci++)
         {
-            if (edge.IsRunwayCenterline)
+            foreach (var edge in clusterNodes[ci].Edges)
             {
-                continue;
-            }
-
-            var neighbor = edge.OtherNode(centerlineNode);
-
-            if (!visited.Add(neighbor.Id))
-            {
-                continue;
-            }
-
-            // Skip arcs whose departure tangent faces away from the runway heading.
-            // Threshold fillets create arcs for both runway directions — an arc designed
-            // for 10L traffic curves backward for a 28R aircraft. Use 95° (not 90°)
-            // to avoid rejecting perpendicular exits (like OAK W1-W7 at 90° to RWY 30)
-            // whose arc tangent lands right at the boundary due to curve geometry.
-            if (edge is GroundArc arc)
-            {
-                double departureBearing = arc.TangentBearingAt(centerlineNode, centerlineNode, neighbor);
-                double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
-                if (bearingDiff > 95)
+                if (!edge.IsRunwayCenterline)
                 {
                     continue;
                 }
-            }
 
-            if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
+                var neighbor = edge.OtherNode(clusterNodes[ci]);
+                if (edge.DistanceNm <= tangentLinkThresholdNm && visited.Add(neighbor.Id))
+                {
+                    clusterNodes.Add(neighbor);
+                }
+            }
+        }
+
+        var queue = new Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)>();
+
+        foreach (var clusterNode in clusterNodes)
+        {
+            foreach (var edge in clusterNode.Edges)
             {
-                continue;
-            }
+                if (edge.IsRunwayCenterline)
+                {
+                    continue;
+                }
 
-            // For junction arcs (e.g. ["G", "RWY28R/10L"]), use the non-runway name
-            // so the BFS can match subsequent single-name taxiway edges.
-            string branchName = edge is GroundArc { IsRunwayJunction: true } ja ? ja.FirstNonRunwayName() : edge.TaxiwayName;
-            queue.Enqueue((neighbor, branchName, [centerlineNode, neighbor], edge.DistanceNm, 1));
+                var neighbor = edge.OtherNode(clusterNode);
+
+                if (!visited.Add(neighbor.Id))
+                {
+                    continue;
+                }
+
+                // Skip arcs whose departure tangent faces away from the runway heading.
+                // Threshold fillets create arcs for both runway directions — an arc designed
+                // for 10L traffic curves backward for a 28R aircraft. Use 95° (not 90°)
+                // to avoid rejecting perpendicular exits (like OAK W1-W7 at 90° to RWY 30)
+                // whose arc tangent lands right at the boundary due to curve geometry.
+                if (edge is GroundArc arc)
+                {
+                    double departureBearing = arc.TangentBearingAt(clusterNode, clusterNode, neighbor);
+                    double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
+                    if (bearingDiff > 95)
+                    {
+                        continue;
+                    }
+                }
+
+                if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
+                {
+                    continue;
+                }
+
+                // For junction arcs (e.g. ["G", "RWY28R/10L"]), use the non-runway name
+                // so the BFS can match subsequent single-name taxiway edges.
+                string branchName = edge is GroundArc { IsRunwayJunction: true } ja ? ja.FirstNonRunwayName() : edge.TaxiwayName;
+                queue.Enqueue((neighbor, branchName, [centerlineNode, neighbor], edge.DistanceNm, 1));
+            }
         }
 
         while (queue.Count > 0)

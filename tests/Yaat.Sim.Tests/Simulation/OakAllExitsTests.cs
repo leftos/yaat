@@ -93,6 +93,8 @@ public class OakAllExitsTests(ITestOutputHelper output)
     [InlineData("30", "B738", 130, 1.0, "W6")]
     [InlineData("30", "B738", 130, 1.0, "W4")]
     [InlineData("28R", "C172", 70, 0.5, null)]
+    [InlineData("28R", "C172", 70, 0.5, "P")]
+    [InlineData("28R", "C172", 70, 0.5, "E")]
     public void Diagnostic_DumpTickCsv(string runwayId, string aircraftType, double speed, double dist, string? exitTaxiway)
     {
         TestVnasData.EnsureInitialized();

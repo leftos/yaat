@@ -41,6 +41,7 @@ public static class Program
         bool noFillets = false;
         bool debugFillets = false;
         string? svgOutput = null;
+        string? ticksCsvPath = null;
         var svgHighlightTaxiways = new List<string>();
         var svgHighlightRunways = new List<string>();
         var svgHighlightNodes = new List<int>();
@@ -101,6 +102,9 @@ public static class Program
                     break;
                 case "--svg" when i + 1 < args.Length:
                     svgOutput = args[++i];
+                    break;
+                case "--ticks" when i + 1 < args.Length:
+                    ticksCsvPath = args[++i];
                     break;
                 case "--svg-taxiway" when i + 1 < args.Length:
                     svgHighlightTaxiways.Add(args[++i].ToUpperInvariant());
@@ -234,6 +238,13 @@ public static class Program
                 {
                     htmlRenderer.AddRouteNode(nid);
                 }
+            }
+
+            if (ticksCsvPath is not null)
+            {
+                var ticks = LoadTicksCsv(ticksCsvPath);
+                htmlRenderer.SetTickData(ticks);
+                Console.Error.WriteLine($"Loaded {ticks.Count} ticks from {ticksCsvPath}");
             }
 
             string html = htmlRenderer.Render();
@@ -423,5 +434,88 @@ public static class Program
         Console.WriteLine("  --svg-runway <desig>     Highlight a runway (repeatable)");
         Console.WriteLine("  --svg-node <id>          Highlight a node (repeatable)");
         Console.WriteLine("  --svg-annotate <id> <text>  Add annotation label to a node");
+        Console.WriteLine("  --ticks <csv>            Overlay tick data (CSV from TickRecorder) with animation player");
+    }
+
+    private static List<TickDataRow> LoadTicksCsv(string path)
+    {
+        var rows = new List<TickDataRow>();
+        var lines = File.ReadAllLines(path);
+        if (lines.Length < 2)
+        {
+            return rows;
+        }
+
+        var headers = lines[0].Split(',');
+        int Col(string name) => Array.IndexOf(headers, name);
+
+        int iT = Col("t"),
+            iLat = Col("lat"),
+            iLon = Col("lon"),
+            iHdg = Col("hdg"),
+            iGs = Col("gs");
+        int iPhase = Col("phase"),
+            iTwy = Col("twy");
+        int iNavTarget = Col("navTarget"),
+            iNavDist = Col("navDist"),
+            iNavBrg = Col("navBrg");
+        int iNavTargetSpd = Col("navTargetSpd"),
+            iNavBrakeLimit = Col("navBrakeLimit");
+        int iNavArcLimit = Col("navArcLimit"),
+            iNavOnArc = Col("navOnArc"),
+            iNavNodeReqSpd = Col("navNodeReqSpd");
+
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var parts = lines[i].Split(',');
+            if (parts.Length < 7)
+            {
+                continue;
+            }
+
+            rows.Add(
+                new TickDataRow(
+                    Time: int.Parse(parts[iT]),
+                    Lat: double.Parse(parts[iLat], System.Globalization.CultureInfo.InvariantCulture),
+                    Lon: double.Parse(parts[iLon], System.Globalization.CultureInfo.InvariantCulture),
+                    Hdg: double.Parse(parts[iHdg], System.Globalization.CultureInfo.InvariantCulture),
+                    Gs: double.Parse(parts[iGs], System.Globalization.CultureInfo.InvariantCulture),
+                    Phase: parts[iPhase],
+                    Twy: parts[iTwy],
+                    NavTarget: TryParseInt(parts, iNavTarget),
+                    NavDist: TryParseDouble(parts, iNavDist),
+                    NavBrg: TryParseDouble(parts, iNavBrg),
+                    NavTargetSpd: TryParseDouble(parts, iNavTargetSpd),
+                    NavBrakeLimit: TryParseDouble(parts, iNavBrakeLimit),
+                    NavArcLimit: TryParseDouble(parts, iNavArcLimit),
+                    NavOnArc: TryParseInt(parts, iNavOnArc) == 1,
+                    NavNodeReqSpd: TryParseDouble(parts, iNavNodeReqSpd)
+                )
+            );
+        }
+
+        return rows;
+    }
+
+    private static int? TryParseInt(string[] parts, int idx)
+    {
+        if ((idx < 0) || (idx >= parts.Length) || string.IsNullOrEmpty(parts[idx]))
+        {
+            return null;
+        }
+
+        return int.TryParse(parts[idx], out int v) ? v : null;
+    }
+
+    private static double? TryParseDouble(string[] parts, int idx)
+    {
+        if ((idx < 0) || (idx >= parts.Length) || string.IsNullOrEmpty(parts[idx]))
+        {
+            return null;
+        }
+
+        return double.TryParse(parts[idx], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v)
+            ? v
+            : null;
     }
 }

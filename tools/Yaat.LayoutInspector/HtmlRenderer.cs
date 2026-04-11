@@ -18,6 +18,7 @@ public sealed class HtmlRenderer
     private readonly HashSet<string> _highlightRunways = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, string> _nodeAnnotations = [];
     private readonly List<int> _routeNodeIds = [];
+    private List<TickDataRow>? _tickData;
 
     public HtmlRenderer(AirportGroundLayout layout) => _layout = layout;
 
@@ -30,6 +31,8 @@ public sealed class HtmlRenderer
     public void AnnotateNode(int id, string text) => _nodeAnnotations[id] = text;
 
     public void AddRouteNode(int id) => _routeNodeIds.Add(id);
+
+    public void SetTickData(List<TickDataRow> ticks) => _tickData = ticks;
 
     public string Render()
     {
@@ -202,6 +205,56 @@ public sealed class HtmlRenderer
         }
         writer.WriteEndArray();
 
+        if (_tickData is not null)
+        {
+            writer.WriteStartArray("ticks");
+            foreach (var tick in _tickData)
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber("t", tick.Time);
+                writer.WriteNumber("lat", Math.Round(tick.Lat, 8));
+                writer.WriteNumber("lon", Math.Round(tick.Lon, 8));
+                writer.WriteNumber("hdg", Math.Round(tick.Hdg, 2));
+                writer.WriteNumber("gs", Math.Round(tick.Gs, 2));
+                writer.WriteString("phase", tick.Phase);
+                writer.WriteString("twy", tick.Twy);
+                if (tick.NavTarget is not null)
+                {
+                    writer.WriteNumber("navTarget", tick.NavTarget.Value);
+                }
+                if (tick.NavDist is not null)
+                {
+                    writer.WriteNumber("navDist", Math.Round(tick.NavDist.Value, 4));
+                }
+                if (tick.NavBrg is not null)
+                {
+                    writer.WriteNumber("navBrg", Math.Round(tick.NavBrg.Value, 1));
+                }
+                if (tick.NavTargetSpd is not null)
+                {
+                    writer.WriteNumber("navTargetSpd", Math.Round(tick.NavTargetSpd.Value, 1));
+                }
+                if (tick.NavBrakeLimit is not null && tick.NavBrakeLimit.Value < 1e10)
+                {
+                    writer.WriteNumber("navBrakeLimit", Math.Round(tick.NavBrakeLimit.Value, 1));
+                }
+                if (tick.NavArcLimit is not null && tick.NavArcLimit.Value < 1e10)
+                {
+                    writer.WriteNumber("navArcLimit", Math.Round(tick.NavArcLimit.Value, 1));
+                }
+                if (tick.NavOnArc is true)
+                {
+                    writer.WriteBoolean("navOnArc", true);
+                }
+                if (tick.NavNodeReqSpd is not null)
+                {
+                    writer.WriteNumber("navNodeReqSpd", Math.Round(tick.NavNodeReqSpd.Value, 1));
+                }
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+
         writer.WriteEndObject();
         writer.Flush();
         return sb.ToString();
@@ -296,3 +349,21 @@ public sealed class HtmlRenderer
         public override void SetLength(long value) { }
     }
 }
+
+public record TickDataRow(
+    int Time,
+    double Lat,
+    double Lon,
+    double Hdg,
+    double Gs,
+    string Phase,
+    string Twy,
+    int? NavTarget,
+    double? NavDist,
+    double? NavBrg,
+    double? NavTargetSpd,
+    double? NavBrakeLimit,
+    double? NavArcLimit,
+    bool? NavOnArc,
+    double? NavNodeReqSpd
+);

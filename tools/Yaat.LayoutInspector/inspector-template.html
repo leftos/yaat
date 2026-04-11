@@ -40,6 +40,11 @@ canvas:active { cursor:grabbing; }
   <span class="lc ls" style="background:#ff6a00"></span>Route
   <br><span style="color:#484f58">scroll=zoom  drag=pan  hover=inspect</span>
 </div>
+<div id="player" style="display:none; position:fixed; bottom:8px; left:50%; transform:translateX(-50%); background:#161b22; border:1px solid #30363d; border-radius:8px; padding:6px 14px; color:#c9d1d9; font-size:12px; z-index:20; display:flex; align-items:center; gap:10px; min-width:500px;">
+  <button id="playBtn" style="background:none; border:1px solid #484f58; border-radius:4px; color:#c9d1d9; font-size:14px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;">&#9654;</button>
+  <input id="scrub" type="range" min="0" max="0" value="0" style="flex:1; accent-color:#ff6a00; cursor:pointer;">
+  <span id="tickInfo" style="font-family:Consolas,monospace; min-width:280px; white-space:nowrap;"></span>
+</div>
 <script>
 "use strict";
 const D = /*__DATA__*/;
@@ -247,6 +252,63 @@ function draw() {
   });
 
   hud.textContent = 'zoom: ' + scale.toFixed(1) + 'x  |  ' + D.airportId;
+
+  // 8. Tick overlay (aircraft position + trail)
+  if (D.ticks && D.ticks.length > 0 && typeof tickIdx !== 'undefined') {
+    // Trail: all ticks up to current
+    const trailLen = 30;
+    const trailStart = Math.max(0, tickIdx - trailLen);
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath();
+    for (let i = trailStart; i <= tickIdx; i++) {
+      const t = D.ticks[i];
+      const [x, y] = toScreen(t.lat, t.lon);
+      if (i === trailStart) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#ff6a00'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Trail dots
+    for (let i = trailStart; i < tickIdx; i++) {
+      const t = D.ticks[i];
+      const [x, y] = toScreen(t.lat, t.lon);
+      const alpha = 0.15 + 0.5 * (i - trailStart) / (tickIdx - trailStart + 1);
+      ctx.globalAlpha = alpha;
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff6a00'; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Aircraft triangle at current tick
+    const tick = D.ticks[tickIdx];
+    const [ax, ay] = toScreen(tick.lat, tick.lon);
+    const hdgRad = (tick.hdg - 90) * Math.PI / 180;
+    const sz = 10;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(hdgRad);
+    ctx.beginPath();
+    ctx.moveTo(sz, 0);
+    ctx.lineTo(-sz * 0.6, -sz * 0.5);
+    ctx.lineTo(-sz * 0.6, sz * 0.5);
+    ctx.closePath();
+    ctx.fillStyle = '#ff6a00'; ctx.fill();
+    ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+
+    // Bearing line to target node
+    if (tick.navTarget && nodeMap[tick.navTarget]) {
+      const tn = nodeMap[tick.navTarget];
+      const [tx, ty] = toScreen(tn.lat, tn.lon);
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = '#58a6ff50'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.setLineDash([]);
+      // Target node marker
+      ctx.beginPath(); ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+      ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  }
 }
 
 // --- Interaction ---
@@ -438,6 +500,66 @@ function updateTooltip(mx, my) {
   }
 
   showTip(mx, my);
+}
+
+// --- Tick animation player ---
+let tickIdx = 0;
+let playing = false;
+let playTimer = null;
+
+if (D.ticks && D.ticks.length > 0) {
+  const playerEl = document.getElementById('player');
+  playerEl.style.display = 'flex';
+  const scrub = document.getElementById('scrub');
+  const playBtn = document.getElementById('playBtn');
+  const tickInfo = document.getElementById('tickInfo');
+  scrub.max = D.ticks.length - 1;
+
+  function updateTickInfo() {
+    const t = D.ticks[tickIdx];
+    let info = `t=${t.t} hdg=${t.hdg.toFixed(0)}\u00b0 gs=${t.gs.toFixed(0)}kt ${t.phase}`;
+    if (t.twy) info += ` [${t.twy}]`;
+    if (t.navTarget != null) info += ` \u2192#${t.navTarget}`;
+    if (t.navOnArc) info += ' (arc)';
+    if (t.navNodeReqSpd != null) info += ` req=${t.navNodeReqSpd.toFixed(0)}kt`;
+    tickInfo.textContent = info;
+  }
+
+  function setTick(i) {
+    tickIdx = Math.max(0, Math.min(i, D.ticks.length - 1));
+    scrub.value = tickIdx;
+    updateTickInfo();
+    draw();
+  }
+
+  scrub.addEventListener('input', () => {
+    setTick(parseInt(scrub.value));
+    if (playing) togglePlay();
+  });
+
+  function togglePlay() {
+    playing = !playing;
+    playBtn.textContent = playing ? '\u23f8' : '\u25b6';
+    if (playing) {
+      playTimer = setInterval(() => {
+        if (tickIdx >= D.ticks.length - 1) { togglePlay(); return; }
+        setTick(tickIdx + 1);
+      }, 100);
+    } else {
+      clearInterval(playTimer);
+      playTimer = null;
+    }
+  }
+
+  playBtn.addEventListener('click', togglePlay);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); setTick(tickIdx + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); setTick(tickIdx - 1); }
+  });
+
+  updateTickInfo();
 }
 
 resize();
