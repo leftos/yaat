@@ -989,7 +989,7 @@ public static class TaxiPathfinder
         GroundNode? destinationHint = null
     )
     {
-        if (candidates.Count == 0)
+        if (candidates.Count <= 1)
         {
             return candidates[0];
         }
