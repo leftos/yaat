@@ -40,10 +40,10 @@ canvas:active { cursor:grabbing; }
   <span class="lc ls" style="background:#ff6a00"></span>Route
   <br><span style="color:#484f58">scroll=zoom  drag=pan  hover=inspect</span>
 </div>
-<div id="player" style="display:none; position:fixed; bottom:8px; left:50%; transform:translateX(-50%); background:#161b22; border:1px solid #30363d; border-radius:8px; padding:6px 14px; color:#c9d1d9; font-size:12px; z-index:20; display:flex; align-items:center; gap:10px; min-width:500px;">
-  <button id="playBtn" style="background:none; border:1px solid #484f58; border-radius:4px; color:#c9d1d9; font-size:14px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;">&#9654;</button>
+<div id="player" style="display:none; position:fixed; bottom:8px; left:8px; right:8px; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:6px 14px; color:#c9d1d9; font-size:12px; z-index:20; display:flex; align-items:center; gap:10px;">
+  <button id="playBtn" style="background:none; border:1px solid #484f58; border-radius:4px; color:#c9d1d9; font-size:14px; cursor:pointer; width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">&#9654;</button>
   <input id="scrub" type="range" min="0" max="0" value="0" style="flex:1; accent-color:#ff6a00; cursor:pointer;">
-  <span id="tickInfo" style="font-family:Consolas,monospace; min-width:280px; white-space:nowrap;"></span>
+  <span id="tickInfo" style="font-family:Consolas,monospace; width:420px; flex-shrink:0; text-align:right; white-space:nowrap; overflow:hidden;"></span>
 </div>
 <script>
 "use strict";
@@ -416,14 +416,48 @@ function updateTooltip(mx, my) {
     if (d < closestEdgeDist) { closestEdgeDist = d; closestEdge = e; }
   });
 
-  // Show all matching elements (arcs, edges, nodes) in the tooltip
+  // --- Tick proximity ---
+  let closestTick = null, closestTickDist = Infinity;
+  if (D.ticks) {
+    D.ticks.forEach(t => {
+      const [sx, sy] = toScreen(t.lat, t.lon);
+      const d = Math.hypot(sx - mx, sy - my);
+      if (d < closestTickDist) { closestTickDist = d; closestTick = t; }
+    });
+  }
+  const hasTick = closestTick && closestTickDist <= NODE_THRESH;
+
+  // Show all matching elements (arcs, edges, nodes, ticks) in the tooltip
   const hasArc = closestArc && closestArcDist <= EDGE_THRESH;
   const hasEdge = closestEdge && closestEdgeDist <= EDGE_THRESH;
   const hasNode = closestNode && nodeScreenDist <= NODE_THRESH;
 
-  if (!hasArc && !hasEdge && !hasNode) { tip.style.display = 'none'; return; }
+  if (!hasArc && !hasEdge && !hasNode && !hasTick) { tip.style.display = 'none'; return; }
 
   tip.textContent = '';
+
+  if (hasTick) {
+    const titleEl = document.createElement('span');
+    titleEl.className = 't-title';
+    titleEl.textContent = 'Tick t=' + closestTick.t;
+    tip.appendChild(titleEl);
+    const lines = [
+      'hdg=' + closestTick.hdg.toFixed(1) + '\u00b0  gs=' + closestTick.gs.toFixed(1) + 'kt',
+      'phase=' + closestTick.phase + (closestTick.twy ? '  twy=' + closestTick.twy : ''),
+    ];
+    if (closestTick.navTarget != null) {
+      lines.push('target=#' + closestTick.navTarget + '  dist=' + ((closestTick.navDist || 0) * 6076).toFixed(0) + 'ft');
+      lines.push('brg=' + (closestTick.navBrg || 0).toFixed(1) + '\u00b0  targetSpd=' + (closestTick.navTargetSpd || 0).toFixed(1) + 'kt');
+      lines.push('brakeLimit=' + (closestTick.navBrakeLimit || 0).toFixed(1) + 'kt  nodeReq=' + (closestTick.navNodeReqSpd || 0).toFixed(1) + 'kt');
+      if (closestTick.navOnArc) lines.push('ON ARC  arcLimit=' + (closestTick.navArcLimit || 0).toFixed(1) + 'kt');
+    }
+    lines.forEach(l => {
+      const el = document.createElement('span');
+      el.className = 't-edge';
+      el.textContent = l;
+      tip.appendChild(el);
+    });
+  }
 
   if (hasArc) {
     const titleEl = document.createElement('span');
@@ -454,7 +488,7 @@ function updateTooltip(mx, my) {
     }
   }
 
-  if (hasArc || hasEdge) {
+  if (hasArc || hasEdge || hasTick) {
     showTip(mx, my);
     if (!hasNode) return;
   }
