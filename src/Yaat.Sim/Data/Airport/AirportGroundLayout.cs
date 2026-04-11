@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -495,6 +496,8 @@ public sealed class GroundRunway
 
 public sealed class AirportGroundLayout
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("AirportGroundLayout");
+
     public required string AirportId { get; init; }
 
     public Dictionary<int, GroundNode> Nodes { get; init; } = [];
@@ -741,10 +744,25 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            Log.LogDebug(
+                "[ExitCL] Checking centerline node #{Id} at ({Lat:F6}, {Lon:F6}), pref={PrefTwy}/{PrefSide}",
+                current.Id,
+                current.Latitude,
+                current.Longitude,
+                preference?.Taxiway ?? "any",
+                preference?.Side?.ToString() ?? "any"
+            );
             var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference, excludeHoldShortNodes);
             if (result is not null)
             {
                 double? exitAngle = ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
+                Log.LogDebug(
+                    "[ExitCL] Found exit: twy={Twy} HS=#{HsId} angle={Angle:F0}° path=[{Path}]",
+                    result.Value.Taxiway,
+                    result.Value.Node.Id,
+                    exitAngle,
+                    string.Join("→", result.Value.Path.Select(n => n.Id))
+                );
                 return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle ?? 90);
             }
 
@@ -800,6 +818,14 @@ public sealed class AirportGroundLayout
             }
         }
 
+        Log.LogDebug(
+            "[ExitBFS] Cluster from #{CL}: [{Nodes}] pref={PrefTwy}/{PrefSide}",
+            centerlineNode.Id,
+            string.Join(",", clusterNodes.Select(n => n.Id)),
+            preference?.Taxiway ?? "any",
+            preference?.Side?.ToString() ?? "any"
+        );
+
         var queue = new Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)>();
 
         foreach (var clusterNode in clusterNodes)
@@ -813,52 +839,90 @@ public sealed class AirportGroundLayout
 
                 var neighbor = edge.OtherNode(clusterNode);
 
-                if (!visited.Add(neighbor.Id))
+                if (visited.Contains(neighbor.Id))
                 {
+                    Log.LogDebug("[ExitBFS]   skip #{From}→#{To} via {Twy}: already visited", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
                     continue;
                 }
 
                 // Skip arcs whose departure tangent faces away from the runway heading.
-                // Threshold fillets create arcs for both runway directions — an arc designed
-                // for 10L traffic curves backward for a 28R aircraft. Use 95° (not 90°)
-                // to avoid rejecting perpendicular exits (like OAK W1-W7 at 90° to RWY 30)
-                // whose arc tangent lands right at the boundary due to curve geometry.
+                // Do NOT mark the neighbor as visited here — a rejected arc's endpoint
+                // may be reachable via a different (non-arc) edge from another cluster node.
                 if (edge is GroundArc arc)
                 {
                     double departureBearing = arc.TangentBearingAt(clusterNode, clusterNode, neighbor);
                     double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
                     if (bearingDiff > 95)
                     {
+                        Log.LogDebug(
+                            "[ExitBFS]   skip arc #{From}→#{To} via {Twy}: departure {Dep:F1}° diff={Diff:F1}° > 95°",
+                            clusterNode.Id,
+                            neighbor.Id,
+                            edge.TaxiwayName,
+                            departureBearing,
+                            bearingDiff
+                        );
                         continue;
                     }
+
+                    Log.LogDebug(
+                        "[ExitBFS]   seed arc #{From}→#{To} via {Twy}: departure {Dep:F1}° diff={Diff:F1}°",
+                        clusterNode.Id,
+                        neighbor.Id,
+                        edge.TaxiwayName,
+                        departureBearing,
+                        bearingDiff
+                    );
+                }
+                else
+                {
+                    Log.LogDebug("[ExitBFS]   seed edge #{From}→#{To} via {Twy}", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
                 }
 
                 if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
                 {
+                    Log.LogDebug(
+                        "[ExitBFS]   skip #{From}→#{To}: taxiway {Twy} doesn't match pref {Pref}",
+                        clusterNode.Id,
+                        neighbor.Id,
+                        edge.TaxiwayName,
+                        prefTwy
+                    );
                     continue;
                 }
 
                 // For junction arcs (e.g. ["G", "RWY28R/10L"]), use the non-runway name
                 // so the BFS can match subsequent single-name taxiway edges.
                 string branchName = edge is GroundArc { IsRunwayJunction: true } ja ? ja.FirstNonRunwayName() : edge.TaxiwayName;
-                queue.Enqueue((neighbor, branchName, [centerlineNode, neighbor], edge.DistanceNm, 1));
+                visited.Add(neighbor.Id);
+                queue.Enqueue((neighbor, branchName, [clusterNode, neighbor], edge.DistanceNm, 1));
             }
         }
 
         while (queue.Count > 0)
         {
             var (current, branchTwy, path, totalDist, depth) = queue.Dequeue();
+            Log.LogDebug(
+                "[ExitBFS] dequeue #{Id} twy={Twy} depth={Depth} dist={Dist:F4} type={Type}",
+                current.Id,
+                branchTwy,
+                depth,
+                totalDist,
+                current.Type
+            );
 
             if (current.Type == GroundNodeType.RunwayHoldShort)
             {
                 if (runwayDesignator is not null && current.RunwayId is { } rwyId && !rwyId.Contains(runwayDesignator))
                 {
+                    Log.LogDebug("[ExitBFS] HS #{Id} rwy={Rwy}: skip (wrong runway)", current.Id, rwyId);
                     continue;
                 }
 
                 // Skip hold-short nodes already occupied by another aircraft
                 if ((excludeHoldShortNodes is not null) && excludeHoldShortNodes.Contains(current.Id))
                 {
+                    Log.LogDebug("[ExitBFS] HS #{Id}: skip (occupied)", current.Id);
                     continue;
                 }
 
@@ -869,6 +933,14 @@ public sealed class AirportGroundLayout
                     bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
                     if (!isOnRequestedSide)
                     {
+                        Log.LogDebug(
+                            "[ExitBFS] HS #{Id} twy={Twy}: skip (side={ReqSide} but relative={Rel:F1}°, bearing={Brg:F1}°)",
+                            current.Id,
+                            branchTwy,
+                            side,
+                            relative,
+                            bearing
+                        );
                         continue;
                     }
                 }
@@ -898,6 +970,17 @@ public sealed class AirportGroundLayout
                 }
 
                 double score = totalDist + parkingBias + anglePenalty - highSpeedBonus;
+                Log.LogDebug(
+                    "[ExitBFS] HS #{Id} twy={Twy}: score={Score:F4} (dist={Dist:F4} parking={Park:F4} angle={Angle:F1} hsBonus={Hs:F2}) exitAngle={ExAngle}",
+                    current.Id,
+                    branchTwy,
+                    score,
+                    totalDist,
+                    parkingBias,
+                    anglePenalty,
+                    highSpeedBonus,
+                    exitAngle
+                );
                 if (score < bestScore)
                 {
                     bestScore = score;
@@ -922,17 +1005,33 @@ public sealed class AirportGroundLayout
 
                 if (!edge.MatchesTaxiway(branchTwy))
                 {
+                    Log.LogDebug(
+                        "[ExitBFS]   skip walk #{From}→#{To}: twy {Twy} != {Branch}",
+                        current.Id,
+                        edge.OtherNode(current).Id,
+                        edge.TaxiwayName,
+                        branchTwy
+                    );
                     continue;
                 }
 
                 var next = edge.OtherNode(current);
                 if (!visited.Add(next.Id))
                 {
+                    Log.LogDebug("[ExitBFS]   skip walk #{From}→#{To}: already visited", current.Id, next.Id);
                     continue;
                 }
 
                 var nextPath = new List<GroundNode>(path) { next };
                 queue.Enqueue((next, branchTwy, nextPath, totalDist + edge.DistanceNm, depth + 1));
+                Log.LogDebug(
+                    "[ExitBFS]   walk #{From}→#{To} via {Twy} depth={Depth} type={Type}",
+                    current.Id,
+                    next.Id,
+                    branchTwy,
+                    depth + 1,
+                    next.Type
+                );
             }
         }
 

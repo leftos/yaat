@@ -97,6 +97,17 @@ public class OakAllExitsTests(ITestOutputHelper output)
     [InlineData("28R", "C172", 70, 0.5, "E")]
     public void Diagnostic_DumpTickCsv(string runwayId, string aircraftType, double speed, double dist, string? exitTaxiway)
     {
+        DumpTickCsvImpl(runwayId, aircraftType, speed, dist, exitTaxiway);
+    }
+
+    [Fact]
+    public void Diag_OAK28R_ExitE_Isolated() => DumpTickCsvImpl("28R", "C172", 70, 0.5, "E");
+
+    [Fact]
+    public void Diag_OAK28R_ExitP_Isolated() => DumpTickCsvImpl("28R", "C172", 70, 0.5, "P");
+
+    private void DumpTickCsvImpl(string runwayId, string aircraftType, double speed, double dist, string? exitTaxiway)
+    {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
         {
@@ -108,6 +119,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
             .CreateForTest(output)
             .EnableCategory("GroundNavigator", LogLevel.Trace)
             .EnableCategory("RunwayExitPhase", LogLevel.Trace)
+            .EnableCategory("AirportGroundLayout", LogLevel.Debug)
             .InitializeSimLog();
         var engine = new SimulationEngine(groundData);
 
