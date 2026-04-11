@@ -139,14 +139,17 @@ public static class FilletArcGenerator
         // zero-length edges between coincident nodes.
         int nodesMerged = MergeCoincidentNodes(layout);
 
+        int rescued = RescueOrphanedTangentNodes(layout);
+
         layout.RebuildAdjacencyLists();
 
         Log.LogInformation(
-            "Fillet arcs: {FilletedNodes} nodes filleted, {Arcs} arcs created, {Merged} edges merged, {NodesMerged} coincident nodes merged",
+            "Fillet arcs: {FilletedNodes} nodes filleted, {Arcs} arcs created, {Merged} edges merged, {NodesMerged} coincident nodes merged, {Rescued} orphaned tangent nodes rescued",
             filletedCount,
             arcCount,
             mergedCount,
-            nodesMerged
+            nodesMerged,
+            rescued
         );
     }
 
@@ -854,29 +857,63 @@ public static class FilletArcGenerator
             foreach (var (edge, tangentEntries) in edgeTangentNodes)
             {
                 var nearest = tangentEntries.MinBy(t => t.Placement.TangentDistNm);
-                // Always connect to the nearest tangent node. The previous
-                // redirectToChain logic bypassed tangent nodes when the walk passed
-                // through shape-point nodes, but this left tangent nodes disconnected
-                // (issue #12: K/F disconnected subgraph at OAK node 439).
-                var stubTarget = nearest.Node;
-                double stubDist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, stubTarget.Latitude, stubTarget.Longitude);
-                Log.LogDebug(
-                    "[Int#{IntId}] Phase D preserve: {Twy} #{Int}→#{Target} (nearest tangent at {Dist:F0}ft)",
-                    intersection.Id,
-                    edge.TaxiwayName,
-                    intersection.Id,
-                    stubTarget.Id,
-                    nearest.Placement.TangentDistNm * GeoMath.FeetPerNm
-                );
-                layout.Edges.Add(
-                    new GroundEdge
-                    {
-                        Nodes = [intersection, stubTarget],
-                        TaxiwayName = edge.TaxiwayName,
-                        DistanceNm = stubDist,
-                        Origin = $"Fillet:phase-d-preserve@{intersection.Id} {edge.TaxiwayName}",
-                    }
-                );
+                var otherNode = edge.OtherNode(intersection);
+                double firstEdgeFt =
+                    GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude) * GeoMath.FeetPerNm;
+                double tangentFt = nearest.Placement.TangentDistNm * GeoMath.FeetPerNm;
+
+                if (tangentFt <= firstEdgeFt)
+                {
+                    // Tangent fits on the first edge — connect directly to it
+                    double stubDist = GeoMath.DistanceNm(
+                        intersection.Latitude,
+                        intersection.Longitude,
+                        nearest.Node.Latitude,
+                        nearest.Node.Longitude
+                    );
+                    Log.LogDebug(
+                        "[Int#{IntId}] Phase D preserve: {Twy} #{Int}→#{Target} (tangent on first edge at {Dist:F0}ft)",
+                        intersection.Id,
+                        edge.TaxiwayName,
+                        intersection.Id,
+                        nearest.Node.Id,
+                        tangentFt
+                    );
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [intersection, nearest.Node],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = stubDist,
+                            Origin = $"Fillet:phase-d-preserve@{intersection.Id} {edge.TaxiwayName}",
+                        }
+                    );
+                }
+                else
+                {
+                    // Tangent is past shape-point nodes — connect to the first neighbor.
+                    // The shape-point chain provides connectivity to the tangent node.
+                    double neighborDist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude);
+                    Log.LogDebug(
+                        "[Int#{IntId}] Phase D preserve: {Twy} #{Int}→#{Neighbor} (neighbor, tangent=#{Tan} at {Dist:F0}ft past firstEdge={EdgeFt:F0}ft)",
+                        intersection.Id,
+                        edge.TaxiwayName,
+                        intersection.Id,
+                        otherNode.Id,
+                        nearest.Node.Id,
+                        tangentFt,
+                        firstEdgeFt
+                    );
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [intersection, otherNode],
+                            TaxiwayName = edge.TaxiwayName,
+                            DistanceNm = neighborDist,
+                            Origin = $"Fillet:phase-d-preserve@{intersection.Id} {edge.TaxiwayName}",
+                        }
+                    );
+                }
             }
 
             // Also add stubs to collinear merge endpoints that don't have tangent points,
@@ -1097,6 +1134,90 @@ public static class FilletArcGenerator
             arc.MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(arc.Nodes[0].Latitude, 10);
             arc.DistanceNm = bezier.ArcLengthNm(20);
         }
+    }
+
+    /// <summary>
+    /// Post-fillet rescue: find tangent nodes that only have arc edges (no straight
+    /// edges connecting them to the graph) and connect them to the nearest node that
+    /// has straight-edge connectivity. This handles cases where a later intersection's
+    /// Phase D consumed the edge that originally connected the tangent node.
+    /// </summary>
+    private static int RescueOrphanedTangentNodes(AirportGroundLayout layout)
+    {
+        int rescued = 0;
+
+        foreach (var node in layout.Nodes.Values.ToList())
+        {
+            if (node.Origin is null || !node.Origin.StartsWith("Fillet:tangent-node"))
+            {
+                continue;
+            }
+
+            // Check if this tangent node has any straight edges
+            bool hasStrightEdge = layout.Edges.Any(e => (e.Nodes[0].Id == node.Id) || (e.Nodes[1].Id == node.Id));
+            if (hasStrightEdge)
+            {
+                continue;
+            }
+
+            // Check it has at least one arc (otherwise it's a fully orphaned node
+            // that will be cleaned up by the orphan pass)
+            bool hasArc = layout.Arcs.Any(a => (a.Nodes[0].Id == node.Id) || (a.Nodes[1].Id == node.Id));
+            if (!hasArc)
+            {
+                continue;
+            }
+
+            // Find the nearest non-self node by position
+            double bestDist = double.MaxValue;
+            GroundNode? bestNeighbor = null;
+            foreach (var candidate in layout.Nodes.Values)
+            {
+                if (candidate.Id == node.Id)
+                {
+                    continue;
+                }
+
+                double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, candidate.Latitude, candidate.Longitude);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestNeighbor = candidate;
+                }
+            }
+
+            if (bestNeighbor is null)
+            {
+                continue;
+            }
+
+            // Get the taxiway name from the arc
+            string twyName = layout
+                .Arcs.Where(a => (a.Nodes[0].Id == node.Id) || (a.Nodes[1].Id == node.Id))
+                .Select(a => a.TaxiwayNames.FirstOrDefault(n => !n.StartsWith("RWY")) ?? a.TaxiwayName)
+                .First();
+
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [node, bestNeighbor],
+                    TaxiwayName = twyName,
+                    DistanceNm = bestDist,
+                    Origin = $"Fillet:rescue-orphan #{node.Id}↔#{bestNeighbor.Id}",
+                }
+            );
+
+            Log.LogDebug(
+                "Rescued orphaned tangent node #{Id} → #{Neighbor} ({Dist:F0}ft) via {Twy}",
+                node.Id,
+                bestNeighbor.Id,
+                bestDist * GeoMath.FeetPerNm,
+                twyName
+            );
+            rescued++;
+        }
+
+        return rescued;
     }
 
     /// <summary>

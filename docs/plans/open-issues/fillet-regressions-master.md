@@ -102,6 +102,18 @@ The arc 1289→1288 is on "G - RWY28R/10L" but the BFS never reaches 1289 becaus
 3. Key constraint: the exit BFS does more than pathfinding — it also decides *which* exit to take based on the aircraft's position, speed, preference, and exit angle. The pathfinder would only replace the "route from branch node to hold-short" portion, not the exit selection logic.
 4. Simpler alternative: fix `FindAdjacentHoldShort` to recognize that 359→1288 is a fillet-preserved edge that bypasses an arc, and prefer the arc path (359→1289→arc→1288) instead. This could be done by checking if both endpoints of a straight edge are tangent nodes with an arc between them.
 
+### 19. Preserve stubs cut straight across curved taxiways (MEDIUM)
+
+At OAK node 16 (W/W1/W2 intersection), the preserve stubs `16→678` (W1, 150ft) and `16→48` (W2, 138ft) are straight edges that cut across curved taxiway geometry. W1 curves through shape-point nodes 29→30→31→32→33, but the preserve edge goes straight from 16 to tangent node 678 (which sits between 32 and 33), bypassing the curve entirely.
+
+**Cause:** The W1/W2 pair has a 170.8° turn (near-U-turn), producing a 150ft tangent distance (hitting the absolute cap). The preserve edge connects the intersection to the tangent node via a straight line, ignoring the intermediate shape-point nodes that define the taxiway curve.
+
+**Expected behavior:** Node 16 should connect to node 29 (first node on W1) and node 43 (first node on W2) — the natural graph neighbors. The tangent node should be reached by walking the existing shape-point chain, not via a straight shortcut.
+
+**Status (partial fix):** Preserve stubs now connect to the first neighbor when the tangent is past shape-points. A post-fillet rescue pass (`RescueOrphanedTangentNodes`) reconnects tangent nodes left orphaned when a later intersection's Phase D consumed their connecting edge.
+
+**Remaining:** Duplicate collinear edges at preserved intersections. E.g., OAK node 16 has both `16→17` (preserve from Int#16) and `16→683` (shorten from Int#17) on taxiway W, same direction. The preserve edge is redundant — the shorten edge + tangent chain provides the same connectivity. Fix: skip preserve edge creation when a shorten edge from another intersection already covers that direction.
+
 ### ~~17. Fixed bezier lookahead fraction in ComputeArcSteering~~ — **FIXED**
 
 Replaced `t + 0.15` parameter-based lookahead with distance-based `AdvanceByDistance(bezier, t, 40ft)`. Walks along the curve accumulating arc length to find the lookahead parameter. Dramatically improved exit J (145° turn): 182ft → 85ft max deviation.
@@ -115,6 +127,7 @@ Replaced `t + 0.15` parameter-based lookahead with distance-based `AdvanceByDist
 3. ~~**Issue #17** — Distance-based arc lookahead~~ ✓ DONE
 4. ~~**Issue #16** — Pre-turning or delete dead field~~ ✓ DONE
 5. **Issue #18** — Exit BFS skips fillet arcs / consider pathfinder for exits
+6. **Issue #19** — Preserve stubs cut straight across curved taxiways
 6. **Issue #4** — Merge recomputation (tangent-misaligned warnings)
 7. **Issues #9, #12** — Graph connectivity bugs
 8. **Issue #6** — Performance
