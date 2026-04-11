@@ -407,7 +407,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // Explicit path: taxiway A from node 0
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: 0, taxiwayNames: ["A"], out _);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: 0, taxiwayNames: ["A"], out _, new ExplicitPathOptions());
 
         Assert.NotNull(route);
         Assert.True(route.Segments.Count > 0);
@@ -533,7 +533,13 @@ public class TaxiPathfinderTests
         hs.Edges.Add(edgeW1);
         layout.RebuildAdjacencyLists();
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30");
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            0,
+            ["A", "W"],
+            out string? failReason,
+            new ExplicitPathOptions { DestinationRunway = "30" }
+        );
 
         Assert.NotNull(route);
         Assert.Null(failReason);
@@ -570,7 +576,13 @@ public class TaxiPathfinderTests
             )
         );
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30", airportId: "KTEST");
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            0,
+            ["A", "W"],
+            out string? failReason,
+            new ExplicitPathOptions { DestinationRunway = "30", AirportId = "KTEST" }
+        );
 
         Assert.NotNull(route);
         Assert.Null(failReason);
@@ -586,7 +598,13 @@ public class TaxiPathfinderTests
         var layout = BuildVariantLayout();
 
         // Explicitly specify W1 — route should walk W then W1 normally
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W", "W1"], out string? failReason, destinationRunway: "30");
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            0,
+            ["A", "W", "W1"],
+            out string? failReason,
+            new ExplicitPathOptions { DestinationRunway = "30" }
+        );
 
         Assert.NotNull(route);
         Assert.Null(failReason);
@@ -600,7 +618,7 @@ public class TaxiPathfinderTests
         var layout = BuildVariantLayout();
 
         // No destination runway — walk A then W to the end of W
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, new ExplicitPathOptions());
 
         Assert.NotNull(route);
         Assert.Null(failReason);
@@ -613,7 +631,13 @@ public class TaxiPathfinderTests
     {
         var layout = BuildAmbiguousLayout();
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30");
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            0,
+            ["A", "W"],
+            out string? failReason,
+            new ExplicitPathOptions { DestinationRunway = "30" }
+        );
 
         Assert.Null(route);
         Assert.NotNull(failReason);
@@ -672,7 +696,13 @@ public class TaxiPathfinderTests
         node2.Edges.Add(edgeW);
         layout.RebuildAdjacencyLists();
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30");
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            0,
+            ["A", "W"],
+            out string? failReason,
+            new ExplicitPathOptions { DestinationRunway = "30" }
+        );
 
         Assert.NotNull(route);
         Assert.Null(failReason);
@@ -1081,15 +1111,15 @@ public class TaxiPathfinderTests
         // Try walking from each W3 endpoint
         foreach (var edge in w3Edges)
         {
-            var route1 = TaxiPathfinder.ResolveExplicitPath(layout, edge.Nodes[0].Id, ["W3"], out _);
-            var route2 = TaxiPathfinder.ResolveExplicitPath(layout, edge.Nodes[1].Id, ["W3"], out _);
+            var route1 = TaxiPathfinder.ResolveExplicitPath(layout, edge.Nodes[0].Id, ["W3"], out _, new ExplicitPathOptions());
+            var route2 = TaxiPathfinder.ResolveExplicitPath(layout, edge.Nodes[1].Id, ["W3"], out _, new ExplicitPathOptions());
 
             // At least one direction should work
             if (route1 is not null || route2 is not null)
             {
                 int startId = route1 is not null ? edge.Nodes[0].Id : edge.Nodes[1].Id;
                 // Now try W3 then W
-                var combined = TaxiPathfinder.ResolveExplicitPath(layout, startId, ["W3", "W"], out _);
+                var combined = TaxiPathfinder.ResolveExplicitPath(layout, startId, ["W3", "W"], out _, new ExplicitPathOptions());
                 if (combined is not null)
                 {
                     return; // Success
@@ -1131,7 +1161,13 @@ public class TaxiPathfinderTests
                     continue;
                 }
 
-                route = TaxiPathfinder.ResolveExplicitPath(layout, nodeId, ["W3", "W"], out failReason, destinationRunway: "30");
+                route = TaxiPathfinder.ResolveExplicitPath(
+                    layout,
+                    nodeId,
+                    ["W3", "W"],
+                    out failReason,
+                    new ExplicitPathOptions { DestinationRunway = "30" }
+                );
 
                 if (route is not null)
                 {
@@ -1190,7 +1226,13 @@ public class TaxiPathfinderTests
                     continue;
                 }
 
-                route = TaxiPathfinder.ResolveExplicitPath(layout, nodeId, ["W3", "W", "W1"], out failReason, destinationRunway: "30");
+                route = TaxiPathfinder.ResolveExplicitPath(
+                    layout,
+                    nodeId,
+                    ["W3", "W", "W1"],
+                    out failReason,
+                    new ExplicitPathOptions { DestinationRunway = "30" }
+                );
 
                 if (route is not null)
                 {
@@ -1236,7 +1278,13 @@ public class TaxiPathfinderTests
                     continue;
                 }
 
-                route = TaxiPathfinder.ResolveExplicitPath(layout, nodeId, ["B", "W"], out failReason, destinationRunway: "30");
+                route = TaxiPathfinder.ResolveExplicitPath(
+                    layout,
+                    nodeId,
+                    ["B", "W"],
+                    out failReason,
+                    new ExplicitPathOptions { DestinationRunway = "30" }
+                );
 
                 if (route is not null)
                 {
@@ -1336,7 +1384,7 @@ public class TaxiPathfinderTests
                     continue;
                 }
 
-                var candidate = TaxiPathfinder.ResolveExplicitPath(layout, nodeId, ["D", "F"], out _);
+                var candidate = TaxiPathfinder.ResolveExplicitPath(layout, nodeId, ["D", "F"], out _, new ExplicitPathOptions());
                 if (candidate is not null)
                 {
                     route = candidate;
@@ -1469,7 +1517,13 @@ public class TaxiPathfinderTests
             .OrderBy(n => Math.Abs(n.Latitude - StartLat) + Math.Abs(n.Longitude - StartLon))
             .First();
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, startNode.Id, ["B", "M1"], out string? failReason, destinationRunway: "1L");
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            startNode.Id,
+            ["B", "M1"],
+            out string? failReason,
+            new ExplicitPathOptions { DestinationRunway = "1L" }
+        );
 
         Assert.NotNull(route);
         Assert.Null(failReason);
@@ -1518,7 +1572,7 @@ public class TaxiPathfinderTests
             parkingNode.Id,
             ["Y", "H", "B", "M1"],
             out string? failReasonHs,
-            explicitHoldShorts: ["1L"]
+            new ExplicitPathOptions { ExplicitHoldShorts = ["1L"] }
         );
 
         // With destination runway (trailing runway)
@@ -1527,7 +1581,7 @@ public class TaxiPathfinderTests
             parkingNode.Id,
             ["Y", "H", "B", "M1"],
             out string? failReasonRwy,
-            destinationRunway: "1L"
+            new ExplicitPathOptions { DestinationRunway = "1L" }
         );
 
         Assert.NotNull(routeHs);
@@ -1582,7 +1636,7 @@ public class TaxiPathfinderTests
             fromNodeId: parkingNode.Id,
             taxiwayNames: ["D"],
             out string? failReason,
-            explicitHoldShorts: ["D"]
+            new ExplicitPathOptions { ExplicitHoldShorts = ["D"] }
         );
 
         Assert.NotNull(route);
@@ -1621,7 +1675,13 @@ public class TaxiPathfinderTests
         Assert.NotNull(parkingNode);
 
         // TAXI D HS D — route should extend along D past the hold-short
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: parkingNode.Id, taxiwayNames: ["D"], out _, explicitHoldShorts: ["D"]);
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            fromNodeId: parkingNode.Id,
+            taxiwayNames: ["D"],
+            out _,
+            new ExplicitPathOptions { ExplicitHoldShorts = ["D"] }
+        );
 
         Assert.NotNull(route);
 
@@ -1648,7 +1708,13 @@ public class TaxiPathfinderTests
         var parkingNode = layout.Nodes.Values.FirstOrDefault(n => n.Type == GroundNodeType.Parking && n.Name == "NEW7");
         Assert.NotNull(parkingNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: parkingNode.Id, taxiwayNames: ["D"], out _, explicitHoldShorts: ["D"]);
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            fromNodeId: parkingNode.Id,
+            taxiwayNames: ["D"],
+            out _,
+            new ExplicitPathOptions { ExplicitHoldShorts = ["D"] }
+        );
 
         Assert.NotNull(route);
 
@@ -1782,7 +1848,7 @@ public class TaxiPathfinderTests
             w5OnlyNodeId.Value,
             ["W", "V", "T", "TE"],
             out string? failReason,
-            destinationRunway: "26"
+            new ExplicitPathOptions { DestinationRunway = "26" }
         );
 
         Assert.NotNull(route);
@@ -1860,7 +1926,7 @@ public class TaxiPathfinderTests
         // D→B with C omitted should fail: only runway centerline edges are
         // allowed for implicit bridging, and there's no runway between D and B.
         // The user must specify TAXI D C B.
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, dOnlyNodeId.Value, ["D", "B"], out _);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, dOnlyNodeId.Value, ["D", "B"], out _, new ExplicitPathOptions());
 
         Assert.Null(route);
     }
@@ -1902,7 +1968,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // From node 0, A* to node 3 (should find path through A taxiway)
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#3"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#3"], out string? failReason, new ExplicitPathOptions());
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -1917,7 +1983,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // A* from node 0 → node 1, then node 1 → node 4
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#1", "#4"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#1", "#4"], out string? failReason, new ExplicitPathOptions());
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -1932,7 +1998,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // Walk A taxiway, then A* to node 4
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "#4"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "#4"], out string? failReason, new ExplicitPathOptions());
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -1944,7 +2010,7 @@ public class TaxiPathfinderTests
     {
         var layout = BuildSimpleLayout();
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#99999"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#99999"], out string? failReason, new ExplicitPathOptions());
 
         Assert.Null(route);
         Assert.NotNull(failReason);
@@ -1957,7 +2023,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // A* from node 0 to node 0 should be a no-op, then walk to node 3
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#0", "#3"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#0", "#3"], out string? failReason, new ExplicitPathOptions());
 
         Assert.Null(failReason);
         Assert.NotNull(route);

@@ -150,6 +150,12 @@ When invoking aviation-sim-expert, always include:
 | `game-developer` | Sim loop design, tick-based updates |
 | `documentation-engineer` | USER_GUIDE.md, scenario format, command reference |
 
+## Problem Solving
+
+- **Revert broken fixes immediately**: When a fix attempt breaks tests or makes things worse, revert and try a different approach. Never iterate on a broken approach more than twice without stepping back to reassess.
+- **Verify before implementing**: Before implementing a fix, verify the approach against actual code and official docs. Never rely on unverified claims from sub-agents or assumptions about schemas/APIs. When in doubt, read the source.
+- **Follow plans sequentially**: When the user provides a plan or ordered list of tasks, follow it top-down sequentially. Do not skip items, reorder, or take shortcuts through the list.
+
 ## Rules
 
 ### Testing
@@ -161,6 +167,7 @@ When invoking aviation-sim-expert, always include:
 - **Test timeouts**: Always run test suites with `timeout 30` (e.g., `timeout 30 dotnet test ...`) to catch soft hangs from broken graph topology or infinite pathfinder loops. A test suite that hasn't finished in 30s is stuck, not slow.
 
 ### Code Style
+- **Robust over expedient**: Always choose the most robust solution, not the simplest shortcut. When multiple approaches exist, prefer correctness and maintainability over expedience.
 - **Line width**: 150 chars (CSharpier configured accordingly)
 - **Boolean expressions**: Parenthesize to disambiguate — `(a.X) || (b.Y >= c + d)` not `a.X || b.Y >= c + d`
 - **No newlines in text strings**: Never split `Text="..."`, `Content="..."`, or interpolated strings across lines in `.axaml`/`.cs` — indentation whitespace shows at runtime.
@@ -175,6 +182,8 @@ When invoking aviation-sim-expert, always include:
 - Yaat.Sim static classes: `private static readonly ILogger Log = SimLog.CreateLogger("ClassName");` — never optional.
 
 ### Build & Format
+- **Tee all output**: Always pipe `dotnet build`/`dotnet test`/`dotnet run` output through `tee` to `.tmp/` so results can be reviewed without re-running. Use a generic name (e.g. `.tmp/build.log`) unless you need to compare multiple runs, then use a unique name.
+- **Build after edits, test after fixes**: Run `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` after edits and `timeout 30 dotnet test 2>&1 | tee .tmp/test.log` after fixes. Ensure zero warnings and all tests pass before committing.
 - **Warnings are errors**: Build with `dotnet build -p:TreatWarningsAsErrors=true` before committing.
 - **No `-q` flag**: Never pass `-q` to any dotnet command — causes spurious errors.
 - **Pre-commit**: Automated via `prek` (`prek.toml`). Runs: trailing-whitespace fix, EOF newline fix, merge conflict check, private key detection, large file check, `dotnet format style`, `dotnet format analyzers`, `dotnet csharpier format .`, `dotnet build -p:TreatWarningsAsErrors=true`. Run `prek run` manually to check; hooks fire automatically on `git commit`. Do NOT run bare `dotnet format`. Do NOT pass `-v q`, `--nologo`, or extra flags to `dotnet format`.

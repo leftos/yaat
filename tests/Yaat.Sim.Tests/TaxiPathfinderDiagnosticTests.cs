@@ -59,8 +59,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
                 startNode.Id,
                 ["B", "M1"],
                 out string? failReason,
-                destinationRunway: "1L",
-                diagnosticLog: msg => log.Add(msg)
+                new ExplicitPathOptions { DestinationRunway = "1L", DiagnosticLog = msg => log.Add(msg) }
             );
 
             foreach (var line in log)
@@ -139,8 +138,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
                 startId,
                 ["W3", "W"],
                 out string? failReason,
-                destinationRunway: "30",
-                diagnosticLog: msg => log.Add(msg)
+                new ExplicitPathOptions { DestinationRunway = "30", DiagnosticLog = msg => log.Add(msg) }
             );
 
             foreach (var line in log)
@@ -238,8 +236,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
             startId,
             ["M1"],
             out string? failReason,
-            destinationRunway: "1L",
-            diagnosticLog: msg => log.Add(msg)
+            new ExplicitPathOptions { DestinationRunway = "1L", DiagnosticLog = msg => log.Add(msg) }
         );
 
         foreach (var line in log)
@@ -272,9 +269,12 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
             954,
             ["Y", "H", "B", "M1"],
             out failReason,
-            explicitHoldShorts: ["1L"],
-            destinationRunway: "1L",
-            diagnosticLog: msg => log.Add(msg)
+            new ExplicitPathOptions
+            {
+                ExplicitHoldShorts = ["1L"],
+                DestinationRunway = "1L",
+                DiagnosticLog = msg => log.Add(msg),
+            }
         );
 
         foreach (var line in log)
@@ -329,7 +329,13 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
         output.WriteLine("");
 
         var log = new List<string>();
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, startNode.Id, ["D", "C"], out string? failReason, diagnosticLog: msg => log.Add(msg));
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            startNode.Id,
+            ["D", "C"],
+            out string? failReason,
+            new ExplicitPathOptions { DiagnosticLog = msg => log.Add(msg) }
+        );
 
         foreach (var line in log)
         {

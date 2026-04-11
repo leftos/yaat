@@ -248,9 +248,12 @@ internal static class GroundCommandHandler
             startNode.Id,
             taxi.Path,
             out failReason,
-            taxi.HoldShorts,
-            taxi.DestinationRunway,
-            groundLayout.AirportId
+            new ExplicitPathOptions
+            {
+                ExplicitHoldShorts = taxi.HoldShorts,
+                DestinationRunway = taxi.DestinationRunway,
+                AirportId = groundLayout.AirportId,
+            }
         );
     }
 
@@ -339,10 +342,13 @@ internal static class GroundCommandHandler
             startNode.Id,
             taxi.Path,
             out failReason,
-            taxi.HoldShorts,
-            taxi.DestinationRunway,
-            groundLayout.AirportId,
-            destinationHintNode: destNode
+            new ExplicitPathOptions
+            {
+                ExplicitHoldShorts = taxi.HoldShorts,
+                DestinationRunway = taxi.DestinationRunway,
+                AirportId = groundLayout.AirportId,
+                DestinationHintNode = destNode,
+            }
         );
 
         if (explicitRoute is null)

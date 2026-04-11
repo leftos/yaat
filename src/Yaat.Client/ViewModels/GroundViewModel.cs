@@ -1126,7 +1126,7 @@ public partial class GroundViewModel : ObservableObject
             }
         }
 
-        return TaxiPathfinder.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _);
+        return TaxiPathfinder.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _, new ExplicitPathOptions());
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

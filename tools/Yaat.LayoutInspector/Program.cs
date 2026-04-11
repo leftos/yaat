@@ -194,7 +194,13 @@ public static class Program
         string? pfFailReason = null;
         if ((pfNodeId is not null) && (pfTaxiways.Count > 0))
         {
-            pfRoute = Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath(analyzer.Layout, pfNodeId.Value, pfTaxiways, out pfFailReason);
+            pfRoute = Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath(
+                analyzer.Layout,
+                pfNodeId.Value,
+                pfTaxiways,
+                out pfFailReason,
+                new Yaat.Sim.Data.Airport.ExplicitPathOptions()
+            );
         }
 
         if (svgOutput is not null)
@@ -321,7 +327,7 @@ public static class Program
                 pfNodeId.Value,
                 pfTaxiways,
                 out string? _,
-                diagnosticLog: msg => diagLog.Add(msg)
+                new Yaat.Sim.Data.Airport.ExplicitPathOptions { DiagnosticLog = msg => diagLog.Add(msg) }
             );
 
             var pfResult = new PathfinderResult(

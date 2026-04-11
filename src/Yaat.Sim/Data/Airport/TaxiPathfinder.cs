@@ -19,6 +19,18 @@ public enum RoutePreference
 }
 
 /// <summary>
+/// Optional routing hints and diagnostics for <see cref="TaxiPathfinder.ResolveExplicitPath"/>.
+/// </summary>
+public sealed class ExplicitPathOptions
+{
+    public List<string>? ExplicitHoldShorts { get; init; }
+    public string? DestinationRunway { get; init; }
+    public string? AirportId { get; init; }
+    public GroundNode? DestinationHintNode { get; init; }
+    public Action<string>? DiagnosticLog { get; init; }
+}
+
+/// <summary>
 /// Pathfinding on the airport ground layout graph.
 /// Supports explicit path validation (user specifies taxiways) and A* auto-routing.
 /// </summary>
@@ -74,13 +86,14 @@ public static class TaxiPathfinder
         int fromNodeId,
         List<string> taxiwayNames,
         out string? failReason,
-        List<string>? explicitHoldShorts = null,
-        string? destinationRunway = null,
-        string? airportId = null,
-        GroundNode? destinationHintNode = null,
-        Action<string>? diagnosticLog = null
+        ExplicitPathOptions options
     )
     {
+        var explicitHoldShorts = options.ExplicitHoldShorts;
+        var destinationRunway = options.DestinationRunway;
+        var airportId = options.AirportId;
+        var destinationHintNode = options.DestinationHintNode;
+        var diagnosticLog = options.DiagnosticLog;
         failReason = null;
 
         if (taxiwayNames.Count == 0)

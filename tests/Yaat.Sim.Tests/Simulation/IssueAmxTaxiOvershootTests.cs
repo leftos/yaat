@@ -137,9 +137,12 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
             fromNodeId,
             ["B", "M1"],
             out string? failReason,
-            destinationRunway: "1L",
-            airportId: "SFO",
-            diagnosticLog: msg => output.WriteLine(msg)
+            new ExplicitPathOptions
+            {
+                DestinationRunway = "1L",
+                AirportId = "SFO",
+                DiagnosticLog = msg => output.WriteLine(msg),
+            }
         );
 
         Assert.NotNull(route);
