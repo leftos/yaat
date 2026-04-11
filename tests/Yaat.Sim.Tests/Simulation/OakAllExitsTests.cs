@@ -221,10 +221,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
     {
         Assert.NotNull(result.FinalTaxiway);
 
-        // Exits with >120° turns (near-U-turns like J) have higher deviation
-        // because the navigator's speed scaling and arc lookahead aren't tuned
-        // for extreme angles yet. See issues #15 and #17.
-        double maxAllowedFt = result.TotalHeadingChange > 120.0 ? 200.0 : 100.0;
+        double maxAllowedFt = result.TotalHeadingChange > 120.0 ? 50.0 : 35.0;
 
         Assert.True(
             result.MaxDeviationFt < maxAllowedFt,
