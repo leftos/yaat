@@ -23,12 +23,14 @@ public static class Program
 
         string? airportCode = null;
         string? navdataDir = null;
-        string? taxiway = null;
-        string? runway = null;
-        int? nodeId = null;
-        string? exitsRunway = null;
+        var taxiways = new List<string>();
+        var runways = new List<string>();
+        var nodeIds = new List<int>();
+        var exitsRunways = new List<string>();
         int? pathNodeId = null;
         string? pathTaxiway = null;
+        int? pfNodeId = null;
+        var pfTaxiways = new List<string>();
         bool showParking = false;
         bool showSpots = false;
         bool validate = false;
@@ -56,18 +58,18 @@ public static class Program
                     navdataDir = args[++i];
                     break;
                 case "--taxiway" when i + 1 < args.Length:
-                    taxiway = args[++i].ToUpperInvariant();
+                    taxiways.Add(args[++i].ToUpperInvariant());
                     break;
                 case "--runway" when i + 1 < args.Length:
-                    runway = args[++i].ToUpperInvariant();
+                    runways.Add(args[++i].ToUpperInvariant());
                     break;
                 case "--node" when i + 1 < args.Length:
-                    nodeId = int.Parse(args[++i]);
+                    nodeIds.Add(int.Parse(args[++i]));
                     break;
                 case "--exits" when i + 1 < args.Length:
-                    exitsRunway = args[++i].ToUpperInvariant();
+                    exitsRunways.Add(args[++i].ToUpperInvariant());
                     break;
-                case "--path" when i + 2 < args.Length:
+                case "--bfs" when i + 2 < args.Length:
                     pathNodeId = int.Parse(args[++i]);
                     pathTaxiway = args[++i].ToUpperInvariant();
                     break;
@@ -121,6 +123,14 @@ public static class Program
 
                     break;
                 }
+                case "--pathfinder" when i + 2 < args.Length:
+                    pfNodeId = int.Parse(args[++i]);
+                    while (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+                    {
+                        pfTaxiways.Add(args[++i].ToUpperInvariant());
+                    }
+
+                    break;
                 default:
                     Console.Error.WriteLine($"Unknown flag: {args[i]}");
                     PrintUsage();
@@ -157,18 +167,30 @@ public static class Program
             return 1;
         }
 
-        // Always run validation and print warnings to stderr
-        var validator = new LayoutValidator(analyzer.Layout);
-        var warnings = validator.Validate();
-        if (warnings.Count > 0)
+        // Run validation only when explicitly requested via --validate
+        List<ValidationWarning> warnings = [];
+        if (validate)
         {
-            Console.Error.WriteLine($"VALIDATION: {warnings.Count} warning(s):");
-            foreach (var w in warnings)
+            var validator = new LayoutValidator(analyzer.Layout);
+            warnings = validator.Validate();
+            if (warnings.Count > 0)
             {
-                Console.Error.WriteLine($"  [{w.Code}] {w.Message}{(w.Origin is not null ? $" (origin: {w.Origin})" : "")}");
-            }
+                Console.Error.WriteLine($"VALIDATION: {warnings.Count} warning(s):");
+                foreach (var w in warnings)
+                {
+                    Console.Error.WriteLine($"  [{w.Code}] {w.Message}{(w.Origin is not null ? $" (origin: {w.Origin})" : "")}");
+                }
 
-            Console.Error.WriteLine();
+                Console.Error.WriteLine();
+            }
+        }
+
+        // Resolve pathfinder route early so it can be used for HTML rendering
+        Yaat.Sim.Data.Airport.TaxiRoute? pfRoute = null;
+        string? pfFailReason = null;
+        if ((pfNodeId is not null) && (pfTaxiways.Count > 0))
+        {
+            pfRoute = Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath(analyzer.Layout, pfNodeId.Value, pfTaxiways, out pfFailReason);
         }
 
         if (svgOutput is not null)
@@ -199,6 +221,21 @@ public static class Program
                 htmlRenderer.AddRouteNode(nid);
             }
 
+            if (pfRoute is not null)
+            {
+                var routeNodeIds = new HashSet<int>();
+                foreach (var seg in pfRoute.Segments)
+                {
+                    routeNodeIds.Add(seg.FromNodeId);
+                    routeNodeIds.Add(seg.ToNodeId);
+                }
+
+                foreach (int nid in routeNodeIds)
+                {
+                    htmlRenderer.AddRouteNode(nid);
+                }
+            }
+
             string html = htmlRenderer.Render();
             File.WriteAllText(svgOutput, html);
             Console.Error.WriteLine($"Wrote interactive HTML to {svgOutput}");
@@ -216,11 +253,12 @@ public static class Program
         IFormatter formatter = jsonOutput ? new JsonFormatter(Console.Out) : new TextFormatter(Console.Out);
 
         bool anyFilter =
-            (taxiway is not null)
-            || (runway is not null)
-            || (nodeId is not null)
-            || (exitsRunway is not null)
+            (taxiways.Count > 0)
+            || (runways.Count > 0)
+            || (nodeIds.Count > 0)
+            || (exitsRunways.Count > 0)
             || (pathNodeId is not null)
+            || (pfNodeId is not null)
             || showParking
             || showSpots
             || validate
@@ -231,19 +269,19 @@ public static class Program
             formatter.WriteOverview(analyzer.GetOverview());
         }
 
-        if (taxiway is not null)
+        foreach (string taxiway in taxiways)
         {
             formatter.WriteTaxiway(analyzer.GetTaxiwayDetail(taxiway));
         }
 
-        if (runway is not null)
+        foreach (string runway in runways)
         {
             formatter.WriteRunway(analyzer.GetRunwayDetail(runway));
         }
 
-        if (nodeId is not null)
+        foreach (int nodeId in nodeIds)
         {
-            var node = analyzer.GetNodeDetail(nodeId.Value);
+            var node = analyzer.GetNodeDetail(nodeId);
             if (node is null)
             {
                 Console.Error.WriteLine($"Node {nodeId} not found");
@@ -253,7 +291,7 @@ public static class Program
             formatter.WriteNode(node);
         }
 
-        if (exitsRunway is not null)
+        foreach (string exitsRunway in exitsRunways)
         {
             formatter.WriteExits(analyzer.GetExits(exitsRunway));
         }
@@ -261,6 +299,35 @@ public static class Program
         if ((pathNodeId is not null) && (pathTaxiway is not null))
         {
             formatter.WriteBfsPath(analyzer.GetBfsPath(pathNodeId.Value, pathTaxiway));
+        }
+
+        if ((pfNodeId is not null) && (pfTaxiways.Count > 0))
+        {
+            Console.Out.WriteLine($"Pathfinder: from node {pfNodeId.Value}, taxiways [{string.Join(" ", pfTaxiways)}]");
+            Console.Out.WriteLine();
+
+            // Re-resolve with diagnostic logging for text output
+            Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath(
+                analyzer.Layout,
+                pfNodeId.Value,
+                pfTaxiways,
+                out string? _,
+                diagnosticLog: msg => Console.Out.WriteLine(msg)
+            );
+
+            Console.Out.WriteLine();
+            if (pfRoute is null)
+            {
+                Console.Out.WriteLine($"RESULT: no route (reason: {pfFailReason ?? "null"})");
+            }
+            else
+            {
+                Console.Out.WriteLine($"RESULT: {pfRoute.Segments.Count} segments");
+                foreach (var seg in pfRoute.Segments)
+                {
+                    Console.Out.WriteLine($"  {seg.TaxiwayName}: {seg.FromNodeId} -> {seg.ToNodeId}");
+                }
+            }
         }
 
         if (showParking)
@@ -335,9 +402,10 @@ public static class Program
         Console.WriteLine("Flags:");
         Console.WriteLine("  --taxiway <name>         Show nodes/edges for a taxiway");
         Console.WriteLine("  --runway <designator>    Show centerline/hold-shorts for a runway");
-        Console.WriteLine("  --node <id>              Show detail for a single node");
-        Console.WriteLine("  --exits <designator>     Show all exits for a runway (BFS)");
-        Console.WriteLine("  --path <node-id> <twy>   BFS trace from node through taxiway to hold-short");
+        Console.WriteLine("  --node <id>              Show detail for a single node (repeatable)");
+        Console.WriteLine("  --exits <designator>     Show all exits for a runway (BFS, repeatable)");
+        Console.WriteLine("  --bfs <node-id> <twy>    BFS trace from node through taxiway to hold-short");
+        Console.WriteLine("  --pathfinder <node-id> <twy1> [twy2 ...]  Resolve taxi route with diagnostic trace");
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
         Console.WriteLine("  --intersection <T1> <T2> Show nodes where two taxiways meet");
