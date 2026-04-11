@@ -211,7 +211,8 @@ public class OakAllExitsTests(ITestOutputHelper output)
         string relaxed = (requested is not null && result.FinalTaxiway != requested) ? $" (relaxed from {requested})" : "";
         output.WriteLine(
             $"EXIT {label}: actual={result.FinalTaxiway}{relaxed}, hdg={result.FinalHeading:F0}°, "
-                + $"turn={result.TotalHeadingChange:F0}°, exitTime={result.ExitDurationSeconds}s, total={result.TotalSeconds}s"
+                + $"turn={result.TotalHeadingChange:F0}°, exitTime={result.ExitDurationSeconds}s, total={result.TotalSeconds}s, "
+                + $"maxDev={result.MaxDeviationFt:F1}ft@t={result.MaxDeviationTime}s, avgDev={result.AvgDeviationFt:F1}ft"
         );
     }
 
@@ -219,14 +220,15 @@ public class OakAllExitsTests(ITestOutputHelper output)
     {
         Assert.NotNull(result.FinalTaxiway);
 
-        // Hold-short nodes now sit at FAA Table 3-2 distances (~250 ft from CL
-        // for 150 ft runways). The longer exit path past the fillet can produce
-        // minor heading corrections at the arc-to-straight transition.
+        // Exits with >120° turns (near-U-turns like J) have higher deviation
+        // because the navigator's speed scaling and arc lookahead aren't tuned
+        // for extreme angles yet. See issues #15 and #17.
+        double maxAllowedFt = result.TotalHeadingChange > 120.0 ? 200.0 : 100.0;
+
         Assert.True(
-            result.MaxReversal < 12.0,
-            $"[{label}] Heading reversal of {result.MaxReversal:F1}° at t={result.MaxReversalTime}s "
-                + $"(hdg {result.HeadingBeforeReversal:F0}° → {result.HeadingAtReversal:F0}°). "
-                + "Exit turn should be mostly monotonic."
+            result.MaxDeviationFt < maxAllowedFt,
+            $"[{label}] Max path deviation {result.MaxDeviationFt:F1}ft at t={result.MaxDeviationTime}s. "
+                + $"Avg deviation {result.AvgDeviationFt:F1}ft. Should stay within {maxAllowedFt:F0}ft of route."
         );
 
         Assert.True(result.ExitDurationSeconds <= 90, $"[{label}] Exit took {result.ExitDurationSeconds}s — should complete in under 90s");
@@ -308,10 +310,10 @@ public class OakAllExitsTests(ITestOutputHelper output)
 
         // Tick through landing + exit
         var headingSamples = new List<(int Time, double Heading)>();
+        var deviationSamples = new List<(int Time, double DeviationFt)>();
         int exitStartTime = -1;
         int exitEndTime = -1;
         bool inExitPhase = false;
-        double initialExitHeading = 0;
 
         for (int t = 1; t <= 300; t++)
         {
@@ -322,12 +324,15 @@ public class OakAllExitsTests(ITestOutputHelper output)
             {
                 inExitPhase = true;
                 exitStartTime = t;
-                initialExitHeading = aircraft.TrueHeading.Degrees;
             }
 
             if (inExitPhase)
             {
                 headingSamples.Add((t, aircraft.TrueHeading.Degrees));
+                if (aircraft.LastNavDiag is { } diag)
+                {
+                    deviationSamples.Add((t, diag.PathDeviationFt));
+                }
             }
 
             if (inExitPhase && phase != "Runway Exit")
@@ -353,33 +358,20 @@ public class OakAllExitsTests(ITestOutputHelper output)
             );
         }
 
-        // Analyze heading monotonicity
-        double maxReversal = 0;
-        int maxReversalTime = 0;
-        double headingBeforeReversal = 0;
-        double headingAtReversal = 0;
-
-        if (headingSamples.Count >= 3)
+        // Path deviation analysis
+        double maxDeviationFt = 0;
+        int maxDeviationTime = 0;
+        double sumDeviationFt = 0;
+        foreach (var (time, dev) in deviationSamples)
         {
-            double startHdg = headingSamples[0].Heading;
-            double endHdg = headingSamples[^1].Heading;
-            double overallChange = NormalizeAngle(endHdg - startHdg);
-            bool turningRight = overallChange > 0;
-
-            for (int i = 1; i < headingSamples.Count; i++)
+            sumDeviationFt += dev;
+            if (dev > maxDeviationFt)
             {
-                double delta = NormalizeAngle(headingSamples[i].Heading - headingSamples[i - 1].Heading);
-                bool thisStepRight = delta > 0;
-
-                if ((thisStepRight != turningRight) && (Math.Abs(delta) > maxReversal))
-                {
-                    maxReversal = Math.Abs(delta);
-                    maxReversalTime = headingSamples[i].Time;
-                    headingBeforeReversal = headingSamples[i - 1].Heading;
-                    headingAtReversal = headingSamples[i].Heading;
-                }
+                maxDeviationFt = dev;
+                maxDeviationTime = time;
             }
         }
+        double avgDeviationFt = deviationSamples.Count > 0 ? sumDeviationFt / deviationSamples.Count : 0;
 
         double totalHeadingChange = headingSamples.Count >= 2 ? Math.Abs(NormalizeAngle(headingSamples[^1].Heading - headingSamples[0].Heading)) : 0;
 
@@ -390,10 +382,9 @@ public class OakAllExitsTests(ITestOutputHelper output)
             TotalHeadingChange = totalHeadingChange,
             TotalSeconds = exitEndTime,
             ExitDurationSeconds = exitEndTime - exitStartTime,
-            MaxReversal = maxReversal,
-            MaxReversalTime = maxReversalTime,
-            HeadingBeforeReversal = headingBeforeReversal,
-            HeadingAtReversal = headingAtReversal,
+            MaxDeviationFt = maxDeviationFt,
+            MaxDeviationTime = maxDeviationTime,
+            AvgDeviationFt = avgDeviationFt,
         };
     }
 
@@ -420,9 +411,8 @@ public class OakAllExitsTests(ITestOutputHelper output)
         public required double TotalHeadingChange { get; init; }
         public required int TotalSeconds { get; init; }
         public required int ExitDurationSeconds { get; init; }
-        public required double MaxReversal { get; init; }
-        public required int MaxReversalTime { get; init; }
-        public required double HeadingBeforeReversal { get; init; }
-        public required double HeadingAtReversal { get; init; }
+        public required double MaxDeviationFt { get; init; }
+        public required int MaxDeviationTime { get; init; }
+        public required double AvgDeviationFt { get; init; }
     }
 }

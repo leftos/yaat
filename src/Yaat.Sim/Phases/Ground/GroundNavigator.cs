@@ -47,6 +47,9 @@ public sealed class GroundNavigator
     /// </summary>
     private (GroundArc Arc, bool FromNodeIsZero)? _currentArc;
 
+    private double _segmentFromLat;
+    private double _segmentFromLon;
+
     /// <summary>
     /// Set up navigation for the current segment of a route. Computes speed
     /// constraints by walking future segments and back-propagating braking limits.
@@ -67,6 +70,8 @@ public sealed class GroundNavigator
         TargetNodeId = seg.ToNodeId;
         TargetLat = targetNode.Latitude;
         TargetLon = targetNode.Longitude;
+        _segmentFromLat = seg.Edge.FromNode.Latitude;
+        _segmentFromLon = seg.Edge.FromNode.Longitude;
         PrevDistToTarget = double.MaxValue;
 
         // Detect arc segments for carrot-on-a-stick path following
@@ -279,12 +284,26 @@ public sealed class GroundNavigator
             bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
         }
 
+        // Pre-turning: when approaching a junction with a known next-segment bearing,
+        // blend the steer target toward the outbound bearing. This starts the turn
+        // before reaching the node, reducing overshoot at junctions.
+        if (_nextSegmentBearing is { } nextBrg && _currentArc is null)
+        {
+            const double preturndDistNm = 0.008; // ~50ft
+            if (dist < preturndDistNm)
+            {
+                double blend = 1.0 - (dist / preturndDistNm);
+                bearing = GeoMath.BlendBearings(bearing, nextBrg, blend);
+            }
+        }
+
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
-        // Speed: scale by heading error, clamp to arc speed limit
+        // Speed: quadratic scaling by heading error — large errors nearly stop the aircraft
         double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
-        double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
+        double normalized = Math.Clamp(angleDiff / 90.0, 0.0, 1.0);
+        double speedFraction = Math.Max(0.03, 1.0 - (normalized * normalized));
         double targetSpeed = Math.Min(MaxSpeedKts * speedFraction, arcSpeedLimit);
 
         // Multi-segment braking
@@ -326,6 +345,8 @@ public sealed class GroundNavigator
             _currentArc is not null
         );
 
+        double deviationFt = ComputePathDeviation(ctx, dist);
+
         var diag = new NavTickDiag(
             TargetNodeId,
             dist,
@@ -335,13 +356,52 @@ public sealed class GroundNavigator
             brakingLimit,
             arcSpeedLimit,
             _currentArc is not null,
-            _currentNodeRequiredSpeed
+            _currentNodeRequiredSpeed,
+            deviationFt
         );
         LastTickDiag = diag;
         ctx.Aircraft.LastNavDiag = diag;
 
         AdjustSpeed(ctx, targetSpeed);
         return NavigatorResult.Navigating;
+    }
+
+    /// <summary>
+    /// Perpendicular distance in feet from the aircraft to the current route segment.
+    /// For arcs: projects onto the bezier curve. For straight edges: point-to-segment.
+    /// </summary>
+    private double ComputePathDeviation(PhaseContext ctx, double distToTargetNm)
+    {
+        double acLat = ctx.Aircraft.Latitude;
+        double acLon = ctx.Aircraft.Longitude;
+
+        if (_currentArc is { } ca)
+        {
+            CubicBezier bezier;
+            if (ca.FromNodeIsZero)
+            {
+                bezier = ca.Arc.ToBezier();
+            }
+            else
+            {
+                bezier = new CubicBezier(
+                    ca.Arc.Nodes[1].Latitude,
+                    ca.Arc.Nodes[1].Longitude,
+                    ca.Arc.P2Lat,
+                    ca.Arc.P2Lon,
+                    ca.Arc.P1Lat,
+                    ca.Arc.P1Lon,
+                    ca.Arc.Nodes[0].Latitude,
+                    ca.Arc.Nodes[0].Longitude
+                );
+            }
+
+            double t = bezier.ClosestT(acLat, acLon, 20);
+            var (nearLat, nearLon) = bezier.Evaluate(t);
+            return GeoMath.DistanceNm(acLat, acLon, nearLat, nearLon) * GeoMath.FeetPerNm;
+        }
+
+        return GeoMath.DistanceToSegmentFt(acLat, acLon, _segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
     }
 
     /// <summary>
@@ -378,22 +438,69 @@ public sealed class GroundNavigator
         // Project aircraft onto curve
         double t = bezier.ClosestT(acLat, acLon, 20);
 
-        // Lookahead: advance t by a fraction of the curve
-        double lookaheadT = Math.Min(t + 0.15, 1.0);
+        // Lookahead: advance by ~40ft along the curve (distance-based, not parameter-based).
+        // Walk forward from t in small parameter steps, accumulating arc length,
+        // until we reach the target distance or the end of the curve.
+        const double lookaheadFt = 40.0;
+        double lookaheadNm = lookaheadFt / GeoMath.FeetPerNm;
+        double lookaheadT = AdvanceByDistance(bezier, t, lookaheadNm);
         var (laLat, laLon) = bezier.Evaluate(lookaheadT);
 
         // Bearing from aircraft to lookahead point
         double steerBearing = GeoMath.BearingTo(acLat, acLon, laLat, laLon);
 
-        // Speed limit: use the arc's precomputed min-radius safe speed as a ceiling.
-        // Local curvature varies along the bezier — the entrance/exit are gentler than
-        // the middle — so using only local curvature lets the aircraft enter too fast
-        // and overshoot when the curve tightens. The min-radius speed represents the
-        // tightest point ahead and ensures the aircraft is slow enough throughout.
+        // Speed limit from local curvature at the lookahead point. The radius of
+        // curvature varies along the bezier — gentle at entry/exit, tight in the
+        // middle. Using local curvature lets the aircraft travel faster on the
+        // gentle portions. The braking constraints in SetupSegment ensure the
+        // aircraft decelerates before reaching the tightest section.
         double turnRateDegSec = CategoryPerformance.GroundTurnRate(ctx.Category);
-        double maxSpeedKts = arc.MaxSafeSpeedKts(turnRateDegSec);
+        double turnRateRadSec = turnRateDegSec * (Math.PI / 180.0);
+        var (refLat, _) = bezier.Evaluate(lookaheadT);
+        double localRadiusFt = bezier.RadiusOfCurvatureFt(lookaheadT, refLat);
+        double localRadiusNm = localRadiusFt / GeoMath.FeetPerNm;
+        double localMaxSpeed = turnRateRadSec * localRadiusNm * 3600.0;
+
+        // Floor at the min-radius speed to prevent overshoot when entering
+        // a section where curvature tightens faster than we can sample
+        double minRadiusSpeed = arc.MaxSafeSpeedKts(turnRateDegSec);
+        double maxSpeedKts = Math.Max(localMaxSpeed, minRadiusSpeed);
 
         return (steerBearing, maxSpeedKts);
+    }
+
+    /// <summary>
+    /// Walk forward along a bezier from parameter <paramref name="startT"/>,
+    /// accumulating arc length until <paramref name="distNm"/> is reached.
+    /// Returns the parameter t at that point, clamped to 1.0.
+    /// </summary>
+    private static double AdvanceByDistance(CubicBezier bezier, double startT, double distNm)
+    {
+        const int steps = 20;
+        double stepSize = (1.0 - startT) / steps;
+        if (stepSize <= 0)
+        {
+            return 1.0;
+        }
+
+        double accumulated = 0;
+        var (prevLat, prevLon) = bezier.Evaluate(startT);
+
+        for (int i = 1; i <= steps; i++)
+        {
+            double t = startT + (i * stepSize);
+            var (lat, lon) = bezier.Evaluate(t);
+            accumulated += GeoMath.DistanceNm(prevLat, prevLon, lat, lon);
+            if (accumulated >= distNm)
+            {
+                return t;
+            }
+
+            prevLat = lat;
+            prevLon = lon;
+        }
+
+        return 1.0;
     }
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
@@ -422,6 +529,8 @@ public sealed class GroundNavigator
             TargetNodeId = TargetNodeId,
             TargetLat = TargetLat,
             TargetLon = TargetLon,
+            SegmentFromLat = _segmentFromLat,
+            SegmentFromLon = _segmentFromLon,
             PrevDistToTarget = PrevDistToTarget,
             CurrentNodeRequiredSpeed = _currentNodeRequiredSpeed,
             MaxSpeedKts = MaxSpeedKts,
@@ -447,6 +556,8 @@ public sealed class GroundNavigator
             TargetNodeId = dto.TargetNodeId,
             TargetLat = dto.TargetLat,
             TargetLon = dto.TargetLon,
+            _segmentFromLat = dto.SegmentFromLat,
+            _segmentFromLon = dto.SegmentFromLon,
             PrevDistToTarget = dto.PrevDistToTarget,
             _currentNodeRequiredSpeed = dto.CurrentNodeRequiredSpeed,
             MaxSpeedKts = dto.MaxSpeedKts,
@@ -472,5 +583,6 @@ public record NavTickDiag(
     double BrakingLimitKts,
     double ArcSpeedLimitKts,
     bool OnArc,
-    double NodeRequiredSpeedKts
+    double NodeRequiredSpeedKts,
+    double PathDeviationFt
 );

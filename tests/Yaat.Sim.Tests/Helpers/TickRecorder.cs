@@ -85,7 +85,7 @@ public sealed class TickRecorder
 
         var sb = new StringBuilder();
         sb.AppendLine(
-            "t,lat,lon,hdg,gs,phase,twy,navTarget,navDist,navBrg,navAngleDiff,navTargetSpd,navBrakeLimit,navArcLimit,navOnArc,navNodeReqSpd"
+            "t,lat,lon,hdg,gs,phase,twy,navTarget,navDist,navBrg,navAngleDiff,navTargetSpd,navBrakeLimit,navArcLimit,navOnArc,navNodeReqSpd,navPathDevFt"
         );
         foreach (var row in _rows)
         {
@@ -107,6 +107,7 @@ public sealed class TickRecorder
                 sb.Append(CultureInfo.InvariantCulture, $",{n.ArcSpeedLimitKts:F1}");
                 sb.Append(CultureInfo.InvariantCulture, $",{(n.OnArc ? 1 : 0)}");
                 sb.Append(CultureInfo.InvariantCulture, $",{n.NodeRequiredSpeedKts:F1}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.PathDeviationFt:F1}");
             }
 
             sb.AppendLine();

@@ -191,4 +191,46 @@ public static class GeoMath
 
     /// <summary>Absolute bearing difference in [0, 180].</summary>
     public static double AbsBearingDifference(double a, double b) => Math.Abs(SignedBearingDifference(a, b));
+
+    /// <summary>
+    /// Interpolate between two bearings by <paramref name="t"/> ∈ [0,1].
+    /// At t=0 returns <paramref name="fromDeg"/>, at t=1 returns <paramref name="toDeg"/>.
+    /// Takes the shortest angular path between them.
+    /// </summary>
+    public static double BlendBearings(double fromDeg, double toDeg, double t)
+    {
+        double diff = SignedBearingDifference(fromDeg, toDeg);
+        return ((fromDeg + (diff * t)) % 360.0 + 360.0) % 360.0;
+    }
+
+    /// <summary>
+    /// Perpendicular distance in feet from a point to a line segment defined by
+    /// two endpoints. Clamps to the nearest endpoint if the projection falls
+    /// outside the segment.
+    /// </summary>
+    public static double DistanceToSegmentFt(double pointLat, double pointLon, double segALat, double segALon, double segBLat, double segBLon)
+    {
+        double segBearing = BearingTo(segALat, segALon, segBLat, segBLon);
+        double segLengthNm = DistanceNm(segALat, segALon, segBLat, segBLon);
+
+        if (segLengthNm < 1e-10)
+        {
+            return DistanceNm(pointLat, pointLon, segALat, segALon) * FeetPerNm;
+        }
+
+        double alongNm = AlongTrackDistanceNmRaw(pointLat, pointLon, segALat, segALon, segBearing);
+
+        if (alongNm <= 0)
+        {
+            return DistanceNm(pointLat, pointLon, segALat, segALon) * FeetPerNm;
+        }
+
+        if (alongNm >= segLengthNm)
+        {
+            return DistanceNm(pointLat, pointLon, segBLat, segBLon) * FeetPerNm;
+        }
+
+        double crossNm = SignedCrossTrackDistanceNmRaw(pointLat, pointLon, segALat, segALon, segBearing);
+        return Math.Abs(crossNm) * FeetPerNm;
+    }
 }

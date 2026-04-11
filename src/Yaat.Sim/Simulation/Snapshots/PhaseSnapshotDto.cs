@@ -290,6 +290,8 @@ public sealed class GroundNavigatorDto
     public int TargetNodeId { get; init; }
     public double TargetLat { get; init; }
     public double TargetLon { get; init; }
+    public double SegmentFromLat { get; init; }
+    public double SegmentFromLon { get; init; }
     public double PrevDistToTarget { get; init; }
     public double CurrentNodeRequiredSpeed { get; init; }
     public double MaxSpeedKts { get; init; }

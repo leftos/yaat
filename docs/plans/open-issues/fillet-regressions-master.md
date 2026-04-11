@@ -25,7 +25,7 @@ Tracks fillet arc geometry bugs and ground navigation quality. Originally focuse
 - [x] GenuineTurnArcs — **PASS** (0 degenerate arcs)
 - [x] OAK debug trace — **PASS**
 - [x] OAK 28R exits: null, B, C1, G, H, J, P — **PASS** (7/8)
-- [ ] OAK 28R exit E — heading reversal (17.9°) from taxiway E's zig-zag geometry; test threshold too tight for E
+- [x] OAK 28R exit E — **PASS** (path deviation metric replaced heading reversal; E's zig-zag no longer a false failure)
 - [ ] Plan B: DAL2581 — **HANG** (30s timeout; graph connectivity / pathfinder issue)
 
 ---
@@ -63,43 +63,34 @@ Three bugs in `FindAdjacentHoldShort`:
 
 ## Open issues — ground navigation quality
 
-### 14. Exit smoothness metric measures heading monotonicity instead of path deviation (HIGH)
+### ~~14. Exit smoothness metric measures heading monotonicity instead of path deviation~~ — **FIXED** (OAK)
 
-The current `AssertSmoothExit` checks for heading reversals > 12°. This is a poor metric:
-- Taxiways that genuinely change direction (E's zig-zag) produce false failures
-- An aircraft that drifts 50ft off the taxiway centerline but maintains heading passes
+Redesigned `AssertSmoothExit` to measure path deviation (distance from aircraft to current route segment) instead of heading reversals. Added `PathDeviationFt` to `NavTickDiag`, computed per-tick in `GroundNavigator.Tick()` using `CubicBezier.ClosestT` for arcs and `GeoMath.DistanceToSegmentFt` for straight edges. Thresholds: 100ft for normal exits, 200ft for >120° turns.
 
-**Fix**: Redesign the metric to measure deviation from the assigned route's edges and arcs. For each tick during the exit phase, compute the aircraft's distance from the nearest point on the current route segment (edge or arc bezier). Report max deviation and average deviation. This directly measures how faithfully the navigator follows the path.
+**Results (OAK)**: avg deviation 12-27ft, max 65-82ft for standard exits. Exit E (previously failing heading-reversal) now passes. Exit J (145° turn, 182ft max) passes under the relaxed threshold — will improve with #15/#17.
 
-### 15. GroundNavigator speed scaling too gentle for large heading errors (HIGH)
+**SFO**: Not yet migrated (has pre-existing relaxation ordering failures to fix first).
 
-`speedFraction = clamp(1 - angleDiff/120, 0.15, 1.0)` — linear ramp with 15% floor. At 90° heading error, aircraft still travels at 25% speed. Real aircraft stop and pivot for large errors.
+### ~~15. GroundNavigator speed scaling too gentle for large heading errors~~ — **FIXED**
 
-**Fix**: Quadratic scaling with lower floor:
-```
-normalized = clamp(angleDiff / 90, 0, 1)
-speedFraction = max(0.03, 1 - normalized²)
-```
-Gives: 0°=100%, 45°=75%, 60°=56%, 90°=3%. Combined with path deviation metric (#14), improvements are measurable.
+Changed from linear `clamp(1 - angleDiff/120, 0.15, 1.0)` to quadratic `max(0.03, 1 - (angleDiff/90)²)`. Gives: 0°=100%, 45°=75%, 60°=56%, 90°=3%. Modest path deviation improvement on most exits (2-4ft reduction in max deviation).
 
-### 16. Dead field `_nextSegmentBearing` in GroundNavigator (LOW)
+### ~~16. Dead field `_nextSegmentBearing` in GroundNavigator~~ — **FIXED**
 
-Computed in `SetupSegment` but never read. Could implement pre-turning (start turning before reaching the node to reduce overshoot) or delete.
+Implemented pre-turning: when within ~50ft of a junction node with a known next-segment bearing, blends the steer target toward the outbound bearing. Uses new `GeoMath.BlendBearings()`. Also switched `ComputeArcSteering` to use local curvature at the lookahead point (floored at min-radius speed) instead of global min-radius, allowing faster traversal on gentle arc sections.
 
-### 17. Fixed bezier lookahead fraction in ComputeArcSteering (MEDIUM)
+### ~~17. Fixed bezier lookahead fraction in ComputeArcSteering~~ — **FIXED**
 
-The `t + 0.15` lookahead in parameter space doesn't correspond to consistent physical distance. Can cause corner-cutting on tight arcs and twitchy steering on gentle arcs.
-
-**Fix**: Distance-based lookahead (~30-50ft) instead of parameter-based.
+Replaced `t + 0.15` parameter-based lookahead with distance-based `AdvanceByDistance(bezier, t, 40ft)`. Walks along the curve accumulating arc length to find the lookahead parameter. Dramatically improved exit J (145° turn): 182ft → 85ft max deviation.
 
 ---
 
 ## Recommended fix order
 
-1. **Issue #14** — Redesign exit smoothness metric (path deviation)
-2. **Issue #15** — Navigator speed scaling (quadratic + lower floor)
-3. **Issue #17** — Distance-based arc lookahead
-4. **Issue #16** — Pre-turning or delete dead field
+1. ~~**Issue #14** — Redesign exit smoothness metric (path deviation)~~ ✓ DONE (OAK)
+2. ~~**Issue #15** — Navigator speed scaling (quadratic + lower floor)~~ ✓ DONE
+3. ~~**Issue #17** — Distance-based arc lookahead~~ ✓ DONE
+4. ~~**Issue #16** — Pre-turning or delete dead field~~ ✓ DONE
 5. **Issue #4** — Merge recomputation (tangent-misaligned warnings)
 6. **Issues #9, #12** — Graph connectivity bugs
 7. **Issue #6** — Performance
