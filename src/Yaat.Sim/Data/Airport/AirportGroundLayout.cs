@@ -514,6 +514,8 @@ public sealed class AirportGroundLayout
     /// </summary>
     public void RebuildAdjacencyLists()
     {
+        _nodesByTaxiway = null;
+
         foreach (var node in Nodes.Values)
         {
             node.Edges.Clear();
@@ -532,6 +534,38 @@ public sealed class AirportGroundLayout
             }
         }
     }
+
+    /// <summary>
+    /// Returns all nodes that have at least one edge on the named taxiway.
+    /// Uses a lazy-built index invalidated by <see cref="RebuildAdjacencyLists"/>.
+    /// </summary>
+    public List<GroundNode> GetNodesOnTaxiway(string taxiwayName)
+    {
+        if (_nodesByTaxiway is null)
+        {
+            _nodesByTaxiway = new Dictionary<string, List<GroundNode>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var node in Nodes.Values)
+            {
+                foreach (var edge in node.Edges)
+                {
+                    if (!_nodesByTaxiway.TryGetValue(edge.TaxiwayName, out var list))
+                    {
+                        list = [];
+                        _nodesByTaxiway[edge.TaxiwayName] = list;
+                    }
+
+                    if (list.Count == 0 || list[^1].Id != node.Id)
+                    {
+                        list.Add(node);
+                    }
+                }
+            }
+        }
+
+        return _nodesByTaxiway.GetValueOrDefault(taxiwayName) ?? [];
+    }
+
+    private Dictionary<string, List<GroundNode>>? _nodesByTaxiway;
 
     public GroundNode? FindParkingByName(string name)
     {

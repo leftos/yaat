@@ -1175,25 +1175,17 @@ public static class TaxiPathfinder
     private static double MinDistToTaxiway(AirportGroundLayout layout, GroundNode fromNode, string taxiwayName)
     {
         double minDist = double.MaxValue;
-        foreach (var node in layout.Nodes.Values)
+        foreach (var node in layout.GetNodesOnTaxiway(taxiwayName))
         {
             if (node.Id == fromNode.Id)
             {
                 continue;
             }
 
-            foreach (var edge in node.Edges)
+            double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, node.Latitude, node.Longitude);
+            if (dist < minDist)
             {
-                if (edge.MatchesTaxiway(taxiwayName))
-                {
-                    double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, node.Latitude, node.Longitude);
-                    if (dist < minDist)
-                    {
-                        minDist = dist;
-                    }
-
-                    break;
-                }
+                minDist = dist;
             }
         }
 
