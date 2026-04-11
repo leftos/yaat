@@ -18,6 +18,7 @@ public static class FilletArcGenerator
     private const double HighSpeedExitRadiusFt = 150.0;
     private const double RunwayExitRadiusFt = 100.0;
     private const double RampRadiusFt = 50.0;
+    private const double MaxTangentDistFt = 150.0;
 
     /// <summary>
     /// Apply fillet arcs to all eligible intersection nodes in the layout.
@@ -339,16 +340,34 @@ public static class FilletArcGenerator
                     double maxTangentAFt = capA ? availableAFt / 2.0 : availableAFt;
                     double maxTangentBFt = capB ? availableBFt / 2.0 : availableBFt;
 
+                    // Cap tangent distance at the next taxiway intersection along each walk.
+                    // Without this, steep turns produce huge tangent distances that consume
+                    // edges belonging to neighboring intersections.
+                    double intersectionCapAFt = DistToFirstIntersectionFt(walkA);
+                    double intersectionCapBFt = DistToFirstIntersectionFt(walkB);
+                    maxTangentAFt = Math.Min(maxTangentAFt, intersectionCapAFt);
+                    maxTangentBFt = Math.Min(maxTangentBFt, intersectionCapBFt);
+
                     double maxFitRadiusFt = Math.Min(maxTangentAFt, maxTangentBFt) / tanHalf;
                     double maxRadiusFt = SelectMaxRadius(edgeA, edgeB, turnAngle);
                     double radiusFt = Math.Min(maxFitRadiusFt, maxRadiusFt);
 
                     double tangentDistFt = radiusFt * tanHalf;
+
+                    // Absolute cap on tangent distance — prevents unreasonably long arcs
+                    // even when no intervening intersection exists.
+                    if (tangentDistFt > MaxTangentDistFt)
+                    {
+                        tangentDistFt = MaxTangentDistFt;
+                        radiusFt = tangentDistFt / tanHalf;
+                    }
+
                     double tangentDistNm = tangentDistFt / GeoMath.FeetPerNm;
 
                     Log.LogDebug(
                         "[Int#{IntId}] Pair {A}(→{OtherA}, avail={AAvail:F0}ft)/{B}(→{OtherB}, avail={BAvail:F0}ft): "
-                            + "turn={Turn:F1}° radius={R:F0}ft(maxFit={MaxFit:F0}, maxType={MaxType:F0}) tangentDist={TD:F0}ft",
+                            + "turn={Turn:F1}° radius={R:F0}ft(maxFit={MaxFit:F0}, maxType={MaxType:F0}) tangentDist={TD:F0}ft"
+                            + " intCapA={IntCapA:F0}ft intCapB={IntCapB:F0}ft",
                         intersection.Id,
                         edgeA.TaxiwayName,
                         otherA.Id,
@@ -360,7 +379,9 @@ public static class FilletArcGenerator
                         radiusFt,
                         maxFitRadiusFt,
                         maxRadiusFt,
-                        tangentDistFt
+                        tangentDistFt,
+                        intersectionCapAFt,
+                        intersectionCapBFt
                     );
 
                     // Skip pairs that produce degenerate geometry — near-U-turns
@@ -1455,6 +1476,27 @@ public static class FilletArcGenerator
     private record TaxiwayWalkResult(double AvailableLengthFt, GroundNode TerminalNode, List<TaxiwayWalkStep> Steps);
 
     private record TaxiwayWalkStep(GroundEdge Edge, GroundNode FarNode, double CumulativeDistFt, bool HasOtherTaxiways, bool IsManualArc);
+
+    /// <summary>
+    /// Find the cumulative distance to the first walk step whose far node has other
+    /// taxiways AND is far enough to be a meaningful cap. Returns MaxValue if no such
+    /// step exists. Used to prevent tangent points from extending past the next
+    /// taxiway intersection along the walk. Steps closer than MaxTangentDistFt are
+    /// skipped — capping at very close neighbors changes the edge consumption pattern
+    /// and breaks downstream fillet processing at those neighbors.
+    /// </summary>
+    private static double DistToFirstIntersectionFt(TaxiwayWalkResult walk)
+    {
+        foreach (var step in walk.Steps)
+        {
+            if (step.HasOtherTaxiways && (step.CumulativeDistFt >= MaxTangentDistFt))
+            {
+                return step.CumulativeDistFt;
+            }
+        }
+
+        return double.MaxValue;
+    }
 
     /// <summary>
     /// Walk along a taxiway chain from an intersection, following same-taxiway edges

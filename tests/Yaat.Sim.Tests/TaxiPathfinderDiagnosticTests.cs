@@ -299,4 +299,52 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
             }
         }
     }
+
+    /// <summary>
+    /// Diagnostic trace for fillet cap regression: OAK TAXI D C from parking NEW7.
+    /// After tangent distance caps, the D→C transition may fail.
+    /// </summary>
+    [Fact]
+    public void Diag_OAK_TaxiDC_FromNEW7_VerboseTrace()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            output.WriteLine("oak.geojson not found — skipping");
+            return;
+        }
+
+        var parking = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Type == GroundNodeType.Parking && string.Equals(n.Name, "NEW7", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.NotNull(parking);
+
+        var startNode = layout.FindNearestNode(parking.Latitude, parking.Longitude);
+        Assert.NotNull(startNode);
+
+        output.WriteLine($"=== OAK D/C from NEW7 — start node {startNode.Id} ===");
+        output.WriteLine(
+            $"  lat={startNode.Latitude:F6} lon={startNode.Longitude:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
+        );
+        output.WriteLine("");
+
+        var log = new List<string>();
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, startNode.Id, ["D", "C"], out string? failReason, diagnosticLog: msg => log.Add(msg));
+
+        foreach (var line in log)
+        {
+            output.WriteLine(line);
+        }
+
+        if (route is null)
+        {
+            output.WriteLine($"  RESULT: null (failReason={failReason ?? "null"})");
+        }
+        else
+        {
+            output.WriteLine(
+                $"  RESULT: {route.Segments.Count} segments, taxiways=[{string.Join(",", route.Segments.Select(s => s.TaxiwayName).Distinct())}]"
+            );
+        }
+    }
 }
