@@ -37,68 +37,16 @@ public static class GeoJsonParser
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, bool applyFillets)
     {
         string sanitized = SanitizeJson(geoJson);
-        var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
-        var root = doc.RootElement;
-
-        var features = root.GetProperty("features");
-
-        var parkingFeatures = new List<ParkingFeature>();
-        var helipadFeatures = new List<ParkingFeature>();
-        var spotFeatures = new List<SpotFeature>();
-        var taxiwayFeatures = new List<TaxiwayFeature>();
-        var runwayFeatures = new List<RunwayFeature>();
-
-        int skipped = 0;
-        foreach (var feature in features.EnumerateArray())
-        {
-            var props = feature.GetProperty("properties");
-            string type = props.GetProperty("type").GetString() ?? "";
-            var geom = feature.GetProperty("geometry");
-
-            try
-            {
-                switch (type)
-                {
-                    case "parking":
-                        parkingFeatures.Add(ParseParking(props, geom));
-                        break;
-                    case "helipad":
-                        helipadFeatures.Add(ParseParking(props, geom));
-                        break;
-                    case "spot":
-                        spotFeatures.Add(ParseSpot(props, geom));
-                        break;
-                    case "taxiway":
-                        taxiwayFeatures.Add(ParseTaxiway(props, geom));
-                        break;
-                    case "runway":
-                        runwayFeatures.Add(ParseRunway(props, geom));
-                        break;
-                    default:
-                        Log.LogWarning("Unknown GeoJSON feature type: {Type}", type);
-                        break;
-                }
-            }
-            catch (InvalidOperationException ex)
-            {
-                string name = props.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
-                Log.LogWarning("Skipping malformed {Type} feature '{Name}' in {Airport}: {Message}", type, name, airportId, ex.Message);
-                skipped++;
-            }
-        }
-
-        if (skipped > 0)
-        {
-            Log.LogWarning("Skipped {Count} malformed feature(s) in {Airport}", skipped, airportId);
-        }
-
+        using var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
+        var features = doc.RootElement.GetProperty("features");
+        var classified = ClassifyFeatures(airportId, features.EnumerateArray());
         return BuildLayout(
             airportId,
-            parkingFeatures,
-            helipadFeatures,
-            spotFeatures,
-            taxiwayFeatures,
-            runwayFeatures,
+            classified.Parkings,
+            classified.Helipads,
+            classified.Spots,
+            classified.Taxiways,
+            classified.Runways,
             runwayAirportCode,
             applyFillets
         );
@@ -106,6 +54,7 @@ public static class GeoJsonParser
 
     /// <summary>
     /// Parse from multiple GeoJSON files (separate parking, taxiways, spots, runways).
+    /// Features are merged and classified directly — no re-serialization.
     /// </summary>
     public static AirportGroundLayout ParseMultiple(string airportId, IEnumerable<string> geoJsonFiles, string? runwayAirportCode)
     {
@@ -128,9 +77,78 @@ public static class GeoJsonParser
             }
         }
 
-        // Rebuild as single FeatureCollection
-        string combined = BuildCombinedJson(allFeatures);
-        return Parse(airportId, combined, runwayAirportCode);
+        var classified = ClassifyFeatures(airportId, allFeatures);
+        return BuildLayout(
+            airportId,
+            classified.Parkings,
+            classified.Helipads,
+            classified.Spots,
+            classified.Taxiways,
+            classified.Runways,
+            runwayAirportCode,
+            applyFillets: true
+        );
+    }
+
+    private static (
+        List<ParkingFeature> Parkings,
+        List<ParkingFeature> Helipads,
+        List<SpotFeature> Spots,
+        List<TaxiwayFeature> Taxiways,
+        List<RunwayFeature> Runways
+    ) ClassifyFeatures(string airportId, IEnumerable<JsonElement> features)
+    {
+        var parkings = new List<ParkingFeature>();
+        var helipads = new List<ParkingFeature>();
+        var spots = new List<SpotFeature>();
+        var taxiways = new List<TaxiwayFeature>();
+        var runways = new List<RunwayFeature>();
+
+        int skipped = 0;
+        foreach (var feature in features)
+        {
+            var props = feature.GetProperty("properties");
+            string type = props.GetProperty("type").GetString() ?? "";
+            var geom = feature.GetProperty("geometry");
+
+            try
+            {
+                switch (type)
+                {
+                    case "parking":
+                        parkings.Add(ParseParking(props, geom));
+                        break;
+                    case "helipad":
+                        helipads.Add(ParseParking(props, geom));
+                        break;
+                    case "spot":
+                        spots.Add(ParseSpot(props, geom));
+                        break;
+                    case "taxiway":
+                        taxiways.Add(ParseTaxiway(props, geom));
+                        break;
+                    case "runway":
+                        runways.Add(ParseRunway(props, geom));
+                        break;
+                    default:
+                        Log.LogWarning("Unknown GeoJSON feature type: {Type}", type);
+                        break;
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                string name = props.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
+                Log.LogWarning("Skipping malformed {Type} feature '{Name}' in {Airport}: {Message}", type, name, airportId, ex.Message);
+                skipped++;
+            }
+        }
+
+        if (skipped > 0)
+        {
+            Log.LogWarning("Skipped {Count} malformed feature(s) in {Airport}", skipped, airportId);
+        }
+
+        return (parkings, helipads, spots, taxiways, runways);
     }
 
     /// <summary>Max distance to connect a helipad to a taxiway (nm). Larger than parking since helipads may be further from taxiways.</summary>
@@ -465,25 +483,6 @@ public static class GeoJsonParser
     {
         var (name, coords) = ParseLineString(props, geom);
         return new RunwayFeature(name, coords);
-    }
-
-    private static string BuildCombinedJson(List<JsonElement> features)
-    {
-        using var ms = new MemoryStream();
-        using var writer = new Utf8JsonWriter(ms);
-        writer.WriteStartObject();
-        writer.WriteString("type", "FeatureCollection");
-        writer.WritePropertyName("features");
-        writer.WriteStartArray();
-        foreach (var f in features)
-        {
-            f.WriteTo(writer);
-        }
-
-        writer.WriteEndArray();
-        writer.WriteEndObject();
-        writer.Flush();
-        return System.Text.Encoding.UTF8.GetString(ms.ToArray());
     }
 
     // Internal feature DTOs — accessible to graph builder and crossing detector
