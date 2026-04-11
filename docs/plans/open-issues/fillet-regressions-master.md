@@ -48,9 +48,15 @@ Not a correctness issue. Fix: targeted adjacency update touching only changed ed
 
 Likely graph connectivity issue. Needs investigation with per-tick progress logging.
 
-### 12. Disconnected taxiway subgraph: K/F nodes (LOW)
+### ~~12. Disconnected taxiway subgraph: K/F nodes~~ — **FIXED**
 
-Two nodes on K/F disconnected from the main graph.
+Tangent nodes 1457/1458 at OAK K/F intersection (#439) were orphaned because:
+1. Collinear pair K(→438)/K(→440) forced `preserveNode=true`
+2. Walk through shape-point node 440 set `LandsInManualArc=true`
+3. Preserve stub used `redirectToChain`, bypassing tangent nodes and connecting directly to far node 440
+4. Tangent nodes had only the arc between them, no graph connectivity
+
+Fix: always connect preserve stubs to the nearest tangent node instead of redirecting past it. The redirect was designed for actual arc chains but triggered on shape-point walks, disconnecting tangent nodes.
 
 ### ~~13. Exit pathfinder selects wrong-side fillet arc~~ — **FIXED** (`f6b0170`)
 

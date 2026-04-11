@@ -202,6 +202,13 @@ public static class FilletArcGenerator
         if ((runwayEdgeCount == 1) && (nonRunwayEdgeCount > 0))
         {
             preserveNode = true;
+            Log.LogDebug(
+                "[Eligibility] Node #{Id}: preserve=true (rwy={Rwy}, nonRwy={NonRwy}, edges=[{Edges}])",
+                node.Id,
+                runwayEdgeCount,
+                nonRunwayEdgeCount,
+                string.Join(", ", node.Edges.Select(e => $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id}) rwy={e.IsRunwayCenterline}"))
+            );
             return true;
         }
 
@@ -622,6 +629,14 @@ public static class FilletArcGenerator
                 if (farNode.Id != farthest.Node.Id)
                 {
                     double shortenDist = GeoMath.DistanceNm(farNode.Latitude, farNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    Log.LogDebug(
+                        "[Int#{IntId}] Phase D shorten: {Twy} #{Far}↔#{Tan} ({Dist:F0}ft)",
+                        intersection.Id,
+                        edge.TaxiwayName,
+                        farNode.Id,
+                        farthest.Node.Id,
+                        shortenDist * GeoMath.FeetPerNm
+                    );
                     layout.Edges.Add(
                         new GroundEdge
                         {
@@ -655,6 +670,14 @@ public static class FilletArcGenerator
                     continue;
                 }
                 double segDist = GeoMath.DistanceNm(fromTan.Node.Latitude, fromTan.Node.Longitude, toTan.Node.Latitude, toTan.Node.Longitude);
+                Log.LogDebug(
+                    "[Int#{IntId}] Phase D tangent-link: {Twy} #{From}↔#{To} ({Dist:F0}ft)",
+                    intersection.Id,
+                    edge.TaxiwayName,
+                    fromTan.Node.Id,
+                    toTan.Node.Id,
+                    segDist * GeoMath.FeetPerNm
+                );
                 layout.Edges.Add(
                     new GroundEdge
                     {
@@ -821,6 +844,8 @@ public static class FilletArcGenerator
             }
         }
 
+        Log.LogDebug("[Int#{IntId}] preserveNode={Preserve}", intersection.Id, preserveNode);
+
         if (preserveNode)
         {
             // Preserve: keep the intersection node, connect to the nearest tangent on each edge.
@@ -829,12 +854,20 @@ public static class FilletArcGenerator
             foreach (var (edge, tangentEntries) in edgeTangentNodes)
             {
                 var nearest = tangentEntries.MinBy(t => t.Placement.TangentDistNm);
-                // For non-runway manual arcs, connect to the chain's first node (otherNode)
-                // since the chain provides connectivity to the tangent. For runway edges
-                // and non-manual-arc edges, connect directly to the tangent node.
-                bool redirectToChain = nearest.Placement.LandsInManualArc && !edge.IsRunwayCenterline;
-                var stubTarget = redirectToChain ? edge.OtherNode(intersection) : nearest.Node;
+                // Always connect to the nearest tangent node. The previous
+                // redirectToChain logic bypassed tangent nodes when the walk passed
+                // through shape-point nodes, but this left tangent nodes disconnected
+                // (issue #12: K/F disconnected subgraph at OAK node 439).
+                var stubTarget = nearest.Node;
                 double stubDist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, stubTarget.Latitude, stubTarget.Longitude);
+                Log.LogDebug(
+                    "[Int#{IntId}] Phase D preserve: {Twy} #{Int}→#{Target} (nearest tangent at {Dist:F0}ft)",
+                    intersection.Id,
+                    edge.TaxiwayName,
+                    intersection.Id,
+                    stubTarget.Id,
+                    nearest.Placement.TangentDistNm * GeoMath.FeetPerNm
+                );
                 layout.Edges.Add(
                     new GroundEdge
                     {
@@ -912,9 +945,10 @@ public static class FilletArcGenerator
                     da.Origin
                 );
             }
-            layout.Edges.RemoveAll(e => (e.Nodes[0].Id == intId) || (e.Nodes[1].Id == intId));
-            layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == intId) || (a.Nodes[1].Id == intId));
+            int removedEdges = layout.Edges.RemoveAll(e => (e.Nodes[0].Id == intId) || (e.Nodes[1].Id == intId));
+            int removedArcs = layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == intId) || (a.Nodes[1].Id == intId));
             layout.Nodes.Remove(intId);
+            Log.LogDebug("[Int#{IntId}] Removed intersection node: {Edges} edges, {Arcs} arcs purged", intId, removedEdges, removedArcs);
         }
 
         return (true, arcsCreated, edgesMerged);
@@ -1541,7 +1575,21 @@ public static class FilletArcGenerator
             cumDist += edgeFt;
 
             bool nextHasOtherTw = nextNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
-            bool nextIsProtected = manualArcNodes.Contains(nextNode.Id) || continuation.IsRunwayCenterline;
+            bool inManualArcSet = manualArcNodes.Contains(nextNode.Id);
+            bool isRwyContinuation = continuation.IsRunwayCenterline;
+            bool nextIsProtected = inManualArcSet || isRwyContinuation;
+            if (nextIsProtected)
+            {
+                Log.LogDebug(
+                    "  Walk step to #{Node}: IsManualArc=true (inManualArcSet={ManualArc}, isRwyCenterline={Rwy}, edge={Twy}({A}↔{B}))",
+                    nextNode.Id,
+                    inManualArcSet,
+                    isRwyContinuation,
+                    continuation.TaxiwayName,
+                    continuation.Nodes[0].Id,
+                    continuation.Nodes[1].Id
+                );
+            }
             steps.Add(new TaxiwayWalkStep(continuation, nextNode, cumDist, nextHasOtherTw, nextIsProtected));
 
             prevEdge = continuation;
@@ -1580,6 +1628,14 @@ public static class FilletArcGenerator
 
             if (step.IsManualArc)
             {
+                Log.LogDebug(
+                    "  InterpolateAlongWalk step {I}: IsManualArc=true, farNode=#{Far}, edge={Twy}({A}↔{B})",
+                    i,
+                    step.FarNode.Id,
+                    step.Edge.TaxiwayName,
+                    step.Edge.Nodes[0].Id,
+                    step.Edge.Nodes[1].Id
+                );
                 enteredManualArc = true;
             }
 
@@ -1623,6 +1679,15 @@ public static class FilletArcGenerator
                     splitEdge = step.Edge;
                 }
 
+                Log.LogDebug(
+                    "  InterpolateAlongWalk: landed at ({Lat:F6},{Lon:F6}) step={Step} toNode=#{To} enteredManualArc={Arc} splitEdge={Split}",
+                    lat,
+                    lon,
+                    i,
+                    toNode.Id,
+                    enteredManualArc,
+                    splitEdge is not null ? $"{splitEdge.TaxiwayName}({splitEdge.Nodes[0].Id}↔{splitEdge.Nodes[1].Id})" : "none"
+                );
                 return (lat, lon, bearingToward, consumed, shapeNodes, passthrough, toNode, enteredManualArc, splitEdge);
             }
 
