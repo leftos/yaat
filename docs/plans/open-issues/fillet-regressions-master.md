@@ -116,6 +116,22 @@ Floor `_currentNodeRequiredSpeed` to 2kt minimum so degenerate arcs never perman
 
 Hangs during `engine.Replay(recording, 1179)`. Not caused by degenerate arcs (all eliminated) or dangling edges (all fixed). Likely a graph connectivity issue where the pathfinder enters an infinite loop on a disconnected or malformed subgraph. Needs investigation with per-tick progress logging (xUnit output buffering makes this difficult — use `Console.Error.WriteLine` or Serilog file sink).
 
+### 10. Missing fillet arcs on east side of + intersections (MEDIUM)
+
+Example: OAK H/C at node #351. This is a + intersection (C east/west, H north/south). Fillet arcs are created on the west side (C→H and H→C at nodes #1269, #1271, #365) but NOT on the east side. The C east edge (→350, bearing 112.2°) is consumed by the fillet but no corresponding arc is created for the H/C east turn.
+
+The south H edge goes to a hold-short (→499 rwy=28R/10L), which may cause the runway-edge protection to suppress arc creation on adjacent edges.
+
+### 11. Fillet arcs spanning past intervening taxiways (MEDIUM)
+
+Example: OAK C/D arc 1261→1262 at intersection #349. The turn angle from C onto D at #349 is very steep, so the tangent distance is large. The arc extends west past taxiways G and H all the way near J, crossing taxiway J's path — an aircraft would never take this arc, they'd use the intervening taxiways instead.
+
+**Fix**: Cap the tangent distance so it doesn't extend past the next taxiway intersection on either edge. When computing `tangentDistFt`, limit it to the distance to the nearest other-taxiway intersection along each edge. This prevents arcs from spanning past junctions that provide a more natural path.
+
+### 12. Disconnected taxiway subgraph: K/F nodes 1470/1471 (LOW)
+
+Detected by the new connectivity check. Two nodes on K/F that are disconnected from the main taxiway graph. Likely caused by a fillet consuming edges without proper reconnection.
+
 ## Pre-fillet issues (upstream)
 
 ### A. TaxiwayGraphBuilder.InsertNodeInChain may desync NodeIds and Coords
@@ -142,9 +158,12 @@ Root cause: `FindCenterlineNode` walked only through on-runway nodes, but GeoJSO
 
 ## Recommended fix order
 
-1. **Issue #4** (merge recomputation) — should reduce tangent-misaligned warnings significantly
-2. **Issue #9** (DAL2581 hang) — investigate graph connectivity
-3. **Issues #6, #7, #8** — low priority
+1. **Issue #11** (arc spanning past taxiways) — cap tangent at next taxiway intersection
+2. **Issue #10** (missing east-side arcs) — investigate why + intersection arcs are one-sided
+3. **Issue #4** (merge recomputation) — should reduce tangent-misaligned warnings significantly
+4. **Issue #12** (disconnected K/F subgraph) — investigate cause
+5. **Issue #9** (DAL2581 hang) — investigate graph connectivity
+6. **Issues #6, #7, #8** — low priority
 
 After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenerate Layout Inspector HTML for OAK and SFO, compare warning counts and visual arc geometry.
 
