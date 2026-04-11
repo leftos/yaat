@@ -120,7 +120,7 @@ public static class GeoJsonParser
         foreach (string json in merged)
         {
             string sanitized = SanitizeJson(json);
-            var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
+            using var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
             var features = doc.RootElement.GetProperty("features");
             foreach (var f in features.EnumerateArray())
             {
@@ -416,9 +416,18 @@ public static class GeoJsonParser
         double lon = coords[0].GetDouble();
         double lat = coords[1].GetDouble();
         string name = props.GetProperty("name").GetString() ?? "";
-        int heading = props.TryGetProperty("heading", out var h)
-            ? (h.ValueKind == JsonValueKind.String ? int.Parse(h.GetString()!) : h.GetInt32())
-            : 0;
+        int heading = 0;
+        if (props.TryGetProperty("heading", out var h))
+        {
+            if (h.ValueKind == JsonValueKind.String)
+            {
+                int.TryParse(h.GetString(), out heading);
+            }
+            else if (h.ValueKind == JsonValueKind.Number)
+            {
+                heading = h.GetInt32();
+            }
+        }
         return new ParkingFeature(name, lat, lon, heading);
     }
 
