@@ -26,96 +26,77 @@ Tracks all open fillet arc geometry bugs. Supersedes four sub-plans:
 - [x] `SourceIntersectionPosition` on tangent-point nodes
 - [x] Debug-level logging throughout `FilletArcGenerator` (Phase A pairs, tangent point decisions, Phase B/C/D, global merge)
 - [x] `LayoutValidator.cs` — automated validation (stale refs, tangent alignment, degenerate arcs)
-- [x] Layout Inspector HTML with hover tooltips, highlights, annotations
+- [x] Layout Inspector HTML with hover tooltips (shows all overlapping elements), highlights, annotations
 - [x] `--debug-fillets` flag on LayoutInspector for tracing fillet decisions
+- [x] Raw edges/arcs in `--dump` output for scripted analysis
+
+### Fixes applied (prior sessions)
+- [x] **Half-length cap** (`e4621d7`): Cap tangent distance at half the edge length when the far end is an original intersection eligible for filleting.
+- [x] **Preserve intersection node** (`d1f1a8f`): Intersections with collinear pairs keep their center node with stub edges carrying correct taxiway names.
+- [x] **Taxiway walk** (`244a898`): Walk along subsequent same-taxiway shape-point edges when the first edge is too short.
+- [x] **Effective turn angle** (`552a8ea`): Phase C recomputes the turn angle from bearings at the tangent points.
+- [x] **Same-node pair skip** (`642fd40`): Skip pairs where both edges go to the same destination node.
+- [x] **Per-pair tangent nodes** (`b5ff95f`): Each arc pair computes its own tangent positions independently.
 
 ### Fixes applied (this session)
-- [x] **Half-length cap** (`e4621d7`): Cap tangent distance at half the edge length when the far end is an original intersection eligible for filleting. Skip the cap for tangent nodes from prior fillets (identified by `SourceIntersectionPosition`) to avoid half-of-half over-capping.
-- [x] **Preserve intersection node** (`d1f1a8f`): Intersections with collinear pairs (e.g., W3/U through W) keep their center node with stub edges carrying correct taxiway names, instead of deleting + collinear merging (which lost name boundaries).
-- [x] **Taxiway walk** (`244a898`): When the first edge from an intersection is too short for the desired tangent distance, walk along subsequent same-taxiway shape-point edges to find room. Tangent node interpolated along the walk chain; intermediate edges/nodes consumed.
-- [x] **Effective turn angle** (`552a8ea`): Phase C recomputes the turn angle from bearings at the tangent points (not the intersection) when the tangent walked past a curve. Fixes near-collinear arcs where taxiways diverge.
-- [x] **Same-node pair skip** (`642fd40`): Skip pairs where both edges go to the same destination node (overlapping edges like B and B5 sharing the same physical segment).
-- [x] **Per-pair tangent nodes** (`b5ff95f`): Each arc pair computes its own tangent positions independently. Near-collinear pairs with huge tangent distances no longer corrupt other pairs' arcs via max-wins. Coincident positions on the same edge are deduplicated (5ft threshold).
-- [x] **Dangling edge/arc cleanup**: When removing intersection nodes or walk shape-point nodes, also remove all edges and arcs still referencing them. Prevents dangling references from cross-intersection fillet edges.
-- [x] **Walk shape-node classification**: `InterpolateAlongWalk` now only classifies nodes as removable shape nodes if they are `TaxiwayIntersection` type with no `SourceIntersectionPosition`. Tangent nodes from prior fillets and hold-short nodes are treated as passthrough (preserved and reconnected).
-- [x] **Manual arc detection**: `DetectManualArcNodes` identifies chains of shape-point nodes forming pre-existing curves (≥30° cumulative bearing change, ≥3 nodes). Excluded from filleting and from taxiway walk consumption.
+- [x] **Dangling edge/arc cleanup** (`01e6c08`): When removing intersection/shape-point nodes, also remove all edges and arcs still referencing them. Three root causes fixed: intersection removal, walk shape-node removal, walk misclassifying tangent/hold-short nodes.
+- [x] **Manual arc preservation** (`1220e42`): All shape-point nodes (2 edges, same taxiway) excluded from filleting. Walk passes through for tangent placement but preserves chain edges via arc-split (splits only the edge where the tangent lands). Preserve stubs connect to chain start for non-runway arcs.
+- [x] **Deferred shape node removal** (`7213b1e`): Shape nodes removed only after consumedEdges cleanup, and only if they have zero remaining edges. Step 0's FarNode now classified (was skipped). Eliminates all orphan nodes.
+- [x] **Near-U-turn guard** (`3eb9e0d`): Skip pairs where `radiusFt < 5`. Remove post-merge arcs with `radius < 5ft`. Eliminates all degenerate arcs.
+- [x] **Kappa formula** (`6f8fde8`): `sweep = effectiveTurn` (was `180 - turn`), `depth = kappa * radius` (was `kappa * tangentDist`). Post-merge orphan cleanup for fillet tangent nodes.
+- [x] **Overlapping edge removal** (`6f8fde8`): GeoJSON parser removes duplicate edges between the same two nodes with different taxiway names, keeping the taxiway that continues at both endpoints. Fixes OAK P/J overlap.
+- [x] **Runway centerline projection** (`462d967`): `RunwayCrossingDetector.ConnectOnRunwayNodes` projects crossing points onto the actual runway centerline instead of using off-center taxiway intersection nodes. Creates short perpendicular links from on-runway nodes to centerline nodes.
+- [x] **Runway edge protection** (`462d967`): Fillet walk treats runway centerline edges as protected (like manual arcs). Tangent nodes split runway edges in place; tangent-links between runway tangent nodes are preserved (both on the straight centerline).
+- [x] **Arc TaxiwayName separator** (`6f8fde8`): Changed from unicode middle dot to " - " for easier parsing.
+- [x] **HTML highlight defaults** (`6f8fde8`): Everything highlighted when no highlights specified.
+- [x] **Runway centerline projection** (`462d967`): `RunwayCrossingDetector.ConnectOnRunwayNodes` projected crossing points onto centerline. Replaced by same-taxiway walk in next commit.
+- [x] **Runway edge protection** (`462d967`): Fillet walk treats runway centerline edges as protected. Tangent nodes split runway edges in place; tangent-links between runway tangent nodes preserved.
+- [x] **FindCenterlineNode rewrite**: Walk follows same-taxiway edges through off-runway shape-points to find actual centerline nodes. Previous version stopped at off-runway nodes and projected, creating phantom `:link` edges and duplicate intersections. Now finds the real intersection (e.g., OAK B/#182 at 0ft cross-track for 28L). No more projection nodes or `:link` edges.
+- [x] **Centerline projection node exclusion**: Nodes with `RunwayCrossing:centerline-projection` origin excluded from filleting.
+- [x] **`:link` edge not treated as centerline**: `IsRunwayCenterline` excludes `:link` suffix.
 
-### Current metrics (after all fixes)
+### Current metrics
 
 | Metric | Baseline | Current | Delta |
 |--------|----------|---------|-------|
-| SFO degenerate-radius | 115 | **34** | **-81** |
-| OAK degenerate-radius | 79 | **25** | **-54** |
-| SFO tangent-misaligned | 1920 | **1990** | +70 |
-| OAK tangent-misaligned | 1009 | **1069** | +60 |
+| SFO degenerate-radius | 115 | **0** | **-115** |
+| OAK degenerate-radius | 79 | **0** | **-79** |
+| SFO tangent-misaligned | 1920 | ~1909 | -11 |
+| OAK tangent-misaligned | 1009 | ~961 | -48 |
 | SFO edge-missing-node | 0 | **0** | **0** |
 | OAK edge-missing-node | 1 | **0** | **-1** |
-| SFO arc-missing-node | — | **0** | **0** |
-| OAK arc-missing-node | — | **0** | **0** |
-| SFO orphan-node | — | 37 | — |
-| OAK orphan-node | — | 17 | — |
+| SFO arc-missing-node | — | **0** | — |
+| OAK arc-missing-node | — | **0** | — |
+| SFO orphan-node | — | **2** (spots) | — |
+| OAK orphan-node | — | **0** | — |
 
 ### Test status
-- [x] Plan B: SKW3078 — **PASS** (as of `d1f1a8f`)
-- [x] Plan C: SFO T6/T6B stub symmetry — **PASS** (as of `e4621d7`)
-- [x] Plan D: OAK G/D arcs — **PASS** (as of `d1f1a8f`)
-- [ ] Plan B: DAL2581 — **HANG** (test hangs at 30s timeout due to degenerate arcs, not edge-missing-node)
-- [ ] GenuineTurnArcs — **FAIL** (34 SFO degenerate turn arcs)
-
-**NOTE**: The edge-missing-node issue is fully resolved (0 on both SFO and OAK). DAL2581 hang is caused by degenerate arcs (Issue #3 / #5), not dangling edges. SKW3078 passes because its taxi route doesn't traverse a degenerate arc.
+- [x] Plan B: SKW3078 — **PASS**
+- [x] Plan C: SFO T6/T6B stub symmetry — **PASS**
+- [x] Plan D: OAK G/D arcs — **PASS**
+- [x] GenuineTurnArcs — **PASS** (0 degenerate arcs)
+- [x] OAK debug trace — **PASS**
+- [ ] Plan B: DAL2581 — **HANG** (30s timeout; likely graph connectivity / pathfinder issue, not fillet geometry)
 
 ## Open issues
 
 Issues are ordered by priority.
 
-### 1. ~~edge-missing-node: dangling edge references after walk~~ — **FIXED**
+### 1. ~~edge-missing-node~~ — **FIXED** (`01e6c08`)
 
-Three sources of dangling references, all fixed:
+### 2. ~~Pre-existing manual arcs~~ — **FIXED** (`1220e42`, generalized in `f06647c`)
 
-1. **Intersection node removal** (13 shorten + 12 preserve + 8 passthrough + 2 tangent-link): When removing an intersection node, edges/arcs from other intersections' fillet iterations referencing it were not cleaned up. **Fix**: `layout.Edges.RemoveAll` + `layout.Arcs.RemoveAll` for the removed intersection ID.
+### 3. ~~Bezier control point depth formula~~ — **FIXED** (`6f8fde8`)
 
-2. **Walk shape-node removal** (5 TaxiwayGraphBuilder + 2 RunwayCrossing): Walking through shape-point nodes removed them but left edges from other taxiways/fillets dangling. **Fix**: Same `RemoveAll` pattern for each walked shape node.
-
-3. **Walk consuming non-shape-point nodes** (tangent nodes from prior fillets, RunwayHoldShort nodes): `InterpolateAlongWalk` classified all non-other-taxiway nodes as removable shape nodes, including tangent nodes from prior fillets (`SourceIntersectionPosition` set) and non-`TaxiwayIntersection` nodes (hold-short). **Fix**: Only classify as shape node if `Type == TaxiwayIntersection` AND `SourceIntersectionPosition is null`; otherwise treat as passthrough (preserve and reconnect).
-
-### 2. ~~Pre-existing manual arcs destroyed by filleting~~ — **FIXED**
-
-Two-part fix:
-1. **Detection**: `DetectManualArcNodes` walks chains of shape-point nodes (2 edges, same taxiway, `TaxiwayIntersection` type) in both directions. If cumulative bearing change ≥ 30° and chain has ≥ 3 nodes, all chain nodes are excluded from filleting. OAK: 17 chains / 155 nodes (W1-W7, V, B, TE, R, B1, B5, A, J, D, F). SFO: 30 chains / 228 nodes.
-2. **Walk boundary**: `WalkTaxiway` stops at manual arc chain nodes so adjacent intersection fillets don't consume or destroy the arc geometry. The fillet at the intersection uses the first arc chain node as its tangent boundary.
-
-### 3. Bezier control point depth formula (HIGH — root cause of remaining degenerate arcs)
-
-**Two compounding math errors in Phase C.**
-
-**Bug A — sweep angle inverted.** `sweep = 180° - turnAngle` but correct is `sweep = turnAngle`. The effective-turn-angle fix (`552a8ea`) partially mitigates this by recomputing the turn at tangent positions, but the formula itself is still wrong.
-
-**Bug B — depth uses tangentDist instead of radius.** `depth = kappa * tangentDist` but correct is `depth = kappa * radius`.
-
-**Fix:** Replace with:
-```csharp
-double sweepRad = effectiveTurnDeg * (Math.PI / 180.0);
-double kappa = (4.0 / 3.0) * Math.Tan(sweepRad / 4.0);
-double radiusNm = radiusFt / GeoMath.FeetPerNm;
-double depthA = kappa * radiusNm;
-double depthB = kappa * radiusNm;
-```
-
-**Note**: When tested in isolation (without other fixes), this made degenerate arcs worse (115→170) because near-180° turns got even larger control points. With the walk + effective turn angle + per-pair tangent fixes now in place, it should work correctly. Test carefully.
-
-### 4. MergeCoincidentNodes translates control points instead of recomputing (HIGH)
+### 4. MergeCoincidentNodes translates control points instead of recomputing (MEDIUM)
 
 The global merge pass translates P1/P2 by `(survivor - victim)`. This preserves the tangent handle vector but doesn't account for the changed chord geometry. The `EdgeBearingAtNode0Deg`, `EdgeBearingAtNode1Deg`, and `TurnAngleDeg` fields were added to enable proper recomputation but are never used in the merge path.
 
-**Fix**: After merge, recompute P1/P2 using the same formula as Phase C with stored construction params. Requires issue #3 to be fixed first.
+**Fix**: After merge, recompute P1/P2 using the same formula as Phase C with stored construction params. Issue #3 (prerequisite) is now fixed.
 
-### 5. Near-U-turn produces degenerate geometry (MEDIUM)
+**Guard**: Post-merge degenerate arc removal (`radius < 5ft`) catches the worst cases. Tangent-misaligned warnings (~980 OAK, ~1909 SFO) are partially caused by this.
 
-When `turnAngle` approaches 180°, `tan(halfAngle)` → ∞, producing enormous tangent distances and tiny radii. The per-pair tangent fix prevents these from corrupting other pairs, but the near-U-turn pair's own arc is still degenerate.
-
-**Current state**: The effective-turn-angle fix helps when the taxiways diverge, but some near-180° pairs at simple T-junctions don't diverge enough.
-
-**Fix**: Skip pairs where `radiusFt < 5.0` or `tangentDistFt < 1.0`. These can't produce useful arcs.
+### 5. ~~Near-U-turn guard~~ — **FIXED** (`3eb9e0d`)
 
 ### 6. `RebuildAdjacencyLists` called per-node is O(N×E) (LOW — performance)
 
@@ -125,11 +106,15 @@ Called once per intersection in the fillet loop. For SFO with hundreds of inters
 
 ### 7. Plan A — WJA1508 exit overshoot (LOW — needs investigation)
 
-May be a pathfinder issue (exit selection), not fillet geometry. May be resolved by fixing issues #1–#4.
+May be a pathfinder issue (exit selection), not fillet geometry. May be resolved by the geometry fixes above.
 
 ### 8. Defensive speed floor in GroundNavigator (LOW — defense in depth)
 
-Floor `_currentNodeRequiredSpeed` to 2kt minimum so degenerate arcs never permanently deadlock the sim. Not a root cause fix.
+Floor `_currentNodeRequiredSpeed` to 2kt minimum so degenerate arcs never permanently deadlock the sim. Not a root cause fix. Less critical now that degenerate arcs are eliminated.
+
+### 9. DAL2581 test hang (MEDIUM — needs investigation)
+
+Hangs during `engine.Replay(recording, 1179)`. Not caused by degenerate arcs (all eliminated) or dangling edges (all fixed). Likely a graph connectivity issue where the pathfinder enters an infinite loop on a disconnected or malformed subgraph. Needs investigation with per-tick progress logging (xUnit output buffering makes this difficult — use `Console.Error.WriteLine` or Serilog file sink).
 
 ## Pre-fillet issues (upstream)
 
@@ -149,14 +134,17 @@ Returns the first node within snap tolerance, not the closest. Fix: track minimu
 
 `JsonDocument.Parse()` rents memory but is never disposed. Fix: `using var doc = ...`.
 
+### ~~E. Overlapping taxiway edges in GeoJSON~~ — **FIXED** (`6f8fde8`)
+
+### ~~F. RunwayCrossingDetector connects off-centerline nodes~~ — **FIXED** (`462d967`, improved)
+
+Root cause: `FindCenterlineNode` walked only through on-runway nodes, but GeoJSON shape-point nodes between the hold-short and the centerline are off-runway. The walk stopped at the first off-runway node (e.g., #178, 207ft from centerline) instead of continuing to #182 (0ft). Fix: walk follows same-taxiway edges regardless of on-runway status, only considers on-runway nodes as centerline candidates. No more projection nodes or `:link` edges needed.
+
 ## Recommended fix order
 
-1. **Issue #1** (edge-missing-node) — CRITICAL, blocks sim tests
-2. **Issue #2** (pre-existing manual arcs) — prevents destroying GeoJSON author's arc geometry
-3. **Issue #3** (kappa formula) — pure math fix, should work now with walk + effective turn in place
-4. **Issue #5** (near-U-turn guard) — skip degenerate pairs
-5. **Issue #4** (merge recomputation) — requires #3 first
-6. **Issues #6, #7, #8** — low priority
+1. **Issue #4** (merge recomputation) — should reduce tangent-misaligned warnings significantly
+2. **Issue #9** (DAL2581 hang) — investigate graph connectivity
+3. **Issues #6, #7, #8** — low priority
 
 After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenerate Layout Inspector HTML for OAK and SFO, compare warning counts and visual arc geometry.
 
@@ -167,12 +155,15 @@ After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenera
 | `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` | All fillet logic: pair iteration, tangent placement, bezier construction, edge rebuild, global merge |
 | `src/Yaat.Sim/Data/Airport/CubicBezier.cs` | Bezier evaluation, curvature, arc length |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | `GroundNode`, `GroundEdge`, `GroundArc` with construction params |
+| `src/Yaat.Sim/Data/Airport/RunwayCrossingDetector.cs` | Taxiway-runway crossing detection, hold-short placement, centerline edges |
+| `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` | GeoJSON parsing, overlapping edge removal |
 | `tools/Yaat.LayoutInspector/LayoutValidator.cs` | Validation pass (stale refs, tangent alignment, degenerate arcs) |
 | `tools/Yaat.LayoutInspector/Program.cs` | `--debug-fillets` flag for tracing fillet decisions |
 | `tests/Yaat.Sim.Tests/Simulation/FilletDiagnosticTests.cs` | 6 regression tests + debug trace |
 
 ## Session commits (chronological)
 
+### Prior sessions
 | Commit | Description |
 |--------|-------------|
 | `e4621d7` | fix: cap fillet tangent distance at half edge length for shared edges |
@@ -181,3 +172,15 @@ After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenera
 | `552a8ea` | fix: recompute effective turn angle at tangent points for bezier arcs |
 | `642fd40` | fix: skip fillet pairs where both edges go to the same node |
 | `b5ff95f` | feat: per-pair tangent nodes and same-node pair skip |
+
+### This session
+| Commit | Description |
+|--------|-------------|
+| `01e6c08` | fix: clean up dangling edges/arcs when removing fillet nodes |
+| `1220e42` | feat: detect and preserve pre-existing manual arc chains during filleting |
+| `7213b1e` | fix: defer shape node removal and classify step 0 FarNode in walk |
+| `3eb9e0d` | fix: skip degenerate near-U-turn pairs and remove post-merge degenerate arcs |
+| `f06647c` | fix: skip all shape-point nodes from filleting, not just curved chains |
+| `6f8fde8` | fix: remove overlapping taxiway edges, fix kappa formula, highlight defaults |
+| `462d967` | fix: project runway crossing nodes onto centerline, protect runway edges |
+| (pending) | fix: FindCenterlineNode walks through off-runway shape-points to find actual centerline |

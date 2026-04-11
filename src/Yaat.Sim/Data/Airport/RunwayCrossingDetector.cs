@@ -262,7 +262,6 @@ internal static class RunwayCrossingDetector
 
         // Track which on-runway nodes we projected so we can connect them
         // to their centerline projection with a short perpendicular edge.
-        var projections = new List<(int OnRunwayId, int CenterlineId)>();
 
         foreach (var (nodeId, node) in layout.Nodes.ToList())
         {
@@ -290,12 +289,13 @@ internal static class RunwayCrossingDetector
 
             if (crossTrackFt < 5.0)
             {
-                // Already close enough to centerline — use as-is
                 centerlineNodes.Add((bestId, alongTrack));
             }
             else
             {
-                // Project onto centerline: compute the point on the centerline at this along-track distance
+                // Create a new node on the actual runway centerline and connect
+                // the on-runway node to it. The link uses the runway name with a
+                // :link suffix so it's not treated as a centerline edge or a taxiway edge.
                 var (clLat, clLon) = GeoMath.ProjectPointRaw(rect.RefLat, rect.RefLon, rect.TrueHeading.Degrees, alongTrack);
                 int clId = nextNodeId++;
                 var clNode = new GroundNode
@@ -309,20 +309,18 @@ internal static class RunwayCrossingDetector
                 layout.Nodes[clId] = clNode;
                 coordIndex.Add(clLat, clLon, clId);
 
-                // Connect the on-runway node to the centerline node
                 double perpDist = GeoMath.DistanceNm(bestNode.Latitude, bestNode.Longitude, clLat, clLon);
                 layout.Edges.Add(
                     new GroundEdge
                     {
                         Nodes = [bestNode, clNode],
-                        TaxiwayName = rwyEdgeName,
+                        TaxiwayName = $"RWY{rect.CombinedId}:link",
                         DistanceNm = perpDist,
                         Origin = $"RunwayCrossing:centerline-link@{rect.CombinedId} #{bestId}↔#{clId}",
                     }
                 );
 
                 centerlineNodes.Add((clId, alongTrack));
-                projections.Add((bestId, clId));
 
                 Log.LogDebug(
                     "Projected #{OnId} onto centerline as #{ClId} ({CrossFt:F0}ft off-center, {AlongFt:F0}ft along)",
@@ -398,53 +396,38 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
-    /// Starting from an HS node, finds its on-runway neighbor then walks along
-    /// on-runway nodes (via non-RWY edges) to find the node closest to the
-    /// runway centerline. This avoids using an intermediate on-runway node
-    /// that's off-centerline when a centerline node exists one or more hops away.
+    /// Starting from an HS node, walks along same-taxiway edges (through
+    /// shape-point nodes, which may be off-runway) toward the runway centerline.
+    /// Returns the node with the smallest cross-track distance to the centerline.
     /// </summary>
     private static int FindCenterlineNode(int hsNodeId, AirportGroundLayout layout, in RunwayRectangle rect, HashSet<int> onRunwaySet)
     {
-        // Step 1: find the immediate on-runway neighbor of the HS node
-        int startId = -1;
-        double startCrossTrack = double.MaxValue;
-
+        // Find which taxiway this hold-short is on
+        string? hsTaxiway = null;
         foreach (var edge in layout.Edges)
         {
-            if (!edge.HasNode(hsNodeId))
+            if (edge.HasNode(hsNodeId) && !edge.IsRunwayCenterline)
             {
-                continue;
-            }
-
-            int neighborId = edge.OtherNodeId(hsNodeId);
-
-            if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
-            {
-                continue;
-            }
-
-            double ct = Math.Abs(
-                GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
-            );
-            if (ct < startCrossTrack)
-            {
-                startCrossTrack = ct;
-                startId = neighborId;
+                hsTaxiway = edge.TaxiwayName;
+                break;
             }
         }
 
-        if (startId == -1)
+        if (hsTaxiway is null)
         {
+            Log.LogDebug("  FindCenterline(HS#{Hs}): no taxiway edge found", hsNodeId);
             return -1;
         }
 
-        // Step 2: walk along on-runway neighbors (non-RWY edges) toward centerline
-        int bestId = startId;
-        double bestCrossTrack = startCrossTrack;
-        var visited = new HashSet<int> { hsNodeId, startId };
+        // BFS walk along same-taxiway edges toward the centerline.
+        // Walk through all nodes (including off-runway shape-points) but
+        // only consider on-runway nodes as centerline candidates.
+        int bestId = -1;
+        double bestCrossTrack = double.MaxValue;
+        var visited = new HashSet<int> { hsNodeId };
 
         var queue = new Queue<int>();
-        queue.Enqueue(startId);
+        queue.Enqueue(hsNodeId);
 
         while (queue.Count > 0)
         {
@@ -462,22 +445,52 @@ internal static class RunwayCrossingDetector
                     continue;
                 }
 
-                int nextId = edge.OtherNodeId(current);
-
-                if (!visited.Add(nextId) || !onRunwaySet.Contains(nextId))
+                // Follow same-taxiway edges to stay on this taxiway's path
+                if (edge.TaxiwayName != hsTaxiway)
                 {
                     continue;
                 }
 
-                var nextNode = layout.Nodes[nextId];
+                int nextId = edge.OtherNodeId(current);
+
+                if (!visited.Add(nextId))
+                {
+                    continue;
+                }
+
+                if (!layout.Nodes.TryGetValue(nextId, out var nextNode))
+                {
+                    continue;
+                }
+
                 double ct = Math.Abs(
                     GeoMath.SignedCrossTrackDistanceNm(nextNode.Latitude, nextNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
                 );
 
-                if (ct < bestCrossTrack)
+                Log.LogDebug(
+                    "  FindCenterline(HS#{Hs}): walked to #{Next} via {Tw} crossTrack={Ct:F0}ft onRunway={On} (best: #{Best} at {BestCt:F0}ft)",
+                    hsNodeId,
+                    nextId,
+                    edge.TaxiwayName,
+                    ct * GeoMath.FeetPerNm,
+                    onRunwaySet.Contains(nextId),
+                    bestId,
+                    bestCrossTrack * GeoMath.FeetPerNm
+                );
+
+                // Only on-runway nodes are candidates for the centerline representative
+                if (onRunwaySet.Contains(nextId) && (ct < bestCrossTrack))
                 {
                     bestCrossTrack = ct;
                     bestId = nextId;
+                }
+
+                // Keep walking — the next node might be closer to centerline
+                // Stop when we've crossed the centerline and are moving away
+                // (cross-track increasing past the best), or hit a non-taxiway node
+                if ((bestId != -1) && (ct > bestCrossTrack * 2))
+                {
+                    continue; // Don't enqueue — too far past centerline
                 }
 
                 queue.Enqueue(nextId);

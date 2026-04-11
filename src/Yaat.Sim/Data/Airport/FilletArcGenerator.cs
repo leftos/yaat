@@ -164,6 +164,12 @@ public static class FilletArcGenerator
     {
         preserveNode = false;
 
+        // Centerline projection nodes are synthetic infrastructure — not real intersections
+        if (node.Origin?.StartsWith("RunwayCrossing:centerline-projection") == true)
+        {
+            return false;
+        }
+
         // Only fillet plain intersection nodes — not hold-shorts, parking, spots, helipads
         if (node.Type != GroundNodeType.TaxiwayIntersection)
         {

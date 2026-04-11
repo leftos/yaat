@@ -167,6 +167,9 @@ When invoking aviation-sim-expert, always include:
 - **No optional parameters**: Make params required so the compiler enforces wiring. Optional params hide missing integration.
 - **No repurposing DTO fields**: Add new fields with clear names. Remove dead fields entirely.
 
+### Debugging
+- **Add logging freely**: When investigating a bug, always add `Log.LogDebug` statements to trace execution rather than guessing from the code. This is always allowed and encouraged — logging is the primary debugging tool for graph/geometry issues. Use `--debug-fillets` in LayoutInspector to enable debug output.
+
 ### Error Handling
 - Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
 - Yaat.Sim static classes: `private static readonly ILogger Log = SimLog.CreateLogger("ClassName");` — never optional.

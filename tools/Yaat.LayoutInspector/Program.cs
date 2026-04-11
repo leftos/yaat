@@ -130,6 +130,7 @@ public static class Program
                     opts.IncludeScopes = false;
                 });
                 builder.AddFilter("FilletArcGenerator", LogLevel.Debug);
+                builder.AddFilter("RunwayCrossingDetector", LogLevel.Debug);
                 builder.SetMinimumLevel(LogLevel.Warning);
             });
             SimLog.Initialize(loggerFactory);

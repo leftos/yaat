@@ -184,7 +184,7 @@ public sealed class GroundEdge : IGroundEdge
             _ => false, // junction arc has multiple names — never "same" as a single-name edge
         };
 
-    public bool IsRunwayCenterline => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+    public bool IsRunwayCenterline => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !TaxiwayName.Contains(":link");
 
     public bool MatchesRunway(string designator) => IsRunwayCenterline && IGroundEdge.RunwayNameContainsDesignator(TaxiwayName, designator);
 
