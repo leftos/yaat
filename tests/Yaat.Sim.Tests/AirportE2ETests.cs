@@ -1141,7 +1141,7 @@ public class AirportE2ETests
 
         // Walk E — goes west, misses 28R hold-shorts
         var segments = new List<TaxiRouteSegment>();
-        bool walked = TaxiPathfinder.WalkTaxiway(layout, ceJunction.Id, "E", segments, out _);
+        bool walked = TaxiPathfinder.WalkTaxiway(layout, ceJunction.Id, "E", segments, out _, new WalkOptions());
         Assert.True(walked, "Should be able to walk E from C/E junction");
 
         // Verify the walk does NOT pass through 28R hold-short (the root cause)

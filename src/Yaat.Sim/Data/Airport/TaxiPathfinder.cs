@@ -31,6 +31,20 @@ public sealed class ExplicitPathOptions
 }
 
 /// <summary>
+/// Optional parameters for <see cref="TaxiPathfinder.WalkTaxiway"/>.
+/// </summary>
+public sealed class WalkOptions
+{
+    public string? NextTaxiwayName { get; init; }
+    public bool AllowRampFallback { get; init; } = true;
+    public bool AllowCurrentTaxiwayWalk { get; init; } = true;
+    public GroundNode? DestinationHint { get; init; }
+    public string? StopAtRunwayId { get; init; }
+    public int? StopAtNodeId { get; init; }
+    public Action<string>? DiagnosticLog { get; init; }
+}
+
+/// <summary>
 /// Pathfinding on the airport ground layout graph.
 /// Supports explicit path validation (user specifies taxiways) and A* auto-routing.
 /// </summary>
@@ -202,13 +216,16 @@ public static class TaxiPathfinder
                 twName,
                 segments,
                 out int endNodeId,
-                nextTwName,
-                allowRampFallback: isFirstTw,
-                allowCurrentTaxiwayWalk: isFirstTw,
-                destinationHint: passedHint,
-                stopAtRunwayId: passedStopId,
-                stopAtNodeId: passedStopNodeId,
-                diagnosticLog: diagnosticLog
+                new WalkOptions
+                {
+                    NextTaxiwayName = nextTwName,
+                    AllowRampFallback = isFirstTw,
+                    AllowCurrentTaxiwayWalk = isFirstTw,
+                    DestinationHint = passedHint,
+                    StopAtRunwayId = passedStopId,
+                    StopAtNodeId = passedStopNodeId,
+                    DiagnosticLog = diagnosticLog,
+                }
             );
 
             int addedSegments = segments.Count - segCountBefore;
@@ -688,15 +705,16 @@ public static class TaxiPathfinder
         string taxiwayName,
         List<TaxiRouteSegment> segments,
         out int endNodeId,
-        string? nextTaxiwayName = null,
-        bool allowRampFallback = true,
-        bool allowCurrentTaxiwayWalk = true,
-        GroundNode? destinationHint = null,
-        string? stopAtRunwayId = null,
-        int? stopAtNodeId = null,
-        Action<string>? diagnosticLog = null
+        WalkOptions opts
     )
     {
+        var nextTaxiwayName = opts.NextTaxiwayName;
+        bool allowRampFallback = opts.AllowRampFallback;
+        bool allowCurrentTaxiwayWalk = opts.AllowCurrentTaxiwayWalk;
+        var destinationHint = opts.DestinationHint;
+        var stopAtRunwayId = opts.StopAtRunwayId;
+        var stopAtNodeId = opts.StopAtNodeId;
+        var diagnosticLog = opts.DiagnosticLog;
         endNodeId = startNodeId;
 
         if (!layout.Nodes.TryGetValue(startNodeId, out var currentNode))

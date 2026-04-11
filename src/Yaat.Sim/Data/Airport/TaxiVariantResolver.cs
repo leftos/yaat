@@ -242,7 +242,7 @@ internal static class TaxiVariantResolver
         }
 
         // Walk the variant from the branch point
-        bool walked = TaxiPathfinder.WalkTaxiway(layout, branchNodeId, chosenVariant, segments, out int endNodeId);
+        bool walked = TaxiPathfinder.WalkTaxiway(layout, branchNodeId, chosenVariant, segments, out int endNodeId, new WalkOptions());
         Log.LogDebug(
             "[Variant] AutoExtend: walked {Variant} from #{Branch} → #{End}, success={Walked}",
             chosenVariant,
