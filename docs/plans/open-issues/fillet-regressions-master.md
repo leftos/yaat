@@ -11,7 +11,7 @@ Tracks all open fillet arc geometry bugs. Supersedes four sub-plans:
 
 | Sub-plan | Status | Notes |
 |----------|--------|-------|
-| Plan A — WJA1508 exit overshoot | **Unknown** | No direct test; may be resolved by geometry fixes or may be a separate pathfinder/navigator issue |
+| Plan A — WJA1508 exit overshoot | **Unknown** | May be related to issue #13 (wrong-side exit arc selection) |
 | Plan B — SKW3078/DAL2581 taxi stall | **Fixed** (`45d5c06`) | Duplicate edge dedup fix resolved the stall |
 | Plan C — SFO T6/T6B arc symmetry | **Fixed** (`e4621d7`) | Half-length cap + preserve intersection fixes |
 | Plan D — OAK G/D missing fillet arc | **Fixed** (`45d5c06`, improved by `e4621d7`) | Dedup + half-cap fixes |
@@ -116,17 +116,29 @@ Floor `_currentNodeRequiredSpeed` to 2kt minimum so degenerate arcs never perman
 
 Hangs during `engine.Replay(recording, 1179)`. Not caused by degenerate arcs (all eliminated) or dangling edges (all fixed). Likely a graph connectivity issue where the pathfinder enters an infinite loop on a disconnected or malformed subgraph. Needs investigation with per-tick progress logging (xUnit output buffering makes this difficult — use `Console.Error.WriteLine` or Serilog file sink).
 
-### 10. Missing fillet arcs on east side of + intersections (MEDIUM)
+### ~~10. Missing fillet arcs on east side of + intersections~~ — **FIXED** (`b3a993e`)
 
-Example: OAK H/C at node #351. This is a + intersection (C east/west, H north/south). Fillet arcs are created on the west side (C→H and H→C at nodes #1269, #1271, #365) but NOT on the east side. The C east edge (→350, bearing 112.2°) is consumed by the fillet but no corresponding arc is created for the H/C east turn.
+Root cause was issue #11: at OAK C/D intersection #349, the 174° near-U-turn pair produced a 1518ft tangent distance that consumed the C edge (350↔351) belonging to the H/C intersection #351. With the tangent cap, #349's tangent stops before #350, preserving #351's SE-direction C edge. Node #351 now has all 4 edges and 4 fillet arcs.
 
-The south H edge goes to a hold-short (→499 rwy=28R/10L), which may cause the runway-edge protection to suppress arc creation on adjacent edges.
+### ~~11. Fillet arcs spanning past intervening taxiways~~ — **FIXED** (`b3a993e`)
 
-### 11. Fillet arcs spanning past intervening taxiways (MEDIUM)
+Two caps added to `FilletArcGenerator`:
+- **Structural cap**: `DistToFirstIntersectionFt` finds the first walk step with other taxiways at distance >= `MaxTangentDistFt`. Tangent distance capped at that distance. Close neighbors (< 150ft) are excluded to avoid breaking their downstream fillet processing.
+- **Absolute cap**: `MaxTangentDistFt = 150ft` hard ceiling on tangent distance, recomputes radius to match.
 
-Example: OAK C/D arc 1261→1262 at intersection #349. The turn angle from C onto D at #349 is very steep, so the tangent distance is large. The arc extends west past taxiways G and H all the way near J, crossing taxiway J's path — an aircraft would never take this arc, they'd use the intervening taxiways instead.
+### 13. Exit pathfinder selects wrong-side fillet arc (MEDIUM)
 
-**Fix**: Cap the tangent distance so it doesn't extend past the next taxiway intersection on either edge. When computing `tangentDistFt`, limit it to the distance to the nearest other-taxiway intersection along each edge. This prevents arcs from spanning past junctions that provide a more natural path.
+`FindAdjacentHoldShort` BFS filters arcs by departure tangent direction from the centerline node (>95° from runway heading = skip). But both the north and south arcs at a runway/taxiway crossing depart roughly tangent to the runway, so neither is filtered. The BFS picks the shortest-distance path, which may go through the wrong-side arc (e.g., south arc for a northbound exit), causing a 160° heading reversal after the arc.
+
+Example: OAK 28R exit onto G at node #359. The aircraft (heading 292°) should take the NW arc to north G tangent #1288, but instead takes the SW arc to south G tangent #1292, then must reverse 160° to reach G north.
+
+The BFS scores by total distance + parking proximity + angle penalty. The north arc path should be shorter, but something in the scoring prefers the south path. Needs investigation: check whether the south arc has shorter graph distance (via intersection #359), or whether the parking bias tips the score.
+
+Note: the three pathfinder modes (fewest turns, shortest, fastest) should all prefer the north arc since the south path is longer AND involves more heading change.
+
+**Fix**: Investigate why the BFS picks the south path despite longer distance. May need arc arrival-direction filtering or turn-direction-aware scoring.
+
+**5 OAK exit tests fail**: B, E, G, P, and default — all heading reversals from wrong-side arc selection.
 
 ### 12. Disconnected taxiway subgraph: K/F nodes 1470/1471 (LOW)
 
@@ -158,12 +170,11 @@ Root cause: `FindCenterlineNode` walked only through on-runway nodes, but GeoJSO
 
 ## Recommended fix order
 
-1. **Issue #11** (arc spanning past taxiways) — cap tangent at next taxiway intersection
-2. **Issue #10** (missing east-side arcs) — investigate why + intersection arcs are one-sided
-3. **Issue #4** (merge recomputation) — should reduce tangent-misaligned warnings significantly
-4. **Issue #12** (disconnected K/F subgraph) — investigate cause
-5. **Issue #9** (DAL2581 hang) — investigate graph connectivity
-6. **Issues #6, #7, #8** — low priority
+1. **Issue #13** (wrong-side exit arc) — investigate BFS scoring, fix 5 OAK exit tests
+2. **Issue #4** (merge recomputation) — should reduce tangent-misaligned warnings significantly
+3. **Issue #12** (disconnected K/F subgraph) — investigate cause
+4. **Issue #9** (DAL2581 hang) — investigate graph connectivity
+5. **Issues #6, #7, #8** — low priority
 
 After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenerate Layout Inspector HTML for OAK and SFO, compare warning counts and visual arc geometry.
 
@@ -177,8 +188,12 @@ After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenera
 | `src/Yaat.Sim/Data/Airport/RunwayCrossingDetector.cs` | Taxiway-runway crossing detection, hold-short placement, centerline edges |
 | `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` | GeoJSON parsing, overlapping edge removal |
 | `tools/Yaat.LayoutInspector/LayoutValidator.cs` | Validation pass (stale refs, tangent alignment, degenerate arcs) |
-| `tools/Yaat.LayoutInspector/Program.cs` | `--debug-fillets` flag for tracing fillet decisions |
+| `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` | Arc following, speed profiling, braking constraints, NavTickDiag |
+| `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` | Exit route construction from centerline to hold-short |
+| `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | `FindExitFromCenterline`, `FindAdjacentHoldShort` BFS |
+| `tools/Yaat.LayoutInspector/Program.cs` | `--debug-fillets`, `--pathfinder`, `--validate` |
 | `tests/Yaat.Sim.Tests/Simulation/FilletDiagnosticTests.cs` | 6 regression tests + debug trace |
+| `tests/Yaat.Sim.Tests/Helpers/TickRecorder.cs` | Per-tick CSV with nav diagnostics |
 
 ## Session commits (chronological)
 
@@ -192,7 +207,7 @@ After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenera
 | `642fd40` | fix: skip fillet pairs where both edges go to the same node |
 | `b5ff95f` | feat: per-pair tangent nodes and same-node pair skip |
 
-### This session
+### Prior session (fillet geometry fixes)
 | Commit | Description |
 |--------|-------------|
 | `01e6c08` | fix: clean up dangling edges/arcs when removing fillet nodes |
@@ -202,4 +217,11 @@ After each fix: rebuild, run `FilletDiagnosticTests` with `timeout 30`, regenera
 | `f06647c` | fix: skip all shape-point nodes from filleting, not just curved chains |
 | `6f8fde8` | fix: remove overlapping taxiway edges, fix kappa formula, highlight defaults |
 | `462d967` | fix: project runway crossing nodes onto centerline, protect runway edges |
-| (pending) | fix: FindCenterlineNode walks through off-runway shape-points to find actual centerline |
+| `e769c72` | fix: FindCenterlineNode walks through off-runway shape-points |
+
+### This session (tangent caps + diagnostics)
+| Commit | Description |
+|--------|-------------|
+| `b3a993e` | fix: cap fillet tangent distance at next intersection and 150ft absolute max |
+| `dde92f2` | feat: LI enhancements: repeatable args, --pathfinder, --bfs rename, gated validation |
+| `c9433bd` | feat: nav tick diagnostics and arc speed ceiling |
