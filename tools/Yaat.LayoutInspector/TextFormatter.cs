@@ -34,6 +34,16 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
             w.WriteLine($"  Connects to: {string.Join(", ", r.ConnectedTaxiways)}");
         }
 
+        if (r.Intersections.Count > 0)
+        {
+            w.WriteLine();
+            w.WriteLine("  Intersections:");
+            foreach (var ix in r.Intersections)
+            {
+                w.WriteLine($"    {r.Name}/{ix.OtherTaxiway} at #{ix.NodeId}");
+            }
+        }
+
         w.WriteLine();
         foreach (var node in r.Nodes)
         {
@@ -173,11 +183,33 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         }
     }
 
+    public void WriteIntersection(IntersectionResult r)
+    {
+        w.WriteLine($"Intersection {r.Taxiway1}/{r.Taxiway2}: {r.Nodes.Count} node(s)");
+        w.WriteLine();
+        foreach (var node in r.Nodes)
+        {
+            WriteNode(node);
+            w.WriteLine();
+        }
+    }
+
+    public void WriteValidation(ValidationResult r)
+    {
+        w.WriteLine($"Validation: {r.WarningCount} warning(s)");
+        foreach (var warning in r.Warnings)
+        {
+            string origin = (warning.Origin is not null) ? $" (origin: {warning.Origin})" : "";
+            w.WriteLine($"  [{warning.Code}] {warning.Message}{origin}");
+        }
+    }
+
     private void WriteNodeCompact(NodeInfo n, string indent = "  ")
     {
         string label = (n.Name is not null) ? $" \"{n.Name}\"" : "";
         string rwy = (n.RunwayId is not null) ? $" rwy={n.RunwayId}" : "";
         string heading = (n.HeadingDeg is not null) ? $" hdg={n.HeadingDeg:F0}" : "";
-        w.WriteLine($"{indent}#{n.Id} {n.Type}{label}{rwy}{heading} ({n.Latitude:F6}, {n.Longitude:F6}) -- {n.Edges.Count} edges");
+        string arcs = (n.ArcCount > 0) ? $" arcs={n.ArcCount}" : "";
+        w.WriteLine($"{indent}#{n.Id} {n.Type}{label}{rwy}{heading} ({n.Latitude:F6}, {n.Longitude:F6}) -- {n.Edges.Count} edges{arcs}");
     }
 }

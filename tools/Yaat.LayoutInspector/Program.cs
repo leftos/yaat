@@ -31,6 +31,9 @@ public static class Program
         string? pathTaxiway = null;
         bool showParking = false;
         bool showSpots = false;
+        bool validate = false;
+        string? intersectTwy1 = null;
+        string? intersectTwy2 = null;
         bool jsonOutput = false;
         bool dumpAll = false;
         bool noFillets = false;
@@ -73,6 +76,13 @@ public static class Program
                     break;
                 case "--spots":
                     showSpots = true;
+                    break;
+                case "--validate":
+                    validate = true;
+                    break;
+                case "--intersection" when i + 2 < args.Length:
+                    intersectTwy1 = args[++i].ToUpperInvariant();
+                    intersectTwy2 = args[++i].ToUpperInvariant();
                     break;
                 case "--json":
                     jsonOutput = true;
@@ -212,7 +222,9 @@ public static class Program
             || (exitsRunway is not null)
             || (pathNodeId is not null)
             || showParking
-            || showSpots;
+            || showSpots
+            || validate
+            || (intersectTwy1 is not null);
 
         if (!anyFilter)
         {
@@ -259,6 +271,20 @@ public static class Program
         if (showSpots)
         {
             formatter.WriteNodeList("Spots", analyzer.GetSpots());
+        }
+
+        if (intersectTwy1 is not null && intersectTwy2 is not null)
+        {
+            formatter.WriteIntersection(analyzer.GetIntersection(intersectTwy1, intersectTwy2));
+        }
+
+        if (validate)
+        {
+            var validationResult = new ValidationResult(
+                warnings.Count,
+                warnings.Select(w => new ValidationWarningDto(w.Code, w.Message, w.Origin)).ToList()
+            );
+            formatter.WriteValidation(validationResult);
         }
 
         return 0;
@@ -314,6 +340,8 @@ public static class Program
         Console.WriteLine("  --path <node-id> <twy>   BFS trace from node through taxiway to hold-short");
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
+        Console.WriteLine("  --intersection <T1> <T2> Show nodes where two taxiways meet");
+        Console.WriteLine("  --validate               Run validation and print warnings to stdout");
         Console.WriteLine("  --no-fillets             Skip fillet arc generation (unfilleted graph for comparison)");
         Console.WriteLine("  --debug-fillets          Enable debug logging for FilletArcGenerator");
         Console.WriteLine("  --dump                   Dump everything (nodes, taxiways, runways, exits) as JSON");

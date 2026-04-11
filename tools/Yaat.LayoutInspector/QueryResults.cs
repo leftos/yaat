@@ -22,7 +22,8 @@ public sealed record NodeInfo(
     string? RunwayId,
     double? HeadingDeg,
     List<EdgeInfo> Edges,
-    string? Origin
+    string? Origin,
+    int ArcCount
 );
 
 public sealed record EdgeInfo(
@@ -61,7 +62,21 @@ public sealed record ArcDetail(
     double P2Lon
 );
 
-public sealed record TaxiwayResult(string Name, List<NodeInfo> Nodes, List<string> ConnectedTaxiways, int HoldShortCount);
+public sealed record TaxiwayIntersectionInfo(string OtherTaxiway, int NodeId);
+
+public sealed record IntersectionResult(string Taxiway1, string Taxiway2, List<NodeInfo> Nodes);
+
+public sealed record ValidationResult(int WarningCount, List<ValidationWarningDto> Warnings);
+
+public sealed record ValidationWarningDto(string Code, string Message, string? Origin);
+
+public sealed record TaxiwayResult(
+    string Name,
+    List<NodeInfo> Nodes,
+    List<string> ConnectedTaxiways,
+    int HoldShortCount,
+    List<TaxiwayIntersectionInfo> Intersections
+);
 
 public sealed record RunwayResult(string Designator, List<NodeInfo> CenterlineNodes, List<NodeInfo> HoldShortNodes);
 

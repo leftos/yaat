@@ -263,8 +263,20 @@ canvas.addEventListener('wheel', e => {
   draw();
 }, { passive: false });
 
-canvas.addEventListener('mousedown', e => { dragging = true; dragX = e.clientX; dragY = e.clientY; });
+let dragStartX = 0, dragStartY = 0;
+canvas.addEventListener('mousedown', e => { dragging = true; dragX = e.clientX; dragY = e.clientY; dragStartX = e.clientX; dragStartY = e.clientY; });
 window.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('click', e => {
+  // Only copy if the mouse didn't move (not a drag) and tooltip is visible
+  const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
+  if (dist < 4 && tip.style.display === 'block' && tip.textContent) {
+    navigator.clipboard.writeText(tip.textContent).then(() => {
+      const orig = tip.style.borderColor;
+      tip.style.borderColor = '#58a6ff';
+      setTimeout(() => { tip.style.borderColor = orig; }, 300);
+    });
+  }
+});
 
 canvas.addEventListener('mousemove', e => {
   if (dragging) {

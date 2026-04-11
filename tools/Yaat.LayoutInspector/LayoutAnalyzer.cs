@@ -119,6 +119,8 @@ public sealed class LayoutAnalyzer
             );
         }
 
+        int arcCount = edges.Count(e => e.IsArc);
+
         return new NodeInfo(
             node.Id,
             node.Latitude,
@@ -128,7 +130,8 @@ public sealed class LayoutAnalyzer
             node.RunwayId?.ToString(),
             node.TrueHeading?.Degrees,
             edges,
-            node.Origin
+            node.Origin,
+            arcCount
         );
     }
 
@@ -172,6 +175,8 @@ public sealed class LayoutAnalyzer
     {
         var nodeIds = new HashSet<int>();
         var connectedTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var intersections = new List<TaxiwayIntersectionInfo>();
+        var seenIntersections = new HashSet<(string, int)>();
         int holdShortCount = 0;
 
         foreach (var edge in Layout.AllEdges)
@@ -207,11 +212,46 @@ public sealed class LayoutAnalyzer
                 foreach (string twyName in CollectNonRunwayTaxiwayNames(edge))
                 {
                     connectedTaxiways.Add(twyName);
+                    if (seenIntersections.Add((twyName, id)))
+                    {
+                        intersections.Add(new TaxiwayIntersectionInfo(twyName, id));
+                    }
                 }
             }
         }
 
-        return new TaxiwayResult(name, nodes, connectedTaxiways.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(), holdShortCount);
+        intersections.Sort(
+            (a, b) =>
+            {
+                int cmp = string.Compare(a.OtherTaxiway, b.OtherTaxiway, StringComparison.OrdinalIgnoreCase);
+                return cmp != 0 ? cmp : a.NodeId.CompareTo(b.NodeId);
+            }
+        );
+
+        return new TaxiwayResult(
+            name,
+            nodes,
+            connectedTaxiways.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(),
+            holdShortCount,
+            intersections
+        );
+    }
+
+    public IntersectionResult GetIntersection(string twy1, string twy2)
+    {
+        var result = new List<NodeInfo>();
+        foreach (var (id, node) in Layout.Nodes)
+        {
+            bool hasTwy1 = node.Edges.Any(e => e.MatchesTaxiway(twy1));
+            bool hasTwy2 = node.Edges.Any(e => e.MatchesTaxiway(twy2));
+            if (hasTwy1 && hasTwy2)
+            {
+                result.Add(BuildNodeInfo(node));
+            }
+        }
+
+        result.Sort((a, b) => a.Id.CompareTo(b.Id));
+        return new IntersectionResult(twy1, twy2, result);
     }
 
     public List<NodeInfo> GetParking()

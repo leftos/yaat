@@ -19,4 +19,8 @@ public sealed class JsonFormatter(TextWriter writer) : IFormatter
     public void WriteBfsPath(BfsPathResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
 
     public void WriteNodeList(string title, List<NodeInfo> nodes) => writer.WriteLine(JsonSerializer.Serialize(new { title, nodes }, Opts));
+
+    public void WriteIntersection(IntersectionResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
+
+    public void WriteValidation(ValidationResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
 }

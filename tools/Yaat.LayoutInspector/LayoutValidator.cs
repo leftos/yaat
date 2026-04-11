@@ -24,6 +24,7 @@ public sealed class LayoutValidator
         CheckDegenerateArcRadius();
         CheckSelfLoopEdges();
         CheckOrphanNodes();
+        CheckTaxiwayConnectivity();
         return [.. _warnings];
     }
 
@@ -228,6 +229,137 @@ public sealed class LayoutValidator
                     null
                 );
             }
+        }
+    }
+
+    private void CheckTaxiwayConnectivity()
+    {
+        // Build adjacency via non-runway-centerline edges only
+        var adj = new Dictionary<int, HashSet<int>>();
+        foreach (var edge in _layout.Edges)
+        {
+            if (edge.IsRunwayCenterline)
+            {
+                continue;
+            }
+
+            int a = edge.Nodes[0].Id;
+            int b = edge.Nodes[1].Id;
+            if (!adj.ContainsKey(a))
+            {
+                adj[a] = [];
+            }
+
+            if (!adj.ContainsKey(b))
+            {
+                adj[b] = [];
+            }
+
+            adj[a].Add(b);
+            adj[b].Add(a);
+        }
+
+        foreach (var arc in _layout.Arcs)
+        {
+            int a = arc.Nodes[0].Id;
+            int b = arc.Nodes[1].Id;
+            if (!adj.ContainsKey(a))
+            {
+                adj[a] = [];
+            }
+
+            if (!adj.ContainsKey(b))
+            {
+                adj[b] = [];
+            }
+
+            adj[a].Add(b);
+            adj[b].Add(a);
+        }
+
+        if (adj.Count == 0)
+        {
+            return;
+        }
+
+        // BFS from first node to find main component
+        var visited = new HashSet<int>();
+        var components = new List<HashSet<int>>();
+
+        foreach (int startId in adj.Keys)
+        {
+            if (visited.Contains(startId))
+            {
+                continue;
+            }
+
+            var component = new HashSet<int>();
+            var queue = new Queue<int>();
+            queue.Enqueue(startId);
+            component.Add(startId);
+            visited.Add(startId);
+
+            while (queue.Count > 0)
+            {
+                int current = queue.Dequeue();
+                if (!adj.TryGetValue(current, out var neighbors))
+                {
+                    continue;
+                }
+
+                foreach (int n in neighbors)
+                {
+                    if (component.Add(n))
+                    {
+                        visited.Add(n);
+                        queue.Enqueue(n);
+                    }
+                }
+            }
+
+            components.Add(component);
+        }
+
+        if (components.Count <= 1)
+        {
+            return;
+        }
+
+        // Sort by size descending — largest is the main graph
+        components.Sort((a, b) => b.Count.CompareTo(a.Count));
+
+        for (int i = 1; i < components.Count; i++)
+        {
+            var comp = components[i];
+            // Collect taxiway names in this component
+            var taxiways = new HashSet<string>();
+            foreach (int nodeId in comp)
+            {
+                if (!_layout.Nodes.TryGetValue(nodeId, out var node))
+                {
+                    continue;
+                }
+
+                foreach (var edge in node.Edges)
+                {
+                    if (!edge.IsRunwayCenterline)
+                    {
+                        taxiways.Add(edge.TaxiwayName);
+                    }
+                }
+            }
+
+            string nodeList = string.Join(", ", comp.OrderBy(id => id).Take(10).Select(id => $"#{id}"));
+            if (comp.Count > 10)
+            {
+                nodeList += $", ... ({comp.Count} total)";
+            }
+
+            Warn(
+                "disconnected-subgraph",
+                $"Disconnected taxiway subgraph with {comp.Count} node(s) on [{string.Join(", ", taxiways.OrderBy(t => t))}]: {nodeList}",
+                (IGroundEdge?)null
+            );
         }
     }
 

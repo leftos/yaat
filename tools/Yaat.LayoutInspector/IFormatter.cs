@@ -9,4 +9,6 @@ public interface IFormatter
     void WriteExits(ExitsResult result);
     void WriteBfsPath(BfsPathResult result);
     void WriteNodeList(string title, List<NodeInfo> nodes);
+    void WriteIntersection(IntersectionResult result);
+    void WriteValidation(ValidationResult result);
 }
