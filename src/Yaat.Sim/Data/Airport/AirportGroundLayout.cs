@@ -828,76 +828,13 @@ public sealed class AirportGroundLayout
 
         var queue = new Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)>();
 
-        foreach (var clusterNode in clusterNodes)
-        {
-            foreach (var edge in clusterNode.Edges)
-            {
-                if (edge.IsRunwayCenterline)
-                {
-                    continue;
-                }
-
-                var neighbor = edge.OtherNode(clusterNode);
-
-                if (visited.Contains(neighbor.Id))
-                {
-                    Log.LogDebug("[ExitBFS]   skip #{From}→#{To} via {Twy}: already visited", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
-                    continue;
-                }
-
-                // Skip arcs whose departure tangent faces away from the runway heading.
-                // Do NOT mark the neighbor as visited here — a rejected arc's endpoint
-                // may be reachable via a different (non-arc) edge from another cluster node.
-                if (edge is GroundArc arc)
-                {
-                    double departureBearing = arc.TangentBearingAt(clusterNode, clusterNode, neighbor);
-                    double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
-                    if (bearingDiff > 95)
-                    {
-                        Log.LogDebug(
-                            "[ExitBFS]   skip arc #{From}→#{To} via {Twy}: departure {Dep:F1}° diff={Diff:F1}° > 95°",
-                            clusterNode.Id,
-                            neighbor.Id,
-                            edge.TaxiwayName,
-                            departureBearing,
-                            bearingDiff
-                        );
-                        continue;
-                    }
-
-                    Log.LogDebug(
-                        "[ExitBFS]   seed arc #{From}→#{To} via {Twy}: departure {Dep:F1}° diff={Diff:F1}°",
-                        clusterNode.Id,
-                        neighbor.Id,
-                        edge.TaxiwayName,
-                        departureBearing,
-                        bearingDiff
-                    );
-                }
-                else
-                {
-                    Log.LogDebug("[ExitBFS]   seed edge #{From}→#{To} via {Twy}", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
-                }
-
-                if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
-                {
-                    Log.LogDebug(
-                        "[ExitBFS]   skip #{From}→#{To}: taxiway {Twy} doesn't match pref {Pref}",
-                        clusterNode.Id,
-                        neighbor.Id,
-                        edge.TaxiwayName,
-                        prefTwy
-                    );
-                    continue;
-                }
-
-                // For junction arcs (e.g. ["G", "RWY28R/10L"]), use the non-runway name
-                // so the BFS can match subsequent single-name taxiway edges.
-                string branchName = edge is GroundArc { IsRunwayJunction: true } ja ? ja.FirstNonRunwayName() : edge.TaxiwayName;
-                visited.Add(neighbor.Id);
-                queue.Enqueue((neighbor, branchName, [clusterNode, neighbor], edge.DistanceNm, 1));
-            }
-        }
+        // Seed in two passes: arcs first, then straight edges. Fillet arcs are the
+        // geometrically correct path through intersections — the straight edges
+        // preserved by the fillet generator are shortcuts that skip the curve.
+        // By seeding arcs first, they claim the visited set and straights to the
+        // same node are skipped.
+        SeedEdgesFromCluster(clusterNodes, visited, queue, runwayHeading, preference, arcsOnly: true);
+        SeedEdgesFromCluster(clusterNodes, visited, queue, runwayHeading, preference, arcsOnly: false);
 
         while (queue.Count > 0)
         {
@@ -1041,6 +978,93 @@ public sealed class AirportGroundLayout
         }
 
         return (best, bestTaxiway, bestPath);
+    }
+
+    /// <summary>
+    /// Seed the BFS queue from cluster nodes. When <paramref name="arcsOnly"/> is true,
+    /// only arc edges are seeded; when false, only straight edges. Called in two passes
+    /// (arcs first) so arcs claim the visited set before straight shortcuts can.
+    /// </summary>
+    private void SeedEdgesFromCluster(
+        List<GroundNode> clusterNodes,
+        HashSet<int> visited,
+        Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)> queue,
+        TrueHeading runwayHeading,
+        ExitPreference? preference,
+        bool arcsOnly
+    )
+    {
+        foreach (var clusterNode in clusterNodes)
+        {
+            foreach (var edge in clusterNode.Edges)
+            {
+                if (edge.IsRunwayCenterline)
+                {
+                    continue;
+                }
+
+                bool isArc = edge is GroundArc;
+                if (arcsOnly != isArc)
+                {
+                    continue;
+                }
+
+                var neighbor = edge.OtherNode(clusterNode);
+
+                if (visited.Contains(neighbor.Id))
+                {
+                    Log.LogDebug("[ExitBFS]   skip #{From}->{To} via {Twy}: already visited", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
+                    continue;
+                }
+
+                if (edge is GroundArc arc)
+                {
+                    double departureBearing = arc.TangentBearingAt(clusterNode, clusterNode, neighbor);
+                    double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
+                    if (bearingDiff > 95)
+                    {
+                        Log.LogDebug(
+                            "[ExitBFS]   skip arc #{From}->{To} via {Twy}: departure {Dep:F1} diff={Diff:F1} > 95",
+                            clusterNode.Id,
+                            neighbor.Id,
+                            edge.TaxiwayName,
+                            departureBearing,
+                            bearingDiff
+                        );
+                        continue;
+                    }
+
+                    Log.LogDebug(
+                        "[ExitBFS]   seed arc #{From}->{To} via {Twy}: departure {Dep:F1} diff={Diff:F1}",
+                        clusterNode.Id,
+                        neighbor.Id,
+                        edge.TaxiwayName,
+                        departureBearing,
+                        bearingDiff
+                    );
+                }
+                else
+                {
+                    Log.LogDebug("[ExitBFS]   seed edge #{From}->{To} via {Twy}", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
+                }
+
+                if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
+                {
+                    Log.LogDebug(
+                        "[ExitBFS]   skip #{From}->{To}: taxiway {Twy} doesn't match pref {Pref}",
+                        clusterNode.Id,
+                        neighbor.Id,
+                        edge.TaxiwayName,
+                        prefTwy
+                    );
+                    continue;
+                }
+
+                string branchName = edge is GroundArc { IsRunwayJunction: true } ja ? ja.FirstNonRunwayName() : edge.TaxiwayName;
+                visited.Add(neighbor.Id);
+                queue.Enqueue((neighbor, branchName, [clusterNode, neighbor], edge.DistanceNm, 1));
+            }
+        }
     }
 
     /// <summary>
