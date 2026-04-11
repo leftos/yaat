@@ -1190,6 +1190,7 @@ public static class TaxiPathfinder
         var openSet = new PriorityQueue<int, double>();
         var cameFrom = new Dictionary<int, (int NodeId, IGroundEdge Edge)>();
         var gScore = new Dictionary<int, double> { [fromNodeId] = 0 };
+        var closedSet = new HashSet<int>();
 
         double heuristic = GeoMath.DistanceNm(startNode.Latitude, startNode.Longitude, endNode.Latitude, endNode.Longitude);
         openSet.Enqueue(fromNodeId, heuristic);
@@ -1200,6 +1201,12 @@ public static class TaxiPathfinder
             if (current == toNodeId)
             {
                 return ReconstructRoute(layout, cameFrom, toNodeId);
+            }
+
+            // Skip stale priority queue entries — this node was already expanded
+            if (!closedSet.Add(current))
+            {
+                continue;
             }
 
             if (!layout.Nodes.TryGetValue(current, out var currentNode))
