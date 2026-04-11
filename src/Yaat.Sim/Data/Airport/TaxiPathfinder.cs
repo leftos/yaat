@@ -492,7 +492,7 @@ public static class TaxiPathfinder
                 candidates.Add(new TaxiRoute { Segments = combinedSegments, HoldShortPoints = holdShorts });
             }
 
-            candidates.Sort((a, b) => a.TotalDistanceNm.CompareTo(b.TotalDistanceNm));
+            candidates.Sort((a, b) => RouteCost(a, costFn).CompareTo(RouteCost(b, costFn)));
 
             TaxiRoute? nextRoute = null;
             foreach (var candidate in candidates)
@@ -561,6 +561,23 @@ public static class TaxiPathfinder
         speedKts = Math.Max(speedKts, 1.0); // avoid division by zero
         double timeHours = edge.DistanceNm / speedKts;
         return timeHours;
+    }
+
+    /// <summary>
+    /// Total cost of a route under the given cost function.
+    /// Used by Yen's K-shortest to sort candidates by the active strategy's metric.
+    /// </summary>
+    private static double RouteCost(TaxiRoute route, Func<IGroundEdge, IGroundEdge?, double> costFn)
+    {
+        double total = 0;
+        IGroundEdge? prev = null;
+        foreach (var seg in route.Segments)
+        {
+            total += costFn(seg.Edge.Edge, prev);
+            prev = seg.Edge.Edge;
+        }
+
+        return total;
     }
 
     /// <summary>
