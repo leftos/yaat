@@ -23,7 +23,7 @@ canvas:active { cursor:grabbing; }
 #legend {
   position:fixed; bottom:8px; left:8px; background:#0d1117ee;
   border:1px solid #30363d; border-radius:6px; padding:8px 12px;
-  color:#8b949e; font-size:11px; line-height:1.8;
+  color:#8b949e; font-size:11px; line-height:1.8; z-index:15;
 }
 .lc { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; }
 .ls { margin-left:10px; }
@@ -38,7 +38,7 @@ canvas:active { cursor:grabbing; }
   <span class="lc ls" style="background:#8b949e"></span>Ramp
   <span class="lc ls" style="background:#f85149"></span>HS
   <span class="lc ls" style="background:#ff6a00"></span>Route
-  <br><span style="color:#484f58">scroll=zoom  drag=pan  hover=inspect</span>
+  <br><span style="color:#484f58">scroll=zoom  drag=pan  hover=inspect  M=measure</span>
 </div>
 <div id="player" style="display:none; position:fixed; bottom:8px; left:8px; right:8px; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:6px 14px; color:#c9d1d9; font-size:12px; z-index:20; display:flex; align-items:center; gap:10px;">
   <button id="playBtn" style="background:none; border:1px solid #484f58; border-radius:4px; color:#c9d1d9; font-size:14px; cursor:pointer; width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">&#9654;</button>
@@ -326,9 +326,10 @@ canvas.addEventListener('wheel', e => {
 }, { passive: false });
 
 let dragStartX = 0, dragStartY = 0;
-canvas.addEventListener('mousedown', e => { dragging = true; dragX = e.clientX; dragY = e.clientY; dragStartX = e.clientX; dragStartY = e.clientY; });
+canvas.addEventListener('mousedown', e => { if (measureMode) return; dragging = true; dragX = e.clientX; dragY = e.clientY; dragStartX = e.clientX; dragStartY = e.clientY; });
 window.addEventListener('mouseup', () => { dragging = false; });
 canvas.addEventListener('click', e => {
+  if (measureMode) return; // Handled by measure click handler
   // Only copy if the mouse didn't move (not a drag) and tooltip is visible
   const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
   if (dist < 4 && tip.style.display === 'block' && tip.textContent) {
@@ -544,6 +545,8 @@ let playTimer = null;
 if (D.ticks && D.ticks.length > 0) {
   const playerEl = document.getElementById('player');
   playerEl.style.display = 'flex';
+  // Shift legend above the player bar
+  document.getElementById('legend').style.bottom = '52px';
   const scrub = document.getElementById('scrub');
   const playBtn = document.getElementById('playBtn');
   const tickInfo = document.getElementById('tickInfo');
@@ -595,6 +598,108 @@ if (D.ticks && D.ticks.length > 0) {
 
   updateTickInfo();
 }
+
+// --- Measuring tool ---
+let measureMode = false;
+let measureStart = null; // {lat, lon, sx, sy}
+let measureMouse = null; // {lat, lon, sx, sy}
+const rulers = []; // [{lat1,lon1,lat2,lon2,distFt}]
+
+function distFt(lat1, lon1, lat2, lon2) {
+  const dlat = (lat2 - lat1) * 60 * 6076.12;
+  const dlon = (lon2 - lon1) * Math.cos(lat1 * Math.PI / 180) * 60 * 6076.12;
+  return Math.sqrt(dlat * dlat + dlon * dlon);
+}
+
+function drawRuler(lat1, lon1, lat2, lon2, ft, color, dashed) {
+  const [x1, y1] = toScreen(lat1, lon1);
+  const [x2, y2] = toScreen(lat2, lon2);
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  if (dashed) ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.setLineDash([]);
+  // Label at midpoint
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const label = ft.toFixed(1) + 'ft';
+  ctx.font = 'bold 12px Consolas,monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#0d1117';
+  ctx.fillText(label, mx, my - 6);
+  ctx.fillText(label, mx + 1, my - 5);
+  ctx.fillText(label, mx - 1, my - 5);
+  ctx.fillStyle = color;
+  ctx.fillText(label, mx, my - 5);
+  // Endpoint dots
+  [toScreen(lat1, lon1), toScreen(lat2, lon2)].forEach(([x, y]) => {
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill();
+  });
+  ctx.restore();
+}
+
+// Patch draw() to render rulers
+const origDraw = draw;
+draw = function() {
+  origDraw();
+  // Permanent rulers
+  rulers.forEach(r => drawRuler(r.lat1, r.lon1, r.lat2, r.lon2, r.distFt, '#e6db74', false));
+  // Active measurement
+  if (measureMode && measureStart && measureMouse) {
+    const ft = distFt(measureStart.lat, measureStart.lon, measureMouse.lat, measureMouse.lon);
+    drawRuler(measureStart.lat, measureStart.lon, measureMouse.lat, measureMouse.lon, ft, '#e6db74', true);
+  }
+  // Cursor indicator
+  if (measureMode) {
+    hud.textContent = 'zoom: ' + scale.toFixed(1) + 'x  |  ' + D.airportId + '  |  MEASURE MODE (M to exit, right-click to delete)';
+  }
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'm' || e.key === 'M') {
+    if (e.target.tagName === 'INPUT') return;
+    measureMode = !measureMode;
+    measureStart = null;
+    measureMouse = null;
+    canvas.style.cursor = measureMode ? 'crosshair' : 'grab';
+    draw();
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!measureMode || !measureStart) return;
+  const [lat, lon] = fromScreen(e.clientX, e.clientY);
+  measureMouse = { lat, lon };
+  draw();
+});
+
+canvas.addEventListener('click', e => {
+  if (!measureMode) return;
+  const [lat, lon] = fromScreen(e.clientX, e.clientY);
+  if (!measureStart) {
+    measureStart = { lat, lon };
+    measureMouse = null;
+  } else {
+    const ft = distFt(measureStart.lat, measureStart.lon, lat, lon);
+    rulers.push({ lat1: measureStart.lat, lon1: measureStart.lon, lat2: lat, lon2: lon, distFt: ft });
+    measureStart = null;
+    measureMouse = null;
+    draw();
+  }
+});
+
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (!measureMode || rulers.length === 0) return;
+  // Delete nearest ruler to click
+  const [lat, lon] = fromScreen(e.clientX, e.clientY);
+  let bestIdx = -1, bestDist = Infinity;
+  rulers.forEach((r, i) => {
+    const midLat = (r.lat1 + r.lat2) / 2, midLon = (r.lon1 + r.lon2) / 2;
+    const d = distFt(lat, lon, midLat, midLon);
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  });
+  if (bestIdx >= 0) { rulers.splice(bestIdx, 1); draw(); }
+});
 
 resize();
 </script></body></html>

@@ -79,6 +79,23 @@ Changed from linear `clamp(1 - angleDiff/120, 0.15, 1.0)` to quadratic `max(0.03
 
 Implemented pre-turning: when within ~50ft of a junction node with a known next-segment bearing, blends the steer target toward the outbound bearing. Uses new `GeoMath.BlendBearings()`. Also switched `ComputeArcSteering` to use local curvature at the lookahead point (floored at min-radius speed) instead of global min-radius, allowing faster traversal on gentle arc sections.
 
+### 18. Exit BFS skips fillet arcs — takes straight shortcut (HIGH)
+
+`FindAdjacentHoldShort` BFS builds the exit path by following edges that match the exit taxiway name. At fillet intersection nodes (e.g., OAK node 359 for G/RWY28R), the original intersection was split into tangent nodes (1288 on G, 1289 on RWY28R) with a fillet arc between them. But the fillet generator **preserved the original straight edge** 359→1288 (on taxiway G), so the BFS picks the straight shortcut and never enters the arc.
+
+**Example (OAK 28R exit G):** Path is `359→1288→1290→360→361`. The arc 1289→1288 is never visited. The aircraft cuts straight from 359 to 1288 (bearing 17.5°) instead of following the 99ft-radius curve. This produces 72ft cross-track deviation through the turn.
+
+**Root cause analysis:** The BFS starts at node 359 (the centerline intersection node). From 359, it sees:
+- Edge to 1288 via **G** (straight, 0.0152nm) — matches taxiway filter ✓
+- Edge to 1289 via **RWY28R/10L** (straight, 0.0152nm) — doesn't match "G" ✗
+The arc 1289→1288 is on "G - RWY28R/10L" but the BFS never reaches 1289 because the only edge from 359 to 1289 is labeled RWY28R/10L.
+
+**Questions to evaluate:**
+1. Would the taxi pathfinder (TaxiPathfinder with FewestTurns/Shortest/Fastest strategies) produce a better path here? It's tuned to prefer arcs at junctions — does its scoring penalize skipping them?
+2. Should `RunwayExitPhase` hand off to the pathfinder instead of maintaining a separate BFS? The BFS system (`FindExitFromCenterline` → `FindAdjacentHoldShort`) was built before fillet arcs existed. The pathfinder already handles arc-aware routing for taxi commands. Unifying would avoid duplicating arc-awareness logic.
+3. Key constraint: the exit BFS does more than pathfinding — it also decides *which* exit to take based on the aircraft's position, speed, preference, and exit angle. The pathfinder would only replace the "route from branch node to hold-short" portion, not the exit selection logic.
+4. Simpler alternative: fix `FindAdjacentHoldShort` to recognize that 359→1288 is a fillet-preserved edge that bypasses an arc, and prefer the arc path (359→1289→arc→1288) instead. This could be done by checking if both endpoints of a straight edge are tangent nodes with an arc between them.
+
 ### ~~17. Fixed bezier lookahead fraction in ComputeArcSteering~~ — **FIXED**
 
 Replaced `t + 0.15` parameter-based lookahead with distance-based `AdvanceByDistance(bezier, t, 40ft)`. Walks along the curve accumulating arc length to find the lookahead parameter. Dramatically improved exit J (145° turn): 182ft → 85ft max deviation.
@@ -91,9 +108,10 @@ Replaced `t + 0.15` parameter-based lookahead with distance-based `AdvanceByDist
 2. ~~**Issue #15** — Navigator speed scaling (quadratic + lower floor)~~ ✓ DONE
 3. ~~**Issue #17** — Distance-based arc lookahead~~ ✓ DONE
 4. ~~**Issue #16** — Pre-turning or delete dead field~~ ✓ DONE
-5. **Issue #4** — Merge recomputation (tangent-misaligned warnings)
-6. **Issues #9, #12** — Graph connectivity bugs
-7. **Issue #6** — Performance
+5. **Issue #18** — Exit BFS skips fillet arcs / consider pathfinder for exits
+6. **Issue #4** — Merge recomputation (tangent-misaligned warnings)
+7. **Issues #9, #12** — Graph connectivity bugs
+8. **Issue #6** — Performance
 
 After each fix: run OAK exit tests, generate tick animations via LI `--ticks`, compare path deviation metrics.
 

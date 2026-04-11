@@ -47,6 +47,13 @@ public sealed class GroundNavigator
     /// </summary>
     private (GroundArc Arc, bool FromNodeIsZero)? _currentArc;
 
+    /// <summary>
+    /// Polyline waypoints for arc traversal. When entering an arc segment, the bezier
+    /// is subdivided into short straight segments (~15ft). The navigator walks through
+    /// these sequentially, only advancing the route segment when the queue is empty.
+    /// </summary>
+    private Queue<(double Lat, double Lon)>? _arcWaypoints;
+
     private double _segmentFromLat;
     private double _segmentFromLon;
 
@@ -74,15 +81,26 @@ public sealed class GroundNavigator
         _segmentFromLon = seg.Edge.FromNode.Longitude;
         PrevDistToTarget = double.MaxValue;
 
-        // Detect arc segments for carrot-on-a-stick path following
+        // Detect arc segments: subdivide bezier into polyline waypoints so the
+        // aircraft traces the curve precisely instead of using a lookahead carrot.
         if (seg.Edge.Edge is GroundArc arc)
         {
             bool fromIsZero = arc.Nodes[0].Id == seg.Edge.FromNode.Id;
             _currentArc = (arc, fromIsZero);
+            _arcWaypoints = SubdivideArc(arc, fromIsZero);
+
+            // Target the first waypoint instead of the arc endpoint
+            if (_arcWaypoints.Count > 0)
+            {
+                var first = _arcWaypoints.Dequeue();
+                TargetLat = first.Lat;
+                TargetLon = first.Lon;
+            }
         }
         else
         {
             _currentArc = null;
+            _arcWaypoints = null;
         }
 
         string segType = _currentArc is not null ? "arc" : "straight";
@@ -248,7 +266,14 @@ public sealed class GroundNavigator
     {
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
 
-        double arrivalThreshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+        // Use a tight arrival threshold for arcs (polyline waypoints) and short
+        // edges. Fillet tangent nodes are often spaced 25-65ft apart and define
+        // the shape of turns — the generous 91ft threshold skips them, causing
+        // the aircraft to cut corners instead of following the path.
+        bool onArc = _currentArc is not null;
+        double edgeLengthNm = GeoMath.DistanceNm(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+        bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
+        double arrivalThreshold = (isLastSegment || onArc || shortEdge) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
 
         bool overshot = (dist > PrevDistToTarget) && (PrevDistToTarget < OvershootDetectionNm);
         bool stoppedByConflict = (ctx.Aircraft.GroundSpeedLimit is not null) && (ctx.Aircraft.GroundSpeedLimit.Value < 0.5);
@@ -257,42 +282,60 @@ public sealed class GroundNavigator
 
         if (dist <= arrivalThreshold || overshot || stalledAtThreshold)
         {
-            Log.LogDebug(
-                "[Nav] ARRIVED at {NodeId}: dist={Dist:F4}nm threshold={Thr:F4}nm overshot={Over} stalled={Stall}",
-                TargetNodeId,
-                dist,
-                arrivalThreshold,
-                overshot,
-                stalledAtThreshold
-            );
-            PrevDistToTarget = double.MaxValue;
-            return NavigatorResult.ArrivedAtNode;
+            // Arc polyline: advance to the next waypoint if any remain
+            if (_arcWaypoints is { Count: > 0 })
+            {
+                var next = _arcWaypoints.Dequeue();
+                _segmentFromLat = TargetLat;
+                _segmentFromLon = TargetLon;
+                TargetLat = next.Lat;
+                TargetLon = next.Lon;
+                PrevDistToTarget = double.MaxValue;
+                Log.LogTrace(
+                    "[Nav] Arc waypoint reached, next wp dist={Dist:F4}nm, {Remaining} remaining",
+                    GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, next.Lat, next.Lon),
+                    _arcWaypoints.Count
+                );
+                // Don't return ArrivedAtNode — still on the same route segment
+            }
+            else
+            {
+                Log.LogDebug(
+                    "[Nav] ARRIVED at {NodeId}: dist={Dist:F4}nm threshold={Thr:F4}nm overshot={Over} stalled={Stall}",
+                    TargetNodeId,
+                    dist,
+                    arrivalThreshold,
+                    overshot,
+                    stalledAtThreshold
+                );
+                PrevDistToTarget = double.MaxValue;
+                return NavigatorResult.ArrivedAtNode;
+            }
         }
 
-        // Steer: arc-following or straight-to-target
-        double bearing;
+        // Steer toward current target (waypoint or node)
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
         double arcSpeedLimit = double.MaxValue;
 
+        // Apply arc speed limit when traversing an arc's polyline waypoints
         if (_currentArc is { } ca)
         {
-            var (steerBearing, speedLimit) = ComputeArcSteering(ctx, ca.Arc, ca.FromNodeIsZero);
-            bearing = steerBearing;
-            arcSpeedLimit = speedLimit;
-        }
-        else
-        {
-            bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+            double turnRateDegSec = CategoryPerformance.GroundTurnRate(ctx.Category);
+            arcSpeedLimit = ca.Arc.MaxSafeSpeedKts(turnRateDegSec);
         }
 
         // Pre-turning: when approaching a junction with a known next-segment bearing,
-        // blend the steer target toward the outbound bearing. This starts the turn
-        // before reaching the node, reducing overshoot at junctions.
+        // blend the steer target toward the outbound bearing. Scale the blend by
+        // turn angle — gentle turns get full pre-turn, large turns (>60°) get very
+        // little to avoid yanking inside the arc before entering it.
         if (_nextSegmentBearing is { } nextBrg && _currentArc is null)
         {
-            const double preturndDistNm = 0.008; // ~50ft
-            if (dist < preturndDistNm)
+            double turnAngle = GeoMath.AbsBearingDifference(bearing, nextBrg);
+            double angleScale = Math.Clamp(1.0 - ((turnAngle - 30.0) / 60.0), 0.0, 1.0);
+            const double preturnDistNm = 0.008; // ~50ft
+            if ((dist < preturnDistNm) && (angleScale > 0.01))
             {
-                double blend = 1.0 - (dist / preturndDistNm);
+                double blend = (1.0 - (dist / preturnDistNm)) * angleScale;
                 bearing = GeoMath.BlendBearings(bearing, nextBrg, blend);
             }
         }
@@ -357,7 +400,9 @@ public sealed class GroundNavigator
             arcSpeedLimit,
             _currentArc is not null,
             _currentNodeRequiredSpeed,
-            deviationFt
+            deviationFt,
+            _segmentFromLat,
+            _segmentFromLon
         );
         LastTickDiag = diag;
         ctx.Aircraft.LastNavDiag = diag;
@@ -367,41 +412,63 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// Perpendicular distance in feet from the aircraft to the current route segment.
-    /// For arcs: projects onto the bezier curve. For straight edges: point-to-segment.
+    /// Perpendicular distance in feet from the aircraft to the infinite line defined
+    /// by the current segment's direction. Uses cross-track distance so the measurement
+    /// is purely lateral — unaffected by the aircraft being ahead of or behind the
+    /// segment endpoints (which happens when short edges are skipped).
     /// </summary>
     private double ComputePathDeviation(PhaseContext ctx, double distToTargetNm)
     {
-        double acLat = ctx.Aircraft.Latitude;
-        double acLon = ctx.Aircraft.Longitude;
+        double edgeBearing = GeoMath.BearingTo(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+        double crossNm = GeoMath.SignedCrossTrackDistanceNmRaw(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            _segmentFromLat,
+            _segmentFromLon,
+            edgeBearing
+        );
+        return Math.Abs(crossNm) * GeoMath.FeetPerNm;
+    }
 
-        if (_currentArc is { } ca)
+    /// <summary>
+    /// Subdivide a bezier arc into polyline waypoints spaced ~15ft apart.
+    /// The last waypoint is always the arc endpoint (ToNode).
+    /// </summary>
+    private static Queue<(double Lat, double Lon)> SubdivideArc(GroundArc arc, bool fromNodeIsZero)
+    {
+        CubicBezier bezier;
+        if (fromNodeIsZero)
         {
-            CubicBezier bezier;
-            if (ca.FromNodeIsZero)
-            {
-                bezier = ca.Arc.ToBezier();
-            }
-            else
-            {
-                bezier = new CubicBezier(
-                    ca.Arc.Nodes[1].Latitude,
-                    ca.Arc.Nodes[1].Longitude,
-                    ca.Arc.P2Lat,
-                    ca.Arc.P2Lon,
-                    ca.Arc.P1Lat,
-                    ca.Arc.P1Lon,
-                    ca.Arc.Nodes[0].Latitude,
-                    ca.Arc.Nodes[0].Longitude
-                );
-            }
-
-            double t = bezier.ClosestT(acLat, acLon, 20);
-            var (nearLat, nearLon) = bezier.Evaluate(t);
-            return GeoMath.DistanceNm(acLat, acLon, nearLat, nearLon) * GeoMath.FeetPerNm;
+            bezier = arc.ToBezier();
+        }
+        else
+        {
+            bezier = new CubicBezier(
+                arc.Nodes[1].Latitude,
+                arc.Nodes[1].Longitude,
+                arc.P2Lat,
+                arc.P2Lon,
+                arc.P1Lat,
+                arc.P1Lon,
+                arc.Nodes[0].Latitude,
+                arc.Nodes[0].Longitude
+            );
         }
 
-        return GeoMath.DistanceToSegmentFt(acLat, acLon, _segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+        const double spacingFt = 15.0;
+        double spacingNm = spacingFt / GeoMath.FeetPerNm;
+        double totalLengthNm = bezier.ArcLengthNm(30);
+        int count = Math.Max(2, (int)Math.Ceiling(totalLengthNm / spacingNm));
+
+        var waypoints = new Queue<(double Lat, double Lon)>();
+        for (int i = 1; i <= count; i++)
+        {
+            double t = (double)i / count;
+            var (lat, lon) = bezier.Evaluate(t);
+            waypoints.Enqueue((lat, lon));
+        }
+
+        return waypoints;
     }
 
     /// <summary>
@@ -584,5 +651,7 @@ public record NavTickDiag(
     double ArcSpeedLimitKts,
     bool OnArc,
     double NodeRequiredSpeedKts,
-    double PathDeviationFt
+    double PathDeviationFt,
+    double SegFromLat,
+    double SegFromLon
 );
