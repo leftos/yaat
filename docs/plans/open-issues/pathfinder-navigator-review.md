@@ -63,7 +63,7 @@ Two independent reviews of TaxiPathfinder, GroundNavigator, FilletArcGenerator, 
   `FilletArcGenerator.cs:255` — Four phases (A: plan, B+C: create tangents/arcs, D: rebuild
   edges) with complex shared state. Exceeds 100-line limit. Extract each phase.
 
-- [ ] **`WalkTaxiway` has 11 parameters**
+- [x] **`WalkTaxiway` has 11 parameters**
   `TaxiPathfinder.cs:655` — Violates 5-param limit. Group into a `WalkOptions` record.
 
 - [x] **`ResolveExplicitPath` has 9 parameters**
@@ -78,34 +78,34 @@ Two independent reviews of TaxiPathfinder, GroundNavigator, FilletArcGenerator, 
 
 ## LOW — Performance
 
-- [ ] **`MinDistToTaxiway` O(N) per call in walk loop**
+- [x] **`MinDistToTaxiway` O(N) per call in walk loop**
   `TaxiPathfinder.cs:1126` — Called per candidate at each fork. Pre-index nodes by taxiway name.
 
 - [ ] **`RebuildAdjacencyLists` O(N*E) total in fillet pass**
   `FilletArcGenerator.cs:70` — One rebuild per intersection. Incremental updates would help.
 
-- [ ] **`ConnectToNearestTaxiway` scans all nodes**
-  `GeoJsonParser.cs:375` — O(N) per parking/helipad. `coordIndex` is available but not used.
+- [x] **`ConnectToNearestTaxiway` scans all nodes** — Skipped: runs once per parking/helipad
+  during layout construction, not in a hot loop. O(N) over ~100-500 nodes is negligible.
 
 - [ ] **`BuildMergeMap` O(N^2) over intersection nodes**
   `FilletArcGenerator.cs` — Compares every pair. Spatial index would make this near-linear.
 
 ## LOW — Cleanup
 
-- [ ] **Duplicated comment**
+- [x] **Duplicated comment**
   `TaxiPathfinder.cs:677-678` — "Find all edges on this taxiway from the current node." twice.
 
 - [x] **Typo: `hasStrightEdge`**
   `FilletArcGenerator.cs:1268` — Should be `hasStraightEdge`.
 
-- [ ] **`CornerSpeedKts` set but never read internally**
+- [x] **`CornerSpeedKts` set but never read internally**
   `GroundNavigator.cs:38` — Serialized in snapshots but unused in speed calculations.
 
-- [ ] **Max-based scoring unintuitive**
+- [x] **Max-based scoring unintuitive**
   `TaxiPathfinder.cs:379` — `finalScore = max(distScore, transScore, timeScore)` means any route
   dominating one metric gets 1.0 even if terrible on others.
 
-- [ ] **`ParseMultiple` re-parses combined JSON**
+- [x] **`ParseMultiple` re-parses combined JSON**
   `GeoJsonParser.cs:133` — After building JSON string from `JsonElement`s, re-parses everything.
   Could work directly with parsed feature lists.
 
