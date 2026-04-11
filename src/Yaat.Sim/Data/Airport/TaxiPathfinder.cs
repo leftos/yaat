@@ -398,7 +398,9 @@ public static class TaxiPathfinder
             }
         }
 
-        // Phase 3: Assign final score = max normalized score across strategies.
+        // Phase 3: Assign final score = average normalized score across strategies.
+        // Each score is 0.0–1.0 where 1.0 = best in category. Averaging ensures a
+        // route must be good across all metrics, not just dominant in one.
         var scored = new List<(TaxiRoute Route, double Score)>();
         foreach (var route in allCandidates)
         {
@@ -406,7 +408,7 @@ public static class TaxiPathfinder
             double transScore = (fewestTransitions + 1.0) / (CountTaxiwayTransitions(route) + 1.0);
             double timeScore = bestTime / Math.Max(EstimateTime(route, turnRateDegSec, taxiSpeedKts), 1e-9);
 
-            double finalScore = Math.Max(distScore, Math.Max(transScore, timeScore));
+            double finalScore = (distScore + transScore + timeScore) / 3.0;
             scored.Add((route, finalScore));
         }
 
