@@ -24,8 +24,9 @@ Tracks fillet arc geometry bugs and ground navigation quality. Originally focuse
 - [x] Plan D: OAK G/D arcs — **PASS**
 - [x] GenuineTurnArcs — **PASS** (0 degenerate arcs)
 - [x] OAK debug trace — **PASS**
-- [x] OAK 28R exits: null, B, C1, G, H, J, P — **PASS** (7/8)
-- [x] OAK 28R exit E — **PASS** (path deviation metric replaced heading reversal; E's zig-zag no longer a false failure)
+- [x] OAK 28R exits: null, B, C1, G, H, J, P, E — **PASS** (8/8, all within 35ft max deviation)
+- [x] OAK 30 exits: null, W1-W7 — **PASS** (8/8, all within 35ft)
+- [x] OAK validation: 0 disconnected subgraphs, ~996 tangent-misaligned (issue #4)
 - [ ] Plan B: DAL2581 — **HANG** (30s timeout; graph connectivity / pathfinder issue)
 
 ---
@@ -71,9 +72,7 @@ Three bugs in `FindAdjacentHoldShort`:
 
 ### ~~14. Exit smoothness metric measures heading monotonicity instead of path deviation~~ — **FIXED** (OAK)
 
-Redesigned `AssertSmoothExit` to measure path deviation (distance from aircraft to current route segment) instead of heading reversals. Added `PathDeviationFt` to `NavTickDiag`, computed per-tick in `GroundNavigator.Tick()` using `CubicBezier.ClosestT` for arcs and `GeoMath.DistanceToSegmentFt` for straight edges. Thresholds: 100ft for normal exits, 200ft for >120° turns.
-
-**Results (OAK)**: avg deviation 12-27ft, max 65-82ft for standard exits. Exit E (previously failing heading-reversal) now passes. Exit J (145° turn, 182ft max) passes under the relaxed threshold — will improve with #15/#17.
+Redesigned `AssertSmoothExit` to measure cross-track deviation from the edge's infinite line. Added `PathDeviationFt` to `NavTickDiag`, polyline arc navigation (bezier subdivided into ~15ft waypoints), tight arrival threshold for arcs and short edges. Thresholds tightened to 35ft (50ft for >120° turns). All 24 OAK tests pass.
 
 **SFO**: Not yet migrated (has pre-existing relaxation ordering failures to fix first).
 
@@ -85,34 +84,18 @@ Changed from linear `clamp(1 - angleDiff/120, 0.15, 1.0)` to quadratic `max(0.03
 
 Implemented pre-turning: when within ~50ft of a junction node with a known next-segment bearing, blends the steer target toward the outbound bearing. Uses new `GeoMath.BlendBearings()`. Also switched `ComputeArcSteering` to use local curvature at the lookahead point (floored at min-radius speed) instead of global min-radius, allowing faster traversal on gentle arc sections.
 
-### 18. Exit BFS skips fillet arcs — takes straight shortcut (HIGH)
+### ~~18. Exit BFS skips fillet arcs — takes straight shortcut~~ — **FIXED**
 
-`FindAdjacentHoldShort` BFS builds the exit path by following edges that match the exit taxiway name. At fillet intersection nodes (e.g., OAK node 359 for G/RWY28R), the original intersection was split into tangent nodes (1288 on G, 1289 on RWY28R) with a fillet arc between them. But the fillet generator **preserved the original straight edge** 359→1288 (on taxiway G), so the BFS picks the straight shortcut and never enters the arc.
+Split BFS seeding into two passes: arcs first, then straight edges. Arcs claim the visited set so straight shortcuts to already-visited nodes are skipped. OAK G deviation: 72ft → 28ft. OAK P: 63ft → 6ft.
 
-**Example (OAK 28R exit G):** Path is `359→1288→1290→360→361`. The arc 1289→1288 is never visited. The aircraft cuts straight from 359 to 1288 (bearing 17.5°) instead of following the 99ft-radius curve. This produces 72ft cross-track deviation through the turn.
+**Open question:** Should `RunwayExitPhase` hand off to the taxi pathfinder instead of maintaining a separate BFS? The pathfinder already handles arc-aware routing. The BFS exit selection logic (position, speed, preference, exit angle) would remain; only the "route from branch to hold-short" portion would use the pathfinder.
 
-**Root cause analysis:** The BFS starts at node 359 (the centerline intersection node). From 359, it sees:
-- Edge to 1288 via **G** (straight, 0.0152nm) — matches taxiway filter ✓
-- Edge to 1289 via **RWY28R/10L** (straight, 0.0152nm) — doesn't match "G" ✗
-The arc 1289→1288 is on "G - RWY28R/10L" but the BFS never reaches 1289 because the only edge from 359 to 1289 is labeled RWY28R/10L.
+### ~~19. Preserve stubs cut straight across curved taxiways~~ — **FIXED**
 
-**Questions to evaluate:**
-1. Would the taxi pathfinder (TaxiPathfinder with FewestTurns/Shortest/Fastest strategies) produce a better path here? It's tuned to prefer arcs at junctions — does its scoring penalize skipping them?
-2. Should `RunwayExitPhase` hand off to the pathfinder instead of maintaining a separate BFS? The BFS system (`FindExitFromCenterline` → `FindAdjacentHoldShort`) was built before fillet arcs existed. The pathfinder already handles arc-aware routing for taxi commands. Unifying would avoid duplicating arc-awareness logic.
-3. Key constraint: the exit BFS does more than pathfinding — it also decides *which* exit to take based on the aircraft's position, speed, preference, and exit angle. The pathfinder would only replace the "route from branch node to hold-short" portion, not the exit selection logic.
-4. Simpler alternative: fix `FindAdjacentHoldShort` to recognize that 359→1288 is a fillet-preserved edge that bypasses an arc, and prefer the arc path (359→1289→arc→1288) instead. This could be done by checking if both endpoints of a straight edge are tangent nodes with an arc between them.
-
-### 19. Preserve stubs cut straight across curved taxiways (MEDIUM)
-
-At OAK node 16 (W/W1/W2 intersection), the preserve stubs `16→678` (W1, 150ft) and `16→48` (W2, 138ft) are straight edges that cut across curved taxiway geometry. W1 curves through shape-point nodes 29→30→31→32→33, but the preserve edge goes straight from 16 to tangent node 678 (which sits between 32 and 33), bypassing the curve entirely.
-
-**Cause:** The W1/W2 pair has a 170.8° turn (near-U-turn), producing a 150ft tangent distance (hitting the absolute cap). The preserve edge connects the intersection to the tangent node via a straight line, ignoring the intermediate shape-point nodes that define the taxiway curve.
-
-**Expected behavior:** Node 16 should connect to node 29 (first node on W1) and node 43 (first node on W2) — the natural graph neighbors. The tangent node should be reached by walking the existing shape-point chain, not via a straight shortcut.
-
-**Status (partial fix):** Preserve stubs now connect to the first neighbor when the tangent is past shape-points. A post-fillet rescue pass (`RescueOrphanedTangentNodes`) reconnects tangent nodes left orphaned when a later intersection's Phase D consumed their connecting edge.
-
-**Remaining:** Duplicate collinear edges at preserved intersections. E.g., OAK node 16 has both `16→17` (preserve from Int#16) and `16→683` (shorten from Int#17) on taxiway W, same direction. The preserve edge is redundant — the shorten edge + tangent chain provides the same connectivity. Fix: skip preserve edge creation when a shorten edge from another intersection already covers that direction.
+Three fixes:
+1. Preserve stubs connect to the first neighbor (`otherNode`) when the tangent is past shape-point nodes, instead of a straight 150ft shortcut to the tangent.
+2. `RescueOrphanedTangentNodes` post-fillet pass reconnects tangent nodes left orphaned when a later intersection's Phase D consumed their connecting edge.
+3. `RemoveRedundantPreserveEdges` post-fillet pass removes collinear preserve stubs that are superseded by shorter shorten/tangent-link edges from other intersections in the same direction. Plus collinear stub deduplication within the same intersection.
 
 ### ~~17. Fixed bezier lookahead fraction in ComputeArcSteering~~ — **FIXED**
 
@@ -126,11 +109,12 @@ Replaced `t + 0.15` parameter-based lookahead with distance-based `AdvanceByDist
 2. ~~**Issue #15** — Navigator speed scaling (quadratic + lower floor)~~ ✓ DONE
 3. ~~**Issue #17** — Distance-based arc lookahead~~ ✓ DONE
 4. ~~**Issue #16** — Pre-turning or delete dead field~~ ✓ DONE
-5. **Issue #18** — Exit BFS skips fillet arcs / consider pathfinder for exits
-6. **Issue #19** — Preserve stubs cut straight across curved taxiways
-6. **Issue #4** — Merge recomputation (tangent-misaligned warnings)
-7. **Issues #9, #12** — Graph connectivity bugs
-8. **Issue #6** — Performance
+5. ~~**Issue #18** — Exit BFS arc priority~~ ✓ DONE
+6. ~~**Issue #19** — Preserve stubs + orphan rescue + dedup~~ ✓ DONE
+7. ~~**Issue #12** — Disconnected K/F subgraph~~ ✓ DONE
+8. **Issue #4** — Merge recomputation (tangent-misaligned warnings)
+9. **Issue #9** — DAL2581 test hang (graph connectivity / pathfinder)
+10. **Issue #6** — Performance
 
 After each fix: run OAK exit tests, generate tick animations via LI `--ticks`, compare path deviation metrics.
 

@@ -69,6 +69,18 @@ public static class FilletArcGenerator
             // (prior iterations may have shortened or removed edges).
             layout.RebuildAdjacencyLists();
 
+            Log.LogDebug(
+                "[Int#{IntId}] edges ({Count}): [{Edges}]",
+                node.Id,
+                node.Edges.Count,
+                string.Join(
+                    ", ",
+                    node.Edges.Select(e =>
+                        $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id} {(e is GroundArc ? "arc" : "edge")} {e.DistanceNm * GeoMath.FeetPerNm:F0}ft rwy={e.IsRunwayCenterline}) origin={e.Origin}"
+                    )
+                )
+            );
+
             if (node.Edges.Count < 2)
             {
                 continue;
@@ -140,16 +152,18 @@ public static class FilletArcGenerator
         int nodesMerged = MergeCoincidentNodes(layout);
 
         int rescued = RescueOrphanedTangentNodes(layout);
+        int redundant = RemoveRedundantPreserveEdges(layout);
 
         layout.RebuildAdjacencyLists();
 
         Log.LogInformation(
-            "Fillet arcs: {FilletedNodes} nodes filleted, {Arcs} arcs created, {Merged} edges merged, {NodesMerged} coincident nodes merged, {Rescued} orphaned tangent nodes rescued",
+            "Fillet arcs: {FilletedNodes} filleted, {Arcs} arcs, {Merged} merged, {NodesMerged} coincident merged, {Rescued} rescued, {Redundant} redundant preserve edges removed",
             filletedCount,
             arcCount,
             mergedCount,
             nodesMerged,
-            rescued
+            rescued,
+            redundant
         );
     }
 
@@ -918,13 +932,32 @@ public static class FilletArcGenerator
 
             // Also add stubs to collinear merge endpoints that don't have tangent points,
             // so the intersection stays connected through merged collinear paths.
+            var collinearStubsCreated = new HashSet<int>();
             foreach (var (edgeA, otherA, edgeB, otherB) in plannedMerges)
             {
                 bool aHasTangent = edgeTangentNodes.ContainsKey(edgeA);
                 bool bHasTangent = edgeTangentNodes.ContainsKey(edgeB);
-                if (!aHasTangent)
+                Log.LogDebug(
+                    "[Int#{IntId}] Phase D collinear preserve: {TwyA}(→#{OtherA}) hasTangent={HasA}, {TwyB}(→#{OtherB}) hasTangent={HasB}",
+                    intersection.Id,
+                    edgeA.TaxiwayName,
+                    otherA.Id,
+                    aHasTangent,
+                    edgeB.TaxiwayName,
+                    otherB.Id,
+                    bHasTangent
+                );
+                if (!aHasTangent && collinearStubsCreated.Add(otherA.Id))
                 {
                     double dist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude);
+                    Log.LogDebug(
+                        "[Int#{IntId}] Phase D collinear stub: {Twy} #{Int}→#{Other} ({Dist:F0}ft)",
+                        intersection.Id,
+                        edgeA.TaxiwayName,
+                        intersection.Id,
+                        otherA.Id,
+                        dist * GeoMath.FeetPerNm
+                    );
                     layout.Edges.Add(
                         new GroundEdge
                         {
@@ -936,9 +969,17 @@ public static class FilletArcGenerator
                     );
                 }
 
-                if (!bHasTangent)
+                if (!bHasTangent && collinearStubsCreated.Add(otherB.Id))
                 {
                     double dist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude);
+                    Log.LogDebug(
+                        "[Int#{IntId}] Phase D collinear stub: {Twy} #{Int}→#{Other} ({Dist:F0}ft)",
+                        intersection.Id,
+                        edgeB.TaxiwayName,
+                        intersection.Id,
+                        otherB.Id,
+                        dist * GeoMath.FeetPerNm
+                    );
                     layout.Edges.Add(
                         new GroundEdge
                         {
@@ -1134,6 +1175,76 @@ public static class FilletArcGenerator
             arc.MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(arc.Nodes[0].Latitude, 10);
             arc.DistanceNm = bezier.ArcLengthNm(20);
         }
+    }
+
+    /// <summary>
+    /// Remove preserve edges that are redundant because a shorten or tangent-link
+    /// edge from another intersection already connects the same node pair with an
+    /// intermediate tangent node in between. E.g., preserve 16→17 is redundant when
+    /// shorten 16→683 exists and 683 is between 16 and 17 on the same taxiway.
+    /// </summary>
+    private static int RemoveRedundantPreserveEdges(AirportGroundLayout layout)
+    {
+        int removed = 0;
+        var toRemove = new List<GroundEdge>();
+
+        foreach (var preserve in layout.Edges.Where(e => e.Origin is not null && e.Origin.Contains("phase-d-preserve")).ToList())
+        {
+            int fromId = preserve.Nodes[0].Id;
+            int toId = preserve.Nodes[1].Id;
+
+            // Check if there's another edge from the same node on the same taxiway
+            // to a closer node in the same direction
+            double preserveDist = preserve.DistanceNm;
+            double preserveBearing = GeoMath.BearingTo(
+                preserve.Nodes[0].Latitude,
+                preserve.Nodes[0].Longitude,
+                preserve.Nodes[1].Latitude,
+                preserve.Nodes[1].Longitude
+            );
+
+            bool hasCloserEdge = layout.Edges.Any(e =>
+            {
+                if (e == preserve)
+                {
+                    return false;
+                }
+
+                if ((e.Nodes[0].Id != fromId) && (e.Nodes[1].Id != fromId))
+                {
+                    return false;
+                }
+
+                if (e.TaxiwayName != preserve.TaxiwayName)
+                {
+                    return false;
+                }
+
+                if (e.DistanceNm >= preserveDist)
+                {
+                    return false;
+                }
+
+                // Check same direction (within 30°)
+                var other = e.Nodes[0].Id == fromId ? e.Nodes[1] : e.Nodes[0];
+                double otherBearing = GeoMath.BearingTo(preserve.Nodes[0].Latitude, preserve.Nodes[0].Longitude, other.Latitude, other.Longitude);
+                return GeoMath.AbsBearingDifference(preserveBearing, otherBearing) < 30.0;
+            });
+
+            if (hasCloserEdge)
+            {
+                Log.LogDebug("Removing redundant preserve edge {Twy}(#{From}↔#{To}) — closer edge exists", preserve.TaxiwayName, fromId, toId);
+                toRemove.Add(preserve);
+                removed++;
+            }
+        }
+
+        foreach (var e in toRemove)
+        {
+            layout.Edges.Remove(e);
+        }
+
+        return removed;
     }
 
     /// <summary>
