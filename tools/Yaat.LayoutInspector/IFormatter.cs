@@ -11,4 +11,5 @@ public interface IFormatter
     void WriteNodeList(string title, List<NodeInfo> nodes);
     void WriteIntersection(IntersectionResult result);
     void WriteValidation(ValidationResult result);
+    void WritePathfinder(PathfinderResult result);
 }

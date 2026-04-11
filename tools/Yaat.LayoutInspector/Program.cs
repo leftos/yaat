@@ -314,31 +314,24 @@ public static class Program
 
         if ((pfNodeId is not null) && (pfTaxiways.Count > 0))
         {
-            Console.Out.WriteLine($"Pathfinder: from node {pfNodeId.Value}, taxiways [{string.Join(" ", pfTaxiways)}]");
-            Console.Out.WriteLine();
-
-            // Re-resolve with diagnostic logging for text output
+            // Re-resolve with diagnostic logging captured into a list
+            var diagLog = new List<string>();
             Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath(
                 analyzer.Layout,
                 pfNodeId.Value,
                 pfTaxiways,
                 out string? _,
-                diagnosticLog: msg => Console.Out.WriteLine(msg)
+                diagnosticLog: msg => diagLog.Add(msg)
             );
 
-            Console.Out.WriteLine();
-            if (pfRoute is null)
-            {
-                Console.Out.WriteLine($"RESULT: no route (reason: {pfFailReason ?? "null"})");
-            }
-            else
-            {
-                Console.Out.WriteLine($"RESULT: {pfRoute.Segments.Count} segments");
-                foreach (var seg in pfRoute.Segments)
-                {
-                    Console.Out.WriteLine($"  {seg.TaxiwayName}: {seg.FromNodeId} -> {seg.ToNodeId}");
-                }
-            }
+            var pfResult = new PathfinderResult(
+                pfNodeId.Value,
+                pfTaxiways,
+                diagLog,
+                pfRoute?.Segments.Select(s => new PathfinderSegment(s.TaxiwayName, s.FromNodeId, s.ToNodeId)).ToList(),
+                pfFailReason
+            );
+            formatter.WritePathfinder(pfResult);
         }
 
         if (showParking)

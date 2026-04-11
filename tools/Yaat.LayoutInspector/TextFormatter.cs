@@ -204,6 +204,30 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         }
     }
 
+    public void WritePathfinder(PathfinderResult r)
+    {
+        w.WriteLine($"Pathfinder: from node {r.FromNodeId}, taxiways [{string.Join(" ", r.Taxiways)}]");
+        w.WriteLine();
+        foreach (string line in r.DiagnosticLog)
+        {
+            w.WriteLine(line);
+        }
+
+        w.WriteLine();
+        if (r.Segments is null)
+        {
+            w.WriteLine($"RESULT: no route (reason: {r.FailReason ?? "null"})");
+        }
+        else
+        {
+            w.WriteLine($"RESULT: {r.Segments.Count} segments");
+            foreach (var seg in r.Segments)
+            {
+                w.WriteLine($"  {seg.TaxiwayName}: {seg.FromNodeId} -> {seg.ToNodeId}");
+            }
+        }
+    }
+
     private void WriteNodeCompact(NodeInfo n, string indent = "  ")
     {
         string label = (n.Name is not null) ? $" \"{n.Name}\"" : "";

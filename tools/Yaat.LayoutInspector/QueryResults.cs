@@ -142,3 +142,13 @@ public sealed record BfsPathResult(
     double? TotalDistanceNm,
     string? HoldShortRunwayId
 );
+
+public sealed record PathfinderSegment(string TaxiwayName, int FromNodeId, int ToNodeId);
+
+public sealed record PathfinderResult(
+    int FromNodeId,
+    List<string> Taxiways,
+    List<string> DiagnosticLog,
+    List<PathfinderSegment>? Segments,
+    string? FailReason
+);

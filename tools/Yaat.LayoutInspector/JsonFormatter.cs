@@ -23,4 +23,6 @@ public sealed class JsonFormatter(TextWriter writer) : IFormatter
     public void WriteIntersection(IntersectionResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
 
     public void WriteValidation(ValidationResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
+
+    public void WritePathfinder(PathfinderResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
 }
