@@ -59,7 +59,7 @@ Two independent reviews of TaxiPathfinder, GroundNavigator, FilletArcGenerator, 
 
 ## MEDIUM — Maintainability
 
-- [ ] **`FilletNode` is ~780 lines**
+- [x] **`FilletNode` is ~780 lines**
   `FilletArcGenerator.cs:255` — Four phases (A: plan, B+C: create tangents/arcs, D: rebuild
   edges) with complex shared state. Exceeds 100-line limit. Extract each phase.
 
@@ -69,26 +69,29 @@ Two independent reviews of TaxiPathfinder, GroundNavigator, FilletArcGenerator, 
 - [x] **`ResolveExplicitPath` has 9 parameters**
   `TaxiPathfinder.cs:72` — Same issue. Group optional params into an options record.
 
-- [ ] **`WalkTaxiway` is ~310 lines**
+- [x] **`WalkTaxiway` is ~310 lines**
   `TaxiPathfinder.cs:655-978` — Bridge-candidate selection and walk loop should be extracted.
 
-- [ ] **Mutation-during-iteration in `FilletArcGenerator.Apply`**
-  `FilletArcGenerator.cs:59-70` — Main loop mutates graph and calls `RebuildAdjacencyLists()` per
-  intersection. Processing order affects results with no topological ordering.
+- [x] **Mutation-during-iteration in `FilletArcGenerator.Apply`** — Skipped: deliberate design.
+  Iterates over pre-computed `ToList()` snapshot; `RebuildAdjacencyLists()` ensures each
+  iteration sees current state. Processing order is deterministic (by node ID). Adding
+  topological ordering would be a major algorithm change with high regression risk.
 
 ## LOW — Performance
 
 - [x] **`MinDistToTaxiway` O(N) per call in walk loop**
   `TaxiPathfinder.cs:1126` — Called per candidate at each fork. Pre-index nodes by taxiway name.
 
-- [ ] **`RebuildAdjacencyLists` O(N*E) total in fillet pass**
-  `FilletArcGenerator.cs:70` — One rebuild per intersection. Incremental updates would help.
+- [x] **`RebuildAdjacencyLists` O(N*E) total in fillet pass** — Skipped: one-time layout
+  construction cost. Incremental updates would add significant complexity to the fillet
+  algorithm for marginal gain on small airport graphs (~500-2000 edges).
 
 - [x] **`ConnectToNearestTaxiway` scans all nodes** — Skipped: runs once per parking/helipad
   during layout construction, not in a hot loop. O(N) over ~100-500 nodes is negligible.
 
-- [ ] **`BuildMergeMap` O(N^2) over intersection nodes**
-  `FilletArcGenerator.cs` — Compares every pair. Spatial index would make this near-linear.
+- [x] **`BuildMergeMap` O(N^2) over intersection nodes** — Skipped: one-time pass over
+  intersection nodes only (~50-200 per airport). Spatial index would help at scale but
+  current airports are well within O(N^2) tolerance.
 
 ## LOW — Cleanup
 
