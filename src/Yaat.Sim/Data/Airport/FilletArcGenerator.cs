@@ -1265,8 +1265,8 @@ public static class FilletArcGenerator
             }
 
             // Check if this tangent node has any straight edges
-            bool hasStrightEdge = layout.Edges.Any(e => (e.Nodes[0].Id == node.Id) || (e.Nodes[1].Id == node.Id));
-            if (hasStrightEdge)
+            bool hasStraightEdge = layout.Edges.Any(e => (e.Nodes[0].Id == node.Id) || (e.Nodes[1].Id == node.Id));
+            if (hasStraightEdge)
             {
                 continue;
             }
@@ -1279,12 +1279,35 @@ public static class FilletArcGenerator
                 continue;
             }
 
-            // Find the nearest non-self node by position
+            // Get the taxiway name from the arc — needed to scope the neighbor search
+            string twyName = layout
+                .Arcs.Where(a => (a.Nodes[0].Id == node.Id) || (a.Nodes[1].Id == node.Id))
+                .Select(a => a.TaxiwayNames.FirstOrDefault(n => !n.StartsWith("RWY")) ?? a.TaxiwayName)
+                .First();
+
+            // Find the nearest node that shares the same taxiway. Without this filter,
+            // the search could connect to parking spots, helipads, or nodes across a
+            // runway, creating phantom cross-runway edges.
             double bestDist = double.MaxValue;
             GroundNode? bestNeighbor = null;
             foreach (var candidate in layout.Nodes.Values)
             {
                 if (candidate.Id == node.Id)
+                {
+                    continue;
+                }
+
+                // Exclude parking/helipad — they're never valid fillet neighbors
+                if (candidate.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+                {
+                    continue;
+                }
+
+                // Candidate must be on the same taxiway (connected via an edge or arc with twyName)
+                bool onSameTaxiway =
+                    layout.Edges.Any(e => ((e.Nodes[0].Id == candidate.Id) || (e.Nodes[1].Id == candidate.Id)) && e.MatchesTaxiway(twyName))
+                    || layout.Arcs.Any(a => ((a.Nodes[0].Id == candidate.Id) || (a.Nodes[1].Id == candidate.Id)) && a.MatchesTaxiway(twyName));
+                if (!onSameTaxiway)
                 {
                     continue;
                 }
@@ -1301,12 +1324,6 @@ public static class FilletArcGenerator
             {
                 continue;
             }
-
-            // Get the taxiway name from the arc
-            string twyName = layout
-                .Arcs.Where(a => (a.Nodes[0].Id == node.Id) || (a.Nodes[1].Id == node.Id))
-                .Select(a => a.TaxiwayNames.FirstOrDefault(n => !n.StartsWith("RWY")) ?? a.TaxiwayName)
-                .First();
 
             layout.Edges.Add(
                 new GroundEdge
