@@ -30,6 +30,7 @@ public sealed class GroundNavigator
     public double TargetLat { get; set; }
     public double TargetLon { get; set; }
     public double PrevDistToTarget { get; set; } = double.MaxValue;
+    public NavTickDiag? LastTickDiag { get; private set; }
 
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;
 
@@ -325,6 +326,20 @@ public sealed class GroundNavigator
             _currentArc is not null
         );
 
+        var diag = new NavTickDiag(
+            TargetNodeId,
+            dist,
+            bearing,
+            angleDiff,
+            targetSpeed,
+            brakingLimit,
+            arcSpeedLimit,
+            _currentArc is not null,
+            _currentNodeRequiredSpeed
+        );
+        LastTickDiag = diag;
+        ctx.Aircraft.LastNavDiag = diag;
+
         AdjustSpeed(ctx, targetSpeed);
         return NavigatorResult.Navigating;
     }
@@ -370,14 +385,13 @@ public sealed class GroundNavigator
         // Bearing from aircraft to lookahead point
         double steerBearing = GeoMath.BearingTo(acLat, acLon, laLat, laLon);
 
-        // Dynamic speed from local curvature at current position.
-        // Floor at the precomputed min-radius speed to avoid near-zero speed from
-        // numerical curvature spikes at the bezier endpoints.
-        double localRadiusFt = Math.Max(bezier.RadiusOfCurvatureFt(t, acLat), arc.MinRadiusOfCurvatureFt);
+        // Speed limit: use the arc's precomputed min-radius safe speed as a ceiling.
+        // Local curvature varies along the bezier — the entrance/exit are gentler than
+        // the middle — so using only local curvature lets the aircraft enter too fast
+        // and overshoot when the curve tightens. The min-radius speed represents the
+        // tightest point ahead and ensures the aircraft is slow enough throughout.
         double turnRateDegSec = CategoryPerformance.GroundTurnRate(ctx.Category);
-        double turnRateRadSec = turnRateDegSec * Math.PI / 180.0;
-        double radiusNm = localRadiusFt / GeoMath.FeetPerNm;
-        double maxSpeedKts = turnRateRadSec * radiusNm * 3600.0;
+        double maxSpeedKts = arc.MaxSafeSpeedKts(turnRateDegSec);
 
         return (steerBearing, maxSpeedKts);
     }
@@ -448,3 +462,15 @@ public sealed class GroundNavigator
         return nav;
     }
 }
+
+public record NavTickDiag(
+    int TargetNodeId,
+    double DistToTargetNm,
+    double BearingToTargetDeg,
+    double AngleDiffDeg,
+    double TargetSpeedKts,
+    double BrakingLimitKts,
+    double ArcSpeedLimitKts,
+    bool OnArc,
+    double NodeRequiredSpeedKts
+);

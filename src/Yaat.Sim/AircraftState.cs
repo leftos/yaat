@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -131,6 +132,7 @@ public class AircraftState
     public TaxiRoute? AssignedTaxiRoute { get; set; }
     public string? ParkingSpot { get; set; }
     public string? CurrentTaxiway { get; set; }
+    public NavTickDiag? LastNavDiag { get; set; }
     public bool IsHeld { get; set; }
     public string? GiveWayTarget { get; set; }
     public bool AutoDeleteExempt { get; set; }

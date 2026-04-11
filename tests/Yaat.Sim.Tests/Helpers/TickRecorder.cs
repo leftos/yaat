@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Tests.Helpers;
 
@@ -52,6 +53,7 @@ public sealed class TickRecorder
             return;
         }
 
+        var nav = _aircraft.LastNavDiag;
         _rows.Add(
             new TickRow
             {
@@ -62,6 +64,7 @@ public sealed class TickRecorder
                 Gs = _aircraft.GroundSpeed,
                 Phase = _aircraft.Phases?.CurrentPhase?.Name ?? "none",
                 Twy = _aircraft.CurrentTaxiway ?? "",
+                Nav = nav,
             }
         );
     }
@@ -81,7 +84,9 @@ public sealed class TickRecorder
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("t,lat,lon,hdg,gs,phase,twy");
+        sb.AppendLine(
+            "t,lat,lon,hdg,gs,phase,twy,navTarget,navDist,navBrg,navAngleDiff,navTargetSpd,navBrakeLimit,navArcLimit,navOnArc,navNodeReqSpd"
+        );
         foreach (var row in _rows)
         {
             sb.Append(CultureInfo.InvariantCulture, $"{row.Time},");
@@ -90,7 +95,21 @@ public sealed class TickRecorder
             sb.Append(CultureInfo.InvariantCulture, $"{row.Hdg:F2},");
             sb.Append(CultureInfo.InvariantCulture, $"{row.Gs:F2},");
             sb.Append(CultureInfo.InvariantCulture, $"{row.Phase},");
-            sb.AppendLine(row.Twy);
+            sb.Append(row.Twy);
+            if (row.Nav is { } n)
+            {
+                sb.Append(CultureInfo.InvariantCulture, $",{n.TargetNodeId}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.DistToTargetNm:F4}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.BearingToTargetDeg:F1}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.AngleDiffDeg:F1}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.TargetSpeedKts:F1}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.BrakingLimitKts:F1}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.ArcSpeedLimitKts:F1}");
+                sb.Append(CultureInfo.InvariantCulture, $",{(n.OnArc ? 1 : 0)}");
+                sb.Append(CultureInfo.InvariantCulture, $",{n.NodeRequiredSpeedKts:F1}");
+            }
+
+            sb.AppendLine();
         }
 
         File.WriteAllText(path, sb.ToString());
@@ -126,5 +145,6 @@ public sealed class TickRecorder
         public required double Gs { get; init; }
         public required string Phase { get; init; }
         public required string Twy { get; init; }
+        public NavTickDiag? Nav { get; init; }
     }
 }
