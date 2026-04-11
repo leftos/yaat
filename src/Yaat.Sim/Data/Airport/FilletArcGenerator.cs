@@ -307,6 +307,21 @@ public static class FilletArcGenerator
                         tangentDistFt
                     );
 
+                    // Skip pairs that produce degenerate geometry — near-U-turns
+                    // where tan(halfAngle) → ∞ produce enormous tangent distances
+                    // with tiny or zero radii. These can't produce useful arcs.
+                    if (radiusFt < 5.0)
+                    {
+                        Log.LogDebug(
+                            "[Int#{IntId}] Skipping degenerate pair {A}/{B}: radius={R:F1}ft < 5ft",
+                            intersection.Id,
+                            edgeA.TaxiwayName,
+                            edgeB.TaxiwayName,
+                            radiusFt
+                        );
+                        continue;
+                    }
+
                     var placementA = ComputeTangentPlacement(edgeA, intersection, bearingA, tangentDistNm, walkA);
                     var placementB = ComputeTangentPlacement(edgeB, intersection, bearingB, tangentDistNm, walkB);
 
@@ -897,8 +912,9 @@ public static class FilletArcGenerator
             // Remove self-loop edges (both endpoints are the same node after merge)
             layout.Edges.RemoveAll(e => e.Nodes[0].Id == e.Nodes[1].Id);
 
-            // Remove degenerate arcs (both endpoints are the same node after merge)
-            layout.Arcs.RemoveAll(a => a.Nodes[0].Id == a.Nodes[1].Id);
+            // Remove degenerate arcs (both endpoints are the same node after merge,
+            // or radius collapsed below usable threshold after control point translation)
+            layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == a.Nodes[1].Id) || (a.MinRadiusOfCurvatureFt < 5.0));
 
             // Remove duplicate edges and arcs (same two nodes after merge)
             RemoveDuplicateEdges(layout);
