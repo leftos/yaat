@@ -154,6 +154,18 @@ public static class FilletArcGenerator
             return false;
         }
 
+        // Shape-point nodes: exactly 2 non-runway edges on the same taxiway.
+        // These exist to add curvature to the GeoJSON geometry and are not real
+        // intersections. Filleting them destroys the original taxiway geometry.
+        if ((runwayEdgeCount == 0) && (nonRunwayEdgeCount == 2))
+        {
+            var edges = node.Edges.OfType<GroundEdge>().ToList();
+            if ((edges.Count == 2) && (edges[0].TaxiwayName == edges[1].TaxiwayName))
+            {
+                return false;
+            }
+        }
+
         // Mid-centerline nodes (2+ RWY edges) are fine: the collinear RWY pair merges and
         // taxiway branches get arcs.
         return true;
@@ -1125,126 +1137,25 @@ public static class FilletArcGenerator
     /// </summary>
     private static HashSet<int> DetectManualArcNodes(AirportGroundLayout layout)
     {
-        const double bearingThresholdDeg = 30.0;
-        const int minChainNodes = 3;
-
         var excluded = new HashSet<int>();
-        var visited = new HashSet<int>();
 
-        foreach (var startNode in layout.Nodes.Values)
+        // All shape-point nodes (2 edges, same taxiway) are geometry nodes, not
+        // real intersections. Exclude them from filleting and protect their edges
+        // during walks — they provide the original taxiway curve geometry.
+        foreach (var node in layout.Nodes.Values)
         {
-            if (visited.Contains(startNode.Id))
+            if (IsShapePointNode(node))
             {
-                continue;
+                excluded.Add(node.Id);
             }
+        }
 
-            if (!IsShapePointNode(startNode))
-            {
-                continue;
-            }
-
-            // Walk in both directions from startNode to build the full chain.
-            var chain = WalkShapePointChain(startNode, visited);
-            if (chain.Count < minChainNodes)
-            {
-                continue;
-            }
-
-            // Compute cumulative bearing change across the chain
-            double totalBearingChange = 0;
-            for (int i = 0; i + 1 < chain.Count; i++)
-            {
-                if (i + 2 >= chain.Count)
-                {
-                    break;
-                }
-
-                double bearingIn = GeoMath.BearingTo(chain[i].Latitude, chain[i].Longitude, chain[i + 1].Latitude, chain[i + 1].Longitude);
-                double bearingOut = GeoMath.BearingTo(chain[i + 1].Latitude, chain[i + 1].Longitude, chain[i + 2].Latitude, chain[i + 2].Longitude);
-                double delta = bearingOut - bearingIn;
-                while (delta > 180)
-                {
-                    delta -= 360;
-                }
-                while (delta < -180)
-                {
-                    delta += 360;
-                }
-                totalBearingChange += Math.Abs(delta);
-            }
-
-            if (totalBearingChange >= bearingThresholdDeg)
-            {
-                string taxiway = chain[0].Edges.OfType<GroundEdge>().First().TaxiwayName;
-                Log.LogDebug(
-                    "Manual arc detected: {Taxiway} chain of {Count} nodes (#{First}..#{Last}), cumulative bearing change={Bearing:F1}°",
-                    taxiway,
-                    chain.Count,
-                    chain[0].Id,
-                    chain[^1].Id,
-                    totalBearingChange
-                );
-                foreach (var node in chain)
-                {
-                    excluded.Add(node.Id);
-                }
-            }
+        if (excluded.Count > 0)
+        {
+            Log.LogDebug("Excluding {Count} shape-point nodes from filleting and walk consumption", excluded.Count);
         }
 
         return excluded;
-    }
-
-    /// <summary>
-    /// Walk a chain of shape-point nodes in both directions from a start node.
-    /// Each shape-point has exactly 2 same-taxiway edges, so the chain is linear.
-    /// Marks all visited nodes in the visited set.
-    /// </summary>
-    private static List<GroundNode> WalkShapePointChain(GroundNode startNode, HashSet<int> visited)
-    {
-        visited.Add(startNode.Id);
-        var edges = startNode.Edges.OfType<GroundEdge>().ToList();
-
-        // Walk in direction A (first edge)
-        var dirA = WalkDirection(startNode, edges[0], visited);
-        // Walk in direction B (second edge)
-        var dirB = WalkDirection(startNode, edges[1], visited);
-
-        // Build chain: reverse of dirA + startNode + dirB
-        dirA.Reverse();
-        dirA.Add(startNode);
-        dirA.AddRange(dirB);
-        return dirA;
-    }
-
-    private static List<GroundNode> WalkDirection(GroundNode from, GroundEdge startEdge, HashSet<int> visited)
-    {
-        var result = new List<GroundNode>();
-        var current = startEdge.OtherNode(from);
-        var prevEdge = startEdge;
-
-        while (IsShapePointNode(current) && visited.Add(current.Id))
-        {
-            result.Add(current);
-            GroundEdge? next = null;
-            foreach (var e in current.Edges)
-            {
-                if ((e is GroundEdge ge) && (ge != prevEdge))
-                {
-                    next = ge;
-                    break;
-                }
-            }
-
-            if (next is null)
-            {
-                break;
-            }
-
-            prevEdge = next;
-            current = next.OtherNode(current);
-        }
-
-        return result;
     }
 
     /// <summary>

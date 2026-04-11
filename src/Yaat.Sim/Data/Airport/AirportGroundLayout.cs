@@ -273,11 +273,11 @@ public sealed class GroundArc : IGroundEdge
     public required string[] TaxiwayNames { get; init; }
 
     /// <summary>
-    /// Display name for the arc: single name for same-taxiway arcs, "W · W3" for junctions.
-    /// Uses " · " separator to avoid collision with "/" in runway identifiers (e.g., "RWY30/12").
+    /// Display name for the arc: single name for same-taxiway arcs, "W - W3" for junctions.
+    /// Uses " - " separator to avoid collision with "/" in runway identifiers (e.g., "RWY30/12").
     /// For membership checks, use <see cref="MatchesTaxiway"/> instead.
     /// </summary>
-    public string TaxiwayName => TaxiwayNames.Length == 1 ? TaxiwayNames[0] : string.Join(" · ", TaxiwayNames);
+    public string TaxiwayName => TaxiwayNames.Length == 1 ? TaxiwayNames[0] : string.Join(" - ", TaxiwayNames);
 
     public bool MatchesTaxiway(string name)
     {
