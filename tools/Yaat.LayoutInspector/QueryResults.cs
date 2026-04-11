@@ -94,6 +94,19 @@ public sealed record BfsStep(int NodeId, string NodeType, int Depth, List<BfsEdg
 
 public sealed record BfsEdgeExplored(int NeighborId, string TaxiwayName, double DistanceNm, string NeighborType, string Action, string Reason);
 
+public sealed record RawEdgeInfo(int From, int To, string TaxiwayName, double DistanceNm, bool IsRunway, string? Origin);
+
+public sealed record RawArcInfo(
+    int From,
+    int To,
+    string TaxiwayName,
+    string[] TaxiwayNames,
+    double DistanceNm,
+    double MinRadiusFt,
+    double TurnAngleDeg,
+    string? Origin
+);
+
 public sealed record FullDumpResult(
     OverviewResult Overview,
     Dictionary<int, NodeInfo> Nodes,
@@ -101,7 +114,9 @@ public sealed record FullDumpResult(
     Dictionary<string, RunwayResult> Runways,
     Dictionary<string, ExitsResult> Exits,
     List<NodeInfo> Parking,
-    List<NodeInfo> Spots
+    List<NodeInfo> Spots,
+    List<RawEdgeInfo> Edges,
+    List<RawArcInfo> Arcs
 );
 
 public sealed record BfsPathResult(

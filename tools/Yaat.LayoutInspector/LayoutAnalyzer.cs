@@ -679,7 +679,23 @@ public sealed class LayoutAnalyzer
             }
         }
 
-        return new FullDumpResult(overview, allNodes, taxiways, runways, exits, GetParking(), GetSpots());
+        var rawEdges = Layout
+            .Edges.Select(e => new RawEdgeInfo(e.Nodes[0].Id, e.Nodes[1].Id, e.TaxiwayName, e.DistanceNm, e.IsRunwayCenterline, e.Origin))
+            .ToList();
+        var rawArcs = Layout
+            .Arcs.Select(a => new RawArcInfo(
+                a.Nodes[0].Id,
+                a.Nodes[1].Id,
+                a.TaxiwayName,
+                a.TaxiwayNames,
+                a.DistanceNm,
+                a.MinRadiusOfCurvatureFt,
+                a.TurnAngleDeg,
+                a.Origin
+            ))
+            .ToList();
+
+        return new FullDumpResult(overview, allNodes, taxiways, runways, exits, GetParking(), GetSpots(), rawEdges, rawArcs);
     }
 
     public BfsPathResult GetBfsPath(int startNodeId, string taxiway)

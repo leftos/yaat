@@ -100,7 +100,7 @@ internal static class RunwayCrossingDetector
         // Connect on-runway nodes with centerline edges so that taxiways
         // crossing the same runway are linked (e.g., D and F at OAK both cross
         // 15/33 but have no GeoJSON edges between them).
-        ConnectOnRunwayNodes(layout, rect);
+        ConnectOnRunwayNodes(layout, rect, coordIndex, ref nextNodeId);
 
         return widthFt;
     }
@@ -239,7 +239,7 @@ internal static class RunwayCrossingDetector
     /// closer to the runway centerline (the on-runway dead-end), sorts them by
     /// along-track position, and links consecutive ones.
     /// </summary>
-    private static void ConnectOnRunwayNodes(AirportGroundLayout layout, in RunwayRectangle rect)
+    private static void ConnectOnRunwayNodes(AirportGroundLayout layout, in RunwayRectangle rect, CoordinateIndex coordIndex, ref int nextNodeId)
     {
         string rwyEdgeName = $"RWY{rect.CombinedId}";
 
@@ -254,11 +254,17 @@ internal static class RunwayCrossingDetector
         }
 
         // For each HS node, walk from the on-runway neighbor toward the
-        // centerline to find the best representative node for RWY edges.
-        var onRunwayNodes = new List<(int Id, double AlongTrack)>();
+        // centerline to find the best representative node. Then project that
+        // node onto the actual runway centerline and create a new node there.
+        // This ensures runway edges follow the straight centerline exactly.
+        var centerlineNodes = new List<(int Id, double AlongTrack)>();
         var seen = new HashSet<int>();
 
-        foreach (var (nodeId, node) in layout.Nodes)
+        // Track which on-runway nodes we projected so we can connect them
+        // to their centerline projection with a short perpendicular edge.
+        var projections = new List<(int OnRunwayId, int CenterlineId)>();
+
+        foreach (var (nodeId, node) in layout.Nodes.ToList())
         {
             if (node.Type != GroundNodeType.RunwayHoldShort)
             {
@@ -272,56 +278,87 @@ internal static class RunwayCrossingDetector
 
             int bestId = FindCenterlineNode(nodeId, layout, rect, onRunwaySet);
 
-            if (bestId != -1 && seen.Add(bestId))
+            if (bestId == -1 || !seen.Add(bestId))
             {
-                var bestNode = layout.Nodes[bestId];
-                double at = GeoMath.AlongTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading);
-                onRunwayNodes.Add((bestId, at));
+                continue;
+            }
+
+            var bestNode = layout.Nodes[bestId];
+            double alongTrack = GeoMath.AlongTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading);
+            double crossTrack = GeoMath.SignedCrossTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading);
+            double crossTrackFt = Math.Abs(crossTrack) * GeoMath.FeetPerNm;
+
+            if (crossTrackFt < 5.0)
+            {
+                // Already close enough to centerline — use as-is
+                centerlineNodes.Add((bestId, alongTrack));
+            }
+            else
+            {
+                // Project onto centerline: compute the point on the centerline at this along-track distance
+                var (clLat, clLon) = GeoMath.ProjectPointRaw(rect.RefLat, rect.RefLon, rect.TrueHeading.Degrees, alongTrack);
+                int clId = nextNodeId++;
+                var clNode = new GroundNode
+                {
+                    Id = clId,
+                    Latitude = clLat,
+                    Longitude = clLon,
+                    Type = GroundNodeType.TaxiwayIntersection,
+                    Origin = $"RunwayCrossing:centerline-projection@{rect.CombinedId} from #{bestId}",
+                };
+                layout.Nodes[clId] = clNode;
+                coordIndex.Add(clLat, clLon, clId);
+
+                // Connect the on-runway node to the centerline node
+                double perpDist = GeoMath.DistanceNm(bestNode.Latitude, bestNode.Longitude, clLat, clLon);
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [bestNode, clNode],
+                        TaxiwayName = rwyEdgeName,
+                        DistanceNm = perpDist,
+                        Origin = $"RunwayCrossing:centerline-link@{rect.CombinedId} #{bestId}↔#{clId}",
+                    }
+                );
+
+                centerlineNodes.Add((clId, alongTrack));
+                projections.Add((bestId, clId));
+
+                Log.LogDebug(
+                    "Projected #{OnId} onto centerline as #{ClId} ({CrossFt:F0}ft off-center, {AlongFt:F0}ft along)",
+                    bestId,
+                    clId,
+                    crossTrackFt,
+                    alongTrack * GeoMath.FeetPerNm
+                );
             }
         }
 
-        if (onRunwayNodes.Count < 2)
+        if (centerlineNodes.Count < 2)
         {
             return;
         }
 
-        onRunwayNodes.Sort((a, b) => a.AlongTrack.CompareTo(b.AlongTrack));
+        centerlineNodes.Sort((a, b) => a.AlongTrack.CompareTo(b.AlongTrack));
 
-        for (int i = 0; i < onRunwayNodes.Count - 1; i++)
+        for (int i = 0; i < centerlineNodes.Count - 1; i++)
         {
-            int fromId = onRunwayNodes[i].Id;
-            int toId = onRunwayNodes[i + 1].Id;
-
-            // Skip if already connected by any edge
-            bool alreadyConnected = false;
-            foreach (var edge in layout.Edges)
-            {
-                if (edge.HasNode(fromId) && edge.HasNode(toId))
-                {
-                    alreadyConnected = true;
-                    break;
-                }
-            }
-
-            if (alreadyConnected)
-            {
-                continue;
-            }
+            int fromId = centerlineNodes[i].Id;
+            int toId = centerlineNodes[i + 1].Id;
 
             var from = layout.Nodes[fromId];
             var to = layout.Nodes[toId];
             double dist = GeoMath.DistanceNm(from.Latitude, from.Longitude, to.Latitude, to.Longitude);
 
-            var rwyEdge = new GroundEdge
-            {
-                Nodes = [from, to],
-                TaxiwayName = rwyEdgeName,
-                DistanceNm = dist,
-                Origin = $"RunwayCrossing:rwy-edge@{rect.CombinedId}",
-            };
-
-            layout.Edges.Add(rwyEdge);
-            // Node adjacency lists are wired up in GeoJsonParser Step 7.
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [from, to],
+                    TaxiwayName = rwyEdgeName,
+                    DistanceNm = dist,
+                    Origin = $"RunwayCrossing:rwy-edge@{rect.CombinedId}",
+                }
+            );
 
             Log.LogDebug("Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)", fromId, toId, rect.CombinedId, dist * GeoMath.FeetPerNm);
         }

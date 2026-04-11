@@ -73,12 +73,62 @@ public static class FilletArcGenerator
                 continue;
             }
 
+            // Snapshot runway edges before this fillet for validation
+            var rwyEdgesBefore = layout
+                .Edges.Where(e => e.IsRunwayCenterline)
+                .Select(e =>
+                    (
+                        e.Nodes[0].Id,
+                        e.Nodes[1].Id,
+                        e.TaxiwayName,
+                        Brg: GeoMath.BearingTo(e.Nodes[0].Latitude, e.Nodes[0].Longitude, e.Nodes[1].Latitude, e.Nodes[1].Longitude)
+                    )
+                )
+                .ToHashSet();
+
             var result = FilletNode(layout, node, preserveNode, manualArcNodes, ref nextNodeId);
             if (result.Success)
             {
                 filletedCount++;
                 arcCount += result.ArcsCreated;
                 mergedCount += result.EdgesMerged;
+            }
+
+            // Validate: check all runway edges still follow their original bearing
+            foreach (var rwyEdge in layout.Edges.Where(e => e.IsRunwayCenterline))
+            {
+                double brg = GeoMath.BearingTo(
+                    rwyEdge.Nodes[0].Latitude,
+                    rwyEdge.Nodes[0].Longitude,
+                    rwyEdge.Nodes[1].Latitude,
+                    rwyEdge.Nodes[1].Longitude
+                );
+
+                // Find the original edge segment this belongs to (by checking if both
+                // nodes lie on the same original segment bearing)
+                bool isNew = !rwyEdgesBefore.Contains((rwyEdge.Nodes[0].Id, rwyEdge.Nodes[1].Id, rwyEdge.TaxiwayName, brg));
+                if (!isNew)
+                {
+                    continue;
+                }
+
+                // New runway edge — check it matches one of the original segment bearings
+                bool bearingOk = rwyEdgesBefore.Any(orig =>
+                    (orig.TaxiwayName == rwyEdge.TaxiwayName) && (GeoMath.AbsBearingDifference(orig.Brg, brg) < 1.0)
+                );
+                if (!bearingOk)
+                {
+                    Log.LogWarning(
+                        "[Int#{IntId}] RUNWAY DISPLACED: edge {Tw}({A}->{B}) bearing={Brg:F1}° doesn't match any original {Tw2} bearing. Origin: {Origin}",
+                        node.Id,
+                        rwyEdge.TaxiwayName,
+                        rwyEdge.Nodes[0].Id,
+                        rwyEdge.Nodes[1].Id,
+                        brg,
+                        rwyEdge.TaxiwayName,
+                        rwyEdge.Origin
+                    );
+                }
             }
         }
 
@@ -568,7 +618,12 @@ public static class FilletArcGenerator
                 {
                     continue;
                 }
-                if (fromTan.Placement.LandsInManualArc || toTan.Placement.LandsInManualArc)
+                // Skip tangent-links across non-runway manual arc chains (the chain
+                // edges provide connectivity). Runway tangent-links are fine — both
+                // tangent nodes sit on the straight centerline.
+                bool fromProtected = fromTan.Placement.LandsInManualArc && !edge.IsRunwayCenterline;
+                bool toProtected = toTan.Placement.LandsInManualArc && !edge.IsRunwayCenterline;
+                if (fromProtected || toProtected)
                 {
                     continue;
                 }
@@ -747,7 +802,11 @@ public static class FilletArcGenerator
             foreach (var (edge, tangentEntries) in edgeTangentNodes)
             {
                 var nearest = tangentEntries.MinBy(t => t.Placement.TangentDistNm);
-                var stubTarget = nearest.Placement.LandsInManualArc ? edge.OtherNode(intersection) : nearest.Node;
+                // For non-runway manual arcs, connect to the chain's first node (otherNode)
+                // since the chain provides connectivity to the tangent. For runway edges
+                // and non-manual-arc edges, connect directly to the tangent node.
+                bool redirectToChain = nearest.Placement.LandsInManualArc && !edge.IsRunwayCenterline;
+                var stubTarget = redirectToChain ? edge.OtherNode(intersection) : nearest.Node;
                 double stubDist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, stubTarget.Latitude, stubTarget.Longitude);
                 layout.Edges.Add(
                     new GroundEdge
@@ -1006,18 +1065,41 @@ public static class FilletArcGenerator
 
                 if (dist <= thresholdNm)
                 {
-                    Log.LogDebug(
-                        "Fillet cleanup: merging node {VictimId} into {SurvivorId} ({DistFt:F1}ft apart)",
-                        candidates[j].Id,
-                        candidates[i].Id,
-                        dist * GeoMath.FeetPerNm
-                    );
+                    // Don't merge runway-centerline tangent nodes with taxiway tangent
+                    // nodes — they're close but intentionally at different positions.
+                    // Merging pulls runway edges off the centerline.
+                    bool iOnRunway = HasRunwayEdge(layout, candidates[i].Id);
+                    bool jOnRunway = HasRunwayEdge(layout, candidates[j].Id);
+                    if (iOnRunway != jOnRunway)
+                    {
+                        continue;
+                    }
+
                     mergeMap[candidates[j].Id] = candidates[i];
                 }
             }
         }
 
         return mergeMap;
+    }
+
+    private static bool HasRunwayEdge(AirportGroundLayout layout, int nodeId)
+    {
+        foreach (var edge in layout.Edges)
+        {
+            if (edge.IsRunwayCenterline && ((edge.Nodes[0].Id == nodeId) || (edge.Nodes[1].Id == nodeId)))
+            {
+                return true;
+            }
+        }
+        foreach (var arc in layout.Arcs)
+        {
+            if (arc.IsRunwayCenterline && ((arc.Nodes[0].Id == nodeId) || (arc.Nodes[1].Id == nodeId)))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void RemoveDuplicateEdges(AirportGroundLayout layout)
@@ -1121,8 +1203,10 @@ public static class FilletArcGenerator
             walkedShapeNodes = [];
             passthroughNodes = [];
             walkFarNode = null;
-            landsInManualArc = false;
-            splitEdge = null;
+            // Runway centerline edges are protected — tangent splits the edge
+            // instead of Phase D creating tangent-links/shorten edges.
+            landsInManualArc = edge.IsRunwayCenterline;
+            splitEdge = landsInManualArc ? edge : null;
         }
         else
         {
@@ -1378,8 +1462,8 @@ public static class FilletArcGenerator
             GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude) * GeoMath.FeetPerNm;
 
         bool hasOtherTw = otherNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
-        bool isManualArc = manualArcNodes.Contains(otherNode.Id);
-        var steps = new List<TaxiwayWalkStep> { new(startEdge, otherNode, firstEdgeFt, hasOtherTw, isManualArc) };
+        bool isProtected = manualArcNodes.Contains(otherNode.Id) || startEdge.IsRunwayCenterline;
+        var steps = new List<TaxiwayWalkStep> { new(startEdge, otherNode, firstEdgeFt, hasOtherTw, isProtected) };
 
         var currentNode = otherNode;
         var prevEdge = startEdge;
@@ -1409,8 +1493,8 @@ public static class FilletArcGenerator
             cumDist += edgeFt;
 
             bool nextHasOtherTw = nextNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
-            bool nextIsManualArc = manualArcNodes.Contains(nextNode.Id);
-            steps.Add(new TaxiwayWalkStep(continuation, nextNode, cumDist, nextHasOtherTw, nextIsManualArc));
+            bool nextIsProtected = manualArcNodes.Contains(nextNode.Id) || continuation.IsRunwayCenterline;
+            steps.Add(new TaxiwayWalkStep(continuation, nextNode, cumDist, nextHasOtherTw, nextIsProtected));
 
             prevEdge = continuation;
             currentNode = nextNode;
