@@ -188,6 +188,11 @@ public static class GeoJsonParser
             TaxiwayGraphBuilder.BuildEdgesFromTaxiway(tw, layout);
         }
 
+        // Step 4b: Remove overlapping edges (same two nodes, different taxiway names).
+        // When two taxiways share an identical segment, keep the one that continues
+        // through both endpoints; remove the one that terminates.
+        RemoveOverlappingEdges(layout);
+
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
         foreach (var rwy in runways)
         {
@@ -266,6 +271,105 @@ public static class GeoJsonParser
     private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout)
     {
         ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm);
+    }
+
+    /// <summary>
+    /// Remove overlapping edges: when two taxiways share an identical segment (same
+    /// two nodes, different names), keep the taxiway that continues through both
+    /// endpoints and remove the one that terminates at one end.
+    /// </summary>
+    private static void RemoveOverlappingEdges(AirportGroundLayout layout)
+    {
+        // Group edges by node pair (order-independent)
+        var byNodePair = new Dictionary<(int, int), List<GroundEdge>>();
+        foreach (var edge in layout.Edges)
+        {
+            int a = Math.Min(edge.Nodes[0].Id, edge.Nodes[1].Id);
+            int b = Math.Max(edge.Nodes[0].Id, edge.Nodes[1].Id);
+            var key = (a, b);
+            if (!byNodePair.TryGetValue(key, out var list))
+            {
+                list = [];
+                byNodePair[key] = list;
+            }
+            list.Add(edge);
+        }
+
+        var toRemove = new HashSet<GroundEdge>();
+        foreach (var (pair, edges) in byNodePair)
+        {
+            if (edges.Count < 2)
+            {
+                continue;
+            }
+
+            // For each pair of overlapping edges with different names, decide which to keep
+            for (int i = 0; i < edges.Count; i++)
+            {
+                for (int j = i + 1; j < edges.Count; j++)
+                {
+                    var edgeA = edges[i];
+                    var edgeB = edges[j];
+                    if (edgeA.TaxiwayName == edgeB.TaxiwayName)
+                    {
+                        continue;
+                    }
+                    if (toRemove.Contains(edgeA) || toRemove.Contains(edgeB))
+                    {
+                        continue;
+                    }
+
+                    // Count how many other edges each taxiway has at each endpoint
+                    int contA0 = CountOtherEdgesForTaxiway(layout, edgeA.Nodes[0].Id, edgeA.TaxiwayName, pair);
+                    int contA1 = CountOtherEdgesForTaxiway(layout, edgeA.Nodes[1].Id, edgeA.TaxiwayName, pair);
+                    int contB0 = CountOtherEdgesForTaxiway(layout, edgeB.Nodes[0].Id, edgeB.TaxiwayName, pair);
+                    int contB1 = CountOtherEdgesForTaxiway(layout, edgeB.Nodes[1].Id, edgeB.TaxiwayName, pair);
+
+                    // Taxiway "continues" at an endpoint if it has other edges there
+                    int scoreA = (contA0 > 0 ? 1 : 0) + (contA1 > 0 ? 1 : 0);
+                    int scoreB = (contB0 > 0 ? 1 : 0) + (contB1 > 0 ? 1 : 0);
+
+                    if (scoreA > scoreB)
+                    {
+                        toRemove.Add(edgeB);
+                    }
+                    else if (scoreB > scoreA)
+                    {
+                        toRemove.Add(edgeA);
+                    }
+                    // If tied, keep both — can't determine which owns the segment
+                }
+            }
+        }
+
+        if (toRemove.Count > 0)
+        {
+            layout.Edges.RemoveAll(e => toRemove.Contains(e));
+        }
+    }
+
+    private static int CountOtherEdgesForTaxiway(AirportGroundLayout layout, int nodeId, string taxiwayName, (int, int) excludePair)
+    {
+        int count = 0;
+        foreach (var edge in layout.Edges)
+        {
+            if (edge.TaxiwayName != taxiwayName)
+            {
+                continue;
+            }
+            if (!edge.HasNode(nodeId))
+            {
+                continue;
+            }
+            int a = Math.Min(edge.Nodes[0].Id, edge.Nodes[1].Id);
+            int b = Math.Max(edge.Nodes[0].Id, edge.Nodes[1].Id);
+            if ((a, b) == excludePair)
+            {
+                continue;
+            }
+            count++;
+        }
+        return count;
     }
 
     private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)

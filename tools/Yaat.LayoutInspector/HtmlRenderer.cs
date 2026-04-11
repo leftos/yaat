@@ -209,6 +209,12 @@ public sealed class HtmlRenderer
 
     private bool IsHighlighted(IGroundEdge edge)
     {
+        // If nothing is highlighted, everything is
+        if ((_highlightTaxiways.Count == 0) && (_highlightRunways.Count == 0) && (_highlightNodes.Count == 0))
+        {
+            return true;
+        }
+
         foreach (var t in _highlightTaxiways)
         {
             if (edge.MatchesTaxiway(t))

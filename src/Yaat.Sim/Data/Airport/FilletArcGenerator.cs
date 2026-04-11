@@ -370,11 +370,12 @@ public static class FilletArcGenerator
 
             double effectiveTurnDeg = 180.0 - GeoMath.AbsBearingDifference(bearingAToIntersection, bearingBToIntersection);
 
-            double sweepRad = (180.0 - effectiveTurnDeg) * (Math.PI / 180.0);
+            double sweepRad = effectiveTurnDeg * (Math.PI / 180.0);
             double kappa = (4.0 / 3.0) * Math.Tan(sweepRad / 4.0);
 
-            double depthA = kappa * placementA.TangentDistNm;
-            double depthB = kappa * placementB.TangentDistNm;
+            double radiusNm = radiusFt / GeoMath.FeetPerNm;
+            double depthA = kappa * radiusNm;
+            double depthB = kappa * radiusNm;
 
             var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanNodeA.Latitude, tanNodeA.Longitude, bearingAToIntersection, depthA);
             var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanNodeB.Latitude, tanNodeB.Longitude, bearingBToIntersection, depthB);
@@ -937,6 +938,23 @@ public static class FilletArcGenerator
         if (totalMerged > 0)
         {
             RecomputeDistances(layout);
+
+            // Clean up nodes orphaned by degenerate arc removal
+            var orphanIds = layout
+                .Nodes.Keys.Where(id =>
+                    !layout.Edges.Any(e => (e.Nodes[0].Id == id) || (e.Nodes[1].Id == id))
+                    && !layout.Arcs.Any(a => (a.Nodes[0].Id == id) || (a.Nodes[1].Id == id))
+                )
+                .ToList();
+            foreach (int id in orphanIds)
+            {
+                var node = layout.Nodes[id];
+                // Only remove fillet-created tangent nodes, not original graph nodes
+                if (node.Origin?.StartsWith("Fillet:") == true)
+                {
+                    layout.Nodes.Remove(id);
+                }
+            }
         }
 
         return totalMerged;
