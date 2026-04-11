@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -8,6 +9,8 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 internal static class TaxiVariantResolver
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("TaxiVariantResolver");
+
     /// <summary>
     /// Attempts to auto-extend the last taxiway segment to a numbered variant
     /// (e.g., W → W1) that reaches the destination runway hold-short.
@@ -26,6 +29,13 @@ internal static class TaxiVariantResolver
     )
     {
         failReason = null;
+        Log.LogDebug(
+            "[Variant] TryInferVariant: lastTw={LastTw} destRwy={DestRwy} segments={SegCount} segCountBeforeLastTw={Before}",
+            lastTaxiwayName,
+            destinationRunway,
+            segments.Count,
+            segmentCountBeforeLastTw
+        );
 
         // Check if route already reaches a hold-short for the destination runway
         foreach (var seg in segments)
@@ -37,6 +47,7 @@ internal static class TaxiVariantResolver
                 && TaxiPathfinder.RunwayIdMatches(segRwyId, destinationRunway)
             )
             {
+                Log.LogDebug("[Variant] Route already reaches hold-short #{NodeId} for {Rwy}", seg.ToNodeId, destinationRunway);
                 return false;
             }
         }
@@ -64,9 +75,6 @@ internal static class TaxiVariantResolver
 
                 if (string.Equals(edgeName, lastTaxiwayName, StringComparison.OrdinalIgnoreCase))
                 {
-                    // The last taxiway reaches this hold-short, but the walk
-                    // may have gone the wrong direction at a fork. Track it so
-                    // we can A* extend if needed.
                     sameNameHoldShorts.Add(node);
                     continue;
                 }
@@ -82,9 +90,22 @@ internal static class TaxiVariantResolver
             }
         }
 
+        Log.LogDebug(
+            "[Variant] Found {VarCount} variants, {SameCount} same-name hold-shorts, {NonVarCount} non-variant connectors",
+            variants.Count,
+            sameNameHoldShorts.Count,
+            nonVariantConnectors.Count
+        );
+        foreach (var (hsNode, varName) in variants)
+        {
+            Log.LogDebug("[Variant]   variant: #{NodeId} via {Name}", hsNode.Id, varName);
+        }
+
         if (variants.Count > 0)
         {
-            return AutoExtendVariant(layout, segments, segmentCountBeforeLastTw, variants, airportId, destinationRunway, ref currentNodeId);
+            bool result = AutoExtendVariant(layout, segments, segmentCountBeforeLastTw, variants, airportId, destinationRunway, ref currentNodeId);
+            Log.LogDebug("[Variant] AutoExtendVariant returned {Result}", result);
+            return result;
         }
 
         // The walk went the wrong direction at a fork — the last taxiway does
@@ -93,6 +114,7 @@ internal static class TaxiVariantResolver
         if (sameNameHoldShorts.Count > 0)
         {
             bool extended = ExtendToSameNameHoldShort(layout, segments, sameNameHoldShorts, ref currentNodeId);
+            Log.LogDebug("[Variant] ExtendToSameNameHoldShort returned {Result}", extended);
             if (extended)
             {
                 return true;
@@ -103,6 +125,7 @@ internal static class TaxiVariantResolver
         {
             var connectors = string.Join(", ", nonVariantConnectors.Order());
             failReason = $"Taxi to runway {destinationRunway}: specify connecting taxiway ({connectors})";
+            Log.LogDebug("[Variant] No variant found, non-variant connectors: {Connectors}", connectors);
         }
 
         return false;
@@ -147,6 +170,12 @@ internal static class TaxiVariantResolver
     {
         // Pick variant: if multiple distinct names, choose closest to runway threshold
         string chosenVariant = PickBestVariant(variants, airportId, destinationRunway);
+        Log.LogDebug(
+            "[Variant] AutoExtend: chosen variant={Variant}, scanning segments [{From}..{To}]",
+            chosenVariant,
+            segmentCountBeforeLastTw,
+            segments.Count - 1
+        );
 
         // Find branch point: scan nodes along the last-taxiway segments
         int branchNodeId = -1;
@@ -191,8 +220,20 @@ internal static class TaxiVariantResolver
 
         if (branchNodeId == -1)
         {
-            return false;
+            // The walk went the wrong direction at a fork — the variant junction
+            // isn't along the walked route. Fall back to A* from the start of the
+            // last taxiway to the nearest variant hold-short.
+            Log.LogDebug("[Variant] AutoExtend: no branch point for {Variant} along route, trying A* fallback", chosenVariant);
+            int lastTwStartId = segments.Count > segmentCountBeforeLastTw ? segments[segmentCountBeforeLastTw].FromNodeId : currentNodeId;
+            return ExtendViaAStar(layout, segments, segmentCountBeforeLastTw, variants, chosenVariant, lastTwStartId, ref currentNodeId);
         }
+
+        Log.LogDebug(
+            "[Variant] AutoExtend: branch at #{NodeId} segIdx={SegIdx}, truncating {Count} segments after branch",
+            branchNodeId,
+            branchSegmentIndex,
+            segments.Count - branchSegmentIndex
+        );
 
         // Truncate segments after the branch point
         if (branchSegmentIndex < segments.Count)
@@ -202,6 +243,13 @@ internal static class TaxiVariantResolver
 
         // Walk the variant from the branch point
         bool walked = TaxiPathfinder.WalkTaxiway(layout, branchNodeId, chosenVariant, segments, out int endNodeId);
+        Log.LogDebug(
+            "[Variant] AutoExtend: walked {Variant} from #{Branch} → #{End}, success={Walked}",
+            chosenVariant,
+            branchNodeId,
+            endNodeId,
+            walked
+        );
 
         if (walked)
         {
@@ -209,6 +257,75 @@ internal static class TaxiVariantResolver
         }
 
         return walked;
+    }
+
+    /// <summary>
+    /// Fallback when the walk went the wrong direction and no branch point was found.
+    /// Uses A* from the last-taxiway start node to the nearest variant hold-short,
+    /// replacing the walked segments entirely.
+    /// </summary>
+    private static bool ExtendViaAStar(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        int segmentCountBeforeLastTw,
+        List<(GroundNode HsNode, string VariantName)> variants,
+        string chosenVariant,
+        int fromNodeId,
+        ref int currentNodeId
+    )
+    {
+        // Find the nearest hold-short for the chosen variant
+        GroundNode? targetHs = null;
+        double bestDist = double.MaxValue;
+        foreach (var (hsNode, varName) in variants)
+        {
+            if (!string.Equals(varName, chosenVariant, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!layout.Nodes.TryGetValue(fromNodeId, out var fromNode))
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, hsNode.Latitude, hsNode.Longitude);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                targetHs = hsNode;
+            }
+        }
+
+        if (targetHs is null)
+        {
+            Log.LogDebug("[Variant] ExtendViaAStar: no hold-short found for {Variant}", chosenVariant);
+            return false;
+        }
+
+        var astarRoute = TaxiPathfinder.FindRoute(layout, fromNodeId, targetHs.Id);
+        if (astarRoute is null)
+        {
+            Log.LogDebug("[Variant] ExtendViaAStar: A* from #{From} to #{To} failed", fromNodeId, targetHs.Id);
+            return false;
+        }
+
+        // Replace the last-taxiway segments with the A* route
+        if (segmentCountBeforeLastTw < segments.Count)
+        {
+            segments.RemoveRange(segmentCountBeforeLastTw, segments.Count - segmentCountBeforeLastTw);
+        }
+
+        segments.AddRange(astarRoute.Segments);
+        currentNodeId = astarRoute.Segments[^1].ToNodeId;
+        Log.LogDebug(
+            "[Variant] ExtendViaAStar: A* from #{From} to #{To} added {Count} segments, endNode=#{End}",
+            fromNodeId,
+            targetHs.Id,
+            astarRoute.Segments.Count,
+            currentNodeId
+        );
+        return true;
     }
 
     private static string PickBestVariant(List<(GroundNode HsNode, string VariantName)> variants, string? airportId, string destinationRunway)
