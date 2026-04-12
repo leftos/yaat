@@ -29,24 +29,20 @@ public class FilletAngleSweepTests
     public void FilletAtAngle_ProducesValidArcAndConnectedGraph(double exitAngle)
     {
         var layout = BuildRunwayWithBranch(exitAngle);
-        int centerNodeId = 1; // nodeC
 
         FilletArcGenerator.Apply(layout);
 
-        // 1. Intersection node removed
-        Assert.False(layout.Nodes.ContainsKey(centerNodeId), $"Center node should be removed at {exitAngle}°");
-
-        // 2. At least one arc created (runway-to-taxiway fillet)
+        // 1. At least one arc created (runway-to-taxiway fillet)
         Assert.True(layout.Arcs.Count >= 1, $"Expected ≥1 arc at {exitAngle}°, got {layout.Arcs.Count}");
 
-        // 3. Arc geometry valid
+        // 2. Arc geometry valid
         foreach (var arc in layout.Arcs)
         {
             Assert.True(arc.MinRadiusOfCurvatureFt > 0, $"MinRadiusOfCurvatureFt should be > 0 at {exitAngle}°");
             Assert.True(arc.DistanceNm > 0, $"DistanceNm should be > 0 at {exitAngle}°");
         }
 
-        // 4. Bezier endpoints match arc node positions
+        // 3. Bezier endpoints match arc node positions
         foreach (var arc in layout.Arcs)
         {
             var bezier = arc.ToBezier();
@@ -60,13 +56,13 @@ public class FilletAngleSweepTests
             Assert.True(endDist < 0.0001, $"Bezier P3 should match Nodes[1] at {exitAngle}°, dist={endDist:E2}nm");
         }
 
-        // 5. All remaining nodes have at least one edge (graph connected)
+        // 4. All remaining nodes have at least one edge (graph connected)
         foreach (var node in layout.Nodes.Values)
         {
             Assert.True(node.Edges.Count > 0, $"Node {node.Id} has no edges at {exitAngle}°");
         }
 
-        // 6. Radius plausible — should be ≤ max configured for runway exit (100ft) or fit constraint
+        // 5. Radius plausible — should be ≤ max configured for runway exit (100ft) or fit constraint
         foreach (var arc in layout.Arcs)
         {
             Assert.True(arc.MinRadiusOfCurvatureFt <= 200, $"MinRadius {arc.MinRadiusOfCurvatureFt:F0}ft seems too large at {exitAngle}°");

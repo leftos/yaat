@@ -85,39 +85,37 @@ public class FilletArcGeneratorTests
     }
 
     [Fact]
-    public void TwoEdges_Collinear_MergesIntoStraightEdge()
+    public void TwoEdges_Collinear_PreservesIntersectionNode()
     {
         // North and South edges — 180° apart = 0° turn angle (collinear)
         var layout = BuildLayout((0.01, 0), (-0.01, 0));
 
         FilletArcGenerator.Apply(layout);
 
-        // Intersection node 0 should be removed
-        Assert.False(layout.Nodes.ContainsKey(0));
+        // Intersection node preserved (collinear pair creates preserve stubs)
+        Assert.True(layout.Nodes.ContainsKey(0));
 
-        // No arcs — collinear merge
+        // No arcs — collinear pair, no turn
         Assert.Empty(layout.Arcs);
 
-        // One merged edge connecting the two endpoints directly
-        Assert.Single(layout.Edges);
-
-        var edge = layout.Edges[0];
-        Assert.True(edge.HasNode(1));
-        Assert.True(edge.HasNode(2));
+        // Two collinear preserve stubs: 0→1 and 0→2
+        Assert.Equal(2, layout.Edges.Count);
+        Assert.Contains(layout.Edges, e => e.HasNode(0) && e.HasNode(1));
+        Assert.Contains(layout.Edges, e => e.HasNode(0) && e.HasNode(2));
     }
 
     [Fact]
-    public void ThreeEdges_CollinearPairPlusPerpendicular_MergesAndCreatesArcs()
+    public void ThreeEdges_CollinearPairPlusPerpendicular_PreservesNodeAndCreatesArcs()
     {
         // Node 1 North, Node 2 South (collinear), Node 3 East (perpendicular)
         var layout = BuildLayout((0.01, 0), (-0.01, 0), (0, 0.01));
 
         FilletArcGenerator.Apply(layout);
 
-        // Intersection node removed
-        Assert.False(layout.Nodes.ContainsKey(0));
+        // Intersection node preserved (collinear pair)
+        Assert.True(layout.Nodes.ContainsKey(0));
 
-        // 1 collinear merge + 2 arcs (N→E and S→E)
+        // 2 arcs (N→E and S→E)
         Assert.Equal(2, layout.Arcs.Count);
     }
 
@@ -267,9 +265,9 @@ public class FilletArcGeneratorTests
 
         FilletArcGenerator.Apply(layout);
 
-        // N-S collinear → merge, E-W collinear → merge
+        // N-S collinear, E-W collinear → intersection preserved
         // N-E, N-W, S-E, S-W → 4 arcs (all 90° turns)
-        Assert.False(layout.Nodes.ContainsKey(0));
+        Assert.True(layout.Nodes.ContainsKey(0));
         Assert.Equal(4, layout.Arcs.Count);
     }
 

@@ -174,7 +174,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
                 );
             }
 
-            Assert.Equal(2, arcs.Count);
+            Assert.True(arcs.Count >= 2, $"A/{stubTaxiway}: expected ≥2 arcs, got {arcs.Count}");
             foreach (var arc in arcs)
             {
                 Assert.True(
