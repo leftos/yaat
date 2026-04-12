@@ -128,7 +128,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         Assert.NotNull(holdShort28R);
 
         Assert.True(layout.Nodes.TryGetValue(holdShort28R.NodeId, out var hsNode28R));
-        AssertNoseBehindLine(aircraft, hsNode28R, "hold short 28R on B");
+        AssertStoppedAtHoldShort(aircraft, holdShort28R, hsNode28R, "hold short 28R on B");
         output.WriteLine($"Holding short 28R: node={holdShort28R.NodeId}, pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6})");
 
         // --- Phase 4: Cross 28R ---
@@ -150,7 +150,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         Assert.NotNull(holdShort28L);
 
         Assert.True(layout.Nodes.TryGetValue(holdShort28L.NodeId, out var hsNode28L));
-        AssertNoseBehindLine(aircraft, hsNode28L, "hold short 28L");
+        AssertStoppedAtHoldShort(aircraft, holdShort28L, hsNode28L, "hold short 28L");
         output.WriteLine($"Holding short 28L: node={holdShort28L.NodeId}, pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6})");
 
         // --- Phase 6: Cleared for takeoff ---
@@ -204,24 +204,35 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         return null;
     }
 
-    private void AssertNoseBehindLine(AircraftState aircraft, GroundNode holdShortNode, string label)
+    private void AssertStoppedAtHoldShort(AircraftState aircraft, HoldShortPoint hs, GroundNode holdShortNode, string label)
     {
         double lengthFt = FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? 40.0;
-        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
 
-        // Project the aircraft's nose position (center + halfLength forward)
-        var (noseLat, noseLon) = GeoMath.ProjectPointRaw(aircraft.Latitude, aircraft.Longitude, aircraft.TrueHeading.Degrees, halfLengthNm);
+        // The aircraft should be stopped at the HoldShortPoint's virtual stop position, not at
+        // the raw node. HoldShortAnnotator offsets the virtual position back by half the fuselage
+        // length so that the aircraft's nose ends up at the hold-short line.
+        Assert.NotNull(hs.Latitude);
+        Assert.NotNull(hs.Longitude);
+        double virtualLat = hs.Latitude.Value;
+        double virtualLon = hs.Longitude.Value;
 
-        // Nose should be at or before the hold-short node (closer to approach side)
-        double noseDist = GeoMath.DistanceNm(noseLat, noseLon, holdShortNode.Latitude, holdShortNode.Longitude);
-        double centerDist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, holdShortNode.Latitude, holdShortNode.Longitude);
+        double centerToVirtualFt = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, virtualLat, virtualLon) * GeoMath.FeetPerNm;
+        double centerToNodeFt =
+            GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, holdShortNode.Latitude, holdShortNode.Longitude) * GeoMath.FeetPerNm;
 
         output.WriteLine(
-            $"  [{label}] nose dist from HS node: {noseDist * 6076.12:F0}ft, center dist: {centerDist * 6076.12:F0}ft, acft length: {lengthFt:F0}ft"
+            $"  [{label}] center→virtual HS: {centerToVirtualFt:F0}ft, center→node: {centerToNodeFt:F0}ft, acft length: {lengthFt:F0}ft, gs: {aircraft.GroundSpeed:F1}kt"
         );
 
-        // The center should be offset back from the node — center dist should be > 0
-        Assert.True(centerDist * 6076.12 > 5, $"[{label}] Aircraft center is ON the hold-short node — expected offset back");
+        // Aircraft is stopped (low ground speed) and near the computed hold-short stop position.
+        // Tolerance accounts for navigator stopping-distance integration error across platforms
+        // (Windows ~20ft overshoot, Linux ~12ft overshoot as of 2026-04). The underlying overshoot
+        // is a real but separate navigator bug — see fillet-regressions-master.md issue #20.
+        Assert.True(aircraft.GroundSpeed < 1.0, $"[{label}] Aircraft not stopped: gs={aircraft.GroundSpeed:F1}kt");
+        Assert.True(
+            centerToVirtualFt < 25.0,
+            $"[{label}] Aircraft stopped {centerToVirtualFt:F0}ft from virtual HS position — should be within 25ft"
+        );
     }
 
     private void AssertTailPastLine(AircraftState aircraft, GroundNode holdShortNode, string label)
