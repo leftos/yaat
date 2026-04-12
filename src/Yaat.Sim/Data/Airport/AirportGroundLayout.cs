@@ -516,8 +516,6 @@ public sealed class AirportGroundLayout
     /// </summary>
     public void RebuildAdjacencyLists()
     {
-        _nodesByTaxiway = null;
-
         foreach (var node in Nodes.Values)
         {
             node.Edges.Clear();
@@ -535,36 +533,36 @@ public sealed class AirportGroundLayout
                 nodeB.Edges.Add(edge);
             }
         }
-    }
 
-    /// <summary>
-    /// Returns all nodes that have at least one edge on the named taxiway.
-    /// Uses a lazy-built index invalidated by <see cref="RebuildAdjacencyLists"/>.
-    /// </summary>
-    public List<GroundNode> GetNodesOnTaxiway(string taxiwayName)
-    {
-        if (_nodesByTaxiway is null)
+        // Build the taxiway-node index eagerly so concurrent readers don't race.
+        var index = new Dictionary<string, List<GroundNode>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in Nodes.Values)
         {
-            _nodesByTaxiway = new Dictionary<string, List<GroundNode>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var node in Nodes.Values)
+            foreach (var edge in node.Edges)
             {
-                foreach (var edge in node.Edges)
+                if (!index.TryGetValue(edge.TaxiwayName, out var list))
                 {
-                    if (!_nodesByTaxiway.TryGetValue(edge.TaxiwayName, out var list))
-                    {
-                        list = [];
-                        _nodesByTaxiway[edge.TaxiwayName] = list;
-                    }
+                    list = [];
+                    index[edge.TaxiwayName] = list;
+                }
 
-                    if (list.Count == 0 || list[^1].Id != node.Id)
-                    {
-                        list.Add(node);
-                    }
+                if (list.Count == 0 || list[^1].Id != node.Id)
+                {
+                    list.Add(node);
                 }
             }
         }
 
-        return _nodesByTaxiway.GetValueOrDefault(taxiwayName) ?? [];
+        _nodesByTaxiway = index;
+    }
+
+    /// <summary>
+    /// Returns all nodes that have at least one edge on the named taxiway.
+    /// Index is built eagerly by <see cref="RebuildAdjacencyLists"/>.
+    /// </summary>
+    public List<GroundNode> GetNodesOnTaxiway(string taxiwayName)
+    {
+        return _nodesByTaxiway?.GetValueOrDefault(taxiwayName) ?? [];
     }
 
     private Dictionary<string, List<GroundNode>>? _nodesByTaxiway;

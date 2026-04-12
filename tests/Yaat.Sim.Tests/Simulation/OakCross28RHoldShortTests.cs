@@ -173,7 +173,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
     /// a RunwayCrossing entry. The annotator should recognise the starting
     /// position as the entry side and pair the south-side node as exit.
     /// </summary>
-    [Fact(Skip = "Blocked by missing fillet arc at OAK G/D junction — see docs/plans/open-issues/oak-g-d-missing-fillet-arc.md")]
+    [Fact]
     public void RerouteFrom28R_ExitSideHoldShort_NotAddedAsCrossing()
     {
         var recording = LoadRecording();
