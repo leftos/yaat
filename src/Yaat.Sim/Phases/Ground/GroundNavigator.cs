@@ -417,7 +417,10 @@ public sealed class GroundNavigator
             onArc
         );
 
-        double deviationFt = ComputePathDeviation(ctx, dist);
+        // Skip deviation measurement on virtual segments (negative IDs = tail-clearance
+        // extensions past hold-short nodes). The aircraft hasn't precisely reached the
+        // hold-short node, so cross-track to the virtual segment is meaningless.
+        double deviationFt = TargetNodeId >= 0 ? ComputePathDeviation(ctx, dist) : 0.0;
 
         var diag = new NavTickDiag(
             TargetNodeId,
