@@ -109,7 +109,12 @@ public static class TestVnasData
 
     private static string DecompressGzip(string gzPath)
     {
-        var decompressedPath = Path.Combine(Path.GetTempPath(), "FAACIFP18-test");
+        var decompressedPath = Path.Combine(Path.GetTempPath(), $"FAACIFP18-test-{Environment.ProcessId}");
+        if (File.Exists(decompressedPath))
+        {
+            return decompressedPath;
+        }
+
         using var inputStream = File.OpenRead(gzPath);
         using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
         using var outputStream = File.Create(decompressedPath);
