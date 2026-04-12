@@ -25,9 +25,27 @@ internal static class HoldShortAnnotator
         var seenHsNodes = new HashSet<(RunwayIdentifier, int)>();
 
         // Pre-seed entry tracking from the starting node. If the route begins
-        // at a RunwayHoldShort (e.g., re-routed from a destination hold-short),
-        // the aircraft is already at the entry side of that runway crossing.
-        // The next HS for the same runway is the exit side and must be skipped.
+        // at a RunwayHoldShort and the aircraft is mid-crossing (e.g., re-routed
+        // from a destination hold-short), the next HS for the same runway is
+        // the exit side of the crossing and must be skipped.
+        //
+        // BUT: a route can also begin at a RunwayHoldShort when the aircraft
+        // has just vacated the runway via a single-sided exit taxiway (e.g.,
+        // exited 28R onto H, where node 499 is the H/28R hold-short line).
+        // In that case the aircraft is on the taxiway side of the line, NOT
+        // mid-crossing. Pre-seeding there is wrong because it flips the next
+        // encountered HS for the same runway from "entry" to "exit" — and the
+        // next encountered HS may be at a totally different crossing (e.g.,
+        // the B crossing of 28R, reached after taxiing H → C → B), not the
+        // pair of the starting HS at all.
+        //
+        // Distinguish the two cases by walking forward along segments[0]'s
+        // taxiway looking for a paired HS on the same taxiway. Runway
+        // crossings place HSes on both sides of the runway along one named
+        // taxiway (e.g., B: HS@188 → interior → HS@186, both labeled "B").
+        // If we find a paired HS on the same taxiway, the starting HS is the
+        // entry side of a crossing — pre-seed. If we don't, the aircraft is
+        // leaving the runway and the starting HS is standalone — skip.
         if (segments.Count > 0)
         {
             int startNodeId = segments[0].FromNodeId;
@@ -37,9 +55,50 @@ internal static class HoldShortAnnotator
                 && startNode.RunwayId is { } startRwyId
             )
             {
-                enteredRunways[startRwyId] = startNodeId;
-                seenHsNodes.Add((startRwyId, startNodeId));
-                Log.LogDebug("[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — pre-seeded as entry", startNodeId, startRwyId);
+                string startTaxiway = segments[0].TaxiwayName;
+                bool hasPairedExit = false;
+                foreach (var seg in segments)
+                {
+                    if (seg.TaxiwayName != startTaxiway)
+                    {
+                        break;
+                    }
+                    if (seg.ToNodeId == startNodeId)
+                    {
+                        continue;
+                    }
+                    if (
+                        layout.Nodes.TryGetValue(seg.ToNodeId, out var segToNode)
+                        && segToNode.Type == GroundNodeType.RunwayHoldShort
+                        && segToNode.RunwayId is { } segRwyId
+                        && segRwyId.Equals(startRwyId)
+                    )
+                    {
+                        hasPairedExit = true;
+                        break;
+                    }
+                }
+
+                if (hasPairedExit)
+                {
+                    enteredRunways[startRwyId] = startNodeId;
+                    seenHsNodes.Add((startRwyId, startNodeId));
+                    Log.LogDebug(
+                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — pre-seeded as entry (paired crossing on {Taxiway})",
+                        startNodeId,
+                        startRwyId,
+                        startTaxiway
+                    );
+                }
+                else
+                {
+                    Log.LogDebug(
+                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — NOT pre-seeding (exit-only, no paired HS on {Taxiway})",
+                        startNodeId,
+                        startRwyId,
+                        startTaxiway
+                    );
+                }
             }
         }
 

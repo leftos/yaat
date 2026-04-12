@@ -41,6 +41,14 @@ public sealed class GroundNavigator
     private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
     /// <summary>
+    /// True when the current target node is itself a full stop (uncleared hold-short or
+    /// the route's last segment). Distinct from "has low back-propagated speed" — an
+    /// intermediate fillet segment whose required speed is driven below 0.5 kt by the
+    /// back-prop is NOT a stop target; advancing past it is still correct.
+    /// </summary>
+    private bool _targetIsStop;
+
+    /// <summary>
     /// Polyline waypoints for arc traversal. When entering an arc segment, the bezier
     /// is subdivided into short straight segments (~15ft). The navigator walks through
     /// these sequentially, only advancing the route segment when the queue is empty.
@@ -127,22 +135,28 @@ public sealed class GroundNavigator
 
         string segType = _arcWaypoints is not null ? "arc" : "straight";
         Log.LogDebug(
-            "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} type={Type} edge={Edge} dist={Dist:F4}nm",
+            "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} type={Type} edge={Edge} dist={Dist:F4}nm from=({FLat:F6},{FLon:F6}) to=({TLat:F6},{TLon:F6})",
             route.CurrentSegmentIndex,
             route.Segments.Count,
             TargetNodeId,
             segType,
             seg.TaxiwayName,
-            seg.Edge.DistanceNm
+            seg.Edge.DistanceNm,
+            _segmentFromLat,
+            _segmentFromLon,
+            TargetLat,
+            TargetLon
         );
 
         // A. Compute required speed at the immediate target node
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
+        _targetIsStop = false;
 
         if (!isHoldShortCleared(TargetNodeId))
         {
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
+            _targetIsStop = true;
         }
         else if (!isLastSegment)
         {
@@ -175,6 +189,7 @@ public sealed class GroundNavigator
         {
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
+            _targetIsStop = true;
             Log.LogDebug("[Nav]   last segment, reqSpeed=0");
         }
 
@@ -300,6 +315,70 @@ public sealed class GroundNavigator
         bool overshot = (dist > PrevDistToTarget) && (PrevDistToTarget < OvershootDetectionNm);
         bool stoppedByConflict = (ctx.Aircraft.GroundSpeedLimit is not null) && (ctx.Aircraft.GroundSpeedLimit.Value < 0.5);
         bool stalledAtThreshold = !stoppedByConflict && (ctx.Aircraft.GroundSpeed < 0.5) && (dist < arrivalThreshold + 0.001);
+
+        Log.LogDebug(
+            "[Nav] ENTER tgt={Tgt} stop={Stop} last={Last} arc={Arc} dist={Dist:F5} thr={Thr:F5} edge={Edge:F5} prev={Prev:F5} over={Over} stall={Stall} gs={Gs:F2} reqSpd={Req:F2}",
+            TargetNodeId,
+            _targetIsStop,
+            isLastSegment,
+            onArc,
+            dist,
+            arrivalThreshold,
+            edgeLengthNm,
+            PrevDistToTarget,
+            overshot,
+            stalledAtThreshold,
+            ctx.Aircraft.GroundSpeed,
+            _currentNodeRequiredSpeed
+        );
+
+        // Pre-arrival brake clamp. Kinematic brake curve enforcement that runs on
+        // EVERY sub-tick, including the ones that early-return as "arrived". The
+        // old structure skipped the main-flow decel on arrival sub-ticks, so the
+        // aircraft fell behind the brake curve by ~0.5 kt per skipped sub-tick and
+        // ended up snapping to zero from ~10 kts at the final hold-short.
+        //
+        // Bearing-free by design: uses only segment-endpoint distance and the
+        // pre-computed required-speed constraints from SetupSegment. This avoids
+        // the live-bearing instability at dist≈0 that broke variants 1/4/6/7 — we
+        // never touch heading here, never read BearingTo(aircraft, target), never
+        // compute speedFraction.
+        //
+        // Hard clamp rather than soft (AdjustSpeed-style) because the kinematic
+        // brake curve has slope dv/dd = a/v in distance, which exactly matches
+        // the aircraft's decel-in-space at constant decelRate. So a soft clamp can
+        // only preserve the aircraft's current offset above the curve — it can't
+        // pull the aircraft back onto it. Hard-clamping represents "apply more
+        // brake authority when kinematically required", which is fine for taxi
+        // where nominal decelRate is well below physical max.
+        double decelRatePre = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        double distToEndpointPre = dist + _remainingArcDistNm;
+        double preBrakeLimit = Math.Sqrt((_currentNodeRequiredSpeed * _currentNodeRequiredSpeed) + (2.0 * decelRatePre * distToEndpointPre * 3600.0));
+        foreach (var (pathDist, reqSpeed, nodeId) in _speedConstraints)
+        {
+            if ((reqSpeed == 0) && isHoldShortCleared(nodeId))
+            {
+                continue;
+            }
+            double totalDist = distToEndpointPre + pathDist;
+            double limit = Math.Sqrt((reqSpeed * reqSpeed) + (2.0 * decelRatePre * totalDist * 3600.0));
+            preBrakeLimit = Math.Min(preBrakeLimit, limit);
+        }
+        if (ctx.Aircraft.IndicatedAirspeed > preBrakeLimit)
+        {
+            double gsBeforeBrake = ctx.Aircraft.IndicatedAirspeed;
+            ctx.Aircraft.IndicatedAirspeed = preBrakeLimit;
+            Log.LogDebug(
+                "[Nav] BRAKE-CLAMP tgt={Tgt} dist={Dist:F5} brake={Brake:F2} gsBefore={GB:F2} gsAfter={GA:F2} reqSpd={Req:F2}",
+                TargetNodeId,
+                dist,
+                preBrakeLimit,
+                gsBeforeBrake,
+                ctx.Aircraft.IndicatedAirspeed,
+                _currentNodeRequiredSpeed
+            );
+        }
+
         PrevDistToTarget = dist;
 
         if (dist <= arrivalThreshold || overshot || stalledAtThreshold)
@@ -325,13 +404,19 @@ public sealed class GroundNavigator
             else
             {
                 Log.LogDebug(
-                    "[Nav] ARRIVED at {NodeId}: dist={Dist:F4}nm threshold={Thr:F4}nm overshot={Over} stalled={Stall}",
+                    "[Nav] ARRIVED at {NodeId}: dist={Dist:F4}nm threshold={Thr:F4}nm overshot={Over} stalled={Stall} gs={Gs:F1}",
                     TargetNodeId,
                     dist,
                     arrivalThreshold,
                     overshot,
-                    stalledAtThreshold
+                    stalledAtThreshold,
+                    ctx.Aircraft.GroundSpeed
                 );
+
+                // NOTE: decel is applied on this sub-tick too — see the pre-arrival
+                // BRAKE-CLAMP block above. That's the fix for the old bug where arrival
+                // sub-ticks skipped the decel step and the aircraft fell behind the
+                // brake curve on the approach to a stop.
 
                 // Correct heading toward the next segment at the transition point.
                 // Without this, the aircraft exits arcs still carrying the arc's
@@ -449,7 +534,23 @@ public sealed class GroundNavigator
         LastTickDiag = diag;
         ctx.Aircraft.LastNavDiag = diag;
 
+        double gsBeforeAdjust = ctx.Aircraft.IndicatedAirspeed;
         AdjustSpeed(ctx, targetSpeed);
+        Log.LogDebug(
+            "[Nav] NAV tgt={Tgt} dist={Dist:F5} brg={Brg:F1} hdg={Hdg:F1} diff={Diff:F1} speedFrac={SF:F3} brake={Brake:F2} tgtSpd={Ts:F2} gsBefore={GB:F2} gsAfter={GA:F2} reqSpd={Req:F2} stop={Stop}",
+            TargetNodeId,
+            dist,
+            bearing,
+            ctx.Aircraft.TrueHeading.Degrees,
+            angleDiff,
+            speedFraction,
+            brakingLimit,
+            targetSpeed,
+            gsBeforeAdjust,
+            ctx.Aircraft.IndicatedAirspeed,
+            _currentNodeRequiredSpeed,
+            _targetIsStop
+        );
         return NavigatorResult.Navigating;
     }
 

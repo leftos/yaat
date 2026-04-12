@@ -203,12 +203,13 @@ public sealed class TaxiingPhase : Phase
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
     {
-        Log.LogTrace(
-            "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
+        Log.LogDebug(
+            "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount}) gs={Gs:F2}",
             ctx.Aircraft.Callsign,
             _nav.TargetNodeId,
             route.CurrentSegmentIndex,
-            route.Segments.Count
+            route.Segments.Count,
+            ctx.Aircraft.GroundSpeed
         );
 
         // Update taxiway name from the segment that brought us here
@@ -235,15 +236,21 @@ public sealed class TaxiingPhase : Phase
             }
 
             Log.LogDebug(
-                "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason})",
+                "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason}) gsAtArrival={Gs:F2}",
                 ctx.Aircraft.Callsign,
                 _nav.TargetNodeId,
                 holdShort.TargetName,
-                holdShort.Reason
+                holdShort.Reason,
+                ctx.Aircraft.GroundSpeed
             );
 
             ctx.MarkHoldShortNodeOccupied?.Invoke(_nav.TargetNodeId);
 
+            // Residual cleanup: the navigator's pre-arrival BRAKE-CLAMP reduces gs to a
+            // sub-kt residual (~0.5–1 kt) by enforcing the kinematic curve every sub-tick,
+            // but can't reach exactly zero because the curve is asymptotically steep near
+            // d=0 and the aircraft advances by gs·dt each physics sub-tick. This snap
+            // cleans up that residual — cosmetically invisible at sub-kt.
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 

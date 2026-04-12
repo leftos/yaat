@@ -168,10 +168,20 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// When re-routed from a 28R destination hold-short (north side) to 28L
-    /// via B, the exit-side 28R hold-short (south side) must NOT be added as
-    /// a RunwayCrossing entry. The annotator should recognise the starting
-    /// position as the entry side and pair the south-side node as exit.
+    /// When taxiing via B across 28R, the south-side (exit) 28R hold-short
+    /// node (186) must NOT be added as a RunwayCrossing entry in the route.
+    /// The original bug: N172SP stopped at 186 AFTER being cleared to cross
+    /// 28R, because the annotator added both sides of the crossing as
+    /// independent hold-shorts. Paired exit-side skipping fixes this.
+    ///
+    /// Note: this test does NOT require the north-side (entry) HS to be
+    /// absent — whether an entry-side RunwayCrossing appears in the route
+    /// depends on the aircraft's starting position. If the aircraft is
+    /// already at the entry-side HS (recorded state), the pre-seed skips
+    /// it. If the aircraft is a few feet short of the line (more accurate
+    /// stop kinematics), the entry-side HS is legitimately added and the
+    /// aircraft holds there before crossing. Either outcome is valid. The
+    /// invariant is solely: node 186 (south side) is never a crossing HS.
     /// </summary>
     [Fact]
     public void RerouteFrom28R_ExitSideHoldShort_NotAddedAsCrossing()
@@ -202,14 +212,60 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
             output.WriteLine($"  HS: nodeId={hs.NodeId} reason={hs.Reason} target={hs.TargetName}");
         }
 
-        // The exit-side 28R node must not be a RunwayCrossing hold-short.
-        // Only the destination 28L hold-short should remain.
-        var crossing28R = route
-            .HoldShortPoints.Where(h =>
-                (h.Reason == HoldShortReason.RunwayCrossing) && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R")
-            )
-            .ToList();
+        // Node 186 is the south side (exit side) of the B crossing of 28R/10L.
+        // It must never be added as a RunwayCrossing hold-short.
+        const int exitSideNodeId = 186;
+        Assert.DoesNotContain(route.HoldShortPoints, h => (h.NodeId == exitSideNodeId) && (h.Reason == HoldShortReason.RunwayCrossing));
+    }
 
-        Assert.Empty(crossing28R);
+    /// <summary>
+    /// Tick-by-tick recorder for the reroute-from-28R scenario. Writes
+    /// <c>.tmp/oak-reroute28r-ticks.csv</c> capturing the full aircraft
+    /// trajectory from TAXI issuance to stop at the crossing hold-short.
+    /// Render with LayoutInspector --ticks.
+    /// </summary>
+    [Fact]
+    public void Diagnostic_RecordRerouteTicks()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // Replay from t=700 to capture approach to the first hold-short,
+        // the TAXI B 28L reroute at 823, the subsequent hold at the crossing,
+        // the CROSS 28R clearance, and the taxi toward the departure runway.
+        engine.Replay(recording, 700);
+        var ac = engine.FindAircraft("N172SP");
+        if (ac is null)
+        {
+            return;
+        }
+
+        var recorder = new TickRecorder(ac);
+        recorder.Record(700);
+
+        for (int t = 701; t <= 1000; t++)
+        {
+            engine.ReplayOneSecond();
+            ac = engine.FindAircraft("N172SP");
+            if (ac is null)
+            {
+                break;
+            }
+            recorder.Record(t);
+        }
+        if (ac is not null)
+        {
+            output.WriteLine(
+                $"[diag] final at t=1000 phase={ac.Phases?.CurrentPhase?.Name} gs={ac.GroundSpeed:F2} pos=({ac.Latitude:F6},{ac.Longitude:F6})"
+            );
+        }
+
+        string csvPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-reroute28r-ticks.csv");
+        recorder.WriteCsv(csvPath);
+        output.WriteLine($"[diag] wrote {recorder.Count} ticks to {csvPath}");
     }
 }
