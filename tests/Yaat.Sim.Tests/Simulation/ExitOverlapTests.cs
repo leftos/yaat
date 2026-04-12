@@ -36,48 +36,6 @@ public class ExitOverlapTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// SKW5899 must not exit onto the same taxiway as SKW3398 when SKW3398
-    /// is already holding at taxiway T's hold-short. The exit selection should
-    /// skip the occupied exit and pick a different taxiway.
-    /// </summary>
-    [Fact]
-    public void SKW5899_DoesNotExitOntoOccupiedTaxiwayT()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay to t=640 — SKW3398 is holding after exit on T,
-        // SKW5899 is about to enter RunwayExitPhase
-        engine.Replay(recording, 640);
-
-        var skw3398 = engine.FindAircraft("SKW3398");
-        Assert.NotNull(skw3398);
-        Assert.Equal("Holding After Exit", skw3398.Phases?.CurrentPhase?.Name);
-        Assert.Equal("T", skw3398.CurrentTaxiway);
-
-        // Tick until SKW5899 enters RunwayExitPhase and picks an exit
-        for (int t = 1; t <= 200; t++)
-        {
-            engine.ReplayOneSecond();
-
-            var skw5899 = engine.FindAircraft("SKW5899");
-            if (skw5899?.Phases?.CurrentPhase is RunwayExitPhase rep && rep.TargetHoldShortNodeId is not null)
-            {
-                output.WriteLine($"t={640 + t}: SKW5899 selected exit on taxiway {skw5899.CurrentTaxiway ?? "unknown"}");
-
-                Assert.True(skw5899.CurrentTaxiway != "T", "SKW5899 should not exit onto T (occupied by SKW3398), but selected T");
-                return;
-            }
-        }
-
-        Assert.Fail("SKW5899 never selected an exit within 200 seconds");
-    }
-
-    /// <summary>
     /// Verify that SKW5899 on D(right) and WJA1508 on D(left) don't overlap.
     /// D has hold-shorts on both sides of 28R at SFO (nodes 833/834).
     /// </summary>

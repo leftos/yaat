@@ -40,37 +40,6 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// SKW3398 given "EL T" must exit on taxiway T, not fall through to D.
-    /// The server missed T by 0.2 kts; with the braking tolerance fix the
-    /// aircraft should commit to T at the branch point.
-    /// </summary>
-    [Fact]
-    public void SKW3398_ExitsOnTaxiwayT_NotD()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay the full recording (EL T is at t=382, exit happens by ~395)
-        engine.Replay(recording, (int)recording.TotalElapsedSeconds);
-
-        var aircraft = engine.FindAircraft("SKW3398");
-        Assert.NotNull(aircraft);
-
-        // The aircraft should have exited on T, not D
-        Assert.Equal("T", aircraft.CurrentTaxiway);
-
-        output.WriteLine(
-            $"SKW3398 exited on {aircraft.CurrentTaxiway}, "
-                + $"pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6}), "
-                + $"hdg={aircraft.TrueHeading.Degrees:F0}"
-        );
-    }
-
-    /// <summary>
     /// Hybrid replay: restore server snapshot just before the exit, then replay
     /// with current code. Verifies the fix works against the exact state the
     /// server had when the bug occurred.

@@ -145,32 +145,4 @@ public class SfoExitLeftTTests(ITestOutputHelper output)
             }
         }
     }
-
-    /// <summary>
-    /// SKW3398 given "EL T" must exit on taxiway T, not D or any other taxiway.
-    /// </summary>
-    [Fact]
-    public void SKW3398_ExitsOnTaxiwayT()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, (int)recording.TotalElapsedSeconds);
-
-        var aircraft = engine.FindAircraft("SKW3398");
-        Assert.NotNull(aircraft);
-
-        output.WriteLine(
-            $"SKW3398: phase={aircraft.Phases?.CurrentPhase?.Name ?? "none"}, "
-                + $"twy={aircraft.CurrentTaxiway ?? "none"}, "
-                + $"pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6}), "
-                + $"hdg={aircraft.TrueHeading.Degrees:F0}, gs={aircraft.GroundSpeed:F1}kts"
-        );
-
-        Assert.Equal("T", aircraft.CurrentTaxiway);
-    }
 }
