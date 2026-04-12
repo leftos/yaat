@@ -476,7 +476,7 @@ public static class CategoryPerformance
         {
             AircraftCategory.Jet => 15,
             AircraftCategory.Turboprop => 15,
-            AircraftCategory.Piston => 20,
+            AircraftCategory.Piston => 10,
             AircraftCategory.Helicopter => 10,
             _ => 15,
         };
@@ -533,12 +533,24 @@ public static class CategoryPerformance
         return 3;
     }
 
-    /// <summary>Taxi deceleration rate (kts/sec). Raised from 3 to match new taxi speeds: stopping
-    /// distance from 30 kts = 30²/(2×5×3600) ≈ 0.025 nm, within look-ahead braking range.</summary>
+    /// <summary>
+    /// Taxi/runway-exit deceleration rate (kts/sec). Used for both post-landing rollout
+    /// braking and taxi-speed deceleration. Jets and turboprops have powerful brakes and
+    /// sustain 5 kts/s (within autobrake-medium authority). GA pistons with toe brakes
+    /// decelerate more gently — 2 kts/s is a realistic "moderate" pedal application on
+    /// a C172, and the lower rate widens the brake look-ahead window so the navigator
+    /// can stop at hold-short lines without needing the route to snap speed to zero.
+    /// </summary>
     public static double TaxiDecelRate(AircraftCategory cat)
     {
-        _ = cat;
-        return 5;
+        return cat switch
+        {
+            AircraftCategory.Jet => 5,
+            AircraftCategory.Turboprop => 5,
+            AircraftCategory.Piston => 2,
+            AircraftCategory.Helicopter => 2,
+            _ => 5,
+        };
     }
 
     /// <summary>Speed when exiting runway onto taxiway (knots). Fallback when exit angle is unknown.</summary>
