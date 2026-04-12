@@ -244,15 +244,17 @@ public sealed class GroundArc : IGroundEdge
     // from the new node positions instead of translating stale control points.
 
     /// <summary>
-    /// Bearing (degrees true) of the taxiway edge at Nodes[0], measured from Nodes[0]
-    /// away from the fillet intersection center. Used to recompute P1 after node merges.
+    /// Bearing (degrees true) from Nodes[0] toward the fillet intersection center.
+    /// This is the direction P1 was projected along during construction. May differ
+    /// from the simple reverse of the outbound edge bearing when the tangent point
+    /// was placed past shape-point nodes during the taxiway walk.
     /// </summary>
     [JsonIgnore]
     public double EdgeBearingAtNode0Deg { get; set; }
 
     /// <summary>
-    /// Bearing (degrees true) of the taxiway edge at Nodes[1], measured from Nodes[1]
-    /// away from the fillet intersection center. Used to recompute P2 after node merges.
+    /// Bearing (degrees true) from Nodes[1] toward the fillet intersection center.
+    /// This is the direction P2 was projected along during construction.
     /// </summary>
     [JsonIgnore]
     public double EdgeBearingAtNode1Deg { get; set; }

@@ -322,8 +322,8 @@ public sealed class GroundArc : IGroundEdge
     public required double DistanceNm { get; set; }                           // Arc length via polyline approximation
 
     // Fillet construction parameters (for recomputation after node merges)
-    public double EdgeBearingAtNode0Deg { get; set; }                          // Bearing away from intersection
-    public double EdgeBearingAtNode1Deg { get; set; }                          // Bearing away from intersection
+    public double EdgeBearingAtNode0Deg { get; set; }                          // Bearing toward intersection (P1 projection dir)
+    public double EdgeBearingAtNode1Deg { get; set; }                          // Bearing toward intersection (P2 projection dir)
     public double TurnAngleDeg { get; set; }                                   // Effective turn angle
 
     public string? Origin { get; set; }
@@ -604,8 +604,8 @@ layout.Arcs.Add(new GroundArc
     P2Lon = p2Lon,
     MinRadiusOfCurvatureFt = minRadiusFt,
     DistanceNm = arcLengthNm,
-    EdgeBearingAtNode0Deg = bearingA,    // For recomputation after merges
-    EdgeBearingAtNode1Deg = bearingB,
+    EdgeBearingAtNode0Deg = bearingAToIntersection,    // For validation after merges
+    EdgeBearingAtNode1Deg = bearingBToIntersection,
     TurnAngleDeg = effectiveTurnDeg,
     Origin = $"Fillet:phase-c-arc@{intersection.Id} {edgeA.TaxiwayName}/{edgeB.TaxiwayName}",
 });
@@ -792,29 +792,14 @@ var (lat, lon, bearing, walkedEdges, walkedShapeNodes, passthroughNodes, walkFar
 
 ## Known Issues and Limitations
 
-### Issue #4: MergeCoincidentNodes Control Point Translation
+### ~~Issue #4: MergeCoincidentNodes Control Point Translation~~ — FIXED
 
-**Severity**: Medium
+The ~980 OAK / ~1909 SFO tangent-misaligned warnings were caused by two validator bugs, not by the merge translation:
 
-**Description**: When merging coincident nodes, bezier control points are translated by the victim→survivor delta instead of recomputed from the original geometric formula. This leads to:
+1. The validator compared arc tangent direction against adjacent edge departure direction, expecting parallelism. But at a fillet arc endpoint they're anti-parallel (~180° apart) — correct smooth geometry.
+2. The validator scanned all same-taxiway edges at the node, producing false positives at RAMP nodes with multiple edges radiating in different directions.
 
-- Slight tangent misalignment (~980 warnings at OAK, ~1909 at SFO)
-- Loss of precise arc geometry after merges
-
-**Impact**: Arcs are still valid, but control points may not lie exactly along the original tangent directions.
-
-**Fix**: Store `EdgeBearingAtNode0Deg`, `EdgeBearingAtNode1Deg`, and `TurnAngleDeg` (already done), then recompute P1/P2 after merging:
-
-```csharp
-if (k == 0)  // P0 endpoint moved
-{
-    double bearingToInt = (EdgeBearingAtNode0Deg + 180.0) % 360.0;
-    double depthA = kappa * radiusNm;
-    var (newP1Lat, newP1Lon) = GeoMath.ProjectPointRaw(survivor.Latitude, survivor.Longitude, bearingToInt, depthA);
-    arc.P1Lat = newP1Lat;
-    arc.P1Lon = newP1Lon;
-}
-```
+**Fix**: Rewrote `CheckArcTangentAlignment` to compare the arc tangent against the stored construction bearing (`EdgeBearingAtNode0Deg`/`EdgeBearingAtNode1Deg`), accepting both parallel and anti-parallel alignment. Also fixed the stored bearings to use the actual `bearingToIntersection` (which accounts for walked tangent placements) instead of the outbound edge bearing. Result: 0 tangent-misaligned warnings at both OAK and SFO.
 
 ### Issue #12: Disconnected K/F Subgraph
 
@@ -875,7 +860,7 @@ dotnet run --project tools/Yaat.LayoutInspector -- <airport-geojson-path> [optio
 
 Enabled via `--validate` on LayoutInspector:
 
-- **arc-tangent-misaligned** (~980 at OAK, ~1909 at SFO): Arc control points not aligned with edge bearings (Issue #4)
+- **arc-tangent-misaligned** (0 at OAK, 0 at SFO): Arc tangent deviates >15° from construction bearing (Issue #4 — fixed)
 - **degenerate-arc** (radius < 5ft): Arc collapsed after node merge, removed
 - **disconnected-subgraph**: Node orphaned (Issue #12)
 

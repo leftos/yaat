@@ -546,8 +546,8 @@ public static class FilletArcGenerator
                     P2Lon = p2Lon,
                     MinRadiusOfCurvatureFt = minRadiusFt,
                     DistanceNm = arcLengthNm,
-                    EdgeBearingAtNode0Deg = bearingA,
-                    EdgeBearingAtNode1Deg = bearingB,
+                    EdgeBearingAtNode0Deg = bearingAToIntersection,
+                    EdgeBearingAtNode1Deg = bearingBToIntersection,
                     TurnAngleDeg = effectiveTurnDeg,
                     Origin = $"Fillet:phase-c-arc@{ctx.Intersection.Id} {edgeA.TaxiwayName}/{edgeB.TaxiwayName}",
                 }

@@ -118,52 +118,40 @@ public sealed class LayoutValidator
 
             for (int k = 0; k < 2; k++)
             {
+                // Compare the arc tangent against the stored construction bearing,
+                // not adjacent edges. The stored bearing identifies the specific edge
+                // the arc was built to be smooth with — scanning all same-taxiway edges
+                // produces false positives at nodes with multiple same-taxiway edges
+                // radiating in different directions (common in RAMP areas).
+                double storedBearing = k == 0 ? arc.EdgeBearingAtNode0Deg : arc.EdgeBearingAtNode1Deg;
+                if (storedBearing == 0.0)
+                {
+                    continue; // No construction data (e.g., manual arc)
+                }
+
                 var node = arc.Nodes[k];
                 double t = k == 0 ? 0.0 : 1.0;
 
-                // Compute tangent direction at this endpoint
                 var (dLat, dLon) = bezier.Derivative(t);
                 double cosLat = Math.Cos(node.Latitude * (Math.PI / 180.0));
                 double tangentBearing = Math.Atan2(dLon * cosLat, dLat) * (180.0 / Math.PI);
-                if (t > 0.5)
-                {
-                    tangentBearing += 180; // Reverse for arrival direction
-                }
-
                 tangentBearing = ((tangentBearing % 360) + 360) % 360;
 
-                // Find straight edges at this node to compare against
-                foreach (var edge in node.Edges)
+                // The arc tangent should be parallel or anti-parallel with the
+                // construction edge bearing. At t=0 the tangent points toward the
+                // intersection (anti-parallel); at t=1 it points away (parallel).
+                double diff = GeoMath.AbsBearingDifference(tangentBearing, storedBearing);
+                double misalignment = Math.Min(diff, 180.0 - diff);
+                if (misalignment > 15)
                 {
-                    if (edge is GroundArc)
-                    {
-                        continue;
-                    }
-
-                    // Check if this straight edge shares a taxiway with the arc
-                    if (!arc.MatchesTaxiway(edge.TaxiwayName))
-                    {
-                        continue;
-                    }
-
-                    var other = edge.OtherNode(node);
-                    double edgeBearing = GeoMath.BearingTo(node.Latitude, node.Longitude, other.Latitude, other.Longitude);
-
-                    // The arc tangent at this endpoint should be roughly aligned with
-                    // the straight edge (within ~45°). Larger deviations mean the arc
-                    // approaches the edge at a sharp angle — bad for taxi navigation.
-                    double diff = Math.Abs(GeoMath.AbsBearingDifference(tangentBearing, edgeBearing));
-                    if (diff > 45)
-                    {
-                        Warn(
-                            "arc-tangent-misaligned",
-                            $"Arc {arc.TaxiwayName} ({arc.Nodes[0].Id}->{arc.Nodes[1].Id}): "
-                                + $"tangent at Nodes[{k}] (#{node.Id}) is {tangentBearing:F1}° "
-                                + $"but adjacent edge {edge.TaxiwayName} -> #{other.Id} bearing is {edgeBearing:F1}° "
-                                + $"(diff={diff:F1}°). Arc approaches the edge at a sharp angle.",
-                            arc
-                        );
-                    }
+                    Warn(
+                        "arc-tangent-misaligned",
+                        $"Arc {arc.TaxiwayName} ({arc.Nodes[0].Id}->{arc.Nodes[1].Id}): "
+                            + $"tangent at Nodes[{k}] (#{node.Id}) is {tangentBearing:F1}° "
+                            + $"but construction edge bearing is {storedBearing:F1}° "
+                            + $"(misalignment={misalignment:F1}°).",
+                        arc
+                    );
                 }
             }
         }

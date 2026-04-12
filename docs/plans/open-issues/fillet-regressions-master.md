@@ -26,7 +26,7 @@ Tracks fillet arc geometry bugs and ground navigation quality. Originally focuse
 - [x] OAK debug trace — **PASS**
 - [x] OAK 28R exits: null, B, C1, G, H, J, P, E — **PASS** (8/8, all within 35ft max deviation)
 - [x] OAK 30 exits: null, W1-W7 — **PASS** (8/8, all within 35ft)
-- [x] OAK validation: 0 disconnected subgraphs, ~996 tangent-misaligned (issue #4)
+- [x] OAK validation: 0 disconnected subgraphs, 0 tangent-misaligned (issue #4 fixed)
 - [ ] Plan B: DAL2581 — **HANG** (30s timeout; graph connectivity / pathfinder issue)
 
 ---
@@ -35,11 +35,14 @@ Tracks fillet arc geometry bugs and ground navigation quality. Originally focuse
 
 ### ~~1-3, 5, 10, 11~~ — all FIXED (see commit history)
 
-### 4. MergeCoincidentNodes translates control points instead of recomputing (MEDIUM)
+### ~~4. MergeCoincidentNodes translates control points instead of recomputing~~ — **FIXED** (validator bug)
 
-The global merge pass translates P1/P2 by `(survivor - victim)`. Doesn't account for changed chord geometry. Tangent-misaligned warnings (~980 OAK, ~1909 SFO) are partially caused by this.
+The ~980 OAK / ~1909 SFO warnings were caused by validator bugs, not merge translation:
+1. Validator expected parallel alignment but fillet arc endpoints are anti-parallel with adjacent edges
+2. Validator compared against all same-taxiway edges instead of the specific construction edge
+3. Stored `EdgeBearingAtNode0Deg` used outbound bearing instead of actual `bearingToIntersection`
 
-**Fix**: After merge, recompute P1/P2 using Phase C formula with stored construction params.
+Fix: rewrote `CheckArcTangentAlignment` to compare against stored construction bearing, accepting parallel/anti-parallel. Fixed stored bearings. Result: 0 warnings at OAK and SFO.
 
 ### 6. `RebuildAdjacencyLists` called per-node is O(N×E) (LOW — performance)
 
@@ -112,7 +115,7 @@ Replaced `t + 0.15` parameter-based lookahead with distance-based `AdvanceByDist
 5. ~~**Issue #18** — Exit BFS arc priority~~ ✓ DONE
 6. ~~**Issue #19** — Preserve stubs + orphan rescue + dedup~~ ✓ DONE
 7. ~~**Issue #12** — Disconnected K/F subgraph~~ ✓ DONE
-8. **Issue #4** — Merge recomputation (tangent-misaligned warnings)
+8. ~~**Issue #4** — Merge recomputation (tangent-misaligned warnings)~~ ✓ DONE
 9. **Issue #9** — DAL2581 test hang (graph connectivity / pathfinder)
 10. **Issue #6** — Performance
 
