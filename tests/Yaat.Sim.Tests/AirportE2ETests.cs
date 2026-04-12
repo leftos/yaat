@@ -26,15 +26,11 @@ public class AirportE2ETests
         Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
     }
 
+    private static readonly Helpers.TestAirportGroundData GroundData = new();
+
     private static AirportGroundLayout? LoadLayout(string airportId, string subdir)
     {
-        string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
-        if (File.Exists(path))
-        {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(path), null);
-        }
-
-        return null;
+        return GroundData.GetLayout(airportId);
     }
 
     private static AircraftState MakeGroundAircraft(string departure = "OAK", double lat = 37.728, double lon = -122.218)
