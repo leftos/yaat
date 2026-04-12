@@ -332,6 +332,16 @@ public sealed class GroundNavigator
                     overshot,
                     stalledAtThreshold
                 );
+
+                // Correct heading toward the next segment at the transition point.
+                // Without this, the aircraft exits arcs still carrying the arc's
+                // curvature heading and overshoots into short post-arc segments.
+                if (_nextSegmentBearing is { } exitBrg)
+                {
+                    double exitMaxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+                    ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, exitBrg, exitMaxTurn);
+                }
+
                 PrevDistToTarget = double.MaxValue;
                 return NavigatorResult.ArrivedAtNode;
             }

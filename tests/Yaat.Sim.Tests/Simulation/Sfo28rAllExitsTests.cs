@@ -467,6 +467,100 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         );
     }
 
+    [Theory]
+    [InlineData("Q")]
+    [InlineData("C3")]
+    public void Diagnostic_DumpTickCsv(string exitTaxiway)
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var groundData = new TestAirportGroundData();
+        SimLogBuilder
+            .CreateForTest(output)
+            .EnableCategory("GroundNavigator", LogLevel.Trace)
+            .EnableCategory("RunwayExitPhase", LogLevel.Trace)
+            .InitializeSimLog();
+        var engine = new SimulationEngine(groundData);
+
+        var navDb = NavigationDatabase.Instance;
+        var runway28R = navDb.GetRunway("SFO", "28R");
+        Assert.NotNull(runway28R);
+
+        double reciprocal = (runway28R.TrueHeading.Degrees + 180) % 360;
+        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway28R.ThresholdLatitude, runway28R.ThresholdLongitude, reciprocal, 1.0);
+
+        var aircraft = new AircraftState
+        {
+            Callsign = "TST738",
+            AircraftType = "B738",
+            Latitude = acLat,
+            Longitude = acLon,
+            TrueHeading = runway28R.TrueHeading,
+            Altitude = runway28R.ElevationFt + 318,
+            IndicatedAirspeed = 145,
+            IsOnGround = false,
+            Departure = "SFO",
+            Destination = "SFO",
+            FlightRules = "IFR",
+            CruiseAltitude = 3000,
+        };
+
+        var layout = groundData.GetLayout("SFO");
+        Assert.NotNull(layout);
+
+        aircraft.Phases = new PhaseList { AssignedRunway = runway28R };
+        aircraft.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
+        aircraft.Phases.Add(new LandingPhase());
+        aircraft.Phases.Add(new RunwayExitPhase());
+        aircraft.Phases.Add(new HoldingAfterExitPhase());
+        aircraft.GroundLayout = layout;
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+        engine.World.AddAircraft(aircraft);
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = "test-sfo-dump",
+            ScenarioName = "SFO Tick Dump",
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "SFO",
+        };
+
+        var clearResult = engine.SendCommand("TST738", "CLAND");
+        Assert.True(clearResult.Success);
+        var exitResult = engine.SendCommand("TST738", $"EXIT {exitTaxiway}");
+        Assert.True(exitResult.Success);
+
+        var recorder = new TickRecorder(aircraft);
+        for (int t = 1; t <= 300; t++)
+        {
+            engine.TickOneSecond();
+            recorder.Record(t);
+
+            string phase = aircraft.Phases?.CurrentPhase?.Name ?? "none";
+            if (phase.Contains("Hold"))
+            {
+                for (int extra = 1; extra <= 3; extra++)
+                {
+                    engine.TickOneSecond();
+                    recorder.Record(t + extra);
+                }
+
+                break;
+            }
+        }
+
+        string repoRoot = TickRecorder.FindRepoRoot();
+        string csvPath = Path.Combine(repoRoot, ".tmp", $"sfo-28R-{exitTaxiway}-ticks.csv");
+        recorder.WriteCsv(csvPath);
+        output.WriteLine($"Wrote {recorder.Count} ticks to {csvPath}");
+    }
+
     private sealed class ExitTestResult
     {
         public required string? FinalTaxiway { get; init; }
