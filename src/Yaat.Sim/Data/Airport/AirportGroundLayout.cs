@@ -822,10 +822,18 @@ public sealed class AirportGroundLayout
     )
     {
         const int maxDepth = 20;
-        GroundNode? best = null;
-        string? bestTaxiway = null;
-        List<GroundNode>? bestPath = null;
-        double bestScore = double.MaxValue;
+
+        // Track two best candidates: on-side and off-side. Return on-side if any;
+        // fall back to off-side only when no on-side exit exists (e.g., C3 at SFO).
+        GroundNode? bestOnSide = null;
+        string? bestOnSideTaxiway = null;
+        List<GroundNode>? bestOnSidePath = null;
+        double bestOnSideScore = double.MaxValue;
+
+        GroundNode? bestOffSide = null;
+        string? bestOffSideTaxiway = null;
+        List<GroundNode>? bestOffSidePath = null;
+        double bestOffSideScore = double.MaxValue;
 
         // Expand starting node to include all nodes reachable via short runway
         // tangent-link edges. Fillets create separate tangent nodes for each arc
@@ -897,23 +905,13 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
+                // Determine if this candidate is on the preferred side (inferred or explicit).
+                bool onRequestedSide = true;
                 if (preference?.Side is { } side)
                 {
                     double bearing = GeoMath.BearingTo(centerlineNode.Latitude, centerlineNode.Longitude, current.Latitude, current.Longitude);
                     double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
-                    bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
-                    if (!isOnRequestedSide)
-                    {
-                        Log.LogDebug(
-                            "[ExitBFS] HS #{Id} twy={Twy}: skip (side={ReqSide} but relative={Rel:F1}°, bearing={Brg:F1}°)",
-                            current.Id,
-                            branchTwy,
-                            side,
-                            relative,
-                            bearing
-                        );
-                        continue;
-                    }
+                    onRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
                 }
 
                 double parkingBias = AverageNearestParkingDistanceNm(current, ParkingSampleCount) * ParkingProximityWeight;
@@ -941,24 +939,39 @@ public sealed class AirportGroundLayout
                 }
 
                 double score = totalDist + parkingBias + anglePenalty - highSpeedBonus;
+                bool isNewBest = onRequestedSide ? (score < bestOnSideScore) : (score < bestOffSideScore);
                 Log.LogDebug(
-                    "[ExitBFS] HS #{Id} twy={Twy}: score={Score:F4} (dist={Dist:F4} parking={Park:F4} angle={Angle:F1} hsBonus={Hs:F2}) exitAngle={ExAngle}",
+                    "[ExitBFS] HS #{Id} twy={Twy} angle={ExAngle:F0}° side={Side}: score={Score:F4} "
+                        + "(dist={Dist:F4} parking={Park:F4} anglePen={AngPen:F2} hsBonus={Hs:F2}){Result}",
                     current.Id,
                     branchTwy,
+                    exitAngle ?? 0,
+                    onRequestedSide ? "ON" : "OFF",
                     score,
                     totalDist,
                     parkingBias,
                     anglePenalty,
                     highSpeedBonus,
-                    exitAngle
+                    isNewBest ? " [NEW BEST]" : ""
                 );
-                if (score < bestScore)
+                if (isNewBest)
                 {
-                    bestScore = score;
-                    best = current;
-                    bestTaxiway = branchTwy;
-                    bestPath = path;
+                    if (onRequestedSide)
+                    {
+                        bestOnSideScore = score;
+                        bestOnSide = current;
+                        bestOnSideTaxiway = branchTwy;
+                        bestOnSidePath = path;
+                    }
+                    else
+                    {
+                        bestOffSideScore = score;
+                        bestOffSide = current;
+                        bestOffSideTaxiway = branchTwy;
+                        bestOffSidePath = path;
+                    }
                 }
+
                 continue;
             }
 
@@ -1006,11 +1019,25 @@ public sealed class AirportGroundLayout
             }
         }
 
+        // Prefer on-side; fall back to off-side (for single-sided taxiways like C3).
+        GroundNode? best = bestOnSide ?? bestOffSide;
+        string? bestTaxiway = bestOnSideTaxiway ?? bestOffSideTaxiway;
+        List<GroundNode>? bestPath = bestOnSidePath ?? bestOffSidePath;
+
         if (best is null || bestTaxiway is null || bestPath is null)
         {
+            Log.LogDebug("[ExitBFS] RESULT: no exit for centerline #{Id} pref={Pref}", centerlineNode.Id, preference?.Taxiway ?? "any");
             return null;
         }
 
+        Log.LogDebug(
+            "[ExitBFS] RESULT: centerline #{CL} → HS #{HS} via {Twy} onSide={OnSide} path=[{Path}]",
+            centerlineNode.Id,
+            best.Id,
+            bestTaxiway,
+            bestOnSide is not null,
+            string.Join("→", bestPath.Select(n => n.Id))
+        );
         return (best, bestTaxiway, bestPath);
     }
 
@@ -1636,6 +1663,18 @@ public sealed class AirportGroundLayout
                     var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
                     var result = FindAdjacentHoldShort(node, designator, rwyHeading, pref);
                     if (result is null)
+                    {
+                        continue;
+                    }
+
+                    // FindAdjacentHoldShort falls back to off-side when no on-side match
+                    // exists. For enumeration we need strict side matching — verify the
+                    // returned hold-short is actually on the requested side.
+                    double hsBearing = GeoMath.BearingTo(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                    double relativeBearing = rwyHeading.SignedAngleTo(new TrueHeading(hsBearing));
+                    bool actualLeft = relativeBearing < 0;
+                    bool requestedLeft = side == ExitSide.Left;
+                    if (actualLeft != requestedLeft)
                     {
                         continue;
                     }

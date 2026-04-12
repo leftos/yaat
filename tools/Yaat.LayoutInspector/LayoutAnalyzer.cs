@@ -24,6 +24,49 @@ public sealed class LayoutAnalyzer
         return new LayoutAnalyzer(layout);
     }
 
+    /// <summary>
+    /// Invoke FindAdjacentHoldShort from every centerline node of the runway with
+    /// the given preference. Used by --exit-query to expose the full scoring trace
+    /// (via GroundLayout debug logs) for a specific taxiway/side preference.
+    /// </summary>
+    public void RunExitQuery(string runwayDesignator, ExitPreference preference)
+    {
+        var rwy = Layout.FindGroundRunway(runwayDesignator);
+        if (rwy is null)
+        {
+            Console.Error.WriteLine($"Runway {runwayDesignator} not found");
+            return;
+        }
+
+        double rwBearing = GeoMath.BearingTo(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon, rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
+        var id = RunwayIdentifier.Parse(rwy.Name);
+        if (string.Equals(runwayDesignator, id.End2, StringComparison.OrdinalIgnoreCase))
+        {
+            rwBearing = (rwBearing + 180) % 360;
+        }
+
+        var rwyHeading = new TrueHeading(rwBearing);
+
+        foreach (var node in Layout.Nodes.Values)
+        {
+            if (!node.Edges.Any(e => e.MatchesRunway(runwayDesignator)))
+            {
+                continue;
+            }
+
+            Console.WriteLine($"\n--- Centerline #{node.Id} ({node.Latitude:F6},{node.Longitude:F6}) ---");
+            var result = Layout.FindAdjacentHoldShort(node, runwayDesignator, rwyHeading, preference);
+            if (result is not null)
+            {
+                Console.WriteLine($"  → Selected: HS #{result.Value.Node.Id} via {result.Value.Taxiway}");
+            }
+            else
+            {
+                Console.WriteLine($"  → No exit found");
+            }
+        }
+    }
+
     public OverviewResult GetOverview()
     {
         var countsByType = new Dictionary<string, int>();

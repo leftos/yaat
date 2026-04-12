@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Testing;
 
 namespace Yaat.LayoutInspector;
@@ -40,6 +42,8 @@ public static class Program
         bool dumpAll = false;
         bool noFillets = false;
         bool debugFillets = false;
+        bool debugExits = false;
+        var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
         string? svgOutput = null;
         string? ticksCsvPath = null;
         var svgHighlightTaxiways = new List<string>();
@@ -100,6 +104,24 @@ public static class Program
                 case "--debug-fillets":
                     debugFillets = true;
                     break;
+                case "--debug-exits":
+                    debugExits = true;
+                    break;
+                case "--exit-query" when i + 2 < args.Length:
+                    {
+                        string q_rwy = args[++i].ToUpperInvariant();
+                        string q_twy = args[++i].ToUpperInvariant();
+                        string? q_side = null;
+                        if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+                        {
+                            q_side = args[++i];
+                        }
+
+                        exitQueries.Add((q_rwy, q_twy, q_side));
+                        debugExits = true;
+                    }
+
+                    break;
                 case "--svg" when i + 1 < args.Length:
                     svgOutput = args[++i];
                     break;
@@ -144,7 +166,7 @@ public static class Program
 
         TryLoadNavData(navdataDir);
 
-        if (debugFillets)
+        if (debugFillets || debugExits)
         {
             var loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -153,8 +175,17 @@ public static class Program
                     opts.SingleLine = true;
                     opts.IncludeScopes = false;
                 });
-                builder.AddFilter("FilletArcGenerator", LogLevel.Debug);
-                builder.AddFilter("RunwayCrossingDetector", LogLevel.Debug);
+                if (debugFillets)
+                {
+                    builder.AddFilter("FilletArcGenerator", LogLevel.Debug);
+                    builder.AddFilter("RunwayCrossingDetector", LogLevel.Debug);
+                }
+
+                if (debugExits)
+                {
+                    builder.AddFilter("AirportGroundLayout", LogLevel.Debug);
+                }
+
                 builder.SetMinimumLevel(LogLevel.Warning);
             });
             SimLog.Initialize(loggerFactory);
@@ -311,6 +342,19 @@ public static class Program
         foreach (string exitsRunway in exitsRunways)
         {
             formatter.WriteExits(analyzer.GetExits(exitsRunway));
+        }
+
+        foreach (var (qRwy, qTwy, qSide) in exitQueries)
+        {
+            ExitSide? parsedSide = qSide?.ToLowerInvariant() switch
+            {
+                "left" => ExitSide.Left,
+                "right" => ExitSide.Right,
+                _ => null,
+            };
+            Console.WriteLine($"\n=== Exit query: runway={qRwy} taxiway={qTwy} side={parsedSide?.ToString() ?? "(none)"} ===");
+            var pref = new ExitPreference { Taxiway = string.IsNullOrEmpty(qTwy) || qTwy == "_" ? null : qTwy, Side = parsedSide };
+            analyzer.RunExitQuery(qRwy, pref);
         }
 
         if ((pathNodeId is not null) && (pathTaxiway is not null))
