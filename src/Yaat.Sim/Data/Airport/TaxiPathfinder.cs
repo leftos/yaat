@@ -987,11 +987,15 @@ public static class TaxiPathfinder
         if (allowCurrentTaxiwayWalk)
         {
             var walkSegs = new List<TaxiRouteSegment>();
-            (int walkId, _) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, walkSegs);
+            (int walkId, _) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, walkSegs, diagnosticLog);
             if (walkId != -1)
             {
                 diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: WalkCurrentTaxiway candidate → node={walkId} segs={walkSegs.Count}");
                 bridgeCandidates.Add((walkId, walkSegs, "WalkCurrent"));
+            }
+            else
+            {
+                diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: WalkCurrentTaxiway returned -1");
             }
         }
 
@@ -1411,7 +1415,8 @@ public static class TaxiPathfinder
         AirportGroundLayout layout,
         int startNodeId,
         string targetTaxiwayName,
-        List<TaxiRouteSegment> segments
+        List<TaxiRouteSegment> segments,
+        Action<string>? diagnosticLog = null
     )
     {
         if (!layout.Nodes.TryGetValue(startNodeId, out var startNode))
@@ -1429,6 +1434,8 @@ public static class TaxiPathfinder
             }
         }
 
+        diagnosticLog?.Invoke($"[WalkCurrent] start={startNodeId} target={targetTaxiwayName} candidateTaxiways=[{string.Join(",", candidateNames)}]");
+
         if (candidateNames.Count == 0)
         {
             return (-1, null);
@@ -1442,7 +1449,8 @@ public static class TaxiPathfinder
         foreach (string twName in candidateNames)
         {
             var trialSegments = new List<TaxiRouteSegment>();
-            (int endId, IGroundEdge? edge) = WalkTaxiwayToward(layout, startNodeId, twName, targetTaxiwayName, trialSegments);
+            (int endId, IGroundEdge? edge) = WalkTaxiwayToward(layout, startNodeId, twName, targetTaxiwayName, trialSegments, diagnosticLog);
+            diagnosticLog?.Invoke($"[WalkCurrent] tried walk via {twName}: endId={endId} segs={trialSegments.Count}");
 
             if (endId != -1 && (bestSegments is null || trialSegments.Count < bestSegments.Count))
             {
@@ -1472,21 +1480,46 @@ public static class TaxiPathfinder
         int startNodeId,
         string walkTaxiwayName,
         string targetTaxiwayName,
-        List<TaxiRouteSegment> trialSegments
+        List<TaxiRouteSegment> trialSegments,
+        Action<string>? diagnosticLog = null
     )
     {
-        int currentId = startNodeId;
-        var visited = new HashSet<int> { currentId };
+        // BFS over the walkTaxiwayName-only sub-graph to find the shortest hop count
+        // path to a node that has an edge on targetTaxiwayName. A real BFS handles
+        // multi-fork topologies correctly — a greedy walk biased by geographic distance
+        // can pick the wrong fork at a junction (leading into a dead-end spur) and
+        // fail to discover an A-connected node down the other branch.
+        var visited = new HashSet<int> { startNodeId };
+        var cameFrom = new Dictionary<int, (int ParentId, IGroundEdge Edge)>();
+        var queue = new Queue<int>();
+        queue.Enqueue(startNodeId);
 
-        while (true)
+        int foundId = -1;
+        IGroundEdge? foundTargetEdge = null;
+
+        while (queue.Count > 0)
         {
+            int currentId = queue.Dequeue();
             if (!layout.Nodes.TryGetValue(currentId, out var node))
             {
+                continue;
+            }
+
+            // Already standing on target? Only true for the start node — handled by caller.
+            if (currentId != startNodeId && NodeHasEdgeTo(layout, currentId, targetTaxiwayName))
+            {
+                foundId = currentId;
+                foreach (var e in node.Edges)
+                {
+                    if (e.MatchesTaxiway(targetTaxiwayName))
+                    {
+                        foundTargetEdge = e;
+                        break;
+                    }
+                }
                 break;
             }
 
-            // Collect unvisited edges on the walk taxiway
-            var candidates = new List<(IGroundEdge Edge, int NodeId)>();
             foreach (var edge in node.Edges)
             {
                 if (!edge.MatchesTaxiway(walkTaxiwayName))
@@ -1495,59 +1528,45 @@ public static class TaxiPathfinder
                 }
 
                 int otherId = edge.OtherNodeId(currentId);
-                if (!visited.Contains(otherId))
+                if (!visited.Add(otherId))
                 {
-                    candidates.Add((edge, otherId));
-                }
-            }
-
-            if (candidates.Count == 0)
-            {
-                break;
-            }
-
-            // Pick the candidate closest to any node on the target taxiway
-            IGroundEdge nextEdge;
-            int nextNodeId;
-            if (candidates.Count == 1)
-            {
-                (nextEdge, nextNodeId) = candidates[0];
-            }
-            else
-            {
-                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, candidates, targetTaxiwayName);
-            }
-
-            if (!layout.Nodes.TryGetValue(currentId, out var walkTowardFrom) || !layout.Nodes.TryGetValue(nextNodeId, out var walkTowardTo))
-            {
-                break;
-            }
-
-            trialSegments.Add(new TaxiRouteSegment { TaxiwayName = walkTaxiwayName, Edge = nextEdge.Directed(walkTowardFrom, walkTowardTo) });
-
-            visited.Add(nextNodeId);
-            currentId = nextNodeId;
-
-            if (NodeHasEdgeTo(layout, currentId, targetTaxiwayName))
-            {
-                IGroundEdge? targetEdge = null;
-                if (layout.Nodes.TryGetValue(currentId, out var targetNode))
-                {
-                    foreach (var edge in targetNode.Edges)
-                    {
-                        if (edge.MatchesTaxiway(targetTaxiwayName))
-                        {
-                            targetEdge = edge;
-                            break;
-                        }
-                    }
+                    continue;
                 }
 
-                return (currentId, targetEdge);
+                cameFrom[otherId] = (currentId, edge);
+                queue.Enqueue(otherId);
             }
         }
 
-        return (-1, null);
+        if (foundId == -1)
+        {
+            diagnosticLog?.Invoke($"[WalkToward] BFS via {walkTaxiwayName} from {startNodeId} → no node connects to {targetTaxiwayName}");
+            return (-1, null);
+        }
+
+        // Reconstruct the path from start to foundId.
+        var path = new List<int>();
+        int trace = foundId;
+        while (trace != startNodeId)
+        {
+            path.Add(trace);
+            trace = cameFrom[trace].ParentId;
+        }
+        path.Reverse();
+
+        int prevId = startNodeId;
+        foreach (int id in path)
+        {
+            var (_, walkEdge) = cameFrom[id];
+            if (layout.Nodes.TryGetValue(prevId, out var fromNode) && layout.Nodes.TryGetValue(id, out var toNode))
+            {
+                trialSegments.Add(new TaxiRouteSegment { TaxiwayName = walkTaxiwayName, Edge = walkEdge.Directed(fromNode, toNode) });
+            }
+            prevId = id;
+        }
+
+        diagnosticLog?.Invoke($"[WalkToward] BFS via {walkTaxiwayName} from {startNodeId} → {foundId} ({path.Count} hops)");
+        return (foundId, foundTargetEdge);
     }
 
     /// <summary>

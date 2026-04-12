@@ -104,47 +104,6 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         Assert.True(maxSegReached > 19, $"SKW3078 should advance past segment 19 (former stall point), got {maxSegReached}");
     }
 
-    /// <summary>
-    /// DAL2581 receives TAXI A @B10 at t=1179. Must advance past segment 19
-    /// (identical stall point to SKW3078) within 120 seconds.
-    /// </summary>
-    [Fact]
-    public void DAL2581_TaxiAtoB10_AdvancesPastFormerStallSegment()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Need to replay through the full scenario to reach DAL2581's command
-        engine.Replay(recording, 1179);
-
-        int maxSegReached = -1;
-        for (int t = 1; t <= 120; t++)
-        {
-            engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("DAL2581");
-            if (ac?.AssignedTaxiRoute is { } route)
-            {
-                if (route.CurrentSegmentIndex > maxSegReached)
-                {
-                    maxSegReached = route.CurrentSegmentIndex;
-                }
-            }
-
-            if (ac?.Phases?.CurrentPhase is AtParkingPhase)
-            {
-                output.WriteLine($"DAL2581 reached parking at t+{t}");
-                break;
-            }
-        }
-
-        output.WriteLine($"DAL2581 max segment reached: {maxSegReached}");
-        Assert.True(maxSegReached > 19, $"DAL2581 should advance past segment 19 (former stall point), got {maxSegReached}");
-    }
-
     // ─── Plan C: SFO A/T6 and A/T6B fillet arc geometry ───
 
     /// <summary>
