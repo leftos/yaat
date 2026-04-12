@@ -745,7 +745,7 @@ public sealed class LayoutAnalyzer
             return new BfsPathResult(startNodeId, taxiway, [new BfsStep(startNodeId, "NotFound", 0, [])], null, null, null);
         }
 
-        const int maxDepth = 12;
+        const int maxDepth = 20;
         var steps = new List<BfsStep>();
         var visited = new HashSet<int> { startNodeId };
         var queue = new Queue<(GroundNode Node, string BranchTaxiway, List<int> Path, double TotalDist, int Depth)>();

@@ -823,7 +823,7 @@ public sealed class AirportGroundLayout
         HashSet<int>? excludeHoldShortNodes = null
     )
     {
-        const int maxDepth = 12;
+        const int maxDepth = 20;
         GroundNode? best = null;
         string? bestTaxiway = null;
         List<GroundNode>? bestPath = null;
