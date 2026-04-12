@@ -3,6 +3,16 @@ name: Discord Push Notification
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      before:
+        description: 'Base commit SHA (exclusive) - for manually replaying a push range'
+        required: true
+        type: string
+      after:
+        description: 'Head commit SHA (inclusive) - for manually replaying a push range'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,8 +37,8 @@ jobs:
           REPO_URL="https://github.com/${REPO}"
           BRANCH="${{ github.ref_name }}"
           ACTOR="${{ github.actor }}"
-          BEFORE="${{ github.event.before }}"
-          AFTER="${{ github.event.after }}"
+          BEFORE="${{ github.event.before || inputs.before }}"
+          AFTER="${{ github.event.after || inputs.after }}"
           COMPARE_URL="${REPO_URL}/compare/${BEFORE}...${AFTER}"
 
           # Collect one rendered line per commit into an array.
