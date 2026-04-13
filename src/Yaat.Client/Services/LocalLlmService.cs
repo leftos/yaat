@@ -8,6 +8,33 @@ using Yaat.Client.Logging;
 namespace Yaat.Client.Services;
 
 /// <summary>
+/// Minimal settings surface needed by <see cref="LocalLlmService"/> — lets production code pass a
+/// <see cref="UserPreferences"/>-backed adapter while tests pass a lightweight double without touching
+/// <c>%LOCALAPPDATA%/yaat/preferences.json</c>.
+/// </summary>
+public interface ILlmRuntimeConfig
+{
+    bool Enabled { get; }
+    string ModelPath { get; }
+    int GpuLayers { get; }
+}
+
+/// <summary>Adapter exposing a <see cref="UserPreferences"/> through <see cref="ILlmRuntimeConfig"/>.</summary>
+public sealed class PreferencesLlmRuntimeConfig : ILlmRuntimeConfig
+{
+    private readonly UserPreferences _preferences;
+
+    public PreferencesLlmRuntimeConfig(UserPreferences preferences)
+    {
+        _preferences = preferences;
+    }
+
+    public bool Enabled => _preferences.SpeechEnabled;
+    public string ModelPath => _preferences.LlmModelPath;
+    public int GpuLayers => _preferences.LlmGpuLayers;
+}
+
+/// <summary>
 /// Thin wrapper around LLamaSharp's <see cref="StatelessExecutor"/> for single-shot ATC-transcript
 /// → canonical-command inference. The model is loaded lazily on first use and kept in memory for the
 /// life of the service; re-configuring the path or backend settings rebuilds the underlying handles.
@@ -21,7 +48,7 @@ public sealed class LocalLlmService : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<LocalLlmService>();
 
-    private readonly UserPreferences _preferences;
+    private readonly ILlmRuntimeConfig _config;
     private readonly SemaphoreSlim _inferenceLock = new(1, 1);
 
     private LLamaWeights? _weights;
@@ -30,9 +57,9 @@ public sealed class LocalLlmService : IDisposable
     private string? _loadedPath;
     private int _loadedGpuLayers;
 
-    public LocalLlmService(UserPreferences preferences)
+    public LocalLlmService(ILlmRuntimeConfig config)
     {
-        _preferences = preferences;
+        _config = config;
     }
 
     /// <summary>
@@ -43,7 +70,7 @@ public sealed class LocalLlmService : IDisposable
     {
         get
         {
-            var path = _preferences.LlmModelPath;
+            var path = _config.ModelPath;
             return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
         }
     }
@@ -57,7 +84,7 @@ public sealed class LocalLlmService : IDisposable
     /// </summary>
     public async Task<string?> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct)
     {
-        if (!_preferences.SpeechEnabled || !IsConfigured)
+        if (!_config.Enabled || !IsConfigured)
         {
             return null;
         }
@@ -127,7 +154,7 @@ public sealed class LocalLlmService : IDisposable
 
     private bool EnsureLoaded()
     {
-        var path = _preferences.LlmModelPath;
+        var path = _config.ModelPath;
         var gpuLayers = ResolveGpuLayers();
 
         if (_weights is not null && _loadedPath == path && _loadedGpuLayers == gpuLayers)
@@ -163,7 +190,7 @@ public sealed class LocalLlmService : IDisposable
     /// </summary>
     private int ResolveGpuLayers()
     {
-        var configured = _preferences.LlmGpuLayers;
+        var configured = _config.GpuLayers;
         if (configured >= 0)
         {
             return configured;

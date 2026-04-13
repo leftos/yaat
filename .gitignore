@@ -33,6 +33,9 @@ releases/
 ## Local scenario snapshots (downloaded via tools/refresh-scenarios.py)
 tests/Yaat.Sim.Tests/TestData/Scenarios/
 
+## Opt-in LLM integration test models (see tests/Yaat.Client.Tests/TestData/llm/README.md)
+tests/Yaat.Client.Tests/TestData/llm/*.gguf
+
 ## Secrets
 .env
 *.private-key.pem

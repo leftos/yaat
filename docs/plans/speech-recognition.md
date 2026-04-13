@@ -301,10 +301,27 @@ NuGet packages to add (Yaat.Client only):
 - `PortAudioSharp2` (replaces NAudio — cross-platform)
 - `LLamaSharp` + `LLamaSharp.Backend.Cpu` (see Phase 4)
 
+#### GPU runtime shipping strategy — "Option B" (download-on-configure)
+
+The Phase 4 installer ships `LLamaSharp.Backend.Cpu` only. Phase 5's `GpuCapabilityDetector` can detect CUDA / Vulkan / Metal on the host, but the client has no GPU native libraries to actually call, so `PreferredGpuBackend = "Auto"` always ends up on CPU in practice. Phase 6 resolves this for both LLamaSharp (LLM) and Whisper.net (STT) with a single download-on-configure flow. Alternative was bundling all backends by default (~500 MB per backend × 2 libraries = ~1 GB installer bloat) — rejected as overkill for users who don't use speech recognition at all.
+
+- **`src/Yaat.Client/Services/GpuRuntimeDownloader.cs`** — new service. Fetches a bundled archive of native DLLs per backend (LLamaSharp CUDA12, Whisper.net CUDA, Vulkan, etc.) into `%LOCALAPPDATA%/yaat/runtime/{llama,whisper}/{backend}/`. Archives hosted as GitHub Release assets on the yaat repo so we control the exact versions (matches whatever LLamaSharp + Whisper.net versions this client build was compiled against).
+- **Archive contents** — only the native `.dll` files, not the managed assemblies. Source of truth: the `runtimes/` folder inside the corresponding NuGet package for the specific version + RID (e.g. `win-x64/native/cuda12/llama.dll`). A small GitHub Actions workflow can extract and publish these per release.
+- **Settings UI** — extend the Speech tab's Acceleration section with a "Download GPU runtime" button that shows when `GpuCapabilityDetector.Detect().Kind != CpuOnly` and no runtime archive has been fetched yet. Reuse the `ModelManager`'s streaming download + `IProgress<double>` + `.partial` → rename pattern.
+- **Native library resolution** — at app startup, after `AppLog.Initialize`, probe `%LOCALAPPDATA%/yaat/runtime/llama/{backend}/` and call `NativeLibraryConfig.All.WithSearchDirectory(path).WithCuda(true).WithAutoFallback(true)` (or equivalent for the chosen backend). Whisper.net has an analogous config — needs verifying against the current API during Phase 6.
+- **Fallback** — if the user downloaded a CUDA runtime but later removes the CUDA driver, `WithAutoFallback(true)` lets LLamaSharp silently degrade to whatever CPU native is still in the installer. No crash, just slower.
+- **Bundle size** — `win-x64/native/cuda12/llama.dll` alone is ~500 MB, Whisper.net's CUDA runtime is ~200 MB. Users who enable GPU pay that one-time ~700 MB download; default installer stays ~200 MB.
+- **Test harness precedent** — the opt-in `LocalLlmPipelineIntegrationTests` in `tests/Yaat.Client.Tests/` already ship `LLamaSharp.Backend.Cuda12` as a test-only PackageReference, so the API shape (`NativeLibraryConfig.All.WithCuda(true).WithAutoFallback(true)`) is already validated on dev hardware. Phase 6 just replicates that init in the production `App.axaml.cs` once the download-on-configure path is in place.
+
+Rejected: option A (ship all backends by default). Adds ~1 GB to every installer even for users who never open the Speech tab — the friction isn't justified.
+
 #### Tasks
 - [ ] Add NuGet packages listed above
 - [ ] `src/Yaat.Client/Services/AudioCaptureService.cs` — PortAudio init, device enumeration, start/stop, 16 kHz mono buffer
 - [ ] `src/Yaat.Client/Services/WhisperSttEngine.cs` — Whisper.net wrapper, initial_prompt seeding, async transcribe
+- [ ] `src/Yaat.Client/Services/GpuRuntimeDownloader.cs` + Settings UI button (Option B, see above)
+- [ ] GitHub Actions workflow to publish per-backend native archives as release assets
+- [ ] `NativeLibraryConfig.All.WithSearchDirectory(...).WithCuda(true).WithAutoFallback(true)` in `App.axaml.cs` startup
 - [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
 - [ ] Manual: hold PTT, speak one command, confirm `WhisperSttEngine` returns non-empty transcript
 
@@ -312,6 +329,7 @@ NuGet packages to add (Yaat.Client only):
 - PortAudio native lib loading on Linux (`libportaudio2` package) — verify before shipping; document in README.
 - Windows default input device selection — confirm `PortAudioSharp2` defaults to WASAPI shared-mode.
 - First-use latency of Whisper model load — warm on Settings toggle rather than on first PTT press to avoid a 1-2s dead key.
+- `NativeLibraryConfig` must be called before the first LLamaSharp weight load — any warm-up path Phase 6 adds must run AFTER the search-directory config.
 
 ### Phase 7: Client integration (Yaat.Client)
 
