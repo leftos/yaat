@@ -28,6 +28,11 @@
     <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.26.0" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
+    <!-- Phase 6: microphone capture + Whisper STT. CPU-only runtimes ship by default; Phase 6
+         Option B (GpuRuntimeDownloader) handles the end-user GPU story via on-demand DLL download. -->
+    <PackageReference Include="PortAudioSharp2" Version="1.0.6" />
+    <PackageReference Include="Whisper.net" Version="1.9.0" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" />
     <!-- Transitive via Avalonia.FreeDesktop 11.3.13 (>= 0.21.2); pin to patched 0.21.3 (GHSA-xrw6-gwf8-vvr9). -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <PackageReference Include="Velopack" Version="0.0.1298" />

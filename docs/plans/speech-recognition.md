@@ -200,12 +200,47 @@ Settings:
 - [x] `src/Yaat.Sim/Speech/ISpeechCommandMapper.cs` — async interface (`Task<MapResult?> MapAsync(...)`) with required `CancellationToken`. `MapContext` and `MapResult` hoisted from nested `PhraseologyMapper.MapContext`/`.MapResult` to top-level types in the `Yaat.Sim.Speech` namespace (PhraseologyMapperTests updated for the rename).
 - [x] `src/Yaat.Sim/Speech/PhraseologyCommandMapper.cs` — non-static adapter wrapping the existing static `PhraseologyMapper.Map()`. Keeps the static API as the source of truth; this wrapper just makes it async-interface-compatible.
 - [x] `LLamaSharp` **0.26.0** + `LLamaSharp.Backend.Cpu` **0.26.0** added to `src/Yaat.Client/Yaat.Client.csproj`. GPU backend shipping strategy is explicitly deferred to Phase 6 per the plan; CPU-only for Phase 4.
-- [x] `src/Yaat.Client/Services/LocalLlmService.cs` — LLamaSharp wrapper. `StatelessExecutor` for single-shot inference, lazy `LLamaWeights.LoadFromFile()` + `ModelParams` (ContextSize=2048), chat-ML-ish system/user prompt framing, `DefaultSamplingPipeline { Temperature = 0.1f, TopP = 0.9f }`, AntiPrompts `["<|user|>", "<|system|>", "\n\n"]`, `MaxTokens=80`, 512-char output cap. `SemaphoreSlim(1,1)` for sequential inference, `CancellationToken` pass-through. Auto-reloads weights when `LlmModelPath` or effective `GpuLayerCount` changes. `LlmGpuLayers = -1` → `ResolveGpuLayers()` returns 999 when `GpuCapabilityDetector.Detect().Kind != CpuOnly`, else 0 (harmless on CPU-only backend but ready for Phase 6 GPU swap).
-- [x] `src/Yaat.Client/Services/LocalLlmCommandMapper.cs` — `ISpeechCommandMapper` impl. Lazy system prompt built once from `CommandRegistry.All` (every canonical verb + label + sample arg + examples). User prompt includes transcript + active callsigns + programmed fixes. `NormalizeOutput()` strips code fences / labels / quotes / trailing prose, uppercases, splits into comma-separated clauses, and validates each clause against `CommandRegistry.AliasToCanonicType` with an `AT <fix>` / `LV <alt>` prefix allowance, a 5-token-per-clause cap, and an allowed-character set (`[A-Z0-9+\-./]`). Returns null when validation fails.
-- [x] LLM settings fields already landed in Phase 5 — `LocalLlmService` reads `SpeechEnabled`, `LlmModelPath`, `LlmGpuLayers`, and `PreferredGpuBackend` directly from the injected `UserPreferences`.
+- [x] `src/Yaat.Client/Services/LocalLlmService.cs` — LLamaSharp wrapper. `StatelessExecutor` for single-shot inference, lazy `LLamaWeights.LoadFromFile()` + `ModelParams` (see tuning notes below), chat-ML-ish system/user prompt framing, AntiPrompts `["<|user|>", "<|system|>", "\n\n"]`, `MaxTokens=80`, 512-char output cap. `SemaphoreSlim(1,1)` for sequential inference, `CancellationToken` pass-through. Refactored to take a small `ILlmRuntimeConfig` interface (with `PreferencesLlmRuntimeConfig` adapter) instead of a direct `UserPreferences` dependency — lets opt-in integration tests avoid touching `%LOCALAPPDATA%`.
+- [x] `src/Yaat.Client/Services/LocalLlmCommandMapper.cs` — `ISpeechCommandMapper` impl. System prompt is derived directly from `PhraseologyRules.All`, grouped by canonical output so every canonical command appears on one line listing all its natural-language variants. User prompt includes transcript + active callsigns + programmed fixes. `NormalizeOutput()` strips code fences / labels / quotes / trailing prose, uppercases, splits into comma-separated clauses, validates each clause against `CommandRegistry.AliasToCanonicType` with an `AT <fix>` / `LV <alt>` prefix allowance, a 5-token-per-clause cap, and an allowed-character set (`[A-Z0-9+\-./]`). Returns null when validation fails.
+- [x] LLM settings fields already landed in Phase 5 — `LocalLlmService` reads `SpeechEnabled`, `LlmModelPath`, `LlmGpuLayers` via `PreferencesLlmRuntimeConfig(prefs)`.
 - [x] `tests/Yaat.Client.Tests/LocalLlmCommandMapperNormalizeTests.cs` — 21 theory cases covering valid commands, markdown code fences, label prefixes, compound clauses with condition prefixes, and rejection of natural-language prose.
+- [x] `tests/Yaat.Client.Tests/LlmCudaFixture.cs` — xUnit collection fixture: calls `NativeLibraryConfig.All.WithCuda(true).WithAutoFallback(true).WithLogCallback(...)` once before any weight load, auto-discovers CUDA 12.x under `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.*`, sets process-level `CUDA_PATH` + prepends `v12.*/bin` to `PATH`, then holds a shared `LocalLlmService`. All tests in `[Collection("LLM")]` reuse the single loaded model.
+- [x] `tests/Yaat.Client.Tests/LlmCudaSanityTest.cs` — ground-truth `[Fact]` that times cold+warm inference and dumps native log lines via `ITestOutputHelper`. Proves CUDA is actually being used rather than silently falling back to CPU.
+- [x] `tests/Yaat.Client.Tests/LocalLlmPipelineIntegrationTests.cs` — 10 cases (8 positive + 1 chit-chat rejection + 1 disabled-config guard) with strict exact-match assertions. Uses the fixture's shared service. Silently skips when `tests/Yaat.Client.Tests/TestData/llm/test-model.gguf` is absent.
+- [x] `tests/Yaat.Client.Tests/TestData/llm/README.md` — download instructions for Qwen2.5-1.5B-Instruct Q4_K_M (recommended). Model file is gitignored.
+- [x] `tests/Yaat.Client.Tests/Yaat.Client.Tests.csproj` — test-only `LLamaSharp.Backend.Cuda12` 0.26.0 reference. Production `Yaat.Client.csproj` stays CPU-only; end-user GPU story is Phase 6 Option B (download-on-configure).
 - [x] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean (0 warnings).
-- [x] `timeout 120 dotnet test 2>&1 | tee .tmp/test.log` green (Yaat.Sim 2,773 + Yaat.Client 357 = 3,130).
+- [x] `timeout 120 dotnet test 2>&1 | tee .tmp/test.log` green (Yaat.Sim 2,773 + Yaat.Client 368 = 3,141). Integration suite exact-match on all 10 cases against Qwen2.5-1.5B-Instruct Q4_K_M running on CUDA 12.9 in ~3 seconds.
+
+#### Phase 4 lessons learned (verified on real hardware)
+
+Four fixes turned the integration suite from 2/10 passing at ~97 seconds into 10/10 passing at ~3 seconds. Each one was a surprise worth capturing so Phase 8 and later sessions don't re-discover them:
+
+1. **LLamaSharp 0.26.0 + CUDA 13 is a silent mismatch.** `SystemInfo.GetCudaMajorVersion()` in LLamaSharp (`LLama/Native/Load/SystemInfo.cs`) reads `$CUDA_PATH/version.json` and extracts the major version, then `DefaultNativeLibrarySelectingPolicy` passes that to `NativeLibraryWithCuda`, which computes the runtime path as `runtimes/{os}/native/cuda{majorVersion}/llama.dll`. On a host with CUDA 13 installed as the primary runtime, that path is `runtimes/.../cuda13/` — a folder that does not exist in any published NuGet backend (only `Cuda11` and `Cuda12` packages exist on nuget.org as of 2026-04). `WithAutoFallback(true)` silently falls through to CPU, so inference works but is ~5-7× slower than expected and nothing in the native logs makes the cause obvious unless you register a `WithLogCallback` and read the file-probing trace.
+   - **Workaround (what the fixture does)**: on Windows, scan `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.*`, pick the highest installed minor, override `CUDA_PATH` at the process level, and prepend `v12.*/bin` to `PATH` so `LoadLibrary` can resolve `ggml-cuda.dll`'s CUDA runtime dependencies (`cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll`). Side-by-side CUDA toolkit installs are NVIDIA-supported, and the override is per-process so other tools on the machine still see the primary CUDA 13.
+   - **Long-term**: Phase 6 Option B's `GpuRuntimeDownloader` will ship the matching CUDA runtime DLLs as part of the download-on-configure flow so end users don't need to install the full CUDA toolkit just to run speech recognition.
+
+2. **`StatelessExecutor` + default `SeqMax = 64` is a KV-cache trap.** llama.cpp was failing every inference with `decode: failed to find a memory slot for batch of size 365`. Root cause: `ModelParams.ContextSize` is the **total** KV cache size across all sequences, and LLamaSharp defaults `SeqMax = 64`. With `ContextSize = 2048, SeqMax = 64`, each sequence gets `2048 / 64 = 32 KV slots` — nowhere near enough for our ~2000-token system prompt. Fix: `ContextSize = 4096, SeqMax = 1` since `StatelessExecutor` is single-shot and has no use for parallel sequences. Log output went from `llama_context: backend_ptrs.size() = 1` (CPU only) with failed decodes to `backend_ptrs.size() = 2` (CPU + CUDA) with `layer N: dev = CUDA0` on all 28 Qwen layers.
+
+3. **Alphabetical `CommandRegistry` dump was the wrong prompt strategy for a small instruct model.** The initial Phase 4 prompt dumped every `CommandDefinition` as `{alias} — {label} (arg: {sampleArg})`, sorted by type name. Qwen 1.5B was picking plausible-but-wrong verbs (`CM` for "descend", `FPH` for "fly heading 270", `RD` for "reduce speed") because the label text didn't rhyme with the spoken phrasing the model was trained to match. The fix is to derive the prompt from `PhraseologyRules.All` grouped by `OutputTemplate` — one line per canonical command listing every natural-language variant that maps to it. That's the same `spoken phrasing → canonical` data the Phase 2 rule engine uses, so the two layers stay in sync automatically, and the discrimination signal is exactly what the model needs. Integration suite immediately went from 1/9 strict-match to 9/9 strict-match after this change alone.
+
+4. **Small models are prompt-character-sensitive in surprising ways.** With `Temperature = 0` (greedy sampling), a one-character change in the system prompt — specifically `"Altitudes in feet (5000); flight levels..."` vs `"Altitudes in feet (5000), flight levels..."` — flipped "fly heading two seven zero" from `FH 270` to `FPH` (a completely different canonical command with no argument). Verified by diffing a working scratch run against a failing xunit run. `LocalLlmCommandMapper.BuildSystemPrompt` now carries a prominent warning comment telling future maintainers to re-run `LocalLlmPipelineIntegrationTests` after any cosmetic edits. Phase 8 should either pick a larger/better-instructed model or add automated prompt-regression tests.
+
+Bonus tuning: `Temperature` dropped from `0.1` → `0.0`. Command mapping wants determinism — the same transcript must always yield the same canonical. Greedy sampling also makes the opt-in integration suite reproducible.
+
+#### Phase 4 performance on the dev box (Qwen2.5-1.5B-Instruct Q4_K_M, CUDA 12.9, all 28 layers offloaded)
+
+| Metric | Value |
+|---|---|
+| Cold model load (1.1 GB GGUF → VRAM) | ~1.2 s |
+| Warm inference per command | 85–100 ms |
+| Scratch harness full 9-case loop | ~1 s |
+| xunit integration suite full 10-case loop | ~3 s |
+| Original broken state (CPU, no fixture sharing) | ~97 s, 2/10 passing |
+
+#### Yaat.Scratch repurposed as LLM prompt iteration harness
+
+`tools/Yaat.Scratch/Program.cs` now references `Yaat.Client` + `Yaat.Sim` + `LLamaSharp.Backend.Cuda12`. It auto-discovers CUDA 12 the same way `LlmCudaFixture` does, loads `LocalLlmCommandMapper` + `LocalLlmService`, and runs the same 9 test cases directly through `mapper.MapAsync` for fast dev iteration (~1 s end-to-end vs ~3 s through xunit). Ideal loop for tuning prompts and sampling params without rebuilding the test project.
 
 ### Phase 5: Settings UI — "Speech" tab (Yaat.Client)
 
@@ -316,20 +351,22 @@ The Phase 4 installer ships `LLamaSharp.Backend.Cpu` only. Phase 5's `GpuCapabil
 Rejected: option A (ship all backends by default). Adds ~1 GB to every installer even for users who never open the Speech tab — the friction isn't justified.
 
 #### Tasks
-- [ ] Add NuGet packages listed above
-- [ ] `src/Yaat.Client/Services/AudioCaptureService.cs` — PortAudio init, device enumeration, start/stop, 16 kHz mono buffer
-- [ ] `src/Yaat.Client/Services/WhisperSttEngine.cs` — Whisper.net wrapper, initial_prompt seeding, async transcribe
-- [ ] `src/Yaat.Client/Services/GpuRuntimeDownloader.cs` + Settings UI button (Option B, see above)
-- [ ] GitHub Actions workflow to publish per-backend native archives as release assets
-- [ ] `NativeLibraryConfig.All.WithSearchDirectory(...).WithCuda(true).WithAutoFallback(true)` in `App.axaml.cs` startup
-- [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
-- [ ] Manual: hold PTT, speak one command, confirm `WhisperSttEngine` returns non-empty transcript
+- [x] Add NuGet packages: `PortAudioSharp2` **1.0.6**, `Whisper.net` **1.9.0**, `Whisper.net.Runtime` **1.9.0** to `src/Yaat.Client/Yaat.Client.csproj`. CPU runtime only; GPU runtimes deferred to the Option B follow-up.
+- [x] `src/Yaat.Client/Services/AudioCaptureService.cs` — PortAudioSharp2 wrapper. Lazy `PortAudio.Initialize()` on first `StartCapture`, Float32/16 kHz/mono stream, lock-guarded growing `List<float>` buffer filled from the PortAudio callback thread, `StopCapture()` returns the captured `float[]`. `ListInputDevices()` enumerates input devices for the Settings UI dropdown. Resolves the user's preferred device via exact name match → case-insensitive substring match → `PortAudio.DefaultInputDevice` fallback. Implements `IDisposable` for clean `PortAudio.Terminate()` at app shutdown.
+- [x] `src/Yaat.Client/Services/WhisperSttEngine.cs` — Whisper.net wrapper. Lazy `WhisperFactory.FromPath(...)` using the model file resolved by `ModelManager.GetWhisperPath(WhisperModelSize)`. `TranscribeAsync(float[] samples, string initialPrompt, CancellationToken ct)` creates a per-call `WhisperProcessor` via `CreateBuilder().WithLanguage("en").WithPrompt(initialPrompt).Build()`, wraps the captured samples in an in-memory RIFF/WAV container (minimal 44-byte header + IEEE Float32 payload via the private `WavHeader.WriteFloatPcm` helper), and streams segments via `ProcessAsync`. Returns `null` when speech is disabled / model file missing / zero samples / inference throws. `SemaphoreSlim(1,1)` for sequential transcription.
+- [x] `src/Yaat.Client/Program.cs` — `ConfigureLlamaSharpNative()` called in `Main()` after `AppLog.Initialize`. Installs `NativeLibraryConfig.All.WithAutoFallback(true).WithLogCallback(...)` so llama.cpp log messages flow into `AppLog`. No `WithCuda(true)` yet because production still ships CPU-only; the `WithSearchDirectory(...)` call lands with the Option B `GpuRuntimeDownloader` in the follow-up session.
+- [x] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean (0 warnings).
+- [x] `timeout 180 dotnet test 2>&1 | tee .tmp/test.log` green (Yaat.Sim 2,773 + Yaat.Client 368 = 3,141 passing; no regressions from the new services).
+- [ ] **Deferred to follow-up session**: `GpuRuntimeDownloader.cs` + Settings UI "Download GPU runtime" button (Option B)
+- [ ] **Deferred to follow-up session**: GitHub Actions workflow to publish per-backend native archives as release assets
+- [ ] **Deferred to Phase 7**: Manual end-to-end — hold PTT, speak one command, confirm `WhisperSttEngine` returns non-empty transcript. Requires the PTT key handler and `SpeechRecognitionService` orchestration that Phase 7 delivers.
+- [ ] **Deferred to Phase 8**: opt-in `WhisperSttEngine` integration test with a canned WAV fixture (similar to `LocalLlmPipelineIntegrationTests`).
 
 #### Risks / unknowns
-- PortAudio native lib loading on Linux (`libportaudio2` package) — verify before shipping; document in README.
-- Windows default input device selection — confirm `PortAudioSharp2` defaults to WASAPI shared-mode.
-- First-use latency of Whisper model load — warm on Settings toggle rather than on first PTT press to avoid a 1-2s dead key.
-- `NativeLibraryConfig` must be called before the first LLamaSharp weight load — any warm-up path Phase 6 adds must run AFTER the search-directory config.
+- PortAudio native lib loading on Linux (`libportaudio2` package) — verify before shipping; document in README. PortAudioSharp2 ships pre-compiled natives for Linux/macOS/Windows in the NuGet package, so the `libportaudio2` system package may not be required at all — to be confirmed during Phase 7 manual testing.
+- Windows default input device selection — confirm `PortAudioSharp2` defaults to WASAPI shared-mode. Phase 7 manual test will surface any latency / exclusivity issues.
+- First-use latency of Whisper model load — warm on Settings toggle rather than on first PTT press to avoid a 1-2s dead key. Phase 7 wire-up can call `WhisperSttEngine.TranscribeAsync` with a 0.1s silent buffer during Settings save to force the factory load.
+- `NativeLibraryConfig` must be called before the first LLamaSharp weight load — handled in `Program.Main` via `ConfigureLlamaSharpNative()`. Phase 7 must NOT create a `LocalLlmService` before `Program.Main` completes (not an issue in practice because the service is owned by `MainViewModel`, which is constructed by `MainWindow` inside the Avalonia lifetime, well after `Main` returns).
 
 ### Phase 7: Client integration (Yaat.Client)
 
