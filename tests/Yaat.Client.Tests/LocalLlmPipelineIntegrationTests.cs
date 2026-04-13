@@ -22,7 +22,9 @@ namespace Yaat.Client.Tests;
 [Collection("LLM")]
 public sealed class LocalLlmPipelineIntegrationTests
 {
-    private static readonly string ModelPath = Path.Combine(AppContext.BaseDirectory, "TestData", "llm", "test-model.gguf");
+    // Matches the pattern used by LiveWeatherRealDataTests: walk back from the test bin directory
+    // to the source TestData/ folder so we don't need to copy the multi-GB GGUF on every build.
+    private static readonly string ModelPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "TestData", "llm", "test-model.gguf");
 
     private static bool ModelAvailable => File.Exists(ModelPath);
 
