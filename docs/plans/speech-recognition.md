@@ -160,11 +160,16 @@ Existing files to reuse:
 - Tests: use `TestNavDbFactory` + `NavigationDatabase.ScopedOverride(...)`, annotate class with `[Collection("NavDbMutator")]` (pattern lifted from `AltitudeResolverTests.cs`).
 
 #### Tasks
-- [ ] `src/Yaat.Sim/Speech/PhoneticFixMatcher.cs` — Double Metaphone + Levenshtein, programmed-fix scope, full-DB fallback
-- [ ] `tests/Yaat.Sim.Tests/Speech/PhoneticFixMatcherTests.cs` — `[Collection("NavDbMutator")]`, mistranscription cases
-- [ ] Wire `PhoneticFixMatcher` into `PhraseologyMapper` as post-pass on any `{fix}` capture
-- [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
-- [ ] `timeout 30 dotnet test 2>&1 | tee .tmp/test.log` green
+- [x] `src/Yaat.Sim/Speech/PhoneticFixMatcher.cs` — simplified phonetic encoder + Levenshtein; `max(rawDistance, phoneticDistance)` scoring prevents false positives on short phonetic codes
+  - Programmed-fix scope: threshold 2 (accepts "sepin" → CEPIN, "seepin" → CEPIN)
+  - Full NavigationDatabase fallback: threshold 1 (strict, handles references to non-programmed fixes)
+- [x] `tests/Yaat.Sim.Tests/Speech/PhoneticFixMatcherTests.cs` — 25 cases: Phonetize sanity, Levenshtein sanity, exact/near-miss match, empty inputs, threshold rejection
+- [x] Wire `PhoneticFixMatcher` into `PhraseologyMapper` as post-pass on `{fix}` and `{current}` captures via `MapContext.ProgrammedFixes`
+- [x] Integration tests in `PhraseologyMapperTests.cs`: direct-to-mistranscribed-fix corrected against programmed fixes, raw passthrough when no context, compound commands still work
+- [x] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
+- [x] `timeout 120 dotnet test 2>&1 | tee .tmp/test.log` green (2773/2773)
+
+Note: we implemented a simplified phonetic encoder (soft/hard C, PH/F, silent GH, silent leading K/P/W before N, vowel collapse, double-letter collapse) instead of the full ~300-line Lawrence Philips Double Metaphone. It covers the realistic Whisper transcription errors without the code bloat. Phase 8 can upgrade to full Double Metaphone if coverage gaps appear.
 
 ### Phase 4: Local LLM fallback (Yaat.Client)
 

@@ -61,6 +61,10 @@ public static class PhraseologyMapper
     // Connector words skipped between clauses in compound commands.
     private static readonly HashSet<string> CompoundConnectors = new(StringComparer.OrdinalIgnoreCase) { "and", "then", "also" };
 
+    // Capture names that should be post-processed through PhoneticFixMatcher — these are
+    // the navigation fix names Whisper most often mistranscribes as English words.
+    private static readonly HashSet<string> FixLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "fix", "current" };
+
     /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
     /// of the transcript.
@@ -121,7 +125,7 @@ public static class PhraseologyMapper
                 continue;
             }
 
-            var best = FindLongestMatch(tokens, idx);
+            var best = FindLongestMatch(tokens, idx, context);
             if (best is null)
             {
                 // No rule matches here — advance one token and keep trying.
@@ -156,12 +160,12 @@ public static class PhraseologyMapper
     /// </list>
     /// Returns null if no rule matches.
     /// </summary>
-    private static (string Output, int Consumed)? FindLongestMatch(List<string> tokens, int start)
+    private static (string Output, int Consumed)? FindLongestMatch(List<string> tokens, int start, MapContext context)
     {
         (string Output, int Consumed, int CaptureCount)? best = null;
         foreach (var rule in PhraseologyRules.All)
         {
-            if (TryMatchRule(rule, tokens, start, out var consumed, out var output))
+            if (TryMatchRule(rule, tokens, start, context, out var consumed, out var output))
             {
                 var captureCount = rule.Pattern.Count(p => p.StartsWith('{') && p.EndsWith('}'));
                 var candidate = (output, consumed, captureCount);
@@ -177,13 +181,28 @@ public static class PhraseologyMapper
     /// <summary>
     /// Attempt to match a single rule against <paramref name="tokens"/> starting at
     /// <paramref name="start"/>. Optional tokens (<c>literal?</c>) are tried both present and
-    /// absent — the first successful path wins.
+    /// absent — the first successful path wins. After captures are collected, fix-like ones
+    /// are post-processed through <see cref="PhoneticFixMatcher"/> against the context's
+    /// programmed fix set.
     /// </summary>
-    private static bool TryMatchRule(PhraseologyRule rule, List<string> tokens, int start, out int consumed, out string output)
+    private static bool TryMatchRule(PhraseologyRule rule, List<string> tokens, int start, MapContext context, out int consumed, out string output)
     {
         var captures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (TryMatchPattern(rule.Pattern, 0, tokens, start, captures, out consumed))
         {
+            // Post-pass: correct fix-like captures using the phonetic matcher. Runs only for
+            // capture names we know represent fix references (e.g. {fix}, {current}).
+            foreach (var name in FixLikeCaptureNames)
+            {
+                if (captures.TryGetValue(name, out var rawValue))
+                {
+                    var matched = PhoneticFixMatcher.TryMatch(rawValue, context.ProgrammedFixes);
+                    if (matched is not null)
+                    {
+                        captures[name] = matched;
+                    }
+                }
+            }
             output = FillTemplate(rule.OutputTemplate, captures);
             return true;
         }

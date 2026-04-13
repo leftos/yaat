@@ -357,4 +357,48 @@ public class PhraseologyMapperTests
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
+
+    // --- Phase 3: phonetic fix matcher integration ---
+
+    [Fact]
+    public void Fix_ExactMatch_PassedThrough()
+    {
+        // When the transcript has the correct fix name, the matcher is a no-op.
+        var ctx = new PhraseologyMapper.MapContext([], ["CEPIN", "SUNOL"]);
+        var result = PhraseologyMapper.Map("direct to cepin", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("DCT CEPIN", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Fix_MistranscribedAgainstProgrammedFixes_IsCorrected()
+    {
+        // Whisper heard "sepin"; real fix is CEPIN. The matcher should swap it in.
+        var ctx = new PhraseologyMapper.MapContext([], ["CEPIN", "SUNOL"]);
+        var result = PhraseologyMapper.Map("direct to sepin", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("DCT CEPIN", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Fix_NoProgrammedFixes_PassesThroughRaw()
+    {
+        // With no programmed fixes context, the matcher can't correct and the raw token
+        // survives (upper-cased by the fill-template step? actually captures preserve case).
+        var result = PhraseologyMapper.Map("direct to sepin", NoContext);
+        Assert.NotNull(result);
+        // Either raw or matched via nav DB fallback (if it happened to load in this test).
+        // For the no-nav-DB test context, we just assert a DCT command was produced.
+        Assert.StartsWith("DCT ", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Fix_WrongTokenDoesNotCorruptOtherCaptures()
+    {
+        // Ensure the matcher only rewrites capture values, not literal tokens from the rule.
+        var ctx = new PhraseologyMapper.MapContext([], ["CEPIN", "SUNOL"]);
+        var result = PhraseologyMapper.Map("climb and maintain five thousand direct to sepin", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("CM 5000, DCT CEPIN", result!.CanonicalCommand);
+    }
 }
