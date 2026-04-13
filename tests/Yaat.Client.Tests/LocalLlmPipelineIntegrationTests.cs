@@ -6,13 +6,13 @@ namespace Yaat.Client.Tests;
 
 /// <summary>
 /// Opt-in end-to-end tests for the Phase 4 LLM fallback pipeline. Gated on the presence of a GGUF
-/// model file at <see cref="ModelPath"/> — when the file is absent the tests silently pass (matching
-/// the repo's <c>TestVnasData</c> convention per CLAUDE.md).
+/// model file at <see cref="LlmCudaFixture.ModelPath"/> — when the file is absent the tests silently
+/// pass (matching the repo's <c>TestVnasData</c> convention per CLAUDE.md).
 ///
 /// When enabled, these tests actually load the model (via CUDA if available, CPU fallback otherwise)
 /// and exercise the full <see cref="LocalLlmCommandMapper"/> → <see cref="LocalLlmService"/> →
-/// LLamaSharp path. Assertions are intentionally tolerant because small instruct models (0.5B–3B)
-/// can drift at inference time even with Temperature=0.1.
+/// LLamaSharp path. Assertions are strict (exact-match on the canonical command) — prompt drift
+/// that produces wrong verbs should fail the suite so we notice regressions.
 ///
 /// To enable locally:
 /// 1. Follow <c>TestData/llm/README.md</c> to download a small GGUF model,
@@ -22,152 +22,137 @@ namespace Yaat.Client.Tests;
 [Collection("LLM")]
 public sealed class LocalLlmPipelineIntegrationTests
 {
-    // Matches the pattern used by LiveWeatherRealDataTests: walk back from the test bin directory
-    // to the source TestData/ folder so we don't need to copy the multi-GB GGUF on every build.
-    private static readonly string ModelPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "TestData", "llm", "test-model.gguf");
+    private readonly LocalLlmCommandMapper? _mapper;
 
-    private static bool ModelAvailable => File.Exists(ModelPath);
-
-    private static LocalLlmCommandMapper CreateMapper()
+    public LocalLlmPipelineIntegrationTests(LlmCudaFixture fixture)
     {
-        var config = new TestLlmConfig(ModelPath, gpuLayers: 999);
-        var service = new LocalLlmService(config);
-        return new LocalLlmCommandMapper(service);
+        // Reuse the fixture's shared LocalLlmService so the 1.1 GB Qwen weights load exactly once
+        // per test run instead of once per test. Null when the GGUF is absent.
+        _mapper = fixture.SharedServiceOrNull is { } shared ? new LocalLlmCommandMapper(shared) : null;
     }
 
     [Fact]
-    public async Task ClimbAndMaintain_ProducesAltitudeCommand()
+    public async Task ClimbAndMaintain_ProducesExactCM()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("climb and maintain five thousand", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("climb and maintain five thousand", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Contains("5000", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("CM 5000", result.CanonicalCommand);
     }
 
     [Fact]
-    public async Task DescendAndMaintain_ProducesAltitudeCommand()
+    public async Task DescendAndMaintain_ProducesExactDM()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("descend and maintain three thousand", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("descend and maintain three thousand", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Contains("3000", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("DM 3000", result.CanonicalCommand);
     }
 
     [Fact]
-    public async Task FlyHeading_ProducesHeadingCommand()
+    public async Task FlyHeading_ProducesExactFH()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("fly heading two seven zero", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("fly heading two seven zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Contains("270", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("FH 270", result.CanonicalCommand);
     }
 
     [Fact]
-    public async Task TurnRight_ProducesTurnCommand()
+    public async Task TurnRight_ProducesExactTR()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("turn right heading zero nine zero", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("turn right heading zero nine zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Contains("090", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("TR 090", result.CanonicalCommand);
     }
 
     [Fact]
-    public async Task Squawk_ProducesSquawkCommand()
+    public async Task Squawk_ProducesExactSQ()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("squawk seven five zero zero", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("squawk seven five zero zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Contains("7500", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("SQ 7500", result.CanonicalCommand);
     }
 
     [Fact]
-    public async Task DirectTo_ProducesDirectCommand()
+    public async Task DirectTo_ProducesExactDCT()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
         var context = new MapContext([], ["CEPIN", "SUNOL"]);
-        var result = await mapper.MapAsync("direct to CEPIN", context, CancellationToken.None);
+        var result = await _mapper.MapAsync("direct to CEPIN", context, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Contains("CEPIN", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("DCT CEPIN", result.CanonicalCommand);
     }
 
     [Fact]
-    public async Task ClearedForTakeoff_ProducesCtoCommand()
+    public async Task ClearedForTakeoff_ProducesExactCTO()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("cleared for takeoff", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("cleared for takeoff", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
-        // Accept either CTO or any variant the model might produce — what matters is that the
-        // validator accepted it AND it references takeoff.
-        Assert.Contains("CTO", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("CTO", result.CanonicalCommand);
     }
 
     [Fact]
-    public async Task ReduceSpeed_ProducesSpeedCommand()
+    public async Task ReduceSpeed_ProducesExactSPD()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("reduce speed to two three zero", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("reduce speed to two three zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Contains("230", result.CanonicalCommand, StringComparison.Ordinal);
+        Assert.Equal("SPD 230", result.CanonicalCommand);
     }
 
     [Fact]
     public async Task NaturalLanguageChitChat_ReturnsNull()
     {
-        if (!ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var mapper = CreateMapper();
-        var result = await mapper.MapAsync("good morning how are you doing today", MapContext.Empty, CancellationToken.None);
+        var result = await _mapper.MapAsync("good morning how are you doing today", MapContext.Empty, CancellationToken.None);
 
         // Either the model returns nothing, or NormalizeOutput rejects the response as non-canonical.
         // Both outcomes mean MapAsync returns null — we don't want this to pass through as a command.
@@ -177,12 +162,15 @@ public sealed class LocalLlmPipelineIntegrationTests
     [Fact]
     public async Task DisabledConfig_ReturnsNullWithoutLoadingModel()
     {
-        if (!ModelAvailable)
+        // This one intentionally does NOT use the shared service — it tests the "disabled" guard
+        // and must construct a fresh LocalLlmService to prove the early-return path works without
+        // ever touching LLamaSharp weights.
+        if (!LlmCudaFixture.ModelAvailable)
         {
             return;
         }
 
-        var config = new TestLlmConfig(ModelPath, gpuLayers: 999, enabled: false);
+        var config = new TestLlmConfig(LlmCudaFixture.ModelPath, gpuLayers: 999, enabled: false);
         var service = new LocalLlmService(config);
         var mapper = new LocalLlmCommandMapper(service);
 

@@ -82,38 +82,51 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
     private static string BuildSystemPrompt()
     {
         // Compact reference: canonical verb → category → sample arg. One line per command.
+        // Derive the prompt body directly from PhraseologyRules.All. Each canonical output gets
+        // one line listing all its natural-language spoken variants, which is exactly the signal
+        // a small instruct model needs to discriminate between similar commands. An earlier
+        // version of this prompt dumped CommandRegistry alphabetically with labels — the model
+        // picked wrong verbs (CM vs DM, FH vs FPH, RD vs SPD) because the label text didn't line
+        // up with the spoken phrasing. Rule-derived is both smaller AND more accurate.
+        //
+        // ⚠️ SMALL-MODEL PROMPT SENSITIVITY: on Qwen2.5-1.5B Q4_K_M with Temperature=0, a single
+        // character change in this prompt flipped "fly heading two seven zero" from "FH 270" to
+        // "FPH" (verified by the opt-in integration suite). Before making cosmetic edits here
+        // (rephrasing, punctuation, reordering), run LocalLlmPipelineIntegrationTests against the
+        // recommended test model and confirm all cases still pass exact-match. Phase 8 can make
+        // this robust to prompt variants by using a larger / better-instructed model.
         var sb = new StringBuilder();
-        sb.AppendLine("You are an air traffic control command parser for the YAAT simulator.");
-        sb.AppendLine("Your job: convert a spoken ATC instruction into YAAT canonical command syntax.");
+        sb.AppendLine("You convert spoken ATC instructions into YAAT canonical commands.");
         sb.AppendLine();
-        sb.AppendLine("Output rules:");
-        sb.AppendLine("- Output ONLY the canonical command string, nothing else (no explanation, no quotes).");
-        sb.AppendLine("- Multiple commands in one utterance are comma-separated: 'CM 5000, FH 270'.");
-        sb.AppendLine("- Condition prefixes use 'AT <FIX>' or 'LV <ALT>' prefixed to the clauses, e.g. 'AT CEPIN CAPP'.");
-        sb.AppendLine("- Altitudes in feet (5000), flight levels converted (FL350 → 35000).");
+        sb.AppendLine("Rules:");
+        sb.AppendLine("- Output ONLY the canonical command. No quotes, no explanation, no prose.");
+        sb.AppendLine("- Multiple commands: comma-separated, e.g. 'CM 5000, FH 270'.");
+        sb.AppendLine("- Condition prefix: 'AT <FIX>' or 'LV <ALT>' before the clause, e.g. 'AT CEPIN CAPP'.");
+        sb.AppendLine("- Altitudes in feet (5000), flight levels converted (FL350 -> 35000).");
         sb.AppendLine("- Headings as 3-digit degrees (270, 090).");
-        sb.AppendLine("- Return an empty response if the transcript is not a recognizable instruction.");
+        sb.AppendLine("- If the transcript is NOT a recognizable instruction, output nothing.");
         sb.AppendLine();
-        sb.AppendLine("Canonical commands (verb — description):");
-        foreach (var def in CommandRegistry.All.Values.OrderBy(d => d.Type.ToString(), StringComparer.Ordinal))
-        {
-            var aliases = def.DefaultAliases.Length > 0 ? def.DefaultAliases[0] : def.Type.ToString();
-            sb.Append(aliases).Append(" — ").Append(def.Label);
-            if (def.ArgMode != ArgMode.None && !string.IsNullOrEmpty(def.SampleArg))
-            {
-                sb.Append(" (arg: ").Append(def.SampleArg).Append(')');
-            }
+        sb.AppendLine("Canonical commands (spoken phrasings -> canonical):");
+        sb.AppendLine();
 
-            sb.AppendLine();
+        // Group rules by canonical output so all synonyms for one command appear on one line.
+        // Keep rule insertion order (Heading, Alt/Speed, Nav, Tower, Approach, Pattern, Hold,
+        // Helicopter, Transponder, Ground, Broadcast) — that's the order PhraseologyRules.Build()
+        // constructs them, and it's a reasonable category grouping for the model to read.
+        var grouped = PhraseologyRules
+            .All.GroupBy(r => r.OutputTemplate, StringComparer.Ordinal)
+            .Select(g =>
+                (
+                    Output: g.Key,
+                    Patterns: g.Select(r => string.Join(' ', r.Pattern.Select(p => p.TrimEnd('?')))).Distinct(StringComparer.Ordinal).ToList()
+                )
+            );
+
+        foreach (var (output, patterns) in grouped)
+        {
+            sb.Append(output).Append(": ").AppendLine(string.Join(" / ", patterns));
         }
 
-        sb.AppendLine();
-        sb.AppendLine("Examples:");
-        sb.AppendLine("Transcript: 'climb and maintain five thousand' → CM 5000");
-        sb.AppendLine("Transcript: 'turn right heading two seven zero' → TR 270");
-        sb.AppendLine("Transcript: 'direct to CEPIN' → DCT CEPIN");
-        sb.AppendLine("Transcript: 'at CEPIN cleared approach' → AT CEPIN CAPP");
-        sb.AppendLine("Transcript: 'squawk seven five zero zero' → SQ 7500");
         return sb.ToString();
     }
 

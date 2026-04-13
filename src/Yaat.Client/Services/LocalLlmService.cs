@@ -115,11 +115,17 @@ public sealed class LocalLlmService : IDisposable
             // Phase 8 can swap to a template-specific format once we pick a recommended model.
             var prompt = $"<|system|>\n{systemPrompt}\n<|user|>\n{userPrompt}\n<|assistant|>\n";
 
+            // Temperature = 0 forces greedy sampling (always pick the highest-probability token).
+            // For a command-mapping task we want determinism: the same transcript must always yield
+            // the same canonical command. Non-zero temperature was causing "fly heading 270" to
+            // occasionally map to FPH (fly present heading — no arg) instead of FH 270 because
+            // the shared "fly" prefix nudges the distribution. Phase 8 can revisit if deterministic
+            // output turns out to be too brittle on harder transcripts.
             var inferenceParams = new InferenceParams
             {
                 MaxTokens = 80,
                 AntiPrompts = ["<|user|>", "<|system|>", "\n\n"],
-                SamplingPipeline = new DefaultSamplingPipeline { Temperature = 0.1f, TopP = 0.9f },
+                SamplingPipeline = new DefaultSamplingPipeline { Temperature = 0.0f },
             };
 
             var sb = new StringBuilder();
@@ -168,7 +174,17 @@ public sealed class LocalLlmService : IDisposable
         try
         {
             Log.LogInformation("Loading LLM model from {Path} (gpuLayers={GpuLayers})", path, gpuLayers);
-            _loadedParams = new ModelParams(path) { ContextSize = 2048, GpuLayerCount = gpuLayers };
+            // ContextSize: 4096 tokens is enough for the ~2000-token system prompt + user prompt
+            // + 80-token output. SeqMax = 1 forces all KV cache slots to a single sequence — the
+            // default of 64 splits the cache evenly, leaving only 64 slots per sequence which isn't
+            // enough for our prompt and causes "decode: failed to find a memory slot" errors. We
+            // use StatelessExecutor single-shot, so parallel sequences are unnecessary.
+            _loadedParams = new ModelParams(path)
+            {
+                ContextSize = 4096,
+                SeqMax = 1,
+                GpuLayerCount = gpuLayers,
+            };
             _weights = LLamaWeights.LoadFromFile(_loadedParams);
             _executor = new StatelessExecutor(_weights, _loadedParams);
             _loadedPath = path;
