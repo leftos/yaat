@@ -124,4 +124,13 @@ jobs:
           json.dump({'embeds': embeds}, open('/tmp/discord_payload.json', 'w', encoding='utf-8'), ensure_ascii=False)
           " "Daily Dev Digest — ${TODAY}" "$TIMESTAMP"
 
-          curl -sS -f -H "Content-Type: application/json" -d @/tmp/discord_payload.json "$DISCORD_WEBHOOK_URL"
+          HTTP_CODE=$(curl -sS -o /tmp/discord_response.txt -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/discord_payload.json "$DISCORD_WEBHOOK_URL")
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "Discord webhook failed with HTTP $HTTP_CODE"
+            echo "Payload size: $(wc -c < /tmp/discord_payload.json) bytes"
+            echo "Response body:"
+            cat /tmp/discord_response.txt
+            exit 1
+          fi
