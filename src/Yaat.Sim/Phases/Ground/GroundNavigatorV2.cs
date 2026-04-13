@@ -156,10 +156,21 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     {
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
 
-        // Tight arrival threshold on the last segment (and when handing off
-        // to an arc primitive in the next segment — TODO once we look ahead)
-        // to avoid the 91 ft arrival window producing sloppy arc entry.
-        double arrivalThresholdNm = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+        // Tight arrival threshold when any of:
+        //   - last segment of the route (always stop precisely),
+        //   - the current target is a stop (_currentNodeRequiredSpeed == 0),
+        //   - the effective edge (segment start to current TargetLat/Lon) is
+        //     shorter than 1.5× the loose threshold.
+        // The last case handles the hold-short override — TaxiingPhase moves
+        // the target from the graph to-node to a virtual HS position closer
+        // to the aircraft, which makes the effective edge short even when
+        // the underlying segment is long. Without this check, the loose
+        // 91 ft arrival threshold can fire 10-80 ft short of a hold-short
+        // stop, leaving the aircraft parked well behind the painted line.
+        double edgeLengthNm = GeoMath.DistanceNm(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+        bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
+        bool isStopTarget = _currentNodeRequiredSpeed == 0;
+        double arrivalThresholdNm = (isLastSegment || shortEdge || isStopTarget) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
 
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;

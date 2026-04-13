@@ -33,9 +33,10 @@ public static class GroundNavigatorFactory
     /// <summary>
     /// The process-wide default used by <see cref="Create"/> when no
     /// <see cref="Override"/> is in effect on the current execution context.
-    /// Defaults to <see cref="GroundNavigatorImpl.V1"/>.
+    /// Defaults to <see cref="GroundNavigatorImpl.V2"/> (the closed-form
+    /// <see cref="PathPrimitive"/> playback) as of the V2 rollout.
     /// </summary>
-    public static GroundNavigatorImpl DefaultImpl { get; set; } = GroundNavigatorImpl.V1;
+    public static GroundNavigatorImpl DefaultImpl { get; set; } = GroundNavigatorImpl.V2;
 
     /// <summary>
     /// Per-execution-context override of <see cref="DefaultImpl"/>. Null when

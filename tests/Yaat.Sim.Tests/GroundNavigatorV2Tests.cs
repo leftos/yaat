@@ -110,14 +110,15 @@ public class GroundNavigatorV2Tests
     [Fact]
     public void Factory_Override_ScopesToExecutionContext()
     {
-        Assert.Equal(GroundNavigatorImpl.V1, GroundNavigatorFactory.CurrentImpl);
-        using (GroundNavigatorFactory.Override(GroundNavigatorImpl.V2))
+        // Default is V2 as of the V2 rollout; Override scopes to V1 within the using block.
+        Assert.Equal(GroundNavigatorImpl.V2, GroundNavigatorFactory.CurrentImpl);
+        using (GroundNavigatorFactory.Override(GroundNavigatorImpl.V1))
         {
-            Assert.Equal(GroundNavigatorImpl.V2, GroundNavigatorFactory.CurrentImpl);
+            Assert.Equal(GroundNavigatorImpl.V1, GroundNavigatorFactory.CurrentImpl);
             var nav = GroundNavigatorFactory.Create();
-            Assert.IsType<GroundNavigatorV2>(nav);
+            Assert.IsType<GroundNavigatorV1>(nav);
         }
-        Assert.Equal(GroundNavigatorImpl.V1, GroundNavigatorFactory.CurrentImpl);
+        Assert.Equal(GroundNavigatorImpl.V2, GroundNavigatorFactory.CurrentImpl);
     }
 
     // ---- Straight segment drive ----

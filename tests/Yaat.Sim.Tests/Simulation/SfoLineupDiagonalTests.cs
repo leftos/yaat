@@ -53,9 +53,12 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         // V1-specific regression test: the diagonal-cut and stuck-heading
         // assertions are V1-shape. V2 uses a completely different maneuver
         // (closed-form pivot arc) and has its own end-state tests in
-        // LineUpPhaseV2Tests. Force V1 here and keep the test as a V1
-        // regression guard until V1 is retired.
-        using var _impl = LineUpPhaseFactory.Override(LineUpPhaseImpl.V1);
+        // LineUpPhaseV2Tests. Force V1 for BOTH the lineup phase AND the
+        // ground navigator — the test observes taxi behavior leading up to
+        // the lineup, and V2 nav leaves the aircraft in a slightly different
+        // pre-lineup state that triggers the stuck-heading detector.
+        using var _lineupImpl = LineUpPhaseFactory.Override(LineUpPhaseImpl.V1);
+        using var _navImpl = Yaat.Sim.Phases.Ground.GroundNavigatorFactory.Override(Yaat.Sim.Phases.Ground.GroundNavigatorImpl.V1);
 
         var recording = LoadRecording();
         var engine = BuildEngine();
