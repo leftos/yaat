@@ -108,6 +108,107 @@ public class DepartureClearanceHandlerTests
         Assert.Contains("runway heading", result.Message!);
     }
 
+    [Fact]
+    public void TryDepartureClearance_FromHoldingShort_CTO_OmitsLuawPhase()
+    {
+        // Rolling takeoff: when CTO is issued at the hold-short, the inserted
+        // tower phase sequence must not contain LinedUpAndWaitingPhase.
+        var ac = MakeAircraft();
+        var holding = MakeHoldingShort();
+        ac.Phases!.Add(holding);
+        ac.Phases.Start(MinCtx(ac));
+
+        var rwy = DefaultRunway();
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.ClearedForTakeoff,
+            new RunwayHeadingDeparture(),
+            null,
+            Logger
+        );
+
+        Assert.True(result.Success);
+        Assert.Contains(ac.Phases!.Phases, p => p is LineUpPhase);
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is InitialClimbPhase);
+    }
+
+    [Fact]
+    public void TryDepartureClearance_FromHoldingShort_LUAW_RetainsLuawPhase()
+    {
+        // Regression guard: the LUAW command must still produce the full
+        // [LineUp, LinedUpAndWaiting, Takeoff, InitialClimb] sequence.
+        var ac = MakeAircraft();
+        var holding = MakeHoldingShort();
+        ac.Phases!.Add(holding);
+        ac.Phases.Start(MinCtx(ac));
+
+        var rwy = DefaultRunway();
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.LineUpAndWait, new DefaultDeparture(), null, Logger);
+
+        Assert.True(result.Success);
+        Assert.Contains(ac.Phases!.Phases, p => p is LineUpPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
+
+        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        Assert.False(luaw.Requirements[0].IsSatisfied);
+    }
+
+    [Fact]
+    public void TryDepartureClearance_FromHoldingShort_CTO_HeavyAircraft_RetainsLuawPhase()
+    {
+        // FAA 7110.65 §3-9-5.3: Super and Heavy aircraft are prohibited
+        // from rolling takeoffs. Heavy aircraft receiving CTO at the
+        // hold-short must still go through LinedUpAndWaitingPhase so the
+        // wake-turbulence separation timer keys off the standing-start
+        // power application. LUAW must be pre-satisfied so the aircraft
+        // doesn't hang waiting for a second clearance.
+        var ac = new AircraftState
+        {
+            Callsign = "HEAVY1",
+            AircraftType = "B744", // isHeavy: true in AircraftProfiles.json
+            Latitude = 37.728,
+            Longitude = -122.218,
+            TrueHeading = new TrueHeading(280),
+            Altitude = 6,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            Departure = "OAK",
+        };
+        ac.Phases = new PhaseList();
+
+        var holding = MakeHoldingShort();
+        ac.Phases.Add(holding);
+        ac.Phases.Start(MinCtx(ac));
+
+        var rwy = DefaultRunway();
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.ClearedForTakeoff,
+            new RunwayHeadingDeparture(),
+            null,
+            Logger
+        );
+
+        Assert.True(result.Success);
+        Assert.Contains(ac.Phases!.Phases, p => p is LineUpPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
+
+        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        Assert.True(luaw.Requirements[0].IsSatisfied);
+    }
+
     // -------------------------------------------------------------------------
     // TryDepartureClearance from Taxiing (pre-store)
     // -------------------------------------------------------------------------
@@ -151,6 +252,63 @@ public class DepartureClearanceHandlerTests
         Assert.NotNull(ac.Phases.DepartureClearance);
         Assert.Equal(ClearanceType.ClearedForTakeoff, ac.Phases.DepartureClearance!.Type);
         Assert.Equal(5000, ac.Phases.DepartureClearance.AssignedAltitude);
+    }
+
+    [Fact]
+    public void ApplyDepartureClearanceIfPending_CTO_OmitsLuawPhase()
+    {
+        // Rolling takeoff (taxi consumption path): when the aircraft has
+        // stored a CTO clearance during taxi and the taxi phase consumes it
+        // at the hold-short, the inserted tower phase sequence must not
+        // contain LinedUpAndWaitingPhase.
+        var ac = MakeAircraft();
+        ac.Phases!.AssignedRunway = DefaultRunway();
+        var taxiPhase = new TaxiingPhase();
+        ac.Phases.Add(taxiPhase);
+        ac.Phases.Start(MinCtx(ac));
+
+        ac.Phases.DepartureClearance = new DepartureClearanceInfo
+        {
+            Type = ClearanceType.ClearedForTakeoff,
+            Departure = new RunwayHeadingDeparture(),
+            AssignedAltitude = 5000,
+        };
+
+        TaxiingPhase.ApplyDepartureClearanceIfPending(MinCtx(ac));
+
+        Assert.Null(ac.Phases.DepartureClearance);
+        Assert.Contains(ac.Phases.Phases, p => p is LineUpPhase);
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is InitialClimbPhase);
+    }
+
+    [Fact]
+    public void ApplyDepartureClearanceIfPending_LUAW_RetainsLuawPhase()
+    {
+        // Regression guard for the taxi consumption path.
+        var ac = MakeAircraft();
+        ac.Phases!.AssignedRunway = DefaultRunway();
+        var taxiPhase = new TaxiingPhase();
+        ac.Phases.Add(taxiPhase);
+        ac.Phases.Start(MinCtx(ac));
+
+        ac.Phases.DepartureClearance = new DepartureClearanceInfo
+        {
+            Type = ClearanceType.LineUpAndWait,
+            Departure = new DefaultDeparture(),
+            AssignedAltitude = null,
+        };
+
+        TaxiingPhase.ApplyDepartureClearanceIfPending(MinCtx(ac));
+
+        Assert.Null(ac.Phases.DepartureClearance);
+        Assert.Contains(ac.Phases.Phases, p => p is LineUpPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
+
+        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        Assert.False(luaw.Requirements[0].IsSatisfied);
     }
 
     [Fact]
@@ -253,15 +411,14 @@ public class DepartureClearanceHandlerTests
         Assert.Contains("runway heading", result.Message!);
         Assert.Contains("climb and maintain 5,000", result.Message!);
 
-        // Verify tower phases were installed
+        // Verify tower phases were installed. Rolling takeoff: LUAW phase is
+        // omitted because CTO was in hand at lineup time — the aircraft rolls
+        // through the pivot onto the runway and into the takeoff roll without
+        // a holding stop.
         Assert.Contains(ac.Phases!.Phases, p => p is LineUpPhase);
-        Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
         Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
         Assert.Contains(ac.Phases.Phases, p => p is InitialClimbPhase);
-
-        // LUAW should be pre-satisfied (CTO)
-        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
-        Assert.True(luaw.Requirements[0].IsSatisfied);
     }
 
     [Fact]

@@ -98,6 +98,8 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         double finalHdgDiffDeg = double.NaN;
         double finalGsKts = double.NaN;
         string finalPhase = "(none)";
+        bool wasRolling = false;
+        double arcSpeedKts = 0;
 
         // 60 seconds budget at 0.25-s sub-ticks (240 iterations). Poll at
         // sub-tick granularity so we catch the exact tick LineUpPhase exits
@@ -120,6 +122,16 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
                 output.WriteLine($"[sub={sub}] entered LineUpPhase");
             }
 
+            // Snapshot rolling mode + arc speed while the phase is live.
+            if (enteredLineUp && phase is LineUpPhase livePhase)
+            {
+                wasRolling = wasRolling || livePhase.RollingMode;
+                if (livePhase.Plan is { } plan && arcSpeedKts == 0)
+                {
+                    arcSpeedKts = plan.ArcSpeedKts;
+                }
+            }
+
             if (enteredLineUp && phase is not LineUpPhase)
             {
                 exitedLineUp = true;
@@ -133,7 +145,8 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
 
                 output.WriteLine(
                     $"[sub={sub}] exited LineUpPhase -> {finalPhase} | "
-                        + $"cross={finalCrossFt:F2}ft hdgDiff={finalHdgDiffDeg:F2}° gs={finalGsKts:F2}kt"
+                        + $"cross={finalCrossFt:F2}ft hdgDiff={finalHdgDiffDeg:F2}° gs={finalGsKts:F2}kt "
+                        + $"rolling={wasRolling} arcSpeed={arcSpeedKts:F2}kt"
                 );
                 break;
             }
@@ -155,7 +168,14 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
             finalHdgDiffDeg < 2.0,
             $"heading-diff {finalHdgDiffDeg:F2}° exceeds 2° tolerance at LineUpPhase exit (t={exitTick}, phase={finalPhase})"
         );
-        Assert.True(finalGsKts < 1.0, $"gs {finalGsKts:F2}kt exceeds 1 kt tolerance at LineUpPhase exit (t={exitTick}, phase={finalPhase})");
+
+        // Ground speed bound is mode-dependent. LUAW mode brakes to 0;
+        // rolling mode hands off at ~arc speed.
+        double gsBoundKts = wasRolling ? arcSpeedKts + 1.0 : 1.0;
+        Assert.True(
+            finalGsKts < gsBoundKts,
+            $"gs {finalGsKts:F2}kt exceeds {gsBoundKts:F2} kt bound at LineUpPhase exit (t={exitTick}, phase={finalPhase}, rolling={wasRolling})"
+        );
     }
 
     /// <summary>

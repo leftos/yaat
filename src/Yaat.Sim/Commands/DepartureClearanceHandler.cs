@@ -272,10 +272,21 @@ internal static class DepartureClearanceHandler
         var routeResult = ResolveDepartureRoute(departure, aircraft);
 
         var lineup = new LineUpPhase();
-        var luawPhase = new LinedUpAndWaitingPhase();
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool isHeli = cat == AircraftCategory.Helicopter;
         Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();
+
+        // Rolling takeoff: if CTO is already in hand at insertion time, omit
+        // LinedUpAndWaitingPhase. LineUpPhase detects this from the phase
+        // list shape (next phase is TakeoffPhase, not LUAW) and skips its
+        // brake-to-stop so the aircraft rolls straight into the takeoff roll.
+        //
+        // Super and Heavy aircraft are prohibited from rolling takeoffs per
+        // 7110.65 §3-9-5.3 (wake-turbulence separation timers key off the
+        // standing-start takeoff power application). Fall back to the
+        // traditional stop-then-go sequence with a pre-satisfied LUAW.
+        bool rolling = clearanceType == ClearanceType.ClearedForTakeoff && LineUpPhase.IsAircraftEligibleForRollingTakeoff(aircraft.AircraftType);
+
         // For closed traffic, skip InitialClimbPhase — UpwindPhase handles the
         // climb to pattern altitude. The crosswind turn is position-based (departure end),
         // not altitude-based.
@@ -283,7 +294,7 @@ internal static class DepartureClearanceHandler
         Phase[] towerPhases;
         if (isClosedTraffic)
         {
-            towerPhases = [lineup, luawPhase, takeoffPhase];
+            towerPhases = rolling ? [lineup, takeoffPhase] : [lineup, new LinedUpAndWaitingPhase(), takeoffPhase];
         }
         else
         {
@@ -297,7 +308,7 @@ internal static class DepartureClearanceHandler
                 IsVfr = aircraft.IsVfr,
                 CruiseAltitude = aircraft.CruiseAltitude,
             };
-            towerPhases = [lineup, luawPhase, takeoffPhase, climb];
+            towerPhases = rolling ? [lineup, takeoffPhase, climb] : [lineup, new LinedUpAndWaitingPhase(), takeoffPhase, climb];
         }
 
         // Replace (not insert) — remaining taxi phases (CrossingRunwayPhase, etc.)
@@ -306,9 +317,21 @@ internal static class DepartureClearanceHandler
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
-            luawPhase.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-            luawPhase.Departure = departure;
-            luawPhase.AssignedAltitude = assignedAltitude;
+            // Rolling mode omits LUAW entirely. For the non-rolling CTO
+            // path (heavy/super aircraft per 7110.65 §3-9-5.3), LUAW is
+            // still in the list but must be pre-satisfied so the aircraft
+            // doesn't hang waiting for a clearance that was already given.
+            if (!rolling)
+            {
+                var luawPhase = towerPhases.OfType<LinedUpAndWaitingPhase>().FirstOrDefault();
+                if (luawPhase is not null)
+                {
+                    luawPhase.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+                    luawPhase.Departure = departure;
+                    luawPhase.AssignedAltitude = assignedAltitude;
+                }
+            }
+
             if (takeoffPhase is TakeoffPhase fw)
             {
                 fw.SetAssignedDeparture(departure);
@@ -325,9 +348,10 @@ internal static class DepartureClearanceHandler
         }
 
         logger.LogDebug(
-            "[Departure] {Callsign}: tower phases inserted ({Clearance}), runway {Rwy}",
+            "[Departure] {Callsign}: tower phases inserted ({Clearance}, rolling={Rolling}), runway {Rwy}",
             aircraft.Callsign,
             clearanceType,
+            rolling,
             runway.Designator
         );
     }
@@ -399,6 +423,23 @@ internal static class DepartureClearanceHandler
         if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
         {
             ApplyClosedTraffic(ct, aircraft, phases, rwy, removeInitialClimb: true);
+        }
+
+        // Rolling-takeoff upgrade: if an active LineUpPhase exists and the
+        // aircraft is still above the upgrade speed threshold, flip it into
+        // rolling mode so the aircraft doesn't bother finishing the brake
+        // curve. The LUAW pre-satisfy above stays as the fallback — if the
+        // upgrade is rejected (state == Setup/Stop/Faulted, IAS too low, or
+        // Super/Heavy) the original stop-then-go path runs via the
+        // pre-satisfied LUAW.
+        foreach (var p in phases.Phases)
+        {
+            if (p is LineUpPhase active && p.Status == PhaseStatus.Active)
+            {
+                var upgradeCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+                active.TryUpgradeToRolling(upgradeCtx);
+                break;
+            }
         }
 
         logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);

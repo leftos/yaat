@@ -80,6 +80,8 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
 
         bool enteredLineUp = false;
         bool exitedLineUp = false;
+        bool wasRolling = false;
+        double arcSpeedKts = 0;
         int enterSubTick = -1;
         int exitSubTick = -1;
         double finalCrossFt = double.NaN;
@@ -103,6 +105,16 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
                 output.WriteLine($"[sub={sub}] {callsign} entered LineUpPhase");
             }
 
+            // Snapshot rolling mode + arc speed while the phase is live.
+            if (enteredLineUp && phase is LineUpPhase livePhase)
+            {
+                wasRolling = wasRolling || livePhase.RollingMode;
+                if (livePhase.Plan is { } plan && arcSpeedKts == 0)
+                {
+                    arcSpeedKts = plan.ArcSpeedKts;
+                }
+            }
+
             if (enteredLineUp && phase is not LineUpPhase)
             {
                 exitedLineUp = true;
@@ -116,7 +128,8 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
 
                 output.WriteLine(
                     $"[sub={sub}] {callsign} exited LineUpPhase -> {finalPhase} | "
-                        + $"cross={finalCrossFt:F2}ft hdgDiff={finalHdgDiffDeg:F2}° gs={finalGsKts:F2}kt"
+                        + $"cross={finalCrossFt:F2}ft hdgDiff={finalHdgDiffDeg:F2}° gs={finalGsKts:F2}kt "
+                        + $"rolling={wasRolling} arcSpeed={arcSpeedKts:F2}kt"
                 );
                 break;
             }
@@ -136,9 +149,14 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
             finalHdgDiffDeg < 2.0,
             $"{callsign} heading-diff {finalHdgDiffDeg:F2}° exceeds 2° tolerance at LineUpPhase exit (sub={exitSubTick}, phase={finalPhase})"
         );
+
+        // Ground speed bound is mode-dependent. LUAW mode brakes to 0;
+        // rolling mode hands off at ~arc speed.
+        double gsBoundKts = wasRolling ? arcSpeedKts + 1.0 : 1.0;
         Assert.True(
-            finalGsKts < 1.0,
-            $"{callsign} gs {finalGsKts:F2}kt exceeds 1 kt tolerance at LineUpPhase exit (sub={exitSubTick}, phase={finalPhase})"
+            finalGsKts < gsBoundKts,
+            $"{callsign} gs {finalGsKts:F2}kt exceeds {gsBoundKts:F2} kt bound at LineUpPhase exit "
+                + $"(sub={exitSubTick}, phase={finalPhase}, rolling={wasRolling})"
         );
     }
 

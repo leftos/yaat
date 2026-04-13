@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -14,6 +16,7 @@ namespace Yaat.Sim.Tests;
 /// full scenarios with <see cref="FlightPhysics"/>, asserting the Design D
 /// end-state contract at completion.
 /// </summary>
+[Collection("NavDbMutator")]
 public class LineUpPhaseTests
 {
     private readonly ITestOutputHelper _out;
@@ -322,5 +325,362 @@ public class LineUpPhaseTests
         Assert.NotNull(phase.Plan);
         Assert.False(phase.Plan.IsAlreadyAligned);
         Assert.True(phase.Plan.ArcSpeedKts > 0);
+    }
+
+    // ---- Rolling mode: static detection from phase list ----
+
+    private static void InstallPhaseListWithNext(AircraftState aircraft, LineUpPhase phase, Phase next)
+    {
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(next);
+    }
+
+    [Fact]
+    public void OnStart_NextPhaseIsLuaw_RollingModeIsFalse()
+    {
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
+        phase.OnStart(ctx);
+
+        Assert.False(phase.RollingMode);
+    }
+
+    [Fact]
+    public void OnStart_NextPhaseIsTakeoff_RollingModeIsTrue()
+    {
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
+        phase.OnStart(ctx);
+
+        Assert.True(phase.RollingMode);
+    }
+
+    [Fact]
+    public void OnStart_NextPhaseIsHelicopterTakeoff_RollingModeIsTrue()
+    {
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new HelicopterTakeoffPhase());
+        phase.OnStart(ctx);
+
+        Assert.True(phase.RollingMode);
+    }
+
+    [Fact]
+    public void OnStart_NoPhaseList_RollingModeIsFalse()
+    {
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (_, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        phase.OnStart(ctx);
+
+        Assert.False(phase.RollingMode);
+    }
+
+    // ---- Rolling mode: behavior ----
+
+    [Fact]
+    public void RollingMode_DoesNotBrakeToZero_CompletesAboveThreshold()
+    {
+        double rwyHdg = 90.0;
+        double acHdg = 0.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        double acLon = -121.995;
+
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
+
+        phase.OnStart(ctx);
+        Assert.True(phase.RollingMode);
+
+        bool sawStopState = false;
+        bool completed = false;
+
+        for (int i = 0; i < 400; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            bool done = phase.OnTick(ctx);
+
+            if (phase.CurrentState == LineUpPhase.State.Stop)
+            {
+                sawStopState = true;
+            }
+
+            if (done)
+            {
+                completed = true;
+                break;
+            }
+        }
+
+        Assert.True(completed, "Rolling LineUpPhase did not complete");
+        Assert.False(sawStopState, "Rolling mode must not enter State.Stop");
+        Assert.True(aircraft.IndicatedAirspeed > 3.0, $"Final IAS {aircraft.IndicatedAirspeed:F2}kt should exceed rolling-upgrade threshold");
+    }
+
+    [Fact]
+    public void RollingMode_EndsAtRolloutStopPoint()
+    {
+        double rwyHdg = 90.0;
+        double acHdg = 0.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        double acLon = -121.995;
+
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
+        phase.OnStart(ctx);
+
+        for (int i = 0; i < 400; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            if (phase.OnTick(ctx))
+            {
+                break;
+            }
+        }
+
+        Assert.NotNull(phase.Plan);
+        double distFromStopFt =
+            GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, phase.Plan.RolloutToLat, phase.Plan.RolloutToLon) * GeoMath.FeetPerNm;
+        Assert.True(distFromStopFt < 5.0, $"Final position {distFromStopFt:F2}ft from rollout stop point");
+    }
+
+    [Fact]
+    public void StopMode_BrakesToZero_RegressionGuard()
+    {
+        double rwyHdg = 90.0;
+        double acHdg = 0.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        double acLon = -121.995;
+
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
+
+        phase.OnStart(ctx);
+        Assert.False(phase.RollingMode);
+
+        var result = RunToCompletion(phase, aircraft, ctx);
+        Assert.True(result.Completed);
+        Assert.True(result.GsKts < 0.5, $"LUAW mode should still brake to 0, got {result.GsKts:F2}kt");
+        Assert.Equal(LineUpPhase.State.Stop, phase.CurrentState);
+    }
+
+    // ---- Dynamic upgrade ----
+
+    [Fact]
+    public void TryUpgradeToRolling_BeforeOnStart_ReturnsFalse()
+    {
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (_, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        Assert.False(phase.TryUpgradeToRolling(ctx));
+        Assert.False(phase.RollingMode);
+    }
+
+    [Fact]
+    public void TryUpgradeToRolling_InArc_Succeeds()
+    {
+        double rwyHdg = 90.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
+        phase.OnStart(ctx);
+        Assert.False(phase.RollingMode);
+
+        for (int i = 0; i < 200 && phase.CurrentState != LineUpPhase.State.Arc; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            phase.OnTick(ctx);
+        }
+        Assert.Equal(LineUpPhase.State.Arc, phase.CurrentState);
+
+        bool upgraded = phase.TryUpgradeToRolling(ctx);
+        Assert.True(upgraded);
+        Assert.True(phase.RollingMode);
+
+        bool completed = false;
+        bool sawStop = false;
+        for (int i = 0; i < 400; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            if (phase.CurrentState == LineUpPhase.State.Stop)
+            {
+                sawStop = true;
+            }
+            if (phase.OnTick(ctx))
+            {
+                completed = true;
+                break;
+            }
+        }
+        Assert.True(completed);
+        Assert.False(sawStop, "Upgraded phase should not enter Stop state");
+        Assert.True(aircraft.IndicatedAirspeed > 3.0);
+    }
+
+    [Fact]
+    public void TryUpgradeToRolling_InStop_Rejected()
+    {
+        double rwyHdg = 90.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
+        phase.OnStart(ctx);
+
+        for (int i = 0; i < 400 && phase.CurrentState != LineUpPhase.State.Stop; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            phase.OnTick(ctx);
+        }
+        Assert.Equal(LineUpPhase.State.Stop, phase.CurrentState);
+
+        bool upgraded = phase.TryUpgradeToRolling(ctx);
+        Assert.False(upgraded);
+        Assert.False(phase.RollingMode);
+    }
+
+    [Fact]
+    public void TryUpgradeToRolling_BelowSpeedThreshold_Rejected()
+    {
+        double rwyHdg = 90.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
+        phase.OnStart(ctx);
+
+        bool reachedRejectionWindow = false;
+        for (int i = 0; i < 400; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            phase.OnTick(ctx);
+
+            bool slowInRollout =
+                phase.CurrentState == LineUpPhase.State.Rollout && aircraft.IndicatedAirspeed < 5.0 && aircraft.IndicatedAirspeed > 0.1;
+            bool inStop = phase.CurrentState == LineUpPhase.State.Stop;
+            if (slowInRollout || inStop)
+            {
+                reachedRejectionWindow = true;
+                break;
+            }
+        }
+        Assert.True(reachedRejectionWindow, "Never reached a state in which TryUpgradeToRolling should reject");
+
+        bool upgraded = phase.TryUpgradeToRolling(ctx);
+        Assert.False(upgraded);
+        Assert.False(phase.RollingMode);
+    }
+
+    [Fact]
+    public void IsAircraftEligibleForRollingTakeoff_B738_True()
+    {
+        Assert.True(LineUpPhase.IsAircraftEligibleForRollingTakeoff("B738"));
+    }
+
+    [Fact]
+    public void IsAircraftEligibleForRollingTakeoff_B744Heavy_False()
+    {
+        // FAA 7110.65 §3-9-5.3: Heavy aircraft prohibited from rolling takeoffs.
+        Assert.False(LineUpPhase.IsAircraftEligibleForRollingTakeoff("B744"));
+    }
+
+    [Fact]
+    public void TryUpgradeToRolling_HeavyAircraft_Rejected()
+    {
+        double rwyHdg = 90.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+        aircraft.AircraftType = "B744";
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
+        phase.OnStart(ctx);
+
+        for (int i = 0; i < 200 && phase.CurrentState != LineUpPhase.State.Arc; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            phase.OnTick(ctx);
+        }
+        Assert.Equal(LineUpPhase.State.Arc, phase.CurrentState);
+        Assert.True(aircraft.IndicatedAirspeed > 5.0);
+
+        bool upgraded = phase.TryUpgradeToRolling(ctx);
+        Assert.False(upgraded);
+        Assert.False(phase.RollingMode);
+    }
+
+    [Fact]
+    public void SatisfyUpcomingTakeoffClearance_ActiveLineUp_FlipsRollingMode()
+    {
+        // End-to-end: drive a LineUpPhase into Arc state with a real
+        // fixture, then call the handler's SatisfyUpcomingTakeoffClearance
+        // directly. The active LineUpPhase should flip to rolling mode.
+        double rwyHdg = 90.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+
+        using var navScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(ctx.Runway!));
+
+        var phase = new LineUpPhase();
+        var luaw = new LinedUpAndWaitingPhase();
+        var takeoff = new TakeoffPhase();
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(luaw);
+        aircraft.Phases.Add(takeoff);
+        aircraft.Phases.AssignedRunway = ctx.Runway;
+        aircraft.Phases.Start(ctx);
+
+        Assert.False(phase.RollingMode);
+
+        for (int i = 0; i < 200 && phase.CurrentState != LineUpPhase.State.Arc; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            phase.OnTick(ctx);
+        }
+        Assert.Equal(LineUpPhase.State.Arc, phase.CurrentState);
+        Assert.True(aircraft.IndicatedAirspeed > 5.0);
+
+        var result = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(aircraft, new RunwayHeadingDeparture(), null, NullLogger.Instance);
+
+        Assert.True(result.Success);
+        Assert.True(phase.RollingMode, "Active LineUpPhase should flip to rolling mode");
+        Assert.True(luaw.Requirements[0].IsSatisfied, "LUAW pre-satisfy fallback must still run");
+    }
+
+    [Fact]
+    public void TryUpgradeToRolling_AlreadyRolling_Idempotent()
+    {
+        double rwyHdg = 90.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+
+        var phase = new LineUpPhase();
+        InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
+        phase.OnStart(ctx);
+        Assert.True(phase.RollingMode);
+
+        bool upgraded = phase.TryUpgradeToRolling(ctx);
+        Assert.True(upgraded);
+        Assert.True(phase.RollingMode);
     }
 }

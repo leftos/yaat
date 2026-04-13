@@ -405,7 +405,7 @@ public sealed class TaxiingPhase : Phase
         }
     }
 
-    private static void ApplyDepartureClearanceIfPending(PhaseContext ctx)
+    internal static void ApplyDepartureClearanceIfPending(PhaseContext ctx)
     {
         var phases = ctx.Aircraft.Phases;
         var dep = phases?.DepartureClearance;
@@ -415,13 +415,31 @@ public sealed class TaxiingPhase : Phase
         }
 
         var lineup = new LineUpPhase();
-        var luaw = new LinedUpAndWaitingPhase();
         bool isHeli = ctx.Category == AircraftCategory.Helicopter;
         Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();
+
+        // Rolling takeoff: if CTO is already in hand when the taxi phase
+        // consumes the stored clearance, omit LinedUpAndWaitingPhase. See
+        // DepartureClearanceHandler.InsertTowerPhasesAfterCurrent for the
+        // holding-short insertion site that mirrors this branch.
+        //
+        // Super and Heavy aircraft are prohibited from rolling takeoffs per
+        // 7110.65 §3-9-5.3. Fall back to the traditional stop-then-go
+        // sequence with a pre-satisfied LUAW for those categories.
+        bool rolling = dep.Type == ClearanceType.ClearedForTakeoff && LineUpPhase.IsAircraftEligibleForRollingTakeoff(ctx.Aircraft.AircraftType);
         bool isClosedTraffic = dep.Departure is ClosedTrafficDeparture;
+        LinedUpAndWaitingPhase? luawPhase = rolling ? null : new LinedUpAndWaitingPhase();
+
         if (isClosedTraffic)
         {
-            phases.InsertAfterCurrent([lineup, luaw, takeoffPhase]);
+            if (rolling)
+            {
+                phases.InsertAfterCurrent([lineup, takeoffPhase]);
+            }
+            else
+            {
+                phases.InsertAfterCurrent([lineup, luawPhase!, takeoffPhase]);
+            }
         }
         else
         {
@@ -435,14 +453,28 @@ public sealed class TaxiingPhase : Phase
                 IsVfr = ctx.Aircraft.IsVfr,
                 CruiseAltitude = ctx.Aircraft.CruiseAltitude,
             };
-            phases.InsertAfterCurrent([lineup, luaw, takeoffPhase, climb]);
+            if (rolling)
+            {
+                phases.InsertAfterCurrent([lineup, takeoffPhase, climb]);
+            }
+            else
+            {
+                phases.InsertAfterCurrent([lineup, luawPhase!, takeoffPhase, climb]);
+            }
         }
 
         if (dep.Type == ClearanceType.ClearedForTakeoff)
         {
-            luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-            luaw.Departure = dep.Departure;
-            luaw.AssignedAltitude = dep.AssignedAltitude;
+            // For the non-rolling CTO path, LUAW must be pre-satisfied so
+            // the aircraft doesn't hang waiting for an already-given
+            // clearance. Rolling mode skips LUAW entirely.
+            if (luawPhase is not null)
+            {
+                luawPhase.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+                luawPhase.Departure = dep.Departure;
+                luawPhase.AssignedAltitude = dep.AssignedAltitude;
+            }
+
             if (takeoffPhase is TakeoffPhase fwT)
             {
                 fwT.SetAssignedDeparture(dep.Departure);
@@ -459,6 +491,11 @@ public sealed class TaxiingPhase : Phase
         }
 
         phases.DepartureClearance = null;
-        Log.LogDebug("[Taxi] {Callsign}: departure clearance {Type} applied at route end", ctx.Aircraft.Callsign, dep.Type);
+        Log.LogDebug(
+            "[Taxi] {Callsign}: departure clearance {Type} applied at route end (rolling={Rolling})",
+            ctx.Aircraft.Callsign,
+            dep.Type,
+            rolling
+        );
     }
 }

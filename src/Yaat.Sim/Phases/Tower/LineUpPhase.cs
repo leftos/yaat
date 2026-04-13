@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -71,11 +72,44 @@ public sealed class LineUpPhase : Phase
     /// <summary>Ground-speed threshold (kts) at which Stop returns true (phase complete).</summary>
     private const double StopSpeedFloorKts = 0.5;
 
+    /// <summary>
+    /// Minimum indicated airspeed (kts) at which a mid-phase upgrade to rolling
+    /// mode is accepted via <see cref="TryUpgradeToRolling"/>. Below this speed
+    /// a real pilot is ~2 seconds from a full stop at normal taxi decel and
+    /// has already committed to the stop; forcing a re-acceleration would
+    /// feel jerky and unrealistic. Let the stop complete naturally instead.
+    /// </summary>
+    private const double RollingUpgradeMinSpeedKts = 5.0;
+
+    /// <summary>
+    /// Fraction of the rollout length past which a mid-phase upgrade is
+    /// rejected even if the aircraft is above the speed threshold. Beyond
+    /// this point the aircraft is only a handful of feet from the stop
+    /// point and stopping is visually cleaner than re-accelerating across
+    /// the residual rollout.
+    /// </summary>
+    private const double RollingUpgradeMaxRolloutFraction = 0.7;
+
     /// <summary>Current state machine position. Public-get for observability.</summary>
     public State CurrentState { get; private set; } = State.Setup;
 
     /// <summary>The plan that was built at <see cref="OnStart"/>. Null in <see cref="State.Faulted"/>.</summary>
     public LineUpPlan? Plan { get; private set; }
+
+    /// <summary>
+    /// Rolling takeoff mode. When true, <see cref="TickRollout"/> skips the
+    /// kinematic brake curve and completes the phase at the stop point
+    /// without entering <see cref="State.Stop"/>. The aircraft hands off to
+    /// <see cref="TakeoffPhase"/> at roughly <see cref="LineUpPlan.ArcSpeedKts"/>,
+    /// which TakeoffPhase then accelerates to Vr.
+    ///
+    /// Derived at <see cref="OnStart"/> from the phase list (next pending phase
+    /// is a TakeoffPhase or HelicopterTakeoffPhase ⇒ rolling; LUAW present ⇒
+    /// stop-then-go), or flipped mid-phase via <see cref="TryUpgradeToRolling"/>
+    /// when CTO arrives while the aircraft is still above
+    /// <see cref="RollingUpgradeMinSpeedKts"/>.
+    /// </summary>
+    public bool RollingMode { get; private set; }
 
     /// <summary>
     /// Working copy of the arc playback state. Initialised from
@@ -94,6 +128,13 @@ public sealed class LineUpPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
+
+        // Derive rolling-takeoff mode from the phase list shape. If the next
+        // pending phase after this one is a TakeoffPhase (i.e. LUAW was
+        // omitted because CTO was in hand at insertion time), engage rolling
+        // mode so TickRollout skips the kinematic brake curve. This check
+        // runs once at phase start; snapshot round-trips re-derive it here.
+        RollingMode = DetectRollingModeFromPhaseList(ctx);
 
         if (ctx.Runway is null)
         {
@@ -231,7 +272,35 @@ public sealed class LineUpPhase : Phase
         double distToStopNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.RolloutToLat, plan.RolloutToLon);
         double distToStopFt = distToStopNm * GeoMath.FeetPerNm;
 
-        // Kinematic brake curve to v=0 at stop point.
+        if (RollingMode)
+        {
+            // Rolling takeoff: do NOT brake. Hold arc cruise speed through
+            // the rollout straight and hand off to TakeoffPhase at the stop
+            // point. TakeoffPhase.TickGroundRoll picks up from the current
+            // indicated airspeed and accelerates to Vr.
+            ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, plan.ArcSpeedKts);
+
+            // Completion check: use distance-from-start (along the rollout
+            // axis) rather than distance-to-stop. The aircraft rolls through
+            // the stop point at full speed so distance-to-stop starts
+            // increasing again past it — the simple "< RolloutArrivalFt"
+            // LUAW check would never fire.
+            double distFromStartFt =
+                GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.RolloutFromLat, plan.RolloutFromLon) * GeoMath.FeetPerNm;
+            if (distFromStartFt >= plan.RolloutLengthFt - RolloutArrivalFt)
+            {
+                Log.LogDebug(
+                    "[LineUpV2] {Callsign}: Rollout complete (rolling, distFromStart={D:F2}ft, gs={Gs:F2}kt)",
+                    ctx.Aircraft.Callsign,
+                    distFromStartFt,
+                    ctx.Aircraft.IndicatedAirspeed
+                );
+                return true;
+            }
+            return false;
+        }
+
+        // LUAW: kinematic brake curve to v=0 at stop point.
         //   v² = 2·a·d
         //   v (kts) = sqrt(2·a·d)  where a is kt/s, d is the "kinematic distance"
         // In the rest of the codebase this is expressed as
@@ -304,6 +373,116 @@ public sealed class LineUpPhase : Phase
     private static double ClampBySpeedLimit(PhaseContext ctx, double requested) =>
         ctx.Aircraft.GroundSpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
 
+    /// <summary>
+    /// Walk the aircraft's phase list to find this phase and return true iff
+    /// the next phase after it is a <see cref="TakeoffPhase"/> or
+    /// <see cref="HelicopterTakeoffPhase"/>. Used as the implicit signal that
+    /// CTO was already in hand when the tower sequence was inserted (so
+    /// <see cref="LinedUpAndWaitingPhase"/> was omitted) and the aircraft
+    /// should roll through instead of stopping.
+    /// </summary>
+    private bool DetectRollingModeFromPhaseList(PhaseContext ctx)
+    {
+        var phases = ctx.Aircraft.Phases?.Phases;
+        if (phases is null)
+        {
+            return false;
+        }
+        int selfIdx = phases.IndexOf(this);
+        if (selfIdx < 0 || selfIdx + 1 >= phases.Count)
+        {
+            return false;
+        }
+        var next = phases[selfIdx + 1];
+        return next is TakeoffPhase or HelicopterTakeoffPhase;
+    }
+
+    /// <summary>
+    /// Return true iff the given aircraft type is eligible for a rolling
+    /// takeoff per FAA 7110.65 §3-9-5.3. Super and Heavy aircraft are
+    /// prohibited from rolling takeoffs (except during volcanic-ash ops,
+    /// which YAAT does not model) because the controller wake-turbulence
+    /// separation timers key off the moment full takeoff power is applied
+    /// from a standing start. A rolling takeoff blurs that timing.
+    ///
+    /// YAAT's <see cref="AircraftProfile.IsHeavy"/> flag covers both the
+    /// Heavy and Super weight classes (the profiles database does not
+    /// currently distinguish the two). Aircraft without a profile entry
+    /// fall through to "eligible" — matches the general-aviation default.
+    /// </summary>
+    public static bool IsAircraftEligibleForRollingTakeoff(string aircraftType)
+    {
+        var profile = AircraftProfileDatabase.Get(aircraftType);
+        return profile is null || !profile.IsHeavy;
+    }
+
+    /// <summary>
+    /// Attempt to upgrade this in-progress lineup from LUAW (brake-to-stop)
+    /// mode to rolling mode. Called from
+    /// <see cref="Commands.DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance"/>
+    /// when CTO arrives while <see cref="LineUpPhase"/> is already active.
+    /// Returns true if the upgrade took effect (or was already active).
+    /// Rejected when:
+    ///   - the phase has not yet been started (<see cref="State.Setup"/>)
+    ///   - the phase is already in <see cref="State.Stop"/> or
+    ///     <see cref="State.Faulted"/>
+    ///   - the aircraft's indicated airspeed is below
+    ///     <see cref="RollingUpgradeMinSpeedKts"/>
+    ///   - the aircraft is in <see cref="State.Rollout"/> and has already
+    ///     covered more than <see cref="RollingUpgradeMaxRolloutFraction"/>
+    ///     of the rollout length
+    ///   - the aircraft type is not eligible for rolling takeoff per
+    ///     7110.65 §3-9-5.3 (Super/Heavy aircraft prohibited)
+    /// </summary>
+    public bool TryUpgradeToRolling(PhaseContext ctx)
+    {
+        if (RollingMode)
+        {
+            return true;
+        }
+        if (CurrentState is State.Setup or State.Stop or State.Faulted)
+        {
+            return false;
+        }
+        if (ctx.Aircraft.IndicatedAirspeed < RollingUpgradeMinSpeedKts)
+        {
+            return false;
+        }
+        if (!IsAircraftEligibleForRollingTakeoff(ctx.Aircraft.AircraftType))
+        {
+            Log.LogDebug(
+                "[LineUpV2] {Callsign}: rolling upgrade rejected — aircraft type {Type} is Super/Heavy (7110.65 §3-9-5.3)",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.AircraftType
+            );
+            return false;
+        }
+        if (CurrentState == State.Rollout && Plan is { } plan)
+        {
+            double distFromStartFt =
+                GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.RolloutFromLat, plan.RolloutFromLon) * GeoMath.FeetPerNm;
+            if (distFromStartFt > RollingUpgradeMaxRolloutFraction * plan.RolloutLengthFt)
+            {
+                Log.LogDebug(
+                    "[LineUpV2] {Callsign}: rolling upgrade rejected — past rollout fraction cap ({D:F1}ft / {L:F1}ft)",
+                    ctx.Aircraft.Callsign,
+                    distFromStartFt,
+                    plan.RolloutLengthFt
+                );
+                return false;
+            }
+        }
+
+        RollingMode = true;
+        Log.LogDebug(
+            "[LineUpV2] {Callsign}: upgraded to rolling mode mid-phase (state={State}, ias={Ias:F1}kt)",
+            ctx.Aircraft.Callsign,
+            CurrentState,
+            ctx.Aircraft.IndicatedAirspeed
+        );
+        return true;
+    }
+
     // ---- Snapshot ----
     // Non-round-tripping: ToSnapshot writes minimal state; FromSnapshot
     // returns an instance that re-runs OnStart on its next activation. For a
@@ -323,6 +502,7 @@ public sealed class LineUpPhase : Phase
             PerpHeadingDeg = 0,
             PerpAligned = false,
             OnCenterline = false,
+            RollingMode = RollingMode,
         };
 
     public static LineUpPhase FromSnapshot(LineUpPhaseDto dto)

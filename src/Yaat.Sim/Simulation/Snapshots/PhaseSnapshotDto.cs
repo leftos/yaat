@@ -501,6 +501,14 @@ public sealed class LineUpPhaseDto : PhaseDto
     public required double PerpHeadingDeg { get; init; }
     public required bool PerpAligned { get; init; }
     public required bool OnCenterline { get; init; }
+
+    /// <summary>
+    /// Rolling takeoff mode at snapshot time. Non-required and defaults to
+    /// false so pre-rolling snapshots round-trip without alteration.
+    /// <see cref="LineUpPhase.FromSnapshot"/> does not restore this field —
+    /// the phase re-derives it from the phase list at the next OnStart.
+    /// </summary>
+    public bool RollingMode { get; init; }
 }
 
 public sealed class LinedUpAndWaitingPhaseDto : PhaseDto
