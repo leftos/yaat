@@ -4,21 +4,20 @@ using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
-public enum NavigatorResult
-{
-    Navigating,
-    ArrivedAtNode,
-}
-
 /// <summary>
-/// Core ground navigation: steers toward a target node, manages speed profiling
-/// with angle-based scaling and multi-segment kinematic braking, and detects
-/// arrival/overshoot. Used by both TaxiingPhase and RunwayExitPhase.
+/// V1 ground navigator: Bezier-waypoint arc follower with angle-based speed
+/// scaling and multi-segment kinematic braking. Used by
+/// <see cref="TaxiingPhase"/>, <see cref="RunwayExitPhase"/>, and
+/// <see cref="Yaat.Sim.Phases.Tower.LineUpPhase"/> via the
+/// <see cref="IGroundNavigator"/> interface.
 ///
-/// The owning phase configures MaxSpeedKts and handles what
+/// The owning phase configures <see cref="MaxSpeedKts"/> and handles what
 /// happens on arrival (hold-short insertion, route completion, etc.).
+///
+/// V2 is under design; see <see cref="GroundNavigatorFactory"/> for the
+/// runtime switch.
 /// </summary>
-public sealed class GroundNavigator
+public sealed class GroundNavigatorV1 : IGroundNavigator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundNavigator");
 
@@ -637,6 +636,7 @@ public sealed class GroundNavigator
     public GroundNavigatorDto ToSnapshot() =>
         new()
         {
+            ImplVersion = 1,
             TargetNodeId = TargetNodeId,
             TargetLat = TargetLat,
             TargetLon = TargetLon,
@@ -667,9 +667,9 @@ public sealed class GroundNavigator
                 : null,
         };
 
-    public static GroundNavigator FromSnapshot(GroundNavigatorDto dto)
+    public static GroundNavigatorV1 FromSnapshot(GroundNavigatorDto dto)
     {
-        var nav = new GroundNavigator
+        var nav = new GroundNavigatorV1
         {
             TargetNodeId = dto.TargetNodeId,
             TargetLat = dto.TargetLat,
@@ -697,18 +697,3 @@ public sealed class GroundNavigator
         return nav;
     }
 }
-
-public record NavTickDiag(
-    int TargetNodeId,
-    double DistToTargetNm,
-    double BearingToTargetDeg,
-    double AngleDiffDeg,
-    double TargetSpeedKts,
-    double BrakingLimitKts,
-    double ArcSpeedLimitKts,
-    bool OnArc,
-    double NodeRequiredSpeedKts,
-    double PathDeviationFt,
-    double SegFromLat,
-    double SegFromLon
-);

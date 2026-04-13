@@ -287,6 +287,15 @@ public sealed class SpeedConstraintDto
 
 public sealed class GroundNavigatorDto
 {
+    /// <summary>
+    /// Discriminator identifying which <c>IGroundNavigator</c> implementation
+    /// produced this snapshot. <c>1</c> = <c>GroundNavigatorV1</c>. Added in
+    /// preparation for <c>V2</c>, a clean-room redesign being developed in
+    /// parallel. Defaults to <c>1</c> so snapshots written before this field
+    /// existed still restore into V1.
+    /// </summary>
+    public int ImplVersion { get; init; } = 1;
+
     public int TargetNodeId { get; init; }
     public double TargetLat { get; init; }
     public double TargetLon { get; init; }
