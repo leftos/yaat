@@ -35,5 +35,12 @@ public static class UsageText
         Console.WriteLine("  --svg-node <id>          Highlight a node (repeatable)");
         Console.WriteLine("  --svg-annotate <id> <text>  Add annotation label to a node");
         Console.WriteLine("  --ticks <csv>            Overlay tick data (CSV from TickRecorder) with animation player");
+        Console.WriteLine();
+        Console.WriteLine("Tick-table output:");
+        Console.WriteLine("  --tick-table             Compact per-tick table to stdout (requires --ticks)");
+        Console.WriteLine("  --tick-summary           Per-segment summary to stdout (requires --ticks)");
+        Console.WriteLine("  --tick-range START-END   Filter ticks to a range (inclusive)");
+        Console.WriteLine("  --tick-ref ICAO/RWY      Reference runway for xteFt / hdgErr columns");
+        Console.WriteLine("  --tick-hold-shorts K,D,Q Add along-track distance columns to named hold-shorts (requires --tick-ref)");
     }
 }

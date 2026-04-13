@@ -53,6 +53,7 @@ public static class Program
         {
             { SvgOutputPath: not null } => new HtmlRenderCommand(),
             { DumpAll: true } => new DumpCommand(),
+            { TickTable: true } or { TickSummary: true } => new TickTableCommand(),
             _ => new QueryCommand(),
         };
 

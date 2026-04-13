@@ -16,6 +16,7 @@ public record TickDataRow(
     int? NavTarget,
     double? NavDist,
     double? NavBrg,
+    double? NavAngleDiff,
     double? NavTargetSpd,
     double? NavBrakeLimit,
     double? NavArcLimit,

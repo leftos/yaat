@@ -21,7 +21,7 @@ public enum NavigatorResult
 /// <summary>
 /// Per-tick diagnostic snapshot produced by <see cref="GroundNavigator"/>.
 /// Consumed by <c>TickRecorder</c> for CSV traces and by
-/// <c>Yaat.TickInspector</c> for post-hoc analysis.
+/// <c>Yaat.LayoutInspector --tick-table</c> for post-hoc analysis.
 /// </summary>
 public record NavTickDiag(
     int TargetNodeId,

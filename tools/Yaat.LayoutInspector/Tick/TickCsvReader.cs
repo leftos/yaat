@@ -34,7 +34,8 @@ public static class TickCsvReader
             iTwy = Col("twy");
         int iNavTarget = Col("navTarget"),
             iNavDist = Col("navDist"),
-            iNavBrg = Col("navBrg");
+            iNavBrg = Col("navBrg"),
+            iNavAngleDiff = Col("navAngleDiff");
         int iNavTargetSpd = Col("navTargetSpd"),
             iNavBrakeLimit = Col("navBrakeLimit");
         int iNavArcLimit = Col("navArcLimit"),
@@ -61,6 +62,7 @@ public static class TickCsvReader
                     NavTarget: TryParseInt(parts, iNavTarget),
                     NavDist: TryParseDouble(parts, iNavDist),
                     NavBrg: TryParseDouble(parts, iNavBrg),
+                    NavAngleDiff: TryParseDouble(parts, iNavAngleDiff),
                     NavTargetSpd: TryParseDouble(parts, iNavTargetSpd),
                     NavBrakeLimit: TryParseDouble(parts, iNavBrakeLimit),
                     NavArcLimit: TryParseDouble(parts, iNavArcLimit),

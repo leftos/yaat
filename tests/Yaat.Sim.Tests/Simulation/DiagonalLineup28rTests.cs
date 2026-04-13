@@ -164,8 +164,8 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     /// Diagnostic: record per-tick CSVs for the four scenario aircraft
     /// through their final-taxi → hold-short → CTO → lineup windows.
     /// Writes <c>.tmp/oak-lineup-fault-{callsign}.csv</c> for each
-    /// aircraft. Inspect via <c>Yaat.TickInspector</c> and render with
-    /// <c>Yaat.LayoutInspector --ticks</c>. CTO seconds from the
+    /// aircraft. Inspect as text via <c>Yaat.LayoutInspector --tick-table</c>
+    /// and render visually with <c>Yaat.LayoutInspector --ticks</c>. CTO seconds from the
     /// recording's actions.json:
     ///   N436MS t=47 (works), N346G t=109 (faults — 180° turn),
     ///   N172SP t=402 (faults — not converging), N342T t=688 (works).

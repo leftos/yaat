@@ -111,8 +111,8 @@ public class ExitKOvershootTests(ITestOutputHelper output)
 
     /// <summary>
     /// Diagnostic: attach a TickRecorder and dump DAL2581's rollout to a CSV for
-    /// inspection with <c>Yaat.TickInspector --exit K</c>. Writes to
-    /// <c>.tmp/dal2581-rollout.csv</c>. Not an assertion test.
+    /// inspection with <c>Yaat.LayoutInspector --tick-table --tick-hold-shorts K</c>.
+    /// Writes to <c>.tmp/dal2581-rollout.csv</c>. Not an assertion test.
     /// </summary>
     [Fact]
     public void Diagnostic_RecordTicksForDAL2581Rollout()
@@ -157,7 +157,10 @@ public class ExitKOvershootTests(ITestOutputHelper output)
         recorder.WriteCsv(csvPath);
         output.WriteLine($"Wrote {recorder.Count} ticks to {csvPath}");
         output.WriteLine("Inspect with:");
-        output.WriteLine("  dotnet run --project tools/Yaat.TickInspector -- .tmp/dal2581-rollout.csv --runway SFO/28L --exit K,D,Q");
+        output.WriteLine(
+            "  dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson "
+                + "--ticks .tmp/dal2581-rollout.csv --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q"
+        );
     }
 
     /// <summary>

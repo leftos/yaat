@@ -47,6 +47,13 @@ public sealed record CliOptions
     public List<(int NodeId, string Text)> SvgAnnotations { get; init; } = [];
     public List<int> SvgRouteNodes { get; init; } = [];
 
+    // --- Tick-table output mode (see Commands/TickTableCommand) ---
+    public bool TickTable { get; init; }
+    public bool TickSummary { get; init; }
+    public (int Lo, int Hi)? TickRange { get; init; }
+    public string? TickRefRunway { get; init; }
+    public List<string> TickHoldShorts { get; init; } = [];
+
     /// <summary>
     /// Parses command-line arguments into a <see cref="CliOptions"/> instance.
     /// Returns false and populates <paramref name="error"/> if args are malformed;
@@ -95,6 +102,11 @@ public sealed record CliOptions
         var svgHighlightNodes = new List<int>();
         var svgAnnotations = new List<(int NodeId, string Text)>();
         var svgRouteNodes = new List<int>();
+        bool tickTable = false;
+        bool tickSummary = false;
+        (int Lo, int Hi)? tickRange = null;
+        string? tickRefRunway = null;
+        var tickHoldShorts = new List<string>();
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -200,6 +212,34 @@ public sealed record CliOptions
                     }
 
                     break;
+                case "--tick-table":
+                    tickTable = true;
+                    break;
+                case "--tick-summary":
+                    tickSummary = true;
+                    break;
+                case "--tick-range" when i + 1 < args.Length:
+                {
+                    var parts = args[++i].Split('-');
+                    if (parts.Length != 2 || !int.TryParse(parts[0], out int lo) || !int.TryParse(parts[1], out int hi))
+                    {
+                        error = $"--tick-range expects 'START-END', got {args[i]}";
+                        return false;
+                    }
+
+                    tickRange = (lo, hi);
+                    break;
+                }
+                case "--tick-ref" when i + 1 < args.Length:
+                    tickRefRunway = args[++i];
+                    break;
+                case "--tick-hold-shorts" when i + 1 < args.Length:
+                    foreach (string twy in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        tickHoldShorts.Add(twy);
+                    }
+
+                    break;
                 default:
                     error = $"Unknown flag: {args[i]}";
                     return false;
@@ -237,6 +277,11 @@ public sealed record CliOptions
             SvgHighlightNodes = svgHighlightNodes,
             SvgAnnotations = svgAnnotations,
             SvgRouteNodes = svgRouteNodes,
+            TickTable = tickTable,
+            TickSummary = tickSummary,
+            TickRange = tickRange,
+            TickRefRunway = tickRefRunway,
+            TickHoldShorts = tickHoldShorts,
         };
         return true;
     }

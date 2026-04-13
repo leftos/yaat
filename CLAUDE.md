@@ -18,13 +18,20 @@ qodana scan --results-dir .tmp/qodana-results  # Static analysis (local only)
 
 ## Layout Inspector Tool
 
-`tools/Yaat.LayoutInspector/` loads an airport GeoJSON and queries the ground graph. Use it to understand airport topology when debugging ground/exit/taxi bugs.
+`tools/Yaat.LayoutInspector/` loads an airport GeoJSON and queries the ground graph, renders interactive HTML maps, and analyzes per-tick CSVs from `TickRecorder`. Use it to understand airport topology when debugging ground/exit/taxi bugs, and to inspect aircraft trajectories after a failing test writes a tick CSV.
 
 ```bash
-dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [--node N] [--taxiway T] [--runway 28R] [--exits 28R] [--path N T] [--parking] [--spots] [--json] [--dump]
+# Graph queries
+dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [--node N] [--taxiway T] [--runway 28R] [--exits 28R] [--bfs N T] [--parking] [--spots] [--json] [--dump]
+
+# Interactive HTML with optional tick overlay
+dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> --svg .tmp/out.html [--ticks .tmp/rollout.csv] [--svg-taxiway T] [--svg-runway 28R]
+
+# Tick-table text analysis (absorbed from the old Yaat.TickInspector)
+dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> --ticks .tmp/rollout.csv --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q
 ```
 
-Key use cases: trace multi-hop exit paths (`--path 230 T`), find all exits from a runway (`--exits 28R`), inspect node connectivity (`--node N`), verify hold-short runway IDs (`--runway 28R`), dump entire airport to JSON for grepping (`--dump > .tmp/oak.json`). See `docs/e2e-tdd-issue-debugging.md` for detailed examples.
+Key use cases: trace multi-hop exit paths (`--bfs 230 T`), find all exits from a runway (`--exits 28R`), inspect node connectivity (`--node N`), verify hold-short runway IDs (`--runway 28R`), dump entire airport to JSON for grepping (`--dump > .tmp/oak.json`), inspect a recorded aircraft trajectory against a runway reference (`--tick-table --tick-ref`). See `docs/e2e-tdd-issue-debugging.md` for detailed examples.
 
 ## Logs
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Yaat.LayoutInspector is a CLI tool for querying and visualizing airport ground graphs parsed from GeoJSON. It loads an airport layout via `GeoJsonParser` from `Yaat.Sim` and exposes queries over nodes, edges, taxiways, runways, exits, and BFS paths. Primary use: debugging ground/taxi/exit bugs in the YAAT simulator.
+Yaat.LayoutInspector is a CLI tool for querying and visualizing airport ground graphs parsed from GeoJSON, **and** for post-hoc analysis of per-tick aircraft state CSVs written by `Yaat.Sim.Tests.Helpers.TickRecorder`. It loads an airport layout via `GeoJsonParser` from `Yaat.Sim`, exposes queries over nodes/edges/taxiways/runways/exits/paths, renders interactive HTML maps, and prints tick-by-tick text tables. Primary use: debugging ground/taxi/exit bugs in the YAAT simulator.
 
 ## Build & Run
 
@@ -18,35 +18,74 @@ GeoJSON files live in `X:\dev\vzoa\training-files\atctrainer-airport-files\`. Na
 ## Architecture
 
 ```
-Program.cs          CLI entry point, arg parsing, dispatches to LayoutAnalyzer/renderers
-LayoutAnalyzer.cs   Core query engine over AirportGroundLayout (from Yaat.Sim)
-QueryResults.cs     Record DTOs for all query results (OverviewResult, NodeInfo, ExitsResult, etc.)
-IFormatter.cs       Output interface: text vs JSON
-TextFormatter.cs    Human-readable stdout output
-JsonFormatter.cs    JSON stdout output
-SvgRenderer.cs      Static SVG file rendering with highlights/annotations/route overlay
-HtmlRenderer.cs     Interactive HTML+Canvas rendering (pan/zoom/tooltips); uses inspector-template.html
+Program.cs                  Thin entry point: parse args → bootstrap → dispatch ICommand
+CliOptions.cs               Options record + TryParse (all arg parsing lives here)
+UsageText.cs                --help output
+Bootstrap.cs                NavData + debug logger wiring
+Commands/
+  ICommand.cs               int Execute(LayoutAnalyzer, CliOptions)
+  HtmlRenderCommand.cs      --svg <path>: render interactive HTML
+  DumpCommand.cs            --dump: full layout JSON
+  QueryCommand.cs           Default text/json query dispatch (--taxiway, --runway, etc.)
+  TickTableCommand.cs       --tick-table / --tick-summary: CSV → stdout text table
+Tick/
+  TickDataRow.cs            Shared record for one TickRecorder CSV row
+  TickCsvReader.cs          CSV → List<TickDataRow>
+  RunwayReference.cs        Runway centerline for xteFt / hdgErr columns
+  HoldShortResolver.cs      Resolve --tick-hold-shorts names → GroundNode + distance math
+LayoutAnalyzer.cs           Core query engine over AirportGroundLayout (from Yaat.Sim)
+LayoutValidator.cs          Airport-layout sanity checks (run via --validate)
+QueryResults.cs             Record DTOs for all query results
+IFormatter.cs               Output interface: text vs JSON
+TextFormatter.cs            Human-readable stdout for query results
+JsonFormatter.cs            JSON stdout for query results
+TickTableFormatter.cs       Fixed-width stdout for tick-table / tick-summary
+HtmlRenderer.cs             Interactive HTML+Canvas rendering; uses inspector-template.html
+inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persisted view
 ```
 
-**Data flow:** GeoJSON file -> `GeoJsonParser.Parse()` -> `AirportGroundLayout` -> `LayoutAnalyzer` wraps it -> queries return `QueryResults` records -> `IFormatter` or renderer outputs them.
+**Data flow:** GeoJSON file -> `GeoJsonParser.Parse()` -> `AirportGroundLayout` -> `LayoutAnalyzer` wraps it -> `ICommand.Execute` reads options and produces output through a formatter or renderer.
 
-**Output modes are mutually exclusive:** `--svg`/`.html` output returns immediately; `--dump` returns full JSON; otherwise queries go through `IFormatter` (text or `--json`).
+**Output modes are mutually exclusive:** `--svg` → `HtmlRenderCommand`; `--dump` → `DumpCommand`; `--tick-table`/`--tick-summary` → `TickTableCommand`; otherwise → `QueryCommand` (text or `--json`).
 
 ## Key Flags
 
+### Graph queries
 | Flag | Purpose |
 |------|---------|
 | `--node N` | Single node detail with edges |
 | `--taxiway T` | All nodes/edges on a taxiway |
 | `--runway 28R` | Centerline + hold-short nodes |
 | `--exits 28R` | BFS-discovered exits with angle/side/high-speed classification |
-| `--path N T` | BFS trace from node N through taxiway T to hold-short |
+| `--bfs N T` | BFS trace from node N through taxiway T to hold-short |
+| `--pathfinder N T1 T2 ...` | Resolve explicit taxi route with diagnostic trace |
 | `--dump` | Full airport JSON (pipe to file for grepping) |
 | `--no-fillets` | Parse without fillet arcs for comparison |
-| `--svg path.svg` | Static SVG render |
-| `--svg path.html` | Interactive HTML render (same flag, extension decides) |
+
+### HTML render
+| Flag | Purpose |
+|------|---------|
+| `--svg path.html` | Interactive HTML render (file extension `.svg` also accepted) |
 | `--svg-taxiway`, `--svg-runway`, `--svg-node`, `--svg-annotate`, `--svg-route` | Highlight/overlay options (repeatable) |
+| `--ticks <csv>` | Overlay a TickRecorder CSV as an animated aircraft path |
+
+Pan/zoom state is persisted in `location.hash` — refreshing the page preserves the current view.
+
+### Tick-table (text analysis of TickRecorder CSV)
+| Flag | Purpose |
+|------|---------|
+| `--tick-table` | Compact per-tick text table to stdout (requires `--ticks`) |
+| `--tick-summary` | Per-segment summary (one row per nav-target run) |
+| `--tick-range START-END` | Filter ticks to an inclusive range |
+| `--tick-ref ICAO/RWY` | Reference runway for signed cross-track (`xteFt`) and heading-error (`hdgErr`) columns |
+| `--tick-hold-shorts K,D,Q` | Along-track + straight-line distance columns to named hold-shorts (requires `--tick-ref`) |
+
+Example:
+```bash
+dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson \
+    --ticks .tmp/dal2581-rollout.csv --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q
+```
 
 ## Dependencies
 
-Single project reference to `Yaat.Sim`. Uses `Yaat.Sim.Testing.TestVnasData` to optionally load NavData for accurate runway widths. No other dependencies.
+Single project reference to `Yaat.Sim`. Uses `Yaat.Sim.Testing.TestVnasData` to optionally load NavData for accurate runway widths and `--tick-ref` lookups. `Microsoft.Extensions.Logging` for `--debug-fillets`/`--debug-exits`. No other dependencies.
