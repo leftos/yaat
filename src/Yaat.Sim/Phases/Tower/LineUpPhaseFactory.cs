@@ -4,15 +4,18 @@ namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
 /// Identifies which concrete <see cref="ILineUpPhase"/> implementation to
-/// construct. V1 is the existing analog 3-stage implementation
-/// (<see cref="LineUpPhaseV1"/>). V2 is a clean-room redesign under
-/// development; it will be added as a new enum value when the implementation
-/// lands.
+/// construct. V1 is the analog 3-stage implementation
+/// (<see cref="LineUpPhaseV1"/>); V2 is the closed-form plan playback
+/// implementation (<see cref="LineUpPhaseV2"/>) — the clean-room redesign
+/// from the Design D spec.
 /// </summary>
 public enum LineUpPhaseImpl
 {
-    /// <summary>V1 — the existing analog perpendicular/cross/align implementation.</summary>
+    /// <summary>V1 — the analog perpendicular/cross/align implementation.</summary>
     V1 = 1,
+
+    /// <summary>V2 — the closed-form plan playback implementation (Design D).</summary>
+    V2 = 2,
 }
 
 /// <summary>
@@ -47,6 +50,7 @@ public static class LineUpPhaseFactory
         return choice switch
         {
             LineUpPhaseImpl.V1 => new LineUpPhaseV1(),
+            LineUpPhaseImpl.V2 => new LineUpPhaseV2(),
             _ => throw new InvalidOperationException($"Unknown LineUpPhaseImpl: {choice}"),
         };
     }
@@ -61,6 +65,7 @@ public static class LineUpPhaseFactory
         dto.ImplVersion switch
         {
             1 => LineUpPhaseV1.FromSnapshot(dto),
+            2 => LineUpPhaseV2.FromSnapshot(dto),
             _ => throw new InvalidOperationException(
                 $"Unknown LineUpPhaseDto.ImplVersion: {dto.ImplVersion}. "
                     + "A newer LineUpPhase implementation may have written this snapshot; "
