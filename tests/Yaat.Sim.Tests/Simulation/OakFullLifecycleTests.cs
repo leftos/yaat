@@ -165,7 +165,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
     /// Diagnostic-only: runs the full lifecycle with a <see cref="TickRecorder"/> attached,
     /// writing per-tick nav diagnostics to <c>.tmp/oak-lifecycle-ticks.csv</c>. Render with:
     ///   dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/oak.geojson
-    ///     --svg .tmp/oak-lifecycle.html --ticks .tmp/oak-lifecycle-ticks.csv
+    ///     --html .tmp/oak-lifecycle.html --ticks .tmp/oak-lifecycle-ticks.csv
     /// </summary>
     [Fact]
     public void Diagnostic_RecordLifecycleTicks()

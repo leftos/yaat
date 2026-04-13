@@ -51,7 +51,7 @@ public static class Program
 
         ICommand command = options switch
         {
-            { SvgOutputPath: not null } => new HtmlRenderCommand(),
+            { HtmlOutputPath: not null } => new HtmlRenderCommand(),
             { DumpAll: true } => new DumpCommand(),
             { TickTable: true } or { TickSummary: true } => new TickTableCommand(),
             _ => new QueryCommand(),

@@ -24,7 +24,7 @@ UsageText.cs                --help output
 Bootstrap.cs                NavData + debug logger wiring
 Commands/
   ICommand.cs               int Execute(LayoutAnalyzer, CliOptions)
-  HtmlRenderCommand.cs      --svg <path>: render interactive HTML
+  HtmlRenderCommand.cs      --html <path>: render interactive HTML
   DumpCommand.cs            --dump: full layout JSON
   QueryCommand.cs           Default text/json query dispatch (--taxiway, --runway, etc.)
   TickTableCommand.cs       --tick-table / --tick-summary: CSV → stdout text table
@@ -46,7 +46,7 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 
 **Data flow:** GeoJSON file -> `GeoJsonParser.Parse()` -> `AirportGroundLayout` -> `LayoutAnalyzer` wraps it -> `ICommand.Execute` reads options and produces output through a formatter or renderer.
 
-**Output modes are mutually exclusive:** `--svg` → `HtmlRenderCommand`; `--dump` → `DumpCommand`; `--tick-table`/`--tick-summary` → `TickTableCommand`; otherwise → `QueryCommand` (text or `--json`).
+**Output modes are mutually exclusive:** `--html` → `HtmlRenderCommand`; `--dump` → `DumpCommand`; `--tick-table`/`--tick-summary` → `TickTableCommand`; otherwise → `QueryCommand` (text or `--json`).
 
 ## Key Flags
 
@@ -65,8 +65,8 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 ### HTML render
 | Flag | Purpose |
 |------|---------|
-| `--svg path.html` | Interactive HTML render (file extension `.svg` also accepted) |
-| `--svg-taxiway`, `--svg-runway`, `--svg-node`, `--svg-annotate`, `--svg-route` | Highlight/overlay options (repeatable) |
+| `--html <path>` | Interactive HTML render |
+| `--html-taxiway`, `--html-runway`, `--html-node`, `--html-annotate`, `--html-route` | Highlight/overlay options (repeatable) |
 | `--ticks <csv>` | Overlay a TickRecorder CSV as an animated aircraft path |
 
 Pan/zoom state is persisted in `location.hash` — refreshing the page preserves the current view.

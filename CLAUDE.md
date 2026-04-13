@@ -25,7 +25,7 @@ qodana scan --results-dir .tmp/qodana-results  # Static analysis (local only)
 dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [--node N] [--taxiway T] [--runway 28R] [--exits 28R] [--bfs N T] [--parking] [--spots] [--json] [--dump]
 
 # Interactive HTML with optional tick overlay
-dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> --svg .tmp/out.html [--ticks .tmp/rollout.csv] [--svg-taxiway T] [--svg-runway 28R]
+dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> --html .tmp/out.html [--ticks .tmp/rollout.csv] [--html-taxiway T] [--html-runway 28R]
 
 # Tick-table text analysis (absorbed from the old Yaat.TickInspector)
 dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> --ticks .tmp/rollout.csv --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q

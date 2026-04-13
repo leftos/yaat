@@ -5,37 +5,37 @@ namespace Yaat.LayoutInspector.Commands;
 
 /// <summary>
 /// Renders the layout to an interactive HTML page (via <see cref="HtmlRenderer"/>).
-/// Honors the full set of --svg-* highlight flags and, when --ticks is present,
+/// Honors the full set of --html-* highlight flags and, when --ticks is present,
 /// overlays tick data with an animation player.
 /// </summary>
 public sealed class HtmlRenderCommand : ICommand
 {
     public int Execute(LayoutAnalyzer analyzer, CliOptions options)
     {
-        string svgOutput = options.SvgOutputPath!;
+        string htmlOutput = options.HtmlOutputPath!;
         var htmlRenderer = new HtmlRenderer(analyzer.Layout);
 
-        foreach (string t in options.SvgHighlightTaxiways)
+        foreach (string t in options.HtmlHighlightTaxiways)
         {
             htmlRenderer.HighlightTaxiway(t);
         }
 
-        foreach (string r in options.SvgHighlightRunways)
+        foreach (string r in options.HtmlHighlightRunways)
         {
             htmlRenderer.HighlightRunway(r);
         }
 
-        foreach (int n in options.SvgHighlightNodes)
+        foreach (int n in options.HtmlHighlightNodes)
         {
             htmlRenderer.HighlightNode(n);
         }
 
-        foreach (var (nid, text) in options.SvgAnnotations)
+        foreach (var (nid, text) in options.HtmlAnnotations)
         {
             htmlRenderer.AnnotateNode(nid, text);
         }
 
-        foreach (int nid in options.SvgRouteNodes)
+        foreach (int nid in options.HtmlRouteNodes)
         {
             htmlRenderer.AddRouteNode(nid);
         }
@@ -76,8 +76,8 @@ public sealed class HtmlRenderCommand : ICommand
         }
 
         string html = htmlRenderer.Render();
-        File.WriteAllText(svgOutput, html);
-        Console.Error.WriteLine($"Wrote interactive HTML to {svgOutput}");
+        File.WriteAllText(htmlOutput, html);
+        Console.Error.WriteLine($"Wrote interactive HTML to {htmlOutput}");
         return 0;
     }
 }

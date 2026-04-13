@@ -38,14 +38,14 @@ public sealed record CliOptions
 
     public List<(string Runway, string Taxiway, string? Side)> ExitQueries { get; init; } = [];
 
-    public string? SvgOutputPath { get; init; }
+    public string? HtmlOutputPath { get; init; }
     public string? TicksCsvPath { get; init; }
 
-    public List<string> SvgHighlightTaxiways { get; init; } = [];
-    public List<string> SvgHighlightRunways { get; init; } = [];
-    public List<int> SvgHighlightNodes { get; init; } = [];
-    public List<(int NodeId, string Text)> SvgAnnotations { get; init; } = [];
-    public List<int> SvgRouteNodes { get; init; } = [];
+    public List<string> HtmlHighlightTaxiways { get; init; } = [];
+    public List<string> HtmlHighlightRunways { get; init; } = [];
+    public List<int> HtmlHighlightNodes { get; init; } = [];
+    public List<(int NodeId, string Text)> HtmlAnnotations { get; init; } = [];
+    public List<int> HtmlRouteNodes { get; init; } = [];
 
     // --- Tick-table output mode (see Commands/TickTableCommand) ---
     public bool TickTable { get; init; }
@@ -95,13 +95,13 @@ public sealed record CliOptions
         bool debugFillets = false;
         bool debugExits = false;
         var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
-        string? svgOutput = null;
+        string? htmlOutput = null;
         string? ticksCsvPath = null;
-        var svgHighlightTaxiways = new List<string>();
-        var svgHighlightRunways = new List<string>();
-        var svgHighlightNodes = new List<int>();
-        var svgAnnotations = new List<(int NodeId, string Text)>();
-        var svgRouteNodes = new List<int>();
+        var htmlHighlightTaxiways = new List<string>();
+        var htmlHighlightRunways = new List<string>();
+        var htmlHighlightNodes = new List<int>();
+        var htmlAnnotations = new List<(int NodeId, string Text)>();
+        var htmlRouteNodes = new List<int>();
         bool tickTable = false;
         bool tickSummary = false;
         (int Lo, int Hi)? tickRange = null;
@@ -177,29 +177,29 @@ public sealed record CliOptions
                     debugExits = true;
                     break;
                 }
-                case "--svg" when i + 1 < args.Length:
-                    svgOutput = args[++i];
+                case "--html" when i + 1 < args.Length:
+                    htmlOutput = args[++i];
                     break;
                 case "--ticks" when i + 1 < args.Length:
                     ticksCsvPath = args[++i];
                     break;
-                case "--svg-taxiway" when i + 1 < args.Length:
-                    svgHighlightTaxiways.Add(args[++i].ToUpperInvariant());
+                case "--html-taxiway" when i + 1 < args.Length:
+                    htmlHighlightTaxiways.Add(args[++i].ToUpperInvariant());
                     break;
-                case "--svg-runway" when i + 1 < args.Length:
-                    svgHighlightRunways.Add(args[++i].ToUpperInvariant());
+                case "--html-runway" when i + 1 < args.Length:
+                    htmlHighlightRunways.Add(args[++i].ToUpperInvariant());
                     break;
-                case "--svg-node" when i + 1 < args.Length:
-                    svgHighlightNodes.Add(int.Parse(args[++i]));
+                case "--html-node" when i + 1 < args.Length:
+                    htmlHighlightNodes.Add(int.Parse(args[++i]));
                     break;
-                case "--svg-annotate" when i + 2 < args.Length:
-                    svgAnnotations.Add((int.Parse(args[++i]), args[++i]));
+                case "--html-annotate" when i + 2 < args.Length:
+                    htmlAnnotations.Add((int.Parse(args[++i]), args[++i]));
                     break;
-                case "--svg-route" when i + 1 < args.Length:
+                case "--html-route" when i + 1 < args.Length:
                 {
                     foreach (string nid in args[++i].Split(','))
                     {
-                        svgRouteNodes.Add(int.Parse(nid.Trim()));
+                        htmlRouteNodes.Add(int.Parse(nid.Trim()));
                     }
 
                     break;
@@ -270,13 +270,13 @@ public sealed record CliOptions
             DebugFillets = debugFillets,
             DebugExits = debugExits,
             ExitQueries = exitQueries,
-            SvgOutputPath = svgOutput,
+            HtmlOutputPath = htmlOutput,
             TicksCsvPath = ticksCsvPath,
-            SvgHighlightTaxiways = svgHighlightTaxiways,
-            SvgHighlightRunways = svgHighlightRunways,
-            SvgHighlightNodes = svgHighlightNodes,
-            SvgAnnotations = svgAnnotations,
-            SvgRouteNodes = svgRouteNodes,
+            HtmlHighlightTaxiways = htmlHighlightTaxiways,
+            HtmlHighlightRunways = htmlHighlightRunways,
+            HtmlHighlightNodes = htmlHighlightNodes,
+            HtmlAnnotations = htmlAnnotations,
+            HtmlRouteNodes = htmlRouteNodes,
             TickTable = tickTable,
             TickSummary = tickSummary,
             TickRange = tickRange,

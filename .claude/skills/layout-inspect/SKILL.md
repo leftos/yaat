@@ -47,7 +47,7 @@ timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --dump 2
 
 **Generate interactive HTML visualization:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --svg .tmp/airport.html 2>&1 | tee .tmp/li-svg.log
+timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --html .tmp/airport.html 2>&1 | tee .tmp/li-html.log
 ```
 
 ### Flags Reference
@@ -67,8 +67,9 @@ timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --svg .t
 | `--no-fillets` | Parse without fillet arcs |
 | `--debug-fillets` | Enable fillet debug logging |
 | `--validate` | Run graph validation checks |
-| `--svg path.svg` | Static SVG render |
-| `--svg path.html` | Interactive HTML render |
+| `--html <path>` | Interactive HTML render (pan/zoom, URL-persisted view) |
+| `--ticks <csv>` | Overlay TickRecorder CSV as animated aircraft path |
+| `--tick-table` / `--tick-summary` | Text-table analysis of a TickRecorder CSV |
 
 ### Tips
 
