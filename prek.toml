@@ -37,9 +37,10 @@ stages = ["pre-commit"]
 [[repos.hooks]]
 id = "csharpier"
 name = "dotnet csharpier format"
-entry = "bash tools/hooks/csharpier-check.sh"
+entry = "dotnet csharpier format"
 language = "system"
-pass_filenames = false
+types = ["c#"]
+require_serial = true
 stages = ["pre-commit"]
 
 [[repos.hooks]]
