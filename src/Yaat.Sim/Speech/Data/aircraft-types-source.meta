@@ -1,0 +1,23 @@
+upstream_url: https://data-api.vnas.vatsim.net/Files/AircraftSpecs.json
+upstream_sha256: 03a407ff168ffcfbc4389f14603374b620741ec015ee541e10c6bedaa5227a7a
+upstream_bytes: 2053231
+fetched_utc: 2026-04-13T17:45:05Z
+output_rows: 2629
+bigram_threshold: 3
+within_designator_min_freq: 2
+
+# Allowed two-word families (cross-designator discovery + manual inclusion):
+# australian lightwing: auto-discovered via cross-designator threshold
+# comp air: auto-discovered via cross-designator threshold
+# global express: GLEX — Bombardier Global Express, a widely recognized business jet family
+# king air: auto-discovered via cross-designator threshold
+# pocket rocket: auto-discovered via cross-designator threshold
+# queen air: auto-discovered via cross-designator threshold
+# regional jet: auto-discovered via cross-designator threshold
+# starfire bonanza: auto-discovered via cross-designator threshold
+# tiger moth: auto-discovered via cross-designator threshold
+# twin otter: DHC6 — De Havilland Twin Otter, one of the most common turboprop twins in commuter/float ops
+
+# Source note:
+# vNAS distributes AircraftSpecs.json derived from ICAO Doc 8643 for use by the
+# VATSIM community. YAAT consumes the processed TSV; source data remains with vNAS.

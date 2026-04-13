@@ -1,0 +1,24 @@
+YAAT (Yet Another ATC Trainer)
+Copyright (c) 2026 Leftos Aslanoglou
+Source code licensed under the MIT License (see LICENSE).
+
+================================================================================
+Third-party data files bundled with this project
+================================================================================
+
+## OpenFlights airlines.dat (Open Database License v1.0)
+
+The file `src/Yaat.Sim/Speech/Data/airlines.tsv` is a Derivative Database
+extracted from OpenFlights' `airlines.dat`.
+
+  Upstream: https://openflights.org/data.html
+  License:  Open Database License (ODbL) v1.0
+  Full license text: src/Yaat.Sim/Speech/Data/LICENSE-OPENFLIGHTS.txt
+
+Attribution: "Airline telephony data derived from OpenFlights
+(https://openflights.org/data.html), licensed under ODbL 1.0."
+
+YAAT's MIT license governs the source code; ODbL governs only the
+`airlines.tsv` file. ODbL § 4.5a exempts compiled binaries (Produced
+Works) from the share-alike requirement, so `Yaat.Sim.dll` and the
+YAAT installer are distributed under YAAT's MIT terms.

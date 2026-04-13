@@ -1,0 +1,235 @@
+upstream_url: https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat
+upstream_sha256: 39be1a432e8b04ebc12860c29281c974a9cb52169c82b2456a835d66ab1548a1
+upstream_bytes: 396896
+fetched_utc: 2026-04-13T17:04:49Z
+output_rows: 5171
+skipped_rows: 69
+icao_conflicts: 23
+callsign_collisions: 27
+license: ODbL-1.0
+
+# Skipped rows (failed callsign validation):
+# BRL	BRASD'OR	Air Brasd'or	Canada
+# AHE	MULLER & CO.	Airport Helicopter Basel	AIRPORT HELICOPTER
+# ALW	S.A.	Alas Nacionales	ALNACIONAL
+# ANM	MAINTENANCE & SERVICE GMBH	Antares Airtransport	ANTARES
+# ANW	S.A. DE C.V.	Aviacion Del Noroeste	AVINOR
+# AOA	S.A. DE C.V.	Alcon Servicios Aereos	ALCON
+# AOI	INC.	Astoria	ASTORIA
+# APC	INC.	Airpac Airlines	AIRPAC
+# APH	INC.	Alpha Aviation	AIRFLIGHT
+# API	LDA.	ASA Pesada	ASA PESADA
+# APJ	S.A.	Air Print	AIR PRINT
+# APL	INC.	Appalachian Flying Service	APPALACHIAN
+# APM	INC.	Airpac	ALASKA PACIFIC
+# APP	S.A. (APAIR)	Aerolineas Pacifico Atlantico	AEROPERLAS
+# APU	S.A.	Aeropuma	AEROPUMA
+# AQA	S.A.	Aeroatlas	ATCO
+# AQT	S.A. DE C.V.	Aviones de Renta de Quintana Roo	AVIOQUINTANA
+# ARJ	S.A.	Aerojet de Costa Rica
+# ARQ	INC.	Armstrong Air	ARMSTRONG
+# ARX	INC.	Air Xpress	AIREX
+# ASF	INC.	Air Schefferville	SCHEFF
+# ASI	INC.	Aerosun International	AEROSUN
+# ASR	INC.	All Star Airlines	ALL STAR
+# ASS	S.A. DE C.V.	Air Class	AIR CLASS
+# ATE	LTD.	Atlantis Transportation Services	ATLANTIS CANADA
+# AUD	INC.	Audi Air	AUDI AIR
+# AUU	INC.	Aurora Aviation	AURORA AIR
+# AUY	S.A.	Aerolineas Uruguayas	AUSA
+# AVD	S.L.	Alamo Aviacion	ALAMO
+# AVM	S.A.	Aviacion Ejecutiva Mexicana	AVEMEX
+# AVQ	INC.	Aviation Services	AQUILINE
+# AVR	INC.	Active Aero Charter	ACTIVE AERO
+# AVY	S.A.	Aerovaradero	AEROVARADERO
+# AWB	INC.	Airways International	AIRNAT
+# AWV	INC.	Airwave Transport	AIRWAVE
+# AWY	S.L.	Aeroway	AEROWEE
+# AXI	INC.	Aeron International Airlines	AIR FREIGHTER
+# AXR	S.A.	Axel Rent	RENTAXEL
+# AYM	S.L.	Airman	AIRMAN
+# AYN	S.A.	Atlantic Airlines	ATLANTIC NICARAGUA
+# AZT	S.A.	Azimut	AZIMUT
+# AZY	INC.	Arizona Airways	ARIZAIR
+# ASU	S.A.	Compania Boliviana de Transporte Aereo Privado Aerosur	ASUR
+# AUO	S.A.	Empresa (Aero Uruguay)	UNIFORM OSCAR
+# EEZ	E-FLY	Eurofly	Italy
+# GWA	G-W AIR	Great Western Air	United States
+# IJA	I-JET	International Jet Aviation Services	United States
+# IXR	X-BIRD	Ixair	France
+# JLJ	J AIR	J-Air	Japan
+# JAL	J-BIRD	Japan Airlines Domestic	Japan
+# ODI	H AIR TAXI	Jonsson	ODINN
+# KSU	K-STATE	Kansas State University	United States
+# APT	S.A.	LAP Colombia - Lineas Aereas Petroleras	LAP
+# MRG	MANAG'AIR	MANAG'AIR	France
+# OCN	O-BIRD	O Air	France
+# JPA	J-PAT	OSACOM	United States
+# QWL	Q-CHARTER	Qwila Air	South Africa
+# SBF	S-BAR	Seven Bar Flying Service	United States
+# ALC	INC.	Southern Jersey Airways	ACOM
+# RLS	S-AIRLINES	S-Air	Russia
+# AOS	S.A. DE C.V.	Servicios Aerecs Del Sol	AEROSOL
+# USA	U S AIR	US Airways	United States
+# ZTF	MONGOL_AIR	Mongolian International Air Lines	Mongolia
+# NXB	XB	NEXT Brasil	Brazil
+# OAI	OA	Orbit International Airlines	United States
+# OAR	OA	Orbit Regional Airlines	United States
+# TJA	T.J. AIR	T.J. Air	United States
+# TLM	9F	Tramm Airlines	Netherlands Antilles
+# BSX	5B	Bassaka airlines	Cambodia
+
+# Same-ICAO conflicts (active preferred, else first-wins):
+# ABX	ABEX	N	Airborne Express	United States
+# ABX	ABEX	N	ABX Air	United States
+#
+# BON	AIR BOSNA	Y	Air Bosna	Bosnia and Herzegovina
+# BON	AIR BOSNA	N	B&H Airlines	Bosnia and Herzegovina
+#
+# AGO	ANGOLA CHARTER	N	Angola Air Charter	Angola
+# AGO	ANGOLA CHARTER	N	Angola Air Charter	Angola
+#
+# ABL	AIRCOACH	N	Air BC	Canada
+# ABL	AIR BUSAN	Y	Air Busan	Republic of Korea
+#
+# MMM	AVIAMERIDIAN	N	Aviation Company Meridian	Russia
+# MMM	ASSIGNMENT POSTPONED	Y	Myanmar Airways International	Myanmar
+#
+# TYR	TYROLEAN	Y	Tyrolean Airways	Austria
+# TYR	TYROLEAN	Y	Tyrolean Airways	\N
+#
+# CDN	CANADIAN	Y	Canadian Airlines	Canada
+# CDN	CANADIAN	N	Canadian Helicopters	Canada
+#
+# WDY	WINDY CITY	N	Chicago Express	United States
+# WDY	WINDYCITY	N	Phoenix Airline Services	United States
+#
+# CAT	MANDARIN	N	Civil Air Transport	Taiwan
+# CAT	AIRCAT	N	Copenhagen Airtaxi	Denmark
+#
+# IKA	GORKHA AIRLINES	N	Gorkha Airlines	Nepal
+# IKA	ITEK-AIR	Y	Itek Air	Kyrgyzstan
+#
+# LTU	LTU	N	LTU International	Germany
+# LTU	LITUANICA	Y	Air Lituanica	Lithuania
+#
+# SCW	SCANWING	Y	Malmo Aviation	Sweden
+# SCW	SCANWINGS	Y	Malmö Aviation	Sweden
+#
+# NAL	NATIONAL	N	National Airlines	United States
+# NAL	NORTHWAY	N	Northway Aviation Ltd	Canada
+#
+# RON	AIR NAURU	Y	Nauru Air Corporation	Nauru
+# RON	OUR AIRLINE	N	Our Airline	Nauru
+#
+# RNA	ROYAL NEPAL	Y	Nepal Airlines	Nepal
+# RNA	ROYAL NEPAL	Y	Royal Nepal Airlines	Nepal
+#
+# SRL	STARLINE	N	Swedline Express	Sweden
+# SRL	SERVICIOS PERSONAL	N	Servicios Aeronauticos Aero Personal	Mexico
+#
+# STU	FUEGUINO	Y	Servicios de Transportes A	Argentina
+# STU	STARSOM	N	Star African Air	Somali Republic
+#
+# ASL	AIR SEATTLE	N	Spurling Aviation	United States
+# ASL	AIR SERBIA	Y	Air Serbia	Serbia
+#
+# SWR	SWISS	Y	Swiss International Air Lines	Switzerland
+# SWR	SWISSAIR	Y	Swissair	Switzerland
+#
+# SKI	SKYKING	N	Skyking	United Kingdom
+# SKI	SKYKING	N	SkyKing Turks and Caicos Airways	Turks and Caicos Islands
+#
+# TGW	GO CAT	Y	Tiger Airways	Singapore
+# TGW	GO CAT	Y	Tiger Airways Australia	Australia
+#
+# WAL	WESTERN	Y	Western Airlines	United States
+# WAL	WESTERN ARCTIC	N	Western Arctic Air	Canada
+#
+# SKV	SKY REGIONAL	Y	Sky Regional	Canada
+# SKV	MAPLE	Y	Sky Regional Airlines	Canada
+#
+
+# Callsign collisions (all variants kept; runtime disambiguates via active aircraft):
+# ADW	AIR ANDAMAN	N	Air Andaman	Thailand
+# AOW	AIR ANDAMAN	N	Air Andaman (2Y)	Thailand
+#
+# ACG	AIR PARTNER	N	Air Partner	United Kingdom
+# GDA	AIR PARTNER	N	GoldAir	United Kingdom
+#
+# JAF	BEAUTY	Y	Jetairfly	Belgium
+# TUB	BEAUTY	N	TUI Airlines Belgium	Belgium
+#
+# PBN	BLUEBIRD	N	Pacific Blue	New Zealand
+# LBL	BLUEBIRD	Y	Line Blue	Germany
+#
+# CDN	CANADIAN	Y	Canadian Airlines	Canada
+# CNN	CANADIAN	N	Canadian World	Canada
+#
+# AUL	DVINA	Y	Aeroflot-Nord	Russia
+# OAO	DVINA	N	Arkhangelsk 2 Aviation Division	Russia
+#
+# FJE	ENVOY	N	Silverjet	United Kingdom
+# ENY	ENVOY	Y	Envoy Air	United States
+#
+# ERH	ERAH	N	Era Helicopters	United States
+# ERR	ERAH	Y	Era Alaska	United States
+#
+# FFM	FIREFLY	Y	Firefly	Malaysia
+# JTL	FIREFLY	N	Jetall Holdings	Canada
+#
+# MJX	GEO-LINE	Y	Euroline	Georgia
+# GNN	GEO-LINE	Y	Georgian International Airlines	Georgia
+#
+# SVD	GRENADINES	N	St. Vincent Grenadines Air (1990)	Saint Vincent and the Grenadines
+# SVG	GRENADINES	Y	SVG Air	Saint Vincent and the Grenadines
+#
+# MYT	KESTREL	Y	MyTravel Airways	United Kingdom
+# TCX	KESTREL	Y	Thomas Cook Airlines	United Kingdom
+#
+# LNK	LINK	N	Airlink	South Africa
+# MXI	LINK	Y	MexicanaLink	Mexico
+#
+# CAT	MANDARIN	N	Civil Air Transport	Taiwan
+# MDA	MANDARIN	Y	Mandarin Airlines	Taiwan
+#
+# MCE	MARSHALL	N	Marshall Aerospace	United Kingdom
+# STG	MARSHALL	N	Sedalia	Boonville Stage Line
+#
+# GFG	NATIONAL	Y	Georgian National Airlines	Georgia
+# NAL	NATIONAL	N	National Airlines	United States
+#
+# PEL	PELICAN	Y	Aeropelican Air Services	Australia
+# PPK	PELICAN	N	Ramp 66	United States
+#
+# PNX	PHOENIX	N	Imperial Airways	United States
+# PAM	PHOENIX	N	Phoenix Air Service	Germany
+#
+# TQF	RAINBOW	N	United Kingdom Royal VIP Flights	United Kingdom
+# RAB	RAINBOW	Y	Rainbow Air (RAI)	United States
+#
+# RPO	RAINBOW AIR	Y	Rainbow Air Polynesia	United States
+# RUE	RAINBOW AIR	Y	Rainbow Air Euro	United Kingdom
+# RNY	RAINBOW AIR	Y	Rainbow Air US	United States
+#
+# ESK	RELAX	Y	SkyEurope	Slovakia
+# RLX	RELAX	Y	Go2Sky	Slovakia
+#
+# LJJ	RUSSIAN SKY	Y	Luchsh Airlines	Russia
+# RSY	RUSSIAN SKY	Y	I-Fly	Russia
+#
+# PNR	SKYJET	Y	PAN Air	Spain
+# SJU	SKYJET	Y	Skyjet Airlines	Uganda
+#
+# SNO	SNOWBALL	N	Delta Air Charter	Canada
+# MRS	SNOWBALL	Y	Marusya Airways	Russia
+#
+# STR	STARLINE	N	Red Star	United Arab Emirates
+# SRL	STARLINE	N	Swedline Express	Sweden
+#
+# XAK	SUNEXPRESS	N	Airkenya	Kenya
+# SXS	SUNEXPRESS	Y	SunExpress	Turkey
+#
+# VIR	VIRGIN	Y	Virgin Atlantic Airways	United Kingdom
+# VOZ	VIRGIN	Y	Virgin Australia	Australia
+#

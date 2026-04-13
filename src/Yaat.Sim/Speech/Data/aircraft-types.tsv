@@ -1,0 +1,2636 @@
+# ICAO aircraft type designators → spoken manufacturer/family names.
+# Source: vNAS AircraftSpecs.json (data-api.vnas.vatsim.net).
+# Columns: designator<TAB>manufacturer<TAB>family
+# Regenerate: python tools/refresh-aircraft-types.py
+#
+# Either field may be empty if extraction couldn't find a suitable word.
+# Runtime fallback: if family is empty, manufacturer is used as the only spoken form.
+A002	irkut
+A1	douglas	skyraider
+A10	fairchild	thunderbolt
+A109	agusta	power
+A119	agusta	koala
+A122	aerotec	uirapuru
+A124	antonov	ruslan
+A129	agusta	mangusta
+A139	agusta	grey
+A140	antonov	faraz
+A148	antonov
+A149	agusta
+A158	antonov
+A16	aviadesign
+A169	agustawestland
+A178	antonov
+A189	agustawestland
+A19	aeropract
+A19N	airbus
+A20	douglas	havoc
+A20J	schleicher
+A20N	airbus
+A21	aeropract	solo
+A210	aquila
+A21N	airbus
+A22	sadler	piranha
+A223		kityonok
+A225	antonov	mriya
+A23	aeropract	dragon
+A25	aeropract	breeze
+A27	aeropract
+A270	aero	propjet
+A29	avantage
+A2RT	kazan
+A3	douglas	skywarrior
+A306	airbus
+A30B	airbus
+A31	avantage	spectrum
+A310	airbus	polaris
+A318	airbus	elite
+A319	airbus	acj
+A320	airbus	prestige
+A321	airbus
+A33	aeropract
+A332	airbus	prestige
+A333	airbus
+A337	airbus	beluga
+A338	airbus
+A339	airbus
+A342	airbus	prestige
+A343	airbus	prestige
+A345	airbus	prestige
+A346	airbus	prestige
+A35	avantage	scanner
+A359	airbus	prestige
+A35K	airbus	prestige
+A37	cessna	dragonfly
+A388	airbus	prestige
+A3ST	airbus	beluga
+A4	mcdonnell	skyhawk
+A400	airbus	grizzly
+A5	icon
+A50	ilyushin
+A500	adam	carbonaero
+A504	avro
+A6	grumman	intruder
+A600	rotorway
+A660	ayres	turbo
+A700	adam	adamjet
+A743	antonov
+A748	hawker	andover
+A890	aviatika
+A9	aero	commander
+A900	aviatika	acrobat
+A910	aviatika	interfly
+AA1	grumman	trainer
+AA37	aeropract
+AA5	grumman	tiger
+AAT3	aero
+AAT4	aero
+AB11	aero
+AB15	aero
+AB18	aero
+AB95	aero
+AC11	north	commander
+AC31	avicopter
+AC33	avicopter
+AC4	light
+AC50	aero	commander
+AC52	aero
+AC56	aero	commander
+AC5A	nanjing	aircar
+AC5M	aviastroitel
+AC68	aero	commander
+AC6L	aero	commander
+AC72	aero	cruiser
+AC80	aero	commander
+AC90	north	commander
+AC95	gulfstream	commander
+ACAM	leza	air
+ACAR	auster	autocar
+ACED	powell	acey
+ACJR	spencer
+ACPL	option
+ACR2	acro
+ACRD	avia
+ACRO	acro
+ACSR	victa
+AD20	nanjing
+ADEL	ustinov
+ADVE	auster	adventurer
+ADVN	adventure
+AE45	aero
+AEA1	american
+AERK	aeronca	scout
+AEST	piper	aerostar
+AFOX	halley
+AG02	gatard	poussin
+AG60	caiga	kunlong
+AGSH	aero	sea
+AI10	ikar
+AIGT	auster	trainer
+AIRD	beagle	airedale
+AIRL	aeronix
+AJ27	comac	xiangfeng
+AJET	sabca	jet
+AK1	akaflieg
+AKOY	lisa
+AKRO	stephens
+ALBU	aviation
+ALC1	altair
+ALGR	fantasy	allegro
+ALH	hindustan	dhruv
+ALIG	arion	lightning
+ALIZ	breguet	alizé
+ALO2	aerospatiale	alouette
+ALO3	hindustan	alouette
+ALPI	auster	alpine
+ALSL	airlony
+ALTO	direct
+AM3	atlas	bosbok
+AMX	embraer	ghibli
+AN12	antonov
+AN2	antonov	antek
+AN22	antonov	antheus
+AN24	antonov
+AN26	antonov
+AN28	antonov	bryza
+AN3	antonov
+AN30	antonov
+AN32	antonov	firekiller
+AN38	antonov
+AN70	antonov
+AN72	antonov
+AN8	antonov
+ANGL	angel
+ANKA	tai
+ANSN	avro	anson
+ANST	kazan
+AP20	aeroprakt	cruiser
+AP22	aeroprakt	vision
+AP24	aeroprakt	viking
+AP26	aeroprakt	twin
+AP28	aeroprakt	victor
+AP32	aeroprakt	vixxen
+AP36	aeroprakt	vulcan
+APM2	issoire	lion
+APM3	issoire	lion
+APM4	issoire	simba
+APUP	aeropup
+AR11	hindustan	chief
+AR15	aeronca	sedan
+AR50	aeronca	chief
+AR5T	aeronca	tandem
+AR65	aeronca	chief
+AR6T	aeronca	tandem
+AR79	arado
+ARCP		arcus
+ARES	rutan	ares
+ARKS	aceair	aeriks
+ARON	general	airone
+ARV1	aviation	opus
+ARVA	iai	arava
+ARWF	arrow	sport
+AS02	ffa	bravo
+AS14	schleicher
+AS16	schleicher
+AS20	schleicher
+AS21	schleicher
+AS22	schleicher
+AS24	schleicher
+AS25	schleicher
+AS26	schleicher
+AS28	schleicher
+AS29	schleicher
+AS2T	ffa	turbine
+AS30	schleicher
+AS31	schleicher
+AS32	airbus	puma
+AS3B	aerospatiale	cougar
+AS50	airbus	ecureuil
+AS55	airbus	ecureuil
+AS65	airbus	panther
+AS80	starck	holiday
+ASO4	asso	whisky
+ASTO	tecnam
+ASTR	gulfstream	astra
+AT2P	air
+AT3	aidc
+AT3P	air
+AT3T	air
+AT43	atr
+AT44	atr	surveyor
+AT45	atr	surveyor
+AT46	atr
+AT5P	air
+AT5T	air
+AT6T	air
+AT72	atr
+AT73	atr
+AT75	atr
+AT76	atr
+AT8T	air	fire
+ATAC	aircraft
+ATG1	atg	javelin
+ATIS	aircraft
+ATL	robin
+ATLA	dassault	atlantic
+ATP	british
+ATTL	euronef
+AU11		auster
+AUJ2	auster	arrow
+AUJ4	auster	archer
+AUS3	taylorcraft
+AUS4	taylorcraft
+AUS5	auster	alpha
+AUS6	auster	terrier
+AUS7	auster
+AUS9	auster
+AV68	flugzeugbau	samburo
+AVAM	light	avid
+AVID	indaer	flyer
+AVIN	avro	avian
+AVK4	avtek
+AVLN	airmaster
+AVTR	aero	aventura
+B06	bell	jetranger
+B06T	bell	gemini
+B1	rockwell	lancer
+B103	beriev	bekas
+B105	casa	jet
+B13	akaflieg
+B14A	bellanca	cruisemaster
+B14B	downer	bellanca
+B14C	bellanca
+B150	winner
+B17	boeing	flying
+B18T	beech	westwind
+B190	beech
+B2	northrop	spirit
+B209	mbb	monsun
+B212	bell	twin
+B214	bell	isfahan
+B222	bell
+B23	douglas	dragon
+B230	bell
+B24	convair	liberator
+B25	north	mitchell
+B26	douglas	invader
+B26M	martin	marauder
+B29	boeing	superfortress
+B305	brantly
+B350	beech	king air
+B360	yakovlev
+B36T	beech	bonanza
+B37M	boeing	max
+B38M	boeing	max
+B39M	boeing	max
+B3XM	boeing
+B407	bell	arapaho
+B412	bell	griffon
+B427	bell
+B429	bell	globalranger
+B430	bell
+B461	british	statesman
+B462	british	trader
+B463	british
+B47G	bell	sioux
+B47J	bell	ranger
+B47T	soloy
+B505	bell	jet
+B52	boeing	stratofortress
+B525	bell	relentless
+B58T	beech	baron
+B60	boisavia	mercurey
+B609	agustawestland
+B60T	beech	turbine
+B701	boeing
+B703	boeing	phalcon
+B712	boeing	express
+B720	boeing
+B721	boeing
+B722	boeing
+B732	boeing	surveiller
+B733	boeing
+B734	boeing
+B735	boeing
+B736	boeing
+B737	boeing	bbj
+B738	boeing
+B739	boeing
+B741	boeing
+B742	boeing
+B743	boeing
+B744	boeing
+B748	boeing	bbj
+B74R	boeing
+B74S	boeing
+B752	boeing
+B753	boeing
+B762	boeing	pegasus
+B763	boeing
+B764	boeing
+B772	boeing
+B773	boeing
+B778	boeing
+B779	boeing
+B77L	boeing	bbj
+B77W	boeing	bbj
+B788	boeing	bbj
+B789	boeing	bbj
+B78X	boeing	dreamliner
+BA11	british
+BABY	canadian
+BAR6	barr
+BARC	buethe	barracuda
+BASS	beagle
+BBAT	bradley	aerobat
+BBIR	hovey
+BCA3	buhl	sport
+BCAT	grumman	bearcat
+BCS1	airbus	acj
+BCS3	airbus	cseries
+BD10	bede	falcon
+BD12	bede
+BD17	bede	nuggett
+BD4	bede
+BD5	bede	micro
+BD5J	bede	micro
+BD5T	bede	micro
+BDOG	british	bulldog
+BE10	beech	king air
+BE12	beriev	tchaika
+BE17	beech	traveler
+BE18	beech	expeditor
+BE19	beech	sport
+BE20	beech	king air
+BE23	beech	musketeer
+BE24	beech	musketeer
+BE30	beech	king air
+BE32	beriev
+BE33	beech	bonanza
+BE35	beech	bonanza
+BE36	beech	bonanza
+BE40	beech	jayhawk
+BE4W	beech	beechjet
+BE50	beech	seminole
+BE55	beech	baron
+BE56	beech	turbo
+BE58	beech	baron
+BE60	beech	duke
+BE65	beech	queen air
+BE70	beech	queen air
+BE76	beech	duchess
+BE77	beech	skipper
+BE80	beech	queen air
+BE88	beech	queen air
+BE95	beech	air
+BE99	beech	airliner
+BE9L	beech	king air
+BE9T	beech	king air
+BEAR	avipro	bearhawk
+BELF	short	belfast
+BER2	beriev	altair
+BER4	beriev	albatross
+BETA	rollason
+BEVR	asap
+BF19	podesva
+BFIT	bristol	fighter
+BILO	pena
+BIPL	eaa
+BIRD	taylor	bird
+BISC	bot	cruiser
+BK17	casa
+BKUT	renaissance	berkut
+BL11	bleriot
+BL17	bellanca	viking
+BL19	bellanca	skyrocket
+BL8	american	decathlon
+BLBU	ameur
+BLCF	boeing	dreamlifter
+BLEN	bristol	blenheim
+BLKS	aircraft	baby
+BM6	maranda	lark
+BMAN	aak
+BN2P	pilatus	islander
+BN2T	pilatus	turbine
+BO40	boeing
+BOLT	steen
+BOOM	rutan	boomerang
+BPOD	rutan	bipod
+BR14	breguet
+BR54	barnett
+BR60	brumby
+BR61	brumby	evolution
+BRAV	tecnam	bravo
+BRB2	brantly
+BREZ	aerostyle	breezer
+BROU	max	broussard
+BS60		marquis
+BSTP	bell	supertransport
+BSTR	custom
+BT36	beech	bonanza
+BT7	boeing	hawk
+BTUB	kimbrel
+BU20	aircraft
+BU31	aero	jungmann
+BU33	casa	jungmeister
+BU81	zlin	bestmann
+BUC	hawker
+BUCA	arnet	buccaneer
+BULT	brokaw	bullet
+BUSH	rainbow
+BW60	blackwing
+BW6T	blackwing
+BX2	brandli	cherry
+C02T	cessna	turbo
+C04T	cessna	turbo
+C06T	cessna	turbine
+C07T	cessna	turbine
+C08T	soloy	caravan
+C1	kawasaki
+C101	casa	aviojet
+C10T	cessna	turbine
+C119	fairchild	flying
+C120	cessna
+C123	fairchild	provider
+C125	northrop	raider
+C130	lockheed	hercules
+C135	boeing
+C140	cessna
+C141	lockheed	starlifter
+C14T	cessna	turbo
+C15	mcdonnell
+C150	cessna	aerobat
+C152	cessna	aerobat
+C160	transall
+C162	cessna	skycatcher
+C17	boeing	globemaster
+C170	cessna
+C172	cessna	skyhawk
+C175	cessna	skylark
+C177	cessna	cardinal
+C180	cessna	skywagon
+C182	cessna	skylane
+C185	cessna	skywagon
+C188	cessna	agwagon
+C190	cessna
+C195	cessna
+C2	grumman	greyhound
+C205	cessna
+C206	cessna	skywagon
+C207	cessna	stationair
+C208	cessna	caravan
+C210	cessna	centurion
+C212	airbus	aviocar
+C21T	cessna	turbine
+C22J	caproni	ventura
+C240	cessna	ttx
+C25A	cessna	citation
+C25B	cessna	citation
+C25C	cessna	citation
+C25M	cessna	citation
+C270	caudron	luciole
+C27J	alenia	spartan
+C295	airbus	amazonas
+C303	cessna	crusader
+C309	cea	mehari
+C30J	lockheed	hercules
+C310	cessna
+C311	cea	anequim
+C320	cessna	skyknight
+C335	cessna
+C336	cessna	skymaster
+C337	cessna	skymaster
+C340	cessna
+C365	ekw
+C402	cessna	businessliner
+C404	cessna	titan
+C408	cessna	skycourier
+C411	cessna
+C414	cessna	chancellor
+C42	ikarus	bison
+C421	cessna	eagle
+C425	cessna	conquest
+C441	cessna	conquest
+C46	curtiss	commando
+C500	cessna	citation
+C501	cessna	citation
+C510	cessna	citation
+C525	cessna	citation
+C526	cessna	citationjet
+C550	cessna	citation
+C551	cessna	citation
+C55B	cessna	citation
+C560	cessna	citation
+C56X	cessna	citation
+C5M	lockheed	galaxy
+C650	cessna	citation
+C680	cessna	citation
+C68A	cessna	citation
+C700	cessna	citation
+C72R	cessna	cutlass
+C750	cessna	citation
+C77R	cessna	cardinal
+C82	fairchild	packet
+C82R	cessna	skylane
+C82S	cessna	turbo
+C82T	cessna	turbo
+C919	comac
+C97	boeing	stratofreighter
+CA12	comp	air
+CA19	commonwealth	boomerang
+CA1P	aerocomp	comp air
+CA1T	aerocomp	comp air
+CA25	commonwealth	winjeel
+CA3	aerocomp	comp air
+CA4	aerocomp	comp air
+CA41	corvus	racer
+CA6	aerocomp	comp air
+CA61	cvjetkovic	mini
+CA65	cvjetkovic	skyfly
+CA7P	aerocomp	comp air
+CA7T	aerocomp	comp air
+CA8	aerocomp	comp air
+CA9	comp	air
+CABI	universal
+CABN	paramount
+CAD2	class	bush
+CAD4	class	bush
+CAJ	aerocomp	comp air
+CAML	sopwith	camel
+CAMP	croix	aircamper
+CAN4	campana
+CAPL	capella
+CAR	aerocar
+CARV	aviation	carvair
+CASS	national
+CAT	boeing	catalina
+CAT1	creative	aerocat
+CAT2	creative	aerocat
+CAW	cessna
+CB1	hatz	biplane
+CC19	cub	xcub
+CD2	claudius	seastar
+CDC6	cessna
+CDUS	autogyro	calidus
+CDW1	chilton
+CE15	chernov
+CE22	chernov	corvette
+CE23	chernov
+CE25	chernov
+CE27	chernov	status
+CE43	cerva	guepard
+CEGL	celair
+CELR	mirage
+CENT	found	centennial
+CFRE	colyaer
+CG3	caudron
+CGAN	colyaer
+CH1	aidc
+CH10	zenair
+CH12	cicare
+CH14	cicare	aguilucho
+CH15	zenair
+CH18	zenair
+CH20	zenair	zénith
+CH25	zenair	zénith
+CH2T	zenair	zénith
+CH30	zenair
+CH40	champion	lancer
+CH50	zenair	mini
+CH60	zenair	zodiac
+CH62	zenair	gemini
+CH64	zenair	zodiac
+CH65	amd	zodiac
+CH7		kompress
+CH70	zenair	stol
+CH75	zenair	stol
+CH7A	american	citabria
+CH7B	american	citabria
+CH80	zenair	stol
+CHAN	cadcor
+CHCS	alpaero	choucas
+CHGO	korean
+CHIC	podesva
+CHIF	pawnee
+CHIN	asap
+CHIP	leger
+CHR1	elmwood	christavia
+CHR4	elmwood	christavia
+CHSY	chayair
+CICA	hydroplane
+CJ1	corby	starlet
+CJ6	nanchang
+CKUO	aidc
+CL2P	canadair
+CL2T	canadair	superscooper
+CL30	bombardier	challenger
+CL35	bombardier	challenger
+CL41	canadair	tutor
+CL4G	canadair	guppy
+CL60	canadair	challenger
+CL8	carriou	club
+CLA	callair
+CLB1	aero	commander
+CLBR	fisher	celebrity
+CLD2	rotortec
+CLDS	rearwin	cloudster
+CLON	autogyro	cavalon
+CMA3	colyaer
+CMAS	cessna	airmaster
+CMD1	air
+CMDE	air
+CMDT	air
+CN12	circa
+CN35	airbus	persuader
+CNBR	short	canberra
+CNDR	general	condor
+CNGP	cessna
+CNUK	fleet	canuck
+CO50	cobalt	valkyrie
+COAR	cobra
+COL3	cessna	columbia
+COL4	cessna	columbia
+COLT	texas
+COMU	helicom	commuter
+CONI	lockheed	constellation
+COOT	taylor	coot
+CORO	aviation	phantom
+CORR	sivel	corriedale
+CORS	chance	corsair
+CORV	wolfsberg
+COUG	acro	cougar
+COUR	helio	courier
+COY2	rans	coyote
+COZY	rutan	cozy
+CP10	akrotech
+CP13	piel	emeraude
+CP20	mudry
+CP21	mudry
+CP22	akrotech
+CP23	akrotech
+CP30	piel	emeraude
+CP32	piel	emeraude
+CP60	piel	diamant
+CP65	porterfield	collegiate
+CP75	piel	béryl
+CP80	piel	zéphir
+CP90	piel	pinocchio
+CPNA	pena
+CPUP	culp
+CRA1	cranfield	eagle
+CRAC	plumb	cracker
+CRBN	curtiss	robin
+CRER	rans	courier
+CRES	new	cresco
+CRIO	microleve
+CRJ1	canadair	regional jet
+CRJ2	canadair	regional jet
+CRJ7	canadair	regional jet
+CRJ9	canadair	regional jet
+CRJX	bombardier	regional jet
+CRUZ	piper	cruiser
+CT4	pacific	airtrainer
+CTAH	rainbow	cheetah
+CTLN	fly
+CUB2	aces
+CUCA	culver	cadet
+CULP	culp
+CULV	culver
+CULX	fisher
+CVLP	convair	convairliner
+CVLT	canadair	cosmopolitan
+CX5	thatcher
+CYCL	carlson
+CYGT	hawker	cygnet
+D1	wing	derringer
+D11	wassmer	popuplane
+D139	dorna	bird
+D140	mudry	mousquetaire
+D150	jodel	mascaret
+D18	jodel
+D201		sportwing
+D228	fairchild
+D25	new
+D250	centre	capitaine
+D253	centre	regent
+D28D	dornier	skyservant
+D28T	dornier	turbo
+D31	druine	turbulent
+D328	fairchild	wolfhound
+D39	akaflieg
+D4	auster
+D5	auster	husky
+D5TU	druine	turbi
+D6	auster
+D6CR	druine	condor
+D7	fokker
+D8	fokker
+DA2	davis
+DA36	diamond
+DA40	diamond	star
+DA42	diamond	twin
+DA5	davis
+DA50	diamond	magnum
+DA62	diamond
+DAHU	pena
+DAKH	fisher
+DAL1	spezio	tuholer
+DAL4	dallach	fascination
+DAL5	dallach	evolution
+DART	parrish
+DC10	boeing	extender
+DC2	douglas
+DC3	douglas	skytrain
+DC3S	douglas
+DC3T	douglas	turbo
+DC4	douglas	skymaster
+DC6	douglas	liftmaster
+DC7	douglas	seven
+DC85	mcdonnell	jet
+DC86	mcdonnell
+DC87	mcdonnell
+DC91	mcdonnell
+DC92	mcdonnell
+DC93	mcdonnell	nightingale
+DC94	mcdonnell
+DC95	mcdonnell
+DEAG	amax
+DEFI	rutan	defiant
+DELF	lyavin
+DFL6		saphir
+DFLY	slipstream	dragonfly
+DG15	howard	nightingale
+DG1T	flugzeugbau
+DG80	flugzeugbau
+DH2T	havilland	turbo
+DH3T	havilland	turbo
+DH4T	havilland	turbo
+DH60	havilland	moth
+DH80	havilland	moth
+DH82	havilland	tiger moth
+DH83	havilland	moth
+DH84	havilland	dragon
+DH85	havilland	moth
+DH87	havilland	moth
+DH88	havilland	replica
+DH89	havilland	dragon
+DH8A	havilland	dash
+DH8B	havilland	dash
+DH8C	havilland	dash
+DH8D	havilland	dash
+DH90	havilland	dragonfly
+DH94	havilland	moth
+DHA3	havilland	drover
+DHC1	havilland	chipmunk
+DHC2	havilland	beaver
+DHC3	havilland	otter
+DHC4	havilland	caribou
+DHC5	havilland	buffalo
+DHC6	havilland	twin otter
+DHC7	havilland	dash
+DIMO	diamond	dimona
+DINO	ganzavia	dinó
+DIPR	collins
+DISC		discus
+DJET	diamond
+DJIN	sud	djinn
+DLH2	lange	antares
+DNGO	aeroric
+DO27	casa
+DO28	dornier	agur
+DON	unikomtranso
+DOVE	havilland	dove
+DR1	fokker
+DR10	centre	ambassadeur
+DR22	centre	dauphin
+DR30	robin	prince
+DR40	robin	dauphin
+DRAG	helicopters	dragon
+DRIF	austflight
+DRTG	culver	dart
+DSA1	smith	miniplane
+DSK	killingsworth	hawk
+DSLK	driggs
+DT45	diamond
+DTA1	verhees	delta
+DTA2	verhees	delta
+DUB2	dubna	osa
+DUCE	bakeng
+DUOD		discus
+DUR5	durand
+DV1	dova	skylark
+DV2	dova	infinity
+DV20	diamond	katana
+DW1	bellanca	eagle
+DWD2	ekw
+DYH2	dynali
+E110	embraer	bandeirante
+E120	embraer	brasilia
+E121	embraer	xingu
+E135	embraer
+E145	embraer
+E170	embraer
+E190	embraer	lineage
+E195	embraer
+E2	grumman	hawkeye
+E200	extra
+E230	extra
+E275	embraer
+E290	embraer
+E295	embraer
+E29E	binder
+E2CB	taylor	cub
+E300	extra
+E314	embraer	tucano
+E350	cessna
+E35L	embraer	legacy
+E390	embraer	millennium
+E3CF	boeing	sentry
+E3TF	boeing	sentry
+E400	extra
+E45X	embraer
+E500	extra
+E50P	embraer	phenom
+E530	cessna	scorpion
+E545	embraer	legacy
+E550	embraer	legacy
+E55P	embraer	phenom
+E6	boeing	mercury
+E737	boeing	wedgetail
+E75L	embraer	wing
+E75S	embraer	wing
+E767	boeing
+E7BH	group	bush
+EA40	eclipse
+EA50	eclipse
+EAEA	grosso
+EAGL	aviat	eagle
+EAGT	ameagle
+EAGX	eagle
+EB29	binder
+EBOY	fma	boyero
+EC20	airbus	colibri
+EC25	airbus	cougar
+EC30	airbus	stylence
+EC35	airbus	bluecopter
+EC45	airbus	lakota
+EC55	airbus
+EC6	croses	criquet
+EC75	airbus
+ECHO	tecnam	eaglet
+EDGE	zivko	edge
+EDGT	zivko
+EF2	bye
+EFAN	airbus
+EFOX	aerotrek
+EFUS	magnus	efusion
+EGL3	rotorway
+EGRT	grob	strato
+EH10	kawasaki	merlin
+EL10	ela	eclipse
+EL20	elitar
+ELA7	ela	cougar
+ELF	parnall
+ELIT	air	elite
+ELPS	explorer
+ELST	putzer
+ELTO	continental
+ELTR	elitar
+EM10	marganski	bielik
+EM11	marganski	orka
+EN28	enstrom	falcon
+EN48	enstrom
+EP9	lancashire	prospector
+EPER	epervier
+EPIC	air	epic
+EPX1	epervier
+ERAC	dickey
+ERCO	air	aircoupe
+ES11	alpi	raven
+ES13	clifford	spad
+ESCA	air	epic
+ESCP	just	escapade
+ESQL	moura
+ETA	binder	eta
+ETAR	dassault	etendard
+EUFI	british	eurofighter
+EUPA	europa
+EURT	fft
+EV55	evektor	outback
+EV97	evektor	eurostar
+EVAN	evangel
+EVIC	air	epic
+EVOP	lancair
+EVOT	lancair
+EVSS	evektor
+EX5T	aea	explorer
+EXEC	rotorway	exec
+EXEJ	rotorway
+EXNG	extra
+EXPL	boeing	explorer
+EXPR	express
+EZFL	aerocomp	flyer
+EZFT	blue
+EZHV	blue
+EZIK	istra
+EZKC	blue
+F1	mitsubishi
+F100	fokker
+F104	lockheed	starfighter
+F106	convair	delta
+F111	grumman	raven
+F117	lockheed	nighthawk
+F13	junkers	replica
+F14	grumman	tomcat
+F15	boeing	eagle
+F156	mraz	criquet
+F16	lockheed	falcon
+F16X	general	falcon
+F18H	boeing	hornet
+F18S	boeing	hornet
+F1FV	avion	favorit
+F2	mitsubishi
+F22	lockheed	raptor
+F260	aermacchi	warrior
+F26T	aermacchi
+F27	fairchild	friendship
+F28	fokker	fellowship
+F2TH	dassault
+F30	golden	brio
+F35	lockheed	lightning
+F3F	grumman	replica
+F4	mcdonnell	phantom
+F406	cessna	caravan
+F41E	aerosamara
+F5	casa	tiger
+F50	fokker	maritime
+F5SA	iriaf	saeghe
+F60	fokker
+F600	vulcanair	canguro
+F70	fokker
+F8	chance	crusader
+F86	north	sabre
+F8L	aviamilano	falco
+F900	dassault
+F9F	grumman	panther
+FA01	fläming	smaragd
+FA02	fläming	smaragd
+FA03	fläming	smaragd
+FA04	fläming	peregrine
+FA10	dassault	falcon
+FA11	fairchild	husky
+FA20	dassault	falcon
+FA24	fairchild	argus
+FA50	dassault
+FA5X	dassault
+FA62	fairchild	cornell
+FA7X	dassault
+FA8X	dassault
+FAET	atec	faeta
+FALC	american
+FALM	miles	falcon
+FANL	rhein	fanliner
+FANT	rhein	fantrainer
+FB1A	bowers
+FB1B	bowers
+FB5		star
+FBA2	found	hawk
+FBIR	freewing
+FC1	chengdu	thunder
+FDCT	flight
+FDMC	flight
+FE51	fighter
+FEST	aerostar	festival
+FFLY	fairey
+FG01	farigoux	origan
+FGT	midwest
+FH11	fairchild	hornet
+FIBO	starfire
+FIKD	fike
+FIKE	fike
+FINC	fleet	finch
+FJ10	aerostar
+FJR3	fajr
+FK12	technik	comet
+FK14	technik	polaris
+FK9	technik
+FL3	avia	aviastarlet
+FL53	meteor
+FL54	meteor
+FL55	meteor
+FLAM	dassault	flamant
+FLCO	leonardo	falco
+FLE2	fleet
+FLE7	fleet	fawn
+FLIZ	flitzer
+FLSS	kolb	flyer
+FM25	flying	vampire
+FN33	nardi	riviera
+FNKB	akron
+FOOF	stewart	fighter
+FORT	fleet	fort
+FOUG	aerospatiale	magister
+FOX	skystar	kitfox
+FOXT	team
+FRBD	northrop	firebird
+FREE	cabrinha	spirit
+FREL	aerospatiale	frelon
+FRNT	sky
+FRON	frontier
+FS51	falconar	mustang
+FT30	nanjing
+FU24	air	fletcher
+FURY	hawker	fury
+FUSI	corvus	fusion
+FW02	flywhale
+FW19	four
+FW21	four
+FW44	fma	stieglitz
+FW90	flug	replica
+FX1	innovaviation
+G1	aviation	gélinotte
+G103	grob	twin
+G109	grob	ranger
+G115	grob	tutor
+G120	grob	snunit
+G12T	grob
+G140	grob
+G150	gulfstream
+G159	grumman	gulfstream
+G15T	grob	acro
+G160	grob	ranger
+G164	aero	king
+G180	general	skyfarer
+G200	akrotech
+G202	akrotech
+G21	grumman	goose
+G21M	mckinnon	goose
+G21T	mckinnon	turbo
+G222	alenia	spartan
+G250	gulfstream
+G280	gulfstream
+G2CA	guimbal	cabri
+G2GL	soko	galeb
+G2T1	waco	sport
+G3	remos	mirage
+G300	akrotech
+G44	grumman	widgeon
+G46	fiat
+G4SG	soko	galeb
+G59	fiat
+G64T	grumman	turbo
+G70	groppo
+G73	grumman	mallard
+G73T	grumman	turbo
+G800	grinvalds	orion
+G850	grob	strato
+G96	grumman	trader
+G97	sai	spotter
+GA10	gippsaero
+GA20	gippsland	fatman
+GA5C	gulfstream
+GA6C	gulfstream
+GA7	grumman	cougar
+GA7C	gulfstream
+GA8	gippsaero	airvan
+GABR	blackshape	gabriel
+GALX	gulfstream	galaxy
+GANT	fairey
+GAUN	gloster
+GAVI	aero	gavilan
+GAZL	aerospatiale	gazelle
+GB1	game	gamebird
+GBSP	beets	special
+GC1	temco	swift
+GEMI	miles	gemini
+GENI	ifb
+GEPE	aero
+GF20	grob
+GFLY	scaled	flyer
+GL5T	bombardier	global
+GL7T	bombardier	global
+GLAD	gloster
+GLAS	new	glasair
+GLEX	raytheon	global express
+GLF2	grumman	gulfstream
+GLF3	gulfstream
+GLF4	gulfstream
+GLF5	gulfstream	shavit
+GLF6	gulfstream
+GLSP	new
+GLST	new	glastar
+GM01	yalo	gniady
+GM17	intracom	viper
+GMGC	ibis
+GNAT	hawker	gnat
+GOBU	butterfly
+GOLF	tecnam	golf
+GOOS	quikkit
+GOTR	goair	trainer
+GP1	jihlavan
+GP3	osprey
+GP4	osprey
+GR51	cameron	grand
+GRAF	lundy
+GRFN	griffon
+GRIF	canada
+GRIZ	aerotek
+GSIS	slipstream	genesis
+GSPN	grob	jet
+GUEP	aero	guepard
+GURI	aeromot	guri
+GX	remos
+GY10	gardan	bagheera
+GY20	maranda	minicab
+GY30	cab	supercab
+GY80	socata	horizon
+H111	casa
+H12T	soloy
+H160	airbus
+H2	kaman	seasprite
+H202		fledger
+H204		tornado
+H207		alfa
+H21	vertol	work
+H25A	havilland	dominie
+H25B	hawker
+H25C	british
+H269	sikorsky	sky
+H40	hoffmann
+H43A	kaman
+H43B	kaman	huskie
+H46	boeing	sea
+H47	boeing	chinook
+H500	boeing	defender
+H53	sikorsky	sea
+H53S	sikorsky	stallion
+H60	hawker	hawk
+H64	boeing	apache
+HA2	hollmann	sportster
+HA31	hindustan	basant
+HA4T	hawker	horizon
+HAHU	sindlinger	hawker
+HAR	boeing	harrier
+HAW3	groen	hawk
+HAWK	boeing	hawk
+HB21	brditschka	hobbyliner
+HB23	brditschka	hobbyliner
+HB3	brditschka
+HCAT	grumman	hellcat
+HDJT	honda	hondajet
+HEAD	stewart	headwind
+HERN	havilland	heron
+HF20	mbb	hansa
+HI27	hirth	acrostar
+HIGH	just
+HIND	hawker
+HL2	lambach
+HLD4	halberstadt
+HM38	falconar	ladybug
+HN70	nicollier	menestrel
+HORN	wallerkowski
+HORZ	fisher	horizon
+HPTR	idea
+HPZL	historical
+HR10	robin	safari
+HR20	robin	acrobin
+HRM9	elbit
+HRNT	aak
+HROC	harmon
+HRYA	historical
+HSMT	rotorsmart
+HT16	hindustan	kiran
+HT2	hindustan
+HT32	hindustan	deepak
+HT34	hindustan
+HT36	hindustan	sitara
+HU1	shenyang	seagull
+HU2	shenyang	petrel
+HUCO	bell	hueycobra
+HUML	hummel
+HUMM	aerotek
+HUNT	hawker
+HURI	hawker	hurricane
+HURK	tai
+HUSK	aviat	husky
+HW4P	groen
+HW4T	groen
+HX2	helowerks	wasp
+HYPR	aviation
+I103	ilyushin
+I114	ilyushin
+I115	aisa
+I11B	aisa	peque
+I153	polikarpov
+I15B	polikarpov
+I16	polikarpov
+I22	instytut	iryda
+I23	instytut	manager
+I3	interavia
+I66	iannotta	san
+I828	ica
+IA46	dinfia	ranquel
+IA50	fma	guarani
+IA51	fma	tehuelche
+IA58	fma	pucará
+IA63	fma	pampa
+IFUR	isaacs
+IL14	ilyushin
+IL18	ilyushin	bizon
+IL28	ilyushin
+IL38	ilyushin
+IL62	ilyushin
+IL76	ilyushin	gajaraj
+IL86	ilyushin
+IL96	ilyushin
+IMPU	impulse
+INCQ	inpaer
+INEC	inpaer
+INEX	inpaer
+ION	ion
+IP06	ipe	curucaca
+IP10	ipe
+IP26	ipai	tuca
+IP6A	ipe
+IPAN	embraer	ipanema
+IR21	ica
+IR22	ica
+IR23	ica
+IR24	ica
+IR25	ica	triumf
+IR27	ica	dacic
+IR28	ica
+IR31	ica	pelican
+IR46	iar	katty
+IR99	avioane	soim
+IS2	instytut
+IS28	ica
+ISAT	aerojames	isatis
+ISPT	isaacs
+J1	auster	autocrat
+J10	chengdu
+J177	aerodynos	pingouin
+J2	piper	cub
+J20	chengdu
+J3	piper	cub
+J300	alms	joker
+J328	fairchild	dornier
+J4	piper	cub
+J4B2	barnett
+J5	piper	cruiser
+J8A	shenyang
+J8B	shenyang
+JAB2	jabiru
+JAB4	jabiru
+JABI	jabiru
+JACE	acro	junior
+JAG2	jag
+JAGR	hindustan	jaguar
+JAJ5	aviation	marco
+JAJ6		fregata
+JANU		janus
+JARO	jackaroo
+JAST	soko	jastreb
+JB1	independent	seadragon
+JB15	oberlerchner
+JC01	coupe
+JC02	coupe
+JCOM	aero	jet
+JCRU	aasi
+JD2	dyke	delta
+JDOE	american
+JE2	eich	gyroplane
+JFOX	airo
+JH7	xian	flying
+JK05	ekolot	junior
+JL9	guizhou	shanying
+JN76	caudron	replica
+JPM1	marie	medoc
+JPRO	bac	jet
+JRC1	chalard	julcar
+JS1	jetstream
+JS20	jetstream
+JS3	volpar	jetstream
+JS31	british	jetstream
+JS32	british	jetstream
+JS41	british	jetstream
+JSQA	general	jet
+JSX	sonex	subsonex
+JT2	taylor	titch
+JU52	casa
+JUN1	kaminskas	jungster
+JUN2	kaminskas	jungster
+JUNR	bolkow	junior
+JUPI	lammer
+K126	ica
+K209	fama	kiss
+K226	kamov	sergei
+K250	kestrel
+K35E	boeing	stratotanker
+K35R	boeing	stratotanker
+K50	korea	eagle
+K51	kovacs	peregrino
+K8	nanchang	karakorum
+KA25	kamov
+KA26	kamov
+KA27	kamov
+KA50	kamov	shark
+KA52	kamov	alligator
+KA62	kamov	kasatka
+KAFI	kari
+KAK1	kieger
+KAK3	junkers
+KAT3	khrunichev
+KATB	kari
+KATR	aerosamara
+KC2	kawasaki
+KE3	boeing
+KEHA	kestrel	hawk
+KELA	keleher
+KELD	kelly
+KERO	rearwin
+KEST	farnborough	kestrel
+KFAB	kitplanes
+KFAS	kitplanes
+KFIR	iai
+KFIS	warner	kingfisher
+KH4	kawasaki
+KIS2	pulsar	kis
+KIS4	pulsar	cruiser
+KIWI	twi	kiwi
+KK60		coupe
+KL07	bolkow
+KL10	flight
+KL25	klemm
+KL35	klemm
+KLBR	kolb
+KM2	fuji
+KMAX	kaman
+KNTW	payne	knight
+KODI	daher	kodiak
+KOLL	kolb
+KP2	jihlavan	skyleader
+KP5	jihlavan	skyleader
+KR1	rand
+KR2	rand
+KR21	fairchild	challenger
+KR30	ekolot	topaz
+KR31	fairchild	challenger
+KR34	fairchild	challenger
+KRAG	soko	kraguj
+KRAH	rock
+KRIC	flsz	kricket
+KSTK		kasatik
+KT1	tai
+KTOO	amax	karatoo
+KZ2	sai	kupe
+KZ3	sai
+KZ4	sai
+KZ7	sai	laerke
+KZ8	sai
+L10	lockheed	electra
+L101	lockheed	tristar
+L11	temco	sedan
+L11E	luscombe	spartan
+L12	lockheed	junior
+L13	convair	centaur
+L13M	let	conversions
+L13S	aerotechnik	vivat
+L14	lockheed	electra
+L15	hongdu	lieying
+L159	aero	albatros
+L18	lockheed	lodestar
+L181	associated
+L188	lockheed	electra
+L200	let	morava
+L29	aero	delfin
+L29A	lockheed	jetstar
+L29B	lockheed	jetstar
+L37	lockheed	ventura
+L380	lederlin	ladybug
+L39	aero	albatros
+L4	chaika
+L40	orlican	sokol
+L410	aircraft	turbolet
+L5	stinson	sentinel
+L59	aero
+L6	aerovolga
+L60	aero	brigadyr
+L610	let
+L70	valmet	miltrainer
+L8	temco	silvaire
+L90	aermacchi	redigo
+LA25	lake	renegade
+LA4	lake	buccaneer
+LA60	lockheed	trojan
+LA6T	aermacchi	turbine
+LA8	aerovolga	flagman
+LACO	laven
+LAE1	lange	antares
+LAKR	laser
+LAKX	avia
+LAMA	hindustan	lama
+LANC	avro	lancaster
+LARK	north	commander
+LAST	utva	lasta
+LBUG	reflex	lightning
+LCA	hindustan	tejas
+LCB	laird	commercial
+LCH	hindustan
+LCR	laird	speedwing
+LEG2	lancair
+LEGD	performance
+LESP	lancair
+LEVI	tapanee
+LGEZ	rutan
+LH10	aviation	ellipse
+LIBE	liberty
+LION	griffon
+LJ23	lear
+LJ24	gates
+LJ25	gates
+LJ28	gates
+LJ31	learjet
+LJ35	learjet
+LJ40	learjet
+LJ45	learjet
+LJ55	learjet
+LJ60	learjet
+LJ70	learjet
+LJ75	learjet	liberty
+LJ85	learjet
+LK17	lak
+LK19	lak
+LK20	lak
+LM5	lombardi	aviastar
+LM5X	light	cub
+LM7	lombardi
+LMK1	cata	oryx
+LN27	falcomposite	furio
+LN3	flygfabriken	seagull
+LNC2	lancair
+LNC4	lancair
+LNCE	lancair
+LNP4	lancair
+LNT4	lancair
+LOCA	aerolab
+LOVE		love
+LP1	lopresti	fury
+LR2T	load
+LS10	flugzeugbau
+LS2	hat
+LS8	flugzeugbau
+LSTR	custom
+LTNG	bac	lightning
+LUL5	lucas
+LUL6	lucas
+LUL7	lucas
+LUL8	lucas
+LV51	laviasa	master
+LW20	howard
+LW40	howard
+LWIN	howard	australian lightwing
+LX32	lilienthal	bekas
+LX34	lilienthal	bekas
+LXR	elixir
+LYNX	westland	lynx
+LYSA	westland	lysander
+M10	mooney	cadet
+M101	myasishchev	sokol
+M106	lambert	mission
+M108	lambert	mission
+M10F	mooney
+M10R	mooney
+M110	aviat	special
+M15		belphegor
+M17	myasishchev	stratosfera
+M18	aii	dromader
+M18T	melex	turbine
+M1SC	hpa	speedcruiser
+M2	kubicek	scout
+M200	aero	commander
+M203	myasishchev	barsuk
+M20P	mooney	ovation
+M20T	mooney	acclaim
+M21		mini
+M212	lambert	mission
+M22	mooney	mustang
+M24		dromader
+M26		air
+M28		engines
+M2HK	miles	hawk
+M308	macchi
+M326	embraer	xavante
+M339	aermacchi
+M345	leonardo
+M346	aermacchi	master
+M360	aircraft
+M36J	matra	jupiter
+M4	maule	rocket
+M404	martin
+M5	maule	rocket
+M55	myasishchev	geophysica
+M6	maule	rocket
+M600	piper
+M7	maule	rocket
+M74	texas	wasp
+M7T	maule	star
+M8	maule
+M9	maule
+MA1	emair	paymaster
+MA5	marquart	charger
+MA60	xian
+MA6H	xian
+MAGC	ibis
+MAGI	miles	magister
+MAGN	airdale	magnum
+MAJR	falconar	major
+MAKO	lancair
+MAMB	melbourne	mamba
+MAME	aerocomp	merlin
+MARS	martin	mars
+MAVR	aea
+MC01	montaer
+MC10	zenair	cricri
+MC23	irkut
+MC45	meyers
+MC90	monocoupe
+MCOU	chris
+MCOY	montana
+MCR1	colomban	lafayette
+MCUL	kimball
+MD11	boeing
+MD3	sme	trainer
+MD3R	gryf	rider
+MD52	boeing
+MD60	boeing
+MD81	boeing
+MD82	boeing
+MD83	boeing
+MD87	boeing
+MD88	boeing
+MD90	boeing
+ME08	nord	pingouin
+ME09	hispano	buchon
+ME62	messerschmitt
+MEAD	mead
+MEL2	garrison
+MERK	aviaton
+MESS	miles	messenger
+METR	gloster	meteor
+MEXP	merlin
+MF10	malmo	vipan
+MF17	saab	supporter
+MG15	aero
+MG17	mikoyan
+MG19	mikoyan
+MG21	hindustan	lancer
+MG23	hindustan	bahadur
+MG25	mikoyan
+MG29	mikoyan	baaz
+MG31	mikoyan
+MG44	mikoyan
+MGAT	mikoyan
+MGIC	kaiser
+MGNM	aviation
+MH20	mitsubishi
+MH46	aerosette	eclipse
+MI10	mil
+MI14	mil
+MI2	mil	hawk
+MI24	mil	sabre
+MI26	mil
+MI28	mil
+MI34	mil
+MI38	mil
+MI4	mil	xuanfeng
+MI6	mil
+MI8	mil
+MIDR	acba	midour
+MIMP	taylor
+MIMU	bushby	mustang
+MIR2	dassault
+MIRA	dassault	mirage
+MITE	mooney	mite
+MJ10	jurca	spit
+MJ12	jurca
+MJ1H	jurca	replica
+MJ2	jurca	tempête
+MJ3	jurca	dart
+MJ4	jurca	shadow
+MJ5	jurca	sirocco
+MJ53	jurca	autan
+MJ55	jurca	biso
+MJ7	jurca	gnatsum
+MJ77	jurca	gnatsum
+MJ8	jurca
+MJ80	jurca	replica
+MJ9	jurca
+MJ90	jurca	replica
+MLER	alanne
+MM14	magni	scout
+MM16	magni	trainer
+MM19	magni	shark
+MM21	magni
+MM22	magni	voyager
+MM24	magni	orion
+MMAC	mccarley
+MMAX	mad
+MMUT	mara	malamut
+MNEX	norman
+MOCU	culp
+MOGO	kinetic	mountain
+MOL1	molniya
+MONA	miles	monarch
+MONI	monnett
+MOR2	morrisey	nifty
+MOSP	mong
+MOSQ	havilland	mosquito
+MOTO	humbert
+MP02		czajka
+MP20	plan	busard
+MR25	murphy	rebel
+MR35	murphy	rebel
+MR3T	murphy
+MRAI	monnett
+MRAM	harmon	mister
+MRF1	dassault
+MRJ7	mitsubishi
+MRJ9	mitsubishi
+MRMD	czaw	mermaid
+MRTN	mirage
+MS1	mysky
+MS18	socata
+MS25	socata
+MS30	socata	epsilon
+MS73		alcyon
+MS76	dinfia	paris
+MSQ2	backcountry
+MT	autogyro	mtosport
+MT2	mitsubishi
+MU2	mitsubishi	solitaire
+MU23	akaflieg	saurier
+MU30	mitsubishi	diamond
+MUS2	bushby	mustang
+MVN1	mven	fermer
+MVRK	phoenix
+MX10	aerotec	aventura
+MX1T	amd	tayrona
+MX2	mxr
+MX58	aeroandina	embera
+MX65	aerotec	amigo
+MX80	aerotec	fantasy
+MXS	mxr
+MY12	mylius	tornado
+MY13	mylius	mistral
+MYA4	myasishchev
+MYS4	dassault	mystère
+N110	nord	ramier
+N120	nord	norecrin
+N250	nusantara
+N260	nord	broussard
+N262	aerospatiale	frégate
+N3	nostalgair	pup
+N320	nord
+N340	nord
+N3N	naval
+N5	nanchang
+NA40	unis	bongo
+NAL2	taneja	hansa
+NAVI	north	navion
+NC85	nord
+ND1T	ndn	turbo
+NDAC	normand
+NDAT	normand
+NDIC	norman	nordic
+NG4	brm	prodigy
+NG5	brm	bristell
+NG5E	brm	energic
+NH90	patria	caiman
+NHCO	new	colibri
+NI28	nieuport
+NIBB	aviamilano	nibbio
+NIMB		nimbus
+NIPR	avions	nipper
+NM5	nal
+NMCU	enaer	eaglet
+NNJA	best
+NOMA	gaf	nomad
+NORA	nord	noratlas
+NORS	ccf	norseman
+NPOR	redfern	nieuport
+NSTR	custom
+NT10	nuwaco
+NXT	nemesis
+NXTE	electroflight
+O1	cessna	bird
+O3	lockheed
+OH1	kawasaki
+OM1	morrisey	bravo
+OMGA	isae
+OMLA	omac
+ONE	gogetair	one
+ONEX	sonex
+OPCA	fls	optica
+OR10	orion
+OR12	orion
+OSCR	partenavia	oscar
+OUDE	olympic
+OVOD	vitek
+OZZI	buchanan	ozzie
+P06T	tecnam
+P1	kawasaki
+P100	pottier
+P130	pottier	bleu
+P136	piaggio
+P148	piaggio
+P149	piaggio
+P180	piaggio	avanti
+P18T	smith	cub
+P19	aviamilano	scricciolo
+P1HH	piaggio	hammerhead
+P2	lockheed	neptune
+P208	tecnam
+P210	cessna	pressurized
+P212	tecnam	traveller
+P220	aero	koala
+P230	pottier	panda
+P27	gryf	skyster
+P270	pottier	amster
+P28A	piper	cherokee
+P28B	piper	cherokee
+P28R	piper	arrow
+P28S	piper	turbo
+P28T	piper	arrow
+P28U	piper	turbo
+P3	lockheed	orion
+P32R	piper	saratoga
+P32T	piper	lance
+P337	cessna	pressurized
+P38	lockheed	lightning
+P39	bell	airacobra
+P40	curtiss	warhawk
+P46T	piper	meridian
+P47	republic	thunderbolt
+P4Y	convair	privateer
+P50	pottier	bouvreuil
+P51	north	mustang
+P57	partenavia	fachiro
+P60	pottier	minacro
+P61	northrop	black
+P63	bell	kingcobra
+P66P	piaggio	albatross
+P66T	piaggio
+P68	partenavia	observer
+P68T	partenavia	spartacus
+P70	pottier
+P750	pacific	xstol
+P8	boeing	poseidon
+P80	pottier
+P82	north	twin
+PA11	piper	cub
+PA12	piper	cruiser
+PA14	piper	cruiser
+PA15	piper	vagabond
+PA16	piper	clipper
+PA17	piper	vagabond
+PA18	piper	cub
+PA20	piper	pacer
+PA22	piper	colt
+PA23	piper	apache
+PA24	piper	comanche
+PA25	piper	pawnee
+PA27	piper	aztec
+PA30	piper	twin
+PA31	piper	navajo
+PA32	piper	six
+PA34	piper	seneca
+PA36	piper	brave
+PA38	piper	tomahawk
+PA44	piper	seminole
+PA46	piper	malibu
+PA47	piper	jet
+PACE	bellanca	skyrocket
+PAGO	alms	papango
+PANT	rotec	panther
+PAR1	paradise
+PAR4	paradise
+PARL	croix	aerial
+PAT2	atac
+PAT4	piper	caraja
+PAUL	neiva	paulistinha
+PAV4	carter
+PAY1	piper	cheyenne
+PAY2	piper	cheyenne
+PAY3	piper	cheyenne
+PAY4	piper	cheyenne
+PC12	pilatus	eagle
+PC21	pilatus
+PC24	pilatus
+PC6P	pilatus	porter
+PC6T	fairchild	peacemaker
+PC7	pilatus	astra
+PC9	hawker	hudournik
+PDIG	vstol	pairadigm
+PEGA	general	pegaso
+PEGZ	tapanee	pegazair
+PELI	kolb	pelican
+PEMB	percival	pembroke
+PETL	aero
+PETR	edra	petrel
+PGEE	holcomb
+PGK1	western	hirondelle
+PHIL	vtol
+PHIX	phenix
+PHNX	freedom
+PIAE	pipistrel
+PIAT	pipistrel
+PICO	general	picchio
+PILL	piper	pillán
+PINO	general	pinguino
+PIPA	pipistrel
+PISI	pipistrel
+PIT4	pipistrel
+PITA	pipistrel
+PITE	pipistrel	taurus
+PIVE	pipistrel
+PIVI	pipistrel
+PK11	pik	tumppu
+PK15	pik	hinu
+PK18	pik	sytky
+PK19	pik	muhinu
+PK20	pik
+PK21	pik	sytky
+PK23	pik	suhinu
+PK25	pik	varttimarkka
+PKAN	uetz	pelikan
+PL1	pazmany	laminar
+PL12	flight	airtruk
+PL2	pazmany
+PL4	pazmany
+PL9	pazmany	stork
+PLUS	taylorcraft
+PNR2	alpi	pioneer
+PNR3	alpi	pioneer
+PNR4	alpi
+PO2	polikarpov
+PO60	potez	sauterelle
+POLI	alvarez
+PONY	reda
+PP2	pilatus
+PP3	pilatus
+PPRO	percival	provost
+PRBP	howard
+PRBR	howard
+PRCE	percival	sea
+PREN	percival	prentice
+PREX	private
+PRIM	blackshape	prime
+PRM1	hawker	premier
+PROC	percival	proctor
+PROT	czaw	parrot
+PROW	morse	prowler
+PRPR	howard	pocket rocket
+PRTS	rutan	proteus
+PRXT	private
+PSTM	podesva
+PSW4		maluch
+PT21	pottier	coati
+PT22	ryan	recruit
+PT70	pottier
+PT80	pottier
+PTMS	pitts	stinker
+PTRL	nash
+PTS1	aviat	special
+PTS2	aviat	special
+PTSS	aviat	stinker
+PUL6	pulsar
+PULR	aviation
+PULS	aero	pulsar
+PUMA	aerospatiale	puma
+PUP	beagle	pup
+PURS	rans	pursuit
+PUSH	prescott
+PW4	politechnika
+PZ01	lipnur	gawron
+PZ02		kos
+PZ04	lipnur	wilga
+PZ05		flaming
+PZ06		kruk
+PZ12		junior
+PZ26	agrolot	mrówka
+PZ3T		orlik
+PZ4M		wilga
+PZ6T		turbo
+Q01	reiner
+Q1	general	predator
+Q25	boeing	stingray
+Q4	northrop	hawk
+Q5	nanchang
+Q9	general	guardian
+QAIL	aerosport
+QALT	fmp
+QIC2	quickie
+QR01	quercy
+QUAS	aeroalcool	lite
+QUIC	quickie
+R100	robin	aiglon
+R109	aircraft	rhino
+R11	rupert
+R135	boeing
+R185	johnson	rocket
+R2	sau	robert
+R200	robin	alpha
+R22	aero	beta
+R300	robin
+R4	sikorsky	hoverfly
+R44	robinson	raven
+R66	robinson
+R721	boeing
+R722	boeing
+R90F	ruschmeyer
+R90R	ruschmeyer
+R90T	ruschmeyer
+RA14	falconar	loisirs
+RA17	adam
+RAF2	rotary
+RAID	sky
+RAIL	aerosport
+RALL	socata	rallye
+RANG	navion
+RARO	new
+RAV3	ravin
+RAV5	ravin
+RAZM	saint
+RBEL	murphy	rebel
+RC3	republic	seabee
+RC70	rockwell	commander
+RD03	duruble	edelweiss
+RD20	denize	raid
+RDH2	redfern
+RELI	stinson	reliant
+RENE	murphy
+REV6	groen
+RF10	fournier	ximango
+RF3	fournier
+RF4	fournier
+RF47	fournier
+RF5	aero	sperber
+RF6	fournier	firefly
+RF9	fournier
+RFAL	dassault
+RGNT	neiva	regente
+RJ03	junqua	ibis
+RJ1H	british	avroliner
+RJ70	british	avroliner
+RJ85	british	avroliner
+RK5	kalinauskas
+RLU1	yakima	breezy
+RMOU	hillberg	rotormouse
+RNGR	dac
+ROAR	velocity
+RODS	aircraft	one
+ROND	lombardi	rondone
+ROSE	maupin
+RP1	mitsubishi
+RPUP	little
+RS12	rans	airaile
+RS18		sportsman
+RS20	rans	raven
+RS21	rans	outbound
+RTA4	rtaf	chandra
+RUBI	scintex	rubis
+RV6	aii
+RVAL	atlas	rooivalk
+RW19	ragwing	stork
+RW20	ragwing	stork
+RW22	ragwing	tiger moth
+RW26	ragwing	special
+RW3	rhein	multoplane
+RYSA	technoavia	rysachok
+RYST	ryan
+S1	arctic	tern
+S10	stinson	voyager
+S107	spratt
+S108	piper	voyager
+S10S	stemme	chrysalis
+S11	fokker	instructor
+S12	spencer	air
+S122	skyline	pchelka
+S12S	stemme	twin
+S15S	stemme
+S15U	stemme	patroller
+S200	sipa	minijet
+S202	sgau
+S21	macdonald
+S211	padc
+S223	casa	flamingo
+S22T	cirrus
+S274	irgc
+S278	hesa	shahed
+S285	hesa	shahed
+S2P	havilland	tracker
+S2T	grumman	turbo
+S3	lockheed	viking
+S32E	schleicher
+S32M	schleicher
+S330	sikorsky
+S355	scaled	firebird
+S360	aerospatiale	dauphin
+S37	sukhoi	berkut
+S38	sikorsky
+S39	sikorsky
+S4	arctic	privateer
+S400	sgau	kapitan
+S434	sikorsky
+S45	partenair	mystere
+S51	sikorsky
+S51D	stewart
+S52	sikorsky
+S55P	sikorsky	chickasaw
+S55T	sikorsky	whirlwind
+S58P	sikorsky	seahorse
+S58T	sikorsky
+S6	stemme
+S601	aerospatiale	corvette
+S61	sikorsky	sea
+S61R	sikorsky	pelican
+S62	sikorsky	seaguard
+S64	sikorsky	tarhe
+S65C	aerospatiale	dauphin
+S76	sikorsky	eagle
+S900	sipa
+S92	sikorsky	cyclone
+S97	sikorsky	raider
+SA02		cavalier
+SA03		cavalier
+SA04		cavalier
+SA05		cavalier
+SA10	stolp	starduster
+SA11	stits	playmate
+SA2	icp	vimana
+SA20	beriev
+SA3	stits	playboy
+SA30	stolp	starduster
+SA37	schweizer	condor
+SA38	schweizer	twin
+SA50	stolp	starlet
+SA6	stits
+SA6E	sreya	envoy
+SA7	stits
+SA70	stolp	acroduster
+SA75	stolp	acroduster
+SA8T	schweizer	twin
+SAB2	arnet	sabre
+SABA	paravar
+SACE	acro	ace
+SACR	smith
+SAFF	halsted
+SAH1	fls
+SAKO	rans	sakota
+SALB	skygear
+SAM	sam
+SAND	short	sandringham
+SAPH	piel	saphir
+SASH	shark
+SASP	supermarine	spitfire
+SASY	protech	prostar
+SATA	casa	saeta
+SAVA	sadler
+SAVG	zlin	savage
+SB05	saab
+SB20	saab
+SB29	saab
+SB32	saab	lansen
+SB35	saab	draken
+SB37	saab	viggen
+SB39	saab	gripen
+SB7	seabird	seeker
+SB91	saab	safir
+SBD	douglas	dauntless
+SBLS	slipstream
+SBM3		kos
+SBOY	interplane
+SBR1	north	sabreliner
+SBR2	north	sabre
+SC01	fft	speed
+SC7	short	skyliner
+SCAM	aerosport	scamp
+SCEP	slipstream
+SCII	sport
+SCOM	airdale	comet
+SCOR	rotorway
+SCOU	westland
+SCRO	akaflieg	schlacro
+SCTR	flaglor
+SCUB	aero
+SCW1	scwal
+SD26	skydancer
+SD4	tomark	viper
+SDUS	stolp
+SE5A	raf
+SE5R	replica
+SEAT	seawind
+SEAW	seawind
+SERA	servoplant
+SEST	seastar
+SF2	viking	cygnet
+SF23	scheibe	sperling
+SF24	scheibe	motorspatz
+SF25	scheibe	falke
+SF27	scheibe
+SF28	scheibe	tandem
+SF31		milan
+SF32	scheibe
+SF34	saab	argus
+SF35	scheibe
+SF36	scheibe
+SF50	cirrus	vision
+SG37	schweizer
+SG70	glass	stolglass
+SG92	technoavia	turbo
+SGRA	aviation	rally
+SGUP	aero	guppy
+SH09	kopter
+SH33	short	sherpa
+SH36	short
+SH4	silvercraft
+SH5	harbin
+SHAC	avro	shackleton
+SHAK	freedom	air
+SHAW	hawker	hawk
+SHEA	seaflight
+SHEK	rans	shekari
+SHER	sherpa
+SHOE	mercury
+SHOR	higher
+SHRK	shark
+SHRT	sherpa
+SIDE	smyth	sidewinder
+SIGM	elitar
+SILH	lunds	silhouette
+SIR2	rhein
+SIRA	tecnam	sierra
+SJ30	swearingen
+SK10	skyeton	swift
+SK70	starkraft
+SKAR	iii
+SKIF	aerolites
+SKIM	colonial	skimmer
+SKRA	best	ranger
+SKYC	oma
+SKYO	skyote
+SKYR	commonwealth	skyranger
+SL39	mapo
+SL90	mapo	leshii
+SLCH	scaled	stratolaunch
+SLG2	airplane	sling
+SLG4	airplane
+SLK3	slick
+SLK5	slick
+SM01		vega
+SM20	technoavia
+SM60	stinson
+SM92	moravan	rhino
+SMAX	airmax	seamax
+SMB2	dassault
+SNAD	calumet	adventurer
+SNAP	tecnam	snap
+SNGY	lancair	calima
+SNOS	vsr	snoshoo
+SNS2	sorrell	guppy
+SNS7	sorrell	hiperbipe
+SNS9	sorrell
+SNTA	airsport
+SOK2	soko
+SOKL	mraz	sokol
+SOL1	solar
+SOL2	solar
+SOLI	rutan	solitaire
+SONX	sonex
+SORA	acs	sora
+SP20	new
+SP33	spectrum	independence
+SP55	technoavia
+SP6E	sauser
+SP7	spartan	executive
+SP91	technoavia	slava
+SP95	technoavia
+SPAR	iii
+SPC2	specter
+SPDR	rearwin	speedster
+SPEL	loehle
+SPGY	aircraft
+SPHA	american
+SPIR	questair
+SPIT	supermarine
+SPOR	amax
+SPR2	carlson
+SPRT	practavia
+SPST	rearwin	sportster
+SPUP	sopwith	pup
+SQ2T	glassic
+SQES	slipstream	skyquest
+SR01	eurodisplay	magic
+SR20	cirrus	srv
+SR22	cirrus
+SRAC	sport
+SRAI	monnett	sonerai
+SRAS		sport
+SRAY	dornier
+SREY	progressive
+SS2	rutan	two
+SS2P	aero	thrush
+SS2T	ayres	thrush
+SSAB	north	sabre
+SSC	butterfly
+SSTM	aviation
+ST1	phillips	speedtwin
+ST10	socata	horizon
+ST3	stearman
+ST30	staudacher
+ST4	stearman	speedmail
+ST50	israviation
+ST6	stearman	cloudboy
+ST60	staudacher
+ST75	boeing	kaydet
+ST87	stern	europlane
+STAL	aircraft	stallion
+STAR	beech	starship
+STAT	aircraft
+STCH	fly
+STFF	statler
+STIL	terzi	stiletto
+STLN	helio	stallion
+STOR	storch
+STR2	strojnik
+STRA	striplin	ranger
+STRE	ultralight
+STRI	sopwith	triplane
+STRK	british	strikemaster
+STRM	aviation	storm
+STST	cfm	star
+SU17	sukhoi
+SU24	sukhoi
+SU25	sukhoi	scorpion
+SU26	sukhoi
+SU27	hindustan
+SU29	sukhoi
+SU31	sukhoi
+SU38	sukhoi
+SU57	sukhoi
+SU7	sukhoi
+SU80	sukhoi
+SU95	sukhoi
+SUBA	fuji	aero
+SUCO	bell	supercobra
+SUNB	verilite	sunbird
+SUNV	fokker
+SURN	korea
+SURU	ipt	surubim
+SUSO	vstol	solution
+SV4	nord
+SVNH	aerotec	savannah
+SW18	skywood	teddy
+SW2	swearingen	merlin
+SW3	fairchild	merlin
+SW4	fairchild	metro
+SWAK	warner	space
+SWAT	bharat	swati
+SWIF	supermarine
+SWOR	fairey	swordfish
+SX30	swearingen
+SYCA	bristol	sycamore
+SYMP	omf	symphony
+SYNC	fly
+SZ45	szd	ogar
+SZ9M	yalo	bocian
+T1	fuji
+T101	aeroprogress	grach
+T134	tupolev
+T154	tupolev
+T160	tupolev
+T18	thorp	tiger
+T19	thk	speedfire
+T2	north	buckeye
+T204	tupolev
+T206	cessna	turbo
+T210	cessna	turbo
+T211	taneja	sport
+T22M	tupolev
+T250	bellanca	aries
+T28	north	nomad
+T30	terzi	katana
+T33	lockheed	star
+T334	tupolev
+T34P	beech	mentor
+T34T	beech	turbo
+T35	temco	buckaroo
+T37	cessna
+T38	northrop	talon
+T4	kawasaki
+T40	turner
+T411	khrunichev	wolverine
+T415	khrunichev	snegir
+T419	khrunichev	strekoza
+T5	fuji
+T50	cessna	bobcat
+T51	titan	mustang
+T6	north	harvard
+T7	fuji
+TA15	taylorcraft	foursome
+TA16	thurston	trojan
+TA20	taylorcraft	zephyr
+TAA1	scaled
+TAGO	team
+TAIL	aircraft	tailwind
+TAMP	socata	tampico
+TARO	anahuac
+TARR	pelegrin
+TAYA	taylorcraft
+TAYB	taylorcraft	sportsman
+TAYD	taylorcraft
+TB05	amc
+TB20	socata	eagle
+TB21	socata	trinidad
+TB30	aerospatiale	epsilon
+TB31	socata	omega
+TBEE	united	twin
+TBM	grumman	avenger
+TBM7	socata
+TBM8	socata
+TBM9	socata
+TBR3	golden
+TC2	aero
+TCAT	grumman	tigercat
+TCOU	helio	twin
+TD1	taiwan
+TD2	turbine	tempest
+TD3	taiwan	legend
+TEAL	schweizer	teal
+TERM	smith
+TERR	foxcon
+TEX2	hawker	texan
+TEXA	fly
+TF19	taylorcraft	sportsman
+TF21	taylorcraft
+TF22	taylorcraft	ranger
+TFK2	technoflug	carat
+TFOC	thunder
+TFUN	twi	taifun
+TGRS	lancair
+TIAD	trike
+TIGR	airbus	tiger
+TIJU	avions	junior
+TIPB	avions	tipsy
+TJET	maverick	leader
+TL20	ultralight	sting
+TL30	ultralight	sirius
+TLEG	legend	turbine
+TM5	aircraft
+TMOT	fisher	tiger moth
+TMUS	papa
+TNAV	riley	twin
+TNDR	dream
+TOBA	socata	tobago
+TOOT	meyer
+TOR	british	tornado
+TOUR	aesl	airtourer
+TOXO	cag
+TP40	thunder
+TPIL	enaer	turbo
+TPIN	scottish
+TR1	trident	trigull
+TR20	feugray
+TR26	feugray	sirius
+TR55		trener
+TRAL	groppo
+TRAP	capella
+TRBA	podesva
+TRDO	titan
+TRF1	team
+TRIM	ford
+TRIS	pilatus	trislander
+TRMA	stinson
+TRWN	pacific
+TS11		iskra
+TS14	test	bonus
+TS1J	jonker	revelation
+TS8		bies
+TSPT	thunder
+TSTN	terrafugia
+TSTR	air	twinstar
+TT62	hpa	alekto
+TTRS	humbert
+TTWO	parker
+TU16	tupolev
+TU22	tupolev
+TU95	tupolev
+TUCA	embraer	tucano
+TUL3	podesva	amigo
+TUTR	avro	tutor
+TVL4	travel
+TVLB	travel
+TWEN	tecnam
+TWSP	time
+TWST	silence
+TZRV	iriaf	tazarve
+U15	phoenix
+U16	grumman	albatross
+U2	lockheed
+U21	beech	ute
+U22	beech
+UBAT	australite
+UF10	distar	samba
+UF13	urban	lambada
+UFHT	ufo
+UH1	bell	iroquois
+UH12	fairchild	raven
+UH1Y	bell
+UL10	streamline	ultimate
+UL20	streamline	ultimate
+UL2F	aeros	flamingo
+UL45		ultra
+ULPA	ullmann
+ULTS	american
+UM18	fairchild	flymobil
+UNIV	neiva	universal
+URRA	ibis
+US1	shinmaywa
+US2	shinmaywa
+UT60	utva
+UT65	utva	privrednik
+UT66	utva
+UT75	utva
+UU12	udet	replica
+V1	grumman	mohawk
+V10	north	bronco
+V22		osprey
+V252	msw
+V280	bell	valor
+V322	msw
+V351	msw
+V452	msw
+V500	revolution
+V8SP	beachner	special
+VALI	convair	valiant
+VAMP	havilland	vampire
+VANT	visionaire	vantage
+VAUT	sud	vautour
+VELO	velocity
+VELT	velocity
+VENT		ventus
+VEZE	rutan	varieze
+VF2	fry	esprit
+VF35	lockheed	lightning
+VF60	vulcanair	mission
+VG3T	aviakit
+VGUL	percival	vega
+VIMA	valtion
+VIMY	vickers	replica
+VIPJ	viper
+VIVA	composit
+VIX	skystar	kitfox
+VIXN	amax
+VJ22	volmer	sportsman
+VK3P	cirrus
+VL3	gobosh	flamingo
+VM1	vol	esqual
+VMT	myasishchev	atlant
+VNOM	havilland	venom
+VNTR	icp
+VO10	aero	commander
+VOL2	volante
+VP2	evans	volksplane
+VR20	egvoyager
+VR7	vashon
+VSON	american
+VTOR	vulcanair	viator
+VTRA	rans	venterra
+VTUR	questair	venture
+VUT1	evektor	cobra
+VVIG	rutan	variviggen
+VW10	airconcept	airbuggy
+VWIT	aircraft
+W11	wolf	fighter
+W201	weatherly
+W3		procjon
+W62T	weatherly
+WA40	wassmer
+WA41	wassmer	baladou
+WA42	wassmer	prestige
+WA50	wassmer	atlantic
+WA80	wassmer	piranha
+WAC9	waco
+WACA	waco
+WACC	waco
+WACD	waco
+WACE	waco	aristocrat
+WACF	waco	ymf
+WACG	waco
+WACM	waco
+WACN	waco
+WACO	waco	gxe
+WACT	waco
+WAIX	sonex
+WASP	westland
+WB57	martin
+WBOO		boomerang
+WCAT	grumman	wildcat
+WDEX	radab	windex
+WESX	westland	wessex
+WF4U	war
+WFOC	war
+WFUR	war
+WG30	westland
+WH1	wendt	traveler
+WH4	hall	harpoon
+WHAT	whatley
+WHIL	reflex	lightning
+WHIS	grove	whisper
+WHIT	miles	whitney
+WHK2	rutan	knight
+WHKN	rutan	knight
+WICH	javelin
+WILT	aerostar	wild
+WIND	watson	windwagon
+WINE	windecker
+WIRR	commonwealth	wirraway
+WISP	whisper
+WM2	miller
+WOPU	aerosport	pusher
+WP40	war
+WP47	war
+WS22	spring	sprint
+WSP	aak
+WT9	aerospool	dynamic
+WUSH	wüst
+WW1	white	jäger
+WW23	iai	westwind
+WW24	iai	westwind
+WZ10	changhe
+WZER	war
+X2	sikorsky
+X29	grumman
+X3	eurocopter
+X32	boeing
+X4	robin
+X47B	northrop
+X49	sikorsky	speedhawk
+X55	lockheed
+XA41	xtremeair
+XA42	xtremeair
+XA85	raj
+XAIR	raj
+XL2	liberty
+XNON	abs	xenon
+XNOS	sonex
+XV15	bell
+Y11	harbin
+Y112	yakovlev
+Y12	harbin	harbinger
+Y12F	harbin	aircar
+Y130	yakovlev
+Y141	yakovlev
+Y18T	yakovlev
+Y20	xian	kunpeng
+YA1	yeoman	cropmaster
+YAK3	yakovlev
+YAK9	yakovlev
+YALE	north	yale
+YARR	arrow
+YAST	sgau
+YC12	chasle	tourbillon
+YK11	yakovlev
+YK12	yakovlev
+YK18	yakovlev
+YK28	yakovlev
+YK30	yakovlev
+YK38	yakovlev
+YK40	yakovlev
+YK42	yakovlev
+YK50	yakovlev
+YK52	yakovlev
+YK53	yakovlev
+YK54	yakovlev
+YK55	yakovlev
+YK58	yakovlev
+YL15	boeing	scout
+YNHL	aviaimpex	yanhol
+YS11	mitsubishi
+YUNO	shuya
+YURO		orao
+Z22	zlin	junak
+Z26	moravan	trener
+Z37P	moravan	cmelák
+Z37T	moravan	turbo
+Z42	moravan	zlin
+Z43	moravan	zlin
+Z50	moravan
+ZA6	safat	sanka
+ZEP2	aero	zephyr
+ZEPH	atec	zephyr
+ZERO	mitsubishi	zero
+ZIA	applebay
+ZIU	tai
+ZULU	bul
