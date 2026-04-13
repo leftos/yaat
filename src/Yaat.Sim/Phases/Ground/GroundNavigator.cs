@@ -5,7 +5,42 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
-/// V2 ground navigator: Design B closed-form playback over
+/// Result of a single <see cref="GroundNavigator.Tick"/> call. Phases use
+/// this to decide when to advance the route segment index, terminate the
+/// phase, etc.
+/// </summary>
+public enum NavigatorResult
+{
+    /// <summary>Still moving toward the current target node.</summary>
+    Navigating,
+
+    /// <summary>Target node reached; the phase should advance to the next segment.</summary>
+    ArrivedAtNode,
+}
+
+/// <summary>
+/// Per-tick diagnostic snapshot produced by <see cref="GroundNavigator"/>.
+/// Consumed by <c>TickRecorder</c> for CSV traces and by
+/// <c>Yaat.TickInspector</c> for post-hoc analysis.
+/// </summary>
+public record NavTickDiag(
+    int TargetNodeId,
+    double DistToTargetNm,
+    double BearingToTargetDeg,
+    double AngleDiffDeg,
+    double TargetSpeedKts,
+    double BrakingLimitKts,
+    double ArcSpeedLimitKts,
+    bool OnArc,
+    double NodeRequiredSpeedKts,
+    double PathDeviationFt,
+    double SegFromLat,
+    double SegFromLon
+);
+
+/// <summary>
+/// Per-tick controller that drives an aircraft along a resolved
+/// <see cref="TaxiRoute"/> via Design B closed-form playback over
 /// <see cref="PathPrimitive"/>s. Each <see cref="SetupSegment"/> call
 /// compiles the route's current segment into a <see cref="PathPrimitive"/>
 /// and walks forward through remaining segments to build a kinematic speed-
@@ -17,22 +52,20 @@ namespace Yaat.Sim.Phases.Ground;
 /// <para>
 /// The key structural property (Design B invariant I2) is that during an arc
 /// primitive, position and heading are both functions of a single scalar
-/// (the aircraft's current compass bearing from the arc centre). They cannot
-/// drift apart, so the feedback-saturation knife-edge that dogged V1's
-/// Bezier-waypoint approach cannot occur here by construction.
+/// (the aircraft's current compass bearing from the arc centre). They
+/// cannot drift apart, so the feedback-saturation knife-edge that dogged
+/// the old Bezier-waypoint approach cannot occur here by construction.
 /// </para>
 ///
 /// <para>
-/// This initial V2 implementation focuses on correctness of the geometric
-/// playback and speed profile — features like entry-error absorption,
-/// tangent-lock zones on straights, and straight-segment cross-track
-/// correction can be added incrementally. Snapshot round-trip is lazy:
-/// <see cref="ToSnapshot"/> writes <c>ImplVersion=2</c> plus the current
-/// target state, and <see cref="FromSnapshot"/> returns a fresh instance
-/// that will re-run <see cref="SetupSegment"/> on the next call.
+/// Responsibilities: steer the aircraft along each segment of the route
+/// (straight or arc); manage speed (slow for upcoming turns, brake at
+/// hold-shorts, stop at route end); detect per-segment arrival.
+/// Not responsible for: route building, hold-short insertion, phase
+/// handoff, runway assignment.
 /// </para>
 /// </summary>
-public sealed class GroundNavigatorV2 : IGroundNavigator
+public sealed class GroundNavigator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundNavigator");
 
@@ -485,14 +518,16 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     }
 
     // ---- Snapshot ----
-    // Non-round-tripping in this initial commit: ToSnapshot writes
-    // ImplVersion=2 plus the minimum needed for debugging; FromSnapshot
-    // returns a fresh instance that re-runs SetupSegment on its next call.
+    // Non-round-tripping: ToSnapshot writes the minimum state needed for
+    // diagnostic continuity; FromSnapshot returns an instance that re-runs
+    // SetupSegment on its next call. A mid-arc snapshot/restore resumes from
+    // where the plan puts the aircraft geometrically, not from an exact arc
+    // progress point. Acceptable because arc segments are 2-3 seconds and
+    // mid-arc saves are rare.
 
     public GroundNavigatorDto ToSnapshot() =>
         new()
         {
-            ImplVersion = 2,
             TargetNodeId = TargetNodeId,
             TargetLat = TargetLat,
             TargetLon = TargetLon,
@@ -504,7 +539,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             NextSegmentBearing = _nextSegmentBearing,
         };
 
-    public static GroundNavigatorV2 FromSnapshot(GroundNavigatorDto dto) =>
+    public static GroundNavigator FromSnapshot(GroundNavigatorDto dto) =>
         new()
         {
             TargetNodeId = dto.TargetNodeId,

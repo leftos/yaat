@@ -9,15 +9,15 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="GroundNavigatorV2"/> on synthetic fixtures. No
+/// Unit tests for <see cref="GroundNavigator"/> on synthetic fixtures. No
 /// real airport data; each test builds a minimal <c>PhaseContext</c> + route
 /// inline and drives the navigator through <c>Tick</c> loops.
 /// </summary>
-public class GroundNavigatorV2Tests
+public class GroundNavigatorTests
 {
     private readonly ITestOutputHelper _out;
 
-    public GroundNavigatorV2Tests(ITestOutputHelper output)
+    public GroundNavigatorTests(ITestOutputHelper output)
     {
         _out = output;
     }
@@ -26,7 +26,7 @@ public class GroundNavigatorV2Tests
     {
         var aircraft = new AircraftState
         {
-            Callsign = "NAVV2",
+            Callsign = "NAV",
             AircraftType = "B738",
             Latitude = acLat,
             Longitude = acLon,
@@ -75,22 +75,13 @@ public class GroundNavigatorV2Tests
         return new TaxiRouteSegment { Edge = directed, TaxiwayName = name };
     }
 
-    // ---- Factory dispatch ----
+    // ---- Snapshot round-trip ----
 
     [Fact]
-    public void Factory_CreateV2_ReturnsGroundNavigatorV2()
-    {
-        var nav = GroundNavigatorFactory.Create(GroundNavigatorImpl.V2);
-        Assert.IsType<GroundNavigatorV2>(nav);
-        Assert.IsAssignableFrom<IGroundNavigator>(nav);
-    }
-
-    [Fact]
-    public void Factory_FromSnapshot_V2_ReturnsGroundNavigatorV2()
+    public void FromSnapshot_RestoresTargetState()
     {
         var dto = new GroundNavigatorDto
         {
-            ImplVersion = 2,
             TargetNodeId = 42,
             TargetLat = 37.0,
             TargetLon = -122.0,
@@ -101,24 +92,9 @@ public class GroundNavigatorV2Tests
             MaxSpeedKts = 30,
         };
 
-        var nav = GroundNavigatorFactory.FromSnapshot(dto);
-        Assert.IsType<GroundNavigatorV2>(nav);
+        var nav = GroundNavigator.FromSnapshot(dto);
         Assert.Equal(42, nav.TargetNodeId);
         Assert.Equal(30, nav.MaxSpeedKts);
-    }
-
-    [Fact]
-    public void Factory_Override_ScopesToExecutionContext()
-    {
-        // Default is V2 as of the V2 rollout; Override scopes to V1 within the using block.
-        Assert.Equal(GroundNavigatorImpl.V2, GroundNavigatorFactory.CurrentImpl);
-        using (GroundNavigatorFactory.Override(GroundNavigatorImpl.V1))
-        {
-            Assert.Equal(GroundNavigatorImpl.V1, GroundNavigatorFactory.CurrentImpl);
-            var nav = GroundNavigatorFactory.Create();
-            Assert.IsType<GroundNavigatorV1>(nav);
-        }
-        Assert.Equal(GroundNavigatorImpl.V2, GroundNavigatorFactory.CurrentImpl);
     }
 
     // ---- Straight segment drive ----
@@ -134,7 +110,7 @@ public class GroundNavigatorV2Tests
         var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
 
         var (aircraft, ctx) = MakeFixture(fromNode.Latitude, fromNode.Longitude, 90.0);
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
         Assert.Equal(2, nav.TargetNodeId);
@@ -202,7 +178,7 @@ public class GroundNavigatorV2Tests
 
         // Start with some forward speed so the arc integrator advances from tick 0.
         var (aircraft, ctx) = MakeFixture(p0Lat, p0Lon, 0.0, startSpeedKts: 10.0);
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
         bool arrived = false;
