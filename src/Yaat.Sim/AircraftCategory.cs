@@ -469,6 +469,32 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>
+    /// Nose-gear minimum turn radius (ft) used when a lineup-onto-runway
+    /// maneuver builds its pivot arc. Sized to match real aircraft ground-ops
+    /// geometry so <c>v/r</c> (tangent rotation rate) stays well under
+    /// <see cref="GroundTurnRate"/> at realistic LUAW speeds — i.e. the closed-
+    /// form arc integrator in a lineup-plan playback always has turn-rate
+    /// headroom for error correction.
+    ///
+    /// Reference values: Boeing 737 nose-gear minimum turn radius ≈ 56 ft
+    /// per the 737-800 ACAP §5; we round up for wake-turbulence padding and
+    /// wingtip clearance on corner-rounded taxiway approaches. Piston singles
+    /// can pivot much tighter but the value here is what we actually trace
+    /// for realism + stability (not the physical minimum).
+    /// </summary>
+    public static double LineUpTurnRadiusFt(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 70.0,
+            AircraftCategory.Turboprop => 50.0,
+            AircraftCategory.Piston => 25.0,
+            AircraftCategory.Helicopter => 25.0,
+            _ => 70.0,
+        };
+    }
+
     /// <summary>Target speed (kts) when executing a taxiway turn of 90° or more.</summary>
     public static double TaxiCornerSpeed(AircraftCategory cat)
     {
