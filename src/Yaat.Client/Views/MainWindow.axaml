@@ -160,16 +160,51 @@
                            Text="{Binding StatusText}"
                            Foreground="{DynamicResource SubtleTextBrush}"
                            FontSize="11" />
-                <!-- Mic status indicator. Only visible when speech recognition is enabled in
-                     preferences. Text carries the signal ("mic: Idle / Recording / Transcribing
-                     / Mapping / Error"); a colored dot could be added later if users want more
-                     visual distinction. -->
+                <!-- Mic status indicator. When speech recognition is disabled the label shows
+                     "mic: off" so users can still right-click to re-enable without having to
+                     open Settings. A colored dot could be added later if users want more
+                     visual distinction between Idle / Recording / Transcribing / Mapping / Error. -->
                 <TextBlock Grid.Column="1"
+                           x:Name="MicStatusText"
                            Text="{Binding SpeechStatus, StringFormat='mic: {0}'}"
                            FontSize="11"
                            Margin="8,0,0,0"
                            Foreground="{DynamicResource SubtleTextBrush}"
-                           IsVisible="{Binding Preferences.SpeechEnabled}" />
+                           IsVisible="{Binding IsSpeechEnabled}">
+                    <TextBlock.ContextFlyout>
+                        <MenuFlyout>
+                            <MenuItem x:Name="MicMenuEnableItem"
+                                      Header="Enable speech recognition"
+                                      ToggleType="CheckBox"
+                                      IsChecked="{Binding IsSpeechEnabled}" />
+                            <Separator />
+                            <MenuItem x:Name="MicMenuDebugItem"
+                                      Header="Show speech recognition debugging..." />
+                        </MenuFlyout>
+                    </TextBlock.ContextFlyout>
+                </TextBlock>
+
+                <!-- When speech is disabled, show a stub "mic: off" affordance whose only purpose
+                     is to carry the same context menu so the user can re-enable. Mutually
+                     exclusive with the active mic indicator above. -->
+                <TextBlock Grid.Column="1"
+                           x:Name="MicOffText"
+                           Text="mic: off"
+                           FontSize="11"
+                           Margin="8,0,0,0"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           IsVisible="{Binding !IsSpeechEnabled}">
+                    <TextBlock.ContextFlyout>
+                        <MenuFlyout>
+                            <MenuItem Header="Enable speech recognition"
+                                      ToggleType="CheckBox"
+                                      IsChecked="{Binding IsSpeechEnabled}" />
+                            <Separator />
+                            <MenuItem x:Name="MicOffMenuDebugItem"
+                                      Header="Show speech recognition debugging..." />
+                        </MenuFlyout>
+                    </TextBlock.ContextFlyout>
+                </TextBlock>
             </Grid>
         </Border>
 

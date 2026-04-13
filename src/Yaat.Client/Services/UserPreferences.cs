@@ -370,6 +370,21 @@ public sealed class UserPreferences
         Save();
     }
 
+    /// <summary>
+    /// Targeted setter for the speech-enable toggle. Used by the mic status-bar context menu so
+    /// the user can enable/disable without opening the full Settings dialog.
+    /// </summary>
+    public void SetSpeechEnabled(bool enabled)
+    {
+        if (_data.SpeechEnabled == enabled)
+        {
+            return;
+        }
+
+        _data.SpeechEnabled = enabled;
+        Save();
+    }
+
     public void SetWindowTopmost(string windowName, bool isTopmost)
     {
         var geo = GetWindowGeometry(windowName) ?? new SavedWindowGeometry();

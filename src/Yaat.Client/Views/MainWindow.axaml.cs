@@ -151,10 +151,43 @@ public partial class MainWindow : Window
 
         ApplyKeybinds(vm.Preferences);
 
+        // Wire the "Show speech recognition debugging..." items on both mic-status menus (one for
+        // the active indicator, one for the "mic: off" stub). Both open the same SpeechDebugWindow.
+        foreach (var debugItemName in new[] { "MicMenuDebugItem", "MicOffMenuDebugItem" })
+        {
+            var item = this.FindControl<MenuItem>(debugItemName);
+            if (item is not null)
+            {
+                item.Click += OnShowSpeechDebugClick;
+            }
+        }
+
         if (App.AutoConnectTarget is { } target)
         {
             _ = AutoConnectAsync(vm, target);
         }
+    }
+
+    private SpeechDebugWindow? _speechDebugWindow;
+
+    private void OnShowSpeechDebugClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        // Reuse the existing window if the user opens it twice — bring it to the front instead of
+        // creating a duplicate. Nulled out on Closed so the next request opens a fresh one.
+        if (_speechDebugWindow is { } existing)
+        {
+            existing.Activate();
+            return;
+        }
+
+        _speechDebugWindow = new SpeechDebugWindow(vm.SpeechService, vm.Preferences);
+        _speechDebugWindow.Closed += (_, _) => _speechDebugWindow = null;
+        _speechDebugWindow.Show(this);
     }
 
     private static void SetupTimelineSlider(Slider slider, MainViewModel vm)
@@ -1400,6 +1433,7 @@ public partial class MainWindow : Window
             // Apply final saved state (non-visual settings like keybinds, command scheme)
             vm.RefreshCommandScheme();
             vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
+            vm.RefreshIsSpeechEnabledFromPrefs();
             ApplyKeybinds(vm.Preferences);
             // Visual settings already applied via preview — just ensure final state is consistent
             SyncAllRadarViewTint();

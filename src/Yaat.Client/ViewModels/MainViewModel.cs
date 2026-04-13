@@ -505,8 +505,34 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private SpeechStatus _speechStatus = SpeechStatus.Idle;
 
+    /// <summary>
+    /// Live mirror of <see cref="UserPreferences.SpeechEnabled"/> so the mic status-bar visibility
+    /// and right-click context menu check state both react immediately when the user toggles it
+    /// — either via Settings save or via the context menu itself. A partial change handler
+    /// persists to prefs on write.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSpeechEnabled;
+
+    partial void OnIsSpeechEnabledChanged(bool value)
+    {
+        _preferences.SetSpeechEnabled(value);
+    }
+
+    /// <summary>Re-reads the speech-enabled flag from prefs. Called from the Settings save path
+    /// so the mirror stays in sync with bulk saves. Setting the property triggers the OnChanged
+    /// handler which calls <see cref="UserPreferences.SetSpeechEnabled"/> — that setter is
+    /// idempotent (early-returns if unchanged), so this is safe to call even when the value
+    /// hasn't actually moved.</summary>
+    public void RefreshIsSpeechEnabledFromPrefs()
+    {
+        IsSpeechEnabled = _preferences.SpeechEnabled;
+    }
+
     public MainViewModel()
     {
+        _isSpeechEnabled = _preferences.SpeechEnabled;
+
         // Speech pipeline wiring. The order here matters: LlmService must exist before
         // LocalLlmCommandMapper, and SpeechRecognitionService needs all of them.
         _audioCapture = new AudioCaptureService(_preferences);

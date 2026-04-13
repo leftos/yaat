@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Sim.Speech;
@@ -12,6 +14,44 @@ public enum SpeechStatus
     Mapping,
     Error,
 }
+
+public enum SpeechSessionOutcome
+{
+    /// <summary>The pipeline completed and produced a canonical command.</summary>
+    CommandAccepted,
+
+    /// <summary>Whisper returned a transcript but neither mapper produced a canonical command.</summary>
+    NoMappingFound,
+
+    /// <summary>Whisper produced nothing useful (silence / unrecognized speech).</summary>
+    EmptyTranscript,
+
+    /// <summary>An exception was thrown in one of the pipeline stages.</summary>
+    Error,
+
+    /// <summary>The pipeline was cancelled (e.g. a new PTT press arrived while the previous was processing).</summary>
+    Cancelled,
+}
+
+/// <summary>
+/// Debug record of a single push-to-talk pipeline execution. Captured by
+/// <see cref="SpeechRecognitionService.SessionHistory"/> in a ring buffer (last
+/// <see cref="SpeechRecognitionService.MaxSessionHistory"/> entries) and surfaced in the Speech
+/// debug window so users can post-mortem individual PTT presses without scraping the log file.
+/// </summary>
+public sealed record SpeechSession(
+    DateTime TimestampUtc,
+    int SampleCount,
+    double AudioDurationSeconds,
+    string Transcript,
+    string? CanonicalCommand,
+    bool UsedLlmFallback,
+    long TranscribeElapsedMs,
+    long MapElapsedMs,
+    long TotalElapsedMs,
+    SpeechSessionOutcome Outcome,
+    string? ErrorMessage
+);
 
 /// <summary>Snapshot of simulation state passed to the recognition pipeline at PTT press.</summary>
 /// <param name="ActiveCallsigns">Callsigns currently in the scenario (ICAO form).</param>
@@ -54,6 +94,15 @@ public sealed class SpeechRecognitionService : IDisposable
     private SpeechStatus _status = SpeechStatus.Idle;
     private CancellationTokenSource? _pendingCts;
     private readonly object _statusLock = new();
+
+    // Most recent PTT sessions for the debug window. Newest entries at index 0 (insertion point).
+    // Capped at MaxSessionHistory — older entries are dropped as new ones arrive.
+    public const int MaxSessionHistory = 20;
+    public ObservableCollection<SpeechSession> SessionHistory { get; } = [];
+
+    /// <summary>Raised on the thread pool after a session is appended to <see cref="SessionHistory"/>.
+    /// UI consumers should marshal to the UI thread before touching the collection.</summary>
+    public event Action<SpeechSession>? SessionRecorded;
 
     public SpeechRecognitionService(
         UserPreferences preferences,
@@ -165,17 +214,31 @@ public sealed class SpeechRecognitionService : IDisposable
 
     private async Task ProcessPipelineAsync(float[] samples, CancellationToken ct)
     {
+        var totalSw = Stopwatch.StartNew();
+        var transcribeMs = 0L;
+        var mapMs = 0L;
         var transcript = string.Empty;
         string? canonical = null;
+        var usedLlmFallback = false;
+        var outcome = SpeechSessionOutcome.Error;
+        string? errorMessage = null;
+
+        var audioDurationSec = (double)samples.Length / AudioCaptureService.SampleRate;
+
         try
         {
             SetStatus(SpeechStatus.Transcribing);
             var ctx = _contextProvider();
 
+            var transcribeSw = Stopwatch.StartNew();
             var raw = await _stt.TranscribeAsync(samples, ctx.WhisperInitialPrompt, ct).ConfigureAwait(false);
+            transcribeSw.Stop();
+            transcribeMs = transcribeSw.ElapsedMilliseconds;
+
             if (string.IsNullOrWhiteSpace(raw))
             {
                 Log.LogInformation("Whisper returned empty transcript");
+                outcome = SpeechSessionOutcome.EmptyTranscript;
                 SetStatus(SpeechStatus.Idle);
                 CommandReady?.Invoke(new SpeechResult("", null));
                 return;
@@ -187,6 +250,7 @@ public sealed class SpeechRecognitionService : IDisposable
             SetStatus(SpeechStatus.Mapping);
             var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes);
 
+            var mapSw = Stopwatch.StartNew();
             var ruleResult = await _ruleMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);
             if (ruleResult is not null)
             {
@@ -200,6 +264,7 @@ public sealed class SpeechRecognitionService : IDisposable
                 if (llmResult is not null)
                 {
                     canonical = llmResult.CanonicalCommand;
+                    usedLlmFallback = true;
                     Log.LogInformation("LLM fallback mapped transcript to: {Canonical}", canonical);
                 }
                 else
@@ -207,21 +272,104 @@ public sealed class SpeechRecognitionService : IDisposable
                     Log.LogInformation("LLM fallback also returned null");
                 }
             }
+
+            mapSw.Stop();
+            mapMs = mapSw.ElapsedMilliseconds;
+            outcome = canonical is not null ? SpeechSessionOutcome.CommandAccepted : SpeechSessionOutcome.NoMappingFound;
         }
         catch (OperationCanceledException)
         {
             Log.LogInformation("Speech pipeline cancelled");
+            outcome = SpeechSessionOutcome.Cancelled;
         }
         catch (Exception ex)
         {
             Log.LogError(ex, "Speech pipeline failed");
+            outcome = SpeechSessionOutcome.Error;
+            errorMessage = ex.Message;
             SetStatus(SpeechStatus.Error);
+            RecordSession(
+                samples.Length,
+                audioDurationSec,
+                transcript,
+                canonical,
+                usedLlmFallback,
+                transcribeMs,
+                mapMs,
+                totalSw.ElapsedMilliseconds,
+                outcome,
+                errorMessage
+            );
             CommandReady?.Invoke(new SpeechResult(transcript, null));
             return;
         }
 
         SetStatus(SpeechStatus.Idle);
+        RecordSession(
+            samples.Length,
+            audioDurationSec,
+            transcript,
+            canonical,
+            usedLlmFallback,
+            transcribeMs,
+            mapMs,
+            totalSw.ElapsedMilliseconds,
+            outcome,
+            errorMessage
+        );
         CommandReady?.Invoke(new SpeechResult(transcript, canonical));
+    }
+
+    private void RecordSession(
+        int sampleCount,
+        double audioDurationSec,
+        string transcript,
+        string? canonical,
+        bool usedLlmFallback,
+        long transcribeMs,
+        long mapMs,
+        long totalMs,
+        SpeechSessionOutcome outcome,
+        string? errorMessage
+    )
+    {
+        var session = new SpeechSession(
+            TimestampUtc: DateTime.UtcNow,
+            SampleCount: sampleCount,
+            AudioDurationSeconds: audioDurationSec,
+            Transcript: transcript,
+            CanonicalCommand: canonical,
+            UsedLlmFallback: usedLlmFallback,
+            TranscribeElapsedMs: transcribeMs,
+            MapElapsedMs: mapMs,
+            TotalElapsedMs: totalMs,
+            Outcome: outcome,
+            ErrorMessage: errorMessage
+        );
+
+        // Collection mutation must happen on the UI thread because the debug window binds to it
+        // directly. Marshal via Dispatcher.UIThread — callers already handle that this event is
+        // raised off the UI thread. If the dispatcher isn't available (tests, headless), fall back
+        // to direct mutation with a lock on the collection.
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            AppendSessionOnUiThread(session);
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => AppendSessionOnUiThread(session));
+        }
+    }
+
+    private void AppendSessionOnUiThread(SpeechSession session)
+    {
+        SessionHistory.Insert(0, session);
+        while (SessionHistory.Count > MaxSessionHistory)
+        {
+            SessionHistory.RemoveAt(SessionHistory.Count - 1);
+        }
+
+        SessionRecorded?.Invoke(session);
     }
 
     private void SetStatus(SpeechStatus status)
