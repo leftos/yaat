@@ -44,7 +44,7 @@ public class CustomFixTests
     [Fact]
     public void CustomFixLoader_LoadsOak30NumFromDataDir()
     {
-        string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "custom_fixes");
+        string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "CustomFixes");
 
         var loadResult = CustomFixLoader.LoadAll(baseDir);
 

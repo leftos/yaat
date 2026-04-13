@@ -766,7 +766,14 @@ public partial class MainViewModel : ObservableObject
         }
 
         var whisperInitialPrompt = string.Join(' ', promptParts);
-        return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt);
+
+        // Pull custom-fix speech patterns from the NavigationDatabase. These let the rule engine
+        // collapse multi-word natural-language references (e.g. "the runway 30 numbers") into
+        // their canonical alias ("OAK30NUM") so downstream {fix} captures work unchanged. Only
+        // available after the NavDb has finished loading — returns an empty list until then.
+        var customFixPatterns = NavigationDatabase.Instance?.CustomFixSpeechPatterns ?? [];
+
+        return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt) { CustomFixPatterns = customFixPatterns };
     }
 
     private void HandleSpeechServiceStatusChange(SpeechStatus status)

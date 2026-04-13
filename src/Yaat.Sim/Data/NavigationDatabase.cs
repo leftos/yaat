@@ -239,6 +239,16 @@ public sealed class NavigationDatabase
     /// </summary>
     public string[] AllFixNames { get; private set; }
 
+    /// <summary>
+    /// Speech-recognition patterns for custom fixes that declared a <c>spokenPatterns</c> field
+    /// in their JSON. Used by the speech pipeline's <see cref="Speech.PhraseologyMapper"/> to
+    /// collapse multi-token natural-language references (e.g. "the runway 30 numbers") into a
+    /// single canonical-alias token before rule matching.
+    /// </summary>
+    public IReadOnlyList<Speech.CustomFixSpeechPattern> CustomFixSpeechPatterns => _customFixSpeechPatterns;
+
+    private List<Speech.CustomFixSpeechPattern> _customFixSpeechPatterns = [];
+
     // ──────────────────────────────────────────────
     //  NavData lookups (eagerly built)
     // ──────────────────────────────────────────────
@@ -992,7 +1002,7 @@ public sealed class NavigationDatabase
 
     private void LoadCustomFixes(string? baseDir)
     {
-        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "custom_fixes");
+        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "CustomFixes");
 
         var loadResult = CustomFixLoader.LoadAll(baseDir);
 
@@ -1038,9 +1048,44 @@ public sealed class NavigationDatabase
                     Log.LogWarning("Custom fix alias '{Alias}' conflicts with " + "existing entry", alias);
                 }
             }
+
+            // Build the speech-pattern entries. Each raw phrase string is lowercased, split on
+            // whitespace, and paired with the first alias. The phrases are fed through
+            // AtcNumberParser so spoken number words ("three zero") collapse to digit form
+            // ("30") — matching what PhraseologyMapper does to the transcript itself.
+            if (def.SpokenPatterns is { Count: > 0 } patterns && def.Aliases.Count > 0)
+            {
+                var canonical = def.Aliases[0];
+                foreach (var rawPhrase in patterns)
+                {
+                    if (string.IsNullOrWhiteSpace(rawPhrase))
+                    {
+                        continue;
+                    }
+
+                    var normalized = Speech.AtcNumberParser.NormalizeDigits(rawPhrase).ToLowerInvariant();
+                    var tokens = normalized.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    if (tokens.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    _customFixSpeechPatterns.Add(new Speech.CustomFixSpeechPattern(tokens, canonical));
+                }
+            }
         }
 
-        Log.LogInformation("Custom fixes: {Added} aliases added from {Total} definitions", added, loadResult.Fixes.Count);
+        // Sort patterns by descending token count so the collapse step's longest-match scan
+        // picks the most specific phrase first (e.g. "the oakland runway 30 numbers" wins over
+        // "runway 30 numbers" when both would match).
+        _customFixSpeechPatterns.Sort((a, b) => b.Tokens.Count.CompareTo(a.Tokens.Count));
+
+        Log.LogInformation(
+            "Custom fixes: {Added} aliases added from {Total} definitions, {Patterns} speech patterns",
+            added,
+            loadResult.Fixes.Count,
+            _customFixSpeechPatterns.Count
+        );
     }
 
     private string[] BuildSortedNames()

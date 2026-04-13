@@ -15,6 +15,16 @@ public sealed record MapContext(IReadOnlyCollection<string> ActiveCallsigns, IRe
 {
     /// <summary>Empty context — used when the caller has no scenario state.</summary>
     public static MapContext Empty { get; } = new([], []);
+
+    /// <summary>
+    /// Speech-recognition patterns for custom fixes (from <c>NavigationDatabase.CustomFixSpeechPatterns</c>).
+    /// <see cref="PhraseologyMapper"/> collapses multi-token matches into single canonical-alias
+    /// tokens before rule matching runs, so natural-language references like "the runway 30
+    /// numbers" end up behaving identically to a direct fix name. Defaults to empty so existing
+    /// callers don't need to populate it; new callers use the with-expression or object
+    /// initializer to add patterns.
+    /// </summary>
+    public IReadOnlyList<CustomFixSpeechPattern> CustomFixPatterns { get; init; } = [];
 }
 
 /// <summary>

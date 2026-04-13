@@ -58,10 +58,15 @@ public static class PhraseologyMapper
         // Step 1: normalize spoken numbers to digits.
         var normalized = AtcNumberParser.NormalizeDigits(transcript);
 
-        // Step 2: tokenize, strip filler, collapse runway designators.
+        // Step 2: tokenize, strip filler, collapse runway designators, collapse custom fix names.
         var tokens = Tokenize(normalized);
         tokens = tokens.Where(t => !FillerWords.Contains(t)).ToList();
         tokens = CollapseRunwayDesignators(tokens);
+        if (context.CustomFixPatterns.Count > 0)
+        {
+            tokens = CollapseCustomFixNames(tokens, context.CustomFixPatterns);
+        }
+
         if (tokens.Count == 0)
         {
             return null;
@@ -442,6 +447,66 @@ public static class PhraseologyMapper
             output.Add(tokens[i]);
             i++;
         }
+        return output;
+    }
+
+    /// <summary>
+    /// Greedy longest-match substitution of custom-fix spoken phrases into canonical-alias
+    /// tokens. At each position in the transcript, try every registered pattern and substitute
+    /// the longest one that matches. Patterns are pre-sorted longest-first by
+    /// <c>NavigationDatabase.LoadCustomFixes</c> so the first hit is always the greediest.
+    ///
+    /// After this pass, the transcript's natural-language phrase ("the runway 30 numbers") has
+    /// been replaced with a single token ("OAK30NUM") that downstream <c>{fix}</c> rule captures
+    /// treat like any other fix identifier.
+    /// </summary>
+    internal static List<string> CollapseCustomFixNames(List<string> tokens, IReadOnlyList<CustomFixSpeechPattern> patterns)
+    {
+        if (patterns.Count == 0)
+        {
+            return tokens;
+        }
+
+        var output = new List<string>(tokens.Count);
+        var i = 0;
+        while (i < tokens.Count)
+        {
+            CustomFixSpeechPattern? matched = null;
+            foreach (var pattern in patterns)
+            {
+                if (pattern.Tokens.Count == 0 || i + pattern.Tokens.Count > tokens.Count)
+                {
+                    continue;
+                }
+
+                var allMatch = true;
+                for (var k = 0; k < pattern.Tokens.Count; k++)
+                {
+                    if (!string.Equals(tokens[i + k], pattern.Tokens[k], StringComparison.OrdinalIgnoreCase))
+                    {
+                        allMatch = false;
+                        break;
+                    }
+                }
+
+                if (allMatch)
+                {
+                    matched = pattern;
+                    break;
+                }
+            }
+
+            if (matched is not null)
+            {
+                output.Add(matched.CanonicalAlias);
+                i += matched.Tokens.Count;
+                continue;
+            }
+
+            output.Add(tokens[i]);
+            i++;
+        }
+
         return output;
     }
 }

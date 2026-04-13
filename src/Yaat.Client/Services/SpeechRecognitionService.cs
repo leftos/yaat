@@ -57,7 +57,16 @@ public sealed record SpeechSession(
 /// <param name="ActiveCallsigns">Callsigns currently in the scenario (ICAO form).</param>
 /// <param name="ProgrammedFixes">Fix names known to the relevant aircraft.</param>
 /// <param name="WhisperInitialPrompt">Free-text prompt seed for Whisper — active callsigns + fixes merged into a single string.</param>
-public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadOnlyList<string> ProgrammedFixes, string WhisperInitialPrompt);
+public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadOnlyList<string> ProgrammedFixes, string WhisperInitialPrompt)
+{
+    /// <summary>
+    /// Speech-recognition patterns for custom fixes (from <c>NavigationDatabase.CustomFixSpeechPatterns</c>).
+    /// Passed through to <see cref="MapContext.CustomFixPatterns"/> so the rule engine can collapse
+    /// multi-token natural-language references into single canonical-alias tokens before rule
+    /// matching. Default empty so callers that don't use custom fixes don't have to populate it.
+    /// </summary>
+    public IReadOnlyList<CustomFixSpeechPattern> CustomFixPatterns { get; init; } = [];
+}
 
 /// <summary>
 /// Orchestrates the full push-to-talk pipeline:
@@ -248,7 +257,7 @@ public sealed class SpeechRecognitionService : IDisposable
             Log.LogInformation("PTT transcript: {Transcript}", transcript);
 
             SetStatus(SpeechStatus.Mapping);
-            var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes);
+            var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes) { CustomFixPatterns = ctx.CustomFixPatterns };
 
             var mapSw = Stopwatch.StartNew();
             var ruleResult = await _ruleMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);

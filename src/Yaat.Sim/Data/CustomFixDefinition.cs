@@ -18,4 +18,18 @@ public sealed class CustomFixDefinition
 
     [JsonPropertyName("frd")]
     public string? Frd { get; set; }
+
+    /// <summary>
+    /// Optional natural-language phrases that should be recognized as this fix by the speech
+    /// recognition pipeline. Each string is tokenized at load time and matched greedily (longest
+    /// first) against spoken transcripts — when matched, those tokens are replaced with the
+    /// first alias so downstream <c>{fix}</c> rule captures work unchanged.
+    ///
+    /// Example: <c>["runway 30 numbers", "the runway 30 numbers", "30 numbers"]</c> — each variant
+    /// is matched independently, so you can include prefixed and unprefixed forms. Numbers should
+    /// be written as digits (the phraseology normalizer converts spoken numbers to digits before
+    /// this step runs).
+    /// </summary>
+    [JsonPropertyName("spokenPatterns")]
+    public List<string>? SpokenPatterns { get; set; }
 }
