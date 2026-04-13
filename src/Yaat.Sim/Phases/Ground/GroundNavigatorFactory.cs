@@ -3,16 +3,19 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
-/// Identifies which concrete <see cref="IGroundNavigator"/> implementation to
-/// construct. V1 is the existing Bezier-waypoint arc follower
-/// (<see cref="GroundNavigatorV1"/>). V2 is a clean-room redesign under
-/// development; it will be added as a new enum value when the implementation
-/// lands.
+/// Identifies which concrete <see cref="IGroundNavigator"/> implementation
+/// to construct. V1 is the Bezier-waypoint arc follower
+/// (<see cref="GroundNavigatorV1"/>); V2 is the closed-form
+/// <see cref="PathPrimitive"/> playback from Design B
+/// (<see cref="GroundNavigatorV2"/>).
 /// </summary>
 public enum GroundNavigatorImpl
 {
-    /// <summary>V1 — the existing Bezier-waypoint arc follower.</summary>
+    /// <summary>V1 — the Bezier-waypoint arc follower.</summary>
     V1 = 1,
+
+    /// <summary>V2 — the closed-form PathPrimitive playback (Design B).</summary>
+    V2 = 2,
 }
 
 /// <summary>
@@ -20,19 +23,34 @@ public enum GroundNavigatorImpl
 /// restoration to the correct implementation based on the
 /// <see cref="GroundNavigatorDto.ImplVersion"/> discriminator.
 ///
-/// The default implementation (<see cref="DefaultImpl"/>) is process-wide
-/// state. Tests can temporarily override it via <see cref="Override"/>, which
-/// returns an <see cref="IDisposable"/> scope that restores the previous
-/// default on dispose. Use <c>using (GroundNavigatorFactory.Override(...))</c>
-/// to parameterize a single test.
+/// The default implementation (<see cref="DefaultImpl"/>) is process-wide.
+/// Tests can temporarily override it via <see cref="Override"/>, which sets
+/// an <see cref="AsyncLocal{T}"/> value that only affects the calling
+/// execution context — parallel tests do not race on the override.
 /// </summary>
 public static class GroundNavigatorFactory
 {
     /// <summary>
-    /// The implementation used by <see cref="Create"/> when no explicit
-    /// override is in effect. Defaults to <see cref="GroundNavigatorImpl.V1"/>.
+    /// The process-wide default used by <see cref="Create"/> when no
+    /// <see cref="Override"/> is in effect on the current execution context.
+    /// Defaults to <see cref="GroundNavigatorImpl.V1"/>.
     /// </summary>
     public static GroundNavigatorImpl DefaultImpl { get; set; } = GroundNavigatorImpl.V1;
+
+    /// <summary>
+    /// Per-execution-context override of <see cref="DefaultImpl"/>. Null when
+    /// no <see cref="Override"/> is in effect. Flows with async/await and
+    /// isolates across parallel test executions (xUnit uses a fresh
+    /// execution context per test).
+    /// </summary>
+    private static readonly AsyncLocal<GroundNavigatorImpl?> AmbientImpl = new();
+
+    /// <summary>
+    /// The effective implementation for <see cref="Create"/> on the current
+    /// execution context: the ambient override if present, otherwise
+    /// <see cref="DefaultImpl"/>.
+    /// </summary>
+    public static GroundNavigatorImpl CurrentImpl => AmbientImpl.Value ?? DefaultImpl;
 
     /// <summary>
     /// Construct a fresh navigator. Uses <paramref name="impl"/> if supplied,
@@ -43,10 +61,11 @@ public static class GroundNavigatorFactory
     /// </summary>
     public static IGroundNavigator Create(GroundNavigatorImpl? impl = null)
     {
-        var choice = impl ?? DefaultImpl;
+        var choice = impl ?? CurrentImpl;
         return choice switch
         {
             GroundNavigatorImpl.V1 => new GroundNavigatorV1(),
+            GroundNavigatorImpl.V2 => new GroundNavigatorV2(),
             _ => throw new InvalidOperationException($"Unknown GroundNavigatorImpl: {choice}"),
         };
     }
@@ -61,6 +80,7 @@ public static class GroundNavigatorFactory
         dto.ImplVersion switch
         {
             1 => GroundNavigatorV1.FromSnapshot(dto),
+            2 => GroundNavigatorV2.FromSnapshot(dto),
             _ => throw new InvalidOperationException(
                 $"Unknown GroundNavigatorDto.ImplVersion: {dto.ImplVersion}. "
                     + "A newer navigator implementation may have written this snapshot; "
@@ -69,25 +89,20 @@ public static class GroundNavigatorFactory
         };
 
     /// <summary>
-    /// Temporarily replace <see cref="DefaultImpl"/> for the duration of the
-    /// returned scope. Intended for tests that want to exercise multiple
-    /// implementations via a parameterized test harness:
-    /// <code>
-    /// using (GroundNavigatorFactory.Override(GroundNavigatorImpl.V1))
-    /// {
-    ///     // test runs against V1
-    /// }
-    /// </code>
-    /// Not thread-safe; each test run must serialize its use of this override.
+    /// Temporarily set the ground-navigator implementation for the current
+    /// execution context. Uses <see cref="AsyncLocal{T}"/> so parallel tests
+    /// do not race on the override — each test gets its own ambient value.
+    /// Flows through await continuations. The returned scope restores the
+    /// previous ambient value on dispose.
     /// </summary>
     public static IDisposable Override(GroundNavigatorImpl impl)
     {
-        var previous = DefaultImpl;
-        DefaultImpl = impl;
+        var previous = AmbientImpl.Value;
+        AmbientImpl.Value = impl;
         return new OverrideScope(previous);
     }
 
-    private sealed class OverrideScope(GroundNavigatorImpl previous) : IDisposable
+    private sealed class OverrideScope(GroundNavigatorImpl? previous) : IDisposable
     {
         private bool _disposed;
 
@@ -97,7 +112,7 @@ public static class GroundNavigatorFactory
             {
                 return;
             }
-            DefaultImpl = previous;
+            AmbientImpl.Value = previous;
             _disposed = true;
         }
     }
