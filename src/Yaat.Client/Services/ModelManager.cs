@@ -12,7 +12,7 @@ public enum ModelStatus
     Failed,
 }
 
-// Legacy alias kept so existing Phase 5 code compiles without a rename churn.
+// Legacy alias kept so existing call sites that hardcoded "WhisperModelStatus" still compile.
 public enum WhisperModelStatus
 {
     NotDownloaded = ModelStatus.NotDownloaded,
@@ -33,7 +33,7 @@ public sealed record LlmCatalogEntry(string Id, string DisplayName, string FileN
 /// Manages local Whisper and LLM model files under <c>%LOCALAPPDATA%/yaat/models/</c>.
 /// Both models download via streaming HTTPS with <c>.partial</c> → rename atomicity and live
 /// progress reporting. The LLM catalog offers a curated set of recommended GGUFs (Qwen2.5 Q4_K_M
-/// variants) that have been verified to work with Phase 4's prompt and validator; users who want
+/// variants) that have been verified to work with LocalLlmCommandMapper's prompt and validator; users who want
 /// to bring their own GGUF can still point <see cref="UserPreferences.LlmModelPath"/> at a custom
 /// file via the Settings "Browse..." button.
 /// </summary>
@@ -58,10 +58,10 @@ public sealed class ModelManager
 
     public static IReadOnlyList<string> AvailableWhisperSizes { get; } = ["tiny.en", "base.en", "small.en", "medium.en"];
 
-    // Qwen 2.5 Q4_K_M variants. Qwen 1.5B was exhaustively verified by LocalLlmPipelineIntegrationTests
-    // in Phase 4; the 0.5B and 3B entries are size/accuracy tradeoffs with the same prompt format,
-    // so they're expected to work with the existing system prompt without retuning. If Phase 8 finds
-    // that a specific entry drifts, it can be removed from this list without breaking user prefs
+    // Qwen 2.5 Q4_K_M variants. Qwen 1.5B is exhaustively verified by LocalLlmPipelineIntegrationTests;
+    // the 0.5B and 3B entries are size/accuracy tradeoffs with the same prompt format, so they're
+    // expected to work with the existing system prompt without retuning. If a specific entry
+    // drifts in future tuning, it can be removed from this list without breaking user prefs
     // because LlmModelPath is stored as a raw file path, not a catalog ID.
     public static IReadOnlyList<LlmCatalogEntry> AvailableLlmModels { get; } =
     [

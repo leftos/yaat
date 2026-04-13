@@ -39,10 +39,10 @@ public sealed class PreferencesLlmRuntimeConfig : ILlmRuntimeConfig
 /// → canonical-command inference. The model is loaded lazily on first use and kept in memory for the
 /// life of the service; re-configuring the path or backend settings rebuilds the underlying handles.
 ///
-/// Scope of Phase 4: CPU-only backend is shipped. GPU acceleration requires a different
-/// <c>LLamaSharp.Backend.*</c> package (Cuda / Vulkan / Metal) — that decision is deferred to Phase 6
-/// together with the Whisper backend shipping strategy. Setting <see cref="UserPreferences.LlmGpuLayers"/>
-/// > 0 in CPU-only builds is harmless but produces no speedup.
+/// The installer ships the CPU backend only. GPU acceleration is available at user opt-in via
+/// <see cref="GpuRuntimeDownloader"/>, which fetches the right <c>LLamaSharp.Backend.*</c> native
+/// DLLs from nuget.org into <c>%LOCALAPPDATA%/yaat/runtime/llama/</c> and lets
+/// <see cref="LLama.Native.NativeLibraryConfig.WithSearchDirectory"/> pick them up at startup.
 /// </summary>
 public sealed class LocalLlmService : IDisposable
 {
@@ -112,15 +112,16 @@ public sealed class LocalLlmService : IDisposable
             }
 
             // Chat-ML-ish framing that works reasonably well for most small instruct-tuned GGUFs.
-            // Phase 8 can swap to a template-specific format once we pick a recommended model.
+            // A future iteration can swap to a template-specific format once a recommended model
+            // is locked in.
             var prompt = $"<|system|>\n{systemPrompt}\n<|user|>\n{userPrompt}\n<|assistant|>\n";
 
             // Temperature = 0 forces greedy sampling (always pick the highest-probability token).
             // For a command-mapping task we want determinism: the same transcript must always yield
             // the same canonical command. Non-zero temperature was causing "fly heading 270" to
             // occasionally map to FPH (fly present heading — no arg) instead of FH 270 because
-            // the shared "fly" prefix nudges the distribution. Phase 8 can revisit if deterministic
-            // output turns out to be too brittle on harder transcripts.
+            // the shared "fly" prefix nudges the distribution. Revisit if deterministic output
+            // turns out to be too brittle on harder transcripts.
             var inferenceParams = new InferenceParams
             {
                 MaxTokens = 80,
@@ -202,7 +203,8 @@ public sealed class LocalLlmService : IDisposable
     /// <summary>
     /// Maps user preference to a concrete GpuLayerCount. -1 (auto) offloads all layers when a GPU
     /// backend is detected; CPU-only otherwise. 0 forces CPU. Any positive N uses N literally.
-    /// Note: with LLamaSharp.Backend.Cpu shipped in Phase 4, setting > 0 has no runtime effect.
+    /// Note: the installer ships LLamaSharp.Backend.Cpu by default — setting > 0 has no effect
+    /// until the user opts in to a GPU runtime via the Settings → Speech → Acceleration section.
     /// </summary>
     private int ResolveGpuLayers()
     {

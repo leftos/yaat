@@ -459,109 +459,6 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- Advanced tab -->
-            <TabItem Header="Advanced">
-                <ScrollViewer>
-                    <StackPanel Margin="12" Spacing="12">
-                        <TextBlock Text="Keybinds"
-                                   FontWeight="SemiBold" />
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Aircraft Select Key:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="AircraftSelectKeyButton"
-                                        Content="{Binding AircraftSelectKeyDisplay}"
-                                        Width="160"
-                                        HorizontalContentAlignment="Center"
-                                        Command="{Binding StartKeyCaptureCommand}" />
-                                <TextBlock Text="(click, then press a key combo)"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock Text="Pressing this key in the command input selects the aircraft matching the typed callsign without sending a command. Default: Numpad +"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
-                        <StackPanel Spacing="4" Margin="0,8,0,0">
-                            <TextBlock Text="Focus Command Input Key:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="FocusInputKeyButton"
-                                        Content="{Binding FocusInputKeyDisplay}"
-                                        Width="160"
-                                        HorizontalContentAlignment="Center"
-                                        Command="{Binding StartFocusInputKeyCaptureCommand}" />
-                                <TextBlock Text="(click, then press a key combo)"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock Text="Pressing this key from anywhere in the app puts focus on the command input. Default: ~ (tilde)"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
-                        <StackPanel Spacing="4" Margin="0,8,0,0">
-                            <TextBlock Text="Take Control Key:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="TakeControlKeyButton"
-                                        Content="{Binding TakeControlKeyDisplay}"
-                                        Width="160"
-                                        HorizontalContentAlignment="Center"
-                                        Command="{Binding StartTakeControlKeyCaptureCommand}" />
-                                <TextBlock Text="(click, then press a key combo)"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock Text="Pressing this key combo assigns the selected aircraft to yourself (RPO take control). Default: Ctrl+T"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
-                        <StackPanel Spacing="4" Margin="0,8,0,0">
-                            <TextBlock Text="Always on Top Key:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="AlwaysOnTopKeyButton"
-                                        Content="{Binding AlwaysOnTopKeyDisplay}"
-                                        Width="160"
-                                        HorizontalContentAlignment="Center"
-                                        Command="{Binding StartAlwaysOnTopKeyCaptureCommand}" />
-                                <TextBlock Text="(click, then press a key combo)"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock Text="Pressing this key combo toggles always-on-top for the focused pop-out window. Default: Ctrl+Shift+T"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
-                        <Separator Margin="0,4" />
-                        <CheckBox Content="Server Admin Mode"
-                                  IsChecked="{Binding IsAdminMode}" />
-                        <StackPanel Spacing="4"
-                                    IsVisible="{Binding IsAdminMode}">
-                            <TextBlock Text="Admin Password:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <TextBox Text="{Binding AdminPassword}"
-                                     PasswordChar="*"
-                                     Watermark="Enter server admin password"
-                                     Width="300"
-                                     HorizontalAlignment="Left" />
-                        </StackPanel>
-                        <TextBlock TextWrapping="Wrap"
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="11"
-                                   Text="Admin mode allows you to see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios." />
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
             <!-- Speech tab -->
             <TabItem Header="Speech">
                 <ScrollViewer>
@@ -626,7 +523,7 @@
                             <TextBlock TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11"
-                                       Text="Downloads a recommended GGUF model from Hugging Face to %LOCALAPPDATA%/yaat/models/llm/. Models are Qwen 2.5 Instruct Q4_K_M variants — verified against Phase 4's integration test suite." />
+                                       Text="Downloads a recommended GGUF model from Hugging Face. Models are Qwen 2.5 Instruct Q4_K_M variants — verified against the LLM integration test suite." />
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                                 <TextBlock Text="Or use a custom GGUF:"
                                            Foreground="{DynamicResource SubtleTextBrush}"
@@ -782,7 +679,7 @@
                             <TextBox Text="{Binding AudioInputDevice}"
                                      Width="300"
                                      Watermark="Default (leave blank)" />
-                            <TextBlock Text="Device enumeration comes later when audio capture is wired up; blank = system default."
+                            <TextBlock Text="Type part of a device name to select a specific microphone (case-insensitive substring match). Leave blank for system default."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
@@ -795,6 +692,109 @@
                                    FontSize="10"
                                    Text="Airline telephony data derived from OpenFlights (https://openflights.org/data.html), licensed under ODbL 1.0. See NOTICE and src/Yaat.Sim/Speech/Data/LICENSE-OPENFLIGHTS.txt." />
 
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Advanced tab -->
+            <TabItem Header="Advanced">
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+                        <TextBlock Text="Keybinds"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Aircraft Select Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AircraftSelectKeyButton"
+                                        Content="{Binding AircraftSelectKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key combo)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key in the command input selects the aircraft matching the typed callsign without sending a command. Default: Numpad +"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,8,0,0">
+                            <TextBlock Text="Focus Command Input Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="FocusInputKeyButton"
+                                        Content="{Binding FocusInputKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartFocusInputKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key combo)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key from anywhere in the app puts focus on the command input. Default: ~ (tilde)"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,8,0,0">
+                            <TextBlock Text="Take Control Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="TakeControlKeyButton"
+                                        Content="{Binding TakeControlKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartTakeControlKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key combo)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key combo assigns the selected aircraft to yourself (RPO take control). Default: Ctrl+T"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,8,0,0">
+                            <TextBlock Text="Always on Top Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AlwaysOnTopKeyButton"
+                                        Content="{Binding AlwaysOnTopKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartAlwaysOnTopKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key combo)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key combo toggles always-on-top for the focused pop-out window. Default: Ctrl+Shift+T"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
+                        <CheckBox Content="Server Admin Mode"
+                                  IsChecked="{Binding IsAdminMode}" />
+                        <StackPanel Spacing="4"
+                                    IsVisible="{Binding IsAdminMode}">
+                            <TextBlock Text="Admin Password:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBox Text="{Binding AdminPassword}"
+                                     PasswordChar="*"
+                                     Watermark="Enter server admin password"
+                                     Width="300"
+                                     HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Text="Admin mode allows you to see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios." />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

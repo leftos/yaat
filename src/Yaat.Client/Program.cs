@@ -37,7 +37,7 @@ public static class Program
             e.SetObserved();
         };
 
-        // Phase 6 Option B GPU runtime wire-up. Must all run before any LLamaSharp / Whisper.net
+        // Speech recognition GPU runtime wire-up. Must all run before any LLamaSharp / Whisper.net
         // native library load. Three steps, in order:
         //   1. Detect a CUDA Toolkit 12.x install and apply it to this process (sets CUDA_PATH
         //      + prepends bin to PATH). Required for any CUDA backend because LLamaSharp /

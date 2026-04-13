@@ -10,7 +10,7 @@ namespace Yaat.Sim.Speech;
 /// without polluting the global airline database.
 /// </summary>
 /// <remarks>
-/// Observed patterns in ZOA scenario examples (Phase 1 supports the two reliable ones):
+/// Observed patterns in ZOA scenario examples (we support the two reliable ones):
 /// <list type="bullet">
 ///   <item><description><c>CALLSIGN "JETLINX" /V/</c> — labeled quoted (canonical)</description></item>
 ///   <item><description><c>CS "PACK COAST"</c> — short labeled quoted</description></item>

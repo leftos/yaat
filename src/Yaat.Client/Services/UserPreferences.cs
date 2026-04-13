@@ -908,7 +908,7 @@ public sealed class UserPreferences
         public int DataGridFontSize { get; set; } = 12;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 
-        // Speech recognition (Phase 5). LlmGpuLayers: -1 = auto, 0 = CPU only, N = offload N layers.
+        // Speech recognition. LlmGpuLayers: -1 = auto, 0 = CPU only, N = offload N layers.
         public bool SpeechEnabled { get; set; }
         public string WhisperModelSize { get; set; } = "base.en";
         public string LlmModelPath { get; set; } = "";

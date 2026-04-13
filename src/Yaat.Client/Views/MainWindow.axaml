@@ -160,10 +160,10 @@
                            Text="{Binding StatusText}"
                            Foreground="{DynamicResource SubtleTextBrush}"
                            FontSize="11" />
-                <!-- Phase 7 mic status indicator. Only visible when speech recognition is enabled
-                     in preferences. Text carries the signal ("mic: Idle/Recording/Transcribing/
-                     Mapping/Error") so no converter / style-trigger plumbing is needed for MVP —
-                     Phase 8 can add a colored dot if users want more visual distinction. -->
+                <!-- Mic status indicator. Only visible when speech recognition is enabled in
+                     preferences. Text carries the signal ("mic: Idle / Recording / Transcribing
+                     / Mapping / Error"); a colored dot could be added later if users want more
+                     visual distinction. -->
                 <TextBlock Grid.Column="1"
                            Text="{Binding SpeechStatus, StringFormat='mic: {0}'}"
                            FontSize="11"

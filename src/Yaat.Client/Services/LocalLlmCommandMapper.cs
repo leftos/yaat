@@ -8,7 +8,7 @@ namespace Yaat.Client.Services;
 
 /// <summary>
 /// <see cref="ISpeechCommandMapper"/> backed by a local GGUF LLM via <see cref="LocalLlmService"/>.
-/// The speech pipeline in Phase 7 invokes this as a fallback when <see cref="PhraseologyCommandMapper"/>
+/// The speech pipeline invokes this as a fallback when <see cref="PhraseologyCommandMapper"/>
 /// returns null (i.e. the rule engine didn't understand the transcript).
 ///
 /// Returns null when:
@@ -54,9 +54,9 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
             return null;
         }
 
-        // Phase 2 rule matches are cheap enough that if the LLM echoes a rule-shaped string, we trust
-        // it. We don't have a callsign extraction step here — Phase 7 will re-run CallsignParser on
-        // the transcript for the LLM path if needed.
+        // Rule engine matches are cheap enough that if the LLM echoes a rule-shaped string, we
+        // trust it. We don't have a callsign extraction step here — the speech pipeline re-runs
+        // CallsignParser on the transcript for the LLM path if needed.
         Log.LogInformation("LLM fallback produced canonical command: {Canonical}", canonical);
         return new MapResult(null, canonical, 1);
     }
@@ -93,8 +93,9 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         // character change in this prompt flipped "fly heading two seven zero" from "FH 270" to
         // "FPH" (verified by the opt-in integration suite). Before making cosmetic edits here
         // (rephrasing, punctuation, reordering), run LocalLlmPipelineIntegrationTests against the
-        // recommended test model and confirm all cases still pass exact-match. Phase 8 can make
-        // this robust to prompt variants by using a larger / better-instructed model.
+        // recommended test model and confirm all cases still pass exact-match. A future
+        // iteration can make this robust to prompt variants by using a larger / better-instructed
+        // model.
         var sb = new StringBuilder();
         sb.AppendLine("You convert spoken ATC instructions into YAAT canonical commands.");
         sb.AppendLine();

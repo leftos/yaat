@@ -29,9 +29,9 @@ public partial class MainViewModel : ObservableObject
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
 
-    // Phase 7 speech recognition pipeline. All services are lazy/opt-in: they only touch real
-    // resources (PortAudio, Whisper weights, LLM weights) when SpeechEnabled is true AND the user
-    // holds the PTT key. When disabled, these sit dormant with zero cost.
+    // Speech recognition pipeline. All services are lazy/opt-in: they only touch real resources
+    // (PortAudio, Whisper weights, LLM weights) when SpeechEnabled is true AND the user holds the
+    // PTT key. When disabled, these sit dormant with zero cost.
     private readonly ModelManager _modelManager = new();
     private readonly AudioCaptureService _audioCapture;
     private readonly WhisperSttEngine _whisperStt;
@@ -506,7 +506,7 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        // Phase 7 speech pipeline wiring. The order here matters: LlmService must exist before
+        // Speech pipeline wiring. The order here matters: LlmService must exist before
         // LocalLlmCommandMapper, and SpeechRecognitionService needs all of them.
         _audioCapture = new AudioCaptureService(_preferences);
         _whisperStt = new WhisperSttEngine(_preferences, _modelManager);

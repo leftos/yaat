@@ -24,8 +24,8 @@ namespace Yaat.Sim.Speech;
 public static class CallsignParser
 {
     // GA aircraft registrations are pronounced letter-by-letter, prefixed with a country word.
-    // "November one two three four five" → "N12345" (US). Phase 1 handles November only; other
-    // country prefixes (C-, G-, etc.) can come in Phase 8.
+    // "November one two three four five" → "N12345" (US). Currently handles November only;
+    // other country prefixes (C-, G-, etc.) can be added later.
     private const string NovemberWord = "november";
 
     public sealed record ParsedCallsign(string IcaoCallsign, int TokensConsumed);
@@ -365,7 +365,7 @@ public static class CallsignParser
 
     private static ParsedCallsign? TryParseAt(List<string> tokens, int startIndex, bool forward, IReadOnlyCollection<string> activeCallsigns)
     {
-        _ = forward; // Phase 1 only parses forward; parameter kept for future backwards parsing.
+        _ = forward; // Currently only parses forward; parameter kept for future backwards parsing.
         if (startIndex >= tokens.Count)
         {
             return null;
@@ -379,7 +379,7 @@ public static class CallsignParser
                 var digits = tokens[startIndex + 1];
                 var consumed = 2;
                 var callsign = "N" + digits;
-                // Optional trailing letter suffix: "november 123 alpha" → "N123A" — skip for Phase 1.
+                // Optional trailing letter suffix: "november 123 alpha" → "N123A" — not yet supported.
                 var resolved = FuzzyResolve(callsign, activeCallsigns);
                 return new ParsedCallsign(resolved, consumed);
             }
@@ -429,8 +429,8 @@ public static class CallsignParser
 
     /// <summary>
     /// If <paramref name="candidate"/> matches an active callsign exactly (case-insensitive),
-    /// return the active form. Otherwise return the candidate unchanged. Phase 1 does exact-match
-    /// only; true fuzzy matching (Levenshtein near-misses) comes in Phase 8.
+    /// return the active form. Otherwise return the candidate unchanged. Currently exact-match
+    /// only; true fuzzy matching (Levenshtein near-misses) can be added later.
     /// </summary>
     private static string FuzzyResolve(string candidate, IReadOnlyCollection<string> activeCallsigns)
     {

@@ -14,7 +14,7 @@ namespace Yaat.Client.Services;
 /// using whatever Whisper model file <see cref="ModelManager"/> points at (based on
 /// <see cref="UserPreferences.WhisperModelSize"/>). Subsequent calls reuse the same factory.
 ///
-/// Processors are created per-call with the current initial prompt hints so Phase 7's context
+/// Processors are created per-call with the current initial prompt hints so the pipeline's context
 /// (active callsigns, programmed fixes) can change between PTT presses without rebuilding the model.
 ///
 /// Returns null when:

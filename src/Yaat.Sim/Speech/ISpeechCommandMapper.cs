@@ -32,7 +32,7 @@ public sealed record MapResult(string? Callsign, string CanonicalCommand, int Ma
 ///   <item><description><see cref="PhraseologyCommandMapper"/> — rule-based, synchronous, 163 7110.65 patterns.</description></item>
 ///   <item><description><c>Yaat.Client.Services.LocalLlmCommandMapper</c> — local GGUF LLM fallback via LLamaSharp.</description></item>
 /// </list>
-/// Mappers return null when the transcript doesn't map cleanly. The speech pipeline in Phase 7 tries
+/// Mappers return null when the transcript doesn't map cleanly. The speech pipeline tries
 /// the rule-based mapper first and only falls through to the LLM when it returns null.
 /// </summary>
 public interface ISpeechCommandMapper

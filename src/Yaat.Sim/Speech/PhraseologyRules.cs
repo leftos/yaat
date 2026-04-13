@@ -23,7 +23,7 @@ namespace Yaat.Sim.Speech;
 ///   <item><description>Filler words ("uh", "please", "sir") have been stripped.</description></item>
 ///   <item><description>Tokens are lowercase.</description></item>
 /// </list>
-/// Commands intentionally NOT covered by Phase 2 rules (out of pilot phraseology scope):
+/// Commands intentionally NOT covered by these rules (out of pilot phraseology scope):
 /// sim-control (Force*, Warp, Delete, Pause, Rate), track (TrackAircraft, Handoff, Accept),
 /// data (Consolidate, CreateFlightPlan, ChangeDestination), coordination (RD/RDH/RDR/RDACK),
 /// admin-only bulk ops (SquawkAll, TaxiAll, BreakConflict).
@@ -79,7 +79,7 @@ public static class PhraseologyRules
             new(["expedite", "descent", "to?", "{alt}"], "EXP {alt}", Expedite),
             new(["expedite", "descent"], "EXP", Expedite),
             // Neutral "maintain {alt}" — caller may want CM vs DM based on current alt.
-            // For now we emit CM; Phase 8 can add context-sensitive dispatch.
+            // For now we emit CM; a future iteration can add context-sensitive dispatch.
             new(["maintain", "{alt}"], "CM {alt}", ClimbMaintain),
             // Speed — 7110.65 5-7-2 canonical form is "MAINTAIN (speed) KNOTS".
             new(["maintain", "{spd}", "knots"], "SPD {spd}", Speed),
@@ -266,9 +266,9 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] GroundRules() =>
         [
-            // Taxi — note: route capture is a simple single-token for Phase 2. Multi-token
+            // Taxi — note: route capture is a simple single-token match. Multi-token
             // taxiway routes ("taxi via alpha bravo charlie") need a multi-token capture we
-            // don't yet support. Phase 8 can add it.
+            // routes aren't yet supported and can be added later.
             new(["taxi", "to", "runway", "{rwy}"], "TAXI RWY {rwy}", Taxi),
             new(["taxi", "runway", "{rwy}"], "TAXI RWY {rwy}", Taxi),
             new(["pushback", "approved"], "PUSH", Pushback),

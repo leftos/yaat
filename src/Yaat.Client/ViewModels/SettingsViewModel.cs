@@ -246,7 +246,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isCapturingKey;
 
-    // Speech recognition (Phase 5)
+    // Speech recognition settings
     [ObservableProperty]
     private bool _speechEnabled;
 
@@ -1210,7 +1210,7 @@ public partial class SettingsViewModel : ObservableObject
             {
                 // Point LlmModelPath at the newly downloaded file so LocalLlmService picks it up
                 // on next load. The user doesn't need to do anything else — Settings Save writes
-                // the path to prefs and Phase 4's LocalLlmService lazy-loads from it on first use.
+                // the path to prefs and LocalLlmService lazy-loads from it on first use.
                 LlmModelPath = _modelManager.GetLlmPath(entry.Id);
             }
 
