@@ -104,7 +104,7 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
             n172sp = engine.FindAircraft("N172SP");
             Assert.NotNull(n172sp);
 
-            if (n172sp.Phases?.CurrentPhase is LinedUpAndWaitingPhase or LineUpPhase)
+            if (n172sp.Phases?.CurrentPhase is LinedUpAndWaitingPhase or ILineUpPhase)
             {
                 reachedLineUp = true;
                 output.WriteLine($"Reached {n172sp.Phases.CurrentPhase.GetType().Name} at t+{t}");

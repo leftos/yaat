@@ -7,9 +7,9 @@ namespace Yaat.Sim.Phases.Ground;
 /// <summary>
 /// V1 ground navigator: Bezier-waypoint arc follower with angle-based speed
 /// scaling and multi-segment kinematic braking. Used by
-/// <see cref="TaxiingPhase"/>, <see cref="RunwayExitPhase"/>, and
-/// <see cref="Yaat.Sim.Phases.Tower.LineUpPhase"/> via the
-/// <see cref="IGroundNavigator"/> interface.
+/// <see cref="TaxiingPhase"/> and <see cref="RunwayExitPhase"/> via the
+/// <see cref="IGroundNavigator"/> interface. (<c>LineUpPhase</c> is analog
+/// on this baseline and does not use the navigator.)
 ///
 /// The owning phase configures <see cref="MaxSpeedKts"/> and handles what
 /// happens on arrival (hold-short insertion, route completion, etc.).

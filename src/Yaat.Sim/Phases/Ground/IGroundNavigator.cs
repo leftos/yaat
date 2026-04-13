@@ -19,7 +19,8 @@ public enum NavigatorResult
 /// <summary>
 /// Per-tick controller that drives an aircraft along a resolved
 /// <see cref="TaxiRoute"/>. Owned and ticked by the ground phases
-/// (<c>TaxiingPhase</c>, <c>RunwayExitPhase</c>, <c>LineUpPhase</c>).
+/// (<c>TaxiingPhase</c>, <c>RunwayExitPhase</c>, and ground-facing tower
+/// phases that need to drive the aircraft along a route).
 ///
 /// Responsibilities:
 /// <list type="bullet">

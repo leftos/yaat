@@ -6,17 +6,21 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Taxis the aircraft from the hold-short point onto the runway centerline
-/// and aligns with the runway heading. Completes when aligned and on centerline.
-/// Analog navigation — no ground graph nodes, just cross-track and heading.
+/// V1 lineup phase: taxis the aircraft from the hold-short point onto the
+/// runway centerline and aligns with the runway heading. Completes when
+/// aligned and on centerline. Analog navigation — no ground graph nodes,
+/// just cross-track and heading.
 ///
 ///   Stage 1 — turn perpendicular to the runway centerline (face toward it).
 ///   Stage 2 — drive straight across onto the centerline (no heading change).
 ///   Stage 3 — turn 90° to align with the runway heading.
 ///
 /// Inserted before LinedUpAndWaitingPhase when LUAW/CTO is issued.
+///
+/// V2 is under design; see <see cref="LineUpPhaseFactory"/> for the runtime
+/// switch.
 /// </summary>
-public sealed class LineUpPhase : Phase
+public sealed class LineUpPhaseV1 : Phase, ILineUpPhase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("LineUpPhase");
 
@@ -37,6 +41,7 @@ public sealed class LineUpPhase : Phase
     public override PhaseDto ToSnapshot() =>
         new LineUpPhaseDto
         {
+            ImplVersion = 1,
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
@@ -48,9 +53,9 @@ public sealed class LineUpPhase : Phase
             OnCenterline = _onCenterline,
         };
 
-    public static LineUpPhase FromSnapshot(LineUpPhaseDto dto)
+    public static LineUpPhaseV1 FromSnapshot(LineUpPhaseDto dto)
     {
-        var phase = new LineUpPhase();
+        var phase = new LineUpPhaseV1();
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);

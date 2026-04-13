@@ -417,14 +417,14 @@ public class TakeoffDepartureTests
     [Fact]
     public void LineUpPhase_AllowsClimbMaintain()
     {
-        var phase = new LineUpPhase();
+        var phase = new LineUpPhaseV1();
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
     }
 
     [Fact]
     public void LineUpPhase_AllowsDescendMaintain()
     {
-        var phase = new LineUpPhase();
+        var phase = new LineUpPhaseV1();
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
     }
 

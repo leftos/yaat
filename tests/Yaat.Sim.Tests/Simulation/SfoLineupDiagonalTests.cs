@@ -101,7 +101,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
 
             LogTick(ac, rwyHdg, tick, ref enteredLineUp);
 
-            if (ac.Phases?.CurrentPhase is LineUpPhase && lineUpStartTick < 0)
+            if (ac.Phases?.CurrentPhase is ILineUpPhase && lineUpStartTick < 0)
             {
                 lineUpStartTick = tick;
             }
@@ -163,7 +163,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         double crossTrackFt = GetCrossTrackFt(ac, rwyHdg);
         double hdgDiff = rwyHdg.AbsAngleTo(ac.TrueHeading);
 
-        if (ac.Phases?.CurrentPhase is LineUpPhase)
+        if (ac.Phases?.CurrentPhase is ILineUpPhase)
         {
             enteredLineUp = true;
         }
