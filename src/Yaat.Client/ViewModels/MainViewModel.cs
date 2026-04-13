@@ -765,6 +765,16 @@ public partial class MainViewModel : ObservableObject
             promptParts.Add(f);
         }
 
+        // Append phonetic pronunciations for any programmed fix whose spelling is non-obvious
+        // (e.g. SYRAH → "see rah"). Whisper's decoder biases toward tokens in initial_prompt, so
+        // seeding both canonical and phonetic forms catches either pronunciation. PhoneticFixMatcher
+        // normalizes back to canonical downstream.
+        var pronunciationHint = NavigationDatabase.Instance?.BuildWhisperPronunciationHint(programmedFixes) ?? string.Empty;
+        if (!string.IsNullOrEmpty(pronunciationHint))
+        {
+            promptParts.Add(pronunciationHint);
+        }
+
         var whisperInitialPrompt = string.Join(' ', promptParts);
 
         // Pull custom-fix speech patterns from the NavigationDatabase. These let the rule engine

@@ -78,13 +78,14 @@ public sealed class NavigationDatabase
         public void Dispose() => _scopedInstance.Value = null;
     }
 
-    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null)
+    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null, string? fixPronunciationsBaseDir = null)
     {
         _cifpFilePath = cifpFilePath;
         BuildIndex(navData);
         BuildProcedureIndex(navData);
         LoadCifpNavaids(cifpFilePath);
         LoadCustomFixes(customFixesBaseDir);
+        LoadFixPronunciations(fixPronunciationsBaseDir);
         AllFixNames = BuildSortedNames();
     }
 
@@ -249,6 +250,14 @@ public sealed class NavigationDatabase
 
     private List<Speech.CustomFixSpeechPattern> _customFixSpeechPatterns = [];
 
+    /// <summary>
+    /// Phonetic pronunciation hints for fixes whose spelling doesn't match their spoken form.
+    /// Keyed by canonical uppercase fix name; each entry lists one or more phonetic spellings.
+    /// Used by <see cref="BuildWhisperPronunciationHint"/> to seed Whisper's <c>initial_prompt</c>
+    /// when a programmed fix has a hint.
+    /// </summary>
+    private readonly Dictionary<string, List<string>> _fixPronunciations = new(StringComparer.OrdinalIgnoreCase);
+
     // ──────────────────────────────────────────────
     //  NavData lookups (eagerly built)
     // ──────────────────────────────────────────────
@@ -256,6 +265,50 @@ public sealed class NavigationDatabase
     public (double Lat, double Lon)? GetFixPosition(string name)
     {
         return _navDb.TryGetValue(name, out var pos) ? pos : null;
+    }
+
+    /// <summary>
+    /// Returns phonetic pronunciations for a fix, or an empty list if none are registered. Used
+    /// by the speech pipeline to bias Whisper's decoder toward both canonical and phonetic spellings
+    /// of non-obviously-pronounced fix names.
+    /// </summary>
+    public IReadOnlyList<string> GetFixPronunciations(string fix)
+    {
+        return _fixPronunciations.TryGetValue(fix, out var list) ? list : [];
+    }
+
+    /// <summary>
+    /// Composes a Whisper <c>initial_prompt</c> fragment containing the phonetic pronunciations of
+    /// any programmed fixes that have hints registered. The returned string is a space-separated
+    /// list of pronunciations ready to be concatenated to the rest of the prompt — callers are
+    /// responsible for the surrounding whitespace. Returns the empty string when no programmed
+    /// fixes have hints.
+    ///
+    /// Fixes themselves are NOT emitted — the caller already includes canonical fix names in the
+    /// prompt. This method only appends the phonetic variants so Whisper sees both forms.
+    /// </summary>
+    public string BuildWhisperPronunciationHint(IEnumerable<string> programmedFixes)
+    {
+        if (_fixPronunciations.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>();
+        foreach (var fix in programmedFixes)
+        {
+            if (string.IsNullOrWhiteSpace(fix))
+            {
+                continue;
+            }
+
+            if (_fixPronunciations.TryGetValue(fix, out var pronunciations))
+            {
+                parts.AddRange(pronunciations);
+            }
+        }
+
+        return parts.Count == 0 ? string.Empty : string.Join(' ', parts);
     }
 
     public double? GetAirportElevation(string code)
@@ -1085,6 +1138,41 @@ public sealed class NavigationDatabase
             added,
             loadResult.Fixes.Count,
             _customFixSpeechPatterns.Count
+        );
+    }
+
+    private void LoadFixPronunciations(string? baseDir)
+    {
+        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "FixPronunciations");
+
+        var loadResult = FixPronunciationLoader.LoadAll(baseDir);
+
+        foreach (var warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Fix pronunciation: {Warning}", warning);
+        }
+
+        foreach (var def in loadResult.Definitions)
+        {
+            if (!_fixPronunciations.TryGetValue(def.Fix, out var list))
+            {
+                list = [];
+                _fixPronunciations[def.Fix] = list;
+            }
+
+            foreach (var pronunciation in def.Pronunciations)
+            {
+                if (!string.IsNullOrWhiteSpace(pronunciation))
+                {
+                    list.Add(pronunciation.Trim());
+                }
+            }
+        }
+
+        Log.LogInformation(
+            "Fix pronunciations: {Count} fixes loaded from {Files} definitions",
+            _fixPronunciations.Count,
+            loadResult.Definitions.Count
         );
     }
 
