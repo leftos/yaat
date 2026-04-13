@@ -5,7 +5,7 @@ namespace Yaat.Sim.Tests.Speech;
 
 public class PhraseologyMapperTests
 {
-    private static readonly PhraseologyMapper.MapContext NoContext = PhraseologyMapper.MapContext.Empty;
+    private static readonly MapContext NoContext = MapContext.Empty;
 
     // --- Heading rules ---
 
@@ -364,7 +364,7 @@ public class PhraseologyMapperTests
     public void Fix_ExactMatch_PassedThrough()
     {
         // When the transcript has the correct fix name, the matcher is a no-op.
-        var ctx = new PhraseologyMapper.MapContext([], ["CEPIN", "SUNOL"]);
+        var ctx = new MapContext([], ["CEPIN", "SUNOL"]);
         var result = PhraseologyMapper.Map("direct to cepin", ctx);
         Assert.NotNull(result);
         Assert.Equal("DCT CEPIN", result!.CanonicalCommand);
@@ -374,7 +374,7 @@ public class PhraseologyMapperTests
     public void Fix_MistranscribedAgainstProgrammedFixes_IsCorrected()
     {
         // Whisper heard "sepin"; real fix is CEPIN. The matcher should swap it in.
-        var ctx = new PhraseologyMapper.MapContext([], ["CEPIN", "SUNOL"]);
+        var ctx = new MapContext([], ["CEPIN", "SUNOL"]);
         var result = PhraseologyMapper.Map("direct to sepin", ctx);
         Assert.NotNull(result);
         Assert.Equal("DCT CEPIN", result!.CanonicalCommand);
@@ -396,7 +396,7 @@ public class PhraseologyMapperTests
     public void Fix_WrongTokenDoesNotCorruptOtherCaptures()
     {
         // Ensure the matcher only rewrites capture values, not literal tokens from the rule.
-        var ctx = new PhraseologyMapper.MapContext([], ["CEPIN", "SUNOL"]);
+        var ctx = new MapContext([], ["CEPIN", "SUNOL"]);
         var result = PhraseologyMapper.Map("climb and maintain five thousand direct to sepin", ctx);
         Assert.NotNull(result);
         Assert.Equal("CM 5000, DCT CEPIN", result!.CanonicalCommand);

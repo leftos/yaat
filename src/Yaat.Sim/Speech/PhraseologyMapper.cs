@@ -19,27 +19,6 @@ namespace Yaat.Sim.Speech;
 /// </remarks>
 public static class PhraseologyMapper
 {
-    /// <summary>Context passed by the caller to aid matching.</summary>
-    /// <param name="ActiveCallsigns">
-    /// Callsigns currently in the scenario — used by <see cref="CallsignParser"/> to disambiguate
-    /// shared-telephony airlines (e.g. VIRGIN → VIR vs VOZ).
-    /// </param>
-    /// <param name="ProgrammedFixes">
-    /// Fixes known to the relevant aircraft; reserved for Phase 3 (<c>PhoneticFixMatcher</c>) but
-    /// accepted here so the public surface is stable.
-    /// </param>
-    public sealed record MapContext(IReadOnlyCollection<string> ActiveCallsigns, IReadOnlyCollection<string> ProgrammedFixes)
-    {
-        /// <summary>Empty context — used when the caller has no scenario state.</summary>
-        public static MapContext Empty { get; } = new([], []);
-    }
-
-    /// <summary>Result of mapping a transcript. Null return means no part of the transcript matched.</summary>
-    /// <param name="Callsign">Extracted ICAO callsign (e.g. "SWA123"), or null if none found.</param>
-    /// <param name="CanonicalCommand">Comma-separated canonical commands (e.g. "CM 5000, FH 270").</param>
-    /// <param name="MatchedRuleCount">How many clauses matched a rule. Useful as a confidence signal.</param>
-    public sealed record MapResult(string? Callsign, string CanonicalCommand, int MatchedRuleCount);
-
     // Filler words stripped before matching. Kept conservative so real command words stay intact.
     private static readonly HashSet<string> FillerWords = new(StringComparer.OrdinalIgnoreCase)
     {

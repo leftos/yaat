@@ -197,12 +197,15 @@ Settings:
 - GPU layers offload count (0 = CPU only)
 
 #### Tasks
-- [ ] `src/Yaat.Sim/Speech/ISpeechCommandMapper.cs` — interface returning nullable canonical command string
-- [ ] `PhraseologyMapper` implements `ISpeechCommandMapper` (retrofit)
-- [ ] `src/Yaat.Client/Services/LocalLlmService.cs` — LLamaSharp wrapper, lazy model load, system prompt builder
-- [ ] `src/Yaat.Client/Services/LocalLlmCommandMapper.cs` — `ISpeechCommandMapper` impl wrapping `LocalLlmService`, returns `null` when disabled or no match
-- [ ] Add LLM settings fields (see Phase 5 `SavedPrefs`)
-- [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
+- [x] `src/Yaat.Sim/Speech/ISpeechCommandMapper.cs` — async interface (`Task<MapResult?> MapAsync(...)`) with required `CancellationToken`. `MapContext` and `MapResult` hoisted from nested `PhraseologyMapper.MapContext`/`.MapResult` to top-level types in the `Yaat.Sim.Speech` namespace (PhraseologyMapperTests updated for the rename).
+- [x] `src/Yaat.Sim/Speech/PhraseologyCommandMapper.cs` — non-static adapter wrapping the existing static `PhraseologyMapper.Map()`. Keeps the static API as the source of truth; this wrapper just makes it async-interface-compatible.
+- [x] `LLamaSharp` **0.26.0** + `LLamaSharp.Backend.Cpu` **0.26.0** added to `src/Yaat.Client/Yaat.Client.csproj`. GPU backend shipping strategy is explicitly deferred to Phase 6 per the plan; CPU-only for Phase 4.
+- [x] `src/Yaat.Client/Services/LocalLlmService.cs` — LLamaSharp wrapper. `StatelessExecutor` for single-shot inference, lazy `LLamaWeights.LoadFromFile()` + `ModelParams` (ContextSize=2048), chat-ML-ish system/user prompt framing, `DefaultSamplingPipeline { Temperature = 0.1f, TopP = 0.9f }`, AntiPrompts `["<|user|>", "<|system|>", "\n\n"]`, `MaxTokens=80`, 512-char output cap. `SemaphoreSlim(1,1)` for sequential inference, `CancellationToken` pass-through. Auto-reloads weights when `LlmModelPath` or effective `GpuLayerCount` changes. `LlmGpuLayers = -1` → `ResolveGpuLayers()` returns 999 when `GpuCapabilityDetector.Detect().Kind != CpuOnly`, else 0 (harmless on CPU-only backend but ready for Phase 6 GPU swap).
+- [x] `src/Yaat.Client/Services/LocalLlmCommandMapper.cs` — `ISpeechCommandMapper` impl. Lazy system prompt built once from `CommandRegistry.All` (every canonical verb + label + sample arg + examples). User prompt includes transcript + active callsigns + programmed fixes. `NormalizeOutput()` strips code fences / labels / quotes / trailing prose, uppercases, splits into comma-separated clauses, and validates each clause against `CommandRegistry.AliasToCanonicType` with an `AT <fix>` / `LV <alt>` prefix allowance, a 5-token-per-clause cap, and an allowed-character set (`[A-Z0-9+\-./]`). Returns null when validation fails.
+- [x] LLM settings fields already landed in Phase 5 — `LocalLlmService` reads `SpeechEnabled`, `LlmModelPath`, `LlmGpuLayers`, and `PreferredGpuBackend` directly from the injected `UserPreferences`.
+- [x] `tests/Yaat.Client.Tests/LocalLlmCommandMapperNormalizeTests.cs` — 21 theory cases covering valid commands, markdown code fences, label prefixes, compound clauses with condition prefixes, and rejection of natural-language prose.
+- [x] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean (0 warnings).
+- [x] `timeout 120 dotnet test 2>&1 | tee .tmp/test.log` green (Yaat.Sim 2,773 + Yaat.Client 357 = 3,130).
 
 ### Phase 5: Settings UI — "Speech" tab (Yaat.Client)
 
