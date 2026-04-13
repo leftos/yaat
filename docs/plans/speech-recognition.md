@@ -127,12 +127,19 @@ Existing files to reuse:
 - `src/Yaat.Sim/Commands/AltitudeResolver.cs` — altitude format normalization
 
 #### Tasks
-- [ ] `src/Yaat.Sim/Speech/PhraseologyRule.cs` — rule record (`Pattern`, `OutputTemplate`, `Type`)
-- [ ] `src/Yaat.Sim/Speech/PhraseologyMapper.cs` — preprocess, callsign extract, condition prefix, rule match, compound handling
-- [ ] `src/Yaat.Sim/Speech/PhraseologyRules.cs` — ≥50 rules spanning every `CommandRegistry` category (heading, alt, speed, nav, tower, approach, ground, hold, pattern)
-- [ ] `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTests.cs` — rule coverage + compound commands + edge cases
-- [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
-- [ ] `timeout 30 dotnet test 2>&1 | tee .tmp/test.log` green
+- [x] `src/Yaat.Sim/Speech/PhraseologyRule.cs` — rule record (`Pattern`, `OutputTemplate`, `Type`) with pattern syntax: literal / literal? (optional) / {name} (capture)
+- [x] `src/Yaat.Sim/Speech/PhraseologyMapper.cs` — normalize digits → strip filler → collapse runway designators ("28 right" → "28R") → extract callsign → extract condition prefix → greedy longest-match with compound connectors → "disregard" cancels prior outputs
+- [x] `src/Yaat.Sim/Speech/PhraseologyRules.cs` — **163 rules** across 11 categories: heading, altitude/speed, navigation, tower, approach, pattern, hold, helicopter, transponder, ground, broadcast
+- [x] `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTests.cs` — 105 cases: per-category rule coverage, compound commands, callsign leading/trailing, condition prefixes, disregard, edge cases
+- [x] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
+- [x] `timeout 120 dotnet test 2>&1 | tee .tmp/test.log` green (2744/2744)
+- [x] aviation-sim-expert review vs 7110.65 — corrections applied:
+  - Dropped inverted "turn left N degrees" form (7110.65 5-6-2 only specifies "TURN N DEGREES LEFT/RIGHT")
+  - Added "MAINTAIN N KNOTS" (7110.65 5-7-2 canonical speed form)
+  - Added "REPORT AIRPORT IN SIGHT" (7110.65 5-11-1; kept "field in sight" as colloquial tolerance)
+  - Added "EXPECT (type) APPROACH RUNWAY N" form alongside "EXPECT (type) RUNWAY N APPROACH"
+  - Fixed visual approach word order: "CLEARED VISUAL APPROACH RUNWAY N" (7110.65 7-4-3.b); removed incorrect inverted form
+  - Kept "reduce to final (approach speed)" — user confirms commonly spoken on frequency even though not in the 7110.65 phrase box
 
 ### Phase 3: Fix disambiguation (Yaat.Sim)
 
@@ -311,6 +318,21 @@ Files to modify:
 - [ ] `src/Yaat.Client/Services/SpeechRecognitionService.cs` — orchestrate audio → STT → mapper → fix post-pass → `CommandText`
 - [ ] `MainViewModel.cs` — PTT down/up handlers, hold `SpeechRecognitionService`, push transcript into command input
 - [ ] `MainWindow.axaml` — mic status indicator (idle / recording / transcribing / error)
+- [ ] **Structured per-stage logging** — every pipeline stage emits an `AppLog.LogDebug` record to `yaat-client.log` so users can post-mortem debug recognition failures:
+  1. Audio captured (duration, sample count, peak amplitude)
+  2. Whisper transcript (raw text + confidence)
+  3. Post-normalization transcript (after `AtcNumberParser.NormalizeDigits` + runway designator collapse)
+  4. Callsign extraction (ICAO form, leading vs trailing, consumed tokens)
+  5. Condition prefix extraction (if any)
+  6. Rule matching trace (which rules were tried, which matched, longest-match winner, captures)
+  7. LLM fallback invoked (if rule match failed, input + output)
+  8. Phonetic fix post-pass corrections (before → after)
+  9. Final `CommandText` value
+- [ ] **Speech debug panel** (optional, toggleable) — a side/bottom panel in `MainWindow.axaml` that shows the same 9-step breakdown LIVE for the most recent PTT press. Each step is a collapsible row with timing (ms) and a copy-to-clipboard affordance. Designed for iterative improvement of rules/prompts in Phase 8 without requiring log-file inspection.
+  - Toggle: `SavedPrefs.SpeechDebugPanelVisible` (default false)
+  - Persists last 10 PTT sessions scrollable in the panel
+  - Each session is a `SpeechSession` record in memory: timestamp, raw audio duration, each stage's input/output/timing
+  - Reuse the structured logging data source so the panel and logs stay in sync
 - [ ] Build + manual end-to-end test: hold PTT, speak "climb and maintain five thousand", confirm `CM 050` appears in the command box
 - [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
 - [ ] `timeout 30 dotnet test 2>&1 | tee .tmp/test.log` green
