@@ -31,13 +31,10 @@ if (!File.Exists(modelPath))
     return 1;
 }
 
-// Quick smoke test for the Option B GpuRuntimeDownloader: if the first command-line arg is
-// --download-vulkan, fetch the Vulkan backend from nuget.org, extract it, and exit.
-if (args.Length > 0 && args[0] == "--download-vulkan")
+// Quick smoke tests for the Option B GpuRuntimeDownloader. First arg selects which backend.
+if (args.Length > 0 && args[0] is "--download-vulkan" or "--download-cuda" or "--download-whisper-vulkan" or "--download-whisper-cuda")
 {
-    Console.WriteLine("=== Downloading LLamaSharp Vulkan runtime ===");
     var downloader = new GpuRuntimeDownloader();
-    Console.WriteLine($"Before: {downloader.GetLlamaVulkanStatus()}");
     var progress = new Progress<double>(p =>
     {
         if (!double.IsNaN(p))
@@ -45,11 +42,119 @@ if (args.Length > 0 && args[0] == "--download-vulkan")
             Console.Write($"\r  {p * 100:F1}%");
         }
     });
-    var ok = await downloader.DownloadLlamaVulkanRuntimeAsync(progress, CancellationToken.None);
-    Console.WriteLine();
-    Console.WriteLine($"After: {downloader.GetLlamaVulkanStatus()} (ok={ok})");
-    Console.WriteLine($"Runtime root: {GpuRuntimeDownloader.LlamaSearchRoot}");
+
+    var toolkit = GpuRuntimeDownloader.FindCuda12Toolkit();
+    Console.WriteLine($"CUDA Toolkit: {(toolkit is null ? "not detected" : $"v12.{toolkit.MinorVersion} at {toolkit.InstallPath}")}");
+    bool ok;
+    string label;
+    switch (args[0])
+    {
+        case "--download-vulkan":
+            label = "LLamaSharp Vulkan";
+            Console.WriteLine($"=== Downloading {label} runtime ===");
+            Console.WriteLine($"Before: {downloader.GetLlamaVulkanStatus()}");
+            ok = await downloader.DownloadLlamaVulkanRuntimeAsync(progress, CancellationToken.None);
+            Console.WriteLine();
+            Console.WriteLine($"After: {downloader.GetLlamaVulkanStatus()} (ok={ok})");
+            break;
+        case "--download-cuda":
+            label = "LLamaSharp CUDA 12";
+            Console.WriteLine($"=== Downloading {label} runtime ===");
+            Console.WriteLine($"Before: {downloader.GetLlamaCudaStatus()}");
+            ok = await downloader.DownloadLlamaCudaRuntimeAsync(progress, CancellationToken.None);
+            Console.WriteLine();
+            Console.WriteLine($"After: {downloader.GetLlamaCudaStatus()} (ok={ok})");
+            break;
+        case "--download-whisper-vulkan":
+            label = "Whisper.net Vulkan";
+            Console.WriteLine($"=== Downloading {label} runtime ===");
+            Console.WriteLine($"Before: {downloader.GetWhisperVulkanStatus()}");
+            ok = await downloader.DownloadWhisperVulkanRuntimeAsync(progress, CancellationToken.None);
+            Console.WriteLine();
+            Console.WriteLine($"After: {downloader.GetWhisperVulkanStatus()} (ok={ok})");
+            break;
+        case "--download-whisper-cuda":
+            label = "Whisper.net CUDA";
+            Console.WriteLine($"=== Downloading {label} runtime ===");
+            Console.WriteLine($"Before: {downloader.GetWhisperCudaStatus()}");
+            ok = await downloader.DownloadWhisperCudaRuntimeAsync(progress, CancellationToken.None);
+            Console.WriteLine();
+            Console.WriteLine($"After: {downloader.GetWhisperCudaStatus()} (ok={ok})");
+            break;
+        default:
+            return 1;
+    }
+
     return ok ? 0 : 1;
+}
+
+// Probe the Whisper Vulkan runtime path to confirm RuntimeOptions.LibraryPath works.
+if (args.Length > 0 && args[0] == "--probe-whisper-vulkan")
+{
+    Console.WriteLine("=== Probing Whisper.net Vulkan runtime ===");
+    if (!Directory.Exists(GpuRuntimeDownloader.WhisperSearchRoot))
+    {
+        Console.Error.WriteLine("Whisper runtime not downloaded; run --download-whisper-vulkan first");
+        return 1;
+    }
+
+    var placeholderPath = Path.Combine(GpuRuntimeDownloader.WhisperSearchRoot, "whisper.placeholder");
+    Whisper.net.LibraryLoader.RuntimeOptions.LibraryPath = placeholderPath;
+    Whisper.net.Logger.LogProvider.AddLogger((level, msg) => Console.WriteLine($"  [whisper/{level}] {msg}"));
+    Console.WriteLine($"LibraryPath set to: {placeholderPath}");
+
+    var whisperModelPath = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tests", "Yaat.Client.Tests", "TestData", "llm", "test-model.gguf")
+    );
+    // We don't actually want to load a model — that needs a Whisper GGML file. We just want to
+    // see which backend gets picked. Whisper.net does the selection when the first WhisperFactory
+    // is created; trying to create one with a non-Whisper file will fail but AFTER backend
+    // selection, which is what we want to see.
+    try
+    {
+        using var factory = Whisper.net.WhisperFactory.FromPath("non-existent.bin");
+        Console.WriteLine($"LoadedLibrary: {Whisper.net.LibraryLoader.RuntimeOptions.LoadedLibrary}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Factory creation failed (expected): {ex.GetType().Name}: {ex.Message}");
+        Console.WriteLine($"LoadedLibrary: {Whisper.net.LibraryLoader.RuntimeOptions.LoadedLibrary}");
+    }
+
+    return 0;
+}
+
+// Probe with production config — both CUDA and Vulkan enabled, CUDA toolkit applied. Expected
+// result on a dev box with CUDA 12 toolkit + both backends downloaded: CUDA wins.
+if (args.Length > 0 && args[0] == "--probe-production")
+{
+    Console.WriteLine("=== Probing production-style CUDA+Vulkan config ===");
+    var toolkit = GpuRuntimeDownloader.FindCuda12Toolkit();
+    if (toolkit is not null)
+    {
+        GpuRuntimeDownloader.ApplyCudaToolkitToProcess(toolkit);
+        Console.WriteLine($"Applied CUDA Toolkit v12.{toolkit.MinorVersion}");
+    }
+
+    NativeLibraryConfig
+        .All.WithCuda(true)
+        .WithVulkan(true)
+        .WithAutoFallback(true)
+        .WithSearchDirectory(GpuRuntimeDownloader.LlamaSearchRoot)
+        .WithLogCallback((level, message) => Console.WriteLine($"  [llama/{level}] {message?.TrimEnd()}"));
+
+    var testPath = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tests", "Yaat.Client.Tests", "TestData", "llm", "test-model.gguf")
+    );
+    var parameters = new ModelParams(testPath)
+    {
+        ContextSize = 2048,
+        SeqMax = 1,
+        GpuLayerCount = 999,
+    };
+    using var weights = LLamaWeights.LoadFromFile(parameters);
+    Console.WriteLine("Weights loaded — check logs for 'CUDA0'/'Vulkan0' layer assignments");
+    return 0;
 }
 
 // Probe the Vulkan runtime path so we can confirm WithSearchDirectory works.

@@ -296,6 +296,46 @@ public partial class SettingsViewModel : ObservableObject
     private bool _llamaVulkanIsDownloading;
 
     [ObservableProperty]
+    private string _llamaCudaRuntimeStatus = "Not installed";
+
+    [ObservableProperty]
+    private double _llamaCudaDownloadProgress;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLlamaCudaDownloadEnabled))]
+    private bool _llamaCudaIsDownloading;
+
+    [ObservableProperty]
+    private string _whisperVulkanRuntimeStatus = "Not installed";
+
+    [ObservableProperty]
+    private double _whisperVulkanDownloadProgress;
+
+    [ObservableProperty]
+    private bool _whisperVulkanIsDownloading;
+
+    [ObservableProperty]
+    private string _whisperCudaRuntimeStatus = "Not installed";
+
+    [ObservableProperty]
+    private double _whisperCudaDownloadProgress;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWhisperCudaDownloadEnabled))]
+    private bool _whisperCudaIsDownloading;
+
+    [ObservableProperty]
+    private string _cudaToolkitStatus = "Not detected";
+
+    // CUDA downloads are only enabled when the CUDA Toolkit 12.x has been detected on disk,
+    // because without it the backend DLLs fail to load at runtime (missing cudart64_12.dll etc.).
+    public bool IsLlamaCudaDownloadEnabled => _cudaToolkitDetected && !LlamaCudaIsDownloading;
+
+    public bool IsWhisperCudaDownloadEnabled => _cudaToolkitDetected && !WhisperCudaIsDownloading;
+
+    private bool _cudaToolkitDetected;
+
+    [ObservableProperty]
     private string _pttKeyDisplay = "Right Ctrl";
 
     [ObservableProperty]
@@ -312,6 +352,9 @@ public partial class SettingsViewModel : ObservableObject
     private CancellationTokenSource? _whisperDownloadCts;
     private CancellationTokenSource? _llmDownloadCts;
     private CancellationTokenSource? _llamaVulkanDownloadCts;
+    private CancellationTokenSource? _llamaCudaDownloadCts;
+    private CancellationTokenSource? _whisperVulkanDownloadCts;
+    private CancellationTokenSource? _whisperCudaDownloadCts;
 
     public IReadOnlyList<string> WhisperSizes { get; } = ModelManager.AvailableWhisperSizes;
     public IReadOnlyList<LlmCatalogEntry> LlmModels { get; } = ModelManager.AvailableLlmModels;
@@ -379,6 +422,20 @@ public partial class SettingsViewModel : ObservableObject
             ?? ModelManager.AvailableLlmModels.FirstOrDefault();
         RefreshLlmModelStatus();
         _llamaVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaVulkanStatus());
+        _llamaCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaCudaStatus());
+        _whisperVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperVulkanStatus());
+        _whisperCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperCudaStatus());
+
+        var toolkit = GpuRuntimeDownloader.FindCuda12Toolkit();
+        if (toolkit is not null)
+        {
+            _cudaToolkitDetected = true;
+            _cudaToolkitStatus = $"v12.{toolkit.MinorVersion} at {toolkit.InstallPath}";
+        }
+        else
+        {
+            _cudaToolkitStatus = "Not detected (install CUDA Toolkit 12.x to enable CUDA downloads)";
+        }
 
         _detectedGpuSummary = GpuCapabilityDetector.Detect().Summary;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
@@ -1247,6 +1304,159 @@ public partial class SettingsViewModel : ObservableObject
     private void CancelLlamaVulkanDownload()
     {
         _llamaVulkanDownloadCts?.Cancel();
+    }
+
+    // ---------- LLamaSharp CUDA 12 runtime download ----------
+
+    [RelayCommand]
+    private async Task DownloadLlamaCudaRuntime()
+    {
+        if (LlamaCudaIsDownloading)
+        {
+            return;
+        }
+
+        _llamaCudaDownloadCts?.Dispose();
+        _llamaCudaDownloadCts = new CancellationTokenSource();
+        LlamaCudaIsDownloading = true;
+        LlamaCudaDownloadProgress = 0;
+        LlamaCudaRuntimeStatus = "Downloading...";
+
+        var progress = new Progress<double>(p =>
+        {
+            if (!double.IsNaN(p))
+            {
+                LlamaCudaDownloadProgress = p;
+            }
+        });
+
+        try
+        {
+            var ok = await _gpuDownloader.DownloadLlamaCudaRuntimeAsync(progress, _llamaCudaDownloadCts.Token).ConfigureAwait(true);
+            LlamaCudaRuntimeStatus = ok
+                ? FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaCudaStatus()) + " (restart YAAT to activate)"
+                : "Download failed";
+        }
+        finally
+        {
+            LlamaCudaIsDownloading = false;
+            LlamaCudaDownloadProgress = 0;
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteLlamaCudaRuntime()
+    {
+        _gpuDownloader.DeleteLlamaCudaRuntime();
+        LlamaCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaCudaStatus()) + " (restart YAAT to deactivate)";
+    }
+
+    [RelayCommand]
+    private void CancelLlamaCudaDownload()
+    {
+        _llamaCudaDownloadCts?.Cancel();
+    }
+
+    // ---------- Whisper.net Vulkan runtime download ----------
+
+    [RelayCommand]
+    private async Task DownloadWhisperVulkanRuntime()
+    {
+        if (WhisperVulkanIsDownloading)
+        {
+            return;
+        }
+
+        _whisperVulkanDownloadCts?.Dispose();
+        _whisperVulkanDownloadCts = new CancellationTokenSource();
+        WhisperVulkanIsDownloading = true;
+        WhisperVulkanDownloadProgress = 0;
+        WhisperVulkanRuntimeStatus = "Downloading...";
+
+        var progress = new Progress<double>(p =>
+        {
+            if (!double.IsNaN(p))
+            {
+                WhisperVulkanDownloadProgress = p;
+            }
+        });
+
+        try
+        {
+            var ok = await _gpuDownloader.DownloadWhisperVulkanRuntimeAsync(progress, _whisperVulkanDownloadCts.Token).ConfigureAwait(true);
+            WhisperVulkanRuntimeStatus = ok
+                ? FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperVulkanStatus()) + " (restart YAAT to activate)"
+                : "Download failed";
+        }
+        finally
+        {
+            WhisperVulkanIsDownloading = false;
+            WhisperVulkanDownloadProgress = 0;
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteWhisperVulkanRuntime()
+    {
+        _gpuDownloader.DeleteWhisperVulkanRuntime();
+        WhisperVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperVulkanStatus()) + " (restart YAAT to deactivate)";
+    }
+
+    [RelayCommand]
+    private void CancelWhisperVulkanDownload()
+    {
+        _whisperVulkanDownloadCts?.Cancel();
+    }
+
+    // ---------- Whisper.net CUDA runtime download ----------
+
+    [RelayCommand]
+    private async Task DownloadWhisperCudaRuntime()
+    {
+        if (WhisperCudaIsDownloading)
+        {
+            return;
+        }
+
+        _whisperCudaDownloadCts?.Dispose();
+        _whisperCudaDownloadCts = new CancellationTokenSource();
+        WhisperCudaIsDownloading = true;
+        WhisperCudaDownloadProgress = 0;
+        WhisperCudaRuntimeStatus = "Downloading...";
+
+        var progress = new Progress<double>(p =>
+        {
+            if (!double.IsNaN(p))
+            {
+                WhisperCudaDownloadProgress = p;
+            }
+        });
+
+        try
+        {
+            var ok = await _gpuDownloader.DownloadWhisperCudaRuntimeAsync(progress, _whisperCudaDownloadCts.Token).ConfigureAwait(true);
+            WhisperCudaRuntimeStatus = ok
+                ? FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperCudaStatus()) + " (restart YAAT to activate)"
+                : "Download failed";
+        }
+        finally
+        {
+            WhisperCudaIsDownloading = false;
+            WhisperCudaDownloadProgress = 0;
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteWhisperCudaRuntime()
+    {
+        _gpuDownloader.DeleteWhisperCudaRuntime();
+        WhisperCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperCudaStatus()) + " (restart YAAT to deactivate)";
+    }
+
+    [RelayCommand]
+    private void CancelWhisperCudaDownload()
+    {
+        _whisperCudaDownloadCts?.Cancel();
     }
 
     private static string FormatGpuRuntimeStatus(GpuRuntimeStatus status)
