@@ -82,7 +82,22 @@ public static class Program
     {
         try
         {
-            NativeLibraryConfig.All.WithAutoFallback(true).WithLogCallback((level, message) => LogLlamaMessage(log, level, message));
+            var config = NativeLibraryConfig
+                .All.WithCuda(true)
+                .WithVulkan(true)
+                .WithAutoFallback(true)
+                .WithLogCallback((level, message) => LogLlamaMessage(log, level, message));
+
+            // Option B: if the user has downloaded a GPU runtime via Settings, add that folder to
+            // the search path so LLamaSharp picks up the GPU natives instead of the CPU defaults
+            // that ship with the installer. The downloader extracts files so that
+            // {LlamaSearchRoot}/runtimes/win-x64/native/{backend}/llama.dll resolves the same way
+            // as the in-bin CPU natives — WithSearchDirectory just adds a second root to probe.
+            if (Directory.Exists(GpuRuntimeDownloader.LlamaSearchRoot))
+            {
+                config.WithSearchDirectory(GpuRuntimeDownloader.LlamaSearchRoot);
+                log.LogInformation("LLamaSharp search directory includes {Path}", GpuRuntimeDownloader.LlamaSearchRoot);
+            }
         }
         catch (Exception ex)
         {

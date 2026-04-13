@@ -601,18 +601,46 @@
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,0" />
                         <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding LlmModelStatus, StringFormat='Status: {0}'}"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBox Text="{Binding LlmModelPath}"
-                                         Width="360"
-                                         Watermark="Path to .gguf file" />
+                                <ComboBox ItemsSource="{Binding LlmModels}"
+                                          SelectedItem="{Binding SelectedLlmModel}"
+                                          DisplayMemberBinding="{Binding DisplayName}"
+                                          Width="340" />
+                                <Button Content="Download"
+                                        Command="{Binding DownloadLlmModelCommand}"
+                                        IsEnabled="{Binding !LlmIsDownloading}" />
+                                <Button Content="Cancel"
+                                        Command="{Binding CancelLlmDownloadCommand}"
+                                        IsVisible="{Binding LlmIsDownloading}" />
+                                <Button Content="Delete"
+                                        Command="{Binding DeleteLlmModelCommand}"
+                                        IsEnabled="{Binding !LlmIsDownloading}" />
+                            </StackPanel>
+                            <ProgressBar Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding LlmDownloadProgress}"
+                                         IsVisible="{Binding LlmIsDownloading}"
+                                         Height="4" />
+                            <TextBlock TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Text="Downloads a recommended GGUF model from Hugging Face to %LOCALAPPDATA%/yaat/models/llm/. Models are Qwen 2.5 Instruct Q4_K_M variants — verified against Phase 4's integration test suite." />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                <TextBlock Text="Or use a custom GGUF:"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
                                 <Button x:Name="BrowseLlmModelButton"
                                         Content="Browse..."
                                         Click="OnBrowseLlmModelClick" />
                             </StackPanel>
-                            <TextBlock Text="Point to a GGUF file (e.g. phi-4-mini-q4_k_m.gguf). Download manually from Hugging Face."
+                            <TextBlock Text="{Binding LlmModelPath, StringFormat='Path: {0}'}"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
+                                       FontSize="11"
+                                       IsVisible="{Binding LlmModelPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         </StackPanel>
 
                         <TextBlock Text="Acceleration"
@@ -621,18 +649,29 @@
                         <StackPanel Spacing="4">
                             <TextBlock Text="{Binding DetectedGpuSummary, StringFormat='Detected: {0}'}"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBlock Text="{Binding LlamaVulkanRuntimeStatus, StringFormat='LLM Vulkan runtime: {0}'}"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Backend:"
-                                           VerticalAlignment="Center" />
-                                <ComboBox ItemsSource="{Binding GpuBackendChoices}"
-                                          SelectedItem="{Binding PreferredGpuBackend}"
-                                          Width="120" />
-                                <TextBlock Text="(Auto = use best detected)"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
+                                <Button Content="Download Vulkan runtime (~20 MB)"
+                                        Command="{Binding DownloadLlamaVulkanRuntimeCommand}"
+                                        IsEnabled="{Binding !LlamaVulkanIsDownloading}" />
+                                <Button Content="Cancel"
+                                        Command="{Binding CancelLlamaVulkanDownloadCommand}"
+                                        IsVisible="{Binding LlamaVulkanIsDownloading}" />
+                                <Button Content="Delete"
+                                        Command="{Binding DeleteLlamaVulkanRuntimeCommand}"
+                                        IsEnabled="{Binding !LlamaVulkanIsDownloading}" />
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ProgressBar Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding LlamaVulkanDownloadProgress}"
+                                         IsVisible="{Binding LlamaVulkanIsDownloading}"
+                                         Height="4" />
+                            <TextBlock TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Text="Enables GPU-accelerated LLM inference via the Vulkan backend. Works with any modern GPU driver (NVIDIA, AMD, Intel Arc) — no extra toolkit install required. Restart YAAT after download for the runtime to take effect." />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                                 <TextBlock Text="LLM GPU layers:"
                                            VerticalAlignment="Center" />
                                 <NumericUpDown Value="{Binding LlmGpuLayers}"

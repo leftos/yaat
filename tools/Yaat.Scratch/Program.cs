@@ -15,6 +15,8 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using LLama;
+using LLama.Common;
 using LLama.Native;
 using Yaat.Client.Services;
 using Yaat.Sim.Speech;
@@ -27,6 +29,64 @@ if (!File.Exists(modelPath))
 {
     Console.Error.WriteLine($"FATAL: GGUF not found at {modelPath}");
     return 1;
+}
+
+// Quick smoke test for the Option B GpuRuntimeDownloader: if the first command-line arg is
+// --download-vulkan, fetch the Vulkan backend from nuget.org, extract it, and exit.
+if (args.Length > 0 && args[0] == "--download-vulkan")
+{
+    Console.WriteLine("=== Downloading LLamaSharp Vulkan runtime ===");
+    var downloader = new GpuRuntimeDownloader();
+    Console.WriteLine($"Before: {downloader.GetLlamaVulkanStatus()}");
+    var progress = new Progress<double>(p =>
+    {
+        if (!double.IsNaN(p))
+        {
+            Console.Write($"\r  {p * 100:F1}%");
+        }
+    });
+    var ok = await downloader.DownloadLlamaVulkanRuntimeAsync(progress, CancellationToken.None);
+    Console.WriteLine();
+    Console.WriteLine($"After: {downloader.GetLlamaVulkanStatus()} (ok={ok})");
+    Console.WriteLine($"Runtime root: {GpuRuntimeDownloader.LlamaSearchRoot}");
+    return ok ? 0 : 1;
+}
+
+// Probe the Vulkan runtime path so we can confirm WithSearchDirectory works.
+if (args.Length > 0 && args[0] == "--probe-vulkan")
+{
+    Console.WriteLine("=== Probing Vulkan runtime via WithSearchDirectory ===");
+    Console.WriteLine($"Search root: {GpuRuntimeDownloader.LlamaSearchRoot}");
+    if (!Directory.Exists(GpuRuntimeDownloader.LlamaSearchRoot))
+    {
+        Console.Error.WriteLine("Vulkan runtime not downloaded; run --download-vulkan first");
+        return 1;
+    }
+
+    NativeLibraryConfig
+        .All.WithVulkan(true)
+        .WithAutoFallback(true)
+        .WithSearchDirectory(GpuRuntimeDownloader.LlamaSearchRoot)
+        .WithLogCallback((level, message) => Console.WriteLine($"  [llama/{level}] {message?.TrimEnd()}"));
+
+    var testPath = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tests", "Yaat.Client.Tests", "TestData", "llm", "test-model.gguf")
+    );
+    if (!File.Exists(testPath))
+    {
+        Console.Error.WriteLine($"Test GGUF not found at {testPath}");
+        return 1;
+    }
+
+    var parameters = new ModelParams(testPath)
+    {
+        ContextSize = 2048,
+        SeqMax = 1,
+        GpuLayerCount = 999,
+    };
+    using var weights = LLamaWeights.LoadFromFile(parameters);
+    Console.WriteLine("Weights loaded — check logs for 'CUDA0'/'Vulkan0'/'CPU' layer assignments");
+    return 0;
 }
 
 // Auto-discover CUDA 12 the same way LlmCudaFixture does.

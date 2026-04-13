@@ -266,6 +266,18 @@ public partial class SettingsViewModel : ObservableObject
     private string _llmModelPath = "";
 
     [ObservableProperty]
+    private LlmCatalogEntry? _selectedLlmModel;
+
+    [ObservableProperty]
+    private string _llmModelStatus = "Not downloaded";
+
+    [ObservableProperty]
+    private double _llmDownloadProgress;
+
+    [ObservableProperty]
+    private bool _llmIsDownloading;
+
+    [ObservableProperty]
     private int _llmGpuLayers = -1;
 
     [ObservableProperty]
@@ -273,6 +285,15 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private string _detectedGpuSummary = "Detecting...";
+
+    [ObservableProperty]
+    private string _llamaVulkanRuntimeStatus = "Not installed";
+
+    [ObservableProperty]
+    private double _llamaVulkanDownloadProgress;
+
+    [ObservableProperty]
+    private bool _llamaVulkanIsDownloading;
 
     [ObservableProperty]
     private string _pttKeyDisplay = "Right Ctrl";
@@ -287,10 +308,13 @@ public partial class SettingsViewModel : ObservableObject
     private string _pttKeyName = "RightCtrl";
     private string? _captureTarget;
     private readonly ModelManager _modelManager = new();
+    private readonly GpuRuntimeDownloader _gpuDownloader = new();
     private CancellationTokenSource? _whisperDownloadCts;
+    private CancellationTokenSource? _llmDownloadCts;
+    private CancellationTokenSource? _llamaVulkanDownloadCts;
 
     public IReadOnlyList<string> WhisperSizes { get; } = ModelManager.AvailableWhisperSizes;
-    public IReadOnlyList<string> GpuBackendChoices { get; } = ["Auto", "Cpu", "Cuda", "Vulkan", "Metal", "CoreML"];
+    public IReadOnlyList<LlmCatalogEntry> LlmModels { get; } = ModelManager.AvailableLlmModels;
 
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
     public static IReadOnlyList<string> SignatureHelpPlacementOptions { get; } = ["Above", "Below"];
@@ -342,6 +366,20 @@ public partial class SettingsViewModel : ObservableObject
             _modelManager.GetWhisperStatus(_whisperModelSize),
             _modelManager.GetWhisperFileSize(_whisperModelSize)
         );
+
+        // Resolve the initial LLM catalog selection from the stored path: if the stored path
+        // matches a catalog filename, pick that entry so the dropdown reflects it; otherwise
+        // default to the recommended (middle) option. A user who Browsed to a custom GGUF keeps
+        // their LlmModelPath intact; the dropdown still points somewhere sensible in case they
+        // click Download.
+        var byPath = _modelManager.FindLlmEntryByPath(_llmModelPath);
+        _selectedLlmModel =
+            byPath
+            ?? ModelManager.AvailableLlmModels.FirstOrDefault(m => m.Id == "qwen2.5-1.5b-q4km")
+            ?? ModelManager.AvailableLlmModels.FirstOrDefault();
+        RefreshLlmModelStatus();
+        _llamaVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaVulkanStatus());
+
         _detectedGpuSummary = GpuCapabilityDetector.Detect().Summary;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
@@ -1053,6 +1091,172 @@ public partial class SettingsViewModel : ObservableObject
             Services.WhisperModelStatus.Downloading => "Downloading...",
             Services.WhisperModelStatus.Ready => $"Ready ({bytes / (1024 * 1024)} MB)",
             Services.WhisperModelStatus.Failed => "Failed (partial or corrupt)",
+            _ => "Unknown",
+        };
+    }
+
+    // ---------- LLM catalog download ----------
+
+    partial void OnSelectedLlmModelChanged(LlmCatalogEntry? value)
+    {
+        RefreshLlmModelStatus();
+    }
+
+    private void RefreshLlmModelStatus()
+    {
+        var entry = SelectedLlmModel;
+        if (entry is null)
+        {
+            LlmModelStatus = "No catalog entry selected";
+            return;
+        }
+
+        var status = _modelManager.GetLlmStatus(entry.Id);
+        var bytes = _modelManager.GetLlmFileSize(entry.Id);
+        LlmModelStatus = status switch
+        {
+            ModelStatus.NotDownloaded => $"Not downloaded (~{entry.ApproxSizeMb} MB)",
+            ModelStatus.Downloading => "Downloading...",
+            ModelStatus.Ready => $"Ready ({bytes / (1024 * 1024)} MB)",
+            ModelStatus.Failed => "Failed (partial or corrupt)",
+            _ => "Unknown",
+        };
+    }
+
+    [RelayCommand]
+    private async Task DownloadLlmModel()
+    {
+        var entry = SelectedLlmModel;
+        if (entry is null || LlmIsDownloading)
+        {
+            return;
+        }
+
+        _llmDownloadCts?.Dispose();
+        _llmDownloadCts = new CancellationTokenSource();
+        LlmIsDownloading = true;
+        LlmDownloadProgress = 0;
+        LlmModelStatus = "Downloading...";
+
+        var progress = new Progress<double>(p =>
+        {
+            if (!double.IsNaN(p))
+            {
+                LlmDownloadProgress = p;
+            }
+        });
+
+        try
+        {
+            var ok = await _modelManager.DownloadLlmModelAsync(entry.Id, progress, _llmDownloadCts.Token).ConfigureAwait(true);
+            if (ok)
+            {
+                // Point LlmModelPath at the newly downloaded file so LocalLlmService picks it up
+                // on next load. The user doesn't need to do anything else — Settings Save writes
+                // the path to prefs and Phase 4's LocalLlmService lazy-loads from it on first use.
+                LlmModelPath = _modelManager.GetLlmPath(entry.Id);
+            }
+
+            RefreshLlmModelStatus();
+            if (!ok)
+            {
+                LlmModelStatus = "Download failed";
+            }
+        }
+        finally
+        {
+            LlmIsDownloading = false;
+            LlmDownloadProgress = 0;
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteLlmModel()
+    {
+        var entry = SelectedLlmModel;
+        if (entry is null)
+        {
+            return;
+        }
+
+        _modelManager.DeleteLlmModel(entry.Id);
+
+        // If LlmModelPath was pointing at the deleted model, clear it so the runtime doesn't try
+        // to load a missing file next time speech is used.
+        var deletedPath = _modelManager.GetLlmPath(entry.Id);
+        if (string.Equals(LlmModelPath, deletedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            LlmModelPath = "";
+        }
+
+        RefreshLlmModelStatus();
+    }
+
+    [RelayCommand]
+    private void CancelLlmDownload()
+    {
+        _llmDownloadCts?.Cancel();
+    }
+
+    // ---------- LLamaSharp Vulkan GPU runtime download ----------
+
+    [RelayCommand]
+    private async Task DownloadLlamaVulkanRuntime()
+    {
+        if (LlamaVulkanIsDownloading)
+        {
+            return;
+        }
+
+        _llamaVulkanDownloadCts?.Dispose();
+        _llamaVulkanDownloadCts = new CancellationTokenSource();
+        LlamaVulkanIsDownloading = true;
+        LlamaVulkanDownloadProgress = 0;
+        LlamaVulkanRuntimeStatus = "Downloading...";
+
+        var progress = new Progress<double>(p =>
+        {
+            if (!double.IsNaN(p))
+            {
+                LlamaVulkanDownloadProgress = p;
+            }
+        });
+
+        try
+        {
+            var ok = await _gpuDownloader.DownloadLlamaVulkanRuntimeAsync(progress, _llamaVulkanDownloadCts.Token).ConfigureAwait(true);
+            LlamaVulkanRuntimeStatus = ok
+                ? FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaVulkanStatus()) + " (restart YAAT to activate)"
+                : "Download failed";
+        }
+        finally
+        {
+            LlamaVulkanIsDownloading = false;
+            LlamaVulkanDownloadProgress = 0;
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteLlamaVulkanRuntime()
+    {
+        _gpuDownloader.DeleteLlamaVulkanRuntime();
+        LlamaVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaVulkanStatus()) + " (restart YAAT to deactivate)";
+    }
+
+    [RelayCommand]
+    private void CancelLlamaVulkanDownload()
+    {
+        _llamaVulkanDownloadCts?.Cancel();
+    }
+
+    private static string FormatGpuRuntimeStatus(GpuRuntimeStatus status)
+    {
+        return status switch
+        {
+            GpuRuntimeStatus.NotInstalled => "Not installed",
+            GpuRuntimeStatus.Downloading => "Downloading...",
+            GpuRuntimeStatus.Installed => "Installed",
+            GpuRuntimeStatus.Failed => "Failed",
             _ => "Unknown",
         };
     }
