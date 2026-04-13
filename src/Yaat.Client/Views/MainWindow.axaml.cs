@@ -1490,6 +1490,8 @@ public partial class MainWindow : Window
     private KeyModifiers _focusInputModifiers = KeyModifiers.None;
     private Key _takeControlKey = Key.T;
     private KeyModifiers _takeControlModifiers = KeyModifiers.Control;
+    private Key _pttKey = Key.RightCtrl;
+    private KeyModifiers _pttModifiers = KeyModifiers.None;
 
     private void SyncAllRadarViewTint()
     {
@@ -1526,6 +1528,32 @@ public partial class MainWindow : Window
             _takeControlKey = takeKey;
             _takeControlModifiers = takeMods;
         }
+
+        if (SettingsViewModel.ParseKeybind(prefs.PttKey, out var pttKey, out var pttMods))
+        {
+            _pttKey = pttKey;
+            _pttModifiers = pttMods;
+        }
+    }
+
+    /// <summary>
+    /// Returns true if the pressed key matches the configured PTT keybind. Modifier-only keybinds
+    /// (e.g. RightCtrl) are matched by key alone because when Ctrl is pressed, <c>e.KeyModifiers</c>
+    /// also includes the Control flag — comparing modifiers strictly would never match.
+    /// </summary>
+    private bool IsPttKeyEvent(KeyEventArgs e)
+    {
+        if (e.Key != _pttKey)
+        {
+            return false;
+        }
+
+        return IsModifierOnlyKey(_pttKey) || e.KeyModifiers == _pttModifiers;
+    }
+
+    private static bool IsModifierOnlyKey(Key key)
+    {
+        return key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)
@@ -1609,13 +1637,45 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == _takeControlKey && e.KeyModifiers == _takeControlModifiers && DataContext is MainViewModel vm && vm.SelectedAircraft is not null)
+        if (
+            e.Key == _takeControlKey
+            && e.KeyModifiers == _takeControlModifiers
+            && DataContext is MainViewModel takeVm
+            && takeVm.SelectedAircraft is not null
+        )
         {
-            _ = vm.TakeControlAsync(vm.SelectedAircraft.Callsign);
+            _ = takeVm.TakeControlAsync(takeVm.SelectedAircraft.Callsign);
             e.Handled = true;
             return;
         }
 
+        // PTT start. Windows auto-repeats held keys, so StartPtt is a no-op after the first press
+        // and SpeechRecognitionService only actually records once. Works even when the command
+        // input has focus because this handler runs at the Window level.
+        if (IsPttKeyEvent(e) && DataContext is MainViewModel pttVm)
+        {
+            if (pttVm.SpeechService.StartPtt())
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
         base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        if (IsPttKeyEvent(e) && DataContext is MainViewModel pttVm)
+        {
+            if (pttVm.SpeechService.Status is SpeechStatus.Recording)
+            {
+                pttVm.SpeechService.StopPtt();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        base.OnKeyUp(e);
     }
 }

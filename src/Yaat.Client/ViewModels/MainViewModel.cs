@@ -13,6 +13,7 @@ using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Client.ViewModels;
 
@@ -28,8 +29,20 @@ public partial class MainViewModel : ObservableObject
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
 
+    // Phase 7 speech recognition pipeline. All services are lazy/opt-in: they only touch real
+    // resources (PortAudio, Whisper weights, LLM weights) when SpeechEnabled is true AND the user
+    // holds the PTT key. When disabled, these sit dormant with zero cost.
+    private readonly ModelManager _modelManager = new();
+    private readonly AudioCaptureService _audioCapture;
+    private readonly WhisperSttEngine _whisperStt;
+    private readonly LocalLlmService _llmService;
+    private readonly LocalLlmCommandMapper _llmMapper;
+    private readonly PhraseologyCommandMapper _ruleMapper = new();
+    private readonly SpeechRecognitionService _speechService;
+
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
+    public SpeechRecognitionService SpeechService => _speechService;
 
     private string _connectedServerUrl = "";
     private bool _isSyncingSelection;
@@ -488,8 +501,21 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<RoomMemberDto> RoomMembers { get; } = [];
 
+    [ObservableProperty]
+    private SpeechStatus _speechStatus = SpeechStatus.Idle;
+
     public MainViewModel()
     {
+        // Phase 7 speech pipeline wiring. The order here matters: LlmService must exist before
+        // LocalLlmCommandMapper, and SpeechRecognitionService needs all of them.
+        _audioCapture = new AudioCaptureService(_preferences);
+        _whisperStt = new WhisperSttEngine(_preferences, _modelManager);
+        _llmService = new LocalLlmService(new PreferencesLlmRuntimeConfig(_preferences));
+        _llmMapper = new LocalLlmCommandMapper(_llmService);
+        _speechService = new SpeechRecognitionService(_preferences, _audioCapture, _whisperStt, _ruleMapper, _llmMapper, BuildSpeechContext);
+        _speechService.StatusChanged += HandleSpeechServiceStatusChange;
+        _speechService.CommandReady += HandleSpeechServiceCommandReady;
+
         AircraftView = new DataGridCollectionView(Aircraft);
         AircraftView.Filter = obj =>
             obj is not AircraftModel ac || (!_showOnlyActiveAircraft || !ac.IsDelayed) && MatchesFilter(ac, _aircraftFilterText);
@@ -661,6 +687,82 @@ public partial class MainViewModel : ObservableObject
         Ground.SelectedAircraft = value;
         Radar.SelectedAircraft = value;
         _isSyncingSelection = false;
+    }
+
+    /// <summary>
+    /// Builds the snapshot of scenario state passed to <see cref="SpeechRecognitionService"/> at
+    /// PTT press: active callsigns (for <see cref="PhraseologyMapper"/> disambiguation), programmed
+    /// fixes for the selected aircraft (for the <see cref="PhoneticFixMatcher"/> post-pass), and a
+    /// free-text Whisper <c>initial_prompt</c> that biases recognition toward the ICAO + spoken
+    /// forms of every active callsign plus the selected aircraft's fix names.
+    /// </summary>
+    private SpeechContext BuildSpeechContext()
+    {
+        var snapshot = Aircraft.ToArray();
+        var callsigns = snapshot.Select(a => a.Callsign).Where(cs => !string.IsNullOrEmpty(cs)).ToList();
+        var selected = SelectedAircraft;
+        IReadOnlyList<string> programmedFixes = [];
+        if (selected is not null)
+        {
+            var fixSet = ProgrammedFixResolver.Resolve(
+                selected.Route,
+                selected.ExpectedApproach,
+                selected.Destination,
+                selected.Departure,
+                null,
+                selected.ActiveStarId,
+                selected.DestinationRunway
+            );
+            programmedFixes = fixSet.ToList();
+        }
+
+        // Build the Whisper initial prompt: every ICAO callsign + its spoken variants + the fix
+        // names for the selected aircraft. Keeping this terse so Whisper's decoder bias stays
+        // focused — too much prompt text dilutes the signal.
+        var promptParts = new List<string>(capacity: callsigns.Count * 2 + programmedFixes.Count);
+        foreach (var cs in callsigns)
+        {
+            promptParts.Add(cs);
+            var ac = snapshot.FirstOrDefault(a => a.Callsign == cs);
+            var variants = CallsignParser.GetSpokenVariants(cs, ac?.AircraftType, callsigns);
+            if (variants.Count > 0)
+            {
+                // Only the first variant keeps the prompt compact; variants past the first are
+                // usually derivative forms that Whisper already generalizes from the first one.
+                promptParts.Add(variants[0]);
+            }
+        }
+
+        foreach (var f in programmedFixes)
+        {
+            promptParts.Add(f);
+        }
+
+        var whisperInitialPrompt = string.Join(' ', promptParts);
+        return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt);
+    }
+
+    private void HandleSpeechServiceStatusChange(SpeechStatus status)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => SpeechStatus = status);
+    }
+
+    private void HandleSpeechServiceCommandReady(SpeechResult result)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (!string.IsNullOrEmpty(result.CanonicalCommand))
+            {
+                CommandText = result.CanonicalCommand;
+            }
+            else if (!string.IsNullOrWhiteSpace(result.Transcript))
+            {
+                // Neither mapper produced a canonical command — surface the raw transcript so the
+                // user sees what Whisper heard and can correct manually. Better than silently
+                // dropping the input.
+                CommandText = result.Transcript;
+            }
+        });
     }
 
     private void OnChildSelectionChanged(AircraftModel? value)

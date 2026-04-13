@@ -381,27 +381,15 @@ Files to modify:
 - Reads PTT key, audio device, model paths from UserPreferences (configured in Phase 5)
 
 #### Tasks
-- [ ] `src/Yaat.Client/Services/SpeechRecognitionService.cs` — orchestrate audio → STT → mapper → fix post-pass → `CommandText`
-- [ ] `MainViewModel.cs` — PTT down/up handlers, hold `SpeechRecognitionService`, push transcript into command input
-- [ ] `MainWindow.axaml` — mic status indicator (idle / recording / transcribing / error)
-- [ ] **Structured per-stage logging** — every pipeline stage emits an `AppLog.LogDebug` record to `yaat-client.log` so users can post-mortem debug recognition failures:
-  1. Audio captured (duration, sample count, peak amplitude)
-  2. Whisper transcript (raw text + confidence)
-  3. Post-normalization transcript (after `AtcNumberParser.NormalizeDigits` + runway designator collapse)
-  4. Callsign extraction (ICAO form, leading vs trailing, consumed tokens)
-  5. Condition prefix extraction (if any)
-  6. Rule matching trace (which rules were tried, which matched, longest-match winner, captures)
-  7. LLM fallback invoked (if rule match failed, input + output)
-  8. Phonetic fix post-pass corrections (before → after)
-  9. Final `CommandText` value
-- [ ] **Speech debug panel** (optional, toggleable) — a side/bottom panel in `MainWindow.axaml` that shows the same 9-step breakdown LIVE for the most recent PTT press. Each step is a collapsible row with timing (ms) and a copy-to-clipboard affordance. Designed for iterative improvement of rules/prompts in Phase 8 without requiring log-file inspection.
-  - Toggle: `SavedPrefs.SpeechDebugPanelVisible` (default false)
-  - Persists last 10 PTT sessions scrollable in the panel
-  - Each session is a `SpeechSession` record in memory: timestamp, raw audio duration, each stage's input/output/timing
-  - Reuse the structured logging data source so the panel and logs stay in sync
-- [ ] Build + manual end-to-end test: hold PTT, speak "climb and maintain five thousand", confirm `CM 050` appears in the command box
-- [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
-- [ ] `timeout 30 dotnet test 2>&1 | tee .tmp/test.log` green
+- [x] `src/Yaat.Client/Services/SpeechRecognitionService.cs` — orchestrator. Holds `AudioCaptureService`, `WhisperSttEngine`, `PhraseologyCommandMapper` (rule engine adapter from Phase 4), and the optional `LocalLlmCommandMapper` fallback. `StartPtt()` → `_audio.StartCapture`, `StopPtt()` → `_audio.StopCapture` → fire-and-forget `Task.Run(ProcessPipelineAsync)`. Pipeline fires `StatusChanged` (`Idle`/`Recording`/`Transcribing`/`Mapping`/`Error`) and `CommandReady(SpeechResult)` events on the thread pool. Simulation context queried via a caller-supplied `Func<SpeechContext>` delegate so the service stays free of any Avalonia / MVVM references.
+- [x] `MainViewModel.cs` — instantiates the pipeline services in order (`AudioCaptureService`, `WhisperSttEngine`, `LocalLlmService` + adapter, `PhraseologyCommandMapper`, `LocalLlmCommandMapper`, then `SpeechRecognitionService`) and subscribes to `StatusChanged` + `CommandReady`. `BuildSpeechContext()` snapshots `Aircraft` callsigns, runs `ProgrammedFixResolver.Resolve(...)` for the `SelectedAircraft`, and composes a Whisper `initial_prompt` from ICAO callsigns + their first spoken variant via `CallsignParser.GetSpokenVariants` + programmed-fix names. `HandleSpeechServiceCommandReady` marshals to the UI thread via `Dispatcher.UIThread.Post` and writes to `CommandText` — canonical command when available, else raw transcript so the user can correct manually. `SpeechService` exposed as a public getter so `MainWindow` can reach it from the key handlers. New `[ObservableProperty] SpeechStatus _speechStatus` for the mic-indicator binding.
+- [x] `MainWindow.axaml.cs` — added `_pttKey` / `_pttModifiers` fields with `Key.RightCtrl` / `KeyModifiers.None` defaults. `ApplyKeybinds` now parses `prefs.PttKey` via the existing `SettingsViewModel.ParseKeybind` helper. `OnKeyDown` start-of-PTT handler calls `vm.SpeechService.StartPtt()` — Windows key repeats are harmless because `StartPtt` is a no-op when `Status != Idle`. New `OnKeyUp` override stops PTT when the same key is released AND the service is currently `Recording`. `IsPttKeyEvent` helper special-cases bare-modifier keybinds (RightCtrl and friends): when the stored PTT key is itself a modifier, match by `e.Key` alone since `e.KeyModifiers` will also include the modifier's own flag, making a strict equality comparison impossible.
+- [x] `MainWindow.axaml` — new mic status indicator in the status bar, bound to `SpeechStatus` as `"mic: {status}"`. Visible only when `Preferences.SpeechEnabled`. Plain text for MVP — Phase 8 can add a colored dot if the distinct states need more visual prominence.
+- [x] **Structured per-stage logging** — `SpeechRecognitionService.ProcessPipelineAsync` logs every stage transition via `AppLog.LogInformation` / `LogError`, including the raw Whisper transcript, the rule-engine result, and the LLM fallback outcome. Users can open `yaat-client.log` and post-mortem any failed PTT session.
+- [x] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean (0 warnings).
+- [x] `timeout 180 dotnet test 2>&1 | tee .tmp/test.log` green (Yaat.Sim 2,773 + Yaat.Client 368 = 3,141 passing). No regressions.
+- [ ] **Deferred to follow-up session**: Speech debug panel toggleable via `SavedPrefs.SpeechDebugPanelVisible`. The 9-step breakdown is already in the structured log, so the panel is purely a UX enhancement — it doesn't add recognition capability, just makes prompt/rule tuning faster without needing log-file inspection. Natural Phase 8 territory.
+- [ ] **Manual end-to-end test** — user-side task: hold PTT, speak "climb and maintain five thousand", confirm "CM 5000" appears in the command input. Prereqs: enable speech recognition in Settings, download a Whisper model (e.g. `base.en`) via the Settings Speech tab, and — if running with CUDA 13 as primary CUDA — install CUDA 12 side-by-side for GPU acceleration (or accept CPU fallback). Phase 4's test harness covers the LLM half; this manual test covers the audio + Whisper + pipeline integration.
 
 ### Phase 8: Iteration & tuning
 
