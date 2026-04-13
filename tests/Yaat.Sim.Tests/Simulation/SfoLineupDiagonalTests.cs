@@ -50,6 +50,13 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
     [Fact]
     public void N346G_LineUp28R_TickByTickTrace()
     {
+        // V1-specific regression test: the diagonal-cut and stuck-heading
+        // assertions are V1-shape. V2 uses a completely different maneuver
+        // (closed-form pivot arc) and has its own end-state tests in
+        // LineUpPhaseV2Tests. Force V1 here and keep the test as a V1
+        // regression guard until V1 is retired.
+        using var _impl = LineUpPhaseFactory.Override(LineUpPhaseImpl.V1);
+
         var recording = LoadRecording();
         var engine = BuildEngine();
         if (recording is null || engine is null)

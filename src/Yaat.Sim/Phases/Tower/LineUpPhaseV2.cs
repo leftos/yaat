@@ -166,9 +166,11 @@ public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
     private bool TickNoseOut(PhaseContext ctx, LineUpPlan plan)
     {
         // Steer on the nose-out bearing (= aircraft's initial heading from plan
-        // build time). Physics will accelerate IAS toward the arc cruise speed.
+        // build time). Physics will accelerate IAS toward the arc cruise speed
+        // unless GroundSpeedLimit caps it lower (conflict detection, taxiway
+        // speed caps, etc. — see FlightPhysics).
         ctx.Targets.TargetTrueHeading = new TrueHeading(plan.NoseOutBearingDeg);
-        ctx.Targets.TargetSpeed = plan.ArcSpeedKts;
+        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, plan.ArcSpeedKts);
 
         double distToEntryFt =
             GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.NoseOutToLat, plan.NoseOutToLon) * GeoMath.FeetPerNm;
@@ -192,7 +194,7 @@ public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
         if (vKts < ArcSpeedFloorKts)
         {
             ctx.Targets.TargetTrueHeading = new TrueHeading(_arcState.TangentHeadingDeg);
-            ctx.Targets.TargetSpeed = plan.ArcSpeedKts;
+            ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, plan.ArcSpeedKts);
             return false;
         }
 
@@ -212,8 +214,9 @@ public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
 
         // Mirror heading/speed into Targets so physics sees "already there"
         // and doesn't issue a correction against the closed-form state.
+        // Arc speed is clamped by GroundSpeedLimit if one is set.
         ctx.Targets.TargetTrueHeading = new TrueHeading(_arcState.TangentHeadingDeg);
-        ctx.Targets.TargetSpeed = plan.ArcSpeedKts;
+        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, plan.ArcSpeedKts);
 
         if (_arcState.IsComplete)
         {
@@ -244,7 +247,7 @@ public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
         double decelKtPerSec = CategoryPerformance.TaxiDecelRate(plan.Category);
         double brakeSpeedKts = Math.Sqrt(2.0 * decelKtPerSec * distToStopNm * 3600.0);
         double targetSpeed = Math.Min(plan.ArcSpeedKts, brakeSpeedKts);
-        ctx.Targets.TargetSpeed = targetSpeed;
+        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeed);
 
         if (distToStopFt < RolloutArrivalFt)
         {
@@ -298,6 +301,15 @@ public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
         CurrentState = State.Faulted;
         ctx.Targets.TargetSpeed = 0;
     }
+
+    /// <summary>
+    /// Return <paramref name="requested"/> clamped by any
+    /// <see cref="AircraftState.GroundSpeedLimit"/> currently in effect.
+    /// Used by NoseOut, Arc, and Rollout so V2 cannot overrun traffic
+    /// separation or airport-imposed taxi-speed caps.
+    /// </summary>
+    private static double ClampBySpeedLimit(PhaseContext ctx, double requested) =>
+        ctx.Aircraft.GroundSpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
 
     // ---- Snapshot ----
     // Non-round-tripping in this initial commit: ToSnapshot writes ImplVersion=2

@@ -52,6 +52,14 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     [Fact]
     public void N436MS_LineUp28R_PerpendicularThenAligns()
     {
+        // V1-specific regression test: asserts the analog 3-stage
+        // "turn perpendicular, cross, align" shape. V2 (closed-form plan
+        // playback) does not turn perpendicular — it enters the runway
+        // through a category-sized pivot arc — so this test must run
+        // against V1. When V1 is eventually retired, this test should be
+        // deleted along with it.
+        using var _impl = LineUpPhaseFactory.Override(LineUpPhaseImpl.V1);
+
         var recording = LoadRecording();
         var engine = BuildEngine();
         if (recording is null || engine is null)
@@ -171,6 +179,10 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     [Fact]
     public void N342T_LineUp28R_PerpendicularThenAligns()
     {
+        // V1-specific regression test: see
+        // N436MS_LineUp28R_PerpendicularThenAligns for rationale.
+        using var _impl = LineUpPhaseFactory.Override(LineUpPhaseImpl.V1);
+
         var recording = LoadRecording();
         var engine = BuildEngine();
         if (recording is null || engine is null)

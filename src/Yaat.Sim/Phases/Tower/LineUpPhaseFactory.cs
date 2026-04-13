@@ -25,18 +25,36 @@ public enum LineUpPhaseImpl
 /// correct implementation based on the
 /// <see cref="LineUpPhaseDto.ImplVersion"/> discriminator.
 ///
-/// The default implementation (<see cref="DefaultImpl"/>) is process-wide
-/// state. Tests can temporarily override it via <see cref="Override"/>, which
-/// returns an <see cref="IDisposable"/> scope that restores the previous
-/// default on dispose.
+/// The default implementation (<see cref="DefaultImpl"/>) is process-wide.
+/// Tests can temporarily override it via <see cref="Override"/>, which sets
+/// an <see cref="AsyncLocal{T}"/> value that only affects the calling
+/// execution context — parallel tests do not race on the override. The
+/// override is restored on dispose of the returned scope.
 /// </summary>
 public static class LineUpPhaseFactory
 {
     /// <summary>
-    /// The implementation used by <see cref="Create"/> when no explicit
-    /// override is in effect. Defaults to <see cref="LineUpPhaseImpl.V1"/>.
+    /// The process-wide default used by <see cref="Create"/> when no
+    /// <see cref="Override"/> is in effect on the current execution context.
+    /// Defaults to <see cref="LineUpPhaseImpl.V2"/> (the closed-form plan
+    /// playback) as of the V2 rollout.
     /// </summary>
-    public static LineUpPhaseImpl DefaultImpl { get; set; } = LineUpPhaseImpl.V1;
+    public static LineUpPhaseImpl DefaultImpl { get; set; } = LineUpPhaseImpl.V2;
+
+    /// <summary>
+    /// Per-execution-context override of <see cref="DefaultImpl"/>. Null when
+    /// no <see cref="Override"/> is in effect. Flows with async/await and
+    /// isolates across parallel test executions (xUnit uses a new execution
+    /// context per test).
+    /// </summary>
+    private static readonly AsyncLocal<LineUpPhaseImpl?> AmbientImpl = new();
+
+    /// <summary>
+    /// The effective implementation for <see cref="Create"/> on the current
+    /// execution context: the ambient override if present, otherwise
+    /// <see cref="DefaultImpl"/>.
+    /// </summary>
+    public static LineUpPhaseImpl CurrentImpl => AmbientImpl.Value ?? DefaultImpl;
 
     /// <summary>
     /// Construct a fresh lineup phase. Uses <paramref name="impl"/> if
@@ -46,7 +64,7 @@ public static class LineUpPhaseFactory
     /// </summary>
     public static Phase Create(LineUpPhaseImpl? impl = null)
     {
-        var choice = impl ?? DefaultImpl;
+        var choice = impl ?? CurrentImpl;
         return choice switch
         {
             LineUpPhaseImpl.V1 => new LineUpPhaseV1(),
@@ -74,19 +92,20 @@ public static class LineUpPhaseFactory
         };
 
     /// <summary>
-    /// Temporarily replace <see cref="DefaultImpl"/> for the duration of the
-    /// returned scope. Intended for tests that want to exercise multiple
-    /// implementations via a parameterized test harness. Not thread-safe;
-    /// each test run must serialize its use of this override.
+    /// Temporarily set the lineup-phase implementation for the current
+    /// execution context. Uses <see cref="AsyncLocal{T}"/> so parallel tests
+    /// do not race on the override — each test gets its own ambient value.
+    /// Flows through await continuations. The returned scope restores the
+    /// previous ambient value on dispose.
     /// </summary>
     public static IDisposable Override(LineUpPhaseImpl impl)
     {
-        var previous = DefaultImpl;
-        DefaultImpl = impl;
+        var previous = AmbientImpl.Value;
+        AmbientImpl.Value = impl;
         return new OverrideScope(previous);
     }
 
-    private sealed class OverrideScope(LineUpPhaseImpl previous) : IDisposable
+    private sealed class OverrideScope(LineUpPhaseImpl? previous) : IDisposable
     {
         private bool _disposed;
 
@@ -96,7 +115,7 @@ public static class LineUpPhaseFactory
             {
                 return;
             }
-            DefaultImpl = previous;
+            AmbientImpl.Value = previous;
             _disposed = true;
         }
     }
