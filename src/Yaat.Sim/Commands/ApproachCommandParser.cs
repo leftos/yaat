@@ -355,22 +355,25 @@ internal static class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses PTAC [heading|PH] [altitude|PA] [approachId].
+    /// Parses PTAC/PTACF [heading|PH] [altitude|PA] [approachId].
     /// Supports flexible token counts with PH (present heading) and PA (present altitude).
-    /// Examples: "PTAC 280 025 ILS30", "PTAC PH PA ILS30", "PTAC PH PA", "PTAC 280 025", "PTAC"
+    /// Examples: "PTAC 280 025 ILS30", "PTAC PH PA ILS30", "PTAC PH PA", "PTAC 280 025", "PTAC".
+    /// When <paramref name="forced"/> is true, error messages use the "PTACF" label.
     /// </summary>
-    internal static PR ParsePtac(string? arg)
+    internal static PR ParsePtac(string? arg, bool forced)
     {
+        string verb = forced ? "PTACF" : "PTAC";
+
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return PR.Ok(new PositionTurnAltitudeClearanceCommand(null, null, null));
+            return PR.Ok(new PositionTurnAltitudeClearanceCommand(null, null, null, forced));
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (tokens.Length < 2 || tokens.Length > 3)
         {
-            return PR.Fail("PTAC requires [heading|PH] [altitude|PA] [approachId]");
+            return PR.Fail($"{verb} requires [heading|PH] [altitude|PA] [approachId]");
         }
 
         // Token 0: heading — integer 1-360 or PH
@@ -385,7 +388,7 @@ internal static class ApproachCommandParser
         }
         else
         {
-            return PR.Fail($"invalid PTAC heading '{tokens[0]}' (expected 1-360 or PH)");
+            return PR.Fail($"invalid {verb} heading '{tokens[0]}' (expected 1-360 or PH)");
         }
 
         // Token 1: altitude — hundreds or PA
@@ -399,14 +402,14 @@ internal static class ApproachCommandParser
             altitude = AltitudeResolver.Resolve(tokens[1]);
             if (altitude is null)
             {
-                return PR.Fail($"invalid PTAC altitude '{tokens[1]}' (expected altitude in hundreds or PA)");
+                return PR.Fail($"invalid {verb} altitude '{tokens[1]}' (expected altitude in hundreds or PA)");
             }
         }
 
         // Token 2: approachId (optional)
         string? approachId = tokens.Length == 3 ? tokens[2].ToUpperInvariant() : null;
 
-        return PR.Ok(new PositionTurnAltitudeClearanceCommand(heading, altitude, approachId));
+        return PR.Ok(new PositionTurnAltitudeClearanceCommand(heading, altitude, approachId, forced));
     }
 
     /// <summary>

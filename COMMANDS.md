@@ -241,8 +241,9 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Cleared approach | `CAPP ILS28R` | — | — |
 | Join approach | `JAPP ILS28R` | — | — |
 | Straight-in apch | `CAPPSI ILS28R` | `JAPPSI` | — |
-| Forced approach | `CAPPF ILS28R` | `JAPPF` | — |
+| Forced approach | `CAPPF ILS28R` | `JAPPF`, `PTACF` | — |
 | Pos/Turn/Alt/Clr | `PTAC 280 025 ILS30` | `PTAC PH PA` | — |
+| Forced PTAC | `PTACF 280 025 ILS30` | `PTACF PH PA` | — |
 | Join final | `JFAC ILS28R` | `JLOC`, `JF` | — |
 | Join arrival | `JARR OAK.SALI2` | `ARR`, `STAR`, `JSTAR` | — |
 | Join airway | `JAWY V25` | — | — |
@@ -625,19 +626,20 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 | `JAPP ILS28R` | Join ILS 28R approach at nearest IAF/IF ahead of the aircraft |
 | `CAPPSI ILS28R` | Cleared straight-in ILS 28R (skips hold-in-lieu of procedure turn) |
 | `JAPPSI ILS28R` | Join straight-in ILS 28R (skips hold-in-lieu) |
-| `CAPPF ILS28R` | Forced approach clearance (bypasses intercept angle validation) |
-| `JAPPF ILS28R` | Forced join (bypasses intercept angle check) |
+| `CAPPF ILS28R` | Forced approach clearance — marks the clearance as forced and, on the implied-PTAC branch, bypasses the 30° intercept-angle gate in `InterceptCoursePhase`. Aircraft captures the FAC regardless of angle (overshoots and S-turns back). Approach scoring records `WasForced`. |
+| `JAPPF ILS28R` | Forced join — marks the clearance as forced; approach scoring records `WasForced`. (Fix-based join path doesn't create an InterceptCoursePhase, so only the scoring tag applies.) |
 | `PTAC 280 025 ILS30` | Position/Turn/Altitude/Clearance — turn heading 280, maintain 2,500, cleared ILS 30 |
 | `PTAC PH PA ILS30` | PTAC with present heading and present altitude, explicit approach |
 | `PTAC PH PA` | PTAC with present heading/altitude, auto-resolve approach from expected approach or runway |
 | `PTAC 280 PA` | PTAC with explicit heading 280, present altitude, auto-resolve approach |
+| `PTACF 280 025 ILS30` | Forced PTAC — same as PTAC but bypasses the 30° capture-angle gate in `InterceptCoursePhase`. Aircraft captures the FAC regardless of intercept cut, overshoots laterally, and S-turns back onto the localizer under `FinalApproachPhase` control. Use when vectoring onto final at a steep angle is intentional. All `PTACF` forms mirror `PTAC` (`PTACF PH PA ILS30`, `PTACF PH PA`, `PTACF 280 PA`, bare `PTACF`). |
 | `JFAC ILS28R` | Join final approach course (intercept and fly the localizer) |
 | `APPS` | List available approaches for the aircraft's destination airport |
 | `APPS OAK` | List available approaches at a specific airport |
 
 `JFAC` also accepts aliases `JLOC` and `JF`.
 
-**Rich approach forms** — All approach commands (CAPP, JAPP, CAPPSI, JAPPSI, CAPPF, JAPPF) support combining navigation with the clearance:
+**Rich approach forms** — All approach commands (CAPP, JAPP, CAPPSI, JAPPSI, CAPPF, JAPPF) support combining navigation with the clearance (note: `PTAC`/`PTACF` do not; they're always heading+altitude+clearance in one shot):
 
 | Command | Effect |
 |---------|--------|

@@ -167,6 +167,7 @@ public enum CanonicalCommandType
     JoinRadialInbound,
     HoldingPattern,
     PositionTurnAltitudeClearance,
+    PositionTurnAltitudeClearanceForce,
     ClimbVia,
     DescendVia,
     CrossFix,

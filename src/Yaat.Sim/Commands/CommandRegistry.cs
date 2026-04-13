@@ -1004,6 +1004,22 @@ public static class CommandRegistry
                 ]
             ),
             Cmd(
+                PositionTurnAltitudeClearanceForce,
+                "PTAC (Force)",
+                "Approach",
+                false,
+                ["PTACF"],
+                [
+                    O(null, [], "Forced: present heading, present altitude, auto approach"),
+                    O(null, [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA")], "Forced heading + altitude, auto approach"),
+                    O(
+                        null,
+                        [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA"), R("approach", "approach ID")],
+                        "Forced position turn altitude clearance (bypasses 30\u00b0 intercept gate)"
+                    ),
+                ]
+            ),
+            Cmd(
                 ClimbVia,
                 "Climb Via",
                 "Approach",

@@ -126,7 +126,9 @@ public static class CommandDescriber
             JoinRadialOutboundCommand => CanonicalCommandType.JoinRadialOutbound,
             JoinRadialInboundCommand => CanonicalCommandType.JoinRadialInbound,
             HoldingPatternCommand => CanonicalCommandType.HoldingPattern,
-            PositionTurnAltitudeClearanceCommand => CanonicalCommandType.PositionTurnAltitudeClearance,
+            PositionTurnAltitudeClearanceCommand cmd => cmd.Forced
+                ? CanonicalCommandType.PositionTurnAltitudeClearanceForce
+                : CanonicalCommandType.PositionTurnAltitudeClearance,
             ClimbViaCommand => CanonicalCommandType.ClimbVia,
             DescendViaCommand => CanonicalCommandType.DescendVia,
             CrossFixCommand => CanonicalCommandType.CrossFix,
@@ -1174,16 +1176,18 @@ public static class CommandDescriber
 
     private static string FormatPtacCanonical(PositionTurnAltitudeClearanceCommand cmd)
     {
+        var verb = cmd.Forced ? "PTACF" : "PTAC";
         var headingStr = cmd.MagneticHeading is { } h ? $"{h.Degrees:000}" : "PH";
         var altStr = cmd.Altitude is { } a ? $"{a:000}" : "PA";
-        return cmd.ApproachId is not null ? $"PTAC {headingStr} {altStr} {cmd.ApproachId}" : $"PTAC {headingStr} {altStr}";
+        return cmd.ApproachId is not null ? $"{verb} {headingStr} {altStr} {cmd.ApproachId}" : $"{verb} {headingStr} {altStr}";
     }
 
     private static string FormatPtacNatural(PositionTurnAltitudeClearanceCommand cmd)
     {
         var headingPart = cmd.MagneticHeading is { } h ? $"Fly heading {h.Degrees:000}" : "Maintain present heading";
         var altPart = cmd.Altitude is { } a ? $"maintain {a:N0}" : "maintain present altitude";
-        var approachPart = cmd.ApproachId is not null ? $", cleared {cmd.ApproachId} approach" : ", cleared approach";
+        var clearedVerb = cmd.Forced ? "forced cleared" : "cleared";
+        var approachPart = cmd.ApproachId is not null ? $", {clearedVerb} {cmd.ApproachId} approach" : $", {clearedVerb} approach";
         return $"{headingPart}, {altPart}{approachPart}";
     }
 

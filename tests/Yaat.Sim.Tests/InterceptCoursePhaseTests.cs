@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -40,7 +41,7 @@ public class InterceptCoursePhaseTests
         };
     }
 
-    private static InterceptCoursePhase MakePhase(string approachId = "I28R")
+    private static InterceptCoursePhase MakePhase(string approachId = "I28R", bool forced = false)
     {
         return new InterceptCoursePhase
         {
@@ -48,6 +49,7 @@ public class InterceptCoursePhaseTests
             ThresholdLat = ThresholdLat,
             ThresholdLon = ThresholdLon,
             ApproachId = approachId,
+            ForcedIntercept = forced,
         };
     }
 
@@ -420,5 +422,107 @@ public class InterceptCoursePhaseTests
 
         Assert.Single(aircraft.PendingNotifications);
         Assert.Contains("ILS10R", aircraft.PendingNotifications[0]);
+    }
+
+    /// <summary>
+    /// ForcedIntercept bypasses the 30° gate at the centerline-crossing check.
+    /// 60° intercept — heading 220, course 280. Without ForcedIntercept this would bust through
+    /// (see <see cref="BustThrough_35DegIntercept_DetectsOnCrossing"/>); with it set, the phase captures
+    /// at the sign-flip, ActiveApproach is preserved, and no "localizer" notification is emitted.
+    /// </summary>
+    [Fact]
+    public void ForcedIntercept_CapturesAtSteepAngle_NoNotification()
+    {
+        var aircraft = MakeAircraft(heading: 220, lat: 37.74, lon: -122.23);
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+                Force = true,
+            },
+        };
+
+        var phase = MakePhase(forced: true);
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        // First tick — establish initial cross-track
+        phase.OnTick(ctx);
+
+        // Move aircraft across the course line
+        aircraft.Latitude -= 0.02;
+        aircraft.Longitude -= 0.03;
+
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Empty(aircraft.PendingNotifications);
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+        Assert.Equal(RunwayHeading, ctx.Targets.TargetTrueHeading!.Value.Degrees);
+    }
+
+    /// <summary>
+    /// Regression guard for the base (non-forced) 60° case. Same geometry as
+    /// <see cref="ForcedIntercept_CapturesAtSteepAngle_NoNotification"/> but with forced=false —
+    /// the phase must still bust through and clear the approach clearance.
+    /// </summary>
+    [Fact]
+    public void NonForced_60DegIntercept_StillBustsThrough()
+    {
+        var aircraft = MakeAircraft(heading: 220, lat: 37.74, lon: -122.23);
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase(forced: false);
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        aircraft.Latitude -= 0.02;
+        aircraft.Longitude -= 0.03;
+
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Single(aircraft.PendingNotifications);
+        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Null(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
+    /// Snapshot round-trip preserves ForcedIntercept.
+    /// </summary>
+    [Fact]
+    public void Snapshot_RoundTrip_PreservesForcedIntercept()
+    {
+        var phase = MakePhase(forced: true);
+        phase.Status = PhaseStatus.Active;
+
+        var dto = (InterceptCoursePhaseDto)phase.ToSnapshot();
+        Assert.True(dto.ForcedIntercept);
+
+        var restored = InterceptCoursePhase.FromSnapshot(dto);
+        Assert.True(restored.ForcedIntercept);
     }
 }

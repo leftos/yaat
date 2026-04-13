@@ -50,14 +50,15 @@ public static class ApproachCommandHandler
 
             if (trimmedFixes.Count > 0 && atFixMatchesConnection && NavRouteContainsFix(aircraft, connectingFix))
             {
-                var clearance = BuildClearance(procedure, airport, facResult, approachRunway);
+                var clearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
                 aircraft.PendingApproachClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
                 aircraft.DestinationRunway = approachRunway.Designator;
 
                 // Append approach fixes after the connecting fix in the NavigationRoute
                 AppendApproachFixesToNavRoute(aircraft, trimmedFixes);
 
-                return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
+                string deferredPrefix = cmd.Force ? "Force: cleared" : "Cleared";
+                return new CommandResult(true, $"{deferredPrefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
             }
         }
 
@@ -66,7 +67,7 @@ public static class ApproachCommandHandler
         // Clear existing phases
         ClearExistingPhases(aircraft);
 
-        var immClearance = BuildClearance(procedure, airport, facResult, approachRunway);
+        var immClearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = immClearance };
         aircraft.DestinationRunway = approachRunway.Designator;
@@ -94,6 +95,7 @@ public static class ApproachCommandHandler
                     ThresholdLat = approachRunway.ThresholdLatitude,
                     ThresholdLon = approachRunway.ThresholdLongitude,
                     ApproachId = immClearance.ApproachId,
+                    ForcedIntercept = cmd.Force,
                 }
             );
             aircraft.Phases.Add(new FinalApproachPhase());
@@ -101,7 +103,8 @@ public static class ApproachCommandHandler
             aircraft.Phases.Add(isHeliIntercept ? new HelicopterLandingPhase() : new LandingPhase());
 
             StartPhases(aircraft);
-            return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
+            string impliedPrefix = cmd.Force ? "Force: cleared" : "Cleared";
+            return new CommandResult(true, $"{impliedPrefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
         }
 
         // Handle rich CAPP forms: AT fix, DCT fix — prepend to approach fixes
@@ -133,7 +136,8 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
-        return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
+        string cappPrefix = cmd.Force ? "Force: cleared" : "Cleared";
+        return new CommandResult(true, $"{cappPrefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
     }
 
     public static CommandResult TryJoinApproach(string approachId, string? airportCode, bool force, bool straightIn, AircraftState aircraft)
@@ -182,6 +186,7 @@ public static class ApproachCommandHandler
             MapHold = ExtractMissedApproachHold(procedure),
             MapAltitudeFt = ExtractMapAltitude(procedure),
             MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
+            Force = force,
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -222,7 +227,8 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
-        string prefix = straightIn ? "Cleared straight-in" : "Join";
+        string baseVerb = straightIn ? "Cleared straight-in" : "Join";
+        string prefix = force ? $"Force: {baseVerb.ToLowerInvariant()}" : baseVerb;
         return new CommandResult(true, $"{prefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
     }
 
@@ -270,6 +276,7 @@ public static class ApproachCommandHandler
             MapHold = ExtractMissedApproachHold(procedure),
             MapAltitudeFt = ExtractMapAltitude(procedure),
             MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
+            Force = cmd.Forced,
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -282,6 +289,7 @@ public static class ApproachCommandHandler
                 ThresholdLat = approachRunway.ThresholdLatitude,
                 ThresholdLon = approachRunway.ThresholdLongitude,
                 ApproachId = clearance.ApproachId,
+                ForcedIntercept = cmd.Forced,
             }
         );
         aircraft.Phases.Add(new FinalApproachPhase());
@@ -290,9 +298,10 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
+        string ptacPrefix = cmd.Forced ? "Force: turn" : "Turn";
         return new CommandResult(
             true,
-            $"Turn heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {procedure.Runway}"
+            $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {procedure.Runway}"
         );
     }
 
@@ -1341,7 +1350,8 @@ public static class ApproachCommandHandler
         CifpApproachProcedure procedure,
         string airport,
         FinalApproachCourseResult fac,
-        RunwayInfo approachRunway
+        RunwayInfo approachRunway,
+        bool force
     )
     {
         return new ApproachClearance
@@ -1357,6 +1367,7 @@ public static class ApproachCommandHandler
             MapHold = ExtractMissedApproachHold(procedure),
             MapAltitudeFt = ExtractMapAltitude(procedure),
             MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
+            Force = force,
         };
     }
 

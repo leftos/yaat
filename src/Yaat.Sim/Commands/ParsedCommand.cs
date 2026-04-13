@@ -503,7 +503,7 @@ public record HoldingPatternCommand(
     HoldingEntry? Entry
 ) : ParsedCommand;
 
-public record PositionTurnAltitudeClearanceCommand(MagneticHeading? MagneticHeading, int? Altitude, string? ApproachId) : ParsedCommand;
+public record PositionTurnAltitudeClearanceCommand(MagneticHeading? MagneticHeading, int? Altitude, string? ApproachId, bool Forced) : ParsedCommand;
 
 public record ClimbViaCommand(int? Altitude) : ParsedCommand;
 

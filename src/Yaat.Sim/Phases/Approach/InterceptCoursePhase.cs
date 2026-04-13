@@ -23,6 +23,11 @@ namespace Yaat.Sim.Phases.Approach;
 /// Bust-through: if the aircraft crosses the centerline with heading > 30° off,
 /// the approach is cleared and the RPO is notified.
 ///
+/// When <see cref="ForcedIntercept"/> is true (PTACF / CAPPF implied-PTAC), the
+/// 30° capture-angle gate is bypassed: the aircraft will capture the FAC at any
+/// angle, overshoot laterally, and S-turn back under FinalApproachPhase control.
+/// The approach clearance is preserved regardless of intercept geometry.
+///
 /// Times out after <see cref="MaxElapsedSeconds"/> if the aircraft never
 /// reaches the centerline (e.g., flying parallel).
 /// </summary>
@@ -52,6 +57,13 @@ public sealed partial class InterceptCoursePhase : Phase
     /// <summary>Approach procedure ID for notification messages.</summary>
     public string? ApproachId { get; init; }
 
+    /// <summary>
+    /// When true, bypass the 30° capture-angle gate: the aircraft captures the FAC at
+    /// any intercept angle instead of busting through the localizer. Set by PTACF and
+    /// by the implied-PTAC branch of CAPPF.
+    /// </summary>
+    public bool ForcedIntercept { get; init; }
+
     public override string Name => "InterceptCourse";
 
     public override void OnStart(PhaseContext ctx)
@@ -68,6 +80,12 @@ public sealed partial class InterceptCoursePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // When ForcedIntercept is set, the capture-angle gate is effectively unbounded
+        // (180° is the theoretical maximum between two headings). The bust-through branch
+        // at the centerline-crossing check becomes unreachable, so the aircraft always
+        // captures regardless of how steep the cut is.
+        double maxAlignmentDeg = ForcedIntercept ? 180.0 : BustThroughAlignmentDeg;
+
         // For parallel-offset approaches the FAC line does not pass through the runway
         // threshold, so we measure cross-track against the published anchor (e.g. the LDA's
         // displaced MAP fix) when the active clearance carries one. For ordinary approaches
@@ -107,7 +125,7 @@ public sealed partial class InterceptCoursePhase : Phase
         }
 
         // Already on the centerline with heading roughly aligned — complete immediately.
-        if ((crossTrack < AlreadyOnCourseThresholdNm) && (ComputeEffectiveHeadingDiff(ctx, aircraftHeading) <= BustThroughAlignmentDeg))
+        if ((crossTrack < AlreadyOnCourseThresholdNm) && (ComputeEffectiveHeadingDiff(ctx, aircraftHeading) <= maxAlignmentDeg))
         {
             return Capture(ctx, aircraftHeading, crossTrack, "already on course");
         }
@@ -127,7 +145,7 @@ public sealed partial class InterceptCoursePhase : Phase
         if (crossTrack <= leadDistNm)
         {
             double currentDiff = ComputeCurrentHeadingDiff(aircraftHeading);
-            bool legalIntercept = currentDiff <= BustThroughAlignmentDeg;
+            bool legalIntercept = currentDiff <= maxAlignmentDeg;
 
             // If current true heading diff fails, check assigned magnetic heading —
             // but only when the aircraft has actually reached it (not mid-turn).
@@ -143,7 +161,7 @@ public sealed partial class InterceptCoursePhase : Phase
                         assignedDiff = 360 - assignedDiff;
                     }
 
-                    legalIntercept = assignedDiff <= BustThroughAlignmentDeg;
+                    legalIntercept = assignedDiff <= maxAlignmentDeg;
                 }
             }
 
@@ -160,7 +178,7 @@ public sealed partial class InterceptCoursePhase : Phase
             if (signFlipped)
             {
                 double effectiveDiff = ComputeEffectiveHeadingDiff(ctx, aircraftHeading);
-                if (effectiveDiff <= BustThroughAlignmentDeg)
+                if (effectiveDiff <= maxAlignmentDeg)
                 {
                     return Capture(ctx, aircraftHeading, crossTrack, "centerline crossing");
                 }
@@ -258,13 +276,26 @@ public sealed partial class InterceptCoursePhase : Phase
         }
 
         double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
-        Log.LogDebug(
-            "[InterceptCourse] {Callsign}: captured ({Reason}) — hdgDiff={HD:F1}°, crossTrack={XT:F3}nm",
-            ctx.Aircraft.Callsign,
-            reason,
-            headingDiff,
-            crossTrack
-        );
+        if (ForcedIntercept && headingDiff > BustThroughAlignmentDeg)
+        {
+            Log.LogInformation(
+                "[InterceptCourse] {Callsign}: forced capture ({Reason}) — hdgDiff={HD:F1}° > {Gate:F0}°, expect lateral overshoot and S-turn recovery",
+                ctx.Aircraft.Callsign,
+                reason,
+                headingDiff,
+                BustThroughAlignmentDeg
+            );
+        }
+        else
+        {
+            Log.LogDebug(
+                "[InterceptCourse] {Callsign}: captured ({Reason}) — hdgDiff={HD:F1}°, crossTrack={XT:F3}nm",
+                ctx.Aircraft.Callsign,
+                reason,
+                headingDiff,
+                crossTrack
+            );
+        }
         return true;
     }
 
@@ -383,6 +414,7 @@ public sealed partial class InterceptCoursePhase : Phase
             PreviousSignedCrossTrack = _previousSignedCrossTrack,
             RunwayHeadingCacheDeg = _runwayHeadingCache?.Degrees,
             ApproachSpeedSet = _approachSpeedSet,
+            ForcedIntercept = ForcedIntercept,
         };
 
     public static InterceptCoursePhase FromSnapshot(InterceptCoursePhaseDto dto)
@@ -393,6 +425,7 @@ public sealed partial class InterceptCoursePhase : Phase
             ThresholdLat = dto.ThresholdLat,
             ThresholdLon = dto.ThresholdLon,
             ApproachId = dto.ApproachId,
+            ForcedIntercept = dto.ForcedIntercept,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

@@ -223,7 +223,7 @@ Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, 
                                     # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
-Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
+Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CAPPF/JAPPF/PTACF forced variants/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
 Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution, CancelTakeoff, ClearedTakeoffPresent (CTOPP)
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
 Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
@@ -262,7 +262,7 @@ VfrHoldPhase.cs                # VFR hold: orbit at current position (HPP) or na
 
 # Phases/Approach/
 ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions + next-fix speed look-ahead
-InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course; detects bust-through (sign flip or 180s timeout) and notifies RPO
+InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course; detects bust-through (sign flip or 180s timeout) and notifies RPO. ForcedIntercept (PTACF, CAPPF implied-PTAC) bypasses the 30° capture gate — forces capture on steep cuts, overshoots expected
 HoldingPatternPhase.cs         # AIM 5-3-8 holding with entry determination; MaxCircuits for hold-in-lieu
 ApproachClearance.cs           # Record on PhaseList storing active approach state + pre-built MAP fixes
 

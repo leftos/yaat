@@ -675,4 +675,5 @@ public sealed class InterceptCoursePhaseDto : PhaseDto
     public double? PreviousSignedCrossTrack { get; init; }
     public double? RunwayHeadingCacheDeg { get; init; }
     public required bool ApproachSpeedSet { get; init; }
+    public required bool ForcedIntercept { get; init; }
 }
