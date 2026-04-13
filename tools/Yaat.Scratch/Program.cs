@@ -31,6 +31,22 @@ if (!File.Exists(modelPath))
     return 1;
 }
 
+// Quick probe of audio input device enumeration.
+if (args.Length > 0 && args[0] == "--list-audio")
+{
+    Console.WriteLine("=== Enumerating audio input devices ===");
+    var prefs = new UserPreferences();
+    using var audio = new AudioCaptureService(prefs);
+    var devices = audio.ListInputDevices();
+    foreach (var (idx, name) in devices)
+    {
+        Console.WriteLine($"  [{idx}] {name}");
+    }
+
+    Console.WriteLine($"Total: {devices.Count}");
+    return 0;
+}
+
 // Quick smoke tests for the Option B GpuRuntimeDownloader. First arg selects which backend.
 if (args.Length > 0 && args[0] is "--download-vulkan" or "--download-cuda" or "--download-whisper-vulkan" or "--download-whisper-cuda")
 {

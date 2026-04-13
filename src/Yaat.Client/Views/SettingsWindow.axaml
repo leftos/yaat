@@ -676,10 +676,10 @@
                             <TextBlock Text="Input device:"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        Margin="0,8,0,0" />
-                            <TextBox Text="{Binding AudioInputDevice}"
-                                     Width="300"
-                                     Watermark="Default (leave blank)" />
-                            <TextBlock Text="Type part of a device name to select a specific microphone (case-insensitive substring match). Leave blank for system default."
+                            <ComboBox ItemsSource="{Binding AudioInputDevices}"
+                                      SelectedItem="{Binding SelectedAudioInputDeviceDisplay}"
+                                      Width="360" />
+                            <TextBlock Text="Pick the microphone YAAT should record from, or leave on System default to use whichever mic Windows is currently set to."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />

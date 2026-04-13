@@ -1378,7 +1378,7 @@ public partial class MainWindow : Window
         var snapshotUnassignedTintColor = vm.Preferences.UnassignedTintColor;
         var snapshotSelectedColor = vm.Preferences.SelectedColor;
 
-        var dialog = new SettingsWindow(vm.Preferences);
+        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture);
         var settingsVm = dialog.DataContext as SettingsViewModel;
 
         // Subscribe to live preview

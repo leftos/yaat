@@ -43,6 +43,7 @@ public partial class MainViewModel : ObservableObject
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
     public SpeechRecognitionService SpeechService => _speechService;
+    public AudioCaptureService AudioCapture => _audioCapture;
 
     private string _connectedServerUrl = "";
     private bool _isSyncingSelection;

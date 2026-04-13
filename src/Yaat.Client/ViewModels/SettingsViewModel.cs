@@ -341,6 +341,24 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _audioInputDevice = "";
 
+    /// <summary>
+    /// ComboBox-bound property: <see cref="DefaultAudioDeviceLabel"/> when <see cref="AudioInputDevice"/>
+    /// is empty (system default), otherwise the device name. Two-way wrapper so we don't need
+    /// Avalonia converters in the axaml.
+    /// </summary>
+    public string SelectedAudioInputDeviceDisplay
+    {
+        get => string.IsNullOrEmpty(AudioInputDevice) ? DefaultAudioDeviceLabel : AudioInputDevice;
+        set => AudioInputDevice = string.Equals(value, DefaultAudioDeviceLabel, StringComparison.Ordinal) ? string.Empty : value;
+    }
+
+    partial void OnAudioInputDeviceChanged(string value)
+    {
+        // Keep the ComboBox in sync when AudioInputDevice changes from other code paths (e.g.
+        // the ctor loading the saved value from prefs).
+        OnPropertyChanged(nameof(SelectedAudioInputDeviceDisplay));
+    }
+
     private string _aircraftSelectKeyName = "Add";
     private string _focusInputKeyName = "OemTilde";
     private string _takeControlKeyName = "Ctrl+T";
@@ -359,6 +377,17 @@ public partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<string> WhisperSizes { get; } = ModelManager.AvailableWhisperSizes;
     public IReadOnlyList<LlmCatalogEntry> LlmModels { get; } = ModelManager.AvailableLlmModels;
 
+    /// <summary>
+    /// Available audio input device names. First entry is always the <see cref="DefaultAudioDeviceLabel"/>
+    /// sentinel which maps to an empty <see cref="UserPreferences.AudioInputDevice"/> (meaning "use
+    /// system default"). Enumerated once at Settings open via <see cref="AudioCaptureService.ListInputDevices"/>;
+    /// when the service is null (designer / standalone open with no MainViewModel) the list contains
+    /// only the default entry.
+    /// </summary>
+    public IReadOnlyList<string> AudioInputDevices { get; }
+
+    public const string DefaultAudioDeviceLabel = "(System default)";
+
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
     public static IReadOnlyList<string> SignatureHelpPlacementOptions { get; } = ["Above", "Below"];
 
@@ -367,11 +396,31 @@ public partial class SettingsViewModel : ObservableObject
     public ObservableCollection<MacroRow> MacroRows { get; } = [];
 
     public SettingsViewModel()
-        : this(new UserPreferences()) { }
+        : this(new UserPreferences(), audioCapture: null) { }
 
     public SettingsViewModel(UserPreferences preferences)
+        : this(preferences, audioCapture: null) { }
+
+    public SettingsViewModel(UserPreferences preferences, AudioCaptureService? audioCapture)
     {
         _preferences = preferences;
+
+        // Enumerate available audio input devices if we have an AudioCaptureService instance
+        // (passed in by MainWindow when opening Settings). Always include the system-default
+        // sentinel as the first entry so the user can go back to "use whatever the OS decides".
+        var devices = new List<string> { DefaultAudioDeviceLabel };
+        if (audioCapture is not null)
+        {
+            foreach (var (_, name) in audioCapture.ListInputDevices())
+            {
+                if (!devices.Contains(name, StringComparer.Ordinal))
+                {
+                    devices.Add(name);
+                }
+            }
+        }
+
+        AudioInputDevices = devices;
         GroupedVerbMappings = new DataGridCollectionView(VerbMappings);
         GroupedVerbMappings.GroupDescriptions.Add(new DataGridPathGroupDescription("Category"));
         LoadFromScheme(_preferences.CommandScheme);

@@ -18,13 +18,16 @@ public partial class SettingsWindow : Window
     private static readonly FilePickerFileType JsonFileType = new("JSON Files") { Patterns = ["*.json"], MimeTypes = ["application/json"] };
 
     public SettingsWindow()
-        : this(new UserPreferences()) { }
+        : this(new UserPreferences(), audioCapture: null) { }
 
     public SettingsWindow(UserPreferences preferences)
+        : this(preferences, audioCapture: null) { }
+
+    public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture)
     {
         InitializeComponent();
 
-        var vm = new SettingsViewModel(preferences);
+        var vm = new SettingsViewModel(preferences, audioCapture);
         DataContext = vm;
 
         new WindowGeometryHelper(this, preferences, "Settings", 560, 440).Restore();
