@@ -11,6 +11,8 @@ namespace Yaat.Client.Views;
 /// </summary>
 public sealed class WindowGeometryHelper
 {
+    private const string TopmostTitlePrefix = "📌 ";
+
     private readonly Window _window;
     private readonly UserPreferences _preferences;
     private readonly string _windowName;
@@ -20,6 +22,8 @@ public sealed class WindowGeometryHelper
     private PixelPoint _lastNormalPosition;
     private double _lastNormalWidth;
     private double _lastNormalHeight;
+    private string _baseTitle = string.Empty;
+    private bool _applyingTitle;
 
     public WindowGeometryHelper(Window window, UserPreferences preferences, string windowName, double defaultWidth, double defaultHeight)
     {
@@ -77,8 +81,50 @@ public sealed class WindowGeometryHelper
         _lastNormalHeight = _window.Height;
         _lastNormalPosition = _window.Position;
 
+        _baseTitle = _window.Title ?? string.Empty;
+        ApplyTitle();
+
+        _window.PropertyChanged += OnWindowPropertyChanged;
         _window.PositionChanged += OnPositionChanged;
         _window.Closing += OnClosing;
+        _preferences.WindowTopmostChanged += OnPreferencesWindowTopmostChanged;
+    }
+
+    private void OnPreferencesWindowTopmostChanged(string windowName, bool isTopmost)
+    {
+        if (windowName != _windowName)
+        {
+            return;
+        }
+
+        if (_window.Topmost != isTopmost)
+        {
+            _window.Topmost = isTopmost;
+        }
+    }
+
+    public void SetBaseTitle(string title)
+    {
+        _baseTitle = title ?? string.Empty;
+        ApplyTitle();
+    }
+
+    private void ApplyTitle()
+    {
+        if (_applyingTitle)
+        {
+            return;
+        }
+
+        _applyingTitle = true;
+        try
+        {
+            _window.Title = _window.Topmost ? TopmostTitlePrefix + _baseTitle : _baseTitle;
+        }
+        finally
+        {
+            _applyingTitle = false;
+        }
     }
 
     private static Screen GetTargetScreen(IReadOnlyList<Screen> screens, SavedWindowGeometry geo)
@@ -116,6 +162,14 @@ public sealed class WindowGeometryHelper
         return Math.Max(min, Math.Min(value, max));
     }
 
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.TopmostProperty)
+        {
+            ApplyTitle();
+        }
+    }
+
     private void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
         if (_window.WindowState == WindowState.Normal)
@@ -128,6 +182,8 @@ public sealed class WindowGeometryHelper
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        _preferences.WindowTopmostChanged -= OnPreferencesWindowTopmostChanged;
+
         var isNotNormal = _window.WindowState != WindowState.Normal;
         var isMax = _window.WindowState == WindowState.Maximized;
 

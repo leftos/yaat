@@ -73,6 +73,13 @@ public sealed class UserPreferences
     public SavedWindowGeometry? RadarViewWindowGeometry => _data.RadarViewWindowGeometry;
     public SavedWindowGeometry? DataGridWindowGeometry => _data.DataGridWindowGeometry;
 
+    /// <summary>
+    /// Raised when <see cref="SetWindowTopmost"/> is called (e.g. from the Settings Save button).
+    /// WindowGeometryHelper subscribes so that already-open windows update their Topmost state
+    /// immediately, instead of waiting until the next time the window is opened.
+    /// </summary>
+    public event Action<string, bool>? WindowTopmostChanged;
+
     public SavedWindowGeometry? GetWindowGeometry(string windowName)
     {
         return windowName switch
@@ -390,6 +397,7 @@ public sealed class UserPreferences
         var geo = GetWindowGeometry(windowName) ?? new SavedWindowGeometry();
         geo.IsTopmost = isTopmost;
         SetWindowGeometry(windowName, geo);
+        WindowTopmostChanged?.Invoke(windowName, isTopmost);
     }
 
     public void SetAssignmentTint(bool enabled, string color)

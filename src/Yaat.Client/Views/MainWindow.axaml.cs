@@ -21,6 +21,7 @@ namespace Yaat.Client.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly WindowGeometryHelper _geometryHelper;
     private TerminalWindow? _terminalWindow;
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
@@ -38,7 +39,10 @@ public partial class MainWindow : Window
         var vm = new MainViewModel();
         DataContext = vm;
 
-        new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700).Restore();
+        _geometryHelper = new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700);
+        _geometryHelper.Restore();
+        _geometryHelper.SetBaseTitle(vm.WindowTitle);
+        vm.PropertyChanged += OnMainWindowTitleChanged;
 
         var settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
         if (settingsItem is not null)
@@ -1531,8 +1535,18 @@ public partial class MainWindow : Window
     private KeyModifiers _focusInputModifiers = KeyModifiers.None;
     private Key _takeControlKey = Key.T;
     private KeyModifiers _takeControlModifiers = KeyModifiers.Control;
+    private Key _alwaysOnTopKey = Key.T;
+    private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.Control | KeyModifiers.Shift;
     private Key _pttKey = Key.RightCtrl;
     private KeyModifiers _pttModifiers = KeyModifiers.None;
+
+    private void OnMainWindowTitleChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.WindowTitle) && sender is MainViewModel vm)
+        {
+            _geometryHelper.SetBaseTitle(vm.WindowTitle);
+        }
+    }
 
     // Global keyboard hook — lets PTT trigger while another application has focus. Started from
     // the constructor and disposed on window close. The in-window OnKeyDown/OnKeyUp handlers stay
@@ -1579,6 +1593,12 @@ public partial class MainWindow : Window
         {
             _takeControlKey = takeKey;
             _takeControlModifiers = takeMods;
+        }
+
+        if (SettingsViewModel.ParseKeybind(prefs.AlwaysOnTopKey, out var topKey, out var topMods))
+        {
+            _alwaysOnTopKey = topKey;
+            _alwaysOnTopModifiers = topMods;
         }
 
         if (SettingsViewModel.ParseKeybind(prefs.PttKey, out var pttKey, out var pttMods))
@@ -1771,6 +1791,13 @@ public partial class MainWindow : Window
         )
         {
             _ = takeVm.TakeControlAsync(takeVm.SelectedAircraft.Callsign);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
+        {
+            _geometryHelper.ToggleTopmost();
             e.Handled = true;
             return;
         }

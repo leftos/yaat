@@ -7,7 +7,7 @@
         xmlns:radar="using:Yaat.Client.Views.Radar"
         x:Class="Yaat.Client.Views.MainWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="{Binding WindowTitle, FallbackValue='YAAT'}">
+        Title="YAAT">
 
     <Design.DataContext>
         <vm:MainViewModel />
