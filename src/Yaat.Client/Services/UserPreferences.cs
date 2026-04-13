@@ -125,6 +125,13 @@ public sealed class UserPreferences
     public string FocusInputKey => _data.FocusInputKey;
     public string TakeControlKey => _data.TakeControlKey;
     public string AlwaysOnTopKey => _data.AlwaysOnTopKey;
+    public bool SpeechEnabled => _data.SpeechEnabled;
+    public string WhisperModelSize => _data.WhisperModelSize;
+    public string LlmModelPath => _data.LlmModelPath;
+    public int LlmGpuLayers => _data.LlmGpuLayers;
+    public string PreferredGpuBackend => _data.PreferredGpuBackend;
+    public string PttKey => _data.PttKey;
+    public string AudioInputDevice => _data.AudioInputDevice;
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
     public bool GroundShowRunwayLabels => _data.GroundShowRunwayLabels;
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
@@ -340,6 +347,26 @@ public sealed class UserPreferences
     public void SetAlwaysOnTopKey(string key)
     {
         _data.AlwaysOnTopKey = key;
+        Save();
+    }
+
+    public void SetSpeechSettings(
+        bool enabled,
+        string whisperModelSize,
+        string llmModelPath,
+        int llmGpuLayers,
+        string preferredGpuBackend,
+        string pttKey,
+        string audioInputDevice
+    )
+    {
+        _data.SpeechEnabled = enabled;
+        _data.WhisperModelSize = whisperModelSize;
+        _data.LlmModelPath = llmModelPath;
+        _data.LlmGpuLayers = llmGpuLayers;
+        _data.PreferredGpuBackend = preferredGpuBackend;
+        _data.PttKey = pttKey;
+        _data.AudioInputDevice = audioInputDevice;
         Save();
     }
 
@@ -880,6 +907,15 @@ public sealed class UserPreferences
         public string SignatureHelpPlacement { get; set; } = "Above";
         public int DataGridFontSize { get; set; } = 12;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
+
+        // Speech recognition (Phase 5). LlmGpuLayers: -1 = auto, 0 = CPU only, N = offload N layers.
+        public bool SpeechEnabled { get; set; }
+        public string WhisperModelSize { get; set; } = "base.en";
+        public string LlmModelPath { get; set; } = "";
+        public int LlmGpuLayers { get; set; } = -1;
+        public string PreferredGpuBackend { get; set; } = "Auto";
+        public string PttKey { get; set; } = "RightCtrl";
+        public string AudioInputDevice { get; set; } = "";
     }
 
     private sealed class SavedCommandScheme

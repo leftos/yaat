@@ -246,11 +246,51 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isCapturingKey;
 
+    // Speech recognition (Phase 5)
+    [ObservableProperty]
+    private bool _speechEnabled;
+
+    [ObservableProperty]
+    private string _whisperModelSize = "base.en";
+
+    [ObservableProperty]
+    private string _whisperModelStatus = "Unknown";
+
+    [ObservableProperty]
+    private double _whisperDownloadProgress;
+
+    [ObservableProperty]
+    private bool _whisperIsDownloading;
+
+    [ObservableProperty]
+    private string _llmModelPath = "";
+
+    [ObservableProperty]
+    private int _llmGpuLayers = -1;
+
+    [ObservableProperty]
+    private string _preferredGpuBackend = "Auto";
+
+    [ObservableProperty]
+    private string _detectedGpuSummary = "Detecting...";
+
+    [ObservableProperty]
+    private string _pttKeyDisplay = "Right Ctrl";
+
+    [ObservableProperty]
+    private string _audioInputDevice = "";
+
     private string _aircraftSelectKeyName = "Add";
     private string _focusInputKeyName = "OemTilde";
     private string _takeControlKeyName = "Ctrl+T";
     private string _alwaysOnTopKeyName = "Ctrl+Shift+T";
+    private string _pttKeyName = "RightCtrl";
     private string? _captureTarget;
+    private readonly ModelManager _modelManager = new();
+    private CancellationTokenSource? _whisperDownloadCts;
+
+    public IReadOnlyList<string> WhisperSizes { get; } = ModelManager.AvailableWhisperSizes;
+    public IReadOnlyList<string> GpuBackendChoices { get; } = ["Auto", "Cpu", "Cuda", "Vulkan", "Metal", "CoreML"];
 
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
     public static IReadOnlyList<string> SignatureHelpPlacementOptions { get; } = ["Above", "Below"];
@@ -290,6 +330,19 @@ public partial class SettingsViewModel : ObservableObject
         _takeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
         _alwaysOnTopKeyName = _preferences.AlwaysOnTopKey;
         _alwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
+        _speechEnabled = _preferences.SpeechEnabled;
+        _whisperModelSize = _preferences.WhisperModelSize;
+        _llmModelPath = _preferences.LlmModelPath;
+        _llmGpuLayers = _preferences.LlmGpuLayers;
+        _preferredGpuBackend = _preferences.PreferredGpuBackend;
+        _pttKeyName = _preferences.PttKey;
+        _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
+        _audioInputDevice = _preferences.AudioInputDevice;
+        _whisperModelStatus = FormatWhisperStatus(
+            _modelManager.GetWhisperStatus(_whisperModelSize),
+            _modelManager.GetWhisperFileSize(_whisperModelSize)
+        );
+        _detectedGpuSummary = GpuCapabilityDetector.Detect().Summary;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
         _dataGridTopmost = _preferences.DataGridWindowGeometry?.IsTopmost ?? false;
@@ -354,6 +407,15 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
+        _preferences.SetSpeechSettings(
+            SpeechEnabled,
+            WhisperModelSize,
+            LlmModelPath,
+            LlmGpuLayers,
+            PreferredGpuBackend,
+            _pttKeyName,
+            AudioInputDevice
+        );
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
         _preferences.SetWindowTopmost("DataGrid", DataGridTopmost);
@@ -710,6 +772,12 @@ public partial class SettingsViewModel : ObservableObject
         StartKeyCaptureFor("AlwaysOnTop");
     }
 
+    [RelayCommand]
+    private void StartPttKeyCapture()
+    {
+        StartKeyCaptureFor("Ptt");
+    }
+
     private void StartKeyCaptureFor(string target)
     {
         _captureTarget = target;
@@ -728,6 +796,9 @@ public partial class SettingsViewModel : ObservableObject
             case "AlwaysOnTop":
                 AlwaysOnTopKeyDisplay = "Press a key combo...";
                 break;
+            case "Ptt":
+                PttKeyDisplay = "Press a key combo...";
+                break;
         }
     }
 
@@ -738,13 +809,18 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        // Ignore modifier-only keys
-        if (key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
+        // Modifier-only keys (RightCtrl, LeftShift, etc.) are normally rejected, but PTT is commonly
+        // bound to a bare modifier — so accept it when the capture target is Ptt.
+        var isModifierOnly =
+            key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
+        if (isModifierOnly && _captureTarget != "Ptt")
         {
             return;
         }
 
-        var combo = BuildKeyCombo(key, modifiers);
+        // For PTT modifier-only capture, store just the raw key name with no modifier prefix so
+        // the combo round-trips cleanly through Enum.TryParse<Key> in KeyNameToDisplay.
+        var combo = isModifierOnly ? key.ToString() : BuildKeyCombo(key, modifiers);
         switch (_captureTarget)
         {
             case "AircraftSelect":
@@ -762,6 +838,10 @@ public partial class SettingsViewModel : ObservableObject
             case "AlwaysOnTop":
                 _alwaysOnTopKeyName = combo;
                 AlwaysOnTopKeyDisplay = KeyComboToDisplay(combo);
+                break;
+            case "Ptt":
+                _pttKeyName = combo;
+                PttKeyDisplay = KeyComboToDisplay(combo);
                 break;
         }
 
@@ -786,6 +866,9 @@ public partial class SettingsViewModel : ObservableObject
                     break;
                 case "AlwaysOnTop":
                     AlwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
+                    break;
+                case "Ptt":
+                    PttKeyDisplay = KeyComboToDisplay(_pttKeyName);
                     break;
             }
 
@@ -829,6 +912,12 @@ public partial class SettingsViewModel : ObservableObject
             Key.OemComma => ",",
             Key.OemPeriod => ".",
             Key.OemQuestion => "/",
+            Key.RightCtrl => "Right Ctrl",
+            Key.LeftCtrl => "Left Ctrl",
+            Key.RightShift => "Right Shift",
+            Key.LeftShift => "Left Shift",
+            Key.RightAlt => "Right Alt",
+            Key.LeftAlt => "Left Alt",
             _ => key.ToString(),
         };
     }
@@ -901,6 +990,71 @@ public partial class SettingsViewModel : ObservableObject
         }
 
         return key != Key.None;
+    }
+
+    partial void OnWhisperModelSizeChanged(string value)
+    {
+        WhisperModelStatus = FormatWhisperStatus(_modelManager.GetWhisperStatus(value), _modelManager.GetWhisperFileSize(value));
+    }
+
+    [RelayCommand]
+    private async Task DownloadWhisperModel()
+    {
+        if (WhisperIsDownloading)
+        {
+            return;
+        }
+
+        _whisperDownloadCts?.Dispose();
+        _whisperDownloadCts = new CancellationTokenSource();
+        WhisperIsDownloading = true;
+        WhisperDownloadProgress = 0;
+        WhisperModelStatus = "Downloading...";
+
+        var progress = new Progress<double>(p =>
+        {
+            if (!double.IsNaN(p))
+            {
+                WhisperDownloadProgress = p;
+            }
+        });
+
+        try
+        {
+            var ok = await _modelManager.DownloadWhisperModelAsync(WhisperModelSize, progress, _whisperDownloadCts.Token).ConfigureAwait(true);
+            var status = _modelManager.GetWhisperStatus(WhisperModelSize);
+            WhisperModelStatus = ok ? FormatWhisperStatus(status, _modelManager.GetWhisperFileSize(WhisperModelSize)) : "Download failed";
+        }
+        finally
+        {
+            WhisperIsDownloading = false;
+            WhisperDownloadProgress = 0;
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteWhisperModel()
+    {
+        _modelManager.DeleteWhisperModel(WhisperModelSize);
+        WhisperModelStatus = FormatWhisperStatus(_modelManager.GetWhisperStatus(WhisperModelSize), 0);
+    }
+
+    [RelayCommand]
+    private void CancelWhisperDownload()
+    {
+        _whisperDownloadCts?.Cancel();
+    }
+
+    private static string FormatWhisperStatus(WhisperModelStatus status, long bytes)
+    {
+        return status switch
+        {
+            Services.WhisperModelStatus.NotDownloaded => "Not downloaded",
+            Services.WhisperModelStatus.Downloading => "Downloading...",
+            Services.WhisperModelStatus.Ready => $"Ready ({bytes / (1024 * 1024)} MB)",
+            Services.WhisperModelStatus.Failed => "Failed (partial or corrupt)",
+            _ => "Unknown",
+        };
     }
 
     [RelayCommand]

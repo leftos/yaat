@@ -265,12 +265,15 @@ Cross-refs from exploration:
 - `WindowGeometryHelper` — use if adding any sub-dialog (e.g. download progress).
 
 #### Tasks
-- [ ] Add six `SavedPrefs` fields + public accessors in `UserPreferences.cs`
-- [ ] `src/Yaat.Client/Services/ModelManager.cs` — Whisper download / delete / status + LLM GGUF path validation
-- [ ] `SettingsViewModel.cs` — observable properties, download command, browse command
-- [ ] `SettingsWindow.axaml` — new `<TabItem Header="Speech">` with the layout above, including small-text footer "Airline data: OpenFlights (ODbL 1.0)" with hyperlink to https://openflights.org/data.html (ODbL attribution requirement from Phase 1)
-- [ ] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean
-- [ ] Manual: toggle Enable, download base.en model, confirm status updates and model file appears under `%LOCALAPPDATA%/yaat/models/whisper/`
+- [x] Add seven `SavedPrefs` fields + public accessors in `UserPreferences.cs` (six speech + `PreferredGpuBackend`; single `SetSpeechSettings` bulk setter). PTT key defaults to `RightCtrl`.
+- [x] `src/Yaat.Client/Services/ModelManager.cs` — Whisper download / delete / status + LLM GGUF path validation. HttpClient streaming to `.partial` → rename on completion, IProgress, CancellationToken.
+- [x] `src/Yaat.Client/Services/GpuCapabilityDetector.cs` — `NativeLibrary.TryLoad` probes for CUDA (`nvcuda.dll`/`libcuda.so.1`) → Vulkan → Metal (macOS). nvidia-smi shell-out with 500 ms timeout for NVIDIA device name + VRAM. Never throws; degrades to `CpuOnly`.
+- [x] `SettingsViewModel.cs` — 11 observable properties, download/cancel/delete commands, GPU detect on ctor, Save() persists via `SetSpeechSettings`, Ptt capture case (allows modifier-only keys only for PTT target), friendly display names for RightCtrl/LeftCtrl/etc.
+- [x] `SettingsWindow.axaml` — new `<TabItem Header="Speech">` with Whisper download section (ComboBox + Download/Cancel/Delete buttons + ProgressBar), LLM path + Browse, Acceleration (detected summary + backend combo + GPU layers NumericUpDown), PTT key button, audio device TextBox, ODbL attribution footer.
+- [x] `SettingsWindow.axaml.cs` — `OnBrowseLlmModelClick` via `StorageProvider.OpenFilePickerAsync` with `.gguf` filter; extended key-capture wiring to include `PttKeyButton` and the previously-missing `AlwaysOnTopKeyButton`.
+- [x] `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` clean (0 warnings).
+- [x] `timeout 120 dotnet test 2>&1 | tee .tmp/test.log` — all tests green (Yaat.Sim 2,773 + Yaat.Client 336 = 3,109).
+- [ ] Manual smoke test: toggle Enable, change Whisper size, click Download, verify file lands under `%LOCALAPPDATA%/yaat/models/whisper/`, verify PTT button opens capture and `RightCtrl` round-trips, verify GPU detection text matches host.
 
 ### Phase 6: Audio capture + STT (Yaat.Client)
 

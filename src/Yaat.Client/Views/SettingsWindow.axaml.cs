@@ -59,7 +59,9 @@ public partial class SettingsWindow : Window
             exportAllBtn.Click += OnExportAllClick;
         }
 
-        foreach (var btnName in new[] { "AircraftSelectKeyButton", "FocusInputKeyButton", "TakeControlKeyButton" })
+        foreach (
+            var btnName in new[] { "AircraftSelectKeyButton", "FocusInputKeyButton", "TakeControlKeyButton", "AlwaysOnTopKeyButton", "PttKeyButton" }
+        )
         {
             var btn = this.FindControl<Button>(btnName);
             if (btn is not null)
@@ -67,6 +69,34 @@ public partial class SettingsWindow : Window
                 btn.KeyDown += OnKeyCaptureKeyDown;
                 btn.LostFocus += OnKeyCaptureLostFocus;
             }
+        }
+    }
+
+    private async void OnBrowseLlmModelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title = "Select LLM Model File (GGUF)",
+                AllowMultiple = false,
+                FileTypeFilter = [new FilePickerFileType("GGUF Models") { Patterns = ["*.gguf"] }],
+            }
+        );
+
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        var path = files[0].TryGetLocalPath();
+        if (!string.IsNullOrEmpty(path))
+        {
+            vm.LlmModelPath = path;
         }
     }
 

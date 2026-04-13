@@ -562,6 +562,134 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- Speech tab -->
+            <TabItem Header="Speech">
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+
+                        <CheckBox Content="Enable speech recognition"
+                                  IsChecked="{Binding SpeechEnabled}" />
+
+                        <TextBlock Text="Whisper Model (speech-to-text)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,0" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding WhisperModelStatus, StringFormat='Status: {0}'}"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ComboBox ItemsSource="{Binding WhisperSizes}"
+                                          SelectedItem="{Binding WhisperModelSize}"
+                                          Width="140" />
+                                <Button Content="Download"
+                                        Command="{Binding DownloadWhisperModelCommand}"
+                                        IsEnabled="{Binding !WhisperIsDownloading}" />
+                                <Button Content="Cancel"
+                                        Command="{Binding CancelWhisperDownloadCommand}"
+                                        IsVisible="{Binding WhisperIsDownloading}" />
+                                <Button Content="Delete"
+                                        Command="{Binding DeleteWhisperModelCommand}"
+                                        IsEnabled="{Binding !WhisperIsDownloading}" />
+                            </StackPanel>
+                            <ProgressBar Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding WhisperDownloadProgress}"
+                                         IsVisible="{Binding WhisperIsDownloading}"
+                                         Height="4" />
+                        </StackPanel>
+
+                        <TextBlock Text="LLM Model (command interpretation)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,0" />
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox Text="{Binding LlmModelPath}"
+                                         Width="360"
+                                         Watermark="Path to .gguf file" />
+                                <Button x:Name="BrowseLlmModelButton"
+                                        Content="Browse..."
+                                        Click="OnBrowseLlmModelClick" />
+                            </StackPanel>
+                            <TextBlock Text="Point to a GGUF file (e.g. phi-4-mini-q4_k_m.gguf). Download manually from Hugging Face."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+
+                        <TextBlock Text="Acceleration"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,0" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding DetectedGpuSummary, StringFormat='Detected: {0}'}"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Backend:"
+                                           VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding GpuBackendChoices}"
+                                          SelectedItem="{Binding PreferredGpuBackend}"
+                                          Width="120" />
+                                <TextBlock Text="(Auto = use best detected)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="LLM GPU layers:"
+                                           VerticalAlignment="Center" />
+                                <NumericUpDown Value="{Binding LlmGpuLayers}"
+                                               Minimum="-1"
+                                               Maximum="100"
+                                               Width="110" />
+                                <TextBlock Text="(-1 = auto, 0 = CPU only, N = offload N layers)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="Push-to-Talk"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,0" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="PTT key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="PttKeyButton"
+                                        Content="{Binding PttKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartPttKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key or modifier)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Hold this key to record speech. Default: Right Ctrl."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                            <TextBlock Text="Input device:"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       Margin="0,8,0,0" />
+                            <TextBox Text="{Binding AudioInputDevice}"
+                                     Width="300"
+                                     Watermark="Default (leave blank)" />
+                            <TextBlock Text="Device enumeration comes later when audio capture is wired up; blank = system default."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+
+                        <Separator Margin="0,12,0,0" />
+
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="10"
+                                   Text="Airline telephony data derived from OpenFlights (https://openflights.org/data.html), licensed under ODbL 1.0. See NOTICE and src/Yaat.Sim/Speech/Data/LICENSE-OPENFLIGHTS.txt." />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
         </TabControl>
 
     </DockPanel>
