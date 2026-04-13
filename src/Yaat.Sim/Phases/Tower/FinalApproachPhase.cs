@@ -482,48 +482,7 @@ public sealed class FinalApproachPhase : Phase
                 or ClearanceType.ClearedLowApproach;
     }
 
-    private void TriggerGoAround(PhaseContext ctx, string reason)
-    {
-        if (ctx.Aircraft.Phases is null)
-        {
-            return;
-        }
-
-        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is going around ({reason})");
-
-        // VFR aircraft without a pattern direction default to left traffic
-        if (ctx.Aircraft.IsVfr && ctx.Aircraft.Phases.TrafficDirection is null)
-        {
-            ctx.Aircraft.Phases.TrafficDirection = PatternDirection.Left;
-        }
-
-        bool isPattern = ctx.Aircraft.Phases.TrafficDirection is not null;
-
-        // For instrument approaches with MAP data, use MAP altitude and queue MAP phases
-        var mapPhases = isPattern ? [] : ApproachCommandHandler.BuildMissedApproachPhases(ctx.Aircraft);
-        int? targetAlt;
-        if (mapPhases.Count > 0)
-        {
-            var mapFixes = ctx.Aircraft.Phases.ActiveApproach!.MissedApproachFixes;
-            targetAlt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
-        }
-        else if (isPattern)
-        {
-            targetAlt = (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category));
-        }
-        else
-        {
-            targetAlt = null;
-        }
-
-        var goAround = new GoAroundPhase { TargetAltitude = targetAlt, ReenterPattern = isPattern };
-
-        var phases = new List<Phase> { goAround };
-        phases.AddRange(mapPhases);
-
-        ctx.Aircraft.Phases.ReplaceUpcoming(phases);
-        ctx.Aircraft.Phases.AdvanceToNext(ctx);
-    }
+    private static void TriggerGoAround(PhaseContext ctx, string reason) => GoAroundHelper.Trigger(ctx, reason);
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

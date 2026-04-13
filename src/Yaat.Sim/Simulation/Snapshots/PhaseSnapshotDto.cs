@@ -343,7 +343,6 @@ public sealed class PushbackToSpotPhaseDto : PhaseDto
 public sealed class RunwayExitPhaseDto : PhaseDto
 {
     public int? ExitNodeId { get; init; }
-    public int? ClearNodeId { get; init; }
     public required bool ReachedExitNode { get; init; }
     public string? ExitTaxiway { get; init; }
     public string? RunwayId { get; init; }
@@ -353,14 +352,8 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public int ExitWaypointIndex { get; init; }
     public required double ExitSpeed { get; init; }
     public required double TimeSinceLastLog { get; init; }
-    public required bool StoppedForLahso { get; init; }
-    public int? CurrentCenterlineNodeId { get; init; }
-    public int? NextCenterlineNodeId { get; init; }
     public required double RunwayHeadingDeg { get; init; } = 0.0;
     public required int ExitStateValue { get; init; } = 0;
-    public required bool Braking { get; init; } = false;
-    public double? VirtualTargetLat { get; init; }
-    public double? VirtualTargetLon { get; init; }
     public GroundNavigatorDto? Navigator { get; init; }
 }
 
@@ -571,6 +564,14 @@ public sealed class LandingPhaseDto : PhaseDto
     public string? OriginalPreferenceTaxiway { get; init; }
     public bool ExitResolutionEnabled { get; init; }
     public required bool StoppedForLahso { get; init; }
+
+    // LandingPhase V2 additions (optional for backward-compat with older snapshots)
+    public int CurrentStateValue { get; init; }
+    public double TouchdownLat { get; init; }
+    public double TouchdownLon { get; init; }
+    public double StabilizedSinceSec { get; init; }
+    public List<int>? UnableBranchPointIds { get; init; }
+    public int? InferredSideValue { get; init; }
 }
 
 // --- Pattern phases ---

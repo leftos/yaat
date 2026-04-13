@@ -101,16 +101,47 @@ public sealed class RunwayExitPhase : Phase
             return;
         }
 
-        // Clear any stale resolved exit — RunwayExitPhase always finds the exit
-        // fresh via analog search so the virtual approach segment provides proper
-        // turn context from the aircraft's actual position.
-        if (ctx.Aircraft.Phases?.ResolvedExit is not null)
+        // If LandingPhase committed a resolved exit, honor it — but only if
+        // the hold-short isn't currently occupied. LandingPhase plans without
+        // regard to occupancy so the pilot continues to brake for the commanded
+        // exit, only deciding to skip at the last moment. RunwayExitPhase is
+        // that last moment: if another aircraft is now claiming the committed
+        // hold-short, drop the commit and fall through to a fresh analog search
+        // that excludes occupied nodes.
+        var committed = ctx.Aircraft.Phases?.ResolvedExit;
+        if (committed is not null)
         {
-            ctx.Aircraft.Phases.ResolvedExit = null;
+            ctx.Aircraft.Phases!.ResolvedExit = null;
+
+            bool occupied = ctx.OccupiedHoldShortNodes?.Contains(committed.HoldShortNode.Id) ?? false;
+            if (!occupied)
+            {
+                _holdShortNode = committed.HoldShortNode;
+                _exitTaxiway = committed.TaxiwayName;
+                _exitPath = committed.Path;
+
+                Log.LogDebug(
+                    "[Exit] {Callsign}: using committed exit {Twy}, path=[{Path}]",
+                    ctx.Aircraft.Callsign,
+                    _exitTaxiway,
+                    string.Join("→", _exitPath.Select(n => n.Id))
+                );
+            }
+            else
+            {
+                Log.LogDebug(
+                    "[Exit] {Callsign}: committed exit {Twy} is now occupied, falling back to analog search",
+                    ctx.Aircraft.Callsign,
+                    committed.TaxiwayName
+                );
+            }
         }
 
-        // Search for exits ahead immediately.
-        TryFindExitAhead(ctx);
+        if (_holdShortNode is null)
+        {
+            // Search for exits ahead immediately.
+            TryFindExitAhead(ctx);
+        }
 
         Log.LogDebug(
             "[Exit] {Callsign}: rwy {Rwy}, hdg={Hdg:F0}, holdShort={HS}",
@@ -155,15 +186,24 @@ public sealed class RunwayExitPhase : Phase
 
     /// <summary>
     /// Analog centerline rolling: steer along the runway heading (no node
-    /// walking) and continuously search for exits ahead.
+    /// walking) and continuously search for exits ahead. Writes ControlTargets
+    /// and lets FlightPhysics integrate — no direct pose or IAS writes. Safe
+    /// from the StationaryGroundSpeedKts guard because rolling is always at
+    /// coast speed (≥ 15 kt helicopter, ≥ 40 kt jet), never approaching the
+    /// 0.1 kt floor.
     /// </summary>
     private bool TickRolling(PhaseContext ctx)
     {
-        // Steer along runway heading at coast speed
-        AdjustSpeed(ctx, _coastSpeed);
-        ctx.Targets.TargetSpeed = null;
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, _runwayHeading.Degrees, maxTurn);
+        ctx.Targets.TargetTrueHeading = _runwayHeading;
+        ctx.Targets.TargetSpeed = _coastSpeed;
+        // Use ground rollout decel (category-specific, 2.5 kt/s jet, 1.5 kt/s
+        // piston) rather than the airborne default from AircraftPerformance.DecelRate.
+        ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        // Use ground turn rate (20 deg/s jet, 35 deg/s piston) rather than the
+        // airborne turn rate (~2.5 deg/s). On the ground FlightPhysics uses this
+        // override via TurnRateOverride; V1 achieved the same effect by writing
+        // Aircraft.TrueHeading directly with GroundTurnRate.
+        ctx.Targets.TurnRateOverride = CategoryPerformance.GroundTurnRate(ctx.Category);
 
         // Continuously search for exits ahead
         if (_holdShortNode is null)
@@ -457,36 +497,6 @@ public sealed class RunwayExitPhase : Phase
         Log.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
     }
 
-    private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
-    {
-        if (ctx.Aircraft.IndicatedAirspeed > targetSpeed)
-        {
-            double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds);
-        }
-        else if (ctx.Aircraft.IndicatedAirspeed < targetSpeed)
-        {
-            double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Min(targetSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
-        }
-    }
-
-    private void LogPeriodic(PhaseContext ctx, double dist)
-    {
-        _timeSinceLastLog += ctx.DeltaSeconds;
-        if (_timeSinceLastLog >= LogIntervalSeconds)
-        {
-            _timeSinceLastLog = 0;
-            Log.LogTrace(
-                "[Exit] {Callsign}: rolling, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
-                ctx.Aircraft.Callsign,
-                dist,
-                ctx.Aircraft.GroundSpeed,
-                ctx.Aircraft.TrueHeading.Degrees
-            );
-        }
-    }
-
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         return cmd switch
@@ -507,7 +517,6 @@ public sealed class RunwayExitPhase : Phase
             ElapsedSeconds = ElapsedSeconds,
             Requirements = SnapshotRequirements(),
             ExitNodeId = _holdShortNode?.Id,
-            ClearNodeId = null,
             ReachedExitNode = _state == ExitState.FollowingExitPath,
             ExitTaxiway = _exitTaxiway,
             RunwayId = _runwayId,
@@ -517,12 +526,6 @@ public sealed class RunwayExitPhase : Phase
             ExitWaypointIndex = _exitRoute?.CurrentSegmentIndex ?? 0,
             ExitSpeed = _coastSpeed,
             TimeSinceLastLog = _timeSinceLastLog,
-            StoppedForLahso = false,
-            Braking = false,
-            VirtualTargetLat = null,
-            VirtualTargetLon = null,
-            CurrentCenterlineNodeId = null,
-            NextCenterlineNodeId = null,
             RunwayHeadingDeg = _runwayHeading.Degrees,
             ExitStateValue = (int)_state,
             Navigator = _navigator?.ToSnapshot(),
@@ -546,8 +549,6 @@ public sealed class RunwayExitPhase : Phase
 
         if (groundLayout is not null)
         {
-            // CurrentCenterlineNodeId and NextCenterlineNodeId are legacy snapshot
-            // fields — the analog approach no longer uses centerline node walking.
             if (dto.ExitNodeId.HasValue)
             {
                 phase._holdShortNode = groundLayout.Nodes.GetValueOrDefault(dto.ExitNodeId.Value);

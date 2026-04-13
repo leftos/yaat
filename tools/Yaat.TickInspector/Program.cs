@@ -1,6 +1,7 @@
 using System.Globalization;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Testing;
 
 namespace Yaat.TickInspector;
@@ -49,6 +50,8 @@ public static class Program
         string? csvPath = null;
         string? runwayArg = null;
         string? navdataDir = null;
+        string? layoutPath = null;
+        var exitTaxiways = new List<string>();
         bool summary = false;
         (int Lo, int Hi)? tickRange = null;
 
@@ -68,6 +71,15 @@ public static class Program
                     break;
                 case "--navdata" when i + 1 < args.Length:
                     navdataDir = args[++i];
+                    break;
+                case "--layout" when i + 1 < args.Length:
+                    layoutPath = args[++i];
+                    break;
+                case "--exit" when i + 1 < args.Length:
+                    foreach (string twy in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        exitTaxiways.Add(twy);
+                    }
                     break;
                 case "-h":
                 case "--help":
@@ -111,6 +123,41 @@ public static class Program
             }
         }
 
+        var exitRefs = new List<ExitRef>();
+        if (exitTaxiways.Count > 0)
+        {
+            if (runwayArg is null)
+            {
+                Console.Error.WriteLine("error: --exit requires --runway to know which runway's hold-shorts to query");
+                return 2;
+            }
+
+            var parts = runwayArg.Split('/');
+            string airport = parts[0].ToUpperInvariant();
+            string rwy = parts[1].ToUpperInvariant();
+
+            var layout = LoadGroundLayout(airport, layoutPath);
+            if (layout is null)
+            {
+                return 1;
+            }
+
+            foreach (string twy in exitTaxiways)
+            {
+                var nodes = FindExitHoldShortNodes(layout, rwy, twy);
+                if (nodes.Count == 0)
+                {
+                    Console.Error.WriteLine($"warn: no hold-short nodes found for runway {rwy} taxiway {twy}");
+                    continue;
+                }
+                foreach (var n in nodes)
+                {
+                    Console.Error.WriteLine($"# exit {twy}: node #{n.Id} at ({n.Latitude:F6},{n.Longitude:F6})");
+                }
+                exitRefs.Add(new ExitRef(twy, nodes));
+            }
+        }
+
         var rows = LoadRows(csvPath);
         if (tickRange is { } r)
         {
@@ -129,11 +176,71 @@ public static class Program
         }
         else
         {
-            PrintTable(rows, refLine);
+            PrintTable(rows, refLine, exitRefs);
         }
 
         return 0;
     }
+
+    private static AirportGroundLayout? LoadGroundLayout(string airport, string? layoutPath)
+    {
+        // Resolve path: explicit --layout wins; else tests/Yaat.Sim.Tests/TestData/<icao>.geojson
+        string? path = layoutPath;
+        if (path is null)
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir is not null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
+                {
+                    path = Path.Combine(dir.FullName, "tests", "Yaat.Sim.Tests", "TestData", $"{airport.ToLowerInvariant()}.geojson");
+                    break;
+                }
+                dir = dir.Parent;
+            }
+        }
+
+        if (path is null || !File.Exists(path))
+        {
+            Console.Error.WriteLine($"error: ground layout not found for {airport} (pass --layout <path> to override)");
+            return null;
+        }
+
+        try
+        {
+            return GeoJsonParser.Parse(airport, File.ReadAllText(path), null);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"error: failed to parse {path}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Find all hold-short nodes on the given runway whose adjacent edges match the
+    /// requested taxiway name. This mirrors how LandingPhase / RunwayExitPhase link
+    /// a taxiway letter to a hold-short terminus — a hold-short node doesn't carry
+    /// a taxiway name itself, only its edges do.
+    /// </summary>
+    private static List<GroundNode> FindExitHoldShortNodes(AirportGroundLayout layout, string runwayId, string taxiway)
+    {
+        var result = new List<GroundNode>();
+        foreach (var node in layout.GetRunwayHoldShortNodes(runwayId))
+        {
+            foreach (var edge in node.Edges)
+            {
+                if (edge.MatchesTaxiway(taxiway))
+                {
+                    result.Add(node);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    private readonly record struct ExitRef(string Taxiway, List<GroundNode> HoldShortNodes);
 
     private static (int Lo, int Hi) ParseRange(string arg)
     {
@@ -348,12 +455,18 @@ public static class Program
 
     // ---------- Table rendering ----------
 
-    private static void PrintTable(List<TickRow> rows, RefLine? refLine)
+    private static void PrintTable(List<TickRow> rows, RefLine? refLine, List<ExitRef> exitRefs)
     {
         string header = $"{"tick", 4} {"hdg", 7} {"gs", 6} {"nav", 5} {"distFt", 7} {"brg", 7} {"angd", 6} {"tgtSpd", 7} {"brake", 7} {"onArc", 5}";
         if (refLine is not null)
         {
             header += $" {"xteFt", 8} {"hdgErr", 7}";
+        }
+        foreach (var er in exitRefs)
+        {
+            // along_<twy> = signed along-track in ft, positive = hold-short ahead of aircraft
+            // dist_<twy>  = straight-line distance in ft
+            header += $" {("along_" + er.Taxiway), 11} {("dist_" + er.Taxiway), 11}";
         }
         Console.WriteLine(header);
         Console.WriteLine(new string('-', header.Length));
@@ -374,10 +487,59 @@ public static class Program
                 line += $" {xte, 8:F2} {FmtSigned(herr, 7)}";
             }
 
+            foreach (var er in exitRefs)
+            {
+                (double alongFt, double distFtExit) = NearestExitDistances(row.Lat, row.Lon, er, refLine);
+                line += $" {alongFt, 11:F0} {distFtExit, 11:F0}";
+            }
+
             string marker = prevNav is not null && row.NavTarget != prevNav ? "  <-- nav changed" : "";
             Console.WriteLine(line + marker);
             prevNav = row.NavTarget;
         }
+    }
+
+    /// <summary>
+    /// Signed along-track distance and straight-line distance, both in feet, from
+    /// the aircraft position to the nearest-ahead hold-short node in the given
+    /// exit ref. "Ahead" wins over "behind" even when the behind node is closer
+    /// by straight line — otherwise a just-passed hold-short distorts the display
+    /// at exactly the moment where we need to understand what's still reachable.
+    /// </summary>
+    private static (double AlongFt, double DistFt) NearestExitDistances(double lat, double lon, ExitRef er, RefLine? refLine)
+    {
+        if (refLine is not { } r || er.HoldShortNodes.Count == 0)
+        {
+            return (0, 0);
+        }
+
+        double bestAheadAlongNm = double.MaxValue;
+        double bestAheadStraightNm = 0;
+        double bestBehindAlongNm = double.MinValue;
+        double bestBehindStraightNm = 0;
+        bool anyAhead = false;
+        foreach (var n in er.HoldShortNodes)
+        {
+            double alongNm = GeoMath.AlongTrackDistanceNm(n.Latitude, n.Longitude, lat, lon, r.Heading);
+            double straightNm = GeoMath.DistanceNm(lat, lon, n.Latitude, n.Longitude);
+            if (alongNm >= 0 && alongNm < bestAheadAlongNm)
+            {
+                bestAheadAlongNm = alongNm;
+                bestAheadStraightNm = straightNm;
+                anyAhead = true;
+            }
+            else if (alongNm < 0 && alongNm > bestBehindAlongNm)
+            {
+                bestBehindAlongNm = alongNm;
+                bestBehindStraightNm = straightNm;
+            }
+        }
+
+        if (anyAhead)
+        {
+            return (bestAheadAlongNm * FeetPerNm, bestAheadStraightNm * FeetPerNm);
+        }
+        return (bestBehindAlongNm * FeetPerNm, bestBehindStraightNm * FeetPerNm);
     }
 
     // ---------- Summary rendering ----------
@@ -452,6 +614,11 @@ public static class Program
         Console.WriteLine("  --runway ICAO/RWY    Reference runway for cross-track (xteFt) and heading-error (hdgErr)");
         Console.WriteLine("                       columns. Loads NavData via TestVnasData.");
         Console.WriteLine("  --navdata DIR        Override NavData directory (default: tests/Yaat.Sim.Tests/TestData)");
+        Console.WriteLine("  --exit TAXIWAYS      Show along-track and straight-line distance (feet) to each named");
+        Console.WriteLine("                       hold-short. Comma-separated (e.g. --exit K,D,Q). Requires --runway.");
+        Console.WriteLine("                       along_X is signed — positive means the hold-short is ahead of the");
+        Console.WriteLine("                       aircraft in the runway heading direction.");
+        Console.WriteLine("  --layout PATH        Override ground layout path (default: tests/.../TestData/<icao>.geojson)");
         Console.WriteLine();
         Console.WriteLine("Output conventions:");
         Console.WriteLine("  xteFt   = signed cross-track, positive = right of runway centerline");

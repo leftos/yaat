@@ -66,9 +66,11 @@ public class LandingExitDecelTests
         int ticks = 0;
         while (ticks < maxTicks)
         {
+            // LandingPhase V2 writes ControlTargets and delegates integration
+            // to FlightPhysics. Call Update to match the real sim loop.
+            FlightPhysics.Update(ctx.Aircraft, ctx.DeltaSeconds);
             bool done = phase.OnTick(ctx);
             ticks++;
-            AdvancePosition(ctx.Aircraft, ctx.DeltaSeconds);
             if (done)
             {
                 break;
@@ -76,14 +78,6 @@ public class LandingExitDecelTests
         }
 
         return (ticks, ctx.Aircraft.IndicatedAirspeed);
-    }
-
-    private static void AdvancePosition(AircraftState ac, double dt)
-    {
-        double distNm = ac.GroundSpeed / 3600.0 * dt;
-        double headingRad = ac.TrueHeading.Degrees * Math.PI / 180.0;
-        ac.Latitude += distNm / 60.0 * Math.Cos(headingRad);
-        ac.Longitude += distNm / (60.0 * Math.Cos(ac.Latitude * Math.PI / 180.0)) * Math.Sin(headingRad);
     }
 
     // -- OAK 28R: touchdown at east end (37.724806, -122.204721), heading 280° --
@@ -176,11 +170,13 @@ public class LandingExitDecelTests
 
         for (int i = 0; i < 3; i++)
         {
+            FlightPhysics.Update(ac, ctx.DeltaSeconds);
             phase.OnTick(ctx);
         }
 
         double speedBefore = ac.IndicatedAirspeed;
         ac.Phases!.RequestedExit = new ExitPreference { Taxiway = "H" };
+        FlightPhysics.Update(ac, ctx.DeltaSeconds);
         phase.OnTick(ctx);
 
         Assert.True(ac.IndicatedAirspeed < speedBefore);

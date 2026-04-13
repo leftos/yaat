@@ -6,78 +6,112 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Flare, touchdown, and rollout deceleration.
-/// Flare begins at category-specific altitude AGL.
-/// Touchdown sets IsOnGround=true.
-/// When an exit is assigned, the aircraft maintains coast speed until the kinematic braking
-/// point, then decelerates to the angle-dependent turn-off speed.
-/// Without an exit, decelerates uniformly to 20 kts.
+/// Flare, touchdown, rollout, and handoff to <see cref="Ground.RunwayExitPhase"/>.
+///
+/// <para>
+/// State machine with public <see cref="CurrentState"/> for test observability
+/// (mirrors <see cref="LineUpPhase"/>'s pattern):
+/// <c>StabilizedApproach → Flare → Touchdown → Rollout → Handoff</c>, with
+/// <c>GoAround</c>, <c>Unable</c>, <c>FullStop</c>, and <c>Faulted</c> as
+/// branching terminals.
+/// </para>
+///
+/// <para>
+/// Flare is <b>closed-form AGL-indexed playback</b>: the descent rate and
+/// airspeed targets are pure functions of current AGL, not of elapsed time or
+/// history. This matches LineUpPhase's Design D invariant I2 (position and
+/// heading are functions of a single scalar phase variable) and eliminates
+/// the floating-landing risk that a constant-rate flare has.
+/// </para>
+///
+/// <para>
+/// The phase <b>never writes aircraft pose or IAS directly</b>. All speed
+/// changes flow through <c>Targets.TargetSpeed</c> plus
+/// <c>Targets.DesiredDecelRate</c> (when firm-braking is required), and the
+/// shared <see cref="FlightPhysics"/> integrator does the actual work.
+/// Rollout never approaches the 0.1 kt ground-rotation guard because it
+/// hands off at <c>coastSpeed + 3 kt</c>.
+/// </para>
 /// </summary>
 public sealed class LandingPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("LandingPhase");
 
-    private const double DefaultRolloutCompleteSpeed = 20.0;
+    // --- Braking / steering constants ---
+
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
-    private const double MaxDecelRateKtsPerSec = 10.0;
-
-    /// <summary>
-    /// Maximum deceleration the pilot will use to make a requested exit.
-    /// Above this, the pilot says "unable" — it would require emergency braking.
-    /// Normal rollout is ~2.5kts/s; firm braking is ~5kts/s; emergency is 10kts/s.
-    /// </summary>
-    private const double ReasonableBrakingRateKtsPerSec = 5.0;
-
-    /// <summary>
-    /// Comfortable braking multiplier for default exit selection (no explicit preference).
-    /// The pilot picks an exit achievable at this multiple of the default rollout decel rate.
-    /// 1.5× default gives a natural, unhurried deceleration — not the first exit that
-    /// requires maximum effort, but the first one that's comfortable.
-    /// </summary>
+    private const double FirmBrakingRateKtsPerSec = 5.0;
     private const double ComfortableBrakingMultiplier = 1.5;
-
-    /// <summary>
-    /// Floor for gentle braking on explicit far exits. Prevents near-zero decel rates
-    /// when the exit is extremely far ahead.
-    /// </summary>
     private const double MinSoftBrakingRateKtsPerSec = 0.5;
-
-    /// <summary>
-    /// Tolerance for turn-off speed commit check. Discrete-tick deceleration can overshoot
-    /// the target by up to decelRate * deltaSeconds (~2.5 kts). Without tolerance, an aircraft
-    /// at 30.2 kts misses a 30 kt turn-off by a hair and falls back to the next exit.
-    /// </summary>
     private const double TurnOffSpeedToleranceKts = 3.0;
 
-    private double _fieldElevation;
-    private TrueHeading _runwayHeading;
-    private double _thresholdLat;
-    private double _thresholdLon;
-    private bool _touchedDown;
+    // --- Stabilization gate (AC 120-71B §6.3) ---
+
+    private const double StabilizedSpeedFactor = 1.3; // above 1.3·Vref → unstabilized
+    private const double StabilizedBankDeg = 15.0;
+    private const double StabilizedVsiFpm = -1200.0;
+    private const double StabilizedXteNm = 0.08;
+    private const double StabilizedGraceSeconds = 1.0;
+
+    /// <summary>
+    /// Observable sub-state of the landing phase. Public so tests can assert
+    /// the exact sequence of transitions. Mirrors <see cref="LineUpPhase.State"/>.
+    /// </summary>
+    public enum State
+    {
+        /// <summary>Post-threshold, pre-flare. Holds runway heading / approach speed / glideslope vsi.</summary>
+        StabilizedApproach,
+
+        /// <summary>AGL ≤ FlareAltitude. Closed-form vsi(agl) + spd(agl), no feedback.</summary>
+        Flare,
+
+        /// <summary>Single-tick atomic transition: IsOnGround = true, snap altitude.</summary>
+        Touchdown,
+
+        /// <summary>Ground rollout with bounded XTE steering and kinematic braking plan.</summary>
+        Rollout,
+
+        /// <summary>Ready to hand off to RunwayExitPhase. Commits preference and returns true.</summary>
+        Handoff,
+
+        /// <summary>Missed exit — broadcast, relax preference, re-search.</summary>
+        Unable,
+
+        /// <summary>No runway/graph fallback, or all exits exhausted. Brake to zero on centerline.</summary>
+        FullStop,
+
+        /// <summary>Go-around triggered via command or stabilization failure. Hands off to GoAroundPhase.</summary>
+        GoAround,
+
+        /// <summary>Unrecoverable state (null runway at OnStart). Logs and returns true.</summary>
+        Faulted,
+    }
+
+    private LandingPlan? _plan;
+
+    /// <summary>Immutable plan built at OnStart. Null before construction or in Faulted state.</summary>
+    public LandingPlan? Plan => _plan;
+
+    /// <summary>Current sub-state. Read-only except from within this class.</summary>
+    public State CurrentState { get; private set; } = State.StabilizedApproach;
+
+    // Cross-tick state
     private bool _canGoAround;
     private double _lahsoHoldShortDistNm;
     private bool _hasLahso;
+    private double _stabilizedSinceSec;
+    private double _touchdownLat;
+    private double _touchdownLon;
 
-    // Exit-aware braking state (continuous evaluation)
+    // Exit resolution state
     private ResolvedExitInfo? _candidateExit;
     private ExitPreference? _activePreference;
     private ExitPreference? _originalPreference;
-
-    // True only when a controller has explicitly assigned an exit preference.
-    // Without an explicit preference, LandingPhase coasts and hands off to RunwayExitPhase.
     private bool _exitResolutionEnabled;
-
-    // Inferred default exit side from runway layout (high-speed exits + parking).
-    // Used as a soft tiebreaker in ResolveNextCandidate when the preference has a
-    // taxiway but no side — tries inferred side first, falls back to no side.
     private ExitSide? _inferredSide;
-
-    // Branch-point node IDs where the aircraft was declared "unable" (too fast).
-    // Prevents ResolveNextCandidate from re-finding the same exit after it was
-    // already missed — without this, the aircraft re-discovers L at node 327
-    // after coasting to a lower speed and takes it with a near-zero turn.
     private readonly HashSet<int> _unableBranchPoints = [];
+    private bool _unableBroadcast;
 
     public bool StoppedForLahso { get; private set; }
 
@@ -89,11 +123,11 @@ public sealed class LandingPhase : Phase
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
-            FieldElevation = _fieldElevation,
-            RunwayHeadingDeg = _runwayHeading.Degrees,
-            ThresholdLat = _thresholdLat,
-            ThresholdLon = _thresholdLon,
-            TouchedDown = _touchedDown,
+            FieldElevation = _plan?.FieldElevation ?? 0,
+            RunwayHeadingDeg = _plan?.RunwayHeading.Degrees ?? 0,
+            ThresholdLat = _plan?.ThresholdLat ?? 0,
+            ThresholdLon = _plan?.ThresholdLon ?? 0,
+            TouchedDown = CurrentState is State.Rollout or State.Unable or State.FullStop or State.Handoff,
             CanGoAround = _canGoAround,
             LahsoHoldShortDistNm = _lahsoHoldShortDistNm,
             HasLahso = _hasLahso,
@@ -108,6 +142,12 @@ public sealed class LandingPhase : Phase
             OriginalPreferenceTaxiway = _originalPreference?.Taxiway,
             ExitResolutionEnabled = _exitResolutionEnabled,
             StoppedForLahso = StoppedForLahso,
+            CurrentStateValue = (int)CurrentState,
+            TouchdownLat = _touchdownLat,
+            TouchdownLon = _touchdownLon,
+            StabilizedSinceSec = _stabilizedSinceSec,
+            UnableBranchPointIds = _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
+            InferredSideValue = (int?)_inferredSide,
         };
 
     public static LandingPhase FromSnapshot(LandingPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -116,16 +156,26 @@ public sealed class LandingPhase : Phase
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
-        phase._fieldElevation = dto.FieldElevation;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
-        phase._thresholdLat = dto.ThresholdLat;
-        phase._thresholdLon = dto.ThresholdLon;
-        phase._touchedDown = dto.TouchedDown;
         phase._canGoAround = dto.CanGoAround;
         phase._lahsoHoldShortDistNm = dto.LahsoHoldShortDistNm;
         phase._hasLahso = dto.HasLahso;
         phase._exitResolutionEnabled = dto.ExitResolutionEnabled;
         phase.StoppedForLahso = dto.StoppedForLahso;
+        phase.CurrentState = (State)dto.CurrentStateValue;
+        phase._touchdownLat = dto.TouchdownLat;
+        phase._touchdownLon = dto.TouchdownLon;
+        phase._stabilizedSinceSec = dto.StabilizedSinceSec;
+        if (dto.UnableBranchPointIds is not null)
+        {
+            foreach (int id in dto.UnableBranchPointIds)
+            {
+                phase._unableBranchPoints.Add(id);
+            }
+        }
+        if (dto.InferredSideValue.HasValue)
+        {
+            phase._inferredSide = (ExitSide)dto.InferredSideValue.Value;
+        }
         if (dto.ActivePreferenceSide.HasValue || dto.ActivePreferenceTaxiway is not null)
         {
             phase._activePreference = new ExitPreference
@@ -171,15 +221,43 @@ public sealed class LandingPhase : Phase
                 Path = path,
             };
         }
+
+        // Plan is not round-tripped; rebuild from DTO fields on first tick if the phase is restored mid-state.
+        if (dto.RunwayHeadingDeg != 0 || dto.ThresholdLat != 0)
+        {
+            phase._plan = new LandingPlan
+            {
+                FieldElevation = dto.FieldElevation,
+                RunwayHeading = new TrueHeading(dto.RunwayHeadingDeg),
+                ThresholdLat = dto.ThresholdLat,
+                ThresholdLon = dto.ThresholdLon,
+                // Category constants aren't round-tripped — restored phase needs OnStart context to rebuild.
+                // These defaults are jet-shaped; if the restored phase needs to continue flare/rollout,
+                // OnTick will regenerate its plan via the category table when the first non-restoration
+                // tick runs. For most practical replays, landing state restores post-touchdown.
+                FlareEntryAgl = 30,
+                FlareFpm = 200,
+                Vref = 140,
+                Vtd = 135,
+                CoastSpeed = 40,
+                DefaultDecel = 2.5,
+                TouchdownAgl = 2,
+            };
+        }
+
         return phase;
     }
 
     public override void OnStart(PhaseContext ctx)
     {
-        _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
-        _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
-        _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
+        _plan = BuildPlan(ctx);
+
+        if (ctx.Runway is null)
+        {
+            CurrentState = State.Faulted;
+            Log.LogWarning("[Landing] {Callsign}: no runway at OnStart, faulting", ctx.Aircraft.Callsign);
+            return;
+        }
 
         // Capture LAHSO target if set
         if (ctx.Aircraft.Phases?.LahsoHoldShort is { } lahso)
@@ -194,16 +272,13 @@ public sealed class LandingPhase : Phase
 
         // Infer a side preference from the runway's high-speed exit layout and parking
         // proximity. Applied when no side is set (default selection or after unable-replan).
-        // For taxiway-only commands (EXIT K), the inferred side is stored separately and
-        // used as a soft tiebreaker in ResolveNextCandidate — not merged into _activePreference,
-        // since the taxiway might only exist on the other side (e.g., C3 is right-only at SFO).
         if (
             (_activePreference?.Side is null)
             && (ctx.GroundLayout is not null)
             && (ctx.Aircraft.Phases?.AssignedRunway?.Designator is { } rwyDesignator)
         )
         {
-            _inferredSide = ctx.GroundLayout.InferPreferredExitSide(rwyDesignator, _runwayHeading);
+            _inferredSide = ctx.GroundLayout.InferPreferredExitSide(rwyDesignator, _plan.RunwayHeading);
             if ((_inferredSide is not null) && (_activePreference?.Taxiway is null))
             {
                 _activePreference = new ExitPreference { Side = _inferredSide.Value };
@@ -211,75 +286,182 @@ public sealed class LandingPhase : Phase
         }
 
         // Continue approach descent toward field elevation
-        ctx.Targets.TargetAltitude = _fieldElevation;
+        ctx.Targets.TargetAltitude = _plan.FieldElevation;
+
+        // Choose initial state based on current AGL
+        double agl = ctx.Aircraft.Altitude - _plan.FieldElevation;
+        CurrentState =
+            ctx.Aircraft.IsOnGround ? State.Rollout
+            : agl <= _plan.FlareEntryAgl ? State.Flare
+            : State.StabilizedApproach;
 
         Log.LogDebug(
-            "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts{Lahso}",
+            "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts, state={State}{Lahso}",
             ctx.Aircraft.Callsign,
-            _fieldElevation,
+            _plan.FieldElevation,
             ctx.Aircraft.GroundSpeed,
+            CurrentState,
             _hasLahso ? $", LAHSO hold-short at {_lahsoHoldShortDistNm:F2}nm" : ""
         );
     }
 
-    public override bool OnTick(PhaseContext ctx)
+    private static LandingPlan BuildPlan(PhaseContext ctx)
     {
-        double agl = ctx.Aircraft.Altitude - _fieldElevation;
-
-        if (!_touchedDown)
+        var rwy = ctx.Runway;
+        return new LandingPlan
         {
-            return TickAirborne(ctx, agl);
-        }
-
-        return TickRollout(ctx);
+            FieldElevation = ctx.FieldElevation,
+            RunwayHeading = rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading,
+            ThresholdLat = rwy?.ThresholdLatitude ?? ctx.Aircraft.Latitude,
+            ThresholdLon = rwy?.ThresholdLongitude ?? ctx.Aircraft.Longitude,
+            RunwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator,
+            FlareEntryAgl = CategoryPerformance.FlareAltitude(ctx.Category),
+            FlareFpm = CategoryPerformance.FlareDescentRate(ctx.Category),
+            Vref = CategoryPerformance.ApproachSpeed(ctx.Category),
+            Vtd = AircraftPerformance.TouchdownSpeed(ctx.Aircraft.AircraftType, ctx.Category),
+            CoastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category),
+            DefaultDecel = CategoryPerformance.RolloutDecelRate(ctx.Category),
+            TouchdownAgl = ctx.Category == AircraftCategory.Helicopter ? 0 : 2,
+        };
     }
 
-    private bool TickAirborne(PhaseContext ctx, double agl)
+    public override bool OnTick(PhaseContext ctx)
     {
-        double flareAlt = CategoryPerformance.FlareAltitude(ctx.Category);
-
-        if (agl <= flareAlt)
+        if (_plan is null)
         {
-            // Flare: reduce descent rate
-            double flareRate = CategoryPerformance.FlareDescentRate(ctx.Category);
-            ctx.Targets.DesiredVerticalRate = -flareRate;
+            return true; // Faulted — should not happen if OnStart ran
         }
 
-        // Touchdown
-        if (agl <= 0)
+        return CurrentState switch
         {
-            _touchedDown = true;
-            ctx.Aircraft.IsOnGround = true;
-            ctx.Aircraft.Altitude = _fieldElevation;
-            ctx.Aircraft.VerticalSpeed = 0;
-            ctx.Targets.TargetAltitude = null;
-            ctx.Targets.DesiredVerticalRate = null;
+            State.StabilizedApproach => TickStabilizedApproach(ctx, _plan),
+            State.Flare => TickFlare(ctx, _plan),
+            State.Touchdown => TickTouchdown(ctx, _plan),
+            State.Rollout => TickRollout(ctx, _plan),
+            State.Handoff => TickHandoff(ctx, _plan),
+            State.Unable => TickUnable(ctx, _plan),
+            State.FullStop => TickFullStop(ctx, _plan),
+            State.GoAround => true,
+            State.Faulted => true,
+            _ => true,
+        };
+    }
 
-            // Set touchdown speed and begin deceleration
-            double tdSpeed = AircraftPerformance.TouchdownSpeed(ctx.AircraftType, ctx.Category);
-            if (ctx.Aircraft.IndicatedAirspeed > tdSpeed)
-            {
-                ctx.Aircraft.IndicatedAirspeed = tdSpeed;
-            }
+    // --- Airborne states ---
 
-            Log.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+    private bool TickStabilizedApproach(PhaseContext ctx, LandingPlan plan)
+    {
+        double agl = ctx.Aircraft.Altitude - plan.FieldElevation;
+
+        // Write approach targets: runway heading + target altitude stays at field elevation.
+        ctx.Targets.TargetTrueHeading = plan.RunwayHeading;
+        // Speed: don't accelerate above current IAS. FinalApproachPhase handles the
+        // approach deceleration profile; if the aircraft arrives at the flare window
+        // at 126 kts after a continuous-descent approach, targeting Vref (140) would
+        // push speed UP mid-approach. Clamp to min(Vref, IAS) so we only trim overspeed.
+        ctx.Targets.TargetSpeed = Math.Min(plan.Vref, ctx.Aircraft.IndicatedAirspeed);
+        // TargetAltitude = fieldElevation was set at OnStart and is maintained by FinalApproachPhase's predecessor.
+
+        // Stabilization gate
+        CheckStabilizationGate(ctx, plan);
+        if (CurrentState == State.GoAround)
+        {
+            return false; // GoAroundHelper.Trigger handles the handoff; PhaseList advances next tick
+        }
+
+        // Transition to Flare when AGL drops to flare entry altitude
+        if (agl <= plan.FlareEntryAgl)
+        {
+            CurrentState = State.Flare;
         }
 
         return false;
     }
 
-    private bool TickRollout(PhaseContext ctx)
+    private bool TickFlare(PhaseContext ctx, LandingPlan plan)
     {
-        // Steer toward runway centerline
+        double agl = ctx.Aircraft.Altitude - plan.FieldElevation;
+
+        // Closed-form AGL-indexed playback. Invariant I2: vsi and spd are pure
+        // functions of current AGL, not of elapsed time or history.
+        // fraction = 0 at flare entry, 1 at touchdown (agl = 0).
+        double fraction = Math.Clamp(1.0 - agl / plan.FlareEntryAgl, 0.0, 1.0);
+        ctx.Targets.DesiredVerticalRate = -plan.FlareFpm * (1.0 - fraction);
+        // Ramp target from the Vref→Vtd curve but never push speed UP above current
+        // IAS: a continuous-descent approach may arrive below Vref, and adding energy
+        // in the flare would be a bug. IAS is monotone-decreasing in the flare so the
+        // clamp has no time-dependent state — still effectively closed-form.
+        double rampTarget = plan.Vref - ((plan.Vref - plan.Vtd) * fraction);
+        ctx.Targets.TargetSpeed = Math.Min(rampTarget, ctx.Aircraft.IndicatedAirspeed);
+        ctx.Targets.TargetTrueHeading = plan.RunwayHeading;
+
+        // Still monitor stabilization — a sudden disqualification in the flare
+        // triggers a balked-landing go-around if speed allows.
+        CheckStabilizationGate(ctx, plan);
+        if (CurrentState == State.GoAround)
+        {
+            return false;
+        }
+
+        // Touchdown gate: AGL below threshold AND not climbing. The old
+        // implementation checked only AGL <= 0; V2 widens the AGL bound to
+        // catch one sub-tick of descent at the peak flare rate
+        // (flareFpm × 0.25s / 60 ≈ 0.83 ft) without requiring a floating
+        // float. We deliberately do NOT gate on IAS: synthetic fixtures
+        // and LAHSO scenarios can arrive at the flare window at any speed,
+        // and physics at AGL ≤ 0 is already on the ground regardless.
+        bool touchdownGate = agl <= plan.TouchdownAgl && ctx.Aircraft.VerticalSpeed <= 0;
+        if (touchdownGate)
+        {
+            CurrentState = State.Touchdown;
+            return TickTouchdown(ctx, plan);
+        }
+
+        return false;
+    }
+
+    private bool TickTouchdown(PhaseContext ctx, LandingPlan plan)
+    {
+        ctx.Aircraft.IsOnGround = true;
+        ctx.Aircraft.Altitude = plan.FieldElevation;
+        ctx.Aircraft.VerticalSpeed = 0;
+        ctx.Targets.TargetAltitude = null;
+        ctx.Targets.DesiredVerticalRate = null;
+
+        // Snap IAS down to Vtd if flare overshot it — prevents rollout from starting too fast.
+        if (ctx.Aircraft.IndicatedAirspeed > plan.Vtd)
+        {
+            ctx.Aircraft.IndicatedAirspeed = plan.Vtd;
+        }
+
+        _touchdownLat = ctx.Aircraft.Latitude;
+        _touchdownLon = ctx.Aircraft.Longitude;
+
+        Log.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+
+        CurrentState = State.Rollout;
+        return false;
+    }
+
+    // --- Ground states ---
+
+    private bool TickRollout(PhaseContext ctx, LandingPlan plan)
+    {
+        // Steer along runway centerline with a bounded proportional XTE bias.
+        // Safe from the FlightPhysics.StationaryGroundSpeedKts guard because
+        // rollout hands off at coastSpeed ≥ 15 kt, never approaching 0.1 kt.
         double signedXte = GeoMath.SignedCrossTrackDistanceNm(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
-            _thresholdLat,
-            _thresholdLon,
-            _runwayHeading
+            plan.ThresholdLat,
+            plan.ThresholdLon,
+            plan.RunwayHeading
         );
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
-        ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeading.Degrees - correction);
+        ctx.Targets.TargetTrueHeading = new TrueHeading(plan.RunwayHeading.Degrees - correction);
+        // Use ground turn rate so XTE corrections apply at taxi cadence, not
+        // airborne cadence. Cleared when the phase hands off to RunwayExitPhase.
+        ctx.Targets.TurnRateOverride = CategoryPerformance.GroundTurnRate(ctx.Category);
 
         // Re-resolve candidate from scratch if the controller changed the preference mid-rollout
         var currentPref = ctx.Aircraft.Phases?.RequestedExit;
@@ -291,12 +473,13 @@ public sealed class LandingPhase : Phase
             _exitResolutionEnabled = currentPref is not null;
         }
 
-        double decelRate = CategoryPerformance.RolloutDecelRate(ctx.Category);
+        // Default decel rate — may be bumped by braking plan or LAHSO
+        double decelRate = plan.DefaultDecel;
 
-        // LAHSO: compute distance to hold-short point and increase deceleration if needed
+        // LAHSO: enforce stop at the hold-short distance
         if (_hasLahso)
         {
-            double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+            double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.ThresholdLat, plan.ThresholdLon);
             double distToHoldShort = _lahsoHoldShortDistNm - distFromThreshold;
 
             if ((distToHoldShort > 0) && (ctx.Aircraft.IndicatedAirspeed > 1.0))
@@ -309,22 +492,27 @@ public sealed class LandingPhase : Phase
             }
             else if (distToHoldShort <= 0)
             {
-                // Past the hold-short point — stop immediately
-                ctx.Aircraft.IndicatedAirspeed = 0;
-                StoppedForLahso = true;
-                Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
-                return true;
+                // Past the hold-short point — enforce immediate stop via a sub-coast target.
+                ctx.Targets.TargetSpeed = 0;
+                ctx.Targets.DesiredDecelRate = FirmBrakingRateKtsPerSec;
+                if (ctx.Aircraft.IndicatedAirspeed <= 0.5)
+                {
+                    StoppedForLahso = true;
+                    Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
+                    return true;
+                }
+                return false;
             }
         }
 
         // Coast speed: decelerate to this speed and hold it while searching for exits
-        double coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
+        double coastSpeed = plan.CoastSpeed;
 
         // Always search for the next exit ahead — even without an explicit
         // preference, the pilot plans deceleration for the first reachable exit.
         if (_candidateExit is null)
         {
-            ResolveNextCandidate(ctx);
+            ResolveNextCandidate(ctx, plan);
         }
 
         if (_candidateExit is not null)
@@ -334,64 +522,32 @@ public sealed class LandingPhase : Phase
                 _candidateExit.BranchPointNode.Longitude,
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
-                _runwayHeading
+                plan.RunwayHeading
             );
 
-            // Two "unable" conditions:
-            // 1. Past branch AND too fast (original condition)
-            // 2. Past branch AND standard exit (>45°, turn-off = standard speed).
-            //    Standard exits need room for a 70-90° turn arc. If the aircraft
-            //    arrives at the branch at exactly the turn-off speed, the virtual
-            //    segment has ~0 length and the turn degenerates to a point turn.
-            //    High-speed exits (≤45°) tolerate short virtual segments since
-            //    the turn angle is small.
+            // Missed-exit conditions: past branch AND (too fast OR standard exit at branch)
             double highSpeedTurnOff = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
             bool tooFast = ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + TurnOffSpeedToleranceKts;
             bool standardExitAtBranch = _candidateExit.TurnOffSpeed < highSpeedTurnOff;
 
             if ((distToBranchPoint <= 0) && (tooFast || standardExitAtBranch))
             {
-                // Missed this exit — broadcast unable, replan
-                string missedTaxiway = _candidateExit.TaxiwayName;
-                Log.LogDebug(
-                    "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts)",
-                    ctx.Aircraft.Callsign,
-                    missedTaxiway,
-                    ctx.Aircraft.GroundSpeed,
-                    _candidateExit.TurnOffSpeed
-                );
-
-                if (_originalPreference?.Taxiway is not null)
-                {
-                    ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}");
-                }
-
-                // Remember this branch point so ResolveNextCandidate won't re-find it.
-                _unableBranchPoints.Add(_candidateExit.BranchPointNode.Id);
-
-                // Replan: keep the side from EL/ER commands but drop the failed taxiway.
-                // EXIT T (no side) → null preference. EL T → Side=Left. ER → Side=Right.
-                // ResolveNextCandidate will fire next tick with the relaxed preference and
-                // find the next comfortable exit — same as default behavior for that side.
-                _candidateExit = null;
-                var keepSide = _originalPreference?.Side;
-                _activePreference = keepSide is not null ? new ExitPreference { Side = keepSide } : null;
-                _originalPreference = _activePreference;
-                _exitResolutionEnabled = false;
-
-                if (ctx.Aircraft.Phases is not null)
-                {
-                    ctx.Aircraft.Phases.RequestedExit = _activePreference;
-                }
+                MarkExitUnable(ctx);
+                CurrentState = State.Unable;
+                return false;
             }
         }
 
         // Speed planning: if we have a candidate exit ahead, compute the required
-        // decel to reach its turn-off speed by the branch point. If reasonable
-        // (within firm-braking limits), brake harder when needed. The aircraft
-        // coasts at coast speed and only brakes below it when kinematically
-        // required — no premature crawling at 15kts with the exit far ahead.
+        // decel to reach its turn-off speed by the branch point.
         double targetSpeed = coastSpeed;
+        // Start at the rollout decel rate (2.5 kt/s jet, 1.5 kt/s piston). We
+        // always set an override rather than leaving it null — otherwise
+        // FlightPhysics would fall back to AircraftPerformance.DecelRate, which
+        // is the airborne rate, not the ground rollout rate. The exit-planner
+        // below raises this when the turn-off requires harder braking or lowers
+        // it when the exit is far enough away that the default would overshoot.
+        double decelRateOverride = plan.DefaultDecel;
         if (_candidateExit is not null)
         {
             double distToBranch = GeoMath.AlongTrackDistanceNm(
@@ -399,156 +555,244 @@ public sealed class LandingPhase : Phase
                 _candidateExit.BranchPointNode.Longitude,
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
-                _runwayHeading
+                plan.RunwayHeading
             );
 
             if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
             {
                 double requiredDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToBranch);
-
-                // Braking limit depends on whether the pilot was told to exit here
-                // or is choosing on their own. Explicit preference = firm braking
-                // (5kts/s). No preference = comfortable braking (1.5× default).
-                double defaultDecel = CategoryPerformance.RolloutDecelRate(ctx.Category);
-                double brakingLimit = _exitResolutionEnabled ? ReasonableBrakingRateKtsPerSec : defaultDecel * ComfortableBrakingMultiplier;
+                double brakingLimit = _exitResolutionEnabled ? FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
 
                 if (requiredDecel <= brakingLimit)
                 {
-                    // This exit is reachable. Only increase decel when the
-                    // kinematic requirement exceeds the current rate — the
-                    // aircraft coasts at normal speed and only brakes harder
-                    // as the branch point approaches.
-                    if (requiredDecel > decelRate)
+                    // Hand off at coast speed. RunwayExitPhase + GroundNavigator
+                    // handle braking below coast for the turn.
+                    targetSpeed = coastSpeed;
+
+                    // Raise the decel rate if the direct turn-off requires firmer
+                    // braking than the default — can't make the exit otherwise.
+                    if (requiredDecel > decelRateOverride)
                     {
-                        decelRate = requiredDecel;
+                        decelRateOverride = requiredDecel;
                     }
 
-                    if (_exitResolutionEnabled)
+                    // Reserve distance for RunwayExitPhase to brake from coast to
+                    // turn-off speed. Aim to reach coast speed at (branch - buffer),
+                    // not at the branch itself.
+                    double brakingBufferNm = ComputeBrakingDistance(coastSpeed, _candidateExit.TurnOffSpeed, plan.DefaultDecel);
+                    double effectiveDist = distToBranch - brakingBufferNm;
+
+                    // Gentle decel when the exit is far enough that normal braking
+                    // would reach coast speed too early. Lower the rate so the
+                    // aircraft stays fast longer and arrives at coast near the exit.
+                    if (effectiveDist > 0)
                     {
-                        // Hand off at coast speed. RunwayExitPhase + GroundNavigator
-                        // handle braking below coast for the turn.
-                        targetSpeed = coastSpeed;
-
-                        // Reserve distance for RunwayExitPhase to brake from coast
-                        // to turn-off speed. Aim to reach coast speed that far
-                        // before the exit — not at the exit itself.
-                        double brakingBufferNm = ComputeBrakingDistance(coastSpeed, _candidateExit.TurnOffSpeed, defaultDecel);
-                        double effectiveDist = distToBranch - brakingBufferNm;
-
-                        // Gentle decel when the exit is far enough that normal
-                        // braking would reach coast speed too early.
-                        if (effectiveDist > 0)
+                        double requiredDecelToCoast = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
+                        if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRateOverride))
                         {
-                            double requiredDecelToCoast = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
-                            if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRate))
-                            {
-                                decelRate = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Default selection — hand off at coast speed with a braking
-                        // buffer, same strategy as explicit exits. RunwayExitPhase
-                        // handles braking from coast to turn-off speed within the
-                        // buffer zone, creating a proper virtual segment.
-                        targetSpeed = coastSpeed;
-
-                        double brakingBufferNm = ComputeBrakingDistance(coastSpeed, _candidateExit.TurnOffSpeed, defaultDecel);
-                        double effectiveDist = distToBranch - brakingBufferNm;
-
-                        if (effectiveDist > 0)
-                        {
-                            double requiredDecelToCoast = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
-                            if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRate))
-                            {
-                                decelRate = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
-                            }
+                            decelRateOverride = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
                         }
                     }
                 }
             }
         }
 
-        // Clamp deceleration so we don't go below the target speed
+        // Don't brake below coast speed — that's RunwayExitPhase's job.
         if (ctx.Aircraft.IndicatedAirspeed <= targetSpeed)
         {
-            decelRate = 0;
-        }
-        else
-        {
-            double projected = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
-            if (projected < targetSpeed)
-            {
-                decelRate = (ctx.Aircraft.IndicatedAirspeed - targetSpeed) / ctx.DeltaSeconds;
-                if (decelRate < 0)
-                {
-                    decelRate = 0;
-                }
-            }
+            targetSpeed = ctx.Aircraft.IndicatedAirspeed; // freeze at current
         }
 
-        // Decelerate on the ground
-        double newSpeed = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
-        if (newSpeed < 0)
-        {
-            newSpeed = 0;
-        }
-        ctx.Aircraft.IndicatedAirspeed = newSpeed;
-        ctx.Targets.TargetSpeed = null;
+        ctx.Targets.TargetSpeed = targetSpeed;
+        ctx.Targets.DesiredDecelRate = decelRateOverride;
 
         var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
         _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
 
-        // LAHSO: complete when stopped (speed ≤ 0)
-        if (_hasLahso && (ctx.Aircraft.IndicatedAirspeed <= 0))
-        {
-            StoppedForLahso = true;
-            Log.LogDebug("[Landing] {Callsign}: LAHSO rollout complete, stopped", ctx.Aircraft.Callsign);
-            return true;
-        }
-
-        // Hand off to RunwayExitPhase when at or below the target speed.
-        // For standard exits (>45°), ensure enough distance to the branch point
-        // for a proper turn arc. If the aircraft is too close, skip this exit
-        // (the unable check at the top of next tick will catch it).
+        // Handoff gate — aircraft must be at or below coast speed. For standard
+        // exits (large turn angle) the branch must be at least 0.02 nm ahead to
+        // leave room for a proper turn arc; otherwise we block handoff and keep
+        // coasting until the next exit is resolved.
         bool handoffBlocked = false;
-        if ((_candidateExit is not null) && (ctx.Aircraft.IndicatedAirspeed <= targetSpeed))
+        if ((_candidateExit is not null) && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
         {
             double distToBranch = GeoMath.AlongTrackDistanceNm(
                 _candidateExit.BranchPointNode.Latitude,
                 _candidateExit.BranchPointNode.Longitude,
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
-                _runwayHeading
+                plan.RunwayHeading
             );
 
             double hsExitSpeed = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
             bool isStandardExit = _candidateExit.TurnOffSpeed < hsExitSpeed;
-
-            // Standard exits need ~0.02nm (~120ft) for a turn arc at 15kts.
-            // If less distance remains, the virtual segment will be too short.
             if (isStandardExit && (distToBranch < 0.02))
             {
                 handoffBlocked = true;
             }
         }
 
-        if (!_hasLahso && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= targetSpeed))
+        if (!_hasLahso && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
         {
-            Log.LogDebug(
-                "[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts, target={Target:F0}kts",
-                ctx.Aircraft.Callsign,
-                ctx.Aircraft.GroundSpeed,
-                targetSpeed
-            );
+            CurrentState = State.Handoff;
+            return TickHandoff(ctx, plan);
+        }
+
+        return false;
+    }
+
+    private bool TickHandoff(PhaseContext ctx, LandingPlan plan)
+    {
+        // Commit relaxed preference back to the aircraft so RunwayExitPhase sees it
+        if (ctx.Aircraft.Phases is not null)
+        {
+            ctx.Aircraft.Phases.RequestedExit = _activePreference;
+
+            // Commit the resolved exit so RunwayExitPhase uses it directly
+            // rather than re-searching from the handoff position. Re-searching
+            // can miss the committed exit whenever the handoff position sits
+            // past the specific centerline node that branches to this exit —
+            // even though the hold-short itself is still geometrically ahead.
+            //
+            // RunwayExitPhase requires Path.Count >= 2 to build the exit route
+            // (virtual approach segment + at least one taxiway edge). When the
+            // candidate came from the straight-line fallback (Path = [single
+            // node]), leave ResolvedExit null so RunwayExitPhase falls back to
+            // its own analog search.
+            if (_candidateExit is { Path.Count: >= 2 })
+            {
+                ctx.Aircraft.Phases.ResolvedExit = _candidateExit;
+            }
+        }
+
+        // Clear decel and turn-rate overrides so RunwayExitPhase starts clean;
+        // it will re-set them from its own category constants in TickRolling.
+        ctx.Targets.DesiredDecelRate = null;
+        ctx.Targets.TurnRateOverride = null;
+
+        Log.LogDebug(
+            "[Landing] {Callsign}: handoff at ({Lat:F6},{Lon:F6}) gs={Gs:F1}kts pref={Pref} candidate={Cand}",
+            ctx.Aircraft.Callsign,
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            ctx.Aircraft.GroundSpeed,
+            _activePreference is null ? "(none)" : $"{_activePreference.Taxiway ?? "?"}/{_activePreference.Side?.ToString() ?? "?"}",
+            _candidateExit is null ? "(none)" : $"{_candidateExit.TaxiwayName} branchId={_candidateExit.BranchPointNode.Id}"
+        );
+
+        return true;
+    }
+
+    private bool TickUnable(PhaseContext ctx, LandingPlan plan)
+    {
+        // Missed an exit — relax our internal preference and re-resolve.
+        _candidateExit = null;
+
+        // If the controller has sent a NEW preference since we entered Unable
+        // (e.g., "ER H" after the pilot already passed a different exit), honor
+        // it over our relaxation. TickRollout's own preference-change detection
+        // runs AFTER TickUnable in the state machine, so if we don't check here
+        // we risk clobbering the user's command with `Phases.RequestedExit = null`
+        // before TickRollout ever sees it.
+        var userPref = ctx.Aircraft.Phases?.RequestedExit;
+        if (userPref != _originalPreference)
+        {
+            _originalPreference = userPref;
+            _activePreference = userPref;
+            _exitResolutionEnabled = userPref is not null;
+        }
+        else
+        {
+            // Preserve the user's side if one was originally set (EL/ER), drop
+            // only the specific taxiway. We intentionally do NOT overwrite
+            // `Phases.RequestedExit` — that's the user's intent and should remain
+            // visible for diagnostics; relaxation is a LandingPhase-internal
+            // concern tracked in `_activePreference`.
+            var keepSide = _originalPreference?.Side;
+            _activePreference = keepSide is not null ? new ExitPreference { Side = keepSide } : null;
+            _originalPreference = _activePreference;
+            _exitResolutionEnabled = false;
+        }
+
+        // Back to rollout to look for the next exit
+        CurrentState = State.Rollout;
+        return TickRollout(ctx, plan);
+    }
+
+    private bool TickFullStop(PhaseContext ctx, LandingPlan plan)
+    {
+        // Brake to zero along runway heading. No exit found or LAHSO-like stop.
+        ctx.Targets.TargetTrueHeading = plan.RunwayHeading;
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Targets.DesiredDecelRate = plan.DefaultDecel;
+
+        if (ctx.Aircraft.IndicatedAirspeed <= 0.5)
+        {
+            Log.LogDebug("[Landing] {Callsign}: full-stop rollout complete", ctx.Aircraft.Callsign);
             return true;
         }
 
         return false;
     }
 
-    private void ResolveNextCandidate(PhaseContext ctx)
+    // --- Helpers ---
+
+    private void CheckStabilizationGate(PhaseContext ctx, LandingPlan plan)
+    {
+        double signedXte = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            plan.ThresholdLat,
+            plan.ThresholdLon,
+            plan.RunwayHeading
+        );
+        bool unstabilized =
+            ctx.Aircraft.IndicatedAirspeed > plan.Vref * StabilizedSpeedFactor
+            || Math.Abs(signedXte) > StabilizedXteNm
+            || Math.Abs(ctx.Aircraft.BankAngle) > StabilizedBankDeg
+            || ctx.Aircraft.VerticalSpeed < StabilizedVsiFpm;
+
+        if (unstabilized)
+        {
+            _stabilizedSinceSec += ctx.DeltaSeconds;
+            if (_stabilizedSinceSec >= StabilizedGraceSeconds)
+            {
+                GoAroundHelper.Trigger(ctx, "unstabilized");
+                CurrentState = State.GoAround;
+            }
+        }
+        else
+        {
+            _stabilizedSinceSec = 0;
+        }
+    }
+
+    private void MarkExitUnable(PhaseContext ctx)
+    {
+        if (_candidateExit is null)
+        {
+            return;
+        }
+
+        string missedTaxiway = _candidateExit.TaxiwayName;
+        Log.LogDebug(
+            "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts)",
+            ctx.Aircraft.Callsign,
+            missedTaxiway,
+            ctx.Aircraft.GroundSpeed,
+            _candidateExit.TurnOffSpeed
+        );
+
+        if ((_originalPreference?.Taxiway is not null) && !_unableBroadcast)
+        {
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}");
+            _unableBroadcast = true;
+        }
+
+        _unableBranchPoints.Add(_candidateExit.BranchPointNode.Id);
+    }
+
+    private void ResolveNextCandidate(PhaseContext ctx, LandingPlan plan)
     {
         if (ctx.GroundLayout is null)
         {
@@ -556,15 +800,6 @@ public sealed class LandingPhase : Phase
         }
 
         string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
-
-        // Primary: walk centerline nodes ahead, search outward at each for a matching exit.
-        // This searches runway → taxiway → hold-short (the correct direction).
-        // Skip exits whose branch points were already declared "unable" to prevent
-        // re-discovering a missed exit after the aircraft has slowed near it.
-        //
-        // Soft tiebreaker: when the preference has a taxiway but no side (EXIT K),
-        // try with the inferred side first. If the taxiway doesn't exist on that
-        // side (e.g., C3 is right-only at SFO), fall back to taxiway-only.
         if (rwyDesignator is not null)
         {
             var searchPref = _activePreference;
@@ -575,10 +810,16 @@ public sealed class LandingPhase : Phase
                 searchPref = new ExitPreference { Taxiway = _activePreference.Taxiway, Side = _inferredSide.Value };
             }
 
+            // Plan for the commanded exit even if another aircraft is currently
+            // claiming the same hold-short. We only care whether the exit is
+            // reachable from where we are; occupancy is a go/no-go that
+            // RunwayExitPhase enforces at commit time, not a planning input —
+            // the pilot brakes for K regardless and relaxes only if K becomes
+            // physically unreachable or still blocked when we arrive.
             var exit = ctx.GroundLayout.FindExitFromCenterline(
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
-                _runwayHeading,
+                plan.RunwayHeading,
                 rwyDesignator,
                 searchPref,
                 _unableBranchPoints
@@ -590,7 +831,7 @@ public sealed class LandingPhase : Phase
                 exit = ctx.GroundLayout.FindExitFromCenterline(
                     ctx.Aircraft.Latitude,
                     ctx.Aircraft.Longitude,
-                    _runwayHeading,
+                    plan.RunwayHeading,
                     rwyDesignator,
                     _activePreference,
                     _unableBranchPoints
@@ -610,12 +851,11 @@ public sealed class LandingPhase : Phase
                 };
 
                 Log.LogDebug(
-                    "[Landing] {Callsign}: candidate exit {Taxiway}, angle={Angle:F0}, turnOffSpeed={Speed:F0}kts, path=[{Path}]",
+                    "[Landing] {Callsign}: candidate exit {Taxiway}, angle={Angle:F0}, turnOffSpeed={Speed:F0}kts",
                     ctx.Aircraft.Callsign,
                     exit.Value.Taxiway,
                     exit.Value.ExitAngle,
-                    turnOffSpeed,
-                    string.Join("→", exit.Value.Path.Select(n => n.Id))
+                    turnOffSpeed
                 );
                 return;
             }
@@ -625,7 +865,7 @@ public sealed class LandingPhase : Phase
         var result = ctx.GroundLayout.FindExitAheadOnRunway(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
-            _runwayHeading,
+            plan.RunwayHeading,
             _activePreference,
             rwyDesignator
         );
@@ -635,10 +875,9 @@ public sealed class LandingPhase : Phase
             return;
         }
 
-        double? fallbackAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
+        double? fallbackAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, plan.RunwayHeading);
         double fallbackTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
 
-        // For the fallback path, branch point = the exit node itself
         _candidateExit = new ResolvedExitInfo
         {
             HoldShortNode = result.Value.Node,
@@ -647,42 +886,11 @@ public sealed class LandingPhase : Phase
             Path = [result.Value.Node],
             BranchPointNode = result.Value.Node,
         };
-
-        Log.LogDebug(
-            "[Landing] {Callsign}: candidate exit (fallback) {Taxiway}, turnOffSpeed={Speed:F0}kts",
-            ctx.Aircraft.Callsign,
-            result.Value.Taxiway,
-            fallbackTurnOffSpeed
-        );
-    }
-
-    /// <summary>
-    /// Steps the active preference down the fallback chain:
-    /// specific taxiway + side → side only → any exit → coast to end.
-    /// Disables exit resolution once we reach the coast-to-end state.
-    /// </summary>
-    private void RelaxPreference()
-    {
-        if (_activePreference?.Taxiway is not null)
-        {
-            // Drop taxiway, keep side preference
-            _activePreference = new ExitPreference { Side = _activePreference.Side };
-        }
-        else if (_activePreference?.Side is not null)
-        {
-            // Drop side — accept any exit
-            _activePreference = null;
-        }
-        else
-        {
-            // Already at "any exit" and still missed — coast to end
-            _exitResolutionEnabled = false;
-        }
     }
 
     /// <summary>
     /// Compute required deceleration (kts/sec) to go from current ground speed to target speed
-    /// over the given distance. Uses kinematic equation: v_final² = v_initial² - 2*a*d.
+    /// over the given distance. Uses kinematic equation: v_final² = v_initial² - 2·a·d.
     /// </summary>
     private static double ComputeRequiredDecel(double currentGroundSpeedKts, double targetSpeedKts, double distanceNm)
     {
@@ -692,17 +900,16 @@ public sealed class LandingPhase : Phase
 
         if (distFt <= 0)
         {
-            return MaxDecelRateKtsPerSec;
+            return FirmBrakingRateKtsPerSec;
         }
 
-        // a = (v_initial² - v_final²) / (2d)
         double requiredDecelFps2 = (currentFps * currentFps - targetFps * targetFps) / (2.0 * distFt);
         return requiredDecelFps2 * 3600.0 / 6076.12;
     }
 
     /// <summary>
     /// Compute distance (nm) required to brake from one speed to another at a given decel rate.
-    /// Inverse of ComputeRequiredDecel: d = (v_i² - v_f²) / (2a).
+    /// Inverse of ComputeRequiredDecel: d = (v_i² - v_f²) / (2·a).
     /// </summary>
     private static double ComputeBrakingDistance(double fromSpeedKts, double toSpeedKts, double decelRateKtsPerSec)
     {
@@ -720,9 +927,9 @@ public sealed class LandingPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        if (!_touchedDown)
+        if (CurrentState is State.StabilizedApproach or State.Flare)
         {
-            // During flare, reject most commands (exit preference is OK)
+            // Airborne — go-around allowed, exit preference allowed, nothing else
             return cmd switch
             {
                 CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
@@ -734,7 +941,7 @@ public sealed class LandingPhase : Phase
             };
         }
 
-        // During rollout, reject speed/heading changes (exit preference is OK)
+        // Ground — exit preference allowed, go-around only if still fast enough
         return cmd switch
         {
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,

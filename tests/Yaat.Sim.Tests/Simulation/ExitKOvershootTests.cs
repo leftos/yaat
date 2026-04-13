@@ -1,5 +1,6 @@
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -106,6 +107,57 @@ public class ExitKOvershootTests(ITestOutputHelper output)
         }
 
         Assert.Fail("DAL2581 never exited the runway within 600 seconds");
+    }
+
+    /// <summary>
+    /// Diagnostic: attach a TickRecorder and dump DAL2581's rollout to a CSV for
+    /// inspection with <c>Yaat.TickInspector --exit K</c>. Writes to
+    /// <c>.tmp/dal2581-rollout.csv</c>. Not an assertion test.
+    /// </summary>
+    [Fact]
+    public void Diagnostic_RecordTicksForDAL2581Rollout()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 782);
+
+        var ac = engine.FindAircraft("DAL2581");
+        Assert.NotNull(ac);
+
+        var cmd = engine.SendCommand("DAL2581", "EXIT K");
+        Assert.True(cmd.Success);
+
+        var recorder = new TickRecorder(ac);
+        recorder.Record(0);
+
+        for (int t = 1; t <= 200; t++)
+        {
+            engine.ReplayOneSecond();
+            ac = engine.FindAircraft("DAL2581");
+            if (ac is null)
+            {
+                break;
+            }
+
+            recorder.Record(t);
+
+            // Stop shortly after the exit phase completes
+            if (ac.Phases?.CurrentPhase is HoldingAfterExitPhase)
+            {
+                break;
+            }
+        }
+
+        string csvPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "dal2581-rollout.csv");
+        recorder.WriteCsv(csvPath);
+        output.WriteLine($"Wrote {recorder.Count} ticks to {csvPath}");
+        output.WriteLine("Inspect with:");
+        output.WriteLine("  dotnet run --project tools/Yaat.TickInspector -- .tmp/dal2581-rollout.csv --runway SFO/28L --exit K,D,Q");
     }
 
     /// <summary>

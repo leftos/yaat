@@ -901,9 +901,18 @@ public static class FlightPhysics
         }
 
         bool accelerating = diff > 0;
-        double rate = accelerating
-            ? AircraftPerformance.AccelRate(aircraft.AircraftType, cat)
-            : AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
+        double rate;
+        if (accelerating)
+        {
+            rate = AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
+        }
+        else
+        {
+            // Phases (LandingPhase, RunwayExitPhase) override the default
+            // category decel rate during ground rollout when kinematic
+            // firm-braking is required. Null falls back to category default.
+            rate = aircraft.Targets.DesiredDecelRate ?? AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
+        }
 
         double maxChange = rate * deltaSeconds;
         double change = Math.Min(Math.Abs(diff), maxChange);

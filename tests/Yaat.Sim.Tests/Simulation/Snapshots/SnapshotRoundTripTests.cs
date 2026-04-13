@@ -79,6 +79,87 @@ public class SnapshotRoundTripTests
     }
 
     [Fact]
+    public void ControlTargets_DesiredDecelRate_RoundTrips()
+    {
+        var targets = new ControlTargets { TargetSpeed = 40.0, DesiredDecelRate = 4.5 };
+
+        var dto = targets.ToSnapshot();
+        Assert.Equal(4.5, dto.DesiredDecelRate);
+
+        var restored = new ControlTargets();
+        ControlTargets.RestoreFrom(dto, restored);
+
+        Assert.Equal(4.5, restored.DesiredDecelRate);
+        Assert.Equal(40.0, restored.TargetSpeed);
+    }
+
+    [Fact]
+    public void ControlTargets_DesiredDecelRate_NullRoundTrips()
+    {
+        var targets = new ControlTargets { TargetSpeed = 100.0 };
+
+        var dto = targets.ToSnapshot();
+        Assert.Null(dto.DesiredDecelRate);
+
+        var restored = new ControlTargets();
+        ControlTargets.RestoreFrom(dto, restored);
+
+        Assert.Null(restored.DesiredDecelRate);
+    }
+
+    [Fact]
+    public void FlightPhysics_UpdateSpeed_RespectsDesiredDecelRateOverride()
+    {
+        // An aircraft decelerating from 100 to 50 kt with a 4.0 kt/s override
+        // should lose exactly 4.0 kt in one second (vs the ~2.5 kt/s jet default).
+        var ac = new AircraftState
+        {
+            Callsign = "TEST",
+            AircraftType = "B738",
+            IndicatedAirspeed = 100.0,
+            Altitude = 0,
+            IsOnGround = true,
+            Latitude = 37.0,
+            Longitude = -122.0,
+            TrueHeading = new TrueHeading(90),
+        };
+        ac.Targets.TargetSpeed = 50.0;
+        ac.Targets.DesiredDecelRate = 4.0;
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.Equal(96.0, ac.IndicatedAirspeed, 2);
+    }
+
+    [Fact]
+    public void FlightPhysics_UpdateSpeed_NullDesiredDecelRateUsesDefault()
+    {
+        // Same setup but with null override: FlightPhysics falls back to
+        // AircraftPerformance.DecelRate(B738, Jet). Compare the observed rate
+        // against the override case — the override (4.0 kt/s) must be strictly
+        // faster than the default, and the default must match the expected
+        // per-type value rather than the firm-brake override.
+        var ac = new AircraftState
+        {
+            Callsign = "TEST",
+            AircraftType = "B738",
+            IndicatedAirspeed = 100.0,
+            Altitude = 0,
+            IsOnGround = true,
+            Latitude = 37.0,
+            Longitude = -122.0,
+            TrueHeading = new TrueHeading(90),
+        };
+        ac.Targets.TargetSpeed = 50.0;
+        // DesiredDecelRate deliberately left null
+
+        FlightPhysics.Update(ac, 1.0);
+
+        double expectedDefault = 100.0 - AircraftPerformance.DecelRate("B738", AircraftCategory.Jet);
+        Assert.Equal(expectedDefault, ac.IndicatedAirspeed, 2);
+    }
+
+    [Fact]
     public void StateSnapshotDto_JsonRoundTrips()
     {
         var snapshot = new StateSnapshotDto

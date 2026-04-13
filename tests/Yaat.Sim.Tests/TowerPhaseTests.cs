@@ -451,13 +451,15 @@ public class TowerPhaseTests
 
         // Force touchdown
         ac.Altitude = 99;
+        FlightPhysics.Update(ac, ctx.DeltaSeconds);
         phase.OnTick(ctx);
         Assert.True(ac.IsOnGround);
 
-        // Rollout: decelerate until <= 20 kts
+        // Rollout: decelerate until at coast speed
         bool completed = false;
         for (int i = 0; i < 100; i++)
         {
+            FlightPhysics.Update(ac, ctx.DeltaSeconds);
             if (phase.OnTick(ctx))
             {
                 completed = true;

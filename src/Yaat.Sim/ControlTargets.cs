@@ -40,6 +40,16 @@ public class ControlTargets
     /// </summary>
     public double? TargetSpeed { get; set; }
 
+    /// <summary>
+    /// Deceleration rate override in knots/sec (positive = decel). Null means use
+    /// the category default from <see cref="AircraftPerformance.DecelRate"/>. Set by
+    /// LandingPhase / RunwayExitPhase during ground rollout when kinematic
+    /// firm-braking is required. <see cref="FlightPhysics.UpdateSpeed"/> reads this
+    /// when decelerating toward <see cref="TargetSpeed"/>; it is ignored on the
+    /// acceleration branch. Cleared on phase transition.
+    /// </summary>
+    public double? DesiredDecelRate { get; set; }
+
     /// <summary>Minimum IAS in knots (speed floor, "maintain X or greater"). Enforced continuously.</summary>
     public double? SpeedFloor { get; set; }
 
@@ -92,6 +102,7 @@ public class ControlTargets
             TargetAltitude = TargetAltitude,
             DesiredVerticalRate = DesiredVerticalRate,
             TargetSpeed = TargetSpeed,
+            DesiredDecelRate = DesiredDecelRate,
             SpeedFloor = SpeedFloor,
             SpeedCeiling = SpeedCeiling,
             AssignedMagneticHeadingDeg = AssignedMagneticHeading?.Degrees,
@@ -111,6 +122,7 @@ public class ControlTargets
         targets.TargetAltitude = dto.TargetAltitude;
         targets.DesiredVerticalRate = dto.DesiredVerticalRate;
         targets.TargetSpeed = dto.TargetSpeed;
+        targets.DesiredDecelRate = dto.DesiredDecelRate;
         targets.SpeedFloor = dto.SpeedFloor;
         targets.SpeedCeiling = dto.SpeedCeiling;
         targets.AssignedMagneticHeading = dto.AssignedMagneticHeadingDeg.HasValue ? new MagneticHeading(dto.AssignedMagneticHeadingDeg.Value) : null;
