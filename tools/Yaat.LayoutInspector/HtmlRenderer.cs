@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Yaat.LayoutInspector.Tick;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
@@ -349,21 +350,3 @@ public sealed class HtmlRenderer
         public override void SetLength(long value) { }
     }
 }
-
-public record TickDataRow(
-    int Time,
-    double Lat,
-    double Lon,
-    double Hdg,
-    double Gs,
-    string Phase,
-    string Twy,
-    int? NavTarget,
-    double? NavDist,
-    double? NavBrg,
-    double? NavTargetSpd,
-    double? NavBrakeLimit,
-    double? NavArcLimit,
-    bool? NavOnArc,
-    double? NavNodeReqSpd
-);

@@ -1,0 +1,39 @@
+namespace Yaat.LayoutInspector;
+
+/// <summary>
+/// Command-line help text for Yaat.LayoutInspector. Kept separate from Program.cs
+/// so the entry point stays a thin dispatcher.
+/// </summary>
+public static class UsageText
+{
+    public static void Print()
+    {
+        Console.WriteLine("Usage: Yaat.LayoutInspector <geojson-path> [flags]");
+        Console.WriteLine();
+        Console.WriteLine("Flags:");
+        Console.WriteLine("  --taxiway <name>         Show nodes/edges for a taxiway");
+        Console.WriteLine("  --runway <designator>    Show centerline/hold-shorts for a runway");
+        Console.WriteLine("  --node <id>              Show detail for a single node (repeatable)");
+        Console.WriteLine("  --exits <designator>     Show all exits for a runway (BFS, repeatable)");
+        Console.WriteLine("  --bfs <node-id> <twy>    BFS trace from node through taxiway to hold-short");
+        Console.WriteLine("  --pathfinder <node-id> <twy1> [twy2 ...]  Resolve taxi route with diagnostic trace");
+        Console.WriteLine("  --parking                Show all parking nodes");
+        Console.WriteLine("  --spots                  Show all spot/named nodes");
+        Console.WriteLine("  --intersection <T1> <T2> Show nodes where two taxiways meet");
+        Console.WriteLine("  --validate               Run validation and print warnings to stdout");
+        Console.WriteLine("  --no-fillets             Skip fillet arc generation (unfilleted graph for comparison)");
+        Console.WriteLine("  --debug-fillets          Enable debug logging for FilletArcGenerator");
+        Console.WriteLine("  --dump                   Dump everything (nodes, taxiways, runways, exits) as JSON");
+        Console.WriteLine("  --json                   Output as JSON");
+        Console.WriteLine("  --airport-code <ICAO>    Airport code for NavData runway widths");
+        Console.WriteLine("  --navdata <dir>          Path to NavData.dat + FAACIFP18.gz directory");
+        Console.WriteLine();
+        Console.WriteLine("SVG output:");
+        Console.WriteLine("  --svg <path>             Render full layout to SVG file");
+        Console.WriteLine("  --svg-taxiway <name>     Highlight a taxiway (repeatable)");
+        Console.WriteLine("  --svg-runway <desig>     Highlight a runway (repeatable)");
+        Console.WriteLine("  --svg-node <id>          Highlight a node (repeatable)");
+        Console.WriteLine("  --svg-annotate <id> <text>  Add annotation label to a node");
+        Console.WriteLine("  --ticks <csv>            Overlay tick data (CSV from TickRecorder) with animation player");
+    }
+}
