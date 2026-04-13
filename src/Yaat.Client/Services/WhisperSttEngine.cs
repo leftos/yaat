@@ -84,7 +84,7 @@ public sealed class WhisperSttEngine : IDisposable
             }
 
             using var processor = builder.Build();
-            using var wavStream = WavHeader.WriteFloatPcm(samples, AudioCaptureService.SampleRate);
+            using var wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
 
             var sb = new StringBuilder();
             await foreach (var segment in processor.ProcessAsync(wavStream, ct).ConfigureAwait(false))
@@ -99,12 +99,16 @@ public sealed class WhisperSttEngine : IDisposable
         catch (OperationCanceledException)
         {
             Log.LogInformation("Whisper transcription cancelled");
-            return null;
+            throw;
         }
         catch (Exception ex)
         {
+            // Previously this was swallowed and returned null, which SpeechRecognitionService
+            // mis-interpreted as "empty transcript" — the session never made it into the debug
+            // history and the mic status went back to Idle instead of Error. Propagate the
+            // exception so the pipeline records the failure visibly.
             Log.LogError(ex, "Whisper transcription failed");
-            return null;
+            throw;
         }
         finally
         {
@@ -166,22 +170,25 @@ public sealed class WhisperSttEngine : IDisposable
 }
 
 /// <summary>
-/// Writes a minimal 44-byte RIFF/WAV header followed by IEEE Float32 PCM samples into a
-/// <see cref="MemoryStream"/>. Used by <see cref="WhisperSttEngine"/> to hand captured PortAudio
-/// samples to Whisper.net — which accepts WAV-formatted streams via <c>ProcessAsync</c>.
+/// Writes a minimal 44-byte RIFF/WAV header followed by 16-bit signed little-endian PCM samples
+/// into a <see cref="MemoryStream"/>. Used by <see cref="WhisperSttEngine"/> to hand captured
+/// PortAudio Float32 samples to Whisper.net via <c>ProcessAsync</c>.
+///
+/// Whisper.net's <c>WaveParser</c> is strict about the WAV format it accepts — IEEE Float32
+/// streams throw <c>CorruptedWaveException</c> on parse. Writing standard int16 PCM is the
+/// universally-supported path and matches what whisper.cpp's own ffmpeg helper produces, so the
+/// conversion cost (one multiply + clamp per sample) is worth the compatibility.
 /// </summary>
 internal static class WavHeader
 {
-    // WAVEFORMATEX format code for IEEE float samples. Whisper.net reads it via Whisper.net.Wave.
-    private const ushort FormatIeeeFloat = 3;
-
-    public static MemoryStream WriteFloatPcm(float[] samples, int sampleRate)
+    public static MemoryStream WritePcm16(float[] samples, int sampleRate)
     {
         const int channels = 1;
-        const int bitsPerSample = 32;
+        const int bitsPerSample = 16;
+        const ushort formatPcm = 1; // WAVE_FORMAT_PCM
         var byteRate = sampleRate * channels * (bitsPerSample / 8);
         var blockAlign = (ushort)(channels * (bitsPerSample / 8));
-        var dataSize = samples.Length * sizeof(float);
+        var dataSize = samples.Length * sizeof(short);
 
         var stream = new MemoryStream(44 + dataSize);
         var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
@@ -191,10 +198,10 @@ internal static class WavHeader
         writer.Write(36 + dataSize); // total chunk size = header (36 bytes after "RIFF<size>") + data
         writer.Write("WAVE"u8.ToArray());
 
-        // fmt subchunk
+        // fmt subchunk (16 bytes, PCM)
         writer.Write("fmt "u8.ToArray());
-        writer.Write(16); // subchunk size for PCM/float
-        writer.Write(FormatIeeeFloat);
+        writer.Write(16);
+        writer.Write(formatPcm);
         writer.Write((ushort)channels);
         writer.Write(sampleRate);
         writer.Write(byteRate);
@@ -205,10 +212,14 @@ internal static class WavHeader
         writer.Write("data"u8.ToArray());
         writer.Write(dataSize);
 
-        // sample payload
-        var byteSpan = new byte[dataSize];
-        Buffer.BlockCopy(samples, 0, byteSpan, 0, dataSize);
-        writer.Write(byteSpan);
+        // Convert Float32 [-1.0, 1.0] → Int16 [-32767, 32767], clamping to avoid wrap on overflow.
+        // short.MaxValue (32767) is used rather than 32768 because the negative extreme of int16
+        // is -32768 and multiplying -1.0 by 32768 would overflow when stored back as short.
+        for (int i = 0; i < samples.Length; i++)
+        {
+            var clamped = Math.Clamp(samples[i], -1.0f, 1.0f);
+            writer.Write((short)(clamped * short.MaxValue));
+        }
 
         writer.Flush();
         stream.Position = 0;

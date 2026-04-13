@@ -246,45 +246,48 @@ public sealed class SpeechRecognitionService : IDisposable
 
             if (string.IsNullOrWhiteSpace(raw))
             {
+                // Fall through to the common RecordSession path at the end of the method so the
+                // debug window still shows empty-transcript sessions. Previously this early-
+                // returned and the session disappeared without a trace — indistinguishable from
+                // a successful recording with no audio.
                 Log.LogInformation("Whisper returned empty transcript");
                 outcome = SpeechSessionOutcome.EmptyTranscript;
-                SetStatus(SpeechStatus.Idle);
-                CommandReady?.Invoke(new SpeechResult("", null));
-                return;
             }
-
-            transcript = raw.Trim();
-            Log.LogInformation("PTT transcript: {Transcript}", transcript);
-
-            SetStatus(SpeechStatus.Mapping);
-            var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes) { CustomFixPatterns = ctx.CustomFixPatterns };
-
-            var mapSw = Stopwatch.StartNew();
-            var ruleResult = await _ruleMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);
-            if (ruleResult is not null)
+            else
             {
-                canonical = ruleResult.CanonicalCommand;
-                Log.LogInformation("Rule engine mapped transcript to: {Canonical}", canonical);
-            }
-            else if (_llmMapper is not null)
-            {
-                Log.LogInformation("Rule engine returned null, trying LLM fallback");
-                var llmResult = await _llmMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);
-                if (llmResult is not null)
-                {
-                    canonical = llmResult.CanonicalCommand;
-                    usedLlmFallback = true;
-                    Log.LogInformation("LLM fallback mapped transcript to: {Canonical}", canonical);
-                }
-                else
-                {
-                    Log.LogInformation("LLM fallback also returned null");
-                }
-            }
+                transcript = raw.Trim();
+                Log.LogInformation("PTT transcript: {Transcript}", transcript);
 
-            mapSw.Stop();
-            mapMs = mapSw.ElapsedMilliseconds;
-            outcome = canonical is not null ? SpeechSessionOutcome.CommandAccepted : SpeechSessionOutcome.NoMappingFound;
+                SetStatus(SpeechStatus.Mapping);
+                var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes) { CustomFixPatterns = ctx.CustomFixPatterns };
+
+                var mapSw = Stopwatch.StartNew();
+                var ruleResult = await _ruleMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);
+                if (ruleResult is not null)
+                {
+                    canonical = ruleResult.CanonicalCommand;
+                    Log.LogInformation("Rule engine mapped transcript to: {Canonical}", canonical);
+                }
+                else if (_llmMapper is not null)
+                {
+                    Log.LogInformation("Rule engine returned null, trying LLM fallback");
+                    var llmResult = await _llmMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);
+                    if (llmResult is not null)
+                    {
+                        canonical = llmResult.CanonicalCommand;
+                        usedLlmFallback = true;
+                        Log.LogInformation("LLM fallback mapped transcript to: {Canonical}", canonical);
+                    }
+                    else
+                    {
+                        Log.LogInformation("LLM fallback also returned null");
+                    }
+                }
+
+                mapSw.Stop();
+                mapMs = mapSw.ElapsedMilliseconds;
+                outcome = canonical is not null ? SpeechSessionOutcome.CommandAccepted : SpeechSessionOutcome.NoMappingFound;
+            }
         }
         catch (OperationCanceledException)
         {
