@@ -21,6 +21,8 @@ namespace Yaat.Client.Views;
 
 public partial class MainWindow : Window
 {
+    private static readonly ILogger PttLog = AppLog.CreateLogger("Yaat.Client.PTT");
+
     private readonly WindowGeometryHelper _geometryHelper;
     private TerminalWindow? _terminalWindow;
     private DataGridWindow? _dataGridWindow;
@@ -1718,21 +1720,38 @@ public partial class MainWindow : Window
     {
         if (!MatchesPttBinding(key, modifiers))
         {
+            if (key == _pttKey)
+            {
+                PttLog.LogDebug(
+                    "OnGlobalKeyDown: key={Key} mods={Modifiers} did not match PTT binding (pttKey={PttKey} pttMods={PttMods})",
+                    key,
+                    modifiers,
+                    _pttKey,
+                    _pttModifiers
+                );
+            }
             return;
         }
 
         if (_globalPttActive)
         {
+            PttLog.LogDebug("OnGlobalKeyDown: key={Key} matched but _globalPttActive already true — ignoring repeat", key);
             return;
         }
 
         _globalPttActive = true;
+        PttLog.LogDebug("OnGlobalKeyDown: key={Key} mods={Modifiers} matched, posting StartPtt to UI thread", key, modifiers);
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             if (DataContext is MainViewModel vm)
             {
-                vm.SpeechService.StartPtt();
+                var started = vm.SpeechService.StartPtt();
+                PttLog.LogDebug("OnGlobalKeyDown: StartPtt returned {Started} (status={Status})", started, vm.SpeechService.Status);
+            }
+            else
+            {
+                PttLog.LogDebug("OnGlobalKeyDown: DataContext is not MainViewModel — cannot start PTT");
             }
         });
     }
@@ -1749,16 +1768,19 @@ public partial class MainWindow : Window
 
         if (!_globalPttActive)
         {
+            PttLog.LogDebug("OnGlobalKeyUp: key={Key} matched but _globalPttActive was false — no-op", key);
             return;
         }
 
         _globalPttActive = false;
+        PttLog.LogDebug("OnGlobalKeyUp: key={Key} mods={Modifiers}, posting StopPtt to UI thread", key, modifiers);
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             if (DataContext is MainViewModel vm && vm.SpeechService.Status is SpeechStatus.Recording)
             {
                 vm.SpeechService.StopPtt();
+                PttLog.LogDebug("OnGlobalKeyUp: StopPtt invoked");
             }
         });
     }

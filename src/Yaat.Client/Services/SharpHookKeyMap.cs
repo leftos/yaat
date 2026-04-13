@@ -16,9 +16,51 @@ internal static class SharpHookKeyMap
 {
     private static readonly Dictionary<KeyCode, Key> Map = Build();
 
+    // Windows VK constants used to disambiguate Left/Right variants of the modifier keys.
+    // libuiohook on Windows has a known issue where it reports the Right Ctrl/Shift/Alt as
+    // their Left counterparts in its cross-platform KeyCode enum, even though the raw VK code
+    // from KBDLLHOOKSTRUCT.vkCode is correct. We use RawCode to restore the correct side.
+    private const ushort VkLShift = 0xA0;
+    private const ushort VkRShift = 0xA1;
+    private const ushort VkLControl = 0xA2;
+    private const ushort VkRControl = 0xA3;
+    private const ushort VkLMenu = 0xA4;
+    private const ushort VkRMenu = 0xA5;
+    private const ushort VkLWin = 0x5B;
+    private const ushort VkRWin = 0x5C;
+
     public static Key ToAvaloniaKey(KeyCode code)
     {
         return Map.TryGetValue(code, out var key) ? key : Key.None;
+    }
+
+    /// <summary>
+    /// Same as <see cref="ToAvaloniaKey(KeyCode)"/>, but on Windows uses the raw VK code to
+    /// correct libuiohook's modifier-side mislabeling (e.g. it reports VcLeftControl for both
+    /// physical Ctrls — we read <paramref name="rawCode"/> and map VK_RCONTROL back to
+    /// <see cref="Key.RightCtrl"/>). On non-Windows platforms <paramref name="rawCode"/> is
+    /// ignored and we defer to the normal mapping.
+    /// </summary>
+    public static Key ToAvaloniaKey(KeyCode code, ushort rawCode)
+    {
+        var key = ToAvaloniaKey(code);
+        if (!OperatingSystem.IsWindows())
+        {
+            return key;
+        }
+
+        return rawCode switch
+        {
+            VkLControl => Key.LeftCtrl,
+            VkRControl => Key.RightCtrl,
+            VkLShift => Key.LeftShift,
+            VkRShift => Key.RightShift,
+            VkLMenu => Key.LeftAlt,
+            VkRMenu => Key.RightAlt,
+            VkLWin => Key.LWin,
+            VkRWin => Key.RWin,
+            _ => key,
+        };
     }
 
     private static Dictionary<KeyCode, Key> Build()

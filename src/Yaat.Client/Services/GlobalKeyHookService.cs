@@ -41,17 +41,28 @@ public sealed class GlobalKeyHookService : IDisposable
     /// <summary>Raised on every keyboard release system-wide, on a background thread.</summary>
     public event Action<Key, KeyModifiers>? KeyUp;
 
+    /// <summary>
+    /// Whether the native libuiohook hook is actually running. This is <c>false</c> until
+    /// libuiohook fires <c>HookEnabled</c>, even if <see cref="Start"/> returned successfully —
+    /// <c>RunAsync</c> only guarantees the thread launched, not that the native hook installed.
+    /// </summary>
+    public bool IsRunning => _hook.IsRunning;
+
     public GlobalKeyHookService()
     {
         _hook = new SimpleGlobalHook();
         _hook.KeyPressed += OnKeyPressed;
         _hook.KeyReleased += OnKeyReleased;
+        _hook.HookEnabled += OnHookEnabled;
+        _hook.HookDisabled += OnHookDisabled;
     }
 
     /// <summary>
     /// Starts the hook on a background thread. Safe to call once; subsequent calls are no-ops.
     /// Failures (missing native lib, permission denial) are logged and swallowed — the service
-    /// degrades to a no-op so the in-window capture path still works.
+    /// degrades to a no-op so the in-window capture path still works. Note that a successful
+    /// return only means the background thread launched; the authoritative "hook is installed"
+    /// signal is <c>HookEnabled</c>, logged separately in <see cref="OnHookEnabled"/>.
     /// </summary>
     public void Start()
     {
@@ -63,7 +74,17 @@ public sealed class GlobalKeyHookService : IDisposable
         try
         {
             _hookTask = _hook.RunAsync();
-            Log.LogInformation("Global keyboard hook started");
+            Log.LogInformation("Global keyboard hook thread launched (awaiting HookEnabled)");
+
+            // RunAsync only throws synchronously if the thread fails to start. If libuiohook
+            // fails to install the native hook on the spawned thread, the exception lands on
+            // the returned Task — observe it here so silent failures surface in the log.
+            _ = _hookTask.ContinueWith(
+                t => Log.LogError(t.Exception?.Flatten(), "Global keyboard hook task faulted"),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default
+            );
         }
         catch (Exception ex)
         {
@@ -71,55 +92,104 @@ public sealed class GlobalKeyHookService : IDisposable
         }
     }
 
+    private void OnHookEnabled(object? sender, HookEventArgs e)
+    {
+        Log.LogInformation("Global keyboard hook enabled (libuiohook is receiving events system-wide)");
+    }
+
+    private void OnHookDisabled(object? sender, HookEventArgs e)
+    {
+        Log.LogInformation("Global keyboard hook disabled");
+    }
+
     private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
     {
-        UpdateModifierState(e.Data.KeyCode, pressed: true);
-        var avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode);
+        // Use the rawCode-aware overload so libuiohook's Windows-side modifier mislabeling
+        // (both Ctrls reported as VcLeftControl, etc.) gets corrected before we track state
+        // or dispatch the event.
+        var avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode, e.Data.RawCode);
+        UpdateModifierState(avaloniaKey, pressed: true);
         if (avaloniaKey == Key.None)
         {
             return;
         }
 
-        KeyDown?.Invoke(avaloniaKey, CurrentModifiers());
+        var mods = CurrentModifiers();
+        if (IsPttCandidateKey(avaloniaKey))
+        {
+            Log.LogDebug(
+                "Global hook KeyPressed: code={KeyCode} raw=0x{RawCode:X} avalonia={Key} mods={Modifiers}",
+                e.Data.KeyCode,
+                e.Data.RawCode,
+                avaloniaKey,
+                mods
+            );
+        }
+
+        KeyDown?.Invoke(avaloniaKey, mods);
     }
 
     private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
     {
+        var avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode, e.Data.RawCode);
+
         // Compute modifiers BEFORE updating state, so a Ctrl-release event still reports
         // modifiers as they were at the moment of release — important if a consumer wants to
         // match "Ctrl+F12" on the release of F12 but Ctrl was already let go first.
         var modifiers = CurrentModifiers();
-        UpdateModifierState(e.Data.KeyCode, pressed: false);
+        UpdateModifierState(avaloniaKey, pressed: false);
 
-        var avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode);
         if (avaloniaKey == Key.None)
         {
             return;
+        }
+
+        if (IsPttCandidateKey(avaloniaKey))
+        {
+            Log.LogDebug(
+                "Global hook KeyReleased: code={KeyCode} raw=0x{RawCode:X} avalonia={Key} mods={Modifiers}",
+                e.Data.KeyCode,
+                e.Data.RawCode,
+                avaloniaKey,
+                modifiers
+            );
         }
 
         KeyUp?.Invoke(avaloniaKey, modifiers);
     }
 
-    private void UpdateModifierState(KeyCode code, bool pressed)
+    /// <summary>
+    /// Gates the per-event debug log to keys a user is likely to bind as PTT (or has bound).
+    /// Currently hard-coded to the Ctrl variants — widen if the default PTT binding changes
+    /// or the log stops telling us what we need.
+    /// </summary>
+    private static bool IsPttCandidateKey(Key key)
     {
-        switch (code)
+        return key is Key.LeftCtrl or Key.RightCtrl;
+    }
+
+    private void UpdateModifierState(Key key, bool pressed)
+    {
+        // Driven by the post-raw-code-correction Avalonia Key so Left/Right tracking stays
+        // accurate on Windows despite libuiohook's KeyCode mislabeling.
+        switch (key)
         {
-            case KeyCode.VcLeftControl:
+            case Key.LeftCtrl:
                 _leftCtrl = pressed;
                 break;
-            case KeyCode.VcRightControl:
+            case Key.RightCtrl:
                 _rightCtrl = pressed;
                 break;
-            case KeyCode.VcLeftShift:
+            case Key.LeftShift:
                 _leftShift = pressed;
                 break;
-            case KeyCode.VcRightShift:
+            case Key.RightShift:
                 _rightShift = pressed;
                 break;
-            case KeyCode.VcLeftAlt:
+            case Key.LeftAlt:
                 _leftAlt = pressed;
                 break;
-            case KeyCode.VcRightAlt:
+            case Key.RightAlt:
                 _rightAlt = pressed;
                 break;
             default:
@@ -161,6 +231,8 @@ public sealed class GlobalKeyHookService : IDisposable
         {
             _hook.KeyPressed -= OnKeyPressed;
             _hook.KeyReleased -= OnKeyReleased;
+            _hook.HookEnabled -= OnHookEnabled;
+            _hook.HookDisabled -= OnHookDisabled;
             _hook.Dispose();
         }
         catch (Exception ex)
