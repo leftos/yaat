@@ -151,6 +151,13 @@ public partial class MainWindow : Window
 
         ApplyKeybinds(vm.Preferences);
 
+        // Start the process-wide keyboard hook so PTT works while the user has another app
+        // focused (CRC, a browser, a PDF, etc.). Dispose handled in OnClosing.
+        _globalKeyHook = new GlobalKeyHookService();
+        _globalKeyHook.KeyDown += OnGlobalKeyDown;
+        _globalKeyHook.KeyUp += OnGlobalKeyUp;
+        _globalKeyHook.Start();
+
         // Wire the "Show speech recognition debugging..." items on both mic-status menus (one for
         // the active indicator, one for the "mic: off" stub). Both open the same SpeechDebugWindow.
         foreach (var debugItemName in new[] { "MicMenuDebugItem", "MicOffMenuDebugItem" })
@@ -1527,6 +1534,17 @@ public partial class MainWindow : Window
     private Key _pttKey = Key.RightCtrl;
     private KeyModifiers _pttModifiers = KeyModifiers.None;
 
+    // Global keyboard hook — lets PTT trigger while another application has focus. Started from
+    // the constructor and disposed on window close. The in-window OnKeyDown/OnKeyUp handlers stay
+    // as a backup path (when the hook fails to start or the user doesn't grant accessibility
+    // permissions on macOS).
+    private GlobalKeyHookService? _globalKeyHook;
+
+    // Edge-triggered PTT flag. The global hook delivers auto-repeat key presses as separate
+    // events even though the physical key is held, and we want StartPtt to fire exactly once
+    // per hold-down. Flipped back to false in the KeyUp handler.
+    private bool _globalPttActive;
+
     private void SyncAllRadarViewTint()
     {
         // Embedded RadarView
@@ -1658,7 +1676,81 @@ public partial class MainWindow : Window
         }
 
         _isMainWindowClosing = !e.Cancel;
+
+        if (_isMainWindowClosing && _globalKeyHook is { } hook)
+        {
+            hook.KeyDown -= OnGlobalKeyDown;
+            hook.KeyUp -= OnGlobalKeyUp;
+            hook.Dispose();
+            _globalKeyHook = null;
+        }
+
         base.OnClosing(e);
+    }
+
+    /// <summary>
+    /// Handles a global-hook PTT key press (fires regardless of which window has focus). Marshals
+    /// to the UI thread because <see cref="GlobalKeyHookService"/> raises events on a background
+    /// thread. Edge-triggered via <see cref="_globalPttActive"/> so auto-repeat key presses only
+    /// trigger <c>StartPtt</c> once per hold.
+    /// </summary>
+    private void OnGlobalKeyDown(Key key, KeyModifiers modifiers)
+    {
+        if (!MatchesPttBinding(key, modifiers))
+        {
+            return;
+        }
+
+        if (_globalPttActive)
+        {
+            return;
+        }
+
+        _globalPttActive = true;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.SpeechService.StartPtt();
+            }
+        });
+    }
+
+    private void OnGlobalKeyUp(Key key, KeyModifiers modifiers)
+    {
+        // Match on key alone for the release path — modifiers may have already been released
+        // before the main key, which would cause MatchesPttBinding (which compares modifiers for
+        // non-modifier-only keys) to reject the event and leave PTT stuck on.
+        if (key != _pttKey)
+        {
+            return;
+        }
+
+        if (!_globalPttActive)
+        {
+            return;
+        }
+
+        _globalPttActive = false;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (DataContext is MainViewModel vm && vm.SpeechService.Status is SpeechStatus.Recording)
+            {
+                vm.SpeechService.StopPtt();
+            }
+        });
+    }
+
+    private bool MatchesPttBinding(Key key, KeyModifiers modifiers)
+    {
+        if (key != _pttKey)
+        {
+            return false;
+        }
+
+        return IsModifierOnlyKey(_pttKey) || modifiers == _pttModifiers;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

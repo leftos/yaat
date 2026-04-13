@@ -31,6 +31,10 @@
     <!-- Microphone capture + Whisper STT. CPU-only runtimes ship by default; GpuRuntimeDownloader
          handles the end-user GPU story via on-demand DLL download from nuget.org. -->
     <PackageReference Include="PortAudioSharp2" Version="1.0.6" />
+    <!-- SharpHook gives us a cross-platform global keyboard hook so PTT works while another
+         window has focus. We consume KeyPressed/KeyReleased events in passthrough mode — we
+         never suppress, so other apps still see the key. -->
+    <PackageReference Include="SharpHook" Version="7.0.0" />
     <PackageReference Include="Whisper.net" Version="1.9.0" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" />
     <!-- Transitive via Avalonia.FreeDesktop 11.3.13 (>= 0.21.2); pin to patched 0.21.3 (GHSA-xrw6-gwf8-vvr9). -->
