@@ -679,10 +679,35 @@ public static class FlightPhysics
     /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009146.</summary>
     private const double BankAngleCoeff = Math.PI / 180.0 * 1.6878 / 32.174;
 
+    /// <summary>
+    /// Ground-speed threshold below which a ground aircraft is considered
+    /// stationary and cannot rotate. Nosewheel steering requires forward
+    /// motion; differential-brake or tiller turns need some thrust overcoming
+    /// rolling friction. Helicopters on the ground must be rolling as well —
+    /// hover turns only happen in the air. A tight threshold (0.1 kt) avoids
+    /// forbidding rotation in the last sliver of a taxi deceleration while
+    /// still catching the fully-stopped case that causes stale
+    /// <see cref="ControlTargets.TargetTrueHeading"/> values to drift a parked
+    /// aircraft's heading.
+    /// </summary>
+    private const double StationaryGroundSpeedKts = 0.1;
+
     private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         var target = aircraft.Targets.TargetTrueHeading;
         if (target is null)
+        {
+            aircraft.BankAngle = 0;
+            return;
+        }
+
+        // Aircraft on the ground at zero ground speed cannot physically
+        // pivot in place. Reject rotation even if an upstream phase left a
+        // stale target heading — the physics contract is the last line of
+        // defence against "aircraft pirouettes while parked" artifacts.
+        // Airborne helicopters at zero ground speed (hover) are unaffected
+        // because IsOnGround is false.
+        if (aircraft.IsOnGround && aircraft.GroundSpeed < StationaryGroundSpeedKts)
         {
             aircraft.BankAngle = 0;
             return;

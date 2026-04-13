@@ -30,6 +30,11 @@ public sealed class HoldingShortPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
+        // Clear any stale target heading left over from the previous
+        // taxi segment — otherwise FlightPhysics would keep rotating the
+        // stationary aircraft toward it. Consistent with sister hold
+        // phases (AtParkingPhase, HoldingAfterExitPhase, etc.).
+        ctx.Targets.TargetTrueHeading = null;
 
         Log.LogDebug(
             "[HoldShort] {Callsign}: holding short of {Target}, nodeId={NodeId}, reason={Reason}",

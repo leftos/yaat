@@ -668,6 +668,66 @@ public sealed class SimulationEngine
         }
     }
 
+    /// <summary>
+    /// Advances the replay by one physics sub-tick (0.25 s). This is the
+    /// fine-grained version of <see cref="ReplayOneSecond"/> for tests that
+    /// need to observe simulation state at sub-second granularity (e.g.
+    /// capture the exact tick a phase transitions). Pre- and post-physics
+    /// run only at integer-second boundaries, and recorded actions are
+    /// applied once per crossed second (never mid-second), matching
+    /// <see cref="ReplayOneSecond"/>'s semantics exactly when called four
+    /// times in succession starting from an integer second.
+    /// </summary>
+    public void ReplayOneSubTick()
+    {
+        var scenario = Scenario;
+        if (scenario is null || _replayActions is null)
+        {
+            return;
+        }
+
+        const double eps = 1e-9;
+        double prev = scenario.ElapsedSeconds;
+        double subDelta = 1.0 / PhysicsSubTickRate;
+        scenario.ElapsedSeconds = prev + subDelta;
+
+        // "We just started a new integer second" — the previous ElapsedSeconds
+        // sat exactly on an integer, so this sub-tick is the first of four.
+        bool atSecondStart = Math.Abs(prev - Math.Round(prev)) < eps;
+
+        // "We just finished an integer second" — the new ElapsedSeconds lands
+        // exactly on an integer, so this sub-tick is the last of four.
+        bool atSecondEnd = Math.Abs(scenario.ElapsedSeconds - Math.Round(scenario.ElapsedSeconds)) < eps;
+
+        if (atSecondStart)
+        {
+            TickPrePhysics();
+        }
+
+        TickPhysics(subDelta);
+
+        if (atSecondEnd)
+        {
+            // Snap away any floating-point drift accumulated across sub-ticks.
+            scenario.ElapsedSeconds = Math.Round(scenario.ElapsedSeconds);
+            int t = (int)scenario.ElapsedSeconds;
+
+            TickPostPhysics();
+            _terminalEntries.Clear();
+
+            if (scenario.WeatherTimeline is { } timeline)
+            {
+                World.Weather = timeline.GetWeatherAt(t);
+            }
+
+            while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= t)
+            {
+                ApplyRecordedAction(_replayActions[_replayActionCursor]);
+                _replayActionCursor++;
+            }
+        }
+    }
+
     // --- Commands ---
 
     public CommandResult SendCommand(string callsign, string command)
