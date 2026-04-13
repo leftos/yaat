@@ -495,15 +495,6 @@ public sealed class InitialClimbPhaseDto : PhaseDto
 
 public sealed class LineUpPhaseDto : PhaseDto
 {
-    /// <summary>
-    /// Discriminator identifying which <c>ILineUpPhase</c> implementation
-    /// produced this snapshot. <c>1</c> = <c>LineUpPhaseV1</c> (the analog
-    /// 3-stage implementation). Added in preparation for <c>V2</c>, a
-    /// clean-room redesign being developed in parallel. Defaults to <c>1</c>
-    /// so snapshots written before this field existed still restore into V1.
-    /// </summary>
-    public int ImplVersion { get; init; } = 1;
-
     public required double RunwayHeadingDeg { get; init; }
     public required bool Initialized { get; init; }
     public required double TimeSinceLastLog { get; init; }

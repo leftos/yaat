@@ -1,7 +1,7 @@
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Closed-form circular-arc playback state used by <see cref="LineUpPhaseV2"/>.
+/// Closed-form circular-arc playback state used by <see cref="LineUpPhase"/>.
 /// Position and heading are both derived from a single scalar phase variable
 /// (<see cref="CurrentBearingFromCenterDeg"/>), so they cannot drift apart:
 /// after an <see cref="Advance"/> the aircraft pose is, by construction,

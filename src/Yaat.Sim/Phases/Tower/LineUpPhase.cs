@@ -5,41 +5,34 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// V2 lineup phase: Design D closed-form plan playback. At
+/// Line Up and Wait phase: Design D closed-form plan playback. At
 /// <see cref="OnStart"/> the phase calls
 /// <see cref="LineUpPlanBuilder.TryBuild"/> to produce an immutable
-/// <see cref="LineUpPlan"/>. Each <see cref="OnTick"/> call dispatches on the
-/// current state and either writes control targets (<c>NoseOut</c>,
-/// <c>Rollout</c>, <c>Stop</c>) or advances a closed-form arc integrator and
-/// writes the aircraft pose directly (<c>Arc</c>).
+/// <see cref="LineUpPlan"/>. Each <see cref="OnTick"/> call dispatches on
+/// the current state and either writes control targets (<c>NoseOut</c>,
+/// <c>Rollout</c>, <c>Stop</c>) or advances a closed-form arc integrator
+/// and writes the aircraft pose directly (<c>Arc</c>).
 ///
 /// <para>
 /// The key structural property (Design D invariant I2) is that during
 /// <see cref="State.Arc"/> the aircraft's position and heading are both
-/// functions of a single scalar phase variable (the <see cref="LineUpArcPlayback"/>
-/// state's current bearing from center). They cannot drift apart, so the arc
-/// cannot produce a parallel-offset exit regardless of entry error — invariant
-/// I3.
+/// functions of a single scalar phase variable (the
+/// <see cref="LineUpArcPlayback"/> state's current bearing from center).
+/// They cannot drift apart, so the arc cannot produce a parallel-offset
+/// exit regardless of entry error — invariant I3.
 /// </para>
 ///
 /// <para>
 /// The phase never runs a feedback loop: no Stanley correction, no pure-
 /// pursuit lookahead, no cross-track term. Rollout steers on runway heading
 /// unconditionally, so the "bearing to stop-node from an off-centerline
-/// start" failure mode that dogged the V1-style implementations is absent by
-/// construction.
-/// </para>
-///
-/// <para>
-/// V2 is selected via <see cref="LineUpPhaseFactory"/> when
-/// <see cref="LineUpPhaseImpl.V2"/> is the active implementation. It
-/// implements <see cref="ILineUpPhase"/> so existing <c>is ILineUpPhase</c>
-/// type-checks in the rest of the codebase pick it up alongside V1.
+/// start" failure mode that dogged the earlier analog implementation is
+/// absent by construction.
 /// </para>
 /// </summary>
-public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
+public sealed class LineUpPhase : Phase
 {
-    private static readonly ILogger Log = SimLog.CreateLogger("LineUpPhaseV2");
+    private static readonly ILogger Log = SimLog.CreateLogger("LineUpPhase");
 
     /// <summary>
     /// Observable state of the lineup state machine. Public so tests can
@@ -312,17 +305,15 @@ public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
         ctx.Aircraft.GroundSpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
 
     // ---- Snapshot ----
-    // Non-round-tripping in this initial commit: ToSnapshot writes ImplVersion=2
-    // and minimal state; FromSnapshot returns a fresh V2 that will re-run
-    // OnStart on its next activation. For a mid-game snapshot/restore, the
-    // aircraft resumes the lineup from its current pose rather than from its
-    // saved stage, which is acceptable because the whole phase completes in
-    // a handful of seconds.
+    // Non-round-tripping: ToSnapshot writes minimal state; FromSnapshot
+    // returns an instance that re-runs OnStart on its next activation. For a
+    // mid-game snapshot/restore, the aircraft resumes the lineup from its
+    // current pose rather than from its saved stage, which is acceptable
+    // because the whole phase completes in a handful of seconds.
 
     public override PhaseDto ToSnapshot() =>
         new LineUpPhaseDto
         {
-            ImplVersion = 2,
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
@@ -334,9 +325,9 @@ public sealed class LineUpPhaseV2 : Phase, ILineUpPhase
             OnCenterline = false,
         };
 
-    public static LineUpPhaseV2 FromSnapshot(LineUpPhaseDto dto)
+    public static LineUpPhase FromSnapshot(LineUpPhaseDto dto)
     {
-        var phase = new LineUpPhaseV2 { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
+        var phase = new LineUpPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         // Plan is null — the phase will re-enter OnStart logic on its next
         // activation. Status/ElapsedSeconds are preserved for continuity.

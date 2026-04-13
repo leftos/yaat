@@ -185,7 +185,7 @@ public class DepartureClearanceHandlerTests
         var rwy = DefaultRunway();
         ac.Phases!.AssignedRunway = rwy;
 
-        var lineUp = new LineUpPhaseV1();
+        var lineUp = new LineUpPhase();
         var luaw = new LinedUpAndWaitingPhase();
         var takeoff = new TakeoffPhase();
         var climb = new InitialClimbPhase { Departure = new DefaultDeparture() };
@@ -213,7 +213,7 @@ public class DepartureClearanceHandlerTests
     public void TryDepartureClearance_FromLineUp_LUAW_Rejected()
     {
         var ac = MakeAircraft();
-        var lineUp = new LineUpPhaseV1();
+        var lineUp = new LineUpPhase();
         ac.Phases!.Add(lineUp);
         ac.Phases.Start(MinCtx(ac));
 
@@ -254,7 +254,7 @@ public class DepartureClearanceHandlerTests
         Assert.Contains("climb and maintain 5,000", result.Message!);
 
         // Verify tower phases were installed
-        Assert.Contains(ac.Phases!.Phases, p => p is ILineUpPhase);
+        Assert.Contains(ac.Phases!.Phases, p => p is LineUpPhase);
         Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
         Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
         Assert.Contains(ac.Phases.Phases, p => p is InitialClimbPhase);

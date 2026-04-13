@@ -4,12 +4,18 @@ using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
+/// <summary>
+/// Scenario tests for <see cref="LineUpPhase"/>. These use synthesised
+/// PhaseContext fixtures (no real airport data) and drive the phase through
+/// full scenarios with <see cref="FlightPhysics"/>, asserting the Design D
+/// end-state contract at completion.
+/// </summary>
 public class LineUpPhaseTests
 {
-    private const string TestDataDir = "TestData";
     private readonly ITestOutputHelper _out;
 
     public LineUpPhaseTests(ITestOutputHelper output)
@@ -17,466 +23,304 @@ public class LineUpPhaseTests
         _out = output;
     }
 
-    private static AirportGroundLayout? LoadOak()
-    {
-        var path = Path.Combine(TestDataDir, "oak.geojson");
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
-    }
-
     /// <summary>
-    /// OAK RWY 30: aircraft depart heading ~310°.
-    /// RWY 30 threshold at SE end (start of roll), far end at NW.
+    /// Construct a minimal <see cref="PhaseContext"/> and <see cref="AircraftState"/>
+    /// for V2 scenario tests. The runway is a KTEST strip with the given
+    /// heading at a fixed anchor (37.0, -122.0); the aircraft is placed at
+    /// (<paramref name="acLat"/>, <paramref name="acLon"/>) with the given
+    /// heading and zero initial speed.
     /// </summary>
-    private static RunwayInfo MakeOakRunway30()
-    {
-        double seLat = 37.701486;
-        double seLon = -122.214273;
-        double nwLat = 37.720057;
-        double nwLon = -122.242128;
-
-        return TestRunwayFactory.Make(
-            designator: "30",
-            airportId: "OAK",
-            thresholdLat: seLat,
-            thresholdLon: seLon,
-            endLat: nwLat,
-            endLon: nwLon,
-            heading: GeoMath.BearingTo(seLat, seLon, nwLat, nwLon),
-            elevationFt: 6,
-            lengthFt: 10520,
-            widthFt: 150
-        );
-    }
-
-    /// <summary>
-    /// Find ALL nodes that sit at the intersection of a runway edge and a taxiway edge.
-    /// </summary>
-    private static List<GroundNode> FindAllRunwayTaxiwayIntersections(AirportGroundLayout layout, string rwyName)
-    {
-        var result = new List<GroundNode>();
-        var rwyEdgeNodeIds = new HashSet<int>();
-
-        foreach (var edge in layout.Edges)
-        {
-            if (edge.MatchesRunway(rwyName))
-            {
-                rwyEdgeNodeIds.Add(edge.Nodes[0].Id);
-                rwyEdgeNodeIds.Add(edge.Nodes[1].Id);
-            }
-        }
-
-        foreach (var nodeId in rwyEdgeNodeIds)
-        {
-            if (!layout.Nodes.TryGetValue(nodeId, out var node))
-            {
-                continue;
-            }
-
-            bool hasRwyEdge = false;
-            bool hasTaxiEdge = false;
-            foreach (var edge in node.Edges)
-            {
-                if (edge.IsRunwayCenterline)
-                {
-                    hasRwyEdge = true;
-                }
-                else
-                {
-                    hasTaxiEdge = true;
-                }
-            }
-
-            if (hasRwyEdge && hasTaxiEdge)
-            {
-                result.Add(node);
-            }
-        }
-
-        // Also include annotated hold-short nodes
-        foreach (var hsNode in layout.GetRunwayHoldShortNodes(rwyName))
-        {
-            if (!result.Any(n => n.Id == hsNode.Id))
-            {
-                result.Add(hsNode);
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Compute the taxiway approach heading: perpendicular to runway, toward the centerline.
-    /// Uses signed cross-track to determine which side the node is on.
-    /// </summary>
-    private static TrueHeading ComputeApproachHeading(GroundNode node, RunwayInfo runway)
-    {
-        double signedCross = GeoMath.SignedCrossTrackDistanceNm(
-            node.Latitude,
-            node.Longitude,
-            runway.ThresholdLatitude,
-            runway.ThresholdLongitude,
-            runway.TrueHeading
-        );
-
-        // Positive cross-track = left of track → approach from left (heading = runway - 90°)
-        // Negative cross-track = right of track → approach from right (heading = runway + 90°)
-        double offset = signedCross >= 0 ? -90 : 90;
-        return new TrueHeading(runway.TrueHeading.Degrees + offset);
-    }
-
-    /// <summary>
-    /// Run LineUpPhase from a specific node and return (backtrackNm, completed, finalHeadingDiff).
-    /// </summary>
-    private (double BacktrackNm, bool Completed, double HeadingDiff) RunLineUpFromNode(GroundNode node, RunwayInfo runway, AirportGroundLayout layout)
-    {
-        var perpHeading = ComputeApproachHeading(node, runway);
-        var aircraft = new AircraftState
-        {
-            Callsign = "TEST1",
-            AircraftType = "B738",
-            Latitude = node.Latitude,
-            Longitude = node.Longitude,
-            TrueHeading = perpHeading,
-            IsOnGround = true,
-            Departure = "OAK",
-        };
-        aircraft.Phases = new PhaseList();
-
-        var lineUpPhase = new LineUpPhaseV1();
-        aircraft.Phases.Add(lineUpPhase);
-
-        var ctx = new PhaseContext
-        {
-            Aircraft = aircraft,
-            Targets = aircraft.Targets,
-            Category = AircraftCategory.Jet,
-            DeltaSeconds = 0.5,
-            Runway = runway,
-            FieldElevation = 6,
-            GroundLayout = layout,
-            Logger = NullLogger.Instance,
-        };
-
-        aircraft.Phases.Start(ctx);
-
-        double initialAlong = GeoMath.AlongTrackDistanceNm(
-            aircraft.Latitude,
-            aircraft.Longitude,
-            runway.ThresholdLatitude,
-            runway.ThresholdLongitude,
-            runway.TrueHeading
-        );
-
-        double minAlongTrack = initialAlong;
-        bool completed = false;
-
-        for (int i = 0; i < 600; i++)
-        {
-            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            if (lineUpPhase.OnTick(ctx))
-            {
-                completed = true;
-                break;
-            }
-
-            double along = GeoMath.AlongTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                runway.ThresholdLatitude,
-                runway.ThresholdLongitude,
-                runway.TrueHeading
-            );
-
-            if (along < minAlongTrack)
-            {
-                minAlongTrack = along;
-            }
-        }
-
-        double backtrackNm = initialAlong - minAlongTrack;
-        double headingDiff = Math.Abs(runway.TrueHeading.SignedAngleTo(aircraft.TrueHeading));
-        return (backtrackNm, completed, headingDiff);
-    }
-
-    /// <summary>
-    /// OAK RWY 28R: aircraft depart heading ~292°.
-    /// Threshold at east end (10L threshold), far end at west.
-    /// </summary>
-    private static RunwayInfo MakeOakRunway28R()
-    {
-        return TestRunwayFactory.Make(
-            designator: "28R",
-            airportId: "OAK",
-            thresholdLat: 37.72152,
-            thresholdLon: -122.20065,
-            endLat: 37.73089,
-            endLon: -122.21926,
-            heading: 292,
-            elevationFt: 9,
-            lengthFt: 6213,
-            widthFt: 150
-        );
-    }
-
-    /// <summary>
-    /// Run LineUpPhase from a node and return detailed trajectory metrics.
-    /// maxAlongBeforeCross: max along-track increase before cross-track drops below half.
-    /// A large value indicates diagonal entry (along-track increases while still far from centerline).
-    /// </summary>
-    private (double BacktrackNm, bool Completed, double HeadingDiff, double MaxAlongBeforeCross) RunLineUpFromNodeDetailed(
-        GroundNode node,
-        RunwayInfo runway,
-        AirportGroundLayout layout
+    private static (AircraftState Aircraft, PhaseContext Ctx) MakeFixture(
+        double rwyHeadingDeg,
+        double acLat,
+        double acLon,
+        double acHeadingDeg,
+        AircraftCategory cat = AircraftCategory.Jet
     )
     {
-        var perpHeading = ComputeApproachHeading(node, runway);
+        const double threshLat = 37.0;
+        const double threshLon = -122.0;
+        var (endLat, endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(rwyHeadingDeg), 2.0);
+        var runway = TestRunwayFactory.Make(
+            designator: "TST",
+            thresholdLat: threshLat,
+            thresholdLon: threshLon,
+            endLat: endLat,
+            endLon: endLon,
+            heading: rwyHeadingDeg
+        );
+
         var aircraft = new AircraftState
         {
-            Callsign = "TEST1",
+            Callsign = "V2TEST",
             AircraftType = "B738",
-            Latitude = node.Latitude,
-            Longitude = node.Longitude,
-            TrueHeading = perpHeading,
+            Latitude = acLat,
+            Longitude = acLon,
+            TrueHeading = new TrueHeading(acHeadingDeg),
+            IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = "OAK",
         };
-        aircraft.Phases = new PhaseList();
-
-        var lineUpPhase = new LineUpPhaseV1();
-        aircraft.Phases.Add(lineUpPhase);
 
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
             Targets = aircraft.Targets,
-            Category = AircraftCategory.Jet,
-            DeltaSeconds = 0.5,
+            Category = cat,
+            DeltaSeconds = 0.25,
             Runway = runway,
-            FieldElevation = 6,
-            GroundLayout = layout,
+            FieldElevation = 0,
+            GroundLayout = null,
             Logger = NullLogger.Instance,
         };
 
-        aircraft.Phases.Start(ctx);
+        return (aircraft, ctx);
+    }
 
-        double initialAlong = GeoMath.AlongTrackDistanceNm(
-            aircraft.Latitude,
-            aircraft.Longitude,
-            runway.ThresholdLatitude,
-            runway.ThresholdLongitude,
-            runway.TrueHeading
-        );
+    /// <summary>
+    /// Drive a V2 phase through <see cref="FlightPhysics"/> ticks until
+    /// complete or budget exhausted. Returns (completed, finalCrossFt,
+    /// finalHdgDiffDeg, finalGsKts, tickCount).
+    /// </summary>
+    private static (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) RunToCompletion(
+        LineUpPhase phase,
+        AircraftState aircraft,
+        PhaseContext ctx,
+        int maxTicks = 400
+    )
+    {
+        phase.OnStart(ctx);
 
-        double initialCross = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                runway.ThresholdLatitude,
-                runway.ThresholdLongitude,
-                runway.TrueHeading
-            )
-        );
-
-        double minAlongTrack = initialAlong;
-        double maxAlongBeforeCross = 0;
-        bool crossedHalf = false;
-        bool completed = false;
-
-        for (int i = 0; i < 600; i++)
+        for (int i = 0; i < maxTicks; i++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            if (lineUpPhase.OnTick(ctx))
+            if (phase.OnTick(ctx))
             {
-                completed = true;
-                break;
+                var cross =
+                    Math.Abs(
+                        GeoMath.SignedCrossTrackDistanceNm(
+                            aircraft.Latitude,
+                            aircraft.Longitude,
+                            ctx.Runway!.ThresholdLatitude,
+                            ctx.Runway.ThresholdLongitude,
+                            ctx.Runway.TrueHeading
+                        )
+                    ) * GeoMath.FeetPerNm;
+                double hdg = Math.Abs(ctx.Runway.TrueHeading.SignedAngleTo(aircraft.TrueHeading));
+                return (true, cross, hdg, aircraft.IndicatedAirspeed, i + 1);
             }
+        }
 
-            double along = GeoMath.AlongTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                runway.ThresholdLatitude,
-                runway.ThresholdLongitude,
-                runway.TrueHeading
-            );
-
-            double cross = Math.Abs(
+        var crossX =
+            Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
                     aircraft.Latitude,
                     aircraft.Longitude,
-                    runway.ThresholdLatitude,
-                    runway.ThresholdLongitude,
-                    runway.TrueHeading
+                    ctx.Runway!.ThresholdLatitude,
+                    ctx.Runway.ThresholdLongitude,
+                    ctx.Runway.TrueHeading
                 )
-            );
+            ) * GeoMath.FeetPerNm;
+        double hdgX = Math.Abs(ctx.Runway.TrueHeading.SignedAngleTo(aircraft.TrueHeading));
+        return (false, crossX, hdgX, aircraft.IndicatedAirspeed, maxTicks);
+    }
 
-            if (along < minAlongTrack)
-            {
-                minAlongTrack = along;
-            }
+    // ---- Snapshot round-trip ----
 
-            // Track max along-track increase before cross-track drops below half initial
-            if (!crossedHalf)
-            {
-                double alongIncrease = along - initialAlong;
-                if (alongIncrease > maxAlongBeforeCross)
-                {
-                    maxAlongBeforeCross = alongIncrease;
-                }
+    [Fact]
+    public void FromSnapshot_RestoresStatusAndElapsedTime()
+    {
+        var dto = new LineUpPhaseDto
+        {
+            Status = (int)PhaseStatus.Pending,
+            ElapsedSeconds = 0,
+            RunwayHeadingDeg = 90,
+            Initialized = false,
+            TimeSinceLastLog = 0,
+            PerpHeadingDeg = 0,
+            PerpAligned = false,
+            OnCenterline = false,
+        };
 
-                if (cross < initialCross * 0.5)
-                {
-                    crossedHalf = true;
-                }
-            }
-        }
+        var restored = LineUpPhase.FromSnapshot(dto);
+        Assert.NotNull(restored);
+        Assert.IsType<LineUpPhase>(restored);
+    }
 
-        double backtrackNm = initialAlong - minAlongTrack;
-        double headingDiff = Math.Abs(runway.TrueHeading.SignedAngleTo(aircraft.TrueHeading));
-        return (backtrackNm, completed, headingDiff, maxAlongBeforeCross);
+    // ---- Faulted states ----
+
+    [Fact]
+    public void OnStart_NullRunway_EntersFaulted()
+    {
+        var (aircraft, ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
+        var ctxNoRwy = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = ctx.Category,
+            DeltaSeconds = ctx.DeltaSeconds,
+            Runway = null,
+            FieldElevation = 0,
+            GroundLayout = null,
+            Logger = NullLogger.Instance,
+        };
+
+        var phase = new LineUpPhase();
+        phase.OnStart(ctxNoRwy);
+
+        Assert.Equal(LineUpPhase.State.Faulted, phase.CurrentState);
+        Assert.Null(phase.Plan);
+
+        bool done = phase.OnTick(ctxNoRwy);
+        Assert.True(done, "Faulted state should return true (phase done) on first tick");
     }
 
     [Fact]
-    public void OAK_LineUpPhase_28R_NoDiagonalEntry()
+    public void OnStart_InvalidGeometry_EntersFaulted()
     {
-        var layout = LoadOak();
-        if (layout is null)
-        {
-            _out.WriteLine("SKIP: oak.geojson not found");
-            return;
-        }
+        // Aircraft 30 ft from centerline — radius (70 ft for Jet) doesn't fit
+        // → LineUpPlanBuilder returns null → phase enters Faulted.
+        double acLat = 37.0 - 30.0 / (GeoMath.FeetPerNm * 60.0);
+        double acLon = -121.995;
+        var (_, ctx) = MakeFixture(90.0, acLat, acLon, 0.0);
 
-        var runway = MakeOakRunway28R();
-        _out.WriteLine($"RWY 28R: heading={runway.TrueHeading.Degrees:F1}");
+        var phase = new LineUpPhase();
+        phase.OnStart(ctx);
 
-        var intersections = FindAllRunwayTaxiwayIntersections(layout, "28R");
-        _out.WriteLine($"Found {intersections.Count} intersection nodes for RWY 28R");
-
-        var sorted = intersections
-            .Select(n =>
-                (
-                    Node: n,
-                    AlongTrack: GeoMath.AlongTrackDistanceNm(
-                        n.Latitude,
-                        n.Longitude,
-                        runway.ThresholdLatitude,
-                        runway.ThresholdLongitude,
-                        runway.TrueHeading
-                    ),
-                    CrossTrack: Math.Abs(
-                        GeoMath.SignedCrossTrackDistanceNm(
-                            n.Latitude,
-                            n.Longitude,
-                            runway.ThresholdLatitude,
-                            runway.ThresholdLongitude,
-                            runway.TrueHeading
-                        )
-                    )
-                )
-            )
-            .OrderBy(x => x.AlongTrack)
-            .ToList();
-
-        foreach (var (node, alongTrack, crossTrack) in sorted)
-        {
-            var edgeNames = string.Join(", ", node.Edges.Select(e => e.TaxiwayName).Distinct());
-            _out.WriteLine($"  Node {node.Id}: along={alongTrack:F4}nm cross={crossTrack:F4}nm type={node.Type} edges=[{edgeNames}]");
-        }
-
-        bool anyDiagonal = false;
-        bool anyFailed = false;
-        foreach (var (node, _, crossTrack) in sorted)
-        {
-            var (backtrack, completed, hdgDiff, maxAlongBeforeCross) = RunLineUpFromNodeDetailed(node, runway, layout);
-
-            // Diagonal threshold: only flag nodes far from centerline (> 0.1nm / 600ft)
-            // where along-track increases significantly before crossing halfway.
-            // Graph-based Stage 1 (navigating to an on-runway neighbor) naturally
-            // produces some forward movement (up to ~0.65× cross-track). The pre-stage
-            // perpendicular crossing should produce ~0× ratio.
-            bool isDiagonal = (crossTrack > 0.1) && (maxAlongBeforeCross > crossTrack * 0.65);
-            var diagonalStatus = isDiagonal ? "DIAGONAL" : "ok";
-            var backtrackStatus = backtrack >= 0.01 ? "BACKTRACK" : "ok";
-
-            _out.WriteLine(
-                $"  Node {node.Id}: backtrack={backtrack:F4}nm maxAlongBeforeCross={maxAlongBeforeCross:F4}nm "
-                    + $"completed={completed} hdgDiff={hdgDiff:F1} [{diagonalStatus}] [{backtrackStatus}]"
-            );
-
-            if (isDiagonal)
-            {
-                anyDiagonal = true;
-            }
-
-            if (backtrack >= 0.01)
-            {
-                anyFailed = true;
-            }
-        }
-
-        Assert.False(anyDiagonal, "One or more intersection nodes caused diagonal runway entry (see output above)");
-        Assert.False(anyFailed, "One or more intersection nodes caused backtracking toward threshold (see output above)");
+        Assert.Equal(LineUpPhase.State.Faulted, phase.CurrentState);
+        Assert.Null(phase.Plan);
     }
 
+    // ---- End-state contract: perpendicular right turn ----
+
     [Fact]
-    public void OAK_LineUpPhase_AllIntersections_NeverBacktrackTowardThreshold()
+    public void PerpendicularRightTurn_EndsOnCenterlineAlignedAndStopped()
     {
-        var layout = LoadOak();
-        if (layout is null)
+        double rwyHdg = 90.0;
+        double acHdg = 0.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0); // 200 ft south
+        double acLon = -121.995;
+
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var phase = new LineUpPhase();
+        var result = RunToCompletion(phase, aircraft, ctx);
+
+        _out.WriteLine(
+            $"PerpRight: completed={result.Completed} ticks={result.Ticks} "
+                + $"cross={result.CrossFt:F2}ft hdgDiff={result.HdgDiffDeg:F2}° gs={result.GsKts:F2}kt"
+        );
+
+        Assert.True(result.Completed, "V2 did not complete perpendicular right-turn scenario");
+        Assert.True(result.CrossFt < 3.0, $"cross-centerline {result.CrossFt:F2}ft exceeds 3 ft tolerance");
+        Assert.True(result.HdgDiffDeg < 1.0, $"heading-diff {result.HdgDiffDeg:F2}° exceeds 1° tolerance");
+        Assert.True(result.GsKts < 0.5, $"gs {result.GsKts:F2}kt exceeds 0.5 kt tolerance");
+        Assert.Equal(LineUpPhase.State.Stop, phase.CurrentState);
+    }
+
+    // ---- End-state contract: perpendicular left turn ----
+
+    [Fact]
+    public void PerpendicularLeftTurn_EndsOnCenterlineAlignedAndStopped()
+    {
+        double rwyHdg = 90.0;
+        double acHdg = 180.0;
+        double acLat = 37.0 + 200.0 / (GeoMath.FeetPerNm * 60.0); // 200 ft north
+        double acLon = -121.995;
+
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var phase = new LineUpPhase();
+        var result = RunToCompletion(phase, aircraft, ctx);
+
+        _out.WriteLine(
+            $"PerpLeft: completed={result.Completed} ticks={result.Ticks} "
+                + $"cross={result.CrossFt:F2}ft hdgDiff={result.HdgDiffDeg:F2}° gs={result.GsKts:F2}kt"
+        );
+
+        Assert.True(result.Completed);
+        Assert.True(result.CrossFt < 3.0, $"cross-centerline {result.CrossFt:F2}ft exceeds 3 ft tolerance");
+        Assert.True(result.HdgDiffDeg < 1.0, $"heading-diff {result.HdgDiffDeg:F2}° exceeds 1° tolerance");
+        Assert.True(result.GsKts < 0.5);
+    }
+
+    // ---- End-state contract: skewed (SFO 28R taxi E geometry) ----
+
+    [Fact]
+    public void SkewedTurn_SfoTaxiELike_EndsOnCenterlineAlignedAndStopped()
+    {
+        // Turn: 228.4° → 297.9° short way = +69.5° = right turn.
+        double rwyHdg = 297.9;
+        double acHdg = 228.4;
+
+        // Place aircraft 200 ft perpendicular-right of the runway threshold,
+        // 500 ft forward along runway. This is the same fixture as the
+        // LineUpPlanBuilderTests skewed-turn test.
+        double perpRightBearing = (rwyHdg + 90.0) % 360.0;
+        var (acLat, acLon) = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(perpRightBearing), 200.0 / GeoMath.FeetPerNm);
+        (acLat, acLon) = GeoMath.ProjectPoint(acLat, acLon, new TrueHeading(rwyHdg), 500.0 / GeoMath.FeetPerNm);
+
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var phase = new LineUpPhase();
+        var result = RunToCompletion(phase, aircraft, ctx);
+
+        _out.WriteLine(
+            $"Skewed: completed={result.Completed} ticks={result.Ticks} "
+                + $"cross={result.CrossFt:F2}ft hdgDiff={result.HdgDiffDeg:F2}° gs={result.GsKts:F2}kt"
+        );
+
+        Assert.True(result.Completed);
+        Assert.True(result.CrossFt < 3.0, $"cross-centerline {result.CrossFt:F2}ft exceeds 3 ft tolerance");
+        Assert.True(result.HdgDiffDeg < 1.0, $"heading-diff {result.HdgDiffDeg:F2}° exceeds 1° tolerance");
+        Assert.True(result.GsKts < 0.5);
+    }
+
+    // ---- State machine observable transitions ----
+
+    [Fact]
+    public void StateMachine_PerpendicularRightTurn_TransitionsThroughAllStates()
+    {
+        double rwyHdg = 90.0;
+        double acHdg = 0.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        double acLon = -121.995;
+
+        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var phase = new LineUpPhase();
+        phase.OnStart(ctx);
+
+        Assert.Equal(LineUpPhase.State.NoseOut, phase.CurrentState);
+
+        var seen = new HashSet<LineUpPhase.State> { phase.CurrentState };
+        for (int i = 0; i < 400; i++)
         {
-            _out.WriteLine("SKIP: oak.geojson not found");
-            return;
-        }
-
-        var runway = MakeOakRunway30();
-        _out.WriteLine($"RWY 30: heading={runway.TrueHeading.Degrees:F1}");
-
-        var intersections = FindAllRunwayTaxiwayIntersections(layout, "30");
-        _out.WriteLine($"Found {intersections.Count} intersection nodes for RWY 30");
-
-        // Sort by along-track distance (threshold → far end)
-        var sorted = intersections
-            .Select(n =>
-                (
-                    Node: n,
-                    AlongTrack: GeoMath.AlongTrackDistanceNm(
-                        n.Latitude,
-                        n.Longitude,
-                        runway.ThresholdLatitude,
-                        runway.ThresholdLongitude,
-                        runway.TrueHeading
-                    )
-                )
-            )
-            .OrderBy(x => x.AlongTrack)
-            .ToList();
-
-        foreach (var (node, alongTrack) in sorted)
-        {
-            var edgeNames = string.Join(", ", node.Edges.Select(e => e.TaxiwayName).Distinct());
-            _out.WriteLine($"  Node {node.Id}: along={alongTrack:F4}nm ({alongTrack * 6076:F0}ft), type={node.Type}, edges=[{edgeNames}]");
-        }
-
-        // Test each intersection node
-        bool anyFailed = false;
-        foreach (var (node, _) in sorted)
-        {
-            var (backtrack, completed, hdgDiff) = RunLineUpFromNode(node, runway, layout);
-            var status = backtrack >= 0.01 ? "FAIL" : "ok";
-            _out.WriteLine(
-                $"  Node {node.Id}: backtrack={backtrack:F4}nm ({backtrack * 6076:F0}ft), completed={completed}, hdgDiff={hdgDiff:F1}, [{status}]"
-            );
-
-            if (backtrack >= 0.01)
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            bool done = phase.OnTick(ctx);
+            seen.Add(phase.CurrentState);
+            if (done)
             {
-                anyFailed = true;
+                break;
             }
         }
 
-        Assert.False(anyFailed, "One or more intersection nodes caused backtracking toward threshold (see output above)");
+        Assert.Contains(LineUpPhase.State.NoseOut, seen);
+        Assert.Contains(LineUpPhase.State.Arc, seen);
+        Assert.Contains(LineUpPhase.State.Rollout, seen);
+        Assert.Contains(LineUpPhase.State.Stop, seen);
+        Assert.DoesNotContain(LineUpPhase.State.Faulted, seen);
+    }
+
+    // ---- Plan exposed via public getter ----
+
+    [Fact]
+    public void Plan_IsNullUntilOnStart_ThenNonNull()
+    {
+        var phase = new LineUpPhase();
+        Assert.Null(phase.Plan);
+
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        var (_, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+        phase.OnStart(ctx);
+
+        Assert.NotNull(phase.Plan);
+        Assert.False(phase.Plan.IsAlreadyAligned);
+        Assert.True(phase.Plan.ArcSpeedKts > 0);
     }
 }

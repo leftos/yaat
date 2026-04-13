@@ -85,7 +85,7 @@ internal static class DepartureClearanceHandler
         }
 
         // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
-        if (currentPhase is ILineUpPhase && clearanceType == ClearanceType.ClearedForTakeoff)
+        if (currentPhase is LineUpPhase && clearanceType == ClearanceType.ClearedForTakeoff)
         {
             return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, logger);
         }
@@ -271,7 +271,7 @@ internal static class DepartureClearanceHandler
     {
         var routeResult = ResolveDepartureRoute(departure, aircraft);
 
-        var lineup = LineUpPhaseFactory.Create();
+        var lineup = new LineUpPhase();
         var luawPhase = new LinedUpAndWaitingPhase();
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool isHeli = cat == AircraftCategory.Helicopter;

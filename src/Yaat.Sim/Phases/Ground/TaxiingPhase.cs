@@ -414,7 +414,7 @@ public sealed class TaxiingPhase : Phase
             return;
         }
 
-        var lineup = LineUpPhaseFactory.Create();
+        var lineup = new LineUpPhase();
         var luaw = new LinedUpAndWaitingPhase();
         bool isHeli = ctx.Category == AircraftCategory.Helicopter;
         Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();

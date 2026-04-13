@@ -5,7 +5,7 @@ namespace Yaat.Sim.Phases.Tower;
 /// <summary>
 /// Immutable geometric plan for a lineup-onto-runway maneuver, produced by
 /// <see cref="LineUpPlanBuilder.TryBuild"/> at phase start and consumed by
-/// <see cref="LineUpPhaseV2"/> during tick playback. Contains everything the
+/// <see cref="LineUpPhase"/> during tick playback. Contains everything the
 /// state machine needs to drive the aircraft from its current hold-short
 /// position onto the runway centerline, aligned and stopped, without any
 /// per-tick feedback control: position and heading during the arc are
