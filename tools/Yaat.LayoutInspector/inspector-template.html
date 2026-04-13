@@ -80,6 +80,31 @@ minLon -= padLon; maxLon += padLon;
 let W, H, scale = 1, panX = 0, panY = 0;
 let dragging = false, dragX = 0, dragY = 0;
 
+// --- View persistence via URL hash ---
+// Pan/zoom state is mirrored into location.hash as #z=<scale>,px=<panX>,py=<panY>
+// so refreshing the page lands on the same view. History entries are *not*
+// created (replaceState); rapid wheel/drag events are coalesced with a short
+// debounce so we don't thrash the URL bar.
+let _saveViewTimer = null;
+function saveView() {
+  if (_saveViewTimer !== null) return;
+  _saveViewTimer = setTimeout(() => {
+    _saveViewTimer = null;
+    const h = '#z=' + scale.toFixed(3) + ',px=' + panX.toFixed(2) + ',py=' + panY.toFixed(2);
+    try { history.replaceState(null, '', h); } catch (_) { location.hash = h; }
+  }, 120);
+}
+function loadView() {
+  const m = (location.hash || '').match(/^#z=([-\d.]+),px=([-\d.]+),py=([-\d.]+)/);
+  if (!m) return;
+  const z = parseFloat(m[1]), x = parseFloat(m[2]), y = parseFloat(m[3]);
+  if (Number.isFinite(z) && Number.isFinite(x) && Number.isFinite(y)) {
+    scale = Math.max(0.5, Math.min(80, z));
+    panX = x;
+    panY = y;
+  }
+}
+
 function resize() {
   W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
@@ -323,6 +348,7 @@ canvas.addEventListener('wheel', e => {
   panX += (e.clientX - nx) / scale;
   panY += (e.clientY - ny) / scale;
   draw();
+  saveView();
 }, { passive: false });
 
 let dragStartX = 0, dragStartY = 0;
@@ -347,6 +373,7 @@ canvas.addEventListener('mousemove', e => {
     panY += (e.clientY - dragY) / scale;
     dragX = e.clientX; dragY = e.clientY;
     draw();
+    saveView();
     return;
   }
   updateTooltip(e.clientX, e.clientY);
@@ -701,5 +728,6 @@ canvas.addEventListener('contextmenu', e => {
   if (bestIdx >= 0) { rulers.splice(bestIdx, 1); draw(); }
 });
 
+loadView();
 resize();
 </script></body></html>
