@@ -21,17 +21,19 @@ repo = "local"
 [[repos.hooks]]
 id = "dotnet-format-style"
 name = "dotnet format style"
-entry = "dotnet format style"
+entry = "bash tools/hooks/dotnet-format-wrapper.sh style"
 language = "system"
-pass_filenames = false
+types = ["c#"]
+require_serial = true
 stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "dotnet-format-analyzers"
 name = "dotnet format analyzers"
-entry = "dotnet format analyzers"
+entry = "bash tools/hooks/dotnet-format-wrapper.sh analyzers"
 language = "system"
-pass_filenames = false
+types = ["c#"]
+require_serial = true
 stages = ["pre-commit"]
 
 [[repos.hooks]]
