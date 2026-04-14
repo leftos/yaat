@@ -1,5 +1,15 @@
 Prepare a new YAAT release. Walk through these steps interactively:
 
+## Step 0: Verify release secrets
+
+Confirm that the `LMKIT_LICENSE_KEY` secret is configured on the repo
+(`gh secret list --repo leftos/yaat`). If absent, warn the user that the
+released installer will run as LM-Kit Community Edition and ask whether
+to proceed anyway or stop and configure the secret first
+(`gh secret set LMKIT_LICENSE_KEY --repo leftos/yaat`). This is a soft
+gate — the build succeeds either way, but users expecting a licensed
+build should be told upfront.
+
 ## Step 1: Read current version
 Read `Directory.Build.props` at the repo root to get the current `<Version>` value.
 

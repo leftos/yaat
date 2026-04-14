@@ -16,6 +16,20 @@
     <InternalsVisibleTo Include="Yaat.SpeechSandbox" />
   </ItemGroup>
 
+  <!-- LM-Kit license key, injected at publish time by the release workflow (see release.yml,
+       which reads it from the LMKIT_LICENSE_KEY GitHub Actions secret and passes it as
+       -p:LmKitLicenseKey=...). Baked into the assembly as an AssemblyMetadata attribute so
+       installed builds can pick it up at startup via reflection — no .env file, no ambient
+       environment variable required. Dev builds leave the property empty, the attribute is
+       not emitted, and LmKitLicense.Initialize() falls back to the env var / .env file /
+       Community chain documented on the helper. -->
+  <ItemGroup Condition="'$(LmKitLicenseKey)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LmKitLicenseKey</_Parameter1>
+      <_Parameter2>$(LmKitLicenseKey)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.13" />
     <PackageReference Include="Avalonia.Controls.ColorPicker" Version="11.3.13" />

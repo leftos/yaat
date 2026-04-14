@@ -109,11 +109,19 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Publish
+        env:
+          # Injected into Yaat.Client.dll as an AssemblyMetadata attribute via
+          # -p:LmKitLicenseKey=... below. LmKitLicense.Initialize() picks it up at startup via
+          # reflection so installed builds don't need a .env file or ambient env var. Empty when
+          # the secret is not configured on the repo, in which case the installer falls back to
+          # Community Edition exactly like a fresh dev clone.
+          LMKIT_LICENSE_KEY: ${{ secrets.LMKIT_LICENSE_KEY }}
         run: |
           dotnet publish src/Yaat.Client \
             -c Release -r ${{ matrix.rid }} --self-contained \
             -p:PublishSingleFile=true \
             -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ needs.version.outputs.short_sha }} \
+            -p:LmKitLicenseKey="$LMKIT_LICENSE_KEY" \
             -o publish/${{ matrix.rid }}
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0

@@ -1,3 +1,4 @@
+using System.Reflection;
 using LMKit.Licensing;
 
 namespace Yaat.Client.Services;
@@ -5,9 +6,10 @@ namespace Yaat.Client.Services;
 /// <summary>
 /// Solution-wide LM-Kit license initialization. Every executable that loads LM-Kit models
 /// (Yaat.Client, Yaat.SpeechSandbox, Yaat.Client.Tests) funnels through
-/// <see cref="Initialize"/> so the license key lives in exactly one place: the untracked
-/// <c>.env</c> file at the solution root, keyed under <c>LMKIT_LICENSE_KEY</c>. No copy-paste
-/// of the key across executables, and the key never enters source control.
+/// <see cref="Initialize"/> so the license key lives in exactly one place per environment: an
+/// untracked <c>.env</c> file for dev checkouts, and an <see cref="AssemblyMetadataAttribute"/>
+/// baked into Yaat.Client.dll at publish time for installed release builds. No copy-paste
+/// across executables, and the key never enters source control.
 ///
 /// Lookup order (first hit wins):
 /// <list type="number">
@@ -17,9 +19,21 @@ namespace Yaat.Client.Services;
 ///     <see cref="AppContext.BaseDirectory"/>, parsed for a <c>LMKIT_LICENSE_KEY=&lt;value&gt;</c>
 ///     entry. Absent in installed builds (the walk terminates at the filesystem root), present in
 ///     dev checkouts (walk from <c>bin/Debug/net10.0/</c> up to the repo root).</description></item>
+///   <item><description><see cref="AssemblyMetadataAttribute"/> named <c>LmKitLicenseKey</c> on
+///     the Yaat.Client assembly. Injected at publish time by the release workflow via
+///     <c>-p:LmKitLicenseKey=$LMKIT_LICENSE_KEY</c> (see <c>Yaat.Client.csproj</c> and
+///     <c>.github/workflows/release.yml</c>). This is how installed builds pick up the key with
+///     no .env and no ambient environment variable. Dev builds don't set the MSBuild property,
+///     so the attribute is absent and this step is a no-op locally.</description></item>
 ///   <item><description>Empty string → LM-Kit Community Edition. This is the sample-code signal
 ///     for community tier and is the documented fallback when no key is configured.</description></item>
 /// </list>
+/// The baked attribute is plaintext — extractable with ILSpy or dnSpy — because LM-Kit
+/// validates the key client-side and anything reaching <see cref="LicenseManager.SetLicenseKey"/>
+/// is ultimately extractable regardless of obfuscation. YAAT ships with a Community Edition key
+/// so this is not a commercial concern; if a paid-tier key is ever injected, accept that it is
+/// retrievable from the shipped binary.
+///
 /// Exceptions thrown by <see cref="LicenseManager.SetLicenseKey"/> (for example, "already
 /// initialized" when a test fixture calls Initialize twice in one process) are captured on
 /// <see cref="LmKitLicenseInitResult.Error"/> rather than propagated — every existing caller
@@ -30,6 +44,7 @@ public static class LmKitLicense
 {
     private const string EnvVarName = "LMKIT_LICENSE_KEY";
     private const string EnvFileName = ".env";
+    private const string AssemblyMetadataKey = "LmKitLicenseKey";
 
     /// <summary>
     /// Resolves the LM-Kit license key via the lookup chain described on the class and calls
@@ -66,7 +81,26 @@ public static class LmKitLicense
             return (dotEnvValue, LmKitLicenseSource.EnvFile);
         }
 
+        var embedded = ReadFromAssemblyMetadata();
+        if (!string.IsNullOrWhiteSpace(embedded))
+        {
+            return (embedded, LmKitLicenseSource.AssemblyMetadata);
+        }
+
         return (null, LmKitLicenseSource.Default);
+    }
+
+    private static string? ReadFromAssemblyMetadata()
+    {
+        var assembly = typeof(LmKitLicense).Assembly;
+        foreach (var attr in assembly.GetCustomAttributes<AssemblyMetadataAttribute>())
+        {
+            if (string.Equals(attr.Key, AssemblyMetadataKey, StringComparison.Ordinal))
+            {
+                return attr.Value;
+            }
+        }
+        return null;
     }
 
     private static string? ReadFromDotEnv(string key)
@@ -150,6 +184,7 @@ public enum LmKitLicenseSource
     Default,
     EnvironmentVariable,
     EnvFile,
+    AssemblyMetadata,
 }
 
 /// <summary>
