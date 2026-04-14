@@ -411,7 +411,7 @@ public partial class GroundViewModel : ObservableObject
         AirportCenterLat = 0;
         AirportCenterLon = 0;
         AirportElevation = 0;
-        BackgroundImage?.Bitmap.Dispose();
+        BackgroundImage?.Image.Dispose();
         BackgroundImage = null;
         TowerCabMap = null;
         GroundAircraft.Clear();

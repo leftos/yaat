@@ -513,20 +513,25 @@ public sealed class GroundRenderer : IDisposable
         var (brX, brY) = vp.LatLonToScreen(image.BottomLeftLat, image.TopRightLon);
         var (tlX, tlY) = vp.LatLonToScreen(image.TopRightLat, image.BottomLeftLon);
 
-        // Source: bitmap rectangle
-        var srcRect = new SKRect(0, 0, image.Bitmap.Width, image.Bitmap.Height);
+        // Source: image rectangle
+        var srcRect = new SKRect(0, 0, image.Image.Width, image.Image.Height);
 
         // Destination: the 4 projected screen corners
-        // Bitmap top-left → screen top-left, bitmap top-right → screen top-right, etc.
-        // Note: bitmap Y=0 is top, geo top-right lat is the "top" of the image
+        // Image top-left → screen top-left, top-right → screen top-right, etc.
+        // Note: image Y=0 is top, geo top-right lat is the "top" of the image
         var matrix = ComputeBitmapTransform(srcRect, new SKPoint(tlX, tlY), new SKPoint(trX, trY), new SKPoint(brX, brY), new SKPoint(blX, blY));
 
         byte alpha = (byte)Math.Clamp(brightness * 255 / 100, 0, 255);
-        using var paint = new SKPaint { Color = new SKColor(255, 255, 255, alpha), FilterQuality = SKFilterQuality.Low };
+        // FilterQuality.Medium = bilinear + mipmaps in SkiaSharp 2.88. Mipmaps let Skia build
+        // a downscale chain on the GPU once and reuse it; without them, sampling an 8K×8K
+        // tower-cab image at typical airport zoom walked the full source per output pixel
+        // and ate ~30% GPU. Combined with the immutable SKImage on TowerCabImage, the GPU
+        // texture and its mip chain stay cached across redraws.
+        using var paint = new SKPaint { Color = new SKColor(255, 255, 255, alpha), FilterQuality = SKFilterQuality.Medium };
 
         canvas.Save();
         canvas.Concat(ref matrix);
-        canvas.DrawBitmap(image.Bitmap, 0, 0, paint);
+        canvas.DrawImage(image.Image, 0, 0, paint);
         canvas.Restore();
     }
 

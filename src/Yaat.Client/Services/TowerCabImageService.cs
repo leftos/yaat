@@ -10,9 +10,12 @@ namespace Yaat.Client.Services;
 
 /// <summary>
 /// Geo-referenced tower cab background image decoded from a JPEG with EXIF GPS tags.
-/// BottomLeft/TopRight define the bounding box in lat/lon.
+/// BottomLeft/TopRight define the bounding box in lat/lon. Stored as an immutable
+/// <see cref="SKImage"/> so Skia can hash and cache the GPU texture across redraws —
+/// drawing a mutable <see cref="SKBitmap"/> at 10 fps re-uploaded the full pixel buffer
+/// each frame, which pegged a CPU core on a high-res tower-cab JPEG.
 /// </summary>
-public sealed record TowerCabImage(SKBitmap Bitmap, double BottomLeftLat, double BottomLeftLon, double TopRightLat, double TopRightLon);
+public sealed record TowerCabImage(SKImage Image, double BottomLeftLat, double BottomLeftLon, double TopRightLat, double TopRightLon);
 
 /// <summary>
 /// Downloads, caches, and decodes tower cab background JPEG images from vNAS.
@@ -140,10 +143,58 @@ public sealed class TowerCabImageService : IDisposable
                 return null;
             }
 
-            var bitmap = SKBitmap.Decode(path);
-            if (bitmap is null)
+            using var decoded = SKBitmap.Decode(path);
+            if (decoded is null)
             {
                 _log.LogWarning("Failed to decode tower cab image {AirportId}", airportId);
+                return null;
+            }
+
+            // Cap the longest side so the GPU texture fits in Skia's default GrContext
+            // resource cache (~96 MB). vNAS HighRes images are 9984×9984 (~380 MB RGBA +
+            // mips); without this cap the texture is evicted between frames, forcing a
+            // re-upload from CPU memory every redraw. 4096 px across a typical airport
+            // (~5 km) is ~1.2 m/pixel, plenty for ground-view rendering.
+            const int MaxDimension = 4096;
+            SKBitmap working;
+            if (decoded.Width > MaxDimension || decoded.Height > MaxDimension)
+            {
+                float scale = MaxDimension / (float)Math.Max(decoded.Width, decoded.Height);
+                int newW = (int)Math.Round(decoded.Width * scale);
+                int newH = (int)Math.Round(decoded.Height * scale);
+                var info = new SKImageInfo(newW, newH, decoded.ColorType, decoded.AlphaType);
+                working = decoded.Resize(info, SKFilterQuality.High);
+                if (working is null)
+                {
+                    _log.LogWarning("Failed to downscale tower cab image {AirportId}", airportId);
+                    return null;
+                }
+
+                _log.LogDebug(
+                    "Downscaled tower cab image {AirportId} from {OldW}x{OldH} to {NewW}x{NewH}",
+                    airportId,
+                    decoded.Width,
+                    decoded.Height,
+                    newW,
+                    newH
+                );
+            }
+            else
+            {
+                working = decoded;
+            }
+
+            // SKImage.FromBitmap snapshots the pixels into an immutable image whose
+            // GPU texture Skia caches in the GrContext resource cache by stable id.
+            var image = SKImage.FromBitmap(working);
+            if (!ReferenceEquals(working, decoded))
+            {
+                working.Dispose();
+            }
+
+            if (image is null)
+            {
+                _log.LogWarning("Failed to wrap tower cab image {AirportId} as SKImage", airportId);
                 return null;
             }
 
@@ -152,15 +203,15 @@ public sealed class TowerCabImageService : IDisposable
             _log.LogDebug(
                 "Tower cab image {AirportId}: {W}x{H}, bounds ({BLLat:F6},{BLLon:F6})-({TRLat:F6},{TRLon:F6})",
                 airportId,
-                bitmap.Width,
-                bitmap.Height,
+                image.Width,
+                image.Height,
                 blLat,
                 blLon,
                 trLat,
                 trLon
             );
 
-            return new TowerCabImage(bitmap, blLat, blLon, trLat, trLon);
+            return new TowerCabImage(image, blLat, blLon, trLat, trLon);
         }
         catch (Exception ex)
         {
