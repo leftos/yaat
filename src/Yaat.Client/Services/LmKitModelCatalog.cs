@@ -54,9 +54,13 @@ public sealed partial class LmKitModelEntry : ObservableObject
     public string Description { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(CanDelete))]
     private bool _isLocallyAvailable;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(CanDelete))]
     private bool _isDownloading;
 
     [ObservableProperty]
@@ -64,6 +68,17 @@ public sealed partial class LmKitModelEntry : ObservableObject
 
     [ObservableProperty]
     private string _statusMessage = "";
+
+    /// <summary>
+    /// True when the Download button should be enabled: the model is NOT already cached and
+    /// there is no download in flight. XAML binds directly so the button flips from enabled to
+    /// disabled the moment <see cref="IsLocallyAvailable"/> or <see cref="IsDownloading"/>
+    /// changes. <c>[NotifyPropertyChangedFor]</c> on the backing fields wires the notifications.
+    /// </summary>
+    public bool CanDownload => !IsLocallyAvailable && !IsDownloading;
+
+    /// <summary>True when the Delete button should be enabled: model is cached and no download in flight.</summary>
+    public bool CanDelete => IsLocallyAvailable && !IsDownloading;
 
     public LmKitModelEntry(ModelCard card, string displayName, LmKitModelTier tier, string description)
     {
@@ -74,6 +89,51 @@ public sealed partial class LmKitModelEntry : ObservableObject
         GpuRecommended = card.FileSize > 2L * 1024 * 1024 * 1024;
         _isLocallyAvailable = card.IsLocallyAvailable;
         _statusMessage = card.IsLocallyAvailable ? "Ready" : $"Not downloaded (~{ApproxSizeMb} MB)";
+    }
+
+    /// <summary>
+    /// Deletes the cached model file at <see cref="ModelCard.LocalPath"/> and refreshes the
+    /// observable state so the UI flips back to the "not downloaded" presentation. LM-Kit has
+    /// no public <c>ModelCard.Delete</c> method, so we do the file-level delete ourselves;
+    /// <see cref="ModelCard.IsLocallyAvailable"/> is backed by a file-existence check so it
+    /// reflects the deletion immediately without any LM-Kit-side cache invalidation.
+    ///
+    /// Returns false on IO errors — most commonly a sharing violation when the file is mmapped
+    /// by a currently-loaded <see cref="LM"/> instance. The UI should surface the
+    /// <see cref="StatusMessage"/> in that case so the user knows to unload the model first.
+    /// </summary>
+    public bool Delete()
+    {
+        if (!IsLocallyAvailable)
+        {
+            StatusMessage = "Already deleted";
+            return true;
+        }
+
+        var path = Card.LocalPath;
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+            IsLocallyAvailable = Card.IsLocallyAvailable;
+            StatusMessage = IsLocallyAvailable ? $"Delete did not clear {Path.GetFileName(path)}" : $"Deleted (~{ApproxSizeMb} MB freed)";
+            return !IsLocallyAvailable;
+        }
+        catch (IOException ex)
+        {
+            // Most likely cause on Windows: another process (LocalLlmService / WhisperSttEngine
+            // running in the main app) still has the file mmapped. Surface the message so the
+            // user understands they need to close the feature before deleting.
+            StatusMessage = $"Cannot delete: {ex.Message}";
+            return false;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            StatusMessage = $"Cannot delete: {ex.Message}";
+            return false;
+        }
     }
 
     /// <summary>

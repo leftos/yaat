@@ -1095,6 +1095,18 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Deletes the currently selected Whisper model from LM-Kit's cache to free disk space.
+    /// If the model is currently loaded by the live <see cref="WhisperSttEngine"/> in another
+    /// process (or the main app), the delete may fail with a sharing violation — the entry's
+    /// <see cref="LmKitModelEntry.StatusMessage"/> surfaces that to the user.
+    /// </summary>
+    [RelayCommand]
+    private void DeleteSelectedWhisperModel()
+    {
+        SelectedWhisperLmKitModel?.Delete();
+    }
+
+    /// <summary>
     /// Pre-downloads the currently selected LLM into LM-Kit's cache. Same shape as the Whisper
     /// download but routes through the LLM picker selection.
     /// </summary>
@@ -1106,6 +1118,13 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
         await SelectedLlmLmKitModel.DownloadAsync(CancellationToken.None);
+    }
+
+    /// <summary>Deletes the currently selected LLM from LM-Kit's cache.</summary>
+    [RelayCommand]
+    private void DeleteSelectedLlmModel()
+    {
+        SelectedLlmLmKitModel?.Delete();
     }
 
     [RelayCommand]
