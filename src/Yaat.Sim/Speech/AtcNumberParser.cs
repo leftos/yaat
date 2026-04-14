@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Yaat.Sim.Speech;
 
 /// <summary>
@@ -80,6 +82,14 @@ public static class AtcNumberParser
         {
             return transcript ?? "";
         }
+
+        // Strip thousand-separator commas before tokenization. Whisper formats spoken numbers
+        // using English conventions ("two thousand" → "2,000") when the model recognizes the word
+        // but emits its numeric form. Without this pre-pass the tokenizer splits "2,000" into
+        // ["2", "000"] and the rule engine's {alt} capture grabs only the first token, producing
+        // "CM 2" instead of "CM 2000". Only commas that have a digit on BOTH sides are removed —
+        // sentence punctuation ("hello, world") stays untouched.
+        transcript = StripThousandSeparators(transcript);
 
         var tokens = Tokenize(transcript);
         var output = new List<string>(tokens.Count);
@@ -246,6 +256,33 @@ public static class AtcNumberParser
     private static string DigitsToSpokenDigits(int value)
     {
         return string.Join(' ', value.ToString().Select(c => DigitToWord[c - '0']));
+    }
+
+    /// <summary>
+    /// Removes any comma that has a digit on both sides — i.e. English thousand-separator
+    /// commas like the one in <c>2,000</c>. Walks the string character-by-character so we don't
+    /// pull in a regex dependency for what is essentially a one-line transformation. Sentence
+    /// commas (<c>"hello, world"</c>) are left alone because they don't have digits on the
+    /// adjacent positions.
+    /// </summary>
+    private static string StripThousandSeparators(string transcript)
+    {
+        if (transcript.IndexOf(',') < 0)
+        {
+            return transcript;
+        }
+
+        var sb = new StringBuilder(transcript.Length);
+        for (var i = 0; i < transcript.Length; i++)
+        {
+            var c = transcript[i];
+            if (c == ',' && i > 0 && i + 1 < transcript.Length && char.IsDigit(transcript[i - 1]) && char.IsDigit(transcript[i + 1]))
+            {
+                continue;
+            }
+            sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     private static List<string> Tokenize(string transcript)

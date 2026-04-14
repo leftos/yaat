@@ -47,6 +47,13 @@ public class AtcNumberParserTests
     [InlineData("reduce speed to two five zero", "reduce speed to 250")]
     [InlineData("squawk seven five zero zero", "squawk 7500")]
     [InlineData("cleared for takeoff runway two eight right", "cleared for takeoff runway 28 right")]
+    // Whisper formats spoken "two thousand" as "2,000" using English thousand-separator commas
+    // when the model recognizes the word but emits its numeric form. Without comma stripping,
+    // the tokenizer splits "2,000" into ["2", "000"] and the rule engine's {alt} capture grabs
+    // only "2" → producing "CM 2" instead of "CM 2000". Cover the common groupings.
+    [InlineData("climb and maintain 2,000", "climb and maintain 2000")]
+    [InlineData("descend and maintain 12,000", "descend and maintain 12000")]
+    [InlineData("descend and maintain 1,234,567", "descend and maintain 1234567")]
     public void NormalizeDigits_WithCommandContext(string input, string expected)
     {
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
