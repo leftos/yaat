@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
 using Avalonia;
-using LMKit.Licensing;
 using Yaat.Client.Services;
 using Yaat.Sim.Speech;
 
@@ -39,22 +38,17 @@ namespace Yaat.SpeechSandbox;
 ///   <item><description>(no args) — launches the GUI sandbox window (App.axaml / MainWindow.axaml).
 ///     Interactive mode for recording, replaying, and iterating on Whisper / LLM prompts.</description></item>
 /// </list>
-/// All console modes share LM-Kit licensing setup: an empty SetLicenseKey call signals Community
-/// Edition. Backend selection (CUDA / Vulkan / CPU) is owned by LM-Kit at model load time.
+/// All console modes share LM-Kit licensing setup via <see cref="LmKitLicense.Initialize"/>,
+/// which resolves the key from LMKIT_LICENSE_KEY or the solution-root .env file and falls back
+/// to Community Edition. Backend selection (CUDA / Vulkan / CPU) is owned by LM-Kit at model
+/// load time.
 /// </summary>
 public static class Program
 {
     [STAThread]
     public static int Main(string[] args)
     {
-        try
-        {
-            LicenseManager.SetLicenseKey("");
-        }
-        catch
-        {
-            // Already initialized — swallow.
-        }
+        LmKitLicense.Initialize();
 
         if (args.Length > 0)
         {

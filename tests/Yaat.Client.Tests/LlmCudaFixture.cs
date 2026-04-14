@@ -1,4 +1,3 @@
-using LMKit.Licensing;
 using Xunit;
 using Yaat.Client.Services;
 
@@ -58,16 +57,11 @@ public sealed class LlmCudaFixture : IDisposable
 
     public LlmCudaFixture()
     {
-        // Empty key signals LM-Kit Community Edition. Safe to call multiple times — LM-Kit
-        // initializes its licensing layer once per process.
-        try
-        {
-            LicenseManager.SetLicenseKey("");
-        }
-        catch
-        {
-            // Already initialized (another fixture or test host) — swallow.
-        }
+        // Funnel through the solution-wide helper so the license key is resolved from the same
+        // place as the production client (LMKIT_LICENSE_KEY env var or solution-root .env file)
+        // and falls back to Community Edition when neither is set. Safe to call multiple times —
+        // the helper captures "already initialized" exceptions internally.
+        LmKitLicense.Initialize();
 
         if (ModelAvailable)
         {

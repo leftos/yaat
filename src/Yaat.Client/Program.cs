@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Avalonia;
-using LMKit.Licensing;
 using Microsoft.Extensions.Logging;
 using Velopack;
 using Yaat.Client.Logging;
@@ -37,19 +36,20 @@ public static class Program
             e.SetObserved();
         };
 
-        // LM-Kit Community Edition setup — empty license key signals community tier per the
-        // sample code. Must run before any LM construction so the licensing layer is initialized.
-        // LM-Kit owns CUDA / Vulkan / Metal backend selection at model load time via the
+        // LM-Kit licensing must run before any LM construction so the licensing layer is
+        // initialized. The helper resolves the key from LMKIT_LICENSE_KEY or the solution-root
+        // .env file, falling back to empty string (Community Edition). LM-Kit owns
+        // CUDA / Vulkan / Metal backend selection at model load time via the
         // LM-Kit.NET.Backend.Cuda13.Windows package; no manual NativeLibraryConfig dance needed
         // (that was the LLamaSharp 0.26 + Whisper.net dual-stack story this replaces).
-        try
+        var licenseResult = LmKitLicense.Initialize();
+        if (licenseResult.Error is { } licenseError)
         {
-            LicenseManager.SetLicenseKey("");
-            log.LogInformation("LM-Kit Community Edition initialized");
+            log.LogWarning(licenseError, "LM-Kit license setup failed (non-fatal; will run with defaults)");
         }
-        catch (Exception ex)
+        else
         {
-            log.LogWarning(ex, "LM-Kit license setup failed (non-fatal; will run with defaults)");
+            log.LogInformation("LM-Kit {Tier} initialized from {Source}", licenseResult.Tier, licenseResult.Source);
         }
 
         int autoIdx = Array.FindIndex(args, a => a.Equals("--autoconnect", StringComparison.OrdinalIgnoreCase));
