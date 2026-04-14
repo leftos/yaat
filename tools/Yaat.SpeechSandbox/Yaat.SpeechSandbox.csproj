@@ -17,6 +17,16 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
   </ItemGroup>
 
+  <!-- LM-Kit is referenced directly here so the lmkit-stt / lmkit-models / lmkit-gpus
+       diagnostic console modes can call into LMKit.* types (SpeechToText reflection, ModelCard
+       catalog, GpuDeviceInfo enumeration) without going through the Yaat.Client service
+       wrappers. These are durable references: the modes are part of SpeechSandbox's diagnostic
+       role and must not be removed. -->
+  <ItemGroup>
+    <PackageReference Include="LM-Kit.NET" Version="2026.4.2" />
+    <PackageReference Include="LM-Kit.NET.Backend.Cuda13.Windows" Version="2026.4.2" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
   </ItemGroup>

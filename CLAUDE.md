@@ -7,11 +7,12 @@ YAAT (Yet Another ATC Trainer) — instructor/RPO desktop client for ATC trainin
 ## Build & Run
 
 ```bash
-dotnet build                            # Build entire solution
-dotnet run --project src/Yaat.Client    # Run client (needs yaat-server at localhost:5000)
-dotnet run --project tools/Yaat.Scratch # Ad-hoc testing (throwaway console project referencing Yaat.Sim)
-pwsh tools/test-all.ps1                 # Build + test both yaat and yaat-server
-qodana scan --results-dir .tmp/qodana-results  # Static analysis (local only)
+dotnet build                                            # Build entire solution
+dotnet run --project src/Yaat.Client                    # Run client (needs yaat-server at localhost:5000)
+dotnet run --project tools/Yaat.Scratch                 # Ad-hoc throwaway scratchpad (intentionally empty placeholder)
+dotnet run --project tools/Yaat.SpeechSandbox           # Speech sandbox GUI (or `-- --pipeline <wav>`, `--lmkit-stt`, `--lmkit-models`, `--lmkit-gpus`, `--yaat-catalog`, `--llm-probe`)
+pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server
+qodana scan --results-dir .tmp/qodana-results           # Static analysis (local only)
 ```
 
 .NET 10 SDK required. Solution uses `.slnx` format (`yaat.slnx`). Close Yaat.Client before builds to avoid DLL lock warnings.
