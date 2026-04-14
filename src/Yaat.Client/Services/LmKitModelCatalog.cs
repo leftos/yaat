@@ -165,21 +165,26 @@ public static class LmKitModelCatalog
     public const string RecommendedLlmId = "gemma4:e4b";
 
     /// <summary>
-    /// Builds the Whisper STT catalog. Cached on first call because
-    /// <see cref="ModelCard.GetPredefinedModelCards"/> has non-trivial overhead and the predefined
-    /// set doesn't change at runtime. The returned collection is observable so the UI can react to
-    /// download state changes (<see cref="LmKitModelEntry.IsLocallyAvailable"/>, etc.).
+    /// Builds the Whisper STT catalog, sorted by size ascending (tiny → large). The Whisper set
+    /// is small (7 entries) and all share the "OpenAI Whisper" prefix, so size-order reads more
+    /// naturally than alphabetical for this picker.
     /// </summary>
     public static ObservableCollection<LmKitModelEntry> BuildWhisperCatalog()
     {
         return BuildCatalog(
             predicate: card => card.Capabilities.HasFlag(ModelCapabilities.SpeechToText),
             recommendedId: RecommendedWhisperId,
-            descriptionFor: DescribeWhisper
+            descriptionFor: DescribeWhisper,
+            sorter: cards => cards.OrderBy(c => c.FileSize)
         );
     }
 
-    /// <summary>Builds the LLM catalog filtered for YAAT-relevant instruction-following models.</summary>
+    /// <summary>
+    /// Builds the LLM catalog filtered for YAAT-relevant instruction-following models, sorted
+    /// alphabetically by family name then by size ascending within each family. This keeps
+    /// variants of the same model family (e.g. four Google Gemma 4 entries) grouped together in
+    /// the picker so the user can compare sizes without scrolling past unrelated entries.
+    /// </summary>
     public static ObservableCollection<LmKitModelEntry> BuildLlmCatalog()
     {
         return BuildCatalog(
@@ -205,25 +210,33 @@ public static class LmKitModelCatalog
                 return sizeMb is >= 500 and <= 16_384;
             },
             recommendedId: RecommendedLlmId,
-            descriptionFor: DescribeLlm
+            descriptionFor: DescribeLlm,
+            sorter: cards => cards.OrderBy(c => c.ShortModelName ?? c.ModelID, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.FileSize)
         );
     }
 
     private static ObservableCollection<LmKitModelEntry> BuildCatalog(
         Func<ModelCard, bool> predicate,
         string recommendedId,
-        Func<ModelCard, string> descriptionFor
+        Func<ModelCard, string> descriptionFor,
+        Func<IEnumerable<ModelCard>, IOrderedEnumerable<ModelCard>> sorter
     )
     {
         var result = new ObservableCollection<LmKitModelEntry>();
         try
         {
             var cards = ModelCard.GetPredefinedModelCards();
-            foreach (var card in cards.Where(predicate).OrderBy(c => c.FileSize))
+            foreach (var card in sorter(cards.Where(predicate)))
             {
                 var isRecommended = string.Equals(card.ModelID, recommendedId, StringComparison.OrdinalIgnoreCase);
                 var tier = isRecommended ? LmKitModelTier.Recommended : LmKitModelTier.Standard;
-                var displayName = isRecommended ? $"{card.ShortModelName} ★ Recommended" : (card.ShortModelName ?? card.ModelName ?? card.ModelID);
+                var shortName = card.ShortModelName ?? card.ModelName ?? card.ModelID;
+                var paramLabel = FormatParameterCount(card.ParameterCount);
+                // Parameter count disambiguates same-family variants (four "Google Gemma 4" entries
+                // at different sizes all share ShortModelName). The middle-dot separator keeps the
+                // format readable in the dropdown without looking like a code identifier.
+                var baseName = paramLabel is null ? shortName : $"{shortName} · {paramLabel}";
+                var displayName = isRecommended ? $"{baseName} ★ Recommended" : baseName;
                 result.Add(new LmKitModelEntry(card, displayName, tier, descriptionFor(card)));
             }
         }
@@ -232,6 +245,30 @@ public static class LmKitModelCatalog
             Log.LogError(ex, "Failed to build LM-Kit model catalog");
         }
         return result;
+    }
+
+    /// <summary>
+    /// Formats a raw parameter count as a short human-readable label: <c>5.1B</c> for 5.1 billion,
+    /// <c>760M</c> for 760 million, <c>72M</c> for 72 million, and so on. Returns null when the
+    /// parameter count is missing or zero (should never happen for real <see cref="ModelCard"/>
+    /// entries but we defend against bad metadata). <see cref="ModelCard.ParameterCount"/> is a
+    /// <c>ulong</c> so the parameter type matches to avoid an unnecessary cast at every call site.
+    /// </summary>
+    private static string? FormatParameterCount(ulong count)
+    {
+        if (count == 0)
+        {
+            return null;
+        }
+        if (count >= 1_000_000_000)
+        {
+            return $"{count / 1_000_000_000.0:F1}B";
+        }
+        if (count >= 1_000_000)
+        {
+            return $"{count / 1_000_000:F0}M";
+        }
+        return count.ToString();
     }
 
     private static string DescribeWhisper(ModelCard card)
