@@ -468,6 +468,10 @@
                         <CheckBox Content="Enable speech recognition"
                                   IsChecked="{Binding SpeechEnabled}" />
 
+                        <CheckBox Content="Auto-focus command input after PTT"
+                                  IsChecked="{Binding AutoFocusInputAfterSpeech}"
+                                  ToolTip.Tip="When PTT/STT produces a transcript, focus the command input box so you can press Enter to send without mousing for it." />
+
                         <TextBlock Text="Whisper Model (speech-to-text)"
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,0" />

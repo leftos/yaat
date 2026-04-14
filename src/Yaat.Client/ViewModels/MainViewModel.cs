@@ -396,6 +396,15 @@ public partial class MainViewModel : ObservableObject
 
     public event Action? GridLayoutReset;
 
+    /// <summary>
+    /// Raised after a successful speech transcription has populated <see cref="CommandText"/>
+    /// and the user has opted in (<see cref="UserPreferences.AutoFocusInputAfterSpeech"/>) to
+    /// having the command input automatically focused. The view subscribes and forwards to
+    /// <c>CommandInputView.FocusCommandInput()</c>; the viewmodel can't reach the control
+    /// directly without breaking MVVM. Mirrors the existing <see cref="GridLayoutReset"/> pattern.
+    /// </summary>
+    public event Action? RequestCommandInputFocus;
+
     [ObservableProperty]
     private bool _showCommandEntries = true;
 
@@ -796,12 +805,14 @@ public partial class MainViewModel : ObservableObject
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            var populatedCommandText = false;
             if (!string.IsNullOrEmpty(result.CanonicalCommand))
             {
                 // Prepend the extracted callsign when present so SendCommandAsync's existing
                 // TryResolveCallsignPrefix path auto-dispatches to the right aircraft on Enter.
                 // Format: "SWA123 FH 270" — single space, leading token, matches TryResolveCallsignPrefix.
                 CommandText = string.IsNullOrEmpty(result.Callsign) ? result.CanonicalCommand : $"{result.Callsign} {result.CanonicalCommand}";
+                populatedCommandText = true;
             }
             else if (!string.IsNullOrWhiteSpace(result.Transcript))
             {
@@ -809,6 +820,16 @@ public partial class MainViewModel : ObservableObject
                 // user sees what Whisper heard and can correct manually. Better than silently
                 // dropping the input.
                 CommandText = result.Transcript;
+                populatedCommandText = true;
+            }
+
+            // Auto-focus the command input box so the user can press Enter to send (or arrow-keys
+            // to edit) without mousing for the input. Only fire when we actually wrote something
+            // and the user has the preference enabled — empty transcripts shouldn't pull focus
+            // away from whatever the user was doing.
+            if (populatedCommandText && _preferences.AutoFocusInputAfterSpeech)
+            {
+                RequestCommandInputFocus?.Invoke();
             }
         });
     }

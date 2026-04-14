@@ -138,6 +138,7 @@ public sealed class UserPreferences
     public int LlmGpuLayers => _data.LlmGpuLayers;
     public string PttKey => _data.PttKey;
     public string AudioInputDevice => _data.AudioInputDevice;
+    public bool AutoFocusInputAfterSpeech => _data.AutoFocusInputAfterSpeech;
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
     public bool GroundShowRunwayLabels => _data.GroundShowRunwayLabels;
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
@@ -362,7 +363,8 @@ public sealed class UserPreferences
         string llmModelPath,
         int llmGpuLayers,
         string pttKey,
-        string audioInputDevice
+        string audioInputDevice,
+        bool autoFocusInputAfterSpeech
     )
     {
         _data.SpeechEnabled = enabled;
@@ -371,6 +373,7 @@ public sealed class UserPreferences
         _data.LlmGpuLayers = llmGpuLayers;
         _data.PttKey = pttKey;
         _data.AudioInputDevice = audioInputDevice;
+        _data.AutoFocusInputAfterSpeech = autoFocusInputAfterSpeech;
         Save();
     }
 
@@ -940,6 +943,12 @@ public sealed class UserPreferences
         public int LlmGpuLayers { get; set; } = -1;
         public string PttKey { get; set; } = "RightCtrl";
         public string AudioInputDevice { get; set; } = "";
+
+        // Auto-focus the command input box after a successful PTT/STT transcription so the user
+        // can press Enter to send the recognized command without having to mouse to the input.
+        // Defaults to true because that's what the Settings checkbox starts at — the default is
+        // also the recommended workflow per the user's request.
+        public bool AutoFocusInputAfterSpeech { get; set; } = true;
     }
 
     private sealed class SavedCommandScheme

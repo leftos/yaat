@@ -130,6 +130,18 @@ public partial class MainWindow : Window
             vm.GridLayoutReset += () => ResetLiveGrid(dataGrid);
         }
 
+        // Auto-focus the command input box after a successful speech transcription so the user
+        // can press Enter immediately to send the recognized command. Mirrors the existing
+        // GridLayoutReset → ResetLiveGrid wiring pattern: viewmodel raises a parameterless event,
+        // view forwards to the relevant control via FindControl. The viewmodel checks the
+        // user's AutoFocusInputAfterSpeech preference before raising, so this handler only fires
+        // when the user has opted in.
+        vm.RequestCommandInputFocus += () =>
+        {
+            var cmdView = this.FindControl<CommandInputView>("CommandInputView");
+            cmdView?.FocusCommandInput();
+        };
+
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
         if (vm.IsDataGridPoppedOut)

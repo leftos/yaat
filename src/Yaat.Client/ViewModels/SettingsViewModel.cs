@@ -282,6 +282,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _llmGpuLayers = -1;
 
     [ObservableProperty]
+    private bool _autoFocusInputAfterSpeech = true;
+
+    [ObservableProperty]
     private string _pttKeyDisplay = "Right Ctrl";
 
     [ObservableProperty]
@@ -404,6 +407,7 @@ public partial class SettingsViewModel : ObservableObject
         _whisperModelSize = _preferences.WhisperModelSize;
         _llmModelPath = _preferences.LlmModelPath;
         _llmGpuLayers = _preferences.LlmGpuLayers;
+        _autoFocusInputAfterSpeech = _preferences.AutoFocusInputAfterSpeech;
 
         // Resolve LM-Kit catalog selections from the saved preferences. FindById returns null when
         // the user has typed a custom file path or URI not in the catalog — we leave the dropdown
@@ -478,7 +482,15 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
-        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AudioInputDevice);
+        _preferences.SetSpeechSettings(
+            SpeechEnabled,
+            WhisperModelSize,
+            LlmModelPath,
+            LlmGpuLayers,
+            _pttKeyName,
+            AudioInputDevice,
+            AutoFocusInputAfterSpeech
+        );
         _preferences.SetWindowTopmost("Main", MainWindowTopmost);
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
