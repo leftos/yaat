@@ -136,7 +136,6 @@ public sealed class UserPreferences
     public string WhisperModelSize => _data.WhisperModelSize;
     public string LlmModelPath => _data.LlmModelPath;
     public int LlmGpuLayers => _data.LlmGpuLayers;
-    public string PreferredGpuBackend => _data.PreferredGpuBackend;
     public string PttKey => _data.PttKey;
     public string AudioInputDevice => _data.AudioInputDevice;
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
@@ -362,7 +361,6 @@ public sealed class UserPreferences
         string whisperModelSize,
         string llmModelPath,
         int llmGpuLayers,
-        string preferredGpuBackend,
         string pttKey,
         string audioInputDevice
     )
@@ -371,7 +369,6 @@ public sealed class UserPreferences
         _data.WhisperModelSize = whisperModelSize;
         _data.LlmModelPath = llmModelPath;
         _data.LlmGpuLayers = llmGpuLayers;
-        _data.PreferredGpuBackend = preferredGpuBackend;
         _data.PttKey = pttKey;
         _data.AudioInputDevice = audioInputDevice;
         Save();
@@ -941,7 +938,6 @@ public sealed class UserPreferences
         public string WhisperModelSize { get; set; } = "whisper-large-turbo3";
         public string LlmModelPath { get; set; } = "qwen3.5:4b";
         public int LlmGpuLayers { get; set; } = -1;
-        public string PreferredGpuBackend { get; set; } = "Auto";
         public string PttKey { get; set; } = "RightCtrl";
         public string AudioInputDevice { get; set; } = "";
     }

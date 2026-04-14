@@ -32,7 +32,6 @@ public partial class MainViewModel : ObservableObject
     // Speech recognition pipeline. All services are lazy/opt-in: they only touch real resources
     // (PortAudio, Whisper weights, LLM weights) when SpeechEnabled is true AND the user holds the
     // PTT key. When disabled, these sit dormant with zero cost.
-    private readonly ModelManager _modelManager = new();
     private readonly AudioCaptureService _audioCapture;
     private readonly WhisperSttEngine _whisperStt;
     private readonly LocalLlmService _llmService;

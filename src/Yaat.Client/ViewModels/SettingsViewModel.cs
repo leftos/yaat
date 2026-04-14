@@ -257,19 +257,7 @@ public partial class SettingsViewModel : ObservableObject
     private string _whisperModelSize = "whisper-large-turbo3";
 
     [ObservableProperty]
-    private string _whisperModelStatus = "Unknown";
-
-    [ObservableProperty]
-    private double _whisperDownloadProgress;
-
-    [ObservableProperty]
-    private bool _whisperIsDownloading;
-
-    [ObservableProperty]
     private string _llmModelPath = "";
-
-    [ObservableProperty]
-    private LlmCatalogEntry? _selectedLlmModel;
 
     /// <summary>
     /// Selected LM-Kit Whisper model. Bound to the ItemsSource <see cref="WhisperLmKitModels"/>.
@@ -291,71 +279,7 @@ public partial class SettingsViewModel : ObservableObject
     private LmKitModelEntry? _selectedLlmLmKitModel;
 
     [ObservableProperty]
-    private string _llmModelStatus = "Not downloaded";
-
-    [ObservableProperty]
-    private double _llmDownloadProgress;
-
-    [ObservableProperty]
-    private bool _llmIsDownloading;
-
-    [ObservableProperty]
     private int _llmGpuLayers = -1;
-
-    [ObservableProperty]
-    private string _preferredGpuBackend = "Auto";
-
-    [ObservableProperty]
-    private string _detectedGpuSummary = "Detecting...";
-
-    [ObservableProperty]
-    private string _llamaVulkanRuntimeStatus = "Not installed";
-
-    [ObservableProperty]
-    private double _llamaVulkanDownloadProgress;
-
-    [ObservableProperty]
-    private bool _llamaVulkanIsDownloading;
-
-    [ObservableProperty]
-    private string _llamaCudaRuntimeStatus = "Not installed";
-
-    [ObservableProperty]
-    private double _llamaCudaDownloadProgress;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLlamaCudaDownloadEnabled))]
-    private bool _llamaCudaIsDownloading;
-
-    [ObservableProperty]
-    private string _whisperVulkanRuntimeStatus = "Not installed";
-
-    [ObservableProperty]
-    private double _whisperVulkanDownloadProgress;
-
-    [ObservableProperty]
-    private bool _whisperVulkanIsDownloading;
-
-    [ObservableProperty]
-    private string _whisperCudaRuntimeStatus = "Not installed";
-
-    [ObservableProperty]
-    private double _whisperCudaDownloadProgress;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWhisperCudaDownloadEnabled))]
-    private bool _whisperCudaIsDownloading;
-
-    [ObservableProperty]
-    private string _cudaToolkitStatus = "Not detected";
-
-    // CUDA downloads are only enabled when the CUDA Toolkit 12.x has been detected on disk,
-    // because without it the backend DLLs fail to load at runtime (missing cudart64_12.dll etc.).
-    public bool IsLlamaCudaDownloadEnabled => _cudaToolkitDetected && !LlamaCudaIsDownloading;
-
-    public bool IsWhisperCudaDownloadEnabled => _cudaToolkitDetected && !WhisperCudaIsDownloading;
-
-    private bool _cudaToolkitDetected;
 
     [ObservableProperty]
     private string _pttKeyDisplay = "Right Ctrl";
@@ -387,17 +311,6 @@ public partial class SettingsViewModel : ObservableObject
     private string _alwaysOnTopKeyName = "Ctrl+Shift+T";
     private string _pttKeyName = "RightCtrl";
     private string? _captureTarget;
-    private readonly ModelManager _modelManager = new();
-    private readonly GpuRuntimeDownloader _gpuDownloader = new();
-    private CancellationTokenSource? _whisperDownloadCts;
-    private CancellationTokenSource? _llmDownloadCts;
-    private CancellationTokenSource? _llamaVulkanDownloadCts;
-    private CancellationTokenSource? _llamaCudaDownloadCts;
-    private CancellationTokenSource? _whisperVulkanDownloadCts;
-    private CancellationTokenSource? _whisperCudaDownloadCts;
-
-    public IReadOnlyList<string> WhisperSizes { get; } = ModelManager.AvailableWhisperSizes;
-    public IReadOnlyList<LlmCatalogEntry> LlmModels { get; } = ModelManager.AvailableLlmModels;
 
     /// <summary>LM-Kit STT model catalog exposed as the bound ItemsSource for the Whisper picker.</summary>
     public IReadOnlyList<LmKitModelEntry> WhisperLmKitModels { get; } = LmKitModelCatalog.WhisperModels;
@@ -487,7 +400,6 @@ public partial class SettingsViewModel : ObservableObject
         _whisperModelSize = _preferences.WhisperModelSize;
         _llmModelPath = _preferences.LlmModelPath;
         _llmGpuLayers = _preferences.LlmGpuLayers;
-        _preferredGpuBackend = _preferences.PreferredGpuBackend;
 
         // Resolve LM-Kit catalog selections from the saved preferences. FindById returns null when
         // the user has typed a custom file path or URI not in the catalog — we leave the dropdown
@@ -497,39 +409,6 @@ public partial class SettingsViewModel : ObservableObject
         _pttKeyName = _preferences.PttKey;
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
-        _whisperModelStatus = FormatWhisperStatus(
-            _modelManager.GetWhisperStatus(_whisperModelSize),
-            _modelManager.GetWhisperFileSize(_whisperModelSize)
-        );
-
-        // Resolve the initial LLM catalog selection from the stored path: if the stored path
-        // matches a catalog filename, pick that entry so the dropdown reflects it; otherwise
-        // default to the recommended (middle) option. A user who Browsed to a custom GGUF keeps
-        // their LlmModelPath intact; the dropdown still points somewhere sensible in case they
-        // click Download.
-        var byPath = _modelManager.FindLlmEntryByPath(_llmModelPath);
-        _selectedLlmModel =
-            byPath
-            ?? ModelManager.AvailableLlmModels.FirstOrDefault(m => m.Id == "qwen2.5-1.5b-q4km")
-            ?? ModelManager.AvailableLlmModels.FirstOrDefault();
-        RefreshLlmModelStatus();
-        _llamaVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaVulkanStatus());
-        _llamaCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaCudaStatus());
-        _whisperVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperVulkanStatus());
-        _whisperCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperCudaStatus());
-
-        var toolkit = GpuRuntimeDownloader.FindCuda12Toolkit();
-        if (toolkit is not null)
-        {
-            _cudaToolkitDetected = true;
-            _cudaToolkitStatus = $"v12.{toolkit.MinorVersion} at {toolkit.InstallPath}";
-        }
-        else
-        {
-            _cudaToolkitStatus = "Not detected (install CUDA Toolkit 12.x to enable CUDA downloads)";
-        }
-
-        _detectedGpuSummary = GpuCapabilityDetector.Detect().Summary;
         _mainWindowTopmost = _preferences.MainWindowGeometry?.IsTopmost ?? false;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
@@ -595,15 +474,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
-        _preferences.SetSpeechSettings(
-            SpeechEnabled,
-            WhisperModelSize,
-            LlmModelPath,
-            LlmGpuLayers,
-            PreferredGpuBackend,
-            _pttKeyName,
-            AudioInputDevice
-        );
+        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AudioInputDevice);
         _preferences.SetWindowTopmost("Main", MainWindowTopmost);
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
@@ -1181,78 +1052,12 @@ public partial class SettingsViewModel : ObservableObject
         return key != Key.None;
     }
 
-    partial void OnWhisperModelSizeChanged(string value)
-    {
-        WhisperModelStatus = FormatWhisperStatus(_modelManager.GetWhisperStatus(value), _modelManager.GetWhisperFileSize(value));
-    }
-
-    [RelayCommand]
-    private async Task DownloadWhisperModel()
-    {
-        if (WhisperIsDownloading)
-        {
-            return;
-        }
-
-        _whisperDownloadCts?.Dispose();
-        _whisperDownloadCts = new CancellationTokenSource();
-        WhisperIsDownloading = true;
-        WhisperDownloadProgress = 0;
-        WhisperModelStatus = "Downloading...";
-
-        var progress = new Progress<double>(p =>
-        {
-            if (!double.IsNaN(p))
-            {
-                WhisperDownloadProgress = p;
-            }
-        });
-
-        try
-        {
-            var ok = await _modelManager.DownloadWhisperModelAsync(WhisperModelSize, progress, _whisperDownloadCts.Token).ConfigureAwait(true);
-            var status = _modelManager.GetWhisperStatus(WhisperModelSize);
-            WhisperModelStatus = ok ? FormatWhisperStatus(status, _modelManager.GetWhisperFileSize(WhisperModelSize)) : "Download failed";
-        }
-        finally
-        {
-            WhisperIsDownloading = false;
-            WhisperDownloadProgress = 0;
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteWhisperModel()
-    {
-        _modelManager.DeleteWhisperModel(WhisperModelSize);
-        WhisperModelStatus = FormatWhisperStatus(_modelManager.GetWhisperStatus(WhisperModelSize), 0);
-    }
-
-    [RelayCommand]
-    private void CancelWhisperDownload()
-    {
-        _whisperDownloadCts?.Cancel();
-    }
-
-    private static string FormatWhisperStatus(WhisperModelStatus status, long bytes)
-    {
-        return status switch
-        {
-            Services.WhisperModelStatus.NotDownloaded => "Not downloaded",
-            Services.WhisperModelStatus.Downloading => "Downloading...",
-            Services.WhisperModelStatus.Ready => $"Ready ({bytes / (1024 * 1024)} MB)",
-            Services.WhisperModelStatus.Failed => "Failed (partial or corrupt)",
-            _ => "Unknown",
-        };
-    }
-
     // ---------- LM-Kit catalog selection ----------
 
     partial void OnSelectedWhisperLmKitModelChanged(LmKitModelEntry? value)
     {
         // Push the entry's ModelId into WhisperModelSize so WhisperSttEngine.EnsureLoaded picks
-        // it up via the existing UserPreferences read path. Setting WhisperModelSize triggers
-        // OnWhisperModelSizeChanged below which persists to disk.
+        // it up via the existing UserPreferences read path on next load.
         if (value is not null)
         {
             WhisperModelSize = value.ModelId;
@@ -1261,332 +1066,13 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnSelectedLlmLmKitModelChanged(LmKitModelEntry? value)
     {
-        // Same pattern as above — write the LM-Kit ModelId into LlmModelPath. LocalLlmService's
+        // Same pattern — write the LM-Kit ModelId into LlmModelPath. LocalLlmService's
         // EnsureLoaded dispatches the value: rooted path → file constructor; URI → URI
         // constructor; bare model ID → LoadFromModelID.
         if (value is not null)
         {
             LlmModelPath = value.ModelId;
         }
-    }
-
-    // ---------- LLM catalog download (legacy ModelManager path) ----------
-
-    partial void OnSelectedLlmModelChanged(LlmCatalogEntry? value)
-    {
-        RefreshLlmModelStatus();
-    }
-
-    private void RefreshLlmModelStatus()
-    {
-        var entry = SelectedLlmModel;
-        if (entry is null)
-        {
-            LlmModelStatus = "No catalog entry selected";
-            return;
-        }
-
-        var status = _modelManager.GetLlmStatus(entry.Id);
-        var bytes = _modelManager.GetLlmFileSize(entry.Id);
-        LlmModelStatus = status switch
-        {
-            ModelStatus.NotDownloaded => $"Not downloaded (~{entry.ApproxSizeMb} MB)",
-            ModelStatus.Downloading => "Downloading...",
-            ModelStatus.Ready => $"Ready ({bytes / (1024 * 1024)} MB)",
-            ModelStatus.Failed => "Failed (partial or corrupt)",
-            _ => "Unknown",
-        };
-    }
-
-    [RelayCommand]
-    private async Task DownloadLlmModel()
-    {
-        var entry = SelectedLlmModel;
-        if (entry is null || LlmIsDownloading)
-        {
-            return;
-        }
-
-        _llmDownloadCts?.Dispose();
-        _llmDownloadCts = new CancellationTokenSource();
-        LlmIsDownloading = true;
-        LlmDownloadProgress = 0;
-        LlmModelStatus = "Downloading...";
-
-        var progress = new Progress<double>(p =>
-        {
-            if (!double.IsNaN(p))
-            {
-                LlmDownloadProgress = p;
-            }
-        });
-
-        try
-        {
-            var ok = await _modelManager.DownloadLlmModelAsync(entry.Id, progress, _llmDownloadCts.Token).ConfigureAwait(true);
-            if (ok)
-            {
-                // Point LlmModelPath at the newly downloaded file so LocalLlmService picks it up
-                // on next load. The user doesn't need to do anything else — Settings Save writes
-                // the path to prefs and LocalLlmService lazy-loads from it on first use.
-                LlmModelPath = _modelManager.GetLlmPath(entry.Id);
-            }
-
-            RefreshLlmModelStatus();
-            if (!ok)
-            {
-                LlmModelStatus = "Download failed";
-            }
-        }
-        finally
-        {
-            LlmIsDownloading = false;
-            LlmDownloadProgress = 0;
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteLlmModel()
-    {
-        var entry = SelectedLlmModel;
-        if (entry is null)
-        {
-            return;
-        }
-
-        _modelManager.DeleteLlmModel(entry.Id);
-
-        // If LlmModelPath was pointing at the deleted model, clear it so the runtime doesn't try
-        // to load a missing file next time speech is used.
-        var deletedPath = _modelManager.GetLlmPath(entry.Id);
-        if (string.Equals(LlmModelPath, deletedPath, StringComparison.OrdinalIgnoreCase))
-        {
-            LlmModelPath = "";
-        }
-
-        RefreshLlmModelStatus();
-    }
-
-    [RelayCommand]
-    private void CancelLlmDownload()
-    {
-        _llmDownloadCts?.Cancel();
-    }
-
-    // ---------- LLamaSharp Vulkan GPU runtime download ----------
-
-    [RelayCommand]
-    private async Task DownloadLlamaVulkanRuntime()
-    {
-        if (LlamaVulkanIsDownloading)
-        {
-            return;
-        }
-
-        _llamaVulkanDownloadCts?.Dispose();
-        _llamaVulkanDownloadCts = new CancellationTokenSource();
-        LlamaVulkanIsDownloading = true;
-        LlamaVulkanDownloadProgress = 0;
-        LlamaVulkanRuntimeStatus = "Downloading...";
-
-        var progress = new Progress<double>(p =>
-        {
-            if (!double.IsNaN(p))
-            {
-                LlamaVulkanDownloadProgress = p;
-            }
-        });
-
-        try
-        {
-            var ok = await _gpuDownloader.DownloadLlamaVulkanRuntimeAsync(progress, _llamaVulkanDownloadCts.Token).ConfigureAwait(true);
-            LlamaVulkanRuntimeStatus = ok
-                ? FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaVulkanStatus()) + " (restart YAAT to activate)"
-                : "Download failed";
-        }
-        finally
-        {
-            LlamaVulkanIsDownloading = false;
-            LlamaVulkanDownloadProgress = 0;
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteLlamaVulkanRuntime()
-    {
-        _gpuDownloader.DeleteLlamaVulkanRuntime();
-        LlamaVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaVulkanStatus()) + " (restart YAAT to deactivate)";
-    }
-
-    [RelayCommand]
-    private void CancelLlamaVulkanDownload()
-    {
-        _llamaVulkanDownloadCts?.Cancel();
-    }
-
-    // ---------- LLamaSharp CUDA 12 runtime download ----------
-
-    [RelayCommand]
-    private async Task DownloadLlamaCudaRuntime()
-    {
-        if (LlamaCudaIsDownloading)
-        {
-            return;
-        }
-
-        _llamaCudaDownloadCts?.Dispose();
-        _llamaCudaDownloadCts = new CancellationTokenSource();
-        LlamaCudaIsDownloading = true;
-        LlamaCudaDownloadProgress = 0;
-        LlamaCudaRuntimeStatus = "Downloading...";
-
-        var progress = new Progress<double>(p =>
-        {
-            if (!double.IsNaN(p))
-            {
-                LlamaCudaDownloadProgress = p;
-            }
-        });
-
-        try
-        {
-            var ok = await _gpuDownloader.DownloadLlamaCudaRuntimeAsync(progress, _llamaCudaDownloadCts.Token).ConfigureAwait(true);
-            LlamaCudaRuntimeStatus = ok
-                ? FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaCudaStatus()) + " (restart YAAT to activate)"
-                : "Download failed";
-        }
-        finally
-        {
-            LlamaCudaIsDownloading = false;
-            LlamaCudaDownloadProgress = 0;
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteLlamaCudaRuntime()
-    {
-        _gpuDownloader.DeleteLlamaCudaRuntime();
-        LlamaCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetLlamaCudaStatus()) + " (restart YAAT to deactivate)";
-    }
-
-    [RelayCommand]
-    private void CancelLlamaCudaDownload()
-    {
-        _llamaCudaDownloadCts?.Cancel();
-    }
-
-    // ---------- Whisper.net Vulkan runtime download ----------
-
-    [RelayCommand]
-    private async Task DownloadWhisperVulkanRuntime()
-    {
-        if (WhisperVulkanIsDownloading)
-        {
-            return;
-        }
-
-        _whisperVulkanDownloadCts?.Dispose();
-        _whisperVulkanDownloadCts = new CancellationTokenSource();
-        WhisperVulkanIsDownloading = true;
-        WhisperVulkanDownloadProgress = 0;
-        WhisperVulkanRuntimeStatus = "Downloading...";
-
-        var progress = new Progress<double>(p =>
-        {
-            if (!double.IsNaN(p))
-            {
-                WhisperVulkanDownloadProgress = p;
-            }
-        });
-
-        try
-        {
-            var ok = await _gpuDownloader.DownloadWhisperVulkanRuntimeAsync(progress, _whisperVulkanDownloadCts.Token).ConfigureAwait(true);
-            WhisperVulkanRuntimeStatus = ok
-                ? FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperVulkanStatus()) + " (restart YAAT to activate)"
-                : "Download failed";
-        }
-        finally
-        {
-            WhisperVulkanIsDownloading = false;
-            WhisperVulkanDownloadProgress = 0;
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteWhisperVulkanRuntime()
-    {
-        _gpuDownloader.DeleteWhisperVulkanRuntime();
-        WhisperVulkanRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperVulkanStatus()) + " (restart YAAT to deactivate)";
-    }
-
-    [RelayCommand]
-    private void CancelWhisperVulkanDownload()
-    {
-        _whisperVulkanDownloadCts?.Cancel();
-    }
-
-    // ---------- Whisper.net CUDA runtime download ----------
-
-    [RelayCommand]
-    private async Task DownloadWhisperCudaRuntime()
-    {
-        if (WhisperCudaIsDownloading)
-        {
-            return;
-        }
-
-        _whisperCudaDownloadCts?.Dispose();
-        _whisperCudaDownloadCts = new CancellationTokenSource();
-        WhisperCudaIsDownloading = true;
-        WhisperCudaDownloadProgress = 0;
-        WhisperCudaRuntimeStatus = "Downloading...";
-
-        var progress = new Progress<double>(p =>
-        {
-            if (!double.IsNaN(p))
-            {
-                WhisperCudaDownloadProgress = p;
-            }
-        });
-
-        try
-        {
-            var ok = await _gpuDownloader.DownloadWhisperCudaRuntimeAsync(progress, _whisperCudaDownloadCts.Token).ConfigureAwait(true);
-            WhisperCudaRuntimeStatus = ok
-                ? FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperCudaStatus()) + " (restart YAAT to activate)"
-                : "Download failed";
-        }
-        finally
-        {
-            WhisperCudaIsDownloading = false;
-            WhisperCudaDownloadProgress = 0;
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteWhisperCudaRuntime()
-    {
-        _gpuDownloader.DeleteWhisperCudaRuntime();
-        WhisperCudaRuntimeStatus = FormatGpuRuntimeStatus(_gpuDownloader.GetWhisperCudaStatus()) + " (restart YAAT to deactivate)";
-    }
-
-    [RelayCommand]
-    private void CancelWhisperCudaDownload()
-    {
-        _whisperCudaDownloadCts?.Cancel();
-    }
-
-    private static string FormatGpuRuntimeStatus(GpuRuntimeStatus status)
-    {
-        return status switch
-        {
-            GpuRuntimeStatus.NotInstalled => "Not installed",
-            GpuRuntimeStatus.Downloading => "Downloading...",
-            GpuRuntimeStatus.Installed => "Installed",
-            GpuRuntimeStatus.Failed => "Failed",
-            _ => "Unknown",
-        };
     }
 
     [RelayCommand]

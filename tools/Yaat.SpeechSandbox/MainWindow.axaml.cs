@@ -41,7 +41,6 @@ public partial class MainWindow : Window
 {
     private readonly UserPreferences _preferences;
     private readonly LocalLlmService _llmService;
-    private readonly ModelManager _modelManager = new();
     private readonly WhisperSttEngine _whisperStt;
     private readonly AudioCaptureService _audioCapture;
     private readonly PhraseologyCommandMapper _ruleMapper = new();
@@ -209,7 +208,7 @@ public partial class MainWindow : Window
         }
         if (!_whisperStt.IsConfigured)
         {
-            SetStatus($"Whisper model not found at {_modelManager.GetWhisperPath(_preferences.WhisperModelSize)}");
+            SetStatus($"Whisper model not configured (WhisperModelSize='{_preferences.WhisperModelSize}')");
             return;
         }
 
@@ -268,14 +267,11 @@ public partial class MainWindow : Window
     private string BuildConfigSummary()
     {
         var sb = new StringBuilder();
-        sb.Append("Whisper model: ")
-            .Append(_preferences.WhisperModelSize)
-            .Append(" → ")
-            .AppendLine(_modelManager.GetWhisperPath(_preferences.WhisperModelSize));
-        sb.Append("Whisper file exists: ").AppendLine(_whisperStt.IsConfigured ? "yes" : "no");
-        sb.Append("LLM model path: ")
+        sb.Append("Whisper model source: ").AppendLine(_preferences.WhisperModelSize);
+        sb.Append("Whisper configured: ").AppendLine(_whisperStt.IsConfigured ? "yes" : "no");
+        sb.Append("LLM model source: ")
             .AppendLine(string.IsNullOrWhiteSpace(_preferences.LlmModelPath) ? "(not configured)" : _preferences.LlmModelPath);
-        sb.Append("LLM model file exists: ").AppendLine(_llmService.IsConfigured ? "yes" : "no");
+        sb.Append("LLM configured: ").AppendLine(_llmService.IsConfigured ? "yes" : "no");
         sb.Append("LLM GPU layers: ").AppendLine(_preferences.LlmGpuLayers.ToString());
         sb.Append("Speech enabled in prefs: ").AppendLine(_preferences.SpeechEnabled ? "yes" : "no");
         return sb.ToString();
