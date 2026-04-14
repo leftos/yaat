@@ -57,31 +57,47 @@ public sealed class TowerCabImageService : IDisposable
 
     private async Task EnsureFreshAsync(string url, string cachePath, string airportId, string resolution)
     {
+        // Freshness check: the vNAS data-api (Cloudflare origin) returns 200 OK on HEAD requests
+        // regardless of If-Modified-Since, so we compare Last-Modified against the cached file's
+        // mtime ourselves instead of relying on 304 responses.
         try
         {
             if (File.Exists(cachePath))
             {
                 var fileInfo = new FileInfo(cachePath);
-                var request = new HttpRequestMessage(HttpMethod.Head, url);
-                request.Headers.IfModifiedSince = fileInfo.LastWriteTimeUtc;
-                var response = await _http.SendAsync(request);
+                using var headReq = new HttpRequestMessage(HttpMethod.Head, url);
+                using var headResp = await _http.SendAsync(headReq);
 
-                if (response.StatusCode == HttpStatusCode.NotModified)
-                {
-                    _log.LogDebug("Tower cab image {AirportId} {Res}Res is up to date", airportId, resolution);
-                    return;
-                }
-
-                if (response.StatusCode == HttpStatusCode.NotFound)
+                if (headResp.StatusCode == HttpStatusCode.NotFound)
                 {
                     _log.LogDebug("Tower cab image {AirportId} {Res}Res not found on server", airportId, resolution);
                     return;
                 }
 
-                _log.LogDebug("Tower cab image {AirportId} {Res}Res has been updated, re-downloading", airportId, resolution);
+                if (headResp.IsSuccessStatusCode)
+                {
+                    var serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
+                    if ((serverLastModified is { } sm) && (sm <= fileInfo.LastWriteTimeUtc))
+                    {
+                        _log.LogDebug("Tower cab image {AirportId} {Res}Res is up to date", airportId, resolution);
+                        return;
+                    }
+
+                    _log.LogDebug("Tower cab image {AirportId} {Res}Res has been updated, re-downloading", airportId, resolution);
+                    await DownloadAsync(url, cachePath, airportId, resolution, serverLastModified);
+                    return;
+                }
+
+                _log.LogWarning(
+                    "HEAD for tower cab image {AirportId} {Res}Res returned {Status}; using cached copy",
+                    airportId,
+                    resolution,
+                    headResp.StatusCode
+                );
+                return;
             }
 
-            await DownloadAsync(url, cachePath, airportId, resolution);
+            await DownloadAsync(url, cachePath, airportId, resolution, serverLastModified: null);
         }
         catch (Exception ex)
         {
@@ -89,11 +105,11 @@ public sealed class TowerCabImageService : IDisposable
         }
     }
 
-    private async Task DownloadAsync(string url, string cachePath, string airportId, string resolution)
+    private async Task DownloadAsync(string url, string cachePath, string airportId, string resolution, DateTime? serverLastModified)
     {
         _log.LogInformation("Downloading tower cab image {AirportId} {Res}Res from {Url}", airportId, resolution, url);
 
-        var response = await _http.GetAsync(url);
+        using var response = await _http.GetAsync(url);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             _log.LogDebug("Tower cab image {AirportId} {Res}Res not found (404)", airportId, resolution);
@@ -103,6 +119,12 @@ public sealed class TowerCabImageService : IDisposable
         response.EnsureSuccessStatusCode();
         var bytes = await response.Content.ReadAsByteArrayAsync();
         await File.WriteAllBytesAsync(cachePath, bytes);
+
+        var stamp = serverLastModified ?? response.Content.Headers.LastModified?.UtcDateTime;
+        if (stamp is { } s)
+        {
+            File.SetLastWriteTimeUtc(cachePath, s);
+        }
 
         _log.LogInformation("Cached tower cab image {AirportId} {Res}Res ({Size:N0} bytes)", airportId, resolution, bytes.Length);
     }

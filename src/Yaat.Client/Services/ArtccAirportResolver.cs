@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -6,13 +5,16 @@ using Yaat.Client.Logging;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Fetches ARTCC configuration from vNAS data API, caches to disk, and uses
-/// conditional HTTP (If-Modified-Since) to avoid redundant downloads.
+/// Fetches ARTCC configuration from vNAS data API, caches to disk, and uses a
+/// TTL-based freshness check to avoid redundant downloads. (The data-api
+/// /api/artccs endpoint does not support HEAD or Last-Modified.)
 /// Provides airport ID extraction and tower cab video map ID lookup.
 /// </summary>
 public sealed class ArtccAirportResolver
 {
     private const string DataApiBase = "https://data-api.vnas.vatsim.net/api/artccs";
+
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(6);
 
     private static readonly string CacheDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -85,23 +87,16 @@ public sealed class ArtccAirportResolver
         {
             if (File.Exists(cachePath))
             {
-                var fileInfo = new FileInfo(cachePath);
-                var request = new HttpRequestMessage(HttpMethod.Head, url);
-                request.Headers.IfModifiedSince = fileInfo.LastWriteTimeUtc;
-                var response = await _http.SendAsync(request);
-
-                if (response.StatusCode == HttpStatusCode.NotModified)
+                var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(cachePath);
+                if (age < CacheTtl)
                 {
-                    _log.LogDebug("ARTCC config {Artcc} is up to date", artccId);
+                    _log.LogDebug("ARTCC config {Artcc} is fresh (age {AgeMin:F0} min)", artccId, age.TotalMinutes);
                     var diskJson = await File.ReadAllTextAsync(cachePath);
                     _jsonCache[artccId] = diskJson;
                     return diskJson;
                 }
 
-                if (response.IsSuccessStatusCode)
-                {
-                    _log.LogDebug("ARTCC config {Artcc} has been updated, re-downloading", artccId);
-                }
+                _log.LogDebug("ARTCC config {Artcc} is stale (age {AgeHr:F1} h), re-downloading", artccId, age.TotalHours);
             }
 
             var json = await _http.GetStringAsync(url);

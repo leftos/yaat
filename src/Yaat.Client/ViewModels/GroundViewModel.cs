@@ -214,7 +214,7 @@ public partial class GroundViewModel : ObservableObject
         {
             try
             {
-                var image = await _towerCabImageService.GetImageAsync(_vnasConfigService.TowerCabImagesBaseUrl, artccId, airportId, highRes: false);
+                var image = await _towerCabImageService.GetImageAsync(_vnasConfigService.TowerCabImagesBaseUrl, artccId, airportId, highRes: true);
                 BackgroundImage = image;
                 if (image is not null)
                 {
