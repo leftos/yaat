@@ -25,6 +25,64 @@ var modelSource = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL") ?? "qwe
 
 LicenseManager.SetLicenseKey("");
 
+// Dump the FILTERED YAAT catalogs (Whisper + LLM) as they'll appear in the Settings picker.
+// Use this to sanity-check the filter logic in LmKitModelCatalog without running the full UI.
+if (args.Length > 0 && args[0] == "--yaat-catalog")
+{
+    LMKit.Licensing.LicenseManager.SetLicenseKey("");
+    Console.WriteLine("=== YAAT Whisper catalog ===");
+    var whisper = LmKitModelCatalog.BuildWhisperCatalog();
+    Console.WriteLine($"  {whisper.Count} entries");
+    foreach (var e in whisper)
+    {
+        var cached = e.IsLocallyAvailable ? " [cached]" : "";
+        var tier = e.Tier == LmKitModelTier.Recommended ? " ★" : "";
+        Console.WriteLine($"    {e.ModelId, -30} {e.ApproxSizeMb, 6} MB  {e.DisplayName}{tier}{cached}");
+    }
+    Console.WriteLine();
+    Console.WriteLine("=== YAAT LLM catalog ===");
+    var llm = LmKitModelCatalog.BuildLlmCatalog();
+    Console.WriteLine($"  {llm.Count} entries");
+    foreach (var e in llm)
+    {
+        var cached = e.IsLocallyAvailable ? " [cached]" : "";
+        var tier = e.Tier == LmKitModelTier.Recommended ? " ★" : "";
+        var gpu = e.GpuRecommended ? " [GPU]" : "";
+        Console.WriteLine($"    {e.ModelId, -30} {e.ApproxSizeMb, 6} MB  {e.DisplayName}{tier}{gpu}{cached}");
+    }
+    return 0;
+}
+
+// Enumerate LM-Kit's predefined model catalog. Dumps every ModelCard with the metadata YAAT
+// cares about: ModelID, capabilities, parameter count, file size, license, local-availability
+// status. Used to decide what to expose in LmKitModelCatalog.
+if (args.Length > 0 && args[0] == "--lmkit-models")
+{
+    LMKit.Licensing.LicenseManager.SetLicenseKey("");
+    Console.WriteLine("=== LM-Kit predefined model catalog ===");
+    var cards = LMKit.Model.ModelCard.GetPredefinedModelCards();
+    Console.WriteLine($"  Total: {cards.Count}");
+    Console.WriteLine();
+    foreach (var c in cards.OrderBy(c => c.Capabilities.HasFlag(LMKit.Model.ModelCapabilities.SpeechToText) ? 0 : 1).ThenBy(c => c.ParameterCount))
+    {
+        Console.WriteLine($"  {c.ModelID}");
+        Console.WriteLine($"    Name:           {c.ModelName}");
+        Console.WriteLine($"    ShortName:      {c.ShortModelName}");
+        Console.WriteLine($"    Publisher:      {c.Publisher}");
+        Console.WriteLine($"    License:        {c.License}");
+        Console.WriteLine($"    Capabilities:   {c.Capabilities}");
+        Console.WriteLine($"    Architecture:   {c.Architecture}");
+        Console.WriteLine($"    Parameters:     {c.ParameterCount / 1_000_000.0:F1} M");
+        Console.WriteLine($"    FileSize:       {c.FileSize / (1024 * 1024)} MB");
+        Console.WriteLine($"    ContextLength:  {c.ContextLength}");
+        Console.WriteLine($"    Quantization:   {c.QuantizationPrecision}");
+        Console.WriteLine($"    LocallyAvail:   {c.IsLocallyAvailable}");
+        Console.WriteLine($"    LocalPath:      {c.LocalPath}");
+        Console.WriteLine();
+    }
+    return 0;
+}
+
 // Quick GPU enumeration probe — tells us what LMKit.Hardware.Gpu.GpuDeviceInfo.Devices returns
 // on this machine, so we can shape the Settings UI around real values.
 if (args.Length > 0 && args[0] == "--lmkit-gpus")

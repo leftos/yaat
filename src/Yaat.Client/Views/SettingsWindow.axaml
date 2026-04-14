@@ -474,13 +474,17 @@
                         <StackPanel Spacing="4">
                             <ComboBox ItemsSource="{Binding WhisperLmKitModels}"
                                       SelectedItem="{Binding SelectedWhisperLmKitModel}"
-                                      Width="340">
+                                      Width="420">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <TextBlock Text="{Binding DisplayName}" />
                                             <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}"
                                                        Foreground="{DynamicResource SubtleTextBrush}" />
+                                            <TextBlock Text="✓ cached"
+                                                       FontSize="10"
+                                                       Foreground="LightGreen"
+                                                       IsVisible="{Binding IsLocallyAvailable}" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
@@ -489,7 +493,21 @@
                                        TextWrapping="Wrap"
                                        FontSize="11"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
-                            <TextBlock Text="LM-Kit downloads the model on first use (cached afterward in %LOCALAPPDATA%/LM-Kit/Models/)."
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Download now"
+                                        Command="{Binding DownloadSelectedWhisperModelCommand}"
+                                        IsEnabled="{Binding !SelectedWhisperLmKitModel.IsDownloading}" />
+                                <TextBlock Text="{Binding SelectedWhisperLmKitModel.StatusMessage}"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <ProgressBar Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding SelectedWhisperLmKitModel.DownloadProgress}"
+                                         IsVisible="{Binding SelectedWhisperLmKitModel.IsDownloading}"
+                                         Height="4" />
+                            <TextBlock Text="Pre-downloading here avoids the multi-second stall on your first PTT press. LM-Kit caches models under %LOCALAPPDATA%/LM-Kit/Models/ and reuses them across runs."
                                        TextWrapping="Wrap"
                                        FontSize="11"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
@@ -501,7 +519,7 @@
                         <StackPanel Spacing="4">
                             <ComboBox ItemsSource="{Binding LlmLmKitModels}"
                                       SelectedItem="{Binding SelectedLlmLmKitModel}"
-                                      Width="380">
+                                      Width="420">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -511,7 +529,11 @@
                                             <TextBlock Text="GPU recommended"
                                                        FontSize="10"
                                                        Foreground="{DynamicResource SubtleTextBrush}"
-                                                       IsVisible="{Binding RequiresGpu}" />
+                                                       IsVisible="{Binding GpuRecommended}" />
+                                            <TextBlock Text="✓ cached"
+                                                       FontSize="10"
+                                                       Foreground="LightGreen"
+                                                       IsVisible="{Binding IsLocallyAvailable}" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
@@ -520,6 +542,20 @@
                                        TextWrapping="Wrap"
                                        FontSize="11"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Download now"
+                                        Command="{Binding DownloadSelectedLlmModelCommand}"
+                                        IsEnabled="{Binding !SelectedLlmLmKitModel.IsDownloading}" />
+                                <TextBlock Text="{Binding SelectedLlmLmKitModel.StatusMessage}"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <ProgressBar Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding SelectedLlmLmKitModel.DownloadProgress}"
+                                         IsVisible="{Binding SelectedLlmLmKitModel.IsDownloading}"
+                                         Height="4" />
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                                 <TextBlock Text="Or use a custom GGUF:"
                                            Foreground="{DynamicResource SubtleTextBrush}"

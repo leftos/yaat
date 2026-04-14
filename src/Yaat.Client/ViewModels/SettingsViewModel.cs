@@ -312,11 +312,15 @@ public partial class SettingsViewModel : ObservableObject
     private string _pttKeyName = "RightCtrl";
     private string? _captureTarget;
 
-    /// <summary>LM-Kit STT model catalog exposed as the bound ItemsSource for the Whisper picker.</summary>
-    public IReadOnlyList<LmKitModelEntry> WhisperLmKitModels { get; } = LmKitModelCatalog.WhisperModels;
+    /// <summary>
+    /// LM-Kit STT model catalog, built at runtime from <see cref="LMKit.Model.ModelCard.GetPredefinedModelCards"/>.
+    /// Each entry is an <see cref="LmKitModelEntry"/> with observable download state so the
+    /// per-row Download button + status text stays in sync without extra change-notification plumbing.
+    /// </summary>
+    public ObservableCollection<LmKitModelEntry> WhisperLmKitModels { get; } = LmKitModelCatalog.BuildWhisperCatalog();
 
-    /// <summary>LM-Kit LLM model catalog exposed as the bound ItemsSource for the command-mapper picker.</summary>
-    public IReadOnlyList<LmKitModelEntry> LlmLmKitModels { get; } = LmKitModelCatalog.LlmModels;
+    /// <summary>LM-Kit LLM model catalog. Same shape as <see cref="WhisperLmKitModels"/> but filtered for instruction-following models.</summary>
+    public ObservableCollection<LmKitModelEntry> LlmLmKitModels { get; } = LmKitModelCatalog.BuildLlmCatalog();
 
     /// <summary>
     /// Snapshot of GPUs LM-Kit can see at the time the Settings window opened. Used by the
@@ -404,8 +408,8 @@ public partial class SettingsViewModel : ObservableObject
         // Resolve LM-Kit catalog selections from the saved preferences. FindById returns null when
         // the user has typed a custom file path or URI not in the catalog — we leave the dropdown
         // unselected in that case rather than silently overriding their choice.
-        _selectedWhisperLmKitModel = LmKitModelCatalog.FindById(LmKitModelCatalog.WhisperModels, _whisperModelSize);
-        _selectedLlmLmKitModel = LmKitModelCatalog.FindById(LmKitModelCatalog.LlmModels, _llmModelPath);
+        _selectedWhisperLmKitModel = LmKitModelCatalog.FindById(WhisperLmKitModels, _whisperModelSize);
+        _selectedLlmLmKitModel = LmKitModelCatalog.FindById(LlmLmKitModels, _llmModelPath);
         _pttKeyName = _preferences.PttKey;
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
@@ -1073,6 +1077,35 @@ public partial class SettingsViewModel : ObservableObject
         {
             LlmModelPath = value.ModelId;
         }
+    }
+
+    /// <summary>
+    /// Pre-downloads the currently selected Whisper model into LM-Kit's cache so the first real
+    /// PTT press doesn't stall while the file streams off the network. Idempotent — if the model
+    /// is already cached, <see cref="LmKitModelEntry.DownloadAsync"/> returns immediately.
+    /// </summary>
+    [RelayCommand]
+    private async Task DownloadSelectedWhisperModel()
+    {
+        if (SelectedWhisperLmKitModel is null)
+        {
+            return;
+        }
+        await SelectedWhisperLmKitModel.DownloadAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Pre-downloads the currently selected LLM into LM-Kit's cache. Same shape as the Whisper
+    /// download but routes through the LLM picker selection.
+    /// </summary>
+    [RelayCommand]
+    private async Task DownloadSelectedLlmModel()
+    {
+        if (SelectedLlmLmKitModel is null)
+        {
+            return;
+        }
+        await SelectedLlmLmKitModel.DownloadAsync(CancellationToken.None);
     }
 
     [RelayCommand]
