@@ -931,10 +931,15 @@ public sealed class UserPreferences
         public int DataGridFontSize { get; set; } = 12;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 
-        // Speech recognition. LlmGpuLayers: -1 = auto, 0 = CPU only, N = offload N layers.
+        // Speech recognition. With the LM-Kit engine swap, WhisperModelSize and LlmModelPath
+        // hold LM-Kit model sources — curated IDs (e.g. "whisper-large-turbo3", "qwen3.5:4b"),
+        // absolute file paths, or http(s) URIs. The previous values like "base.en" (Whisper.net
+        // ggml suffix) and explicit GGUF paths still resolve correctly through the same
+        // dispatch logic in WhisperSttEngine.EnsureLoaded / LocalLlmService.EnsureLoaded.
+        // LlmGpuLayers: -1 = auto, 0 = CPU only, N = offload N layers.
         public bool SpeechEnabled { get; set; }
-        public string WhisperModelSize { get; set; } = "base.en";
-        public string LlmModelPath { get; set; } = "";
+        public string WhisperModelSize { get; set; } = "whisper-large-turbo3";
+        public string LlmModelPath { get; set; } = "qwen3.5:4b";
         public int LlmGpuLayers { get; set; } = -1;
         public string PreferredGpuBackend { get; set; } = "Auto";
         public string PttKey { get; set; } = "RightCtrl";

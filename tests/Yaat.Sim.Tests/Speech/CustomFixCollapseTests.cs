@@ -5,6 +5,15 @@ namespace Yaat.Sim.Tests.Speech;
 
 public class CustomFixCollapseTests
 {
+    public CustomFixCollapseTests()
+    {
+        // PhraseologyMapper now validates rule outputs via CommandParser.Parse, which resolves
+        // DCT fix args through NavigationDatabase. Load real nav data (including baked custom
+        // fixes from Data/CustomFixes/ZOA — OAK30NUM and TOLLPLAZA) so the validator accepts
+        // the canonicals this test suite produces.
+        TestVnasData.EnsureInitialized();
+    }
+
     // A tight set of custom-fix patterns covering the motivating OAK example plus a second fix
     // so we can exercise longest-match disambiguation across different canonical aliases.
     private static readonly IReadOnlyList<CustomFixSpeechPattern> Patterns =

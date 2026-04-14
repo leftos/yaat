@@ -5,6 +5,15 @@ namespace Yaat.Sim.Tests.Speech;
 
 public class PhraseologyMapperTests
 {
+    public PhraseologyMapperTests()
+    {
+        // PhraseologyMapper now validates rule outputs via CommandParser.Parse, which needs the
+        // NavigationDatabase loaded for fix-based commands (DCT, HFIX, etc.). Load real nav data
+        // from TestData/ so every rule's parser path works — synthetic stubs would hide integration
+        // problems per the repo's testing convention.
+        TestVnasData.EnsureInitialized();
+    }
+
     private static readonly MapContext NoContext = MapContext.Empty;
 
     // --- Heading rules ---
@@ -156,6 +165,66 @@ public class PhraseologyMapperTests
         Assert.Equal("DM 3000, SPD 250, TL 180", result!.CanonicalCommand);
     }
 
+    // --- Capture validation (rejects noisy mistranscriptions) ---
+
+    [Fact]
+    public void Climb_To_NonNumericAltitude_RejectsMatch()
+    {
+        // Whisper mistranscription of "climb and maintain flight level three five zero" as
+        // "climb to main aim flight level tree five zero". The rule engine must NOT accept
+        // "climb to {alt}" with {alt}="main" and produce the nonsense canonical "CM main".
+        // Instead it should fail to match and let a later position (the flight level) pick up
+        // the actual altitude — or fall through to null if nothing valid is found.
+        var result = PhraseologyMapper.Map("climb to main aim flight level tree five zero", NoContext);
+        if (result is not null)
+        {
+            // Whatever we produce, it must not have "main" or any non-digit token after CM.
+            Assert.DoesNotContain("CM main", result.CanonicalCommand, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("main", result.CanonicalCommand, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("aim", result.CanonicalCommand, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void FlyHeading_NonNumericHeading_RejectsMatch()
+    {
+        // "fly heading apple" should not match "fly heading {hdg}" with {hdg}="apple".
+        var result = PhraseologyMapper.Map("fly heading apple", NoContext);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void Squawk_NonNumericCode_RejectsMatch()
+    {
+        // "squawk vfr" is a special-case rule (SQVFR); "squawk random" should not match.
+        var result = PhraseologyMapper.Map("squawk random", NoContext);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ClimbToFlightLevel_ValidAltitude_StillMatches()
+    {
+        // Happy path regression: verify the validator didn't break normal "climb to {alt}" matching.
+        var result = PhraseologyMapper.Map("climb to flight level three five zero", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("CM 35000", result!.CanonicalCommand);
+    }
+
+    [Theory]
+    // Valid ATC taxi phraseology requires multi-token path captures ("bravo charlie") and
+    // phonetic-letter-to-ID conversion, neither of which the current rule engine supports.
+    // These transcripts must fall through to the LLM fallback or manual entry. The earlier
+    // "taxi to runway 28R" rule was actively harmful — it's not even valid phraseology, and
+    // it produced a canonical that failed CommandParser validation.
+    [InlineData("taxi to runway two eight right")]
+    [InlineData("runway two eight right taxi via bravo charlie")]
+    [InlineData("taxi via delta hotel")]
+    public void Taxi_Phraseology_NotSupportedByRuleEngine(string transcript)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.Null(result);
+    }
+
     // --- Callsign extraction ---
 
     [Fact]
@@ -183,6 +252,28 @@ public class PhraseologyMapperTests
         Assert.NotNull(result);
         Assert.Equal("N12345", result!.Callsign);
         Assert.Equal("CTO", result.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Callsign_Leading_UsGa_HybridWhisperForm()
+    {
+        // Whisper's initial_prompt is seeded with the ICAO form "N9225L", so it normalizes the
+        // tail mid-transcription while still emitting the word "november" the speaker prefixed.
+        // Regression test for the hybrid form reaching the mapper.
+        var result = PhraseologyMapper.Map("november N9225L climb and maintain 2000", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("N9225L", result!.Callsign);
+        Assert.Equal("CM 2000", result.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Callsign_Leading_UsGa_BareIcaoForm()
+    {
+        // Fully-normalized form: Whisper emitted just "N9225L" with no "november" prefix.
+        var result = PhraseologyMapper.Map("N9225L climb and maintain 2000", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("N9225L", result!.Callsign);
+        Assert.Equal("CM 2000", result.CanonicalCommand);
     }
 
     // --- Condition prefixes ---
@@ -308,7 +399,6 @@ public class PhraseologyMapperTests
     // --- Ground rules ---
 
     [Theory]
-    [InlineData("taxi to runway two eight right", "TAXI RWY 28R")]
     [InlineData("pushback approved", "PUSH")]
     [InlineData("hold position", "HOLD")]
     [InlineData("resume taxi", "RES")]

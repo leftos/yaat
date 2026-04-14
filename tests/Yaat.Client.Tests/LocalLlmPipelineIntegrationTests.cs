@@ -160,37 +160,57 @@ public sealed class LocalLlmPipelineIntegrationTests
     }
 
     [Fact]
-    public async Task DisabledConfig_ReturnsNullWithoutLoadingModel()
+    public async Task GarbledTranscript_ReturnsNull()
     {
-        // This one intentionally does NOT use the shared service — it tests the "disabled" guard
-        // and must construct a fresh LocalLlmService to prove the early-return path works without
-        // ever touching LLamaSharp weights.
-        if (!LlmCudaFixture.ModelAvailable)
+        if (_mapper is null)
         {
             return;
         }
 
-        var config = new TestLlmConfig(LlmCudaFixture.ModelPath, gpuLayers: 999, enabled: false);
-        var service = new LocalLlmService(config);
-        var mapper = new LocalLlmCommandMapper(service);
-
-        var result = await mapper.MapAsync("climb and maintain five thousand", MapContext.Empty, CancellationToken.None);
+        // Random word salad with no recognizable phraseology. Pre-grammar this could occasionally
+        // sneak through if the model latched onto a word like "speed" and emitted SPD with garbage
+        // args; with the GBNF + NormalizeOutput defence it must fail cleanly to null.
+        var result = await _mapper.MapAsync("zoo turnip blender forty seventeen quack", MapContext.Empty, CancellationToken.None);
 
         Assert.Null(result);
     }
 
-    /// <summary>Minimal <see cref="ILlmRuntimeConfig"/> double — no touching of %LOCALAPPDATA%.</summary>
-    private sealed class TestLlmConfig : ILlmRuntimeConfig
+    [Fact]
+    public async Task SequentialCalls_BothSucceed()
     {
-        public TestLlmConfig(string modelPath, int gpuLayers, bool enabled = true)
+        if (_mapper is null)
         {
-            ModelPath = modelPath;
-            GpuLayers = gpuLayers;
-            Enabled = enabled;
+            return;
         }
 
-        public bool Enabled { get; }
-        public string ModelPath { get; }
-        public int GpuLayers { get; }
+        // Regression test for grammar-state leakage across PTT presses. LLamaSharp's Grammar
+        // tracks position internally and must NOT be reused across calls without Reset(). Our
+        // implementation builds a fresh Grammar per GenerateAsync, so two back-to-back MapAsync
+        // calls on the same mapper instance should both produce valid output. If this test fails
+        // (the second call returns null with empty output) the per-call allocation has regressed.
+        var first = await _mapper.MapAsync("climb and maintain six thousand", MapContext.Empty, CancellationToken.None);
+        var second = await _mapper.MapAsync("descend and maintain four thousand", MapContext.Empty, CancellationToken.None);
+
+        Assert.NotNull(first);
+        Assert.Equal("CM 6000", first.CanonicalCommand);
+        Assert.NotNull(second);
+        Assert.Equal("DM 4000", second.CanonicalCommand);
+    }
+
+    [Fact]
+    public async Task GrammarRejectsInvalidVerb_FallsBackToNull()
+    {
+        if (_mapper is null)
+        {
+            return;
+        }
+
+        // Phrasing that pre-grammar sometimes coaxed the small instruct model into emitting
+        // "EMERG" or "MAYDAY" — verbs YAAT doesn't have. The grammar can't even let the model
+        // reach an invalid verb token, so the model must either pick a real verb or run out of
+        // tokens with garbled output that NormalizeOutput rejects. Either way: null result.
+        var result = await _mapper.MapAsync("declaring an emergency mayday mayday", MapContext.Empty, CancellationToken.None);
+
+        Assert.Null(result);
     }
 }

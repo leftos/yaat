@@ -1,0 +1,155 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="Yaat.SpeechSandbox.MainWindow"
+        Title="YAAT Speech Sandbox"
+        Width="1200"
+        Height="900">
+    <Grid Margin="12" RowDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Row="0"
+                   Text="YAAT Speech Sandbox — iterate on transcript → canonical mapping with the real local models"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,8" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,8,*">
+            <!-- Left column: inputs -->
+            <ScrollViewer Grid.Column="0"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock Classes="h2" Text="Active callsigns" />
+                    <TextBlock Classes="subtle" Text="One per line, or comma-separated. ICAO form (e.g. SWA123, N9225L)." />
+                    <TextBox x:Name="ActiveCallsignsBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="60"
+                             FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="Programmed fixes" />
+                    <TextBlock Classes="subtle" Text="Optional. One per line, or comma-separated. Used by fix-based rules and the LLM command mapper user prompt." />
+                    <TextBox x:Name="ProgrammedFixesBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="40"
+                             FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="Whisper initial_prompt" />
+                    <TextBlock Classes="subtle" Text="Edit and click 'Re-transcribe' to run Whisper on the saved clip with this prompt. 'Build from inputs' regenerates from active callsigns + programmed fixes the same way production does." />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button x:Name="BuildWhisperPromptButton" Content="Build from inputs" Padding="10,4" />
+                    </StackPanel>
+                    <TextBox x:Name="WhisperPromptBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="60"
+                             FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="Audio clip" />
+                    <TextBlock Classes="subtle" Text="Recorded clips are saved to %LOCALAPPDATA%/yaat/sandbox/last-clip.wav and reloaded on startup." />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button x:Name="RecordButton" Content="Record clip" Padding="10,4" />
+                        <Button x:Name="ReTranscribeButton" Content="Re-transcribe with Whisper" Padding="10,4" />
+                        <Button x:Name="ClearClipButton" Content="Clear clip" Padding="10,4" />
+                    </StackPanel>
+                    <TextBlock x:Name="ClipStatusText" Text="No clip loaded." Classes="subtle" />
+
+                    <TextBlock Classes="h2" Text="Transcript" />
+                    <TextBlock Classes="subtle" Text="Either type/paste manually, or populated by 'Re-transcribe' above. Used as input to the rule + LLM mappers below." />
+                    <TextBox x:Name="TranscriptBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="80"
+                             FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="LLM command mapper system prompt" />
+                    <TextBlock Classes="subtle" Text="Edit and re-run to test prompt changes. 'Reset' restores the production default." />
+                    <TextBox x:Name="LlmCommandPromptBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="200"
+                             FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="LLM callsign resolver system prompt" />
+                    <TextBox x:Name="LlmResolverPromptBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="120"
+                             FontFamily="Consolas,Menlo,monospace" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="1" Width="4" Background="#22FFFFFF" />
+
+            <!-- Right column: results -->
+            <ScrollViewer Grid.Column="2"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock Classes="h2" Text="Status" />
+                    <TextBlock x:Name="StatusText"
+                               Text="Idle. Press 'Run pipeline' to test."
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Classes="h2" Text="Configuration" />
+                    <TextBlock x:Name="ConfigText"
+                               TextWrapping="Wrap"
+                               FontFamily="Consolas,Menlo,monospace"
+                               FontSize="11" />
+
+                    <TextBlock Classes="h2" Text="Step 1: ExtractAndStripCallsign" />
+                    <TextBlock Classes="subtle" Text="Pipeline-level callsign extraction (rule-based)." />
+                    <TextBlock x:Name="ExtractedCallsignText" Text="(not yet run)" FontFamily="Consolas,Menlo,monospace" />
+                    <TextBlock x:Name="StrippedCommandText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="Step 2: Rule mapper" />
+                    <TextBlock x:Name="RuleResultText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
+                    <TextBlock x:Name="RuleElapsedText" Classes="subtle" />
+
+                    <TextBlock Classes="h2" Text="Step 3: LLM command mapper (fallback if rule returned null)" />
+                    <TextBlock x:Name="LlmRawText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
+                    <TextBlock x:Name="LlmCanonicalText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
+                    <TextBlock x:Name="LlmElapsedText" Classes="subtle" />
+
+                    <TextBlock Classes="h2" Text="Step 4: LLM callsign resolver (if callsign still null)" />
+                    <TextBlock x:Name="ResolverRawText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
+                    <TextBlock x:Name="ResolverCallsignText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
+                    <TextBlock x:Name="ResolverElapsedText" Classes="subtle" />
+
+                    <TextBlock Classes="h2" Text="Final result" />
+                    <TextBlock Classes="subtle" Text="What CommandText would be set to in the live pipeline." />
+                    <Border BorderBrush="#44FFFFFF"
+                            BorderThickness="1"
+                            Padding="8"
+                            CornerRadius="4">
+                        <TextBlock x:Name="FinalText"
+                                   TextWrapping="Wrap"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="14" />
+                    </Border>
+
+                    <TextBlock Classes="h2" Text="Log" />
+                    <TextBox x:Name="LogBox"
+                             AcceptsReturn="True"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             MinHeight="120"
+                             FontFamily="Consolas,Menlo,monospace"
+                             FontSize="11" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button x:Name="RunButton" Content="Run pipeline" Padding="16,6" />
+            <Button x:Name="ResetCommandPromptButton" Content="Reset command prompt to default" Padding="12,6" />
+            <Button x:Name="ResetResolverPromptButton" Content="Reset resolver prompt to default" Padding="12,6" />
+            <Button x:Name="LoadDefaultsButton" Content="Load example transcript" Padding="12,6" />
+        </StackPanel>
+    </Grid>
+</Window>

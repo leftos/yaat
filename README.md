@@ -53,6 +53,13 @@ tests/              Unit tests for both projects
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/) — MVVM source generators
 - [ASP.NET SignalR Client](https://learn.microsoft.com/en-us/aspnet/core/signalr/) — real-time server communication
 - [Google.Protobuf](https://protobuf.dev/) — VNAS nav data deserialization
+- [LM-Kit.NET](https://lm-kit.com/products/lm-kit-net/) — on-device LLM inference and Whisper speech recognition (single engine for both)
+
+## Acknowledgements
+
+YAAT's speech recognition and command interpretation pipelines are powered by [LM-Kit.NET](https://lm-kit.com/products/lm-kit-net/) (Community Edition). LM-Kit handles GGUF model loading, GPU backend selection (CUDA / Vulkan / Metal), and grammar-constrained text generation — letting YAAT use a single inference engine for both Whisper STT and the canonical-command LLM mapper.
+
+Airline telephony data is derived from [OpenFlights](https://openflights.org/data.html), licensed under ODbL 1.0. See `NOTICE` and `src/Yaat.Sim/Speech/Data/LICENSE-OPENFLIGHTS.txt`.
 
 ## License
 

@@ -1,3 +1,5 @@
+using Yaat.Sim.Commands;
+
 namespace Yaat.Sim.Speech;
 
 /// <summary>
@@ -167,7 +169,8 @@ public static class PhraseologyMapper
     /// <paramref name="start"/>. Optional tokens (<c>literal?</c>) are tried both present and
     /// absent — the first successful path wins. After captures are collected, fix-like ones
     /// are post-processed through <see cref="PhoneticFixMatcher"/> against the context's
-    /// programmed fix set.
+    /// programmed fix set, and the final filled template is validated by <see cref="CommandParser"/>
+    /// so noisy captures (e.g. <c>CM main</c> from "climb to main aim ...") are rejected.
     /// </summary>
     private static bool TryMatchRule(PhraseologyRule rule, List<string> tokens, int start, MapContext context, out int consumed, out string output)
     {
@@ -187,7 +190,20 @@ public static class PhraseologyMapper
                     }
                 }
             }
-            output = FillTemplate(rule.OutputTemplate, captures);
+            var filled = FillTemplate(rule.OutputTemplate, captures);
+            // Validate the filled canonical via the same parser the terminal input uses. This is
+            // the single source of truth for what's a valid command — it checks verb aliases,
+            // argument shapes, altitude/heading/speed ranges, runway designators, etc. If the
+            // parser rejects it, this rule doesn't match: the greedy engine will either try
+            // another rule or advance one token. Catches Whisper mistranscriptions like
+            // "climb to main aim flight level tree five zero" where "{alt}" would capture
+            // "main" and produce the nonsense canonical "CM main".
+            if (!CommandParser.Parse(filled).IsSuccess)
+            {
+                output = "";
+                return false;
+            }
+            output = filled;
             return true;
         }
         output = "";

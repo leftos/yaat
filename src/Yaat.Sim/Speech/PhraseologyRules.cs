@@ -269,8 +269,15 @@ public static class PhraseologyRules
             // Taxi — note: route capture is a simple single-token match. Multi-token
             // taxiway routes ("taxi via alpha bravo charlie") need a multi-token capture we
             // routes aren't yet supported and can be added later.
-            new(["taxi", "to", "runway", "{rwy}"], "TAXI RWY {rwy}", Taxi),
-            new(["taxi", "runway", "{rwy}"], "TAXI RWY {rwy}", Taxi),
+            // Taxi commands deliberately have NO rules here. Valid ATC phraseology is:
+            //   - "Runway 28R, taxi via bravo charlie" — runway first, then path
+            //   - "Taxi via delta hotel" — path only, no runway
+            // Both require multi-token path captures (e.g. "bravo charlie" = two taxiway tokens)
+            // AND phonetic-letter-to-ID conversion ("bravo" → "B"), neither of which the current
+            // rule engine supports. An earlier rule `taxi to runway {rwy}` was incorrect — that's
+            // not valid phraseology, and it emitted a canonical ("TAXI RWY {rwy}") that failed
+            // CommandParser validation anyway. Taxi commands fall through to the LLM fallback
+            // or manual entry until proper multi-token path support is added.
             new(["pushback", "approved"], "PUSH", Pushback),
             new(["push", "back", "approved"], "PUSH", Pushback),
             new(["hold", "position"], "HOLD", HoldPosition),

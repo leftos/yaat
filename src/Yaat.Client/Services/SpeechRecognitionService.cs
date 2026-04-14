@@ -9,6 +9,13 @@ namespace Yaat.Client.Services;
 public enum SpeechStatus
 {
     Idle,
+
+    /// <summary>
+    /// Model weights are being pre-loaded at startup (or after speech was toggled on). Treated
+    /// as start-legal by <see cref="SpeechRecognitionService.StartPtt"/> — the engine locks
+    /// already serialize a user PTT against an in-flight prewarm.
+    /// </summary>
+    Warming,
     Recording,
     Transcribing,
     Mapping,
@@ -96,8 +103,10 @@ public sealed class SpeechRecognitionService : IDisposable
     private readonly UserPreferences _preferences;
     private readonly AudioCaptureService _audio;
     private readonly WhisperSttEngine _stt;
+    private readonly LocalLlmService? _llmService;
     private readonly ISpeechCommandMapper _ruleMapper;
     private readonly ISpeechCommandMapper? _llmMapper;
+    private readonly LocalLlmCallsignResolver? _callsignResolver;
     private readonly Func<SpeechContext> _contextProvider;
 
     private SpeechStatus _status = SpeechStatus.Idle;
@@ -117,16 +126,20 @@ public sealed class SpeechRecognitionService : IDisposable
         UserPreferences preferences,
         AudioCaptureService audio,
         WhisperSttEngine stt,
+        LocalLlmService? llmService,
         ISpeechCommandMapper ruleMapper,
         ISpeechCommandMapper? llmMapper,
+        LocalLlmCallsignResolver? callsignResolver,
         Func<SpeechContext> contextProvider
     )
     {
         _preferences = preferences;
         _audio = audio;
         _stt = stt;
+        _llmService = llmService;
         _ruleMapper = ruleMapper;
         _llmMapper = llmMapper;
+        _callsignResolver = callsignResolver;
         _contextProvider = contextProvider;
     }
 
@@ -152,6 +165,54 @@ public sealed class SpeechRecognitionService : IDisposable
     }
 
     /// <summary>
+    /// Pre-loads Whisper and LLM weights so the first PTT press doesn't incur a multi-second
+    /// stall. Idempotent — safe to call multiple times because each engine guards itself. Fires
+    /// <see cref="StatusChanged"/> with <see cref="SpeechStatus.Warming"/> on entry and transitions
+    /// back to <see cref="SpeechStatus.Idle"/> on completion (unless another transition raced us —
+    /// in that case we leave the current status alone).
+    /// </summary>
+    public async Task PrewarmAsync(CancellationToken ct)
+    {
+        if (!_preferences.SpeechEnabled)
+        {
+            return;
+        }
+
+        SetStatus(SpeechStatus.Warming);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var whisperTask = _stt.PrewarmAsync(ct);
+            var llmTask = _llmService?.PrewarmAsync(ct) ?? Task.CompletedTask;
+            await Task.WhenAll(whisperTask, llmTask).ConfigureAwait(false);
+            sw.Stop();
+            Log.LogInformation("Speech pipeline pre-warmed in {Ms} ms", sw.ElapsedMilliseconds);
+        }
+        catch (OperationCanceledException)
+        {
+            Log.LogInformation("Speech pipeline prewarm cancelled");
+        }
+        catch (Exception ex)
+        {
+            // Prewarm must never crash startup — the lazy-load path will retry on first PTT.
+            Log.LogWarning(ex, "Speech pipeline prewarm failed; lazy-load will retry on first PTT");
+        }
+        finally
+        {
+            lock (_statusLock)
+            {
+                // Only transition Warming → Idle. If a user PTT fired mid-warmup and moved us
+                // to Recording/Transcribing/Mapping, we must not clobber that transition.
+                if (_status == SpeechStatus.Warming)
+                {
+                    _status = SpeechStatus.Idle;
+                }
+            }
+            StatusChanged?.Invoke(Status);
+        }
+    }
+
+    /// <summary>
     /// Begins a PTT recording. Safe to call while already recording — it's a no-op in that case.
     /// Returns false if speech is disabled in prefs or the audio stream failed to start.
     /// </summary>
@@ -162,7 +223,10 @@ public sealed class SpeechRecognitionService : IDisposable
             return false;
         }
 
-        if (Status != SpeechStatus.Idle)
+        // Warming is treated as start-legal — the engine locks already serialize a user PTT
+        // against an in-flight prewarm, which matches the previous lazy-load behavior exactly.
+        var current = Status;
+        if (current != SpeechStatus.Idle && current != SpeechStatus.Warming)
         {
             return false;
         }
@@ -228,6 +292,7 @@ public sealed class SpeechRecognitionService : IDisposable
         var mapMs = 0L;
         var transcript = string.Empty;
         string? canonical = null;
+        string? callsign = null;
         var usedLlmFallback = false;
         var outcome = SpeechSessionOutcome.Error;
         string? errorMessage = null;
@@ -259,33 +324,14 @@ public sealed class SpeechRecognitionService : IDisposable
                 Log.LogInformation("PTT transcript: {Transcript}", transcript);
 
                 SetStatus(SpeechStatus.Mapping);
-                var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes) { CustomFixPatterns = ctx.CustomFixPatterns };
-
                 var mapSw = Stopwatch.StartNew();
-                var ruleResult = await _ruleMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);
-                if (ruleResult is not null)
-                {
-                    canonical = ruleResult.CanonicalCommand;
-                    Log.LogInformation("Rule engine mapped transcript to: {Canonical}", canonical);
-                }
-                else if (_llmMapper is not null)
-                {
-                    Log.LogInformation("Rule engine returned null, trying LLM fallback");
-                    var llmResult = await _llmMapper.MapAsync(transcript, mapContext, ct).ConfigureAwait(false);
-                    if (llmResult is not null)
-                    {
-                        canonical = llmResult.CanonicalCommand;
-                        usedLlmFallback = true;
-                        Log.LogInformation("LLM fallback mapped transcript to: {Canonical}", canonical);
-                    }
-                    else
-                    {
-                        Log.LogInformation("LLM fallback also returned null");
-                    }
-                }
-
+                var mapping = await MapTranscriptAsync(transcript, ctx, _ruleMapper, _llmMapper, _callsignResolver, ct).ConfigureAwait(false);
                 mapSw.Stop();
                 mapMs = mapSw.ElapsedMilliseconds;
+
+                canonical = mapping.Canonical;
+                callsign = mapping.Callsign;
+                usedLlmFallback = mapping.UsedLlmFallback;
                 outcome = canonical is not null ? SpeechSessionOutcome.CommandAccepted : SpeechSessionOutcome.NoMappingFound;
             }
         }
@@ -312,7 +358,7 @@ public sealed class SpeechRecognitionService : IDisposable
                 outcome,
                 errorMessage
             );
-            CommandReady?.Invoke(new SpeechResult(transcript, null));
+            CommandReady?.Invoke(new SpeechResult(transcript, null, callsign));
             return;
         }
 
@@ -329,7 +375,130 @@ public sealed class SpeechRecognitionService : IDisposable
             outcome,
             errorMessage
         );
-        CommandReady?.Invoke(new SpeechResult(transcript, canonical));
+        CommandReady?.Invoke(new SpeechResult(transcript, canonical, callsign));
+    }
+
+    /// <summary>
+    /// Runs the full transcript-to-canonical-command mapping stage of the speech pipeline:
+    /// callsign extraction → rule mapper → LLM mapper fallback → LLM callsign resolver → partial-
+    /// match surfacing. Returns a fully-populated <see cref="TranscriptMapResult"/> regardless of
+    /// outcome — <see cref="TranscriptMapResult.Canonical"/> is null only when neither mapper
+    /// produced a result and the LLM callsign resolver didn't find a callsign either.
+    ///
+    /// Exposed as an internal static method so integration tests can drive the mapping pipeline
+    /// end-to-end from a literal transcript (e.g. a real Whisper output captured in a debug log)
+    /// without having to construct the whole <see cref="SpeechRecognitionService"/>.
+    /// </summary>
+    internal static async Task<TranscriptMapResult> MapTranscriptAsync(
+        string transcript,
+        SpeechContext ctx,
+        ISpeechCommandMapper ruleMapper,
+        ISpeechCommandMapper? llmMapper,
+        LocalLlmCallsignResolver? callsignResolver,
+        CancellationToken ct
+    )
+    {
+        // Step 1: Extract the callsign up-front and strip it from the transcript so both mappers
+        // see a clean command-only string. Previously each mapper did its own extraction —
+        // PhraseologyMapper internally, LocalLlmCommandMapper not at all — which meant (a) partial
+        // rule-matches lost the callsign when the command didn't parse, and (b) the LLM saw the
+        // full noisy transcript plus an "Active callsigns:" line that distracted it into echoing
+        // callsigns as output.
+        var (commandText, callsign) = ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
+
+        var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes) { CustomFixPatterns = ctx.CustomFixPatterns };
+
+        string? canonical = null;
+        var usedLlmFallback = false;
+
+        var ruleResult = await ruleMapper.MapAsync(commandText, mapContext, ct).ConfigureAwait(false);
+        if (ruleResult is not null)
+        {
+            canonical = ruleResult.CanonicalCommand;
+            // PhraseologyMapper.Map still runs its own extraction pass against the
+            // (already-stripped) input; if we somehow missed a callsign at the pipeline layer
+            // but the rule mapper found one on a second look, prefer its result.
+            callsign ??= ruleResult.Callsign;
+            Log.LogInformation("Rule engine mapped transcript to: {Callsign} {Canonical}", callsign ?? "(no callsign)", canonical);
+        }
+        else if (llmMapper is not null)
+        {
+            Log.LogInformation("Rule engine returned null, trying LLM fallback");
+            var llmResult = await llmMapper.MapAsync(commandText, mapContext, ct).ConfigureAwait(false);
+            if (llmResult is not null)
+            {
+                canonical = llmResult.CanonicalCommand;
+                usedLlmFallback = true;
+                Log.LogInformation("LLM fallback mapped transcript to: {Callsign} {Canonical}", callsign ?? "(no callsign)", canonical);
+            }
+            else
+            {
+                Log.LogInformation("LLM fallback also returned null");
+            }
+        }
+
+        // Callsign fallback: we have a canonical command but no callsign. This happens when
+        // Whisper mistranscribes the spoken callsign beyond what CallsignParser can recover
+        // ("diner" for "niner", merged words, dropped digits, etc.). Ask the LLM to disambiguate
+        // from the active-callsign list — it tolerates noisy inputs and its output is validated
+        // against the active list, so it can't hallucinate a phantom callsign that doesn't exist
+        // in the scenario.
+        if (canonical is not null && callsign is null && callsignResolver is not null && ctx.ActiveCallsigns.Count > 0)
+        {
+            Log.LogInformation("Rule-based callsign extraction failed, trying LLM resolver");
+            callsign = await callsignResolver.ResolveAsync(transcript, ctx.ActiveCallsigns, ct).ConfigureAwait(false);
+        }
+
+        // If both mappers failed but we did extract a callsign, surface the partial result:
+        // "N346G turn left hitting 310" lets the user manually correct "hitting" → "heading"
+        // and press Enter, rather than losing the callsign context entirely.
+        if (canonical is null && callsign is not null && !string.IsNullOrWhiteSpace(commandText))
+        {
+            canonical = commandText.Trim();
+            Log.LogInformation("Both mappers failed; surfacing extracted callsign {Callsign} + raw command text", callsign);
+        }
+
+        return new TranscriptMapResult(commandText, canonical, callsign, usedLlmFallback);
+    }
+
+    /// <summary>
+    /// Extract a callsign from the transcript and return both the extracted ICAO form and the
+    /// transcript with the callsign tokens removed. Runs on a <see cref="AtcNumberParser.NormalizeDigits"/>-
+    /// pre-processed copy of the transcript so rule-engine and LLM-mapper inputs are consistent.
+    /// Returns the original transcript unchanged (with just digit normalization) and a null
+    /// callsign when no leading or trailing callsign was found.
+    /// </summary>
+    internal static (string CommandText, string? Callsign) ExtractAndStripCallsign(string transcript, IReadOnlyCollection<string> activeCallsigns)
+    {
+        if (string.IsNullOrWhiteSpace(transcript))
+        {
+            return (transcript ?? string.Empty, null);
+        }
+
+        // Normalize digit words ("three" → "3") once so downstream mappers see consistent input.
+        // NormalizeDigits returns a space-joined, lowercased, punctuation-free string.
+        var normalized = AtcNumberParser.NormalizeDigits(transcript);
+        var tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return (normalized, null);
+        }
+
+        var leading = CallsignParser.TryParseLeading(normalized, activeCallsigns);
+        if (leading is not null && leading.TokensConsumed > 0 && leading.TokensConsumed <= tokens.Length)
+        {
+            var stripped = string.Join(' ', tokens.Skip(leading.TokensConsumed));
+            return (stripped, leading.IcaoCallsign);
+        }
+
+        var trailing = CallsignParser.TryParseTrailing(normalized, activeCallsigns);
+        if (trailing is not null && trailing.TokensConsumed > 0 && trailing.TokensConsumed <= tokens.Length)
+        {
+            var stripped = string.Join(' ', tokens.Take(tokens.Length - trailing.TokensConsumed));
+            return (stripped, trailing.IcaoCallsign);
+        }
+
+        return (normalized, null);
     }
 
     private void RecordSession(
@@ -407,7 +576,25 @@ public sealed class SpeechRecognitionService : IDisposable
     }
 }
 
+/// <summary>
+/// Output of <see cref="SpeechRecognitionService.MapTranscriptAsync"/>. Captures every signal
+/// the full mapping stage produces so callers (the live pipeline and integration tests) can
+/// inspect which path a transcript took and what came out. <see cref="Canonical"/> is null only
+/// when neither mapper produced output and no callsign was extracted either.
+/// </summary>
+/// <param name="CommandText">Transcript with callsign tokens stripped and digits normalized — the exact string handed to the rule + LLM mappers.</param>
+/// <param name="Canonical">Final canonical command, or null on total failure. Falls back to the raw <see cref="CommandText"/> when a callsign was extracted but no mapper matched.</param>
+/// <param name="Callsign">Extracted ICAO callsign (rule parser or LLM callsign resolver), or null if none recovered.</param>
+/// <param name="UsedLlmFallback">True when the rule mapper returned null and the LLM command mapper produced the final canonical.</param>
+internal sealed record TranscriptMapResult(string CommandText, string? Canonical, string? Callsign, bool UsedLlmFallback);
+
 /// <summary>Result bundle passed to <see cref="SpeechRecognitionService.CommandReady"/>.</summary>
 /// <param name="Transcript">Raw Whisper transcript (may be empty on failure).</param>
 /// <param name="CanonicalCommand">Canonical YAAT command, or null when neither mapper produced a result.</param>
-public sealed record SpeechResult(string Transcript, string? CanonicalCommand);
+/// <param name="Callsign">
+/// Extracted ICAO callsign (e.g. "SWA123") if present in the transcript and matched against the
+/// active callsigns at PTT time; null otherwise. Consumers prepend this to the canonical command
+/// so <see cref="MainViewModel.SendCommandAsync"/>'s existing <c>TryResolveCallsignPrefix</c> path
+/// auto-dispatches to the right aircraft.
+/// </param>
+public sealed record SpeechResult(string Transcript, string? CanonicalCommand, string? Callsign);

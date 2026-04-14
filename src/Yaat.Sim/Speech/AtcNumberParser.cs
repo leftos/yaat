@@ -22,7 +22,9 @@ namespace Yaat.Sim.Speech;
 public static class AtcNumberParser
 {
     // ATC uses "niner", "tree", "fife" to disambiguate from "nine", "three", "five" on poor
-    // radios. Whisper may transcribe either form, so we accept both.
+    // radios. Whisper may transcribe either form, so we accept both. We deliberately do NOT add
+    // every Whisper mistranscription (e.g. "diner" for "niner") here — the LLM callsign resolver
+    // handles disambiguation for noisy transcripts instead.
     private static readonly Dictionary<string, int> DigitWords = new(StringComparer.OrdinalIgnoreCase)
     {
         ["zero"] = 0,

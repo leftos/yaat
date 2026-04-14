@@ -163,7 +163,7 @@
                 <!-- Mic status indicator. When speech recognition is disabled the label shows
                      "mic: off" so users can still right-click to re-enable without having to
                      open Settings. A colored dot could be added later if users want more
-                     visual distinction between Idle / Recording / Transcribing / Mapping / Error. -->
+                     visual distinction between Idle / Warming / Recording / Transcribing / Mapping / Error. -->
                 <TextBlock Grid.Column="1"
                            x:Name="MicStatusText"
                            Text="{Binding SpeechStatus, StringFormat='mic: {0}'}"

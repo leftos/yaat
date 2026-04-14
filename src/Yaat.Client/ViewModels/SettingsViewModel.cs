@@ -254,7 +254,7 @@ public partial class SettingsViewModel : ObservableObject
     private bool _speechEnabled;
 
     [ObservableProperty]
-    private string _whisperModelSize = "base.en";
+    private string _whisperModelSize = "whisper-large-turbo3";
 
     [ObservableProperty]
     private string _whisperModelStatus = "Unknown";
@@ -270,6 +270,25 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private LlmCatalogEntry? _selectedLlmModel;
+
+    /// <summary>
+    /// Selected LM-Kit Whisper model. Bound to the ItemsSource <see cref="WhisperLmKitModels"/>.
+    /// On change, the entry's <see cref="LmKitModelEntry.ModelId"/> is written to
+    /// <see cref="WhisperModelSize"/> (which is what <see cref="WhisperSttEngine"/> actually
+    /// reads at PTT time). Initialized from the current preference via <see cref="LmKitModelCatalog.FindById"/>;
+    /// stays null when the user has configured a custom path / URI not in the catalog.
+    /// </summary>
+    [ObservableProperty]
+    private LmKitModelEntry? _selectedWhisperLmKitModel;
+
+    /// <summary>
+    /// Selected LM-Kit LLM model. Bound to the ItemsSource <see cref="LlmLmKitModels"/>. On
+    /// change, the entry's <see cref="LmKitModelEntry.ModelId"/> is written to
+    /// <see cref="LlmModelPath"/>. Stays null when the user has configured a custom GGUF path
+    /// (file or URI) not in the catalog — that's a valid state, not an error.
+    /// </summary>
+    [ObservableProperty]
+    private LmKitModelEntry? _selectedLlmLmKitModel;
 
     [ObservableProperty]
     private string _llmModelStatus = "Not downloaded";
@@ -380,6 +399,21 @@ public partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<string> WhisperSizes { get; } = ModelManager.AvailableWhisperSizes;
     public IReadOnlyList<LlmCatalogEntry> LlmModels { get; } = ModelManager.AvailableLlmModels;
 
+    /// <summary>LM-Kit STT model catalog exposed as the bound ItemsSource for the Whisper picker.</summary>
+    public IReadOnlyList<LmKitModelEntry> WhisperLmKitModels { get; } = LmKitModelCatalog.WhisperModels;
+
+    /// <summary>LM-Kit LLM model catalog exposed as the bound ItemsSource for the command-mapper picker.</summary>
+    public IReadOnlyList<LmKitModelEntry> LlmLmKitModels { get; } = LmKitModelCatalog.LlmModels;
+
+    /// <summary>
+    /// Snapshot of GPUs LM-Kit can see at the time the Settings window opened. Used by the
+    /// Acceleration panel to tell the user whether the heavy <see cref="LmKitModelTier.Best"/>
+    /// models will actually accelerate. Computed once at construction (see <see cref="LmKitGpuDetector.Detect"/>);
+    /// re-detection on every window open feels right but isn't necessary because GPU presence
+    /// rarely changes between application sessions.
+    /// </summary>
+    public LmKitGpuSnapshot LmKitGpuSnapshot { get; } = LmKitGpuDetector.Detect();
+
     /// <summary>
     /// Available audio input device names. First entry is always the <see cref="DefaultAudioDeviceLabel"/>
     /// sentinel which maps to an empty <see cref="UserPreferences.AudioInputDevice"/> (meaning "use
@@ -454,6 +488,12 @@ public partial class SettingsViewModel : ObservableObject
         _llmModelPath = _preferences.LlmModelPath;
         _llmGpuLayers = _preferences.LlmGpuLayers;
         _preferredGpuBackend = _preferences.PreferredGpuBackend;
+
+        // Resolve LM-Kit catalog selections from the saved preferences. FindById returns null when
+        // the user has typed a custom file path or URI not in the catalog — we leave the dropdown
+        // unselected in that case rather than silently overriding their choice.
+        _selectedWhisperLmKitModel = LmKitModelCatalog.FindById(LmKitModelCatalog.WhisperModels, _whisperModelSize);
+        _selectedLlmLmKitModel = LmKitModelCatalog.FindById(LmKitModelCatalog.LlmModels, _llmModelPath);
         _pttKeyName = _preferences.PttKey;
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
@@ -1206,7 +1246,31 @@ public partial class SettingsViewModel : ObservableObject
         };
     }
 
-    // ---------- LLM catalog download ----------
+    // ---------- LM-Kit catalog selection ----------
+
+    partial void OnSelectedWhisperLmKitModelChanged(LmKitModelEntry? value)
+    {
+        // Push the entry's ModelId into WhisperModelSize so WhisperSttEngine.EnsureLoaded picks
+        // it up via the existing UserPreferences read path. Setting WhisperModelSize triggers
+        // OnWhisperModelSizeChanged below which persists to disk.
+        if (value is not null)
+        {
+            WhisperModelSize = value.ModelId;
+        }
+    }
+
+    partial void OnSelectedLlmLmKitModelChanged(LmKitModelEntry? value)
+    {
+        // Same pattern as above — write the LM-Kit ModelId into LlmModelPath. LocalLlmService's
+        // EnsureLoaded dispatches the value: rooted path → file constructor; URI → URI
+        // constructor; bare model ID → LoadFromModelID.
+        if (value is not null)
+        {
+            LlmModelPath = value.ModelId;
+        }
+    }
+
+    // ---------- LLM catalog download (legacy ModelManager path) ----------
 
     partial void OnSelectedLlmModelChanged(LlmCatalogEntry? value)
     {

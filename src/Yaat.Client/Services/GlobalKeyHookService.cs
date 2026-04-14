@@ -114,19 +114,7 @@ public sealed class GlobalKeyHookService : IDisposable
             return;
         }
 
-        var mods = CurrentModifiers();
-        if (IsPttCandidateKey(avaloniaKey))
-        {
-            Log.LogDebug(
-                "Global hook KeyPressed: code={KeyCode} raw=0x{RawCode:X} avalonia={Key} mods={Modifiers}",
-                e.Data.KeyCode,
-                e.Data.RawCode,
-                avaloniaKey,
-                mods
-            );
-        }
-
-        KeyDown?.Invoke(avaloniaKey, mods);
+        KeyDown?.Invoke(avaloniaKey, CurrentModifiers());
     }
 
     private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
@@ -144,28 +132,7 @@ public sealed class GlobalKeyHookService : IDisposable
             return;
         }
 
-        if (IsPttCandidateKey(avaloniaKey))
-        {
-            Log.LogDebug(
-                "Global hook KeyReleased: code={KeyCode} raw=0x{RawCode:X} avalonia={Key} mods={Modifiers}",
-                e.Data.KeyCode,
-                e.Data.RawCode,
-                avaloniaKey,
-                modifiers
-            );
-        }
-
         KeyUp?.Invoke(avaloniaKey, modifiers);
-    }
-
-    /// <summary>
-    /// Gates the per-event debug log to keys a user is likely to bind as PTT (or has bound).
-    /// Currently hard-coded to the Ctrl variants — widen if the default PTT binding changes
-    /// or the log stops telling us what we need.
-    /// </summary>
-    private static bool IsPttCandidateKey(Key key)
-    {
-        return key is Key.LeftCtrl or Key.RightCtrl;
     }
 
     private void UpdateModifierState(Key key, bool pressed)

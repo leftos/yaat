@@ -71,7 +71,12 @@ public static class TestVnasData
                     return null;
                 }
 
-                _navigationDatabase = new NavigationDatabase(navData, cifpPath, customFixesBaseDir: "");
+                // Use the default customFixesBaseDir (null) so NavigationDatabase loads baked
+                // custom fixes from AppContext.BaseDirectory/Data/CustomFixes — the Yaat.Sim
+                // csproj copies that folder into the test output directory. This gives tests
+                // access to OAK30NUM, TOLLPLAZA, etc. which are needed when CommandParser.Parse
+                // resolves DCT args (e.g. PhraseologyMapper's rule validator).
+                _navigationDatabase = new NavigationDatabase(navData, cifpPath);
                 return _navigationDatabase;
             }
         }

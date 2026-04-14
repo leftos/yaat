@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Yaat.Client.Tests" />
+    <InternalsVisibleTo Include="Yaat.SpeechSandbox" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,19 +25,21 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
     <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.4.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="LLamaSharp" Version="0.26.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.26.0" />
+    <!-- LM-Kit.NET is the single inference engine for both LLM (LocalLlmService) and Whisper STT
+         (WhisperSttEngine). Replaced LLamaSharp + Whisper.net in 2026-04 after LLamaSharp 0.26.0's
+         vendored llama.cpp couldn't load Gemma 4 architectures and Scratch probe confirmed LM-Kit's
+         SpeechToText.Prompt provides the contextual biasing we need. Community Edition; attribution
+         required on the YAAT product page (see About dialog). The Cuda13.Windows backend is the
+         GPU runtime — LM-Kit owns backend selection at load time. -->
+    <PackageReference Include="LM-Kit.NET" Version="2026.4.2" />
+    <PackageReference Include="LM-Kit.NET.Backend.Cuda13.Windows" Version="2026.4.2" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
-    <!-- Microphone capture + Whisper STT. CPU-only runtimes ship by default; GpuRuntimeDownloader
-         handles the end-user GPU story via on-demand DLL download from nuget.org. -->
     <PackageReference Include="PortAudioSharp2" Version="1.0.6" />
     <!-- SharpHook gives us a cross-platform global keyboard hook so PTT works while another
          window has focus. We consume KeyPressed/KeyReleased events in passthrough mode — we
          never suppress, so other apps still see the key. -->
     <PackageReference Include="SharpHook" Version="7.0.0" />
-    <PackageReference Include="Whisper.net" Version="1.9.0" />
-    <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" />
     <!-- Transitive via Avalonia.FreeDesktop 11.3.13 (>= 0.21.2); pin to patched 0.21.3 (GHSA-xrw6-gwf8-vvr9). -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <PackageReference Include="Velopack" Version="0.0.1298" />

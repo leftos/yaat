@@ -472,59 +472,54 @@
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,0" />
                         <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding WhisperModelStatus, StringFormat='Status: {0}'}"
+                            <ComboBox ItemsSource="{Binding WhisperLmKitModels}"
+                                      SelectedItem="{Binding SelectedWhisperLmKitModel}"
+                                      Width="340">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding DisplayName}" />
+                                            <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}"
+                                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="{Binding SelectedWhisperLmKitModel.Description}"
+                                       TextWrapping="Wrap"
+                                       FontSize="11"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <ComboBox ItemsSource="{Binding WhisperSizes}"
-                                          SelectedItem="{Binding WhisperModelSize}"
-                                          Width="140" />
-                                <Button Content="Download"
-                                        Command="{Binding DownloadWhisperModelCommand}"
-                                        IsEnabled="{Binding !WhisperIsDownloading}" />
-                                <Button Content="Cancel"
-                                        Command="{Binding CancelWhisperDownloadCommand}"
-                                        IsVisible="{Binding WhisperIsDownloading}" />
-                                <Button Content="Delete"
-                                        Command="{Binding DeleteWhisperModelCommand}"
-                                        IsEnabled="{Binding !WhisperIsDownloading}" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding WhisperDownloadProgress}"
-                                         IsVisible="{Binding WhisperIsDownloading}"
-                                         Height="4" />
+                            <TextBlock Text="LM-Kit downloads the model on first use (cached afterward in %LOCALAPPDATA%/LM-Kit/Models/)."
+                                       TextWrapping="Wrap"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
                         </StackPanel>
 
                         <TextBlock Text="LLM Model (command interpretation)"
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,0" />
                         <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding LlmModelStatus, StringFormat='Status: {0}'}"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <ComboBox ItemsSource="{Binding LlmModels}"
-                                          SelectedItem="{Binding SelectedLlmModel}"
-                                          DisplayMemberBinding="{Binding DisplayName}"
-                                          Width="340" />
-                                <Button Content="Download"
-                                        Command="{Binding DownloadLlmModelCommand}"
-                                        IsEnabled="{Binding !LlmIsDownloading}" />
-                                <Button Content="Cancel"
-                                        Command="{Binding CancelLlmDownloadCommand}"
-                                        IsVisible="{Binding LlmIsDownloading}" />
-                                <Button Content="Delete"
-                                        Command="{Binding DeleteLlmModelCommand}"
-                                        IsEnabled="{Binding !LlmIsDownloading}" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding LlmDownloadProgress}"
-                                         IsVisible="{Binding LlmIsDownloading}"
-                                         Height="4" />
-                            <TextBlock TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
+                            <ComboBox ItemsSource="{Binding LlmLmKitModels}"
+                                      SelectedItem="{Binding SelectedLlmLmKitModel}"
+                                      Width="380">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding DisplayName}" />
+                                            <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}"
+                                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                                            <TextBlock Text="GPU recommended"
+                                                       FontSize="10"
+                                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                                       IsVisible="{Binding RequiresGpu}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="{Binding SelectedLlmLmKitModel.Description}"
+                                       TextWrapping="Wrap"
                                        FontSize="11"
-                                       Text="Downloads a recommended GGUF model from Hugging Face. Models are Qwen 2.5 Instruct Q4_K_M variants — verified against the LLM integration test suite." />
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                                 <TextBlock Text="Or use a custom GGUF:"
                                            Foreground="{DynamicResource SubtleTextBrush}"
@@ -534,7 +529,7 @@
                                         Content="Browse..."
                                         Click="OnBrowseLlmModelClick" />
                             </StackPanel>
-                            <TextBlock Text="{Binding LlmModelPath, StringFormat='Path: {0}'}"
+                            <TextBlock Text="{Binding LlmModelPath, StringFormat='Source: {0}'}"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11"
@@ -545,100 +540,13 @@
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,0" />
                         <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding DetectedGpuSummary, StringFormat='Detected: {0}'}"
+                            <TextBlock Text="{Binding LmKitGpuSnapshot.Summary}"
+                                       TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
-                            <TextBlock Text="{Binding CudaToolkitStatus, StringFormat='CUDA Toolkit: {0}'}"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-
-                            <!-- LLM Vulkan -->
-                            <TextBlock Text="{Binding LlamaVulkanRuntimeStatus, StringFormat='LLM Vulkan runtime: {0}'}"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       Margin="0,6,0,0" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Download LLM Vulkan (~20 MB)"
-                                        Command="{Binding DownloadLlamaVulkanRuntimeCommand}"
-                                        IsEnabled="{Binding !LlamaVulkanIsDownloading}" />
-                                <Button Content="Cancel"
-                                        Command="{Binding CancelLlamaVulkanDownloadCommand}"
-                                        IsVisible="{Binding LlamaVulkanIsDownloading}" />
-                                <Button Content="Delete"
-                                        Command="{Binding DeleteLlamaVulkanRuntimeCommand}"
-                                        IsEnabled="{Binding !LlamaVulkanIsDownloading}" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding LlamaVulkanDownloadProgress}"
-                                         IsVisible="{Binding LlamaVulkanIsDownloading}"
-                                         Height="4" />
-
-                            <!-- LLM CUDA 12 -->
-                            <TextBlock Text="{Binding LlamaCudaRuntimeStatus, StringFormat='LLM CUDA 12 runtime: {0}'}"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       Margin="0,6,0,0" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Download LLM CUDA 12 (~500 MB)"
-                                        Command="{Binding DownloadLlamaCudaRuntimeCommand}"
-                                        IsEnabled="{Binding IsLlamaCudaDownloadEnabled}" />
-                                <Button Content="Cancel"
-                                        Command="{Binding CancelLlamaCudaDownloadCommand}"
-                                        IsVisible="{Binding LlamaCudaIsDownloading}" />
-                                <Button Content="Delete"
-                                        Command="{Binding DeleteLlamaCudaRuntimeCommand}"
-                                        IsEnabled="{Binding !LlamaCudaIsDownloading}" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding LlamaCudaDownloadProgress}"
-                                         IsVisible="{Binding LlamaCudaIsDownloading}"
-                                         Height="4" />
-
-                            <!-- Whisper Vulkan -->
-                            <TextBlock Text="{Binding WhisperVulkanRuntimeStatus, StringFormat='Whisper Vulkan runtime: {0}'}"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       Margin="0,6,0,0" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Download Whisper Vulkan (~30 MB)"
-                                        Command="{Binding DownloadWhisperVulkanRuntimeCommand}"
-                                        IsEnabled="{Binding !WhisperVulkanIsDownloading}" />
-                                <Button Content="Cancel"
-                                        Command="{Binding CancelWhisperVulkanDownloadCommand}"
-                                        IsVisible="{Binding WhisperVulkanIsDownloading}" />
-                                <Button Content="Delete"
-                                        Command="{Binding DeleteWhisperVulkanRuntimeCommand}"
-                                        IsEnabled="{Binding !WhisperVulkanIsDownloading}" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding WhisperVulkanDownloadProgress}"
-                                         IsVisible="{Binding WhisperVulkanIsDownloading}"
-                                         Height="4" />
-
-                            <!-- Whisper CUDA -->
-                            <TextBlock Text="{Binding WhisperCudaRuntimeStatus, StringFormat='Whisper CUDA runtime: {0}'}"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       Margin="0,6,0,0" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Download Whisper CUDA (~60 MB)"
-                                        Command="{Binding DownloadWhisperCudaRuntimeCommand}"
-                                        IsEnabled="{Binding IsWhisperCudaDownloadEnabled}" />
-                                <Button Content="Cancel"
-                                        Command="{Binding CancelWhisperCudaDownloadCommand}"
-                                        IsVisible="{Binding WhisperCudaIsDownloading}" />
-                                <Button Content="Delete"
-                                        Command="{Binding DeleteWhisperCudaRuntimeCommand}"
-                                        IsEnabled="{Binding !WhisperCudaIsDownloading}" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding WhisperCudaDownloadProgress}"
-                                         IsVisible="{Binding WhisperCudaIsDownloading}"
-                                         Height="4" />
-
-                            <TextBlock TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
+                            <TextBlock Text="LM-Kit handles GPU detection and backend selection automatically — no manual runtime download needed. CUDA 13 / Vulkan / Metal backends ship with the application."
+                                       TextWrapping="Wrap"
                                        FontSize="11"
-                                       Margin="0,6,0,0"
-                                       Text="Vulkan works with any modern GPU driver (NVIDIA, AMD, Intel Arc) and needs no extra install. CUDA runtimes are faster on NVIDIA but require the CUDA Toolkit 12.x to be installed separately (download from https://developer.nvidia.com/cuda-toolkit-archive — Custom install, uncheck the driver components). Restart YAAT after any runtime download for the change to take effect." />
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                                 <TextBlock Text="LLM GPU layers:"
                                            VerticalAlignment="Center" />
@@ -687,6 +595,11 @@
                         </StackPanel>
 
                         <Separator Margin="0,12,0,0" />
+
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="10"
+                                   Text="Speech recognition and language model inference powered by LM-Kit.NET (Community Edition, https://lm-kit.com/products/lm-kit-net/). LM-Kit handles GGUF model loading, GPU backend selection, and constrained generation." />
 
                         <TextBlock TextWrapping="Wrap"
                                    Foreground="{DynamicResource SubtleTextBrush}"

@@ -37,6 +37,7 @@ public partial class MainViewModel : ObservableObject
     private readonly WhisperSttEngine _whisperStt;
     private readonly LocalLlmService _llmService;
     private readonly LocalLlmCommandMapper _llmMapper;
+    private readonly LocalLlmCallsignResolver _llmCallsignResolver;
     private readonly PhraseologyCommandMapper _ruleMapper = new();
     private readonly SpeechRecognitionService _speechService;
 
@@ -517,6 +518,14 @@ public partial class MainViewModel : ObservableObject
     partial void OnIsSpeechEnabledChanged(bool value)
     {
         _preferences.SetSpeechEnabled(value);
+
+        // Kick off prewarm when the user toggles speech on at runtime. Null-guarded because the
+        // observable-property change handler fires during field initialization before
+        // _speechService is assigned in the constructor.
+        if (value && _speechService is not null)
+        {
+            _ = Task.Run(() => _speechService.PrewarmAsync(CancellationToken.None));
+        }
     }
 
     /// <summary>Re-reads the speech-enabled flag from prefs. Called from the Settings save path
@@ -536,12 +545,30 @@ public partial class MainViewModel : ObservableObject
         // Speech pipeline wiring. The order here matters: LlmService must exist before
         // LocalLlmCommandMapper, and SpeechRecognitionService needs all of them.
         _audioCapture = new AudioCaptureService(_preferences);
-        _whisperStt = new WhisperSttEngine(_preferences, _modelManager);
+        _whisperStt = new WhisperSttEngine(_preferences);
         _llmService = new LocalLlmService(new PreferencesLlmRuntimeConfig(_preferences));
         _llmMapper = new LocalLlmCommandMapper(_llmService);
-        _speechService = new SpeechRecognitionService(_preferences, _audioCapture, _whisperStt, _ruleMapper, _llmMapper, BuildSpeechContext);
+        _llmCallsignResolver = new LocalLlmCallsignResolver(_llmService);
+        _speechService = new SpeechRecognitionService(
+            _preferences,
+            _audioCapture,
+            _whisperStt,
+            _llmService,
+            _ruleMapper,
+            _llmMapper,
+            _llmCallsignResolver,
+            BuildSpeechContext
+        );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
         _speechService.CommandReady += HandleSpeechServiceCommandReady;
+
+        // Fire-and-forget prewarm so the first PTT press after startup doesn't stall on
+        // multi-second Whisper/LLM model load. Guard on SpeechEnabled — disabled users pay
+        // no startup cost. OnIsSpeechEnabledChanged also kicks prewarm when toggled on.
+        if (_preferences.SpeechEnabled)
+        {
+            _ = Task.Run(() => _speechService.PrewarmAsync(CancellationToken.None));
+        }
 
         AircraftView = new DataGridCollectionView(Aircraft);
         AircraftView.Filter = obj =>
@@ -743,39 +770,14 @@ public partial class MainViewModel : ObservableObject
             programmedFixes = fixSet.ToList();
         }
 
-        // Build the Whisper initial prompt: every ICAO callsign + its spoken variants + the fix
-        // names for the selected aircraft. Keeping this terse so Whisper's decoder bias stays
-        // focused — too much prompt text dilutes the signal.
-        var promptParts = new List<string>(capacity: callsigns.Count * 2 + programmedFixes.Count);
-        foreach (var cs in callsigns)
-        {
-            promptParts.Add(cs);
-            var ac = snapshot.FirstOrDefault(a => a.Callsign == cs);
-            var variants = CallsignParser.GetSpokenVariants(cs, ac?.AircraftType, callsigns);
-            if (variants.Count > 0)
-            {
-                // Only the first variant keeps the prompt compact; variants past the first are
-                // usually derivative forms that Whisper already generalizes from the first one.
-                promptParts.Add(variants[0]);
-            }
-        }
-
-        foreach (var f in programmedFixes)
-        {
-            promptParts.Add(f);
-        }
-
-        // Append phonetic pronunciations for any programmed fix whose spelling is non-obvious
-        // (e.g. SYRAH → "see rah"). Whisper's decoder biases toward tokens in initial_prompt, so
-        // seeding both canonical and phonetic forms catches either pronunciation. PhoneticFixMatcher
-        // normalizes back to canonical downstream.
-        var pronunciationHint = NavigationDatabase.Instance?.BuildWhisperPronunciationHint(programmedFixes) ?? string.Empty;
-        if (!string.IsNullOrEmpty(pronunciationHint))
-        {
-            promptParts.Add(pronunciationHint);
-        }
-
-        var whisperInitialPrompt = string.Join(' ', promptParts);
+        // Whisper biasing prompt is the static ATC vocabulary set (NATO alphabet + phonetic
+        // numbers + every literal token from PhraseologyRules.All). Built once per process by
+        // WhisperBiasingPrompt and reused across PTT presses — no per-PTT construction overhead,
+        // no 224-token budget concern, no prompt truncation risk. The probe data showed
+        // whisper-large-turbo3 recognizing arbitrary tail numbers cleanly when the NATO alphabet
+        // is in the prompt, so we no longer need to inject scenario-specific callsigns or
+        // programmed fix names — the static vocabulary covers them.
+        var whisperInitialPrompt = WhisperBiasingPrompt.Default;
 
         // Pull custom-fix speech patterns from the NavigationDatabase. These let the rule engine
         // collapse multi-word natural-language references (e.g. "the runway 30 numbers") into
@@ -797,7 +799,10 @@ public partial class MainViewModel : ObservableObject
         {
             if (!string.IsNullOrEmpty(result.CanonicalCommand))
             {
-                CommandText = result.CanonicalCommand;
+                // Prepend the extracted callsign when present so SendCommandAsync's existing
+                // TryResolveCallsignPrefix path auto-dispatches to the right aircraft on Enter.
+                // Format: "SWA123 FH 270" — single space, leading token, matches TryResolveCallsignPrefix.
+                CommandText = string.IsNullOrEmpty(result.Callsign) ? result.CanonicalCommand : $"{result.Callsign} {result.CanonicalCommand}";
             }
             else if (!string.IsNullOrWhiteSpace(result.Transcript))
             {

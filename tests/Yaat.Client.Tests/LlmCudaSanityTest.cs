@@ -6,18 +6,15 @@ using Yaat.Client.Services;
 namespace Yaat.Client.Tests;
 
 /// <summary>
-/// Ground-truth sanity test: is CUDA actually being used, and how long does a single prompt take?
+/// Ground-truth sanity test: how long does a single prompt take and is the model loading at all?
 ///
-/// This test exists to answer two questions before we trust timings or failures in
-/// <see cref="LocalLlmPipelineIntegrationTests"/>:
-/// <list type="number">
-///   <item><description>Did LLamaSharp load the CUDA backend or silently fall back to CPU? The
-///     <see cref="LlmCudaFixture.NativeLogLines"/> buffer will show "ggml_cuda_init" or similar
-///     when CUDA is live.</description></item>
-///   <item><description>How fast is one warm inference? Under ~500 ms on GPU, >2 s on CPU.</description></item>
-/// </list>
+/// This test exists to answer the timing question before we trust failures in
+/// <see cref="LocalLlmPipelineIntegrationTests"/>: if cold load + warm inference are completing
+/// at expected speeds (cold &lt;15 s, warm &lt;5 s), backend selection is working and any
+/// integration-test failures are real correctness issues. LM-Kit owns backend selection
+/// internally so we no longer need a separate native-log capture path.
 ///
-/// Skipped silently when the opt-in GGUF is absent.
+/// Skipped silently when no model source is configured (LMKIT_TEST_MODEL env var unset).
 /// </summary>
 [Collection("LLM")]
 public sealed class LlmCudaSanityTest
@@ -36,18 +33,21 @@ public sealed class LlmCudaSanityTest
     {
         if (!LlmCudaFixture.ModelAvailable)
         {
-            _output.WriteLine($"GGUF absent at {LlmCudaFixture.ModelPath} — skipping.");
+            _output.WriteLine($"LM-Kit model source not configured ({LlmCudaFixture.ModelSource}) — skipping.");
             return;
         }
 
         var service = _fixture.SharedServiceOrNull;
         Assert.NotNull(service);
 
-        // First inference — loads the weights. We time the whole thing.
+        // First inference — loads the weights. We time the whole thing. No grammar: this is a
+        // sanity test that exercises freeform inference on the GPU/CPU path, not the constrained
+        // command-mapper pipeline.
         var cold = Stopwatch.StartNew();
         var coldResult = await service.GenerateAsync(
             systemPrompt: "You are a helpful assistant. Answer in one short sentence.",
             userPrompt: "What is 2 + 2?",
+            gbnfGrammar: null,
             ct: CancellationToken.None
         );
         cold.Stop();
@@ -57,6 +57,7 @@ public sealed class LlmCudaSanityTest
         var warmResult = await service.GenerateAsync(
             systemPrompt: "You are a helpful assistant. Answer in one short sentence.",
             userPrompt: "What is 10 + 5?",
+            gbnfGrammar: null,
             ct: CancellationToken.None
         );
         warm.Stop();
@@ -66,17 +67,8 @@ public sealed class LlmCudaSanityTest
         _output.WriteLine($"Cold raw output: {coldResult ?? "<null>"}");
         _output.WriteLine($"Warm raw output: {warmResult ?? "<null>"}");
 
-        _output.WriteLine("");
-        _output.WriteLine("=== Native log lines (most recent 60) ===");
-        var lines = _fixture.NativeLogLines.ToArray();
-        var start = Math.Max(0, lines.Length - 60);
-        for (var i = start; i < lines.Length; i++)
-        {
-            _output.WriteLine(lines[i]);
-        }
-
         // Both calls must return *something* — if raw is null, either the model isn't producing
-        // output or LLamaSharp failed to load. Either way, the integration tests can't work.
+        // output or LM-Kit failed to load it. Either way, the integration tests can't work.
         Assert.NotNull(coldResult);
         Assert.NotNull(warmResult);
 

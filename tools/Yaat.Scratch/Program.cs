@@ -13,22 +13,212 @@
 
 using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text;
-using LLama;
-using LLama.Common;
-using LLama.Native;
+using LMKit.Licensing;
 using Yaat.Client.Services;
 using Yaat.Sim.Speech;
 
-var modelPath = Path.GetFullPath(
-    Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tests", "Yaat.Client.Tests", "TestData", "llm", "test-model.gguf")
-);
+// LLM iteration harness uses an LM-Kit model source, not a file path. Override via env var
+// when iterating against a different model. Default matches LlmCudaFixture so the fixture and
+// scratch run the same model.
+var modelSource = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL") ?? "qwen3.5:4b";
 
-if (!File.Exists(modelPath))
+LicenseManager.SetLicenseKey("");
+
+// Quick GPU enumeration probe — tells us what LMKit.Hardware.Gpu.GpuDeviceInfo.Devices returns
+// on this machine, so we can shape the Settings UI around real values.
+if (args.Length > 0 && args[0] == "--lmkit-gpus")
 {
-    Console.Error.WriteLine($"FATAL: GGUF not found at {modelPath}");
-    return 1;
+    Console.WriteLine("=== LM-Kit GPU enumeration ===");
+    var devices = LMKit.Hardware.Gpu.GpuDeviceInfo.Devices;
+    Console.WriteLine($"  Detected device count: {devices.Count}");
+    for (var i = 0; i < devices.Count; i++)
+    {
+        var d = devices[i];
+        Console.WriteLine($"  [{i}] {d.DeviceName}");
+        Console.WriteLine($"      Description: {d.DeviceDescription}");
+        Console.WriteLine($"      DeviceType:  {d.DeviceType}");
+        Console.WriteLine($"      DeviceNumber: {d.DeviceNumber}");
+        Console.WriteLine($"      TotalMemory: {d.TotalMemorySize / (1024 * 1024)} MB");
+        Console.WriteLine($"      FreeMemory:  {d.FreeMemorySize / (1024 * 1024)} MB");
+    }
+    return 0;
+}
+
+// LM-Kit SpeechToText evaluation probe — does NOT touch any production code paths.
+// Loads one or more Whisper variants via LM-Kit's LM.LoadFromModelID, transcribes a captured
+// PTT clip, and reflects over the SpeechToText surface to discover any initial-prompt /
+// context-bias parameter equivalent to Whisper.net's `WithPrompt`. This is the gate before
+// we commit to swapping WhisperSttEngine onto LM-Kit.
+//
+// Usage:
+//   dotnet run --project tools/Yaat.Scratch -- --lmkit-stt <wav-path> [<model-id> [<model-id> ...]]
+//
+// Default model list: whisper-base, whisper-medium, whisper-large-turbo3 — matches the
+// LM-Kit single_turn_chat sample's published model identifiers. The first run downloads each
+// model into LM-Kit's default cache (~%LOCALAPPDATA%/LM-Kit/Models/), so first invocations are
+// slow; subsequent runs reuse the cache.
+if (args.Length > 0 && args[0] == "--lmkit-stt")
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: --lmkit-stt <wav-path> [<model-id> ...]");
+        Console.Error.WriteLine("Default model list: whisper-base whisper-medium whisper-large-turbo3");
+        return 1;
+    }
+
+    var wavPath = args[1];
+    if (!File.Exists(wavPath))
+    {
+        Console.Error.WriteLine($"WAV not found: {wavPath}");
+        return 1;
+    }
+
+    var modelIds = args.Length > 2 ? args[2..] : ["whisper-base", "whisper-medium", "whisper-large-turbo3"];
+
+    LMKit.Licensing.LicenseManager.SetLicenseKey("");
+
+    // Reflect over SpeechToText once so we know what configuration knobs exist BEFORE we burn
+    // download/load time on three models. The whole point of the probe is the biasing question:
+    // if no relevant property exists, we know the answer immediately.
+    Console.WriteLine("=== Reflecting over LMKit.Speech.SpeechToText ===");
+    var sttType = typeof(LMKit.Speech.SpeechToText);
+    var props = sttType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+    Console.WriteLine($"  {props.Length} public instance properties:");
+    foreach (var prop in props.OrderBy(p => p.Name, StringComparer.Ordinal))
+    {
+        Console.WriteLine($"    {prop.PropertyType.Name} {prop.Name} (read={prop.CanRead} write={prop.CanWrite})");
+    }
+    Console.WriteLine();
+    var methods = sttType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Where(m => !m.IsSpecialName).ToList();
+    Console.WriteLine($"  {methods.Count} declared public instance methods:");
+    foreach (var m in methods.OrderBy(m => m.Name, StringComparer.Ordinal))
+    {
+        var sig = string.Join(", ", m.GetParameters().Select(p => $"{p.ParameterType.Name} {p.Name}"));
+        Console.WriteLine($"    {m.ReturnType.Name} {m.Name}({sig})");
+    }
+    Console.WriteLine();
+
+    // Spot-check: any property name that looks like an initial-prompt / biasing knob?
+    var biasCandidates = props
+        .Where(p =>
+            p.Name.Contains("Prompt", StringComparison.OrdinalIgnoreCase)
+            || p.Name.Contains("Bias", StringComparison.OrdinalIgnoreCase)
+            || p.Name.Contains("Context", StringComparison.OrdinalIgnoreCase)
+            || p.Name.Contains("Hint", StringComparison.OrdinalIgnoreCase)
+            || p.Name.Contains("Vocab", StringComparison.OrdinalIgnoreCase)
+        )
+        .ToList();
+    if (biasCandidates.Count > 0)
+    {
+        Console.WriteLine("  ✓ Possible biasing-related properties:");
+        foreach (var p in biasCandidates)
+        {
+            Console.WriteLine($"    {p.PropertyType.Name} {p.Name}");
+        }
+    }
+    else
+    {
+        Console.WriteLine("  ✗ No property name suggesting initial-prompt / context biasing.");
+        Console.WriteLine("    (Will need to follow up with the API docs or sample code if reflection misses an interface.)");
+    }
+    Console.WriteLine();
+
+    // Run transcription on each model.
+    foreach (var modelId in modelIds)
+    {
+        Console.WriteLine($"=== Model: {modelId} ===");
+        bool downloading = false;
+        var loadSw = Stopwatch.StartNew();
+        LMKit.Model.LM model;
+        try
+        {
+            model = LMKit.Model.LM.LoadFromModelID(
+                modelId,
+                downloadingProgress: (path, length, read) =>
+                {
+                    downloading = true;
+                    if (length.HasValue)
+                    {
+                        Console.Write($"\r  Downloading {(double)read / length.Value * 100:F1}%   ");
+                    }
+                    return true;
+                },
+                loadingProgress: progress =>
+                {
+                    if (downloading)
+                    {
+                        Console.WriteLine();
+                        downloading = false;
+                    }
+                    Console.Write($"\r  Loading {progress * 100:F0}%   ");
+                    return true;
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"  FAILED to load: {ex.GetType().Name}: {ex.Message}");
+            Console.WriteLine();
+            continue;
+        }
+        loadSw.Stop();
+        Console.WriteLine();
+        Console.WriteLine($"  Loaded in {loadSw.ElapsedMilliseconds} ms — model.Name={model.Name}");
+
+        try
+        {
+            var stt = new LMKit.Speech.SpeechToText(model);
+            var segments = new List<string>();
+            stt.OnNewSegment += (_, e) => segments.Add(e.Segment.ToString() ?? string.Empty);
+
+            var wave = new LMKit.Media.Audio.WaveFile(wavPath);
+            Console.WriteLine($"  Audio: duration={wave.Duration:mm\\:ss\\.ff}");
+
+            // First call (cold post-load) — no prompt, baseline transcript quality.
+            var sttColdSw = Stopwatch.StartNew();
+            stt.Transcribe(wave);
+            sttColdSw.Stop();
+            Console.WriteLine($"  [no prompt] Cold transcribe: {sttColdSw.ElapsedMilliseconds} ms ({segments.Count} segments)");
+            foreach (var seg in segments)
+            {
+                Console.WriteLine($"    \"{seg.Trim()}\"");
+            }
+
+            // Second call (warm — same model, same audio) to measure pure inference time.
+            segments.Clear();
+            var sttWarmSw = Stopwatch.StartNew();
+            stt.Transcribe(wave);
+            sttWarmSw.Stop();
+            Console.WriteLine($"  [no prompt] Warm transcribe: {sttWarmSw.ElapsedMilliseconds} ms ({segments.Count} segments)");
+
+            // Third call — with the production WhisperBiasingPrompt (NATO + phonetic numbers +
+            // every literal token from PhraseologyRules.All). This is what real PTT calls send.
+            segments.Clear();
+            stt.Prompt = WhisperBiasingPrompt.Default;
+            var sttBiasedSw = Stopwatch.StartNew();
+            stt.Transcribe(wave);
+            sttBiasedSw.Stop();
+            Console.WriteLine($"  [WhisperBiasingPrompt] Transcribe: {sttBiasedSw.ElapsedMilliseconds} ms ({segments.Count} segments)");
+            foreach (var seg in segments)
+            {
+                Console.WriteLine($"    \"{seg.Trim()}\"");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  TRANSCRIBE FAILED: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            model.Dispose();
+        }
+
+        Console.WriteLine();
+    }
+
+    return 0;
 }
 
 // Quick probe of audio input device enumeration.
@@ -47,176 +237,13 @@ if (args.Length > 0 && args[0] == "--list-audio")
     return 0;
 }
 
-// Quick smoke tests for the Option B GpuRuntimeDownloader. First arg selects which backend.
-if (args.Length > 0 && args[0] is "--download-vulkan" or "--download-cuda" or "--download-whisper-vulkan" or "--download-whisper-cuda")
-{
-    var downloader = new GpuRuntimeDownloader();
-    var progress = new Progress<double>(p =>
-    {
-        if (!double.IsNaN(p))
-        {
-            Console.Write($"\r  {p * 100:F1}%");
-        }
-    });
+// (Legacy LLamaSharp + Whisper.net GPU runtime probe modes removed in the LM-Kit swap. LM-Kit
+// owns backend selection internally so there's no equivalent to GpuRuntimeDownloader /
+// NativeLibraryConfig / Whisper.net RuntimeOptions to probe. If you need to inspect LM-Kit's
+// backend selection, use the --lmkit-stt mode above.)
 
-    var toolkit = GpuRuntimeDownloader.FindCuda12Toolkit();
-    Console.WriteLine($"CUDA Toolkit: {(toolkit is null ? "not detected" : $"v12.{toolkit.MinorVersion} at {toolkit.InstallPath}")}");
-    bool ok;
-    string label;
-    switch (args[0])
-    {
-        case "--download-vulkan":
-            label = "LLamaSharp Vulkan";
-            Console.WriteLine($"=== Downloading {label} runtime ===");
-            Console.WriteLine($"Before: {downloader.GetLlamaVulkanStatus()}");
-            ok = await downloader.DownloadLlamaVulkanRuntimeAsync(progress, CancellationToken.None);
-            Console.WriteLine();
-            Console.WriteLine($"After: {downloader.GetLlamaVulkanStatus()} (ok={ok})");
-            break;
-        case "--download-cuda":
-            label = "LLamaSharp CUDA 12";
-            Console.WriteLine($"=== Downloading {label} runtime ===");
-            Console.WriteLine($"Before: {downloader.GetLlamaCudaStatus()}");
-            ok = await downloader.DownloadLlamaCudaRuntimeAsync(progress, CancellationToken.None);
-            Console.WriteLine();
-            Console.WriteLine($"After: {downloader.GetLlamaCudaStatus()} (ok={ok})");
-            break;
-        case "--download-whisper-vulkan":
-            label = "Whisper.net Vulkan";
-            Console.WriteLine($"=== Downloading {label} runtime ===");
-            Console.WriteLine($"Before: {downloader.GetWhisperVulkanStatus()}");
-            ok = await downloader.DownloadWhisperVulkanRuntimeAsync(progress, CancellationToken.None);
-            Console.WriteLine();
-            Console.WriteLine($"After: {downloader.GetWhisperVulkanStatus()} (ok={ok})");
-            break;
-        case "--download-whisper-cuda":
-            label = "Whisper.net CUDA";
-            Console.WriteLine($"=== Downloading {label} runtime ===");
-            Console.WriteLine($"Before: {downloader.GetWhisperCudaStatus()}");
-            ok = await downloader.DownloadWhisperCudaRuntimeAsync(progress, CancellationToken.None);
-            Console.WriteLine();
-            Console.WriteLine($"After: {downloader.GetWhisperCudaStatus()} (ok={ok})");
-            break;
-        default:
-            return 1;
-    }
-
-    return ok ? 0 : 1;
-}
-
-// Probe the Whisper Vulkan runtime path to confirm RuntimeOptions.LibraryPath works.
-if (args.Length > 0 && args[0] == "--probe-whisper-vulkan")
-{
-    Console.WriteLine("=== Probing Whisper.net Vulkan runtime ===");
-    if (!Directory.Exists(GpuRuntimeDownloader.WhisperSearchRoot))
-    {
-        Console.Error.WriteLine("Whisper runtime not downloaded; run --download-whisper-vulkan first");
-        return 1;
-    }
-
-    var placeholderPath = Path.Combine(GpuRuntimeDownloader.WhisperSearchRoot, "whisper.placeholder");
-    Whisper.net.LibraryLoader.RuntimeOptions.LibraryPath = placeholderPath;
-    Whisper.net.Logger.LogProvider.AddLogger((level, msg) => Console.WriteLine($"  [whisper/{level}] {msg}"));
-    Console.WriteLine($"LibraryPath set to: {placeholderPath}");
-
-    var whisperModelPath = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tests", "Yaat.Client.Tests", "TestData", "llm", "test-model.gguf")
-    );
-    // We don't actually want to load a model — that needs a Whisper GGML file. We just want to
-    // see which backend gets picked. Whisper.net does the selection when the first WhisperFactory
-    // is created; trying to create one with a non-Whisper file will fail but AFTER backend
-    // selection, which is what we want to see.
-    try
-    {
-        using var factory = Whisper.net.WhisperFactory.FromPath("non-existent.bin");
-        Console.WriteLine($"LoadedLibrary: {Whisper.net.LibraryLoader.RuntimeOptions.LoadedLibrary}");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Factory creation failed (expected): {ex.GetType().Name}: {ex.Message}");
-        Console.WriteLine($"LoadedLibrary: {Whisper.net.LibraryLoader.RuntimeOptions.LoadedLibrary}");
-    }
-
-    return 0;
-}
-
-// Probe with production config — both CUDA and Vulkan enabled, CUDA toolkit applied. Expected
-// result on a dev box with CUDA 12 toolkit + both backends downloaded: CUDA wins.
-if (args.Length > 0 && args[0] == "--probe-production")
-{
-    Console.WriteLine("=== Probing production-style CUDA+Vulkan config ===");
-    var toolkit = GpuRuntimeDownloader.FindCuda12Toolkit();
-    if (toolkit is not null)
-    {
-        GpuRuntimeDownloader.ApplyCudaToolkitToProcess(toolkit);
-        Console.WriteLine($"Applied CUDA Toolkit v12.{toolkit.MinorVersion}");
-    }
-
-    NativeLibraryConfig
-        .All.WithCuda(true)
-        .WithVulkan(true)
-        .WithAutoFallback(true)
-        .WithSearchDirectory(GpuRuntimeDownloader.LlamaSearchRoot)
-        .WithLogCallback((level, message) => Console.WriteLine($"  [llama/{level}] {message?.TrimEnd()}"));
-
-    var testPath = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tests", "Yaat.Client.Tests", "TestData", "llm", "test-model.gguf")
-    );
-    var parameters = new ModelParams(testPath)
-    {
-        ContextSize = 2048,
-        SeqMax = 1,
-        GpuLayerCount = 999,
-    };
-    using var weights = LLamaWeights.LoadFromFile(parameters);
-    Console.WriteLine("Weights loaded — check logs for 'CUDA0'/'Vulkan0' layer assignments");
-    return 0;
-}
-
-// Probe the Vulkan runtime path so we can confirm WithSearchDirectory works.
-if (args.Length > 0 && args[0] == "--probe-vulkan")
-{
-    Console.WriteLine("=== Probing Vulkan runtime via WithSearchDirectory ===");
-    Console.WriteLine($"Search root: {GpuRuntimeDownloader.LlamaSearchRoot}");
-    if (!Directory.Exists(GpuRuntimeDownloader.LlamaSearchRoot))
-    {
-        Console.Error.WriteLine("Vulkan runtime not downloaded; run --download-vulkan first");
-        return 1;
-    }
-
-    NativeLibraryConfig
-        .All.WithVulkan(true)
-        .WithAutoFallback(true)
-        .WithSearchDirectory(GpuRuntimeDownloader.LlamaSearchRoot)
-        .WithLogCallback((level, message) => Console.WriteLine($"  [llama/{level}] {message?.TrimEnd()}"));
-
-    var testPath = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tests", "Yaat.Client.Tests", "TestData", "llm", "test-model.gguf")
-    );
-    if (!File.Exists(testPath))
-    {
-        Console.Error.WriteLine($"Test GGUF not found at {testPath}");
-        return 1;
-    }
-
-    var parameters = new ModelParams(testPath)
-    {
-        ContextSize = 2048,
-        SeqMax = 1,
-        GpuLayerCount = 999,
-    };
-    using var weights = LLamaWeights.LoadFromFile(parameters);
-    Console.WriteLine("Weights loaded — check logs for 'CUDA0'/'Vulkan0'/'CPU' layer assignments");
-    return 0;
-}
-
-// Auto-discover CUDA 12 the same way LlmCudaFixture does.
-RepointToCuda12IfAvailable();
-
-NativeLibraryConfig.All.WithCuda(true).WithAutoFallback(true);
-
-// Real LocalLlmService via a lightweight ILlmRuntimeConfig.
-var config = new ScratchLlmConfig(modelPath, gpuLayers: 999);
+// Real LocalLlmService via a lightweight ILlmRuntimeConfig. -1 GPU layers = let LM-Kit pick.
+var config = new ScratchLlmConfig(modelSource, gpuLayers: -1);
 using var service = new LocalLlmService(config);
 var mapper = new LocalLlmCommandMapper(service);
 
@@ -241,7 +268,7 @@ Console.WriteLine();
 // Warm up the model so first-case timing isn't dominated by load.
 Console.WriteLine("=== Warming up model ===");
 var warmSw = Stopwatch.StartNew();
-_ = await service.GenerateAsync("Short answer.", "hi", CancellationToken.None);
+_ = await service.GenerateAsync("Short answer.", "hi", gbnfGrammar: null, CancellationToken.None);
 Console.WriteLine($"  Warm-up: {warmSw.ElapsedMilliseconds} ms");
 Console.WriteLine();
 
@@ -308,51 +335,6 @@ totalSw.Stop();
 Console.WriteLine($"=== Results: {passed} passed, {failed} failed in {totalSw.ElapsedMilliseconds} ms ===");
 return failed > 0 ? 1 : 0;
 
-static void RepointToCuda12IfAvailable()
-{
-    if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-    {
-        return;
-    }
-
-    const string WindowsCudaRoot = @"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA";
-    if (!Directory.Exists(WindowsCudaRoot))
-    {
-        return;
-    }
-
-    string? best = null;
-    var bestMinor = -1;
-    foreach (var dir in Directory.GetDirectories(WindowsCudaRoot, "v12.*"))
-    {
-        var name = Path.GetFileName(dir);
-        var minorPart = name[4..];
-        if (int.TryParse(minorPart, out var minor) && minor > bestMinor)
-        {
-            best = dir;
-            bestMinor = minor;
-        }
-    }
-
-    if (best is null)
-    {
-        return;
-    }
-
-    Environment.SetEnvironmentVariable("CUDA_PATH", best);
-    var binDir = Path.Combine(best, "bin");
-    if (Directory.Exists(binDir))
-    {
-        var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-        if (!currentPath.Contains(binDir, StringComparison.OrdinalIgnoreCase))
-        {
-            Environment.SetEnvironmentVariable("PATH", binDir + Path.PathSeparator + currentPath);
-        }
-    }
-
-    Console.WriteLine($"[Scratch] Using CUDA 12 at {best}");
-}
-
 internal sealed class ScratchLlmConfig : ILlmRuntimeConfig
 {
     public ScratchLlmConfig(string modelPath, int gpuLayers)
@@ -361,7 +343,6 @@ internal sealed class ScratchLlmConfig : ILlmRuntimeConfig
         GpuLayers = gpuLayers;
     }
 
-    public bool Enabled => true;
     public string ModelPath { get; }
     public int GpuLayers { get; }
 }

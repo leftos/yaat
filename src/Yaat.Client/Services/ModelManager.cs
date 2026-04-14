@@ -58,11 +58,14 @@ public sealed class ModelManager
 
     public static IReadOnlyList<string> AvailableWhisperSizes { get; } = ["tiny.en", "base.en", "small.en", "medium.en"];
 
-    // Qwen 2.5 Q4_K_M variants. Qwen 1.5B is exhaustively verified by LocalLlmPipelineIntegrationTests;
-    // the 0.5B and 3B entries are size/accuracy tradeoffs with the same prompt format, so they're
-    // expected to work with the existing system prompt without retuning. If a specific entry
-    // drifts in future tuning, it can be removed from this list without breaking user prefs
-    // because LlmModelPath is stored as a raw file path, not a catalog ID.
+    // LLM catalog: Qwen 2.5, Qwen 3.5, and Gemma 4 in Q4_K_M quantization. Qwen 2.5 1.5B is the
+    // long-standing baseline (exhaustively verified by LocalLlmPipelineIntegrationTests). Qwen 3.5
+    // and Gemma 4 are newer (released 2026) and available via unsloth's GGUF mirrors — Gemma 4
+    // requires the model's built-in chat template since it rejects a system role entirely
+    // (LocalLlmService now uses StatelessExecutor.ApplyTemplate = true so per-model templates
+    // are applied automatically). If a specific entry drifts in future tuning, it can be removed
+    // from this list without breaking user prefs because LlmModelPath is stored as a raw file
+    // path, not a catalog ID.
     public static IReadOnlyList<LlmCatalogEntry> AvailableLlmModels { get; } =
     [
         new(
@@ -74,17 +77,50 @@ public sealed class ModelManager
         ),
         new(
             "qwen2.5-1.5b-q4km",
-            "Qwen2.5-1.5B-Instruct Q4_K_M (recommended, ~1 GB)",
+            "Qwen2.5-1.5B-Instruct Q4_K_M (baseline, ~1 GB)",
             "qwen2.5-1.5b-instruct-q4_k_m.gguf",
             1100,
             "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
         ),
         new(
             "qwen2.5-3b-q4km",
-            "Qwen2.5-3B-Instruct Q4_K_M (most accurate, ~2 GB)",
+            "Qwen2.5-3B-Instruct Q4_K_M (~2 GB)",
             "qwen2.5-3b-instruct-q4_k_m.gguf",
             2000,
             "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf"
+        ),
+        // --- Qwen 3.5 (2026) — unsloth GGUFs, Q4_K_M. Qwen 3.5 uses a ChatML-shaped template
+        // so it works with the existing command-mapper system prompt out of the box.
+        new(
+            "qwen3.5-2b-q4km",
+            "Qwen3.5-2B-Instruct Q4_K_M (~1.3 GB)",
+            "Qwen3.5-2B-Q4_K_M.gguf",
+            1300,
+            "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf"
+        ),
+        new(
+            "qwen3.5-4b-q4km",
+            "Qwen3.5-4B-Instruct Q4_K_M (recommended, ~2.7 GB)",
+            "Qwen3.5-4B-Q4_K_M.gguf",
+            2700,
+            "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf"
+        ),
+        // --- Gemma 4 (2026) — unsloth GGUFs, Q4_K_M. Gemma uses <start_of_turn> chat template
+        // with NO system role; works only because LocalLlmService now applies the GGUF's built-in
+        // template. The E2B / E4B variants are google/gemma-4-E{2,4}B-it.
+        new(
+            "gemma4-e2b-q4km",
+            "Gemma 4 E2B-IT Q4_K_M (~1.5 GB)",
+            "gemma-4-E2B-it-Q4_K_M.gguf",
+            1500,
+            "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf"
+        ),
+        new(
+            "gemma4-e4b-q4km",
+            "Gemma 4 E4B-IT Q4_K_M (~2.8 GB)",
+            "gemma-4-E4B-it-Q4_K_M.gguf",
+            2800,
+            "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"
         ),
     ];
 

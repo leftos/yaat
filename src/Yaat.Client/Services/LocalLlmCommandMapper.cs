@@ -33,6 +33,23 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         _systemPrompt = new Lazy<string>(BuildSystemPrompt);
     }
 
+    /// <summary>
+    /// Constructs a mapper with an explicit system prompt — used by the speech sandbox tool to
+    /// iterate on prompt phrasing without rebuilding the mapper class. Production callers use
+    /// the single-arg constructor which derives the prompt from <see cref="PhraseologyRules"/>.
+    /// </summary>
+    public LocalLlmCommandMapper(LocalLlmService llm, string customSystemPrompt)
+    {
+        _llm = llm;
+        _systemPrompt = new Lazy<string>(() => customSystemPrompt);
+    }
+
+    /// <summary>
+    /// Returns the default system prompt the production mapper uses. Exposed so the sandbox tool
+    /// can fetch the current prompt as the starting point for iteration.
+    /// </summary>
+    public static string GetDefaultSystemPrompt() => BuildSystemPrompt();
+
     public async Task<MapResult?> MapAsync(string transcript, MapContext context, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(transcript))
@@ -41,7 +58,12 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         }
 
         var userPrompt = BuildUserPrompt(transcript, context);
-        var raw = await _llm.GenerateAsync(_systemPrompt.Value, userPrompt, ct).ConfigureAwait(false);
+        // Constrain generation with the canonical-command GBNF derived from CommandRegistry.
+        // The grammar guarantees the model can only emit syntactically valid clauses ("CM 5000",
+        // "AT CEPIN CAPP ILS28R", etc.) so NormalizeOutput's verb/charset checks become a cheap
+        // defence-in-depth instead of the only line of defence. NEW commands automatically expand
+        // the grammar because CanonicalCommandGrammar enumerates the registry at runtime.
+        var raw = await _llm.GenerateAsync(_systemPrompt.Value, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(raw))
         {
             return null;
@@ -63,12 +85,14 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
 
     private static string BuildUserPrompt(string transcript, MapContext context)
     {
+        // Active callsigns are deliberately NOT included here. The speech pipeline pre-strips
+        // the callsign before calling this mapper, so the transcript is command-only. Including
+        // an "Active callsigns:" line was causing the small instruct model to echo the callsigns
+        // back as "AT N314GT AT N346G ..." because it interpreted them as condition-prefixed
+        // clauses. Programmed fixes are still listed because commands like "direct CEPIN" need
+        // them for fix-name validation.
         var sb = new StringBuilder();
         sb.Append("Transcript: ").AppendLine(transcript);
-        if (context.ActiveCallsigns.Count > 0)
-        {
-            sb.Append("Active callsigns: ").AppendLine(string.Join(", ", context.ActiveCallsigns));
-        }
 
         if (context.ProgrammedFixes.Count > 0)
         {

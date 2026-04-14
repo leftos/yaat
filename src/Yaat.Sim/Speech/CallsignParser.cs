@@ -371,19 +371,68 @@ public static class CallsignParser
             return null;
         }
 
-        // GA: "november <digits> [<letter>]"
+        // GA: "november <digits> [<letter>]" (fully phonetic) OR "november N9225L" (hybrid —
+        // Whisper saw N9225L in its initial_prompt and normalized the tail but kept the word
+        // "november" the speaker said in front of it).
         if (string.Equals(tokens[startIndex], NovemberWord, StringComparison.OrdinalIgnoreCase))
         {
-            if (startIndex + 1 < tokens.Count && IsDigitString(tokens[startIndex + 1]))
+            // Phonetic form: consume one or more adjacent digit tokens (e.g. after NormalizeDigits
+            // Whisper's partial normalization may produce ["9", "225"] rather than a single
+            // "9225"), then optionally consume trailing NATO phonetic letters so
+            // "november 9 225 lima" → N9225L and "november 123 bravo sierra" → N123BS.
+            var digitStart = startIndex + 1;
+            if (digitStart < tokens.Count && IsDigitString(tokens[digitStart]))
             {
-                var digits = tokens[startIndex + 1];
-                var consumed = 2;
-                var callsign = "N" + digits;
-                // Optional trailing letter suffix: "november 123 alpha" → "N123A" — not yet supported.
+                var sb = new System.Text.StringBuilder("N");
+                var scan = digitStart;
+                while (scan < tokens.Count && IsDigitString(tokens[scan]))
+                {
+                    sb.Append(tokens[scan]);
+                    scan++;
+                }
+                while (scan < tokens.Count && TryNatoToLetter(tokens[scan], out var letter))
+                {
+                    sb.Append(letter);
+                    scan++;
+                }
+                var callsign = sb.ToString();
                 var resolved = FuzzyResolve(callsign, activeCallsigns);
-                return new ParsedCallsign(resolved, consumed);
+                return new ParsedCallsign(resolved, scan - startIndex);
+            }
+            // Hybrid: "november N9225L" where Whisper already emitted the canonical form.
+            if (digitStart < tokens.Count && IsUsGaIcaoToken(tokens[digitStart]))
+            {
+                var callsign = tokens[digitStart].ToUpperInvariant();
+                var resolved = FuzzyResolve(callsign, activeCallsigns);
+                return new ParsedCallsign(resolved, 2);
             }
             return null;
+        }
+
+        // Bare ICAO US GA token (Whisper fully normalized "november niner two two five lima"
+        // into the canonical "N9225L" form because its initial_prompt was seeded with the ICAO
+        // form). The regex N<digit>[A-Z0-9]* is distinctive enough that a false positive against
+        // an English word is impossible, so we accept it regardless of activeCallsigns.
+        if (IsUsGaIcaoToken(tokens[startIndex]))
+        {
+            var callsign = tokens[startIndex].ToUpperInvariant();
+            var resolved = FuzzyResolve(callsign, activeCallsigns);
+            return new ParsedCallsign(resolved, 1);
+        }
+
+        // Bare ICAO airline token (e.g. "SWA123") — only accept when it matches an active
+        // callsign, because otherwise random 3-letter+digits tokens in transcripts could
+        // produce false positives (e.g. pilots reading back runway + squawk sequences).
+        var leadingUpper = tokens[startIndex].ToUpperInvariant();
+        if (TrySplitAirline(leadingUpper, out _, out _))
+        {
+            foreach (var active in activeCallsigns)
+            {
+                if (string.Equals(active, leadingUpper, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new ParsedCallsign(active, 1);
+                }
+            }
         }
 
         // Airline: try 3-word, 2-word, 1-word telephony prefix (longest-first for greedy match).
@@ -442,6 +491,66 @@ public static class CallsignParser
             }
         }
         return candidate;
+    }
+
+    // Reverse NATO phonetic map — word → letter. Built once on first access from the forward
+    // map below. Used to consume trailing letter tokens in GA callsigns (e.g. "lima" → 'L').
+    private static readonly Dictionary<string, char> NatoWordToLetter = BuildNatoReverseMap();
+
+    private static Dictionary<string, char> BuildNatoReverseMap()
+    {
+        var map = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (letter, word) in NatoPhonetic)
+        {
+            map[word] = letter;
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// Try to interpret <paramref name="token"/> as a NATO phonetic letter word. "lima" → 'L',
+    /// "bravo" → 'B', etc. "november" deliberately returns false because it's also the US GA
+    /// prefix word — letting it match here would consume "november" after digits as if it were
+    /// a suffix letter, breaking the caller's parse.
+    /// </summary>
+    private static bool TryNatoToLetter(string token, out char letter)
+    {
+        if (string.Equals(token, NovemberWord, StringComparison.OrdinalIgnoreCase))
+        {
+            letter = '\0';
+            return false;
+        }
+        return NatoWordToLetter.TryGetValue(token, out letter);
+    }
+
+    /// <summary>
+    /// True when <paramref name="token"/> is shaped like a US GA ICAO callsign: leading 'N',
+    /// followed by a digit, then any mix of letters/digits. Matches "N9225L", "N12345", "N7AB".
+    /// Distinctive enough that no English word collides, so callers can accept it without a
+    /// tiebreaker against active callsigns.
+    /// </summary>
+    private static bool IsUsGaIcaoToken(string token)
+    {
+        if (token.Length < 2)
+        {
+            return false;
+        }
+        if (token[0] != 'n' && token[0] != 'N')
+        {
+            return false;
+        }
+        if (!char.IsDigit(token[1]))
+        {
+            return false;
+        }
+        for (var i = 2; i < token.Length; i++)
+        {
+            if (!char.IsLetterOrDigit(token[i]))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static bool IsDigitString(string s)

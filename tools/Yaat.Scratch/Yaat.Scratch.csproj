@@ -12,8 +12,13 @@
   </ItemGroup>
 
   <!-- LLM diagnostic probe packages (see Program.cs). Safe to remove when scratch is repurposed.
-       Must match Yaat.Client's LLamaSharp version (0.26.0) since we reference that project. -->
+       LLamaSharp must match Yaat.Client's version (0.26.0) since we reference that project.
+       LM-Kit.NET is added in parallel for the STT/LLM engine evaluation probe; it does not
+       conflict with LLamaSharp (different namespaces) and is only loaded when the scratch CLI
+       is invoked with the lmkit-stt mode. -->
   <ItemGroup>
     <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.26.0" />
+    <PackageReference Include="LM-Kit.NET" Version="2026.4.2" />
+    <PackageReference Include="LM-Kit.NET.Backend.Cuda13.Windows" Version="2026.4.2" />
   </ItemGroup>
 </Project>

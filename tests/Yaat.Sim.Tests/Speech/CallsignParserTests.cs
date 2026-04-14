@@ -47,6 +47,58 @@ public class CallsignParserTests
         Assert.Equal(expectedConsumed, result.TokensConsumed);
     }
 
+    [Theory]
+    // Hybrid form: Whisper normalized the tail ("N9225L") but kept the word "november" the
+    // speaker said in front of it. Biased output from seeding the initial_prompt with ICAO forms.
+    [InlineData("november N9225L climb and maintain 2000", "N9225L", 2)]
+    [InlineData("november N123BS cleared for takeoff", "N123BS", 2)]
+    // Bare ICAO form: Whisper fully normalized ("november niner two two five lima" → "N9225L").
+    [InlineData("N9225L climb and maintain 2000", "N9225L", 1)]
+    [InlineData("N42 contact ground", "N42", 1)]
+    public void TryParseLeading_UsGa_HybridAndBareIcaoForms(string transcript, string expectedCallsign, int expectedConsumed)
+    {
+        var result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
+        Assert.NotNull(result);
+        Assert.Equal(expectedCallsign, result!.IcaoCallsign);
+        Assert.Equal(expectedConsumed, result.TokensConsumed);
+    }
+
+    [Theory]
+    // Trailing NATO phonetic letters after the digits: "november 9225 lima" → N9225L.
+    [InlineData("november 9225 lima climb and maintain 2000", "N9225L", 3)]
+    [InlineData("november 123 bravo sierra cleared for takeoff", "N123BS", 4)]
+    // Multi-token digit run (Whisper partially normalized: ["9", "225"] instead of "9225") plus
+    // trailing NATO letter. This is the exact shape produced after NormalizeDigits sees "diner
+    // 225" — the word-form digit and the numeric-form digits land as separate tokens.
+    [InlineData("november 9 225 lima climb and maintain 2000", "N9225L", 4)]
+    public void TryParseLeading_UsGa_DigitsPlusTrailingNatoLetters(string transcript, string expectedCallsign, int expectedConsumed)
+    {
+        var result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
+        Assert.NotNull(result);
+        Assert.Equal(expectedCallsign, result!.IcaoCallsign);
+        Assert.Equal(expectedConsumed, result.TokensConsumed);
+    }
+
+    [Fact]
+    public void TryParseLeading_BareAirlineIcao_OnlyMatchesWhenActive()
+    {
+        // Bare "SWA123" is only accepted when it's in the active-callsigns list, to avoid false
+        // positives from random 3-letter+digits tokens.
+        string[] active = ["SWA123"];
+        var result = CallsignParser.TryParseLeading("SWA123 fly heading 270", active);
+        Assert.NotNull(result);
+        Assert.Equal("SWA123", result!.IcaoCallsign);
+        Assert.Equal(1, result.TokensConsumed);
+    }
+
+    [Fact]
+    public void TryParseLeading_BareAirlineIcao_NotInActive_ReturnsNull()
+    {
+        // SWA999 is not active — the parser must decline to avoid matching random 3+digit tokens.
+        var result = CallsignParser.TryParseLeading("SWA999 fly heading 270", NoActiveCallsigns);
+        Assert.Null(result);
+    }
+
     [Fact]
     public void TryParseLeading_NoCallsign_ReturnsNull()
     {
