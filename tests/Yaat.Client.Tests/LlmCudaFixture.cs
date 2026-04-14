@@ -20,19 +20,22 @@ namespace Yaat.Client.Tests;
 public sealed class LlmCudaFixture : IDisposable
 {
     /// <summary>
-    /// Override via the LMKIT_TEST_MODEL environment variable to point integration tests at a
-    /// different model without code changes. Default is <c>gemma4:e4b</c> from LM-Kit's curated
-    /// catalog — validated against the LocalLlmPipelineIntegrationTests suite on 2026-04-14.
-    /// Gemma 4 E4B handles "two three zero" → 230 correctly where qwen3.5:4b over-extends to 2300,
-    /// at the cost of a one-time ~6 GB download (subsequent runs reuse LM-Kit's cache and
-    /// individual test inferences run in ~600 ms — same speed as qwen3.5:4b).
+    /// LM-Kit model source for integration tests. Set the <c>LMKIT_TEST_MODEL</c> environment
+    /// variable (e.g. <c>gemma4:e4b</c>) to opt in. Tests gate on <see cref="ModelAvailable"/>
+    /// and silently skip when the env var is unset, so CI runners (which can't pay the
+    /// multi-GB model download cost or run inference at acceptable speed) skip these tests
+    /// without producing failures. Recommended local value: <c>gemma4:e4b</c> — validated
+    /// 2026-04-14 against the LocalLlmPipelineIntegrationTests suite (12/12 pass on warm cache,
+    /// individual inferences ~600 ms on a discrete GPU).
     /// </summary>
-    public static string ModelSource => Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL") ?? "gemma4:e4b";
+    public static string? ModelSource => Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL");
 
     /// <summary>
-    /// True when the configured model source can be loaded. For curated LM-Kit IDs this is
-    /// always true (LM-Kit downloads on demand); for absolute file paths it requires the file
-    /// to exist on disk.
+    /// True when the LMKIT_TEST_MODEL env var points at something the runtime can load. For
+    /// curated LM-Kit IDs this is true as soon as the env var is set (LM-Kit downloads on
+    /// demand); for absolute file paths it also requires the file to exist on disk. CI runners
+    /// without the env var see false here and the tests skip silently — matching the repo's
+    /// <c>TestVnasData</c> "absent test data → silent skip" convention per CLAUDE.md.
     /// </summary>
     public static bool ModelAvailable
     {
@@ -68,7 +71,9 @@ public sealed class LlmCudaFixture : IDisposable
 
         if (ModelAvailable)
         {
-            var config = new FixtureLlmConfig(ModelSource, gpuLayers: -1);
+            // ModelAvailable guarantees ModelSource is non-null and either a curated ID or an
+            // existing file path — the null-forgiving operator is safe here.
+            var config = new FixtureLlmConfig(ModelSource!, gpuLayers: -1);
             _sharedService = new LocalLlmService(config);
         }
     }

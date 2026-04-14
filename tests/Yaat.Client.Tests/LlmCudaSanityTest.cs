@@ -33,7 +33,7 @@ public sealed class LlmCudaSanityTest
     {
         if (!LlmCudaFixture.ModelAvailable)
         {
-            _output.WriteLine($"LM-Kit model source not configured ({LlmCudaFixture.ModelSource}) — skipping.");
+            _output.WriteLine("LMKIT_TEST_MODEL env var not set — skipping LM-Kit live test.");
             return;
         }
 
