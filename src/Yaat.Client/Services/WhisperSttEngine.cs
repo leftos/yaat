@@ -105,7 +105,12 @@ public sealed class WhisperSttEngine : IDisposable
             var sb = new StringBuilder();
             void OnSegment(object? _, SpeechToText.OnNewSegmentEventArgs e)
             {
-                sb.Append(e.Segment.ToString());
+                // Use Segment.Text, NOT Segment.ToString(). ToString() formats the segment with a
+                // metadata prefix like "[00:00:00 → 00:00:04] (68.7%, lang=en)  <text>" which is
+                // useful for the Scratch probe console dump but completely breaks downstream
+                // parsing — the rule engine can't match a clause that starts with timestamps,
+                // and the LLM under grammar constraint can't emit a valid command from it either.
+                sb.Append(e.Segment.Text);
             }
             stt.OnNewSegment += OnSegment;
             try
