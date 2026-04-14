@@ -372,6 +372,7 @@ public static class AtcNumberParser
         var i = start + leadConsumed;
         var total = leadValue.Value;
         var used = leadConsumed;
+        var hasMultiplier = false;
 
         // Optional "thousand" scale.
         if (i < tokens.Count && tokens[i] == "thousand")
@@ -379,6 +380,7 @@ public static class AtcNumberParser
             total *= 1000;
             i++;
             used++;
+            hasMultiplier = true;
 
             // Optional "<compound> hundred" suffix, e.g. "five thousand five hundred" → 5500.
             if (TryReadCompoundValue(tokens, i, out var afterThousand, out var atcConsumed))
@@ -396,11 +398,67 @@ public static class AtcNumberParser
             total *= 100;
             i++;
             used++;
+            hasMultiplier = true;
         }
-        else if (leadValue.IsPureDigitSequence)
+
+        // Trailing 2-digit pair coalescing. Inverse of FlightNumberToPairedWords: pilots speak
+        // flight numbers as paired-cardinal words ("United two thirty four" = UAL234, "Delta
+        // twelve thirty four" = DAL1234), and natural English cardinals also have trailing pairs
+        // after a hundred multiplier ("two hundred thirty four" = 234). Without this loop, the
+        // parser emits a separate run per compound and downstream code (callsign extractor,
+        // {alt} captures, etc.) sees split tokens. Combinable when:
+        //   - the lead is a single isolated digit word (e.g. "two"), OR
+        //   - the lead is a 2-digit teen / tens compound (e.g. "twelve", "twenty five"), OR
+        //   - the lead has a hundred / thousand multiplier already applied.
+        // A 2- or 3-digit pure digit-by-digit run like "two seven" (=27) or "two seven zero"
+        // (=270) is NOT combinable — it's already complete on its own.
+        var combinable = !leadValue.IsPureDigitSequence || leadValue.DigitString.Length == 1 || hasMultiplier;
+        if (combinable)
         {
-            // Pure digit run with no multiplier: emit the concatenated digits verbatim so
-            // "two seven zero" → "270", preserving leading zeros in "zero niner zero" → "090".
+            while (i < tokens.Count)
+            {
+                // Optional "and" filler: "two hundred and thirty four" → 234.
+                var pairStart = tokens[i] == "and" ? i + 1 : i;
+                if (!TryReadTwoDigitPair(tokens, pairStart, out var pairValue, out var pairConsumed))
+                {
+                    break;
+                }
+
+                if (hasMultiplier)
+                {
+                    // After a hundred / thousand multiplier the running total is already at the
+                    // correct magnitude — just add the trailing pair arithmetically.
+                    total += pairValue;
+                }
+                else
+                {
+                    // Pair-spoken flight number: shift the existing total left by 2 decimal
+                    // digits and append the pair. Equivalent to digit concatenation: 12 + 34 →
+                    // "1234", 2 + 34 → "234", 1 + 23 + 45 (two iterations) → "12345".
+                    total = (total * 100) + pairValue;
+                }
+
+                var advance = pairStart - i + pairConsumed;
+                i += advance;
+                used += advance;
+
+                // Cardinal arithmetic ("two hundred and thirty four") only takes ONE trailing
+                // pair — the magnitude is fixed by the multiplier and additional pairs would be
+                // a different number entirely. Pair-spoken flight numbers can chain multiple
+                // pairs ("one twenty three forty five" → 12345).
+                if (hasMultiplier)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (!hasMultiplier && leadValue.IsPureDigitSequence && used == leadConsumed)
+        {
+            // Pure digit run with no multiplier and no trailing pair: emit the concatenated
+            // digits verbatim so "two seven zero" → "270", preserving leading zeros in
+            // "zero niner zero" → "090". This preserves leading-zero fidelity that
+            // total.ToString() would lose.
             result = leadValue.DigitString;
             consumed = used;
             return true;
@@ -409,6 +467,68 @@ public static class AtcNumberParser
         result = total.ToString();
         consumed = used;
         return true;
+    }
+
+    /// <summary>
+    /// Read exactly one 2-digit paired-cardinal value (10..99) from the token stream. Used by
+    /// the trailing-pair coalescing loop in <see cref="TryReadNumberRun"/>. Recognizes:
+    /// <list type="bullet">
+    ///   <item><description>a teen word ("twelve" → 12) — 1 token,</description></item>
+    ///   <item><description>a tens word optionally followed by a non-zero ones digit
+    ///     ("twenty", "twenty five" → 20, 25) — 1 or 2 tokens,</description></item>
+    ///   <item><description>two consecutive digit-by-digit words ("zero zero" → 0,
+    ///     "zero five" → 5) — 2 tokens. Used for non-leading pairs in flight numbers like 1500
+    ///     ("fifteen zero zero").</description></item>
+    /// </list>
+    /// Does NOT recurse into <see cref="TryReadCompoundValue"/> / <see cref="TryReadDigitSequence"/>
+    /// because those are greedy — a digit-by-digit reader called on "zero zero zero" would
+    /// consume all three, but a pair must be exactly 2.
+    /// </summary>
+    private static bool TryReadTwoDigitPair(List<string> tokens, int start, out int value, out int consumed)
+    {
+        value = 0;
+        consumed = 0;
+
+        if (start >= tokens.Count)
+        {
+            return false;
+        }
+
+        var first = tokens[start];
+
+        // Teen (10..19): exactly one token.
+        if (TeenWords.TryGetValue(first, out var teen))
+        {
+            value = teen;
+            consumed = 1;
+            return true;
+        }
+
+        // Tens (20, 30, ..., 90), optionally followed by a non-zero ones digit. We require
+        // ones > 0 because "twenty zero" would just be 20 + a leftover "zero" token, not 20.
+        if (TensWords.TryGetValue(first, out var tens))
+        {
+            if (start + 1 < tokens.Count && DigitWords.TryGetValue(tokens[start + 1], out var d) && d is > 0 and < 10)
+            {
+                value = tens + d;
+                consumed = 2;
+                return true;
+            }
+            value = tens;
+            consumed = 1;
+            return true;
+        }
+
+        // Two consecutive digit-by-digit words. Any pair of digits is fair game here, including
+        // leading-zero pairs ("zero five" → 5) and double-zero pairs ("zero zero" → 0).
+        if (start + 1 < tokens.Count && DigitWords.TryGetValue(first, out var d1) && DigitWords.TryGetValue(tokens[start + 1], out var d2))
+        {
+            value = (d1 * 10) + d2;
+            consumed = 2;
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

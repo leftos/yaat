@@ -75,6 +75,40 @@ public class AtcNumberParserTests
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
     }
 
+    // --- NormalizeDigits: paired-cardinal flight-number coalescing ---
+    //
+    // Inverse of FlightNumberToPairedWords. The pre-fix parser treated each spoken compound as
+    // its own number run, so "two thirty four" mangled to "2 34" and downstream callsign
+    // extraction resolved "United 234" as UAL2. The fix consumes trailing 2-digit pairs after a
+    // single-digit-word OR 2-digit-compound lead and concatenates the digits.
+    [Theory]
+    // Pair-spoken flight numbers (FlightNumberToPairedWords inverse).
+    [InlineData("two thirty four", "234")]
+    [InlineData("twelve thirty four", "1234")]
+    [InlineData("november one twenty three", "november 123")]
+    [InlineData("united two thirty four", "united 234")]
+    [InlineData("delta twelve thirty four", "delta 1234")]
+    [InlineData("one twenty three forty five", "12345")]
+    [InlineData("seven forty two", "742")]
+    // Trailing leading-zero pair ("zero zero" → 00) — needed for flight numbers like 1500
+    // whose paired form is "fifteen zero zero" (PairToWords falls back to digit-by-digit for
+    // any pair with a zero tens-digit).
+    [InlineData("fifteen zero zero", "1500")]
+    [InlineData("forty five zero zero", "4500")]
+    // Cardinal arithmetic form ("two hundred [and] thirty four" = 234). The hundred multiplier
+    // already shifts the lead to its hundreds magnitude, so the trailing pair is added
+    // arithmetically (not digit-shifted). The "and" filler is optional.
+    [InlineData("two hundred thirty four", "234")]
+    [InlineData("two hundred and thirty four", "234")]
+    // Heading / speed shortcuts that previously dropped trailing digits the same way callsigns
+    // did. "Fly heading two thirty" = heading 230. "Reduce speed to one eighty" = speed 180.
+    [InlineData("fly heading two thirty", "fly heading 230")]
+    [InlineData("reduce speed to one eighty", "reduce speed to 180")]
+    public void NormalizeDigits_PairedCardinalFlightNumbers(string input, string expected)
+    {
+        Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
+    }
+
     // --- FlightNumberToWords: digit → spoken form ---
 
     [Theory]
