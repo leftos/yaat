@@ -117,6 +117,14 @@ public static class AtcNumberParser
             i++;
         }
 
+        // Collapse split runway designators ("28", "right" → "28R") AFTER number normalization
+        // so the canonical runway form is visible to both downstream consumers: the rule engine
+        // (which needs "28R" to match {rwy} captures) and the LLM fallback (which sees this
+        // string as the userPrompt and would otherwise have to guess that "28 right" means
+        // "28R"). Lives behind PhraseologyMapper.CollapseRunwayDesignators because that's where
+        // the IsDigitString helper is — the cross-file call is fine within Yaat.Sim.
+        output = PhraseologyMapper.CollapseRunwayDesignators(output);
+
         return string.Join(' ', output);
     }
 

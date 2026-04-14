@@ -46,7 +46,7 @@ public class AtcNumberParserTests
     [InlineData("turn left heading zero niner zero", "turn left heading 090")]
     [InlineData("reduce speed to two five zero", "reduce speed to 250")]
     [InlineData("squawk seven five zero zero", "squawk 7500")]
-    [InlineData("cleared for takeoff runway two eight right", "cleared for takeoff runway 28 right")]
+    [InlineData("cleared for takeoff runway two eight right", "cleared for takeoff runway 28R")]
     // Whisper formats spoken "two thousand" as "2,000" using English thousand-separator commas
     // when the model recognizes the word but emits its numeric form. Without comma stripping,
     // the tokenizer splits "2,000" into ["2", "000"] and the rule engine's {alt} capture grabs
@@ -54,6 +54,13 @@ public class AtcNumberParserTests
     [InlineData("climb and maintain 2,000", "climb and maintain 2000")]
     [InlineData("descend and maintain 12,000", "descend and maintain 12000")]
     [InlineData("descend and maintain 1,234,567", "descend and maintain 1234567")]
+    // Runway designator collapse: split-token pairs from Whisper ("28 right") canonicalize to
+    // single tokens ("28R") so both the rule engine's {rwy} capture and the LLM mapper see the
+    // same form. Lowercases happen because NormalizeDigits emits lowercase tokens; the runway
+    // direction characters are uppercased by CollapseRunwayDesignators.
+    [InlineData("cleared for takeoff runway 28 right", "cleared for takeoff runway 28R")]
+    [InlineData("enter right downwind for runway 28 left", "enter right downwind for runway 28L")]
+    [InlineData("hold short of runway 27 center", "hold short of runway 27C")]
     public void NormalizeDigits_WithCommandContext(string input, string expected)
     {
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));

@@ -39,6 +39,13 @@ public static class PhraseologyMapper
         "you",
     };
 
+    // "Soft" filler words that are stripped only on a SECOND matching pass, if the first pass
+    // didn't match any rule that uses them as a literal. This lets rules that legitimately use
+    // these words (e.g. "cleared for takeoff") match on pass 1, while transcripts that use the
+    // same words as conversational fillers ("enter right downwind FOR runway 28R") still resolve
+    // by stripping the filler and retrying. See <see cref="Map"/> for the two-pass logic.
+    private static readonly HashSet<string> SecondPassFillers = new(StringComparer.OrdinalIgnoreCase) { "for" };
+
     // Connector words skipped between clauses in compound commands.
     private static readonly HashSet<string> CompoundConnectors = new(StringComparer.OrdinalIgnoreCase) { "and", "then", "also" };
 
@@ -60,10 +67,12 @@ public static class PhraseologyMapper
         // Step 1: normalize spoken numbers to digits.
         var normalized = AtcNumberParser.NormalizeDigits(transcript);
 
-        // Step 2: tokenize, strip filler, collapse runway designators, collapse custom fix names.
+        // Step 2: tokenize, strip filler, collapse custom fix names. Runway designator collapse
+        // already happened inside AtcNumberParser.NormalizeDigits above so the canonical "28R"
+        // form is visible to both this rule engine and the LLM fallback in
+        // SpeechRecognitionService.MapTranscriptAsync.
         var tokens = Tokenize(normalized);
         tokens = tokens.Where(t => !FillerWords.Contains(t)).ToList();
-        tokens = CollapseRunwayDesignators(tokens);
         if (context.CustomFixPatterns.Count > 0)
         {
             tokens = CollapseCustomFixNames(tokens, context.CustomFixPatterns);
@@ -89,8 +98,62 @@ public static class PhraseologyMapper
             tokens = tokens.Skip(conditionConsumed).ToList();
         }
 
-        // Step 5: greedy left-to-right longest-match.
+        // Step 5: greedy left-to-right longest-match — two-pass over the token list.
+        //
+        // Pass 1 runs against the tokens as-is, so rules that use SecondPassFillers as literals
+        // (e.g. "cleared for takeoff") match cleanly. If pass 1 doesn't end up using any such
+        // rule but the input does contain a second-pass filler — the user said something like
+        // "enter right downwind for runway 28R", where "for" is conversational filler between
+        // two rule literals — pass 2 strips the filler and retries. Pass 2 is preferred when it
+        // produces strictly more outputs or consumes strictly more input tokens than pass 1,
+        // so a "for"-rule match in pass 1 always beats an equivalent pass 2 result.
+        var matchedRulesPass1 = new List<PhraseologyRule>();
+        var (outputs, consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1);
+
+        var pass1UsedSecondPassFiller = matchedRulesPass1.Any(r => r.Pattern.Any(p => SecondPassFillers.Contains(p)));
+        var inputContainsSecondPassFiller = tokens.Any(t => SecondPassFillers.Contains(t));
+        if (inputContainsSecondPassFiller && !pass1UsedSecondPassFiller)
+        {
+            var strippedTokens = tokens.Where(t => !SecondPassFillers.Contains(t)).ToList();
+            var matchedRulesPass2 = new List<PhraseologyRule>();
+            var (outputsPass2, consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2);
+
+            // Pass 2 wins on more outputs OR same outputs but more raw tokens consumed. Comparing
+            // raw consumed counts is fair here because pass 2's input is a subset of pass 1's
+            // (only the filler tokens were removed); if pass 2 consumed more, it must have matched
+            // additional non-filler tokens beyond what pass 1 reached.
+            if (outputsPass2.Count > outputs.Count || (outputsPass2.Count == outputs.Count && consumedPass2 > consumedPass1))
+            {
+                outputs = outputsPass2;
+            }
+        }
+
+        if (outputs.Count == 0)
+        {
+            return null;
+        }
+
+        var canonical = string.Join(", ", outputs);
+        if (conditionPrefix is not null)
+        {
+            canonical = conditionPrefix + " " + canonical;
+        }
+
+        return new MapResult(callsign, canonical, outputs.Count);
+    }
+
+    /// <summary>
+    /// Greedy left-to-right matching loop. Walks <paramref name="tokens"/> from start to end,
+    /// emitting one canonical clause per longest-match. Mutates <paramref name="matchedRules"/>
+    /// in place with the rule that produced each output (the two-pass logic in <see cref="Map"/>
+    /// uses this to detect whether any matched rule literally referenced a second-pass filler).
+    /// Returns the output list and the total number of input tokens consumed by successful
+    /// matches (skipped tokens via the no-match advance and connector skip don't count).
+    /// </summary>
+    private static (List<string> Outputs, int TotalConsumed) MatchTokens(List<string> tokens, MapContext context, List<PhraseologyRule> matchedRules)
+    {
         var outputs = new List<string>();
+        var totalConsumed = 0;
         var idx = 0;
         while (idx < tokens.Count)
         {
@@ -100,6 +163,8 @@ public static class PhraseologyMapper
             if (string.Equals(tokens[idx], "disregard", StringComparison.OrdinalIgnoreCase))
             {
                 outputs.Clear();
+                matchedRules.Clear();
+                totalConsumed = 0;
                 idx++;
                 continue;
             }
@@ -120,21 +185,11 @@ public static class PhraseologyMapper
             }
 
             outputs.Add(best.Value.Output);
+            matchedRules.Add(best.Value.Rule);
+            totalConsumed += best.Value.Consumed;
             idx += best.Value.Consumed;
         }
-
-        if (outputs.Count == 0)
-        {
-            return null;
-        }
-
-        var canonical = string.Join(", ", outputs);
-        if (conditionPrefix is not null)
-        {
-            canonical = conditionPrefix + " " + canonical;
-        }
-
-        return new MapResult(callsign, canonical, outputs.Count);
+        return (outputs, totalConsumed);
     }
 
     /// <summary>
@@ -144,24 +199,26 @@ public static class PhraseologyMapper
     ///   <item><description>Fewer captures (more specific literal wins the tie — so <c>squawk vfr → SQVFR</c>
     ///     beats <c>squawk {code} → SQ vfr</c>).</description></item>
     /// </list>
-    /// Returns null if no rule matches.
+    /// Returns null if no rule matches. The matched rule itself is returned alongside the output
+    /// + consumed count so callers (the two-pass loop) can inspect which rule fired without
+    /// re-running the matcher.
     /// </summary>
-    private static (string Output, int Consumed)? FindLongestMatch(List<string> tokens, int start, MapContext context)
+    private static (string Output, int Consumed, PhraseologyRule Rule)? FindLongestMatch(List<string> tokens, int start, MapContext context)
     {
-        (string Output, int Consumed, int CaptureCount)? best = null;
+        (string Output, int Consumed, int CaptureCount, PhraseologyRule Rule)? best = null;
         foreach (var rule in PhraseologyRules.All)
         {
             if (TryMatchRule(rule, tokens, start, context, out var consumed, out var output))
             {
                 var captureCount = rule.Pattern.Count(p => p.StartsWith('{') && p.EndsWith('}'));
-                var candidate = (output, consumed, captureCount);
+                var candidate = (output, consumed, captureCount, rule);
                 if (best is null || consumed > best.Value.Consumed || (consumed == best.Value.Consumed && captureCount < best.Value.CaptureCount))
                 {
                     best = candidate;
                 }
             }
         }
-        return best is null ? null : (best.Value.Output, best.Value.Consumed);
+        return best is null ? null : (best.Value.Output, best.Value.Consumed, best.Value.Rule);
     }
 
     /// <summary>
@@ -392,6 +449,12 @@ public static class PhraseologyMapper
 
     private static List<string> Tokenize(string transcript)
     {
+        // Tokens are NOT lowercased: AtcNumberParser.NormalizeDigits already emits lowercase
+        // input, and the only mixed-case tokens are runway designators (e.g. "28R") that
+        // CollapseRunwayDesignators inserted with intentional uppercase suffixes. Re-lowercasing
+        // here would clobber those, breaking {rwy} captures that flow through to canonical
+        // output. Pattern matching, filler matching, and connector matching all use
+        // OrdinalIgnoreCase comparisons so case preservation here is safe.
         var tokens = new List<string>();
         var start = -1;
         for (var i = 0; i < transcript.Length; i++)
@@ -408,14 +471,14 @@ public static class PhraseologyMapper
             {
                 if (start != -1)
                 {
-                    tokens.Add(transcript[start..i].ToLowerInvariant());
+                    tokens.Add(transcript[start..i]);
                     start = -1;
                 }
             }
         }
         if (start != -1)
         {
-            tokens.Add(transcript[start..].ToLowerInvariant());
+            tokens.Add(transcript[start..]);
         }
         return tokens;
     }
@@ -437,7 +500,14 @@ public static class PhraseologyMapper
     /// Collapse "NN left/right/center" into "NNL/NNR/NNC" so rules can capture a single runway
     /// designator token. Also handles "NN l" / "NN r" / "NN c" short forms.
     /// </summary>
-    private static List<string> CollapseRunwayDesignators(List<string> tokens)
+    /// <summary>
+    /// Collapses split runway designator tokens into single canonical tokens: <c>["28", "right"]</c>
+    /// → <c>["28R"]</c>, <c>["18", "left"]</c> → <c>["18L"]</c>, <c>["27", "center"]</c> → <c>["27C"]</c>.
+    /// Internal so <see cref="AtcNumberParser.NormalizeDigits"/> can call this as part of its
+    /// pipeline; that way both the rule engine path and the LLM fallback see the canonical
+    /// runway form ("runway 28R") rather than the split form ("runway 28 right").
+    /// </summary>
+    internal static List<string> CollapseRunwayDesignators(List<string> tokens)
     {
         var output = new List<string>(tokens.Count);
         var i = 0;

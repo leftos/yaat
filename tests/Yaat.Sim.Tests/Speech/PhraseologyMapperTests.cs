@@ -360,7 +360,30 @@ public class PhraseologyMapperTests
     [InlineData("make short approach", "SA")]
     [InlineData("short approach", "SA")]
     [InlineData("circle the airport", "CIRCLE")]
+    // Two-pass filler stripping: the user says "enter right downwind FOR runway 28R" (with "for"
+    // as a conversational filler). Pass 1 against the unmodified tokens fails to match the
+    // five-token rule because "downwind" isn't directly followed by "runway" — pass 1 falls back
+    // to the bare "ERD" three-token rule. Pass 2 strips "for" and the five-token rule then
+    // matches cleanly, recovering the runway capture.
+    [InlineData("enter right downwind for runway two eight right", "ERD 28R")]
+    [InlineData("enter left downwind for runway one eight left", "ELD 18L")]
     public void Pattern_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
+    // The two-pass logic must NOT regress rules that legitimately use "for" as a literal token.
+    // Pass 1 against the unmodified tokens matches these rules directly, so pass 2 is never
+    // invoked (matchedRules already contains a rule whose pattern includes "for").
+    [InlineData("cleared for takeoff", "CTO")]
+    [InlineData("cleared for the option", "COPT")]
+    [InlineData("cleared for low approach", "LA")]
+    [InlineData("cleared for touch and go", "TG")]
+    [InlineData("cleared for stop and go", "SG")]
+    public void TwoPassFiller_PreservesForLiteralRules(string transcript, string expected)
     {
         var result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
