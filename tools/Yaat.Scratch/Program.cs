@@ -83,6 +83,35 @@ if (args.Length > 0 && args[0] == "--lmkit-models")
     return 0;
 }
 
+// One-shot LLM probe: run a single transcript through LocalLlmCommandMapper directly,
+// bypassing the rule engine. Use this to see what the LLM would produce when the rule engine
+// fails or returns a lossy match. The transcript can be passed as the second arg, or omitted
+// to use a stored example. Mimics the production path by normalizing the transcript through
+// AtcNumberParser.NormalizeDigits first — that's what SpeechRecognitionService does before
+// handing the text to the LLM mapper.
+if (args.Length > 0 && args[0] == "--llm-probe")
+{
+    var transcript = args.Length > 1 ? args[1] : "okay we'll enter right downwind for runway 28 right at november niner 225 lima";
+    LMKit.Licensing.LicenseManager.SetLicenseKey("");
+
+    var normalized = AtcNumberParser.NormalizeDigits(transcript);
+    Console.WriteLine($"Transcript: \"{transcript}\"");
+    Console.WriteLine($"Normalized: \"{normalized}\"");
+    Console.WriteLine($"Loading model: {modelSource}");
+    var probeConfig = new ScratchLlmConfig(modelSource, gpuLayers: -1);
+    using var probeService = new LocalLlmService(probeConfig);
+    var probeMapper = new LocalLlmCommandMapper(probeService);
+
+    var probeSw = Stopwatch.StartNew();
+    var probeResult = await probeMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None);
+    probeSw.Stop();
+
+    Console.WriteLine($"Time: {probeSw.ElapsedMilliseconds} ms");
+    Console.WriteLine($"Canonical: {probeResult?.CanonicalCommand ?? "<null>"}");
+    Console.WriteLine($"Callsign:  {probeResult?.Callsign ?? "<null>"}");
+    return 0;
+}
+
 // Quick GPU enumeration probe — tells us what LMKit.Hardware.Gpu.GpuDeviceInfo.Devices returns
 // on this machine, so we can shape the Settings UI around real values.
 if (args.Length > 0 && args[0] == "--lmkit-gpus")

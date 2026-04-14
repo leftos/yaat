@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <!-- Plain Exe (not WinExe) so the console pipeline subcommand prints to the parent
+         terminal. The extra console window that appears alongside the GUI when launched without
+         args is useful for a dev tool because it shows live logs from the speech pipeline. -->
+    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
