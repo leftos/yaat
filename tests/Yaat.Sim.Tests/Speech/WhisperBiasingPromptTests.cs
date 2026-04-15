@@ -6,35 +6,121 @@ namespace Yaat.Sim.Tests.Speech;
 public class WhisperBiasingPromptTests
 {
     [Fact]
-    public void Default_DoesNotContainNatoAlphabet()
+    public void Default_ContainsNatoAlphabet()
     {
-        // NATO phonetic words in the biasing prompt prime whisper-large-turbo3 to extrapolate
-        // alphabetical letter sequences. Real-world failure: pilot said "tango uniform whiskey"
-        // (taxi via T U W), Whisper extended to "tango uniform whiskey xray yankee" — X and Y
-        // weren't in the audio at all. The biasing prompt was the cue: NATO words sorted
-        // alphabetically in the prompt + NATO letters trained into Whisper from ATC corpora
-        // → strong prior toward completing the sequence.
-        //
-        // whisper-large-turbo3 recognizes NATO words as ordinary English ("tango", "whiskey",
-        // "november", "bravo" are all common words), so removing them from the biasing prompt
-        // costs nothing for single-letter recognition and eliminates the alphabet-completion
-        // bias. Callsign probes (see docs/speech-pipeline.md) confirmed tail-number recognition
-        // works without per-callsign biasing — this is the static equivalent.
+        // NATO words must be in the biasing prompt. Dropping them entirely regressed
+        // single-word recognition: whisper-large-turbo3 heard "tango" as "tingo" without
+        // the per-word bias. We keep them in but in scrambled order — see the
+        // ScrambledNato_NoLetterAdjacentPairs test for the sequence-bias break.
         var prompt = WhisperBiasingPrompt.Default;
 
-        // Hallmark uncommon NATO words (unlikely to appear as English vocabulary by accident).
-        string[] natoMarkers = ["foxtrot", "juliet", "kilo", "quebec", "sierra", "tango", "uniform", "whiskey", "xray", "yankee", "zulu"];
-        foreach (var word in natoMarkers)
+        string[] allNato =
+        [
+            "alpha",
+            "bravo",
+            "charlie",
+            "delta",
+            "echo",
+            "foxtrot",
+            "golf",
+            "hotel",
+            "india",
+            "juliet",
+            "kilo",
+            "lima",
+            "mike",
+            "november",
+            "oscar",
+            "papa",
+            "quebec",
+            "romeo",
+            "sierra",
+            "tango",
+            "uniform",
+            "victor",
+            "whiskey",
+            "xray",
+            "yankee",
+            "zulu",
+        ];
+        foreach (var word in allNato)
         {
-            Assert.DoesNotContain(word, prompt, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(word, prompt, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void Default_NatoAlphabetIsScrambled_NoLetterAdjacentPairs()
+    {
+        // NATO words in alphabetical order prime whisper-large-turbo3 to extrapolate the
+        // alphabet: real regression had pilot say "taxi via tango uniform whiskey" (T U W),
+        // Whisper emitted "tango uniform whiskey xray yankee", appending X and Y that
+        // weren't in audio. The fix requires the NATO words in the prompt to be ordered
+        // such that no two consecutive words' letters are adjacent in the alphabet.
+        //
+        // Split the prompt into tokens, find the NATO words in sequence, and verify the
+        // invariant.
+        var prompt = WhisperBiasingPrompt.Default;
+        var tokens = prompt.Split(' ');
+
+        var natoLetter = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["alpha"] = 0,
+            ["bravo"] = 1,
+            ["charlie"] = 2,
+            ["delta"] = 3,
+            ["echo"] = 4,
+            ["foxtrot"] = 5,
+            ["golf"] = 6,
+            ["hotel"] = 7,
+            ["india"] = 8,
+            ["juliet"] = 9,
+            ["kilo"] = 10,
+            ["lima"] = 11,
+            ["mike"] = 12,
+            ["november"] = 13,
+            ["oscar"] = 14,
+            ["papa"] = 15,
+            ["quebec"] = 16,
+            ["romeo"] = 17,
+            ["sierra"] = 18,
+            ["tango"] = 19,
+            ["uniform"] = 20,
+            ["victor"] = 21,
+            ["whiskey"] = 22,
+            ["xray"] = 23,
+            ["yankee"] = 24,
+            ["zulu"] = 25,
+        };
+
+        var natoSequence = new List<(string Word, int Letter)>();
+        foreach (var token in tokens)
+        {
+            if (natoLetter.TryGetValue(token, out var letter))
+            {
+                natoSequence.Add((token, letter));
+            }
+        }
+
+        // Sanity: all 26 present.
+        Assert.Equal(26, natoSequence.Count);
+
+        // Invariant: no two adjacent NATO entries in the prompt are alphabet-adjacent.
+        // Alphabet-adjacent = |letter_a - letter_b| == 1 (e.g., T (19) and U (20)).
+        for (var i = 0; i < natoSequence.Count - 1; i++)
+        {
+            var a = natoSequence[i];
+            var b = natoSequence[i + 1];
+            var gap = Math.Abs(a.Letter - b.Letter);
+            Assert.True(gap > 1, $"NATO words '{a.Word}' and '{b.Word}' are alphabet-adjacent (gap={gap}) at position {i}");
         }
     }
 
     [Fact]
     public void Default_StillContainsAtcCommandVocabulary()
     {
-        // Regression guard: make sure the fix to drop NATO didn't accidentally wipe the
-        // command-verb literals that the rule engine relies on for recognition biasing.
+        // Regression guard: make sure adding NATO back didn't wipe the command-verb literals
+        // that the rule engine relies on for recognition biasing.
         var prompt = WhisperBiasingPrompt.Default;
 
         string[] mustContain = ["climb", "descend", "runway", "heading", "cleared", "takeoff", "approach", "maintain", "turn"];

@@ -4,37 +4,31 @@ namespace Yaat.Sim.Speech;
 
 /// <summary>
 /// Builds the static Whisper <c>initial_prompt</c> string YAAT feeds to the speech recognizer
-/// to bias decoding toward ATC vocabulary. The prompt is the union of two deterministic
+/// to bias decoding toward ATC vocabulary. The prompt is the union of three deterministic
 /// vocabulary sets:
 /// <list type="number">
 ///   <item><description>Phonetic number forms used in ATC (zero/one/two/three/tree/four/fower/five/fife/six/seven/eight/niner) plus magnitude words (hundred, thousand, point, decimal, flight, level, altitude, knots).</description></item>
 ///   <item><description>Every distinct literal pattern token from <see cref="PhraseologyRules.All"/>, which together cover every word the rule engine knows how to map to a canonical command.</description></item>
+///   <item><description>The NATO phonetic alphabet (<c>alpha … zulu</c>), appended in a
+///     <b>scrambled</b> order — see <see cref="ScrambledNatoAlphabet"/>.</description></item>
 /// </list>
 ///
-/// The result is cached as a single space-joined alphabetized string, well under whisper.cpp's
-/// 224-token decoder context cap, and identical across PTT presses. We deliberately do NOT mix
-/// in dynamic per-PTT context (active scenario callsigns, programmed fixes) here — the static
-/// vocabulary is sufficient because:
-/// <list type="bullet">
-///   <item><description>Avoiding per-PTT recomputation removes the 224-token budget concern and
-///     drops a class of potential prompt truncation bugs.</description></item>
-///   <item><description>The static prompt can be composed once into <see cref="Default"/> and
-///     reused across every PTT press for the life of the process.</description></item>
-/// </list>
+/// The result is cached as a single space-joined string, well under whisper.cpp's 224-token
+/// decoder context cap, and identical across PTT presses. We deliberately do NOT mix in dynamic
+/// per-PTT context (active scenario callsigns, programmed fixes) here — the static vocabulary
+/// is sufficient because avoiding per-PTT recomputation removes the 224-token budget concern
+/// and drops a class of potential prompt truncation bugs.
 ///
 /// <para>
-/// <b>NATO phonetic alphabet is intentionally NOT in the prompt.</b> Early versions included
-/// <c>alpha … zulu</c> to "help" callsign and taxiway recognition. Live STT testing showed
-/// this was actively harmful: NATO words sorted into the biasing prompt + NATO letters already
-/// trained into whisper-large-turbo3 from ATC corpora primes the model to extrapolate the
-/// alphabetical sequence. Real regression — pilot said "taxi via tango uniform whiskey" (T U W),
-/// Whisper hallucinated "tango uniform whiskey xray yankee", appending X and Y that weren't in
-/// audio. Dropping NATO from the biasing set breaks the sequence hint. The model still
-/// recognizes individual NATO words fine — they're all common English vocabulary ("tango",
-/// "whiskey", "november", "bravo") that Whisper already knows. Callsign probes with N346G
-/// confirmed tail-number recognition works without per-callsign or NATO-alphabet biasing.
-/// See <c>WhisperBiasingPromptTests.Default_DoesNotContainNatoAlphabet</c> for the regression
-/// guard.
+/// <b>NATO alphabet is scrambled, not sorted.</b> Listing NATO words in alphabetical order
+/// (which is what a <see cref="SortedSet{T}"/> over them produces) primes whisper-large-turbo3
+/// to extrapolate the alphabetical sequence. Real regression: pilot said "taxi via tango
+/// uniform whiskey" (T U W), Whisper hallucinated "tango uniform whiskey xray yankee",
+/// appending X and Y that weren't in audio. Dropping NATO entirely fixed that, but broke
+/// single-word recognition in the opposite direction: Whisper then heard "tango" as "tingo"
+/// because it had no bias toward the word. The compromise is to include NATO words but in
+/// a deterministic scrambled order where no two consecutive words are letter-adjacent in
+/// the alphabet — preserves single-word bias without the sequential prior.
 /// </para>
 /// </summary>
 public static class WhisperBiasingPrompt
@@ -43,6 +37,44 @@ public static class WhisperBiasingPrompt
 
     /// <summary>Cached default biasing prompt. Computed once on first access.</summary>
     public static string Default => DefaultLazy.Value;
+
+    /// <summary>
+    /// NATO phonetic alphabet in a DELIBERATELY scrambled order. Invariant: for every adjacent
+    /// pair <c>(words[i], words[i+1])</c>, the alphabet-distance between their corresponding
+    /// letters is &gt; 1. Verified by <c>WhisperBiasingPromptTests.ScrambledNato_NoAdjacentLetters</c>.
+    /// The scramble preserves Whisper's per-word bias toward NATO vocabulary (so "tango"
+    /// doesn't get mistranscribed as "tingo") while breaking the sequential-alphabet prior
+    /// that caused the "T U W → T U W X Y" hallucination regression.
+    /// </summary>
+    private static readonly string[] ScrambledNatoAlphabet =
+    [
+        "zulu",
+        "alpha",
+        "mike",
+        "charlie",
+        "uniform",
+        "echo",
+        "oscar",
+        "bravo",
+        "papa",
+        "golf",
+        "whiskey",
+        "india",
+        "romeo",
+        "delta",
+        "victor",
+        "juliet",
+        "quebec",
+        "foxtrot",
+        "yankee",
+        "lima",
+        "tango",
+        "hotel",
+        "sierra",
+        "kilo",
+        "xray",
+        "november",
+    ];
 
     /// <summary>
     /// Phonetic / spoken number forms from FAA 7110.65 4-2-9 ("Numbers Usage"). Includes ATC
@@ -136,11 +168,13 @@ public static class WhisperBiasingPrompt
     ];
 
     /// <summary>
-    /// Builds the prompt by merging the phonetic number set and every distinct literal token
-    /// in <see cref="PhraseologyRules.All"/>. Capture-group placeholders (<c>{name}</c>) are
-    /// excluded — they're regex-style holes, not vocabulary words. Trailing <c>?</c> markers
-    /// and variadic <c>...</c> markers are stripped so we bias for the underlying word.
-    /// NATO phonetic letters are deliberately excluded — see the class-level remarks.
+    /// Builds the prompt by merging the phonetic number set, every distinct literal token in
+    /// <see cref="PhraseologyRules.All"/>, and the NATO phonetic alphabet. Capture-group
+    /// placeholders (<c>{name}</c>) are excluded — they're regex-style holes, not vocabulary
+    /// words. Trailing <c>?</c> markers from optional tokens are stripped so we bias for the
+    /// underlying word. The command vocab is alphabetized for determinism; the NATO alphabet
+    /// is appended in a hand-scrambled order (see <see cref="ScrambledNatoAlphabet"/>) so it
+    /// can't be used as a sequential hint by the decoder.
     /// </summary>
     public static string Build()
     {
@@ -174,8 +208,10 @@ public static class WhisperBiasingPrompt
         // Single space-joined string — Whisper's initial_prompt is a free-form text seed, not a
         // structured token list. Whisper tokenizes the prompt itself when it loads; word-level
         // separation by spaces is the standard form (matches whisper.cpp's example prompts and
-        // the form Whisper.net's WithPrompt expected).
-        var sb = new StringBuilder(capacity: vocab.Count * 8);
+        // the form Whisper.net's WithPrompt expected). Sorted command vocab comes first;
+        // scrambled NATO is appended at the end so adjacent words in the prompt never form
+        // an alphabetical sequence.
+        var sb = new StringBuilder(capacity: (vocab.Count + ScrambledNatoAlphabet.Length) * 8);
         var first = true;
         foreach (var word in vocab)
         {
@@ -185,6 +221,10 @@ public static class WhisperBiasingPrompt
             }
             sb.Append(word);
             first = false;
+        }
+        foreach (var word in ScrambledNatoAlphabet)
+        {
+            sb.Append(' ').Append(word);
         }
         return sb.ToString();
     }
