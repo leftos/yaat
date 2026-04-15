@@ -41,10 +41,11 @@ public static class WhisperBiasingPrompt
     /// <summary>
     /// NATO phonetic alphabet in a DELIBERATELY scrambled order. Invariant: for every adjacent
     /// pair <c>(words[i], words[i+1])</c>, the alphabet-distance between their corresponding
-    /// letters is &gt; 1. Verified by <c>WhisperBiasingPromptTests.ScrambledNato_NoAdjacentLetters</c>.
+    /// letters is &gt; 1. Verified by <c>WhisperBiasingPromptTests.Default_NatoAlphabetIsScrambled_NoLetterAdjacentPairs</c>.
     /// The scramble preserves Whisper's per-word bias toward NATO vocabulary (so "tango"
     /// doesn't get mistranscribed as "tingo") while breaking the sequential-alphabet prior
-    /// that caused the "T U W → T U W X Y" hallucination regression.
+    /// that caused the "T U W → T U W X Y" hallucination regression. The word set itself is
+    /// sourced from <see cref="NatoPhoneticAlphabet"/>; only the order is local to this file.
     /// </summary>
     private static readonly string[] ScrambledNatoAlphabet =
     [

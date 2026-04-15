@@ -47,40 +47,10 @@ namespace Yaat.Sim.Speech;
 /// </summary>
 public static class NatoNearMissResolver
 {
-    // Canonical NATO phonetic alphabet — the target set for near-miss matching. Lowercased
-    // because AtcNumberParser.NormalizeDigits emits lowercase tokens and the first-character
-    // check runs on lowercase input.
-    private static readonly string[] NatoWords =
-    [
-        "alpha",
-        "bravo",
-        "charlie",
-        "delta",
-        "echo",
-        "foxtrot",
-        "golf",
-        "hotel",
-        "india",
-        "juliet",
-        "kilo",
-        "lima",
-        "mike",
-        "november",
-        "oscar",
-        "papa",
-        "quebec",
-        "romeo",
-        "sierra",
-        "tango",
-        "uniform",
-        "victor",
-        "whiskey",
-        "xray",
-        "yankee",
-        "zulu",
-    ];
+    // The 26 canonical NATO words live in NatoPhoneticAlphabet (single source).
+    private static IReadOnlyList<string> NatoWords => NatoPhoneticAlphabet.Words;
 
-    private static readonly HashSet<string> NatoExact = new(NatoWords, StringComparer.OrdinalIgnoreCase);
+    private static IReadOnlySet<string> NatoExact => NatoPhoneticAlphabet.WordSet;
 
     /// <summary>
     /// Lazy-built set of every literal pattern token used by <see cref="PhraseologyRules.All"/>.

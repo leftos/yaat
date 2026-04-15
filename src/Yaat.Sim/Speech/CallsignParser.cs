@@ -309,59 +309,9 @@ public static class CallsignParser
         }
     }
 
-    // NATO phonetic alphabet — ATC phraseology for individual letters.
-    private static readonly Dictionary<char, string> NatoPhonetic = new()
-    {
-        ['A'] = "alpha",
-        ['B'] = "bravo",
-        ['C'] = "charlie",
-        ['D'] = "delta",
-        ['E'] = "echo",
-        ['F'] = "foxtrot",
-        ['G'] = "golf",
-        ['H'] = "hotel",
-        ['I'] = "india",
-        ['J'] = "juliet",
-        ['K'] = "kilo",
-        ['L'] = "lima",
-        ['M'] = "mike",
-        ['N'] = "november",
-        ['O'] = "oscar",
-        ['P'] = "papa",
-        ['Q'] = "quebec",
-        ['R'] = "romeo",
-        ['S'] = "sierra",
-        ['T'] = "tango",
-        ['U'] = "uniform",
-        ['V'] = "victor",
-        ['W'] = "whiskey",
-        ['X'] = "xray",
-        ['Y'] = "yankee",
-        ['Z'] = "zulu",
-    };
-
-    private static string SpellChar(char c)
-    {
-        if (c >= '0' && c <= '9')
-        {
-            return (c - '0') switch
-            {
-                0 => "zero",
-                1 => "one",
-                2 => "two",
-                3 => "three",
-                4 => "four",
-                5 => "five",
-                6 => "six",
-                7 => "seven",
-                8 => "eight",
-                9 => "nine",
-                _ => c.ToString(),
-            };
-        }
-        var upper = char.ToUpperInvariant(c);
-        return NatoPhonetic.TryGetValue(upper, out var word) ? word : upper.ToString();
-    }
+    // NATO phonetic alphabet lives in NatoPhoneticAlphabet (single source); spell-char + reverse
+    // map delegates go through that class so every Speech/ consumer shares the same data.
+    private static string SpellChar(char c) => NatoPhoneticAlphabet.SpellChar(c);
 
     private static ParsedCallsign? TryParseAt(List<string> tokens, int startIndex, bool forward, IReadOnlyCollection<string> activeCallsigns)
     {
@@ -493,25 +443,12 @@ public static class CallsignParser
         return candidate;
     }
 
-    // Reverse NATO phonetic map — word → letter. Built once on first access from the forward
-    // map below. Used to consume trailing letter tokens in GA callsigns (e.g. "lima" → 'L').
-    private static readonly Dictionary<string, char> NatoWordToLetter = BuildNatoReverseMap();
-
-    private static Dictionary<string, char> BuildNatoReverseMap()
-    {
-        var map = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (letter, word) in NatoPhonetic)
-        {
-            map[word] = letter;
-        }
-        return map;
-    }
-
     /// <summary>
     /// Try to interpret <paramref name="token"/> as a NATO phonetic letter word. "lima" → 'L',
     /// "bravo" → 'B', etc. "november" deliberately returns false because it's also the US GA
     /// prefix word — letting it match here would consume "november" after digits as if it were
-    /// a suffix letter, breaking the caller's parse.
+    /// a suffix letter, breaking the caller's parse. The underlying word → letter map lives in
+    /// <see cref="NatoPhoneticAlphabet"/>; this wrapper adds the November guard.
     /// </summary>
     private static bool TryNatoToLetter(string token, out char letter)
     {
@@ -520,7 +457,7 @@ public static class CallsignParser
             letter = '\0';
             return false;
         }
-        return NatoWordToLetter.TryGetValue(token, out letter);
+        return NatoPhoneticAlphabet.TryGetLetter(token, out letter);
     }
 
     /// <summary>

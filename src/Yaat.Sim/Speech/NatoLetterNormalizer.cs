@@ -40,38 +40,8 @@ public static class NatoLetterNormalizer
     /// </summary>
     private const int MaxMultiLetterName = 4;
 
-    // Reverse of the NATO phonetic alphabet: word -> single letter. Built case-insensitive so
-    // the normalizer works against AtcNumberParser-normalized tokens (all lowercase) and any
-    // other upstream normalization that might preserve case.
-    private static readonly Dictionary<string, char> WordToLetter = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["alpha"] = 'A',
-        ["bravo"] = 'B',
-        ["charlie"] = 'C',
-        ["delta"] = 'D',
-        ["echo"] = 'E',
-        ["foxtrot"] = 'F',
-        ["golf"] = 'G',
-        ["hotel"] = 'H',
-        ["india"] = 'I',
-        ["juliet"] = 'J',
-        ["kilo"] = 'K',
-        ["lima"] = 'L',
-        ["mike"] = 'M',
-        ["november"] = 'N',
-        ["oscar"] = 'O',
-        ["papa"] = 'P',
-        ["quebec"] = 'Q',
-        ["romeo"] = 'R',
-        ["sierra"] = 'S',
-        ["tango"] = 'T',
-        ["uniform"] = 'U',
-        ["victor"] = 'V',
-        ["whiskey"] = 'W',
-        ["xray"] = 'X',
-        ["yankee"] = 'Y',
-        ["zulu"] = 'Z',
-    };
+    // The NATO phonetic word → letter map lives in NatoPhoneticAlphabet (single source).
+    private static readonly IReadOnlyDictionary<string, char> WordToLetter = NatoPhoneticAlphabet.WordToLetter;
 
     /// <summary>
     /// Walks <paramref name="tokens"/> left-to-right, replacing runs of NATO phonetic words

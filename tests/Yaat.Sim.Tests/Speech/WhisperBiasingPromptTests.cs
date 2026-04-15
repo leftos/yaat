@@ -11,39 +11,10 @@ public class WhisperBiasingPromptTests
         // NATO words must be in the biasing prompt. Dropping them entirely regressed
         // single-word recognition: whisper-large-turbo3 heard "tango" as "tingo" without
         // the per-word bias. We keep them in but in scrambled order — see the
-        // ScrambledNato_NoLetterAdjacentPairs test for the sequence-bias break.
+        // Default_NatoAlphabetIsScrambled_NoLetterAdjacentPairs test for the sequence-bias
+        // break. The word list is sourced from NatoPhoneticAlphabet (single source).
         var prompt = WhisperBiasingPrompt.Default;
-
-        string[] allNato =
-        [
-            "alpha",
-            "bravo",
-            "charlie",
-            "delta",
-            "echo",
-            "foxtrot",
-            "golf",
-            "hotel",
-            "india",
-            "juliet",
-            "kilo",
-            "lima",
-            "mike",
-            "november",
-            "oscar",
-            "papa",
-            "quebec",
-            "romeo",
-            "sierra",
-            "tango",
-            "uniform",
-            "victor",
-            "whiskey",
-            "xray",
-            "yankee",
-            "zulu",
-        ];
-        foreach (var word in allNato)
+        foreach (var word in NatoPhoneticAlphabet.Words)
         {
             Assert.Contains(word, prompt, StringComparison.OrdinalIgnoreCase);
         }
@@ -59,51 +30,22 @@ public class WhisperBiasingPromptTests
         // such that no two consecutive words' letters are adjacent in the alphabet.
         //
         // Split the prompt into tokens, find the NATO words in sequence, and verify the
-        // invariant.
+        // invariant. The letter map comes from NatoPhoneticAlphabet (single source).
         var prompt = WhisperBiasingPrompt.Default;
         var tokens = prompt.Split(' ');
-
-        var natoLetter = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["alpha"] = 0,
-            ["bravo"] = 1,
-            ["charlie"] = 2,
-            ["delta"] = 3,
-            ["echo"] = 4,
-            ["foxtrot"] = 5,
-            ["golf"] = 6,
-            ["hotel"] = 7,
-            ["india"] = 8,
-            ["juliet"] = 9,
-            ["kilo"] = 10,
-            ["lima"] = 11,
-            ["mike"] = 12,
-            ["november"] = 13,
-            ["oscar"] = 14,
-            ["papa"] = 15,
-            ["quebec"] = 16,
-            ["romeo"] = 17,
-            ["sierra"] = 18,
-            ["tango"] = 19,
-            ["uniform"] = 20,
-            ["victor"] = 21,
-            ["whiskey"] = 22,
-            ["xray"] = 23,
-            ["yankee"] = 24,
-            ["zulu"] = 25,
-        };
 
         var natoSequence = new List<(string Word, int Letter)>();
         foreach (var token in tokens)
         {
-            if (natoLetter.TryGetValue(token, out var letter))
+            if (NatoPhoneticAlphabet.TryGetLetter(token, out var letter))
             {
-                natoSequence.Add((token, letter));
+                natoSequence.Add((token, letter - 'A'));
             }
         }
 
-        // Sanity: all 26 present.
+        // Sanity: all 26 present, each exactly once.
         Assert.Equal(26, natoSequence.Count);
+        Assert.Equal(26, natoSequence.Select(x => x.Letter).Distinct().Count());
 
         // Invariant: no two adjacent NATO entries in the prompt are alphabet-adjacent.
         // Alphabet-adjacent = |letter_a - letter_b| == 1 (e.g., T (19) and U (20)).
