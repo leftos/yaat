@@ -40,6 +40,7 @@ public static class PhraseologyRules
         rules.AddRange(NavigationRules());
         rules.AddRange(TowerRules());
         rules.AddRange(ApproachRules());
+        rules.AddRange(PtacRules());
         rules.AddRange(PatternRules());
         rules.AddRange(HoldRules());
         rules.AddRange(HelicopterRules());
@@ -188,6 +189,92 @@ public static class PhraseologyRules
             new(["report", "airport", "in", "sight"], "RFIS", ReportFieldInSight),
             new(["report", "field", "in", "sight"], "RFIS", ReportFieldInSight),
             new(["report", "traffic", "in", "sight"], "RTIS", ReportTrafficInSight),
+        ];
+
+    // --- Position-Turn-Altitude-Clearance (CommandRegistry.PositionTurnAltitudeClearance) ---
+    //
+    // PTAC is a combined vector + altitude + approach clearance issued as a single instruction.
+    // When the controller speaks the full "turn heading X, descend to Y, cleared approach Z"
+    // sequence in one transmission, the longest-match engine collapses it to a single PTAC
+    // clause rather than emitting TL + DM + CAPP as three separate outputs — this preserves the
+    // atomic "Position Turn" phase semantics in the sim (the command dispatcher wires heading,
+    // altitude, and approach together so the aircraft turns onto the vector, descends, and
+    // intercepts without any gap).
+    //
+    // 7110.65 5-9-1 "Vectors to Final Approach Course" describes this canonical form:
+    //   TURN LEFT/RIGHT HEADING (degrees), MAINTAIN (altitude) UNTIL ESTABLISHED...,
+    //   CLEARED (type) APPROACH RUNWAY (number).
+    //
+    // These rules must come BEFORE the individual TL/FH/DM/CAPP rules in <see cref="Build"/> so
+    // the longer PTAC match wins when the full phrase is spoken. (Longest-match selection inside
+    // <see cref="PhraseologyMapper"/> handles the actual precedence — file order is for clarity.)
+
+    private static PhraseologyRule[] PtacRules() =>
+        [
+            // ILS, descend intercept (typical — above glideslope capture alt)
+            new(
+                ["turn", "left", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} ILS{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["turn", "right", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} ILS{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["fly", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} ILS{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            // ILS, climb intercept (below glideslope capture alt — less common but valid)
+            new(
+                ["turn", "left", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} ILS{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["turn", "right", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} ILS{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["fly", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} ILS{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            // RNAV, descend intercept
+            new(
+                ["turn", "left", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} RNAV{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["turn", "right", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} RNAV{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["fly", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} RNAV{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            // RNAV, climb intercept
+            new(
+                ["turn", "left", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} RNAV{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["turn", "right", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} RNAV{rwy}",
+                PositionTurnAltitudeClearance
+            ),
+            new(
+                ["fly", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
+                "PTAC {hdg} {alt} RNAV{rwy}",
+                PositionTurnAltitudeClearance
+            ),
         ];
 
     // --- Pattern (CommandRegistry.PatternCommands) ---

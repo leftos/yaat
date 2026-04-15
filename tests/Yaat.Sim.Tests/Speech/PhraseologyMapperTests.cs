@@ -129,6 +129,39 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    // --- PTAC rules (combined vector + altitude + approach clearance) ---
+
+    [Theory]
+    [InlineData(
+        "turn left heading two seven zero descend and maintain three thousand cleared ils runway two eight right approach",
+        "PTAC 270 3000 ILS28R"
+    )]
+    [InlineData(
+        "turn right heading one zero zero descend and maintain two thousand five hundred cleared ils runway two eight left approach",
+        "PTAC 100 2500 ILS28L"
+    )]
+    [InlineData("fly heading two seven zero descend and maintain three thousand cleared ils runway two eight right approach", "PTAC 270 3000 ILS28R")]
+    [InlineData("turn left heading two seven zero descend and maintain three thousand cleared ils two eight right approach", "PTAC 270 3000 ILS28R")]
+    [InlineData(
+        "turn left heading two seven zero descend maintain three thousand cleared ils runway two eight right approach",
+        "PTAC 270 3000 ILS28R"
+    )]
+    [InlineData(
+        "turn left heading three six zero climb and maintain five thousand cleared ils runway two eight right approach",
+        "PTAC 360 5000 ILS28R"
+    )]
+    [InlineData(
+        "turn right heading one eight zero descend and maintain four thousand cleared rnav runway two eight right approach",
+        "PTAC 180 4000 RNAV28R"
+    )]
+    [InlineData("fly heading two seven zero descend and maintain three thousand cleared rnav runway one two approach", "PTAC 270 3000 RNAV12")]
+    public void Ptac_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- Transponder rules ---
 
     [Theory]
