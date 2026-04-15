@@ -105,6 +105,14 @@ public static class PhraseologyMapper
             tokens = tokens.Skip(conditionConsumed).ToList();
         }
 
+        // Step 4b: collapse NATO phonetic letter runs into taxiway-name tokens. Uses the
+        // airport-scoped taxiway set from MapContext to disambiguate multi-letter names from
+        // adjacent single-letter taxiways (see NatoLetterNormalizer for the full rationale).
+        // Runs AFTER callsign extraction so "November 346 Golf, taxi via tango" still parses
+        // the callsign correctly, and BEFORE rule matching so rules use plain single-token
+        // captures against already-collapsed tokens.
+        tokens = NatoLetterNormalizer.Collapse(tokens, context.TaxiwayNames);
+
         // Step 5: greedy left-to-right longest-match — two-pass over the token list.
         //
         // Pass 1 runs against the tokens as-is, so rules that use SecondPassFillers as literals
@@ -344,6 +352,18 @@ public static class PhraseologyMapper
     }
 
     /// <summary>
+    /// Test-only wrapper around <see cref="TryMatchPattern"/>. Returns the captures dictionary
+    /// when the pattern matches from position 0, or null on failure. Allows unit tests to
+    /// exercise the variadic / optional-literal matcher in isolation without constructing a
+    /// full rule + token pipeline.
+    /// </summary>
+    internal static Dictionary<string, string>? TryMatchPatternForTests(string[] pattern, List<string> tokens)
+    {
+        var captures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        return TryMatchPattern(pattern, 0, tokens, 0, captures, out _) ? captures : null;
+    }
+
+    /// <summary>
     /// Recursive pattern matcher. Handles optional-token branching by trying both present-and-absent
     /// paths. Depth is bounded by pattern length, so recursion is cheap.
     /// </summary>
@@ -362,6 +382,55 @@ public static class PhraseologyMapper
         while (patternIdx < pattern.Length)
         {
             var p = pattern[patternIdx];
+
+            // Variadic capture group {name...} — consumes one-or-more consecutive tokens into
+            // a single space-joined capture. When the variadic is the last token in the pattern,
+            // it greedy-consumes all remaining input. When followed by another pattern token,
+            // that next token MUST be a required literal (no captures, no optional) — the matcher
+            // walks forward to the first occurrence of that literal and captures up to but not
+            // including it. Minimum consumed tokens: 1. A variadic must match at least one token.
+            if (p.StartsWith('{') && p.EndsWith("...}"))
+            {
+                var name = p[1..^4];
+                if (tokenIdx >= tokens.Count)
+                {
+                    return false;
+                }
+
+                if (patternIdx + 1 >= pattern.Length)
+                {
+                    // Last pattern token — greedy-consume all remaining input tokens.
+                    var collected = tokens.GetRange(tokenIdx, tokens.Count - tokenIdx);
+                    captures[name] = string.Join(' ', collected);
+                    tokenIdx = tokens.Count;
+                    patternIdx++;
+                    continue;
+                }
+
+                var next = pattern[patternIdx + 1];
+                if (next.StartsWith('{') || next.EndsWith('?'))
+                {
+                    throw new InvalidOperationException($"Variadic capture '{p}' must be followed by a required literal, got '{next}'.");
+                }
+
+                // Scan forward for the first token matching the next literal — must be AFTER
+                // tokenIdx to guarantee at least one captured token.
+                var scan = tokenIdx + 1;
+                while (scan < tokens.Count && !string.Equals(tokens[scan], next, StringComparison.OrdinalIgnoreCase))
+                {
+                    scan++;
+                }
+                if (scan >= tokens.Count)
+                {
+                    return false;
+                }
+
+                var captured = tokens.GetRange(tokenIdx, scan - tokenIdx);
+                captures[name] = string.Join(' ', captured);
+                tokenIdx = scan;
+                patternIdx++;
+                continue;
+            }
 
             // Capture group {name}
             if (p.StartsWith('{') && p.EndsWith('}'))

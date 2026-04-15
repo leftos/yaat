@@ -44,6 +44,16 @@ public sealed record MapContext(IReadOnlyCollection<string> ActiveCallsigns, IRe
     /// from a Whisper mistranscription.
     /// </summary>
     public IReadOnlyDictionary<string, string> AircraftDestinations { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Set of taxiway names (uppercase, case-insensitive) for the airport currently relevant to
+    /// the aircraft being commanded. Used by <see cref="NatoLetterNormalizer"/> to disambiguate
+    /// multi-letter taxiway names ("tango echo" → "TE") from adjacent single-letter taxiways
+    /// ("T E"). Empty when no scenario / ground-layout state is available — the normalizer
+    /// falls back to single-letter splits in that case. Populated from
+    /// <c>AircraftState.GroundLayout.Edges</c>, filtered to exclude runway centerlines and ramps.
+    /// </summary>
+    public IReadOnlySet<string> TaxiwayNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>

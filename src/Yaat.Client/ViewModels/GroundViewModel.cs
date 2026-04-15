@@ -19,6 +19,13 @@ public partial class GroundViewModel : ObservableObject
     private readonly Func<string, string, string, Task> _sendCommand;
     private readonly Action<AircraftModel?>? _onSelectionChanged;
     private AirportGroundLayout? _domainLayout;
+
+    /// <summary>
+    /// Domain-side ground layout for the currently-loaded airport, or null when no layout is
+    /// loaded. Exposed so sibling view-models (e.g. <see cref="MainViewModel.BuildSpeechContext"/>)
+    /// can read taxiway metadata without duplicating the reconstruction pipeline.
+    /// </summary>
+    public AirportGroundLayout? DomainLayout => _domainLayout;
     private Func<string, double?>? _getAirportElevation;
     private VnasConfigService? _vnasConfigService;
     private TowerCabImageService? _towerCabImageService;

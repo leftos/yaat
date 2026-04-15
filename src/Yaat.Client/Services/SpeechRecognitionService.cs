@@ -89,6 +89,14 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
     /// correlate an in-transcript callsign with the right airport's runways.
     /// </summary>
     public IReadOnlyDictionary<string, string> AircraftDestinations { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Uppercase taxiway-name set for the ground layout of the aircraft being commanded. Passed
+    /// through to <see cref="MapContext.TaxiwayNames"/> so <see cref="NatoLetterNormalizer"/>
+    /// can disambiguate multi-letter taxiway names from adjacent single-letter taxiways when
+    /// collapsing NATO phonetic runs in the transcript. Empty when no ground layout is loaded.
+    /// </summary>
+    public IReadOnlySet<string> TaxiwayNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -427,6 +435,7 @@ public sealed class SpeechRecognitionService : IDisposable
             CustomFixPatterns = ctx.CustomFixPatterns,
             AvailableRunways = ctx.AvailableRunways,
             AircraftDestinations = ctx.AircraftDestinations,
+            TaxiwayNames = ctx.TaxiwayNames,
         };
 
         string? canonical = null;

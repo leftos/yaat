@@ -710,4 +710,80 @@ public class PhraseologyMapperTests
         Assert.NotNull(result);
         Assert.Equal("CM 5000, DCT CEPIN", result!.CanonicalCommand);
     }
+
+    // --- Variadic capture {name...} ---
+
+    [Fact]
+    public void Variadic_Trailing_GreedyConsumesAllRemaining()
+    {
+        // Trailing variadic in the last position consumes every remaining token into one capture.
+        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}"], ["taxi", "via", "b", "c", "d"]);
+        Assert.NotNull(captures);
+        Assert.Equal("b c d", captures!["path"]);
+    }
+
+    [Fact]
+    public void Variadic_MidPattern_StopsAtNextLiteral()
+    {
+        // Variadic followed by a required literal captures up to (not including) the first
+        // occurrence of that literal. Minimum 1 token consumed.
+        var captures = PhraseologyMapper.TryMatchPatternForTests(
+            ["taxi", "via", "{path...}", "hold", "short"],
+            ["taxi", "via", "b", "c", "hold", "short"]
+        );
+        Assert.NotNull(captures);
+        Assert.Equal("b c", captures!["path"]);
+    }
+
+    [Fact]
+    public void Variadic_SingleTokenCapture_IsAllowed()
+    {
+        // Minimum-size match: exactly one variadic token before the trailing literal.
+        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "hold"], ["taxi", "via", "b", "hold"]);
+        Assert.NotNull(captures);
+        Assert.Equal("b", captures!["path"]);
+    }
+
+    [Fact]
+    public void Variadic_ZeroTokensCaptured_Fails()
+    {
+        // Variadic requires at least one token — an empty slice (literal immediately follows)
+        // must not match.
+        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "hold"], ["taxi", "via", "hold"]);
+        Assert.Null(captures);
+    }
+
+    [Fact]
+    public void Variadic_Trailing_ZeroInput_Fails()
+    {
+        // Trailing variadic with no remaining tokens must fail — minimum 1 token consumed.
+        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}"], ["taxi", "via"]);
+        Assert.Null(captures);
+    }
+
+    [Fact]
+    public void Variadic_NoMatchingNextLiteral_Fails()
+    {
+        // Variadic followed by a literal that never appears in the input must fail.
+        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "hold"], ["taxi", "via", "b", "c", "d"]);
+        Assert.Null(captures);
+    }
+
+    [Fact]
+    public void Variadic_FollowedByOptional_ThrowsRuleAuthoringError()
+    {
+        // Optional literal directly after a variadic is ambiguous and not supported.
+        Assert.Throws<InvalidOperationException>(() =>
+            PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "hold?"], ["taxi", "via", "b", "hold"])
+        );
+    }
+
+    [Fact]
+    public void Variadic_FollowedByCapture_ThrowsRuleAuthoringError()
+    {
+        // Another capture directly after a variadic has no anchor to stop the greedy consume.
+        Assert.Throws<InvalidOperationException>(() =>
+            PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "{rwy}"], ["taxi", "via", "b", "28R"])
+        );
+    }
 }

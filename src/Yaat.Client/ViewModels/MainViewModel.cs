@@ -854,11 +854,35 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        // Taxiway-name set for the currently-loaded ground layout — used by NatoLetterNormalizer
+        // to disambiguate multi-letter taxiway names during NATO collapse. The GroundViewModel
+        // owns the domain layout because it's the view that reconstructs it from the server DTO;
+        // MainViewModel borrows a reference here so the speech pipeline sees the same airport
+        // the user is currently looking at. Falls back to empty when no ground layout is loaded —
+        // single-letter splits still work in that case.
+        var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var layout = Ground.DomainLayout;
+        if (layout is not null)
+        {
+            foreach (var edge in layout.Edges)
+            {
+                if (edge.IsRunwayCenterline || edge.IsRamp)
+                {
+                    continue;
+                }
+                if (!string.IsNullOrEmpty(edge.TaxiwayName))
+                {
+                    taxiwayNames.Add(edge.TaxiwayName.ToUpperInvariant());
+                }
+            }
+        }
+
         return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt)
         {
             CustomFixPatterns = customFixPatterns,
             AvailableRunways = availableRunways,
             AircraftDestinations = aircraftDestinations,
+            TaxiwayNames = taxiwayNames,
         };
     }
 
