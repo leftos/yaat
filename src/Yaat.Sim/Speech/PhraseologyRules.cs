@@ -385,13 +385,28 @@ public static class PhraseologyRules
             // Taxi with hold-short instruction. "runway" is optional because pilots often drop it
             // when the runway designator is already unambiguous ("hold short of 28R").
             new(["taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}"], "TAXI {path} HS {holdshort}", Taxi),
+            // Leading-runway + hold-short: "runway 30, taxi via B C, hold short of runway 28R".
+            // Mirrors the hold-short rule above, with the destination runway stated first.
+            new(
+                ["runway", "{rwy}", "taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}"],
+                "TAXI {path} {rwy} HS {holdshort}",
+                Taxi
+            ),
             // Taxi with explicit runway cross.
             new(["taxi", "via", "{path...}", "cross", "runway", "{crossrwy}"], "TAXI {path} CROSS {crossrwy}", Taxi),
+            // Leading-runway + cross: "runway 30, taxi via B C, cross runway 25L".
+            new(["runway", "{rwy}", "taxi", "via", "{path...}", "cross", "runway", "{crossrwy}"], "TAXI {path} {rwy} CROSS {crossrwy}", Taxi),
             // Taxi with cross-then-hold-short (dual runway clearance, 7110.65 §3-7-2.b).
             // Example: "taxi via charlie cross runway 27L hold short of runway 27R".
             new(
                 ["taxi", "via", "{path...}", "cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}"],
                 "TAXI {path} CROSS {crossrwy} HS {holdshort}",
+                Taxi
+            ),
+            // Leading-runway + cross + hold-short: full dual-runway clearance with stated destination.
+            new(
+                ["runway", "{rwy}", "taxi", "via", "{path...}", "cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}"],
+                "TAXI {path} {rwy} CROSS {crossrwy} HS {holdshort}",
                 Taxi
             ),
             // Pushback — 7110.65 and AIM don't standardize pushback phraseology (it's ramp/gate

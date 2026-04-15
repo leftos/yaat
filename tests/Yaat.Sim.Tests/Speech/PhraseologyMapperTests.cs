@@ -635,6 +635,17 @@ public class PhraseologyMapperTests
     // Dual runway clearance: cross + hold-short (7110.65 §3-7-2.b).
     [InlineData("taxi via charlie cross runway two seven left hold short of runway two seven right", "TAXI C CROSS 27L HS 27R")]
     [InlineData("taxi via charlie cross runway two seven left hold short of two seven right", "TAXI C CROSS 27L HS 27R")]
+    // Leading-runway + hold-short (combined rule — mirrors line 632).
+    [InlineData("runway three zero taxi via bravo charlie hold short of runway two eight right", "TAXI B C 30 HS 28R")]
+    [InlineData("runway three zero taxi via bravo charlie hold short runway two eight right", "TAXI B C 30 HS 28R")]
+    // Leading-runway + cross (combined rule).
+    [InlineData("runway three zero taxi via bravo charlie cross runway two five left", "TAXI B C 30 CROSS 25L")]
+    // Leading-runway + cross + hold-short (combined rule).
+    [InlineData("runway three zero taxi via charlie cross runway two seven left hold short of runway two seven right", "TAXI C 30 CROSS 27L HS 27R")]
+    // Regression guard for the exact production failure: Whisper hyphenated digits ("Runway 3-0",
+    // "2-8-Rate") plus the /aɪt/ → /eɪt/ mishear. Exercises the digit-merge pass, the
+    // EndsWith("ate") suffix match, and the new leading-runway + hold-short rule together.
+    [InlineData("runway 3 0 taxi via bravo charlie hold short runway 2 8 rate", "TAXI B C 30 HS 28R")]
     // Pushback — onto taxiway variations.
     [InlineData("pushback onto tango approved", "PUSH T")]
     [InlineData("push back onto tango approved", "PUSH T")]

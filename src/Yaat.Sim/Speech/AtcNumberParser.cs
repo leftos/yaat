@@ -136,6 +136,15 @@ public static class AtcNumberParser
             i++;
         }
 
+        // Coalesce runs of length-1 digit tokens into a single multi-digit token. Whisper
+        // frequently emits hyphenated per-digit strings for short codes — "Runway 3-0" tokenizes
+        // to ["3", "0"], "2-8-Right" to ["2", "8", "right"], "squawk 1-2-0-0" to
+        // ["1", "2", "0", "0"]. TryReadNumberRun above only recognizes spoken digit-words
+        // ("three zero" → "30"), so already-digitized tokens fall through unchanged. Merging
+        // strictly length-1 runs is unambiguous: multi-digit tokens like "30" are left alone,
+        // and non-digit tokens break the run.
+        output = MergeSingleDigitRuns(output);
+
         // Collapse split runway designators ("28", "right" → "28R") AFTER number normalization
         // so the canonical runway form is visible to both downstream consumers: the rule engine
         // (which needs "28R" to match {rwy} captures) and the LLM fallback (which sees this
@@ -145,6 +154,29 @@ public static class AtcNumberParser
         output = PhraseologyMapper.CollapseRunwayDesignators(output);
 
         return string.Join(' ', output);
+    }
+
+    private static List<string> MergeSingleDigitRuns(List<string> tokens)
+    {
+        var merged = new List<string>(tokens.Count);
+        var i = 0;
+        while (i < tokens.Count)
+        {
+            if (tokens[i].Length == 1 && char.IsDigit(tokens[i][0]))
+            {
+                var sb = new StringBuilder();
+                while (i < tokens.Count && tokens[i].Length == 1 && char.IsDigit(tokens[i][0]))
+                {
+                    sb.Append(tokens[i]);
+                    i++;
+                }
+                merged.Add(sb.ToString());
+                continue;
+            }
+            merged.Add(tokens[i]);
+            i++;
+        }
+        return merged;
     }
 
     /// <summary>

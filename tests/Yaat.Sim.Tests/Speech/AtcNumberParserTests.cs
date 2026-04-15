@@ -68,6 +68,17 @@ public class AtcNumberParserTests
     // Real runway numbers are 01-36, so any digit prefix longer than 2 is always a mishear.
     [InlineData("cleared for takeoff runway 288 right", "cleared for takeoff runway 28R")]
     [InlineData("runway 288 right taxi via bravo", "runway 28R taxi via bravo")]
+    // Whisper hyphenates short digit codes — "Runway 3-0" tokenizes to ["3", "0"], "2-8-Right"
+    // to ["2", "8", "right"]. The single-digit-run merge pass re-concatenates them so the
+    // downstream rule engine sees the canonical "30" / "28R" forms.
+    [InlineData("runway 3 0 taxi via bravo", "runway 30 taxi via bravo")]
+    [InlineData("runway 2 8 right", "runway 28R")]
+    [InlineData("squawk 1 2 0 0", "squawk 1200")]
+    [InlineData("heading 1 8 0", "heading 180")]
+    // Whisper /aɪt/ → /eɪt/ swap: "right" heard as "rate" when audio is noisy. Exercises both
+    // the digit-merge pass and the EndsWith("ate") fuzzy suffix together.
+    [InlineData("runway 2 8 rate", "runway 28R")]
+    [InlineData("hold short runway 2 8 rate", "hold short runway 28R")]
     public void NormalizeDigits_WithCommandContext(string input, string expected)
     {
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));

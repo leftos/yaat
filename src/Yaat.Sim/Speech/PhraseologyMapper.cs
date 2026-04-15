@@ -937,12 +937,14 @@ public static class PhraseologyMapper
     /// Maps a post-digit token to a runway suffix letter, including common Whisper mishears.
     /// Only invoked when the previous token is a digit string, so the collision risk with
     /// non-runway uses of these words is low — almost any word after a number in spoken ATC
-    /// is a runway suffix. We use suffix-string matching ("ight" / "eft") rather than an exact
-    /// vocabulary because Whisper produces a long tail of mishears that all share the same
-    /// rhyme as the original word: "right" rhymes with tight/kite/bright/light/might/sight,
-    /// and "left" rhymes with deft/weft/cleft/theft. Anchoring on the rhyming suffix catches
-    /// the whole tail without us having to maintain a static list. "center" / "centre" stays
-    /// as an exact match because no common Whisper mishears share its ending.
+    /// is a runway suffix. We use suffix-string matching ("ight" / "ite" / "ate" / "eft") rather
+    /// than an exact vocabulary because Whisper produces a long tail of mishears that all share
+    /// the same rime as the original word: "right" rhymes with tight/kite/bright/light/might/
+    /// sight (-ight), with bite/rite/site/white (-ite), and — in practice — with rate/gate/late
+    /// (-ate) when Whisper swaps the /aɪ/ diphthong for /eɪ/. "left" rhymes with deft/weft/
+    /// cleft/theft (-eft). Anchoring on the rhyming suffix catches the whole tail without us
+    /// having to maintain a static list. "center" / "centre" stays as an exact match because no
+    /// common Whisper mishears share its ending.
     /// </summary>
     private static char? MatchRunwaySuffixWord(string token)
     {
@@ -963,14 +965,23 @@ public static class PhraseologyMapper
         }
 
         // EndsWith-based fuzzy matching for Whisper mishears. Token must be at least 3 chars
-        // ("ight" is 4, "eft" is 3, "ite" is 3) to avoid trivial collisions on single letters.
-        // The "ight" / "ite" / "eft" rimes are not naturally produced by spoken ATC after a
-        // number, so the false-positive risk is negligible in this context. "ite" catches
-        // kite/bite/mite/rite/site/white — Whisper sometimes drops the trailing "gh" from
-        // "right" before the "t", producing "rite" / "kite" instead of "right" / "kight".
+        // ("ight" is 4, "eft"/"ite"/"ate" are 3) to avoid trivial collisions on single letters.
+        // The "ight" / "ite" / "ate" / "eft" rimes are not naturally produced by spoken ATC
+        // after a number, so the false-positive risk is negligible in this context.
+        //   "ite"  catches kite/bite/mite/rite/site/white — Whisper sometimes drops the trailing
+        //          "gh" from "right" before the "t", producing "rite" / "kite".
+        //   "ate"  catches rate/gate/late/mate — Whisper swaps the vowel from /aɪt/ (right) to
+        //          /eɪt/ (rate) when the audio is noisy or the speaker clips the diphthong.
+        //          The matcher only fires after a digit token, so English words ending in -ate
+        //          (late, state, great, create) essentially never appear in that position in
+        //          ATC phraseology.
         if (token.Length >= 3)
         {
-            if (token.EndsWith("ight", StringComparison.Ordinal) || token.EndsWith("ite", StringComparison.Ordinal))
+            if (
+                token.EndsWith("ight", StringComparison.Ordinal)
+                || token.EndsWith("ite", StringComparison.Ordinal)
+                || token.EndsWith("ate", StringComparison.Ordinal)
+            )
             {
                 return 'R';
             }
