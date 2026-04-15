@@ -214,7 +214,12 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
             .Select(g =>
                 (
                     Output: g.Key,
-                    Patterns: g.Select(r => string.Join(' ', r.Pattern.Select(p => p.TrimEnd('?')))).Distinct(StringComparer.Ordinal).ToList()
+                    // Strip optional-literal "?" and variadic "..." markers from the rendered
+                    // pattern. The small instruct model doesn't need to know the matcher's
+                    // internal semantics — "{path...}" and "{path}" both tell it "some fix-like
+                    // argument slot". Leaving "..." in the prompt risks confusing the model
+                    // into emitting the literal ellipsis in its output.
+                    Patterns: g.Select(r => string.Join(' ', r.Pattern.Select(RenderPatternToken))).Distinct(StringComparer.Ordinal).ToList()
                 )
             );
 
@@ -224,6 +229,17 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         }
 
         return sb.ToString();
+    }
+
+    private static string RenderPatternToken(string token)
+    {
+        // Variadic capture {name...} renders as plain {name}.
+        if (token.StartsWith('{') && token.EndsWith("...}"))
+        {
+            return string.Concat("{", token.AsSpan(1, token.Length - 5), "}");
+        }
+        // Optional literal "of?" renders as plain "of".
+        return token.TrimEnd('?');
     }
 
     /// <summary>

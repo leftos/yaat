@@ -243,18 +243,13 @@ public class PhraseologyMapperTests
         Assert.Equal("CM 35000", result!.CanonicalCommand);
     }
 
-    [Theory]
-    // Valid ATC taxi phraseology requires multi-token path captures ("bravo charlie") and
-    // phonetic-letter-to-ID conversion, neither of which the current rule engine supports.
-    // These transcripts must fall through to the LLM fallback or manual entry. The earlier
-    // "taxi to runway 28R" rule was actively harmful — it's not even valid phraseology, and
-    // it produced a canonical that failed CommandParser validation.
-    [InlineData("taxi to runway two eight right")]
-    [InlineData("runway two eight right taxi via bravo charlie")]
-    [InlineData("taxi via delta hotel")]
-    public void Taxi_Phraseology_NotSupportedByRuleEngine(string transcript)
+    [Fact]
+    public void Taxi_ToRunwayWithoutPath_IsUnsupported()
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        // "taxi to runway 28R" is not valid phraseology — controllers say either
+        // "runway 28R, taxi via <path>" or "taxi via <path>" and attach the runway/hold-short
+        // inline. The rule engine must not match this; the LLM fallback handles it.
+        var result = PhraseologyMapper.Map("taxi to runway two eight right", NoContext);
         Assert.Null(result);
     }
 
@@ -626,11 +621,77 @@ public class PhraseologyMapperTests
     [InlineData("hold short of runway two eight right", "HS 28R")]
     [InlineData("exit left", "EL")]
     [InlineData("exit right", "ER")]
+    // Taxi with NATO-phonetic path. Empty taxiway set → each NATO word splits to one letter.
+    [InlineData("taxi via delta hotel", "TAXI D H")]
+    [InlineData("taxi via tango uniform whiskey", "TAXI T U W")]
+    [InlineData("runway two eight right taxi via bravo charlie", "TAXI B C 28R")]
+    [InlineData("taxi to runway two eight right via bravo charlie", "TAXI B C 28R")]
+    [InlineData("taxi via bravo charlie hold short of runway two eight right", "TAXI B C HS 28R")]
+    [InlineData("taxi via bravo charlie hold short of two eight right", "TAXI B C HS 28R")]
+    [InlineData("taxi via bravo charlie cross runway two five left", "TAXI B C CROSS 25L")]
+    // Dual runway clearance: cross + hold-short (7110.65 §3-7-2.b).
+    [InlineData("taxi via charlie cross runway two seven left hold short of runway two seven right", "TAXI C CROSS 27L HS 27R")]
+    [InlineData("taxi via charlie cross runway two seven left hold short of two seven right", "TAXI C CROSS 27L HS 27R")]
+    // Pushback — onto taxiway variations.
+    [InlineData("pushback onto tango approved", "PUSH T")]
+    [InlineData("push back onto tango approved", "PUSH T")]
+    [InlineData("pushback onto tango facing taxiway uniform approved", "PUSH T U")]
+    [InlineData("pushback onto tango facing taxiway uniform", "PUSH T U")]
+    [InlineData("pushback onto tango facing heading one eight zero approved", "PUSH T 180")]
+    [InlineData("pushback onto tango facing heading one eight zero", "PUSH T 180")]
+    [InlineData("pushback approved facing north", "PUSH 360")]
+    [InlineData("pushback facing south", "PUSH 180")]
+    [InlineData("pushback onto tango facing east", "PUSH T 090")]
+    [InlineData("pushback onto tango facing west approved", "PUSH T 270")]
     public void Ground_Rules(string transcript, string expected)
     {
         var result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Taxi_Via_TopologyDisambiguation_CollapsesMultiLetterTaxiway()
+    {
+        // Airport has taxiway "TE" — "tango echo" should collapse to a single TE token
+        // rather than two letters. Rule output carries the multi-letter name through.
+        var ctx = new MapContext([], []) { TaxiwayNames = new HashSet<string>(["TE"], StringComparer.OrdinalIgnoreCase) };
+        var result = PhraseologyMapper.Map("taxi via tango echo", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("TAXI TE", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Taxi_Via_TopologyDisambiguation_SplitsWhenMultiLetterAbsent()
+    {
+        // Airport has separate T and E taxiways with no TE — "tango echo" must split.
+        var ctx = new MapContext([], []) { TaxiwayNames = new HashSet<string>(["T", "E"], StringComparer.OrdinalIgnoreCase) };
+        var result = PhraseologyMapper.Map("taxi via tango echo", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("TAXI T E", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Pushback_Onto_Cardinal_WithTaxiwaySet()
+    {
+        // Taxiway set present; single-letter "tango" still collapses, cardinal still resolves.
+        var ctx = new MapContext([], []) { TaxiwayNames = new HashSet<string>(["T"], StringComparer.OrdinalIgnoreCase) };
+        var result = PhraseologyMapper.Map("pushback onto tango facing north", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("PUSH T 360", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Pushback_Facing_InvalidCardinal_DropsFacingClause()
+    {
+        // "facing northeast" is an intercardinal and deliberately out of scope — the cardinal
+        // post-pass fails the facing-cardinal rule, and the greedy engine falls back to the
+        // bare "pushback approved" rule, silently dropping the facing clause. Known limitation;
+        // the LLM fallback path can't engage here because the rule engine already produced a
+        // valid canonical. Document the behavior with a test so regressions are caught.
+        var result = PhraseologyMapper.Map("pushback approved facing northeast", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("PUSH", result!.CanonicalCommand);
     }
 
     // --- Broadcast request rules ---

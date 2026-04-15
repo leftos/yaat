@@ -171,18 +171,44 @@ depend on LM-Kit and PortAudio native libraries.
 - Rules are `PhraseologyRule` records:
   `(tokens, canonical-template, canonical-command-type)`. Tokens are
   literal strings (`"cleared"`), captures (`"{rwy}"`, `"{fix}"`,
-  `"{callsign}"`, `"{taxiway}"`, …), or optional literals (`"of?"`,
-  `"the?"`).
+  `"{callsign}"`, `"{taxiway}"`, …), optional literals (`"of?"`,
+  `"the?"`), or **variadic captures** (`"{path...}"`). A variadic
+  consumes one-or-more consecutive transcript tokens into a single
+  space-joined capture. In the last pattern position it greedy-consumes
+  the remainder; mid-pattern it walks to the next required literal and
+  captures up to (but not including) that literal. Optional or capture
+  tokens *cannot* follow a variadic in the same rule — `TryMatchPattern`
+  throws at match time if you wire one by mistake. Minimum variadic
+  consumption is 1 token.
 - `src/Yaat.Sim/Speech/PhraseologyMapper.cs` — `Map(transcript, context)`
   tokenizes, strips fillers, extracts the callsign via
   `CallsignParser`, extracts a condition prefix (`AT {fix}`,
-  `when level at {alt}` → `LV {alt}`), then does a greedy
-  left-to-right longest-match against `PhraseologyRules.All`. Multiple
-  clause matches are concatenated with commas. Tie-break rule:
-  **literal-only rules beat rules with captures** at the same length —
-  so a new rule that adds a capture in place of a literal will *lose*
-  the tie to the literal it's trying to replace. Returns `null` if no
-  rule matched any part of the transcript.
+  `when level at {alt}` → `LV {alt}`), collapses NATO phonetic runs via
+  `NatoLetterNormalizer` (see below), then does a greedy left-to-right
+  longest-match against `PhraseologyRules.All`. Multiple clause matches
+  are concatenated with commas. Tie-break rule: **more literal tokens
+  wins at equal consumed count** — so a more-specific rule always beats
+  a shorter one. For two rules of equal pattern length this reduces to
+  "fewer captures wins" (e.g. `squawk vfr → SQVFR` beats
+  `squawk {code} → SQ vfr`). Returns `null` if no rule matched any part
+  of the transcript.
+- `src/Yaat.Sim/Speech/NatoLetterNormalizer.cs` — after callsign +
+  condition extraction, walks the token list and collapses runs of NATO
+  phonetic words (`"tango uniform whiskey"`) into taxiway-name tokens
+  (`"T"`, `"U"`, `"W"`). When the airport's taxiway set (from
+  `MapContext.TaxiwayNames`) contains a multi-letter name that the run
+  could form, the longest such name wins: `"tango echo"` → `"TE"` if
+  `TE` is a real taxiway, otherwise `"T E"`. An airport won't name a
+  taxiway "TE" if T connects to E precisely *because* of this ambiguity,
+  so consulting the set resolves it correctly in every real airport.
+  Alphanumeric names (`B6`, `A13`) are deferred — they collide with
+  `AtcNumberParser`'s digit normalization pass.
+- **Cardinal heading post-pass.** `PhraseologyMapper.TryMatchRule`
+  rewrites any `{cardinal}` capture to its 3-digit magnetic heading
+  via `AtcNumberParser.TryResolveCardinalHeading` (`north` → `360`,
+  `south` → `180`, `east` → `090`, `west` → `270`). Intercardinals
+  (`northeast` etc.) fail the post-pass, causing the rule to fall
+  through so the LLM fallback can handle it.
 - `src/Yaat.Sim/Speech/PhraseologyCommandMapper.cs` — thin
   `ISpeechCommandMapper` adapter (line 10) so the mapper can sit behind
   the same interface as the LLM fallback and the service can hold a
@@ -383,9 +409,27 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 
 ## Current Ground-Ops Coverage
 
-`GroundRules()` in `src/Yaat.Sim/Speech/PhraseologyRules.cs:354` covers:
+`GroundRules()` in `src/Yaat.Sim/Speech/PhraseologyRules.cs` covers:
+
+**Taxi (NATO-phonetic path via `{path...}` variadic, topology-aware collapse):**
+
+- `"taxi via bravo charlie"` → `TAXI B C`
+- `"taxi to? runway {rwy} via bravo charlie"` → `TAXI B C {rwy}`
+- `"runway {rwy}, taxi via bravo charlie"` → `TAXI B C {rwy}`
+- `"taxi via bravo charlie hold short of? runway? {rwy}"` → `TAXI B C HS {rwy}`
+- `"taxi via bravo charlie cross runway {rwy}"` → `TAXI B C CROSS {rwy}`
+
+**Pushback (onto-taxiway + optional facing):**
 
 - `"pushback approved"` / `"push back approved"` → `PUSH`
+- `"pushback onto tango approved"` / `"push back onto tango approved"` → `PUSH T`
+- `"pushback onto tango facing taxiway uniform approved?"` → `PUSH T U`
+- `"pushback onto tango facing heading 180 approved?"` → `PUSH T 180`
+- `"pushback onto tango facing north/south/east/west approved?"` → `PUSH T 360/180/090/270`
+- `"pushback approved? facing north"` → `PUSH 360`
+
+**Other ground:**
+
 - `"hold position"` → `HOLD`
 - `"resume taxi"` / `"continue taxi"` → `RES`
 - `"cross runway {rwy}"` → `CROSS {rwy}`
@@ -396,28 +440,16 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - `"exit left/right [at? {taxiway}]"` → `EL/ER [taxiway]`
 - `"exit at? {taxiway}"` → `EXIT {taxiway}`
 
-**`TAXI` is deliberately absent** — see the block comment above the
-rule body. Valid ATC phraseology (`"runway 28R, taxi via bravo charlie"`,
-`"taxi via delta hotel"`) needs multi-token path captures *and* phonetic
-letter-to-ID conversion (`"bravo"` → `B`), neither of which the current
-rule engine supports. Transcripts fall through to the LLM fallback or
-manual entry until multi-token captures land.
+**Known gaps (LLM fallback or manual entry):**
 
-**The canonical form side is already ready.** The ground-command parser
-(`src/Yaat.Sim/Commands/GroundCommandParser.cs`) and
-`ParsedCommand.cs:305-322` already accept everything the example
-phrases need:
-
-- `TAXI {taxiway-list} [RWY {rwy}] [HS ...] [CROSS ...] [@{parking}|${spot}] [NODEL]`
-  — trailing runway is auto-detected, so `TAXI T U W 28R` works without
-  an explicit `RWY` keyword.
-- `PUSH [{taxiway}] [{heading|facing-taxiway}]`
-- `PUSH @{parking} [{heading|facing-taxiway}]`
-- `PUSH ${spot} [{heading|facing-taxiway}]`
-
-The gap for full STT ground-ops coverage is purely in mapping
-transcripts into those canonical strings, not in the command
-infrastructure.
+- Alphanumeric taxiway names (`B6`, `A13`) — `"bravo six"` collides
+  with `AtcNumberParser`'s digit pass before `NatoLetterNormalizer`
+  sees it. Single-letter + bare-letter-combinations only.
+- Destinations like "the ramp" — no canonical without pre-programmed
+  parking names (`@<name>`).
+- `face left` / `face right` — no canonical without parking geometry.
+- Intercardinals (`face northeast`).
+- Compound clauses the rule engine can't express.
 
 ## Gotchas & Non-Obvious Behaviour
 
@@ -435,10 +467,23 @@ infrastructure.
 - **Events fire on thread-pool.** `StatusChanged`, `CommandReady`, and
   `SessionRecorded` all need `Dispatcher.UIThread.Post()` marshalling
   before touching Avalonia state.
-- **Rule tie-breaker.** `PhraseologyMapper` prefers literal-only rules
-  over rules with captures at the same token count. New rules that add
-  a capture in place of a literal token will lose the tie to the
-  literal-only rule and not match.
+- **Rule tie-breaker.** `PhraseologyMapper` prefers rules with **more
+  literal tokens** at equal consumed count. For two rules of equal
+  pattern length this reduces to "fewer captures wins". Consequence:
+  a rule with more explicit literal anchors always beats a shorter,
+  vaguer one — so a bare `taxi via {path...}` greedy-rule cannot
+  accidentally beat a more specific `taxi via {path...} cross runway
+  {crossrwy}` rule when both consume the same input.
+- **NATO normalization runs after callsign extraction.**
+  `CallsignParser` consumes `"november 346 golf"` first, so the NATO
+  normalizer never sees it — it only sees whatever survives. A NATO
+  word that survives in isolation (e.g. just `"tango"` in "taxi via
+  tango") is collapsed to its letter. The topology disambiguator reads
+  `MapContext.TaxiwayNames`, which `MainViewModel.BuildSpeechContext`
+  populates from the currently-loaded ground layout. When no layout
+  is loaded the set is empty and every NATO word collapses to its
+  single letter — which is the right fallback for the common bare-
+  taxiway case.
 - **Runway validation escalates to the top of `Map`.** When a `{rwy}`
   capture fails `TryRecoverRunway`, the post-pass sets a `runwayInvalid`
   flag that propagates through `MatchTokens` / `FindLongestMatch` /

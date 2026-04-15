@@ -350,23 +350,66 @@ public static class PhraseologyRules
         ];
 
     // --- Ground (CommandRegistry.GroundCommands) ---
+    //
+    // Ground rules accept what INSTRUCTORS / RPOs typing or speaking as PILOTS would say — not
+    // strict 7110.65 controller phraseology. See project memory `project_stt_pilot_framing.md`:
+    // the speech pipeline's users are role-playing pilots, so pilot colloquialisms like
+    // "taxi to runway 28R via bravo charlie" or "hold short of 28R" (no "runway") are accepted
+    // even though a controller wouldn't speak them that way.
+    //
+    // Taxi and pushback rules rely on two upstream normalization steps in PhraseologyMapper:
+    //   1. NatoLetterNormalizer.Collapse — turns "bravo charlie" into single tokens "B" and "C",
+    //      with multi-letter taxiway disambiguation driven by MapContext.TaxiwayNames. After
+    //      collapse, plain {taxiway} / {path...} captures work unchanged.
+    //   2. AtcNumberParser.TryResolveCardinalHeading (via CardinalCaptureNames post-pass in
+    //      TryMatchRule) — turns {cardinal} captures like "north" into "360".
+    //
+    // Accepted taxi phraseology (pilot-side):
+    //   - "Taxi via delta hotel" — path only
+    //   - "Runway 28R, taxi via bravo charlie" — canonical departure clearance readback
+    //   - "Taxi to runway 28R via bravo charlie" — pilot colloquialism; not 7110.65 controller
+    //     form but commonly spoken by pilots
+    //   - "Taxi via bravo charlie hold short of [runway] 28R" — path + hold-short
+    //   - "Taxi via bravo charlie cross runway 28R [hold short of 25L]" — cross, optionally
+    //     combined with a hold-short at the next runway
+    //
+    // Alphanumeric taxiway names ("B6", "A13") are deferred — "bravo six" normalization collides
+    // with AtcNumberParser's digit pass. Those transcripts fall through to the LLM fallback.
 
     private static PhraseologyRule[] GroundRules() =>
         [
-            // Taxi — note: route capture is a simple single-token match. Multi-token
-            // taxiway routes ("taxi via alpha bravo charlie") need a multi-token capture we
-            // routes aren't yet supported and can be added later.
-            // Taxi commands deliberately have NO rules here. Valid ATC phraseology is:
-            //   - "Runway 28R, taxi via bravo charlie" — runway first, then path
-            //   - "Taxi via delta hotel" — path only, no runway
-            // Both require multi-token path captures (e.g. "bravo charlie" = two taxiway tokens)
-            // AND phonetic-letter-to-ID conversion ("bravo" → "B"), neither of which the current
-            // rule engine supports. An earlier rule `taxi to runway {rwy}` was incorrect — that's
-            // not valid phraseology, and it emitted a canonical ("TAXI RWY {rwy}") that failed
-            // CommandParser validation anyway. Taxi commands fall through to the LLM fallback
-            // or manual entry until proper multi-token path support is added.
+            // Taxi — path-only and path-with-runway forms.
+            new(["taxi", "via", "{path...}"], "TAXI {path}", Taxi),
+            new(["taxi", "to?", "runway", "{rwy}", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),
+            new(["runway", "{rwy}", "taxi", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),
+            // Taxi with hold-short instruction. "runway" is optional because pilots often drop it
+            // when the runway designator is already unambiguous ("hold short of 28R").
+            new(["taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}"], "TAXI {path} HS {holdshort}", Taxi),
+            // Taxi with explicit runway cross.
+            new(["taxi", "via", "{path...}", "cross", "runway", "{crossrwy}"], "TAXI {path} CROSS {crossrwy}", Taxi),
+            // Taxi with cross-then-hold-short (dual runway clearance, 7110.65 §3-7-2.b).
+            // Example: "taxi via charlie cross runway 27L hold short of runway 27R".
+            new(
+                ["taxi", "via", "{path...}", "cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}"],
+                "TAXI {path} CROSS {crossrwy} HS {holdshort}",
+                Taxi
+            ),
+            // Pushback — 7110.65 and AIM don't standardize pushback phraseology (it's ramp/gate
+            // control, not ATC). The forms below match real-world ramp-operator convention
+            // across US carriers: "push approved, face south", "pushback onto T facing U",
+            // "push and start, nose east", etc. The rules accept both "pushback" and "push back"
+            // spellings; "approved" is optional in the facing variants since rampers commonly
+            // drop it ("push facing east").
             new(["pushback", "approved"], "PUSH", Pushback),
             new(["push", "back", "approved"], "PUSH", Pushback),
+            new(["pushback", "onto", "{taxiway}", "approved"], "PUSH {taxiway}", Pushback),
+            new(["push", "back", "onto", "{taxiway}", "approved"], "PUSH {taxiway}", Pushback),
+            new(["pushback", "onto", "{taxiway}", "facing", "taxiway", "{facing}", "approved?"], "PUSH {taxiway} {facing}", Pushback),
+            new(["push", "back", "onto", "{taxiway}", "facing", "taxiway", "{facing}", "approved?"], "PUSH {taxiway} {facing}", Pushback),
+            new(["pushback", "onto", "{taxiway}", "facing", "heading", "{hdg}", "approved?"], "PUSH {taxiway} {hdg}", Pushback),
+            new(["pushback", "onto", "{taxiway}", "facing", "{cardinal}", "approved?"], "PUSH {taxiway} {cardinal}", Pushback),
+            new(["pushback", "approved", "facing", "{cardinal}"], "PUSH {cardinal}", Pushback),
+            new(["pushback", "facing", "{cardinal}"], "PUSH {cardinal}", Pushback),
             new(["hold", "position"], "HOLD", HoldPosition),
             new(["resume", "taxi"], "RES", Resume),
             new(["continue", "taxi"], "RES", Resume),

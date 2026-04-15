@@ -60,6 +60,13 @@ public static class PhraseologyMapper
     // LLM fallback gets a chance to recover the intended runway from scenario context.
     private static readonly HashSet<string> RunwayLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "rwy" };
 
+    // Capture names that hold a spoken cardinal direction ("north", "east", "south", "west").
+    // The post-pass in TryMatchRule rewrites the capture to its canonical 3-digit heading via
+    // AtcNumberParser.TryResolveCardinalHeading so ground rules like "pushback approved facing
+    // {cardinal}" emit "PUSH 360" without any template-side gymnastics. Non-cardinal captures
+    // fail the rule match cleanly so "facing south-east" falls through to the LLM fallback.
+    private static readonly HashSet<string> CardinalCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "cardinal" };
+
     /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
     /// of the transcript.
@@ -231,8 +238,13 @@ public static class PhraseologyMapper
     /// Find the best-matching rule starting at <paramref name="start"/>. "Best" prefers:
     /// <list type="number">
     ///   <item><description>More tokens consumed (longest match).</description></item>
-    ///   <item><description>Fewer captures (more specific literal wins the tie — so <c>squawk vfr → SQVFR</c>
-    ///     beats <c>squawk {code} → SQ vfr</c>).</description></item>
+    ///   <item><description>More literal (non-capture) tokens in the pattern — the more specific
+    ///     rule wins the tie. For two rules of equal pattern length this reduces to "fewer
+    ///     captures wins" (so <c>squawk vfr → SQVFR</c> beats <c>squawk {code} → SQ vfr</c>).
+    ///     For a bare variadic (<c>taxi via {path...}</c>) vs. a literal-richer variadic
+    ///     (<c>taxi via {path...} cross runway {crossrwy}</c>) that both greedy-consume the same
+    ///     input, the literal-richer rule wins — matching on "cross runway {crossrwy}" encodes
+    ///     more information about the transcript than the open-ended trailing capture does.</description></item>
     /// </list>
     /// Returns null if no rule matches. The matched rule itself is returned alongside the output
     /// + consumed count so callers (the two-pass loop) can inspect which rule fired without
@@ -246,14 +258,15 @@ public static class PhraseologyMapper
         ref bool runwayInvalid
     )
     {
-        (string Output, int Consumed, int CaptureCount, PhraseologyRule Rule)? best = null;
+        (string Output, int Consumed, int LiteralCount, PhraseologyRule Rule)? best = null;
         foreach (var rule in PhraseologyRules.All)
         {
             if (TryMatchRule(rule, tokens, start, context, out var consumed, out var output, ref runwayInvalid))
             {
                 var captureCount = rule.Pattern.Count(p => p.StartsWith('{') && p.EndsWith('}'));
-                var candidate = (output, consumed, captureCount, rule);
-                if (best is null || consumed > best.Value.Consumed || (consumed == best.Value.Consumed && captureCount < best.Value.CaptureCount))
+                var literalCount = rule.Pattern.Length - captureCount;
+                var candidate = (output, consumed, literalCount, rule);
+                if (best is null || consumed > best.Value.Consumed || (consumed == best.Value.Consumed && literalCount > best.Value.LiteralCount))
                 {
                     best = candidate;
                 }
@@ -328,6 +341,23 @@ public static class PhraseologyMapper
                             captures[name] = recovered;
                         }
                     }
+                }
+            }
+
+            // Post-pass: rewrite cardinal-direction captures to their 3-digit magnetic heading.
+            // Failing the rule (instead of emitting the raw word) lets the greedy matcher skip
+            // the nonsense combination and the LLM fallback get a shot at it.
+            foreach (var name in CardinalCaptureNames)
+            {
+                if (captures.TryGetValue(name, out var rawValue))
+                {
+                    var heading = AtcNumberParser.TryResolveCardinalHeading(rawValue);
+                    if (heading is null)
+                    {
+                        output = "";
+                        return false;
+                    }
+                    captures[name] = heading;
                 }
             }
 

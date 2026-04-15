@@ -72,6 +72,25 @@ public static class AtcNumberParser
 
     private static readonly string[] DigitToWord = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
 
+    // Cardinal-direction → 3-digit magnetic heading. Used by PhraseologyMapper for phrases like
+    // "pushback approved facing north" (→ PUSH 360). Intercardinals (NE/SE/SW/NW) are out of
+    // scope because their spoken forms collide with compass-point fix names and callsign
+    // telephonies — the rule mapper falls through to the LLM for those cases.
+    private static readonly Dictionary<string, string> CardinalToHeading = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["north"] = "360",
+        ["south"] = "180",
+        ["east"] = "090",
+        ["west"] = "270",
+    };
+
+    /// <summary>
+    /// Resolves a spoken cardinal direction ("north", "south", "east", "west") to its canonical
+    /// 3-digit magnetic heading string. Returns null for anything else so the caller can fail
+    /// the rule match cleanly.
+    /// </summary>
+    public static string? TryResolveCardinalHeading(string word) => CardinalToHeading.TryGetValue(word, out var heading) ? heading : null;
+
     /// <summary>
     /// Scan a transcript and replace spoken number phrases with digit-form substrings.
     /// Non-number tokens are passed through unchanged. Lowercase output.
