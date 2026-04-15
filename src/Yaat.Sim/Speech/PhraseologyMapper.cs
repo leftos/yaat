@@ -97,6 +97,16 @@ public static class PhraseologyMapper
             return null;
         }
 
+        // Step 2b: rewrite known Whisper mishears of NATO phonetic words ("tingo" → "tango",
+        // "gulf" → "golf") to their canonical form. Runs BEFORE callsign extraction so a
+        // mispronounced suffix letter in a GA tail number gets fixed in time for
+        // CallsignParser to recover the N-number. Protected against overwriting programmed
+        // fix names that happen to resemble NATO words — see NatoNearMissResolver remarks.
+        // We rebuild the protection set locally to guarantee the OrdinalIgnoreCase comparer
+        // regardless of what the caller supplied in MapContext.ProgrammedFixes.
+        var protectedFixes = new HashSet<string>(context.ProgrammedFixes, StringComparer.OrdinalIgnoreCase);
+        tokens = NatoNearMissResolver.Resolve(tokens, protectedFixes);
+
         // Step 3: extract callsign from leading or trailing tokens.
         var callsign = ExtractCallsign(tokens, context.ActiveCallsigns, out var callsignStart, out var callsignEnd);
         if (callsign is not null)

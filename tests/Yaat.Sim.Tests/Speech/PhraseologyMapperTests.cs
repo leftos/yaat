@@ -682,6 +682,21 @@ public class PhraseologyMapperTests
     }
 
     [Fact]
+    public void Taxi_LiveWhisperRegression_TingoAndGulfMishear()
+    {
+        // Live Whisper transcript after the NATO-scramble fix: "runway 288 right taxi via
+        // tingo uniform whiskey november 346 gulf". Whisper misheard "tango" as "tingo" and
+        // "golf" as "gulf". Both are 1-char phonetic mishears that the callsign parser and
+        // NATO normalizer can't resolve on their own. With the near-miss resolver in place,
+        // "tingo" → "tango" and "gulf" → "golf" before callsign extraction, letting the full
+        // pipeline recover the intended canonical command.
+        var result = PhraseologyMapper.Map("runway 288 right taxi via tingo uniform whiskey november 346 gulf", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("N346G", result!.Callsign);
+        Assert.Equal("TAXI T U W 28R", result.CanonicalCommand);
+    }
+
+    [Fact]
     public void Taxi_LiveWhisperRegression_288RightWithNatoPath()
     {
         // Regression: live Whisper transcript from an instructor saying "runway two eight right
