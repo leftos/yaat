@@ -211,10 +211,19 @@ public enum CanonicalCommandType
     CancelIfr,
 
     // Strip operations
-    StripPush,
+    StripMove,
+    StripDelete,
+    StripOffset,
     HalfStripCreate,
     HalfStripAmend,
     HalfStripDelete,
+    HalfStripMove,
+    HalfStripOffset,
+    HalfStripSlide,
+    SeparatorCreate,
+    SeparatorDelete,
+    BlankCreate,
+    BlankDelete,
 
     // Turn rate
     SetTurnRate,

@@ -164,10 +164,19 @@ public static class CommandDescriber
             ConsolidateCommand cmd => cmd.Full ? CanonicalCommandType.ConsolidateFull : CanonicalCommandType.Consolidate,
             DeconsolidateCommand => CanonicalCommandType.Deconsolidate,
             StripAnnotateCommand => CanonicalCommandType.Annotate,
-            StripPushCommand => CanonicalCommandType.StripPush,
+            StripMoveCommand => CanonicalCommandType.StripMove,
+            StripDeleteCommand => CanonicalCommandType.StripDelete,
+            StripOffsetCommand => CanonicalCommandType.StripOffset,
             HalfStripCreateCommand => CanonicalCommandType.HalfStripCreate,
             HalfStripAmendCommand => CanonicalCommandType.HalfStripAmend,
             HalfStripDeleteCommand => CanonicalCommandType.HalfStripDelete,
+            HalfStripMoveCommand => CanonicalCommandType.HalfStripMove,
+            HalfStripOffsetCommand => CanonicalCommandType.HalfStripOffset,
+            HalfStripSlideCommand => CanonicalCommandType.HalfStripSlide,
+            SeparatorCreateCommand => CanonicalCommandType.SeparatorCreate,
+            SeparatorDeleteCommand => CanonicalCommandType.SeparatorDelete,
+            BlankCreateCommand => CanonicalCommandType.BlankCreate,
+            BlankDeleteCommand => CanonicalCommandType.BlankDelete,
             Scratchpad1Command => CanonicalCommandType.Scratchpad1,
             Scratchpad2Command => CanonicalCommandType.Scratchpad2,
             TemporaryAltitudeCommand => CanonicalCommandType.TemporaryAltitude,
@@ -487,11 +496,86 @@ public static class CommandDescriber
             CreateFlightPlanCommand cmd => $"FP {cmd.AircraftType} {cmd.CruiseAltitude / 100:D3} {cmd.Route}",
             CreateAbbreviatedFlightPlanCommand cmd => FormatDaCanonical(cmd),
             SetRemarksCommand cmd => $"REMARKS {cmd.Text}",
+            StripMoveCommand cmd => FormatTokenizedCanonical("STRIP", cmd.Tokens),
+            StripDeleteCommand => "STRIPD",
+            StripOffsetCommand => "STRIPO",
             HalfStripCreateCommand cmd => FormatHalfStripCreateCanonical(cmd),
             HalfStripAmendCommand cmd => FormatHalfStripMutateCanonical("HSA", cmd.BayName, cmd.Rack, cmd.Tokens),
             HalfStripDeleteCommand cmd => FormatHalfStripMutateCanonical("HSD", cmd.BayName, cmd.Rack, cmd.Tokens),
+            HalfStripMoveCommand cmd => FormatHalfStripMoveCanonical(cmd),
+            HalfStripOffsetCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSO", cmd.BayName, cmd.Rack, cmd.LookupKey),
+            HalfStripSlideCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSS", cmd.BayName, cmd.Rack, cmd.LookupKey),
+            SeparatorCreateCommand cmd => FormatSeparatorCreateCanonical(cmd),
+            SeparatorDeleteCommand cmd => FormatTokenizedCanonical("SEPD", cmd.Tokens),
+            BlankCreateCommand cmd => FormatTokenizedCanonical("BLANK", cmd.Tokens),
+            BlankDeleteCommand cmd => FormatTokenizedCanonical("BLANKD", cmd.Tokens),
             _ => command.ToString() ?? "?",
         };
+    }
+
+    private static string FormatTokenizedCanonical(string verb, IReadOnlyList<string>? tokens)
+    {
+        var list = tokens ?? [];
+        return list.Count == 0 ? verb : $"{verb} {string.Join(' ', list)}";
+    }
+
+    private static string FormatHalfStripMoveCanonical(HalfStripMoveCommand cmd)
+    {
+        var dest = cmd.DestBayName ?? "";
+        if (cmd.DestRack is int dr)
+        {
+            dest += $"/{dr}";
+            if (cmd.DestIndex is int di)
+            {
+                dest += $"/{di}";
+            }
+        }
+
+        // Source locator prefix: optional bay-spec + optional lookup key.
+        var prefix = "";
+        if (cmd.SourceBayName is not null)
+        {
+            var srcBay = cmd.SourceRack is int sr ? $"{cmd.SourceBayName}/{sr}" : cmd.SourceBayName;
+            prefix = cmd.LookupKey is not null ? $"{srcBay} {cmd.LookupKey} " : $"{srcBay} ";
+        }
+        else if (cmd.LookupKey is not null)
+        {
+            prefix = $"{cmd.LookupKey} ";
+        }
+
+        return $"HSM {prefix}{dest}";
+    }
+
+    private static string FormatHalfStripOffsetOrSlideCanonical(string verb, string? bayName, int? rack, string? lookupKey)
+    {
+        string? baySpec = null;
+        if (bayName is not null)
+        {
+            baySpec = rack is int r ? $"{bayName}/{r}" : bayName;
+        }
+
+        return (baySpec, lookupKey) switch
+        {
+            (null, null) => verb,
+            (not null, null) => $"{verb} {baySpec}",
+            (null, not null) => $"{verb} {lookupKey}",
+            (not null, not null) => $"{verb} {baySpec} {lookupKey}",
+        };
+    }
+
+    private static string FormatSeparatorCreateCanonical(SeparatorCreateCommand cmd)
+    {
+        var style = cmd.Style switch
+        {
+            SeparatorStyle.Handwritten => "H",
+            SeparatorStyle.White => "W",
+            SeparatorStyle.Red => "R",
+            SeparatorStyle.Green => "G",
+            _ => "H",
+        };
+
+        var tokens = cmd.Tokens ?? [];
+        return tokens.Count == 0 ? $"SEP {style}" : $"SEP {style} {string.Join(' ', tokens)}";
     }
 
     private static string FormatHalfStripCreateCanonical(HalfStripCreateCommand cmd)

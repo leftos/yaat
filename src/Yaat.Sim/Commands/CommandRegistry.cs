@@ -789,7 +789,132 @@ public static class CommandRegistry
                 ["ANNOTATE", "AN", "BOX"],
                 [O(null, [R("box", "1-9"), R("text", "annotation text")], "Write text in strip annotation box")]
             ),
-            Cmd(StripPush, "Push Strip to Bay", "Strip Operations", false, ["STRIP"], [O(null, [R("bay", "bay name")], "Push flight strip to bay")]),
+            Cmd(
+                StripMove,
+                "Move Strip to Bay",
+                "Strip Operations",
+                false,
+                ["STRIP"],
+                [
+                    O(null, [R("bay", "bay name")], "Move flight strip to top of bay's first rack"),
+                    O(null, [R("bay", "bay name"), R("rack", "rack index")], "Move flight strip to top of specific rack"),
+                    O(null, [R("bay", "bay name"), R("rack", "rack index"), R("index", "row in rack")], "Move flight strip to specific position"),
+                ]
+            ),
+            Cmd(StripDelete, "Delete Flight Strip", "Strip Operations", false, ["STRIPD"], [O(null, [], "Delete the aircraft's flight strip")]),
+            Cmd(
+                StripOffset,
+                "Toggle Strip Offset",
+                "Strip Operations",
+                false,
+                ["STRIPO"],
+                [O(null, [], "Toggle offset on the aircraft's flight strip")]
+            ),
+            Cmd(
+                HalfStripMove,
+                "Move Half-Strip",
+                "Strip Operations",
+                false,
+                ["HSM", "HALFSTRIPMOVE"],
+                [
+                    O("Aircraft-scoped", [R("dest", "dest-bay[/rack[/index]]")], "Move half-strip matching callsign to destination"),
+                    O(
+                        "Global key",
+                        [R("key", "first line of half-strip"), R("dest", "dest-bay[/rack[/index]]")],
+                        "Move half-strip by key to destination"
+                    ),
+                    O(
+                        "Explicit source",
+                        [R("src", "src-bay[/rack]"), R("key", "first line"), R("dest", "dest-bay[/rack[/index]]")],
+                        "Move with source bay disambiguation"
+                    ),
+                ]
+            ),
+            Cmd(
+                HalfStripOffset,
+                "Toggle Half-Strip Offset",
+                "Strip Operations",
+                false,
+                ["HSO", "HALFSTRIPOFFSET"],
+                [
+                    O("Aircraft-scoped", [], "Toggle offset on half-strip whose first line is the callsign"),
+                    O("Global", [R("key", "first line of half-strip")], "Toggle offset on half-strip by key"),
+                    O("Explicit bay", [R("bay", "bay[/rack]"), R("key", "first line")], "Toggle with bay disambiguation"),
+                ]
+            ),
+            Cmd(
+                HalfStripSlide,
+                "Slide Half-Strip Left/Right",
+                "Strip Operations",
+                false,
+                ["HSS", "HALFSTRIPSLIDE"],
+                [
+                    O("Aircraft-scoped", [], "Slide half-strip whose first line is the callsign (toggles left/right)"),
+                    O("Global", [R("key", "first line of half-strip")], "Slide half-strip by key"),
+                    O("Explicit bay", [R("bay", "bay[/rack]"), R("key", "first line")], "Slide with bay disambiguation"),
+                ]
+            ),
+            Cmd(
+                SeparatorCreate,
+                "Create Separator",
+                "Strip Operations",
+                false,
+                ["SEP", "SEPARATOR"],
+                [
+                    O(null, [R("style", "H|W|R|G"), R("bay", "bay name")], "Create separator at bay's first rack, top"),
+                    O(null, [R("style", "H|W|R|G"), R("bay", "bay name"), R("rack", "rack index")], "Create separator at rack"),
+                    O(
+                        null,
+                        [
+                            R("style", "H|W|R|G"),
+                            R("bay", "bay name"),
+                            R("rack", "rack index"),
+                            R("index", "row in rack"),
+                            R("label", "optional label"),
+                        ],
+                        "Create separator at position with optional label"
+                    ),
+                ]
+            ),
+            Cmd(
+                SeparatorDelete,
+                "Delete Separator",
+                "Strip Operations",
+                false,
+                ["SEPD", "SEPARATORDEL"],
+                [
+                    O("By label", [R("bay", "bay name"), R("label", "separator label")], "Delete separator by label (preferred)"),
+                    O(
+                        "By position",
+                        [R("bay", "bay name"), R("rack", "rack index"), R("index", "row in rack")],
+                        "Delete separator at position (fallback)"
+                    ),
+                ]
+            ),
+            Cmd(
+                BlankCreate,
+                "Create Blank Strip",
+                "Strip Operations",
+                false,
+                ["BLANK", "BLANKSTRIP"],
+                [
+                    O(null, [], "Create blank in the printer queue"),
+                    O(null, [R("bay", "bay name")], "Create blank at bay's first rack, top"),
+                    O(null, [R("bay", "bay name"), R("rack", "rack index")], "Create blank at rack, top"),
+                    O(null, [R("bay", "bay name"), R("rack", "rack index"), R("index", "row in rack")], "Create blank at specific position"),
+                ]
+            ),
+            Cmd(
+                BlankDelete,
+                "Delete Blank Strip",
+                "Strip Operations",
+                false,
+                ["BLANKD", "BLANKSTRIPDEL"],
+                [
+                    O(null, [R("bay", "bay name")], "Delete any one blank from the bay (blanks are fungible)"),
+                    O(null, [R("bay", "bay name"), R("rack", "rack index")], "Delete any one blank from the specific rack"),
+                ]
+            ),
             Cmd(
                 HalfStripCreate,
                 "Create Half-Strip",

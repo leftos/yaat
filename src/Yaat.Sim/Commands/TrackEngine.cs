@@ -51,7 +51,21 @@ public static class TrackEngine
                 or SetActivePositionCommand;
 
     public static bool IsStripCommand(ParsedCommand? cmd) =>
-        cmd is StripPushCommand or StripAnnotateCommand or HalfStripCreateCommand or HalfStripAmendCommand or HalfStripDeleteCommand;
+        cmd
+            is StripMoveCommand
+                or StripAnnotateCommand
+                or StripDeleteCommand
+                or StripOffsetCommand
+                or HalfStripCreateCommand
+                or HalfStripAmendCommand
+                or HalfStripDeleteCommand
+                or HalfStripMoveCommand
+                or HalfStripOffsetCommand
+                or HalfStripSlideCommand
+                or SeparatorCreateCommand
+                or SeparatorDeleteCommand
+                or BlankCreateCommand
+                or BlankDeleteCommand;
 
     public static bool IsCoordinationCommand(ParsedCommand? cmd) =>
         cmd

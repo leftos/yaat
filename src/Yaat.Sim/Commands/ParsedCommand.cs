@@ -423,13 +423,52 @@ public record GhostTrackCommand(string Callsign, string? AirportCode, string? Ru
 
 public record StripAnnotateCommand(int Box, string? Text) : ParsedCommand;
 
-public record StripPushCommand(string BayName) : ParsedCommand;
+// Tokens = space-separated args after STRIP; server-side handler greedy-matches a bay
+// prefix against accessible bays, then parses the remaining 0..2 tokens as rack/index.
+// Wire verb stays "STRIP" for backward compat; internal name aligns with HSM (both "move").
+public record StripMoveCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
+
+public record StripDeleteCommand : ParsedCommand;
+
+public record StripOffsetCommand : ParsedCommand;
 
 public record HalfStripCreateCommand(string BayName, int? Rack, IReadOnlyList<string> Lines) : ParsedCommand;
 
 public record HalfStripAmendCommand(string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
 
 public record HalfStripDeleteCommand(string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
+
+// HSM / HSO / HSS: same lookup model as HSA/HSD — optional source bay + first-line key.
+// HSM additionally carries the destination position.
+public record HalfStripMoveCommand(string? SourceBayName, int? SourceRack, string? LookupKey, string DestBayName, int? DestRack, int? DestIndex)
+    : ParsedCommand;
+
+public record HalfStripOffsetCommand(string? BayName, int? Rack, string? LookupKey) : ParsedCommand;
+
+public record HalfStripSlideCommand(string? BayName, int? Rack, string? LookupKey) : ParsedCommand;
+
+// Separator style: matches StripItemType values HandwrittenSeparator=2, WhiteSeparator=3, RedSeparator=4, GreenSeparator=5.
+public enum SeparatorStyle
+{
+    Handwritten = 0,
+    White = 1,
+    Red = 2,
+    Green = 3,
+}
+
+public record SeparatorCreateCommand(SeparatorStyle Style, IReadOnlyList<string> Tokens) : ParsedCommand;
+
+// SEPD <bay> [<rack>] <label-or-position>:
+// Tokens are the args after SEPD. The handler peels bay via greedy prefix match,
+// then treats the trailing token as label-first (match separator labels in bay);
+// if no label matches and the token is numeric, fall back to rack/index position.
+public record SeparatorDeleteCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
+
+// BLANK [<bay> [<rack>] [<index>]]: empty tokens → create in printer queue.
+public record BlankCreateCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
+
+// BLANKD <bay> [<rack>]: server picks any blank from the matched bay/rack and deletes it.
+public record BlankDeleteCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
 public record Scratchpad1Command(string Text) : ParsedCommand;
 

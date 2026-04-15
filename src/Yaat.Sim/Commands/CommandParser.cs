@@ -713,10 +713,19 @@ public static class CommandParser
             GhostTrack when arg is not null => ParseGhostTrackArg(arg),
             // Data operations
             Annotate when arg is not null => ParseStripAnnotate(arg),
-            StripPush when arg is not null => PR.Ok(new StripPushCommand(arg.Trim().ToUpperInvariant())),
+            StripMove when arg is not null => ParseStripMove(arg),
+            StripDelete when arg is null => PR.Ok(new StripDeleteCommand()),
+            StripOffset when arg is null => PR.Ok(new StripOffsetCommand()),
             HalfStripCreate when arg is not null => ParseHalfStripCreate(arg),
             HalfStripAmend => ParseHalfStripMutate(arg ?? "", isDelete: false),
             HalfStripDelete => ParseHalfStripMutate(arg ?? "", isDelete: true),
+            HalfStripMove when arg is not null => ParseHalfStripMove(arg),
+            HalfStripOffset => ParseHalfStripOffsetOrSlide(arg ?? "", isSlide: false),
+            HalfStripSlide => ParseHalfStripOffsetOrSlide(arg ?? "", isSlide: true),
+            SeparatorCreate when arg is not null => ParseSeparatorCreate(arg),
+            SeparatorDelete when arg is not null => ParseSeparatorDelete(arg),
+            BlankCreate => PR.Ok(new BlankCreateCommand(SplitWhitespace(arg ?? ""))),
+            BlankDelete when arg is not null => ParseBlankDelete(arg),
             Scratchpad1 when arg is null => PR.Ok(new Scratchpad1Command("")),
             Scratchpad1 => PR.Ok(new Scratchpad1Command(arg!.Trim().ToUpperInvariant())),
             Scratchpad2 when arg is null => PR.Ok(new Scratchpad2Command("")),
@@ -762,8 +771,12 @@ public static class CommandParser
             or Land
             or ExitTaxiway
             or Annotate
-            or StripPush
+            or StripMove
             or HalfStripCreate
+            or HalfStripMove
+            or SeparatorCreate
+            or SeparatorDelete
+            or BlankDelete
             or Say
             or SetRemarks
             or Add when arg is null => PR.Fail($"{type} requires an argument"),
@@ -2136,6 +2149,265 @@ public static class CommandParser
         }
 
         return PR.Ok(new HalfStripAmendCommand(bayName, rack, tokens));
+    }
+
+    // ── Full-strip move (extended; wire verb stays "STRIP") ───────
+
+    private static PR ParseStripMove(string arg)
+    {
+        var tokens = SplitWhitespace(arg);
+        if (tokens.Count == 0)
+        {
+            return PR.Fail("STRIP requires a bay name");
+        }
+
+        return PR.Ok(new StripMoveCommand(tokens));
+    }
+
+    // ── Half-strip move / offset / slide ──────────────────────────
+
+    /// <summary>
+    /// HSM source: same optional-bay + lookup-key rule as HSA/HSD (first-token bay-spec
+    /// peel). Then the destination bay/rack/index is extracted from trailing tokens —
+    /// the last token is <c>[dest-bay[/rack[/index]]]</c> using slash-compound form to
+    /// avoid colliding with the greedy-bay-match STRIP uses. Leading tokens (everything
+    /// before the destination) are source-bay-spec + lookup-key.
+    /// </summary>
+    private static PR ParseHalfStripMove(string arg)
+    {
+        var trimmed = arg.Trim();
+        if (trimmed.Length == 0)
+        {
+            return PR.Fail("HSM requires a destination bay");
+        }
+
+        var parts = SplitWhitespace(trimmed);
+        if (parts.Count == 0)
+        {
+            return PR.Fail("HSM requires a destination bay");
+        }
+
+        // Last token is always the destination (slash-compound: bay[/rack[/index]]).
+        var destToken = parts[^1];
+        if (!TryParseDestSpec(destToken, out var destBay, out var destRack, out var destIndex, out var destError))
+        {
+            return PR.Fail(destError!);
+        }
+
+        // Remaining tokens (all but the last) are the optional source locator.
+        // Follow the HSA/HSD disambiguation: first token is a source bay if there's more
+        // after it, otherwise it's the lookup key (or omitted entirely).
+        string? srcBay = null;
+        int? srcRack = null;
+        string? lookupKey = null;
+
+        var remaining = parts.Count - 1;
+        if (remaining == 1)
+        {
+            lookupKey = parts[0];
+        }
+        else if (remaining >= 2)
+        {
+            if (!TryParseBaySpec(parts[0], out var parsedBay, out var parsedRack, out var bayError))
+            {
+                return PR.Fail(bayError!);
+            }
+
+            srcBay = parsedBay;
+            srcRack = parsedRack;
+
+            // Everything between source-bay and destination joins as the lookup key with
+            // whitespace preserved (bay names with spaces in the key would be rare, but
+            // we do the simple thing: one token only).
+            if (remaining > 2)
+            {
+                return PR.Fail("HSM accepts at most one lookup key between source bay and destination");
+            }
+
+            lookupKey = parts[1];
+        }
+
+        return PR.Ok(new HalfStripMoveCommand(srcBay, srcRack, lookupKey, destBay, destRack, destIndex));
+    }
+
+    private static PR ParseHalfStripOffsetOrSlide(string arg, bool isSlide)
+    {
+        var verb = isSlide ? "HSS" : "HSO";
+        var trimmed = arg.Trim();
+        string? bayName = null;
+        int? rack = null;
+        string? lookupKey = null;
+
+        if (trimmed.Length > 0)
+        {
+            var parts = SplitWhitespace(trimmed);
+            if (parts.Count == 1)
+            {
+                // Single token = lookup key (aircraft-scoped form omits it entirely).
+                lookupKey = parts[0];
+            }
+            else if (parts.Count == 2)
+            {
+                if (!TryParseBaySpec(parts[0], out var parsedBay, out var parsedRack, out var bayError))
+                {
+                    return PR.Fail(bayError!);
+                }
+
+                bayName = parsedBay;
+                rack = parsedRack;
+                lookupKey = parts[1];
+            }
+            else
+            {
+                return PR.Fail($"{verb} accepts at most [bay[/rack]] [key]");
+            }
+        }
+
+        return isSlide ? PR.Ok(new HalfStripSlideCommand(bayName, rack, lookupKey)) : PR.Ok(new HalfStripOffsetCommand(bayName, rack, lookupKey));
+    }
+
+    // ── Separators ────────────────────────────────────────────────
+
+    private static PR ParseSeparatorCreate(string arg)
+    {
+        var tokens = SplitWhitespace(arg);
+        if (tokens.Count == 0)
+        {
+            return PR.Fail("SEP requires a style (H, W, R, or G) followed by a bay");
+        }
+
+        if (!TryParseSeparatorStyle(tokens[0], out var style))
+        {
+            return PR.Fail($"invalid separator style '{tokens[0]}' (expected H, W, R, or G)");
+        }
+
+        if (tokens.Count < 2)
+        {
+            return PR.Fail("SEP requires a bay name after the style");
+        }
+
+        // Tokens[0] was the style; pass the rest as the positional args.
+        var rest = new List<string>(tokens.Count - 1);
+        for (var i = 1; i < tokens.Count; i++)
+        {
+            rest.Add(tokens[i]);
+        }
+
+        return PR.Ok(new SeparatorCreateCommand(style, rest));
+    }
+
+    private static PR ParseSeparatorDelete(string arg)
+    {
+        var tokens = SplitWhitespace(arg);
+        if (tokens.Count == 0)
+        {
+            return PR.Fail("SEPD requires a bay name");
+        }
+
+        return PR.Ok(new SeparatorDeleteCommand(tokens));
+    }
+
+    private static bool TryParseSeparatorStyle(string token, out SeparatorStyle style)
+    {
+        switch (token.Trim().ToUpperInvariant())
+        {
+            case "H":
+            case "HANDWRITTEN":
+                style = SeparatorStyle.Handwritten;
+                return true;
+            case "W":
+            case "WHITE":
+                style = SeparatorStyle.White;
+                return true;
+            case "R":
+            case "RED":
+                style = SeparatorStyle.Red;
+                return true;
+            case "G":
+            case "GREEN":
+                style = SeparatorStyle.Green;
+                return true;
+            default:
+                style = SeparatorStyle.Handwritten;
+                return false;
+        }
+    }
+
+    // ── Blanks ────────────────────────────────────────────────────
+
+    private static PR ParseBlankDelete(string arg)
+    {
+        var tokens = SplitWhitespace(arg);
+        if (tokens.Count == 0)
+        {
+            return PR.Fail("BLANKD requires a bay name");
+        }
+
+        return PR.Ok(new BlankDeleteCommand(tokens));
+    }
+
+    // ── Shared helpers ────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses the slash-compound destination spec used by HSM: <c>bay[/rack[/index]]</c>.
+    /// The bay portion is normalized to upper case; rack and index are non-negative ints.
+    /// </summary>
+    private static bool TryParseDestSpec(string token, out string bayName, out int? rack, out int? index, out string? error)
+    {
+        bayName = "";
+        rack = null;
+        index = null;
+        error = null;
+
+        var parts = token.Split('/');
+        if (parts.Length == 0 || parts[0].Length == 0)
+        {
+            error = "destination bay name required";
+            return false;
+        }
+
+        bayName = parts[0].ToUpperInvariant();
+
+        if (parts.Length >= 2)
+        {
+            if (!int.TryParse(parts[1], out var r) || r < 0)
+            {
+                error = $"invalid destination rack '{parts[1]}' (expected non-negative integer)";
+                return false;
+            }
+
+            rack = r;
+        }
+
+        if (parts.Length >= 3)
+        {
+            if (!int.TryParse(parts[2], out var i) || i < 0)
+            {
+                error = $"invalid destination index '{parts[2]}' (expected non-negative integer)";
+                return false;
+            }
+
+            index = i;
+        }
+
+        if (parts.Length > 3)
+        {
+            error = "destination accepts at most bay[/rack[/index]]";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static List<string> SplitWhitespace(string arg)
+    {
+        var trimmed = arg.Trim();
+        if (trimmed.Length == 0)
+        {
+            return new List<string>();
+        }
+
+        return new List<string>(trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     }
 
     private static PR ParseSquawkOrReset(string? arg)

@@ -9,8 +9,8 @@ public class StripCommandParserTests
     public void Strip_ParsesBayName()
     {
         var result = CommandParser.Parse("STRIP Ground");
-        var cmd = Assert.IsType<StripPushCommand>(result.Value);
-        Assert.Equal("GROUND", cmd.BayName);
+        var cmd = Assert.IsType<StripMoveCommand>(result.Value);
+        Assert.Equal(["Ground"], cmd.Tokens);
     }
 
     [Fact]
@@ -18,6 +18,47 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("STRIP");
         Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void Strip_ParsesBayAndRack()
+    {
+        var result = CommandParser.Parse("STRIP Ground 1");
+        var cmd = Assert.IsType<StripMoveCommand>(result.Value);
+        Assert.Equal(["Ground", "1"], cmd.Tokens);
+    }
+
+    [Fact]
+    public void Strip_ParsesBayRackAndIndex()
+    {
+        var result = CommandParser.Parse("STRIP Ground 1 2");
+        var cmd = Assert.IsType<StripMoveCommand>(result.Value);
+        Assert.Equal(["Ground", "1", "2"], cmd.Tokens);
+    }
+
+    [Fact]
+    public void Strip_PreservesMultiTokenBayForHandlerGreedyMatch()
+    {
+        // Parser doesn't know about accessible bays; it just tokenizes.
+        // The server-side handler peels the longest bay-name prefix, so
+        // "STRIP Ground 1 1 2" could resolve to bay='Ground 1' rack=1 index=2.
+        var result = CommandParser.Parse("STRIP Ground 1 1 2");
+        var cmd = Assert.IsType<StripMoveCommand>(result.Value);
+        Assert.Equal(["Ground", "1", "1", "2"], cmd.Tokens);
+    }
+
+    [Fact]
+    public void StripD_NoArg_Succeeds()
+    {
+        var result = CommandParser.Parse("STRIPD");
+        Assert.IsType<StripDeleteCommand>(result.Value);
+    }
+
+    [Fact]
+    public void StripO_NoArg_Succeeds()
+    {
+        var result = CommandParser.Parse("STRIPO");
+        Assert.IsType<StripOffsetCommand>(result.Value);
     }
 
     [Fact]
