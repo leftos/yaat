@@ -896,6 +896,7 @@ public partial class MainViewModel : ObservableObject
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             var populatedCommandText = false;
+            string? source = null;
             if (!string.IsNullOrEmpty(result.CanonicalCommand))
             {
                 // Prepend the extracted callsign when present so SendCommandAsync's existing
@@ -903,6 +904,7 @@ public partial class MainViewModel : ObservableObject
                 // Format: "SWA123 FH 270" — single space, leading token, matches TryResolveCallsignPrefix.
                 CommandText = string.IsNullOrEmpty(result.Callsign) ? result.CanonicalCommand : $"{result.Callsign} {result.CanonicalCommand}";
                 populatedCommandText = true;
+                source = "canonical";
             }
             else if (!string.IsNullOrWhiteSpace(result.Transcript))
             {
@@ -911,6 +913,16 @@ public partial class MainViewModel : ObservableObject
                 // dropping the input.
                 CommandText = result.Transcript;
                 populatedCommandText = true;
+                source = "raw-transcript";
+            }
+
+            // Log the exact string the user will see in the input box. Debugging STT regressions
+            // is much easier when the log shows the final post-prepend text alongside the
+            // earlier "Rule engine mapped transcript to: ..." line — without this, you have to
+            // reconstruct the prepended form mentally from separate log entries.
+            if (populatedCommandText)
+            {
+                _log.LogInformation("Speech populated command box ({Source}): {CommandText}", source, CommandText);
             }
 
             // Auto-focus the command input box so the user can press Enter to send (or arrow-keys
