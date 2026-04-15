@@ -45,3 +45,6 @@ tests/Yaat.Sim.Tests/TestResults/*
 
 ## CIFP reference clones (rstory1/parseCifp, misterrodg/cifparse) — see CLAUDE.md
 reference/
+
+## VS Code workspace settings
+yaat.code-workspace
