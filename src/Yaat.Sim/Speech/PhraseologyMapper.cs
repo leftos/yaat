@@ -53,6 +53,13 @@ public static class PhraseologyMapper
     // the navigation fix names Whisper most often mistranscribes as English words.
     private static readonly HashSet<string> FixLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "fix", "current" };
 
+    // Capture names that hold a runway designator (e.g. "28R"). The runway-validation post-pass
+    // in TryMatchRule cross-checks each capture against MapContext.AvailableRunways and fails
+    // the rule if the captured token isn't a real runway in any scenario airport. This catches
+    // Whisper mishears like "288" (instead of "28R") so the rule mapper gives up cleanly and the
+    // LLM fallback gets a chance to recover the intended runway from scenario context.
+    private static readonly HashSet<string> RunwayLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "rwy" };
+
     /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
     /// of the transcript.
@@ -107,8 +114,16 @@ public static class PhraseologyMapper
         // two rule literals — pass 2 strips the filler and retries. Pass 2 is preferred when it
         // produces strictly more outputs or consumes strictly more input tokens than pass 1,
         // so a "for"-rule match in pass 1 always beats an equivalent pass 2 result.
+        //
+        // The runwayInvalid flag is OR-accumulated across both passes. It's set whenever a rule
+        // pattern-matches and produces a {rwy} capture that isn't in MapContext.AvailableRunways
+        // (see TryMatchRule). When set, Map returns null — even if some shorter rule still
+        // matched — because the user explicitly mentioned a runway and downgrading to a
+        // runway-less rule (e.g. "ERD" instead of "ERD 28R") would silently strip that mention.
+        // Returning null lets the LLM fallback recover the intended runway from scenario context.
         var matchedRulesPass1 = new List<PhraseologyRule>();
-        var (outputs, consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1);
+        var runwayInvalid = false;
+        var (outputs, consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1, ref runwayInvalid);
 
         var pass1UsedSecondPassFiller = matchedRulesPass1.Any(r => r.Pattern.Any(p => SecondPassFillers.Contains(p)));
         var inputContainsSecondPassFiller = tokens.Any(t => SecondPassFillers.Contains(t));
@@ -116,7 +131,7 @@ public static class PhraseologyMapper
         {
             var strippedTokens = tokens.Where(t => !SecondPassFillers.Contains(t)).ToList();
             var matchedRulesPass2 = new List<PhraseologyRule>();
-            var (outputsPass2, consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2);
+            var (outputsPass2, consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2, ref runwayInvalid);
 
             // Pass 2 wins on more outputs OR same outputs but more raw tokens consumed. Comparing
             // raw consumed counts is fair here because pass 2's input is a subset of pass 1's
@@ -126,6 +141,11 @@ public static class PhraseologyMapper
             {
                 outputs = outputsPass2;
             }
+        }
+
+        if (runwayInvalid)
+        {
+            return null;
         }
 
         if (outputs.Count == 0)
@@ -147,10 +167,17 @@ public static class PhraseologyMapper
     /// emitting one canonical clause per longest-match. Mutates <paramref name="matchedRules"/>
     /// in place with the rule that produced each output (the two-pass logic in <see cref="Map"/>
     /// uses this to detect whether any matched rule literally referenced a second-pass filler).
+    /// Sets <paramref name="runwayInvalid"/> to true (never resets it to false) when any rule
+    /// attempt encountered an invalid <c>{rwy}</c> capture — see <see cref="TryMatchRule"/>.
     /// Returns the output list and the total number of input tokens consumed by successful
     /// matches (skipped tokens via the no-match advance and connector skip don't count).
     /// </summary>
-    private static (List<string> Outputs, int TotalConsumed) MatchTokens(List<string> tokens, MapContext context, List<PhraseologyRule> matchedRules)
+    private static (List<string> Outputs, int TotalConsumed) MatchTokens(
+        List<string> tokens,
+        MapContext context,
+        List<PhraseologyRule> matchedRules,
+        ref bool runwayInvalid
+    )
     {
         var outputs = new List<string>();
         var totalConsumed = 0;
@@ -176,7 +203,7 @@ public static class PhraseologyMapper
                 continue;
             }
 
-            var best = FindLongestMatch(tokens, idx, context);
+            var best = FindLongestMatch(tokens, idx, context, ref runwayInvalid);
             if (best is null)
             {
                 // No rule matches here — advance one token and keep trying.
@@ -201,14 +228,20 @@ public static class PhraseologyMapper
     /// </list>
     /// Returns null if no rule matches. The matched rule itself is returned alongside the output
     /// + consumed count so callers (the two-pass loop) can inspect which rule fired without
-    /// re-running the matcher.
+    /// re-running the matcher. Sets <paramref name="runwayInvalid"/> to true (never resets to
+    /// false) when any rule attempt fails the <c>{rwy}</c> validation post-pass.
     /// </summary>
-    private static (string Output, int Consumed, PhraseologyRule Rule)? FindLongestMatch(List<string> tokens, int start, MapContext context)
+    private static (string Output, int Consumed, PhraseologyRule Rule)? FindLongestMatch(
+        List<string> tokens,
+        int start,
+        MapContext context,
+        ref bool runwayInvalid
+    )
     {
         (string Output, int Consumed, int CaptureCount, PhraseologyRule Rule)? best = null;
         foreach (var rule in PhraseologyRules.All)
         {
-            if (TryMatchRule(rule, tokens, start, context, out var consumed, out var output))
+            if (TryMatchRule(rule, tokens, start, context, out var consumed, out var output, ref runwayInvalid))
             {
                 var captureCount = rule.Pattern.Count(p => p.StartsWith('{') && p.EndsWith('}'));
                 var candidate = (output, consumed, captureCount, rule);
@@ -228,8 +261,20 @@ public static class PhraseologyMapper
     /// are post-processed through <see cref="PhoneticFixMatcher"/> against the context's
     /// programmed fix set, and the final filled template is validated by <see cref="CommandParser"/>
     /// so noisy captures (e.g. <c>CM main</c> from "climb to main aim ...") are rejected.
+    /// Sets <paramref name="runwayInvalid"/> to true (never resets it to false) when a
+    /// <c>{rwy}</c> capture pattern-matched but failed validation against
+    /// <see cref="MapContext.AvailableRunways"/>. This signal escalates all the way to
+    /// <see cref="Map"/> so a shorter runway-less rule cannot silently mask a misheard runway.
     /// </summary>
-    private static bool TryMatchRule(PhraseologyRule rule, List<string> tokens, int start, MapContext context, out int consumed, out string output)
+    private static bool TryMatchRule(
+        PhraseologyRule rule,
+        List<string> tokens,
+        int start,
+        MapContext context,
+        out int consumed,
+        out string output,
+        ref bool runwayInvalid
+    )
     {
         var captures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (TryMatchPattern(rule.Pattern, 0, tokens, start, captures, out consumed))
@@ -247,6 +292,37 @@ public static class PhraseologyMapper
                     }
                 }
             }
+
+            // Post-pass: validate runway-like captures against the scenario runway list. Skipped
+            // when context.AvailableRunways is empty (tests, headless, NavDb not yet loaded).
+            // First try deterministic fuzzy recovery (TryRecoverRunway): catches the most common
+            // Whisper mishears like "288" → "28R" (trailing 8 is a misheard "right") without
+            // having to involve the LLM at all. If recovery fails, escalate runwayInvalid so Map
+            // returns null and the LLM fallback gets a chance to recover with full transcript
+            // context. Captures are stored case-sensitive ("28R") because runway tokens are
+            // emitted by AtcNumberParser.NormalizeDigits with intentional uppercase suffixes;
+            // the membership check inside TryRecoverRunway is case-insensitive to be safe.
+            if (context.AvailableRunways.Count > 0)
+            {
+                foreach (var name in RunwayLikeCaptureNames)
+                {
+                    if (captures.TryGetValue(name, out var rawValue))
+                    {
+                        var recovered = TryRecoverRunway(rawValue, context.AvailableRunways);
+                        if (recovered is null)
+                        {
+                            runwayInvalid = true;
+                            output = "";
+                            return false;
+                        }
+                        if (!string.Equals(recovered, rawValue, StringComparison.Ordinal))
+                        {
+                            captures[name] = recovered;
+                        }
+                    }
+                }
+            }
+
             var filled = FillTemplate(rule.OutputTemplate, captures);
             // Validate the filled canonical via the same parser the terminal input uses. This is
             // the single source of truth for what's a valid command — it checks verb aliases,
@@ -431,6 +507,129 @@ public static class PhraseologyMapper
         return null;
     }
 
+    /// <summary>
+    /// Membership check across the union of every airport's runway list in
+    /// <see cref="MapContext.AvailableRunways"/>. Returns true if <paramref name="runway"/> appears
+    /// in any airport's list (case-insensitive). Called from the runway-validation post-pass in
+    /// <see cref="TryMatchRule"/> to drop rule matches that captured a Whisper mishear.
+    /// </summary>
+    private static bool IsKnownRunway(string runway, IReadOnlyDictionary<string, IReadOnlyList<string>> availableRunways)
+    {
+        if (string.IsNullOrEmpty(runway))
+        {
+            return false;
+        }
+
+        foreach (var runwayList in availableRunways.Values)
+        {
+            foreach (var candidate in runwayList)
+            {
+                if (string.Equals(candidate, runway, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Try to deterministically snap a captured runway token to a real runway in
+    /// <paramref name="availableRunways"/>. Returns the captured value unchanged if it's already
+    /// real, the recovered value if a high-confidence fuzzy match is found, or null when no
+    /// recovery is possible (in which case the rule mapper escalates to the LLM fallback).
+    ///
+    /// Recovery patterns, in order:
+    /// <list type="number">
+    ///   <item>Exact membership — already a real runway, no change needed.</item>
+    ///   <item><b>3-digit "NNX" → "NN" + suffix.</b> Whisper mishears "right" as "eight"
+    ///     (both rhyme with /aɪt/ ~ /eɪt/), so a 3-digit runway with trailing 8 almost
+    ///     always means an R-suffixed runway — strongest signal. Trailing 0 weakly suggests
+    ///     L (sometimes "left" is mis-transcribed as "oh") with C as a secondary fallback.
+    ///     Other trailing digits have no reliable phonetic mapping; we still try the bare
+    ///     base ("NN") in case the airport has a suffix-less runway at that number.</item>
+    ///   <item><b>"NL" (single digit + letter) → "0NL".</b> Single-digit padding for cases
+    ///     where AtcNumberParser produced a digit-only token before the suffix (mostly
+    ///     covered by CollapseRunwayDesignators, but defence-in-depth).</item>
+    ///   <item><b>"N" (single digit, no suffix) → "0N".</b> Same as above for bare numbers.</item>
+    /// </list>
+    /// Designed to be conservative: returns null instead of making a low-confidence guess, so
+    /// the LLM fallback (which has the full transcript) can take over for ambiguous cases.
+    /// </summary>
+    internal static string? TryRecoverRunway(string captured, IReadOnlyDictionary<string, IReadOnlyList<string>> availableRunways)
+    {
+        if (string.IsNullOrEmpty(captured))
+        {
+            return null;
+        }
+
+        var upper = captured.ToUpperInvariant();
+        if (IsKnownRunway(upper, availableRunways))
+        {
+            return upper;
+        }
+
+        // Pattern 1: 3-digit token (e.g. "288") — likely a misheard "NN" + suffix letter.
+        if (upper.Length == 3 && upper.All(char.IsDigit))
+        {
+            var basePart = upper[..2];
+            var trailing = upper[2];
+
+            // Phonetic suffix hints, ordered by confidence. The 8 → R mapping is the load-bearing
+            // case (right/eight rhyme); the 0 → L/C mapping is a much weaker fallback for the
+            // rare case where Whisper drops the suffix word into a digit slot.
+            var suffixHints = trailing switch
+            {
+                '8' => new[] { 'R' },
+                '0' => new[] { 'L', 'C' },
+                _ => Array.Empty<char>(),
+            };
+
+            foreach (var hint in suffixHints)
+            {
+                var candidate = basePart + hint;
+                if (IsKnownRunway(candidate, availableRunways))
+                {
+                    return candidate;
+                }
+            }
+
+            // Last resort: try the bare base ("30" from "300") in case the airport has a
+            // suffix-less runway at that number.
+            if (IsKnownRunway(basePart, availableRunways))
+            {
+                return basePart;
+            }
+
+            return null;
+        }
+
+        // Pattern 2: single digit + suffix letter (e.g. "9R") — pad to "09R".
+        if (upper.Length == 2 && char.IsDigit(upper[0]) && (upper[1] == 'L' || upper[1] == 'C' || upper[1] == 'R'))
+        {
+            var padded = "0" + upper;
+            if (IsKnownRunway(padded, availableRunways))
+            {
+                return padded;
+            }
+            return null;
+        }
+
+        // Pattern 3: single bare digit (e.g. "9") — pad to "09".
+        if (upper.Length == 1 && char.IsDigit(upper[0]))
+        {
+            var padded = "0" + upper;
+            if (IsKnownRunway(padded, availableRunways))
+            {
+                return padded;
+            }
+            return null;
+        }
+
+        return null;
+    }
+
     private static bool IsDigitString(string s)
     {
         if (string.IsNullOrEmpty(s))
@@ -515,17 +714,15 @@ public static class PhraseologyMapper
         {
             if (i + 1 < tokens.Count && IsDigitString(tokens[i]))
             {
-                var next = tokens[i + 1];
-                char? suffix = next switch
-                {
-                    "left" or "l" => 'L',
-                    "right" or "r" => 'R',
-                    "center" or "centre" or "c" => 'C',
-                    _ => null,
-                };
+                var suffix = MatchRunwaySuffixWord(tokens[i + 1]);
                 if (suffix is not null)
                 {
-                    output.Add(tokens[i] + suffix);
+                    // Zero-pad single-digit runway numbers: real-world designators are always
+                    // two digits ("01R" not "1R", "09L" not "9L"). Whisper transcribes "one right"
+                    // as ["one", "right"] → ["1", "right"], and we need to emit "01R" so the
+                    // {rwy} capture matches the airport's actual runway list.
+                    var digits = tokens[i].Length == 1 ? "0" + tokens[i] : tokens[i];
+                    output.Add(digits + suffix);
                     i += 2;
                     continue;
                 }
@@ -534,6 +731,56 @@ public static class PhraseologyMapper
             i++;
         }
         return output;
+    }
+
+    /// <summary>
+    /// Maps a post-digit token to a runway suffix letter, including common Whisper mishears.
+    /// Only invoked when the previous token is a digit string, so the collision risk with
+    /// non-runway uses of these words is low — almost any word after a number in spoken ATC
+    /// is a runway suffix. We use suffix-string matching ("ight" / "eft") rather than an exact
+    /// vocabulary because Whisper produces a long tail of mishears that all share the same
+    /// rhyme as the original word: "right" rhymes with tight/kite/bright/light/might/sight,
+    /// and "left" rhymes with deft/weft/cleft/theft. Anchoring on the rhyming suffix catches
+    /// the whole tail without us having to maintain a static list. "center" / "centre" stays
+    /// as an exact match because no common Whisper mishears share its ending.
+    /// </summary>
+    private static char? MatchRunwaySuffixWord(string token)
+    {
+        // Exact short forms first — these are the production cases the rule engine has always
+        // accepted. "left", "right", "center", and their single-letter aliases.
+        switch (token)
+        {
+            case "left":
+            case "l":
+                return 'L';
+            case "right":
+            case "r":
+                return 'R';
+            case "center":
+            case "centre":
+            case "c":
+                return 'C';
+        }
+
+        // EndsWith-based fuzzy matching for Whisper mishears. Token must be at least 3 chars
+        // ("ight" is 4, "eft" is 3, "ite" is 3) to avoid trivial collisions on single letters.
+        // The "ight" / "ite" / "eft" rimes are not naturally produced by spoken ATC after a
+        // number, so the false-positive risk is negligible in this context. "ite" catches
+        // kite/bite/mite/rite/site/white — Whisper sometimes drops the trailing "gh" from
+        // "right" before the "t", producing "rite" / "kite" instead of "right" / "kight".
+        if (token.Length >= 3)
+        {
+            if (token.EndsWith("ight", StringComparison.Ordinal) || token.EndsWith("ite", StringComparison.Ordinal))
+            {
+                return 'R';
+            }
+            if (token.EndsWith("eft", StringComparison.Ordinal))
+            {
+                return 'L';
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

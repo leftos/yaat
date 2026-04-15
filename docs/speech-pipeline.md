@@ -31,11 +31,17 @@ PTT key down
                         (scenario callsigns + programmed fixes)
       └─ raw transcript
           └─ AtcNumberParser.NormalizeDigits
-              (spoken → digit form, strip fillers)
+              (spoken → digit form + zero-pad single-digit runways
+               + phonetic suffix collapse "10 tight" → "10R")
               └─ PhraseologyCommandMapper (rule engine)
+                  ├─ {rwy} fuzzy snap via TryRecoverRunway
+                  │  ("288" → "28R", "100" → "10L")
                   ├─ match → MapResult
-                  └─ no-match → LocalLlmCommandMapper
-                                (grammar-constrained LLM fallback)
+                  └─ no-match (or runway snap failed)
+                     → LocalLlmCommandMapper
+                       (grammar-constrained LLM fallback,
+                        sees AvailableRunways +
+                        AircraftDestinations in user prompt)
           └─ SpeechRecognitionService.CommandReady event
               └─ MainViewModel pushes canonical text into CommandText
 ```
@@ -122,10 +128,26 @@ depend on LM-Kit and PortAudio native libraries.
   - `NormalizeDigits(transcript)` collapses spoken number forms to
     digit strings: `"two eight right"` → `"28R"`,
     `"flight level three five zero"` → `"FL350"`,
-    `"five thousand"` → `"5000"`. Handles `niner/tree/fife`.
+    `"five thousand"` → `"5000"`. Handles `niner/tree/fife`. The runway
+    suffix collapse runs as a post-pass via
+    `PhraseologyMapper.CollapseRunwayDesignators` so both the rule engine
+    and the LLM fallback see the canonical `"28R"` form.
   - `FlightNumberToWords` / `AltitudeToWords` are the reverse direction,
     used to seed the Whisper `initial_prompt` in natural-English forms
     pilots actually speak.
+- `PhraseologyMapper.CollapseRunwayDesignators` does two extra things
+  beyond the obvious `"28 right"` → `"28R"` collapse:
+  - **Zero-pads single-digit runway numbers.** `"one right"` →
+    `["1", "right"]` → `"01R"`. Real-world designators are always two
+    digits and the airport's runway list uses the padded form, so the
+    `{rwy}` capture has to match it.
+  - **Phonetic suffix matching for Whisper mishears.**
+    `MatchRunwaySuffixWord` does an `EndsWith` check on the post-digit
+    token: anything ending in `"ight"` (right/tight/light/sight/might/
+    bright) or `"ite"` (kite/bite/rite/mite/site/white) → `R`; anything
+    ending in `"eft"` (left/deft/weft/cleft) → `L`. Only fires when the
+    previous token is a digit string, so collision risk with non-runway
+    use of these words is negligible.
 - Filler handling happens inside
   `src/Yaat.Sim/Speech/PhraseologyMapper.cs`:
   - `FillerWords` — hard strip (`uh`, `um`, `please`, `sir`, `thanks`, …).
@@ -171,6 +193,35 @@ depend on LM-Kit and PortAudio native libraries.
   recovers them against the per-aircraft programmed-fix list in
   `MapContext.ProgrammedFixes`. `FixLikeCaptureNames` in
   `PhraseologyMapper` flags which captures pass through here.
+- **Runway capture validation + fuzzy recovery.**
+  `PhraseologyMapper.TryMatchRule` runs a parallel post-pass for
+  `{rwy}` captures (`RunwayLikeCaptureNames`). When a captured runway
+  isn't in `MapContext.AvailableRunways`, `TryRecoverRunway` attempts
+  deterministic snap-back before failing the rule:
+  - 3-digit `NNX` → `NN` + suffix from the trailing digit. Trailing
+    `8` → `R` is the load-bearing case (Whisper transcribes `"two eight
+    right"` as `"two eight eight"` → `"288"` because *right* and *eight*
+    share the `/aɪt/` ~ `/eɪt/` rime). Trailing `0` → `L` is a weaker
+    fallback used only when an L-suffixed runway exists at that base.
+    Other trailing digits have no phonetic mapping.
+  - Single digit + suffix letter (`"9R"`) → `"09R"` (defence-in-depth
+    padding for cases `CollapseRunwayDesignators` missed).
+  - Bare single digit (`"9"`) → `"09"`.
+  - Bare base fallback (`"300"` → `"30"`) for suffix-less runways.
+
+  When recovery succeeds, the capture is replaced with the recovered
+  value before template-filling. When recovery fails, the rule mapper
+  sets a `runwayInvalid` flag that escalates all the way to `Map`,
+  causing it to return `null` even if a shorter runway-less rule would
+  have matched — the LLM fallback then owns recovery for cases the
+  deterministic rules can't handle. Without this escalation, a longer
+  rule like `enter right downwind runway {rwy}` getting rejected by
+  validation would silently fall back to the shorter `enter right
+  downwind` rule, stripping the user's runway mention.
+
+  Skipped entirely when `MapContext.AvailableRunways` is empty — every
+  existing test using `MapContext.Empty` continues to pass-through any
+  `{rwy}` capture as-is.
 - `src/Yaat.Sim/Speech/CallsignParser.cs` — bidirectional spoken ↔ ICAO
   callsign conversion. Uses `AirlineTelephony` (~2000-entry map built
   from OpenFlights airlines.dat) and `AircraftTypeNames`. Fuzzy-matches
@@ -187,22 +238,39 @@ depend on LM-Kit and PortAudio native libraries.
   `GenerateAsync` or `PrewarmAsync`.
 - `src/Yaat.Client/Services/LocalLlmCommandMapper.cs` —
   `ISpeechCommandMapper` backed by `LocalLlmService`. Flow:
-  1. `BuildUserPrompt(transcript, context)` (line 86) — wraps the
-     normalized transcript with scenario context.
+  1. `BuildUserPrompt(transcript, context)` — wraps the normalized
+     transcript with scenario context. Currently emits up to three
+     optional blocks: programmed fixes, available runways grouped by
+     airport (with a directive line about snapping to closest valid
+     runway), and active aircraft → destination map. The flat callsign
+     listing is deliberately omitted because small instruct models
+     echoed callsigns back as `AT N314GT AT N346G ...`
+     condition-prefixed clauses.
   2. `_llm.GenerateAsync(_systemPrompt, userPrompt,
-     CanonicalCommandGrammar.Default, ct)` (line 66) — grammar-constrained
-     inference.
-  3. `NormalizeOutput(raw)` (line 166) — defence-in-depth validation
-     against condition prefixes (`AT`/`LV`), verb whitelist, and
+     CanonicalCommandGrammar.Default, ct)` — grammar-constrained inference.
+  3. `NormalizeOutput(raw)` — defence-in-depth validation against
+     condition prefixes (`AT`/`LV`), verb whitelist, and
      `[A-Z0-9.+/-]` arg charset. Returns `null` and logs the raw output
      if anything fails.
   4. Returns `MapResult` on success, `null` otherwise.
-  - `BuildSystemPrompt()` (line 106) derives few-shot examples from
+  - `BuildSystemPrompt()` derives few-shot examples from
     `PhraseologyRules` at startup, so new rules automatically enrich
     the LLM's priors. An override constructor lets the sandbox tool
     iterate on prompt phrasing without rebuilding the class.
-  - `GetDefaultSystemPrompt()` (line 51) exposes the default so the
-    sandbox can fetch it as the starting point for probe-mode edits.
+  - `GetDefaultSystemPrompt()` exposes the default so the sandbox can
+    fetch it as the starting point for probe-mode edits.
+  - `BuildUserPromptForDebug()` and `MapWithPromptsAsync()` are
+    `internal` escape hatches the speech sandbox uses to (a) preview
+    the assembled user prompt for the current inputs and (b) run the
+    LLM against a hand-edited override prompt without rebuilding from
+    inputs. Both are bypassed by the production `MapAsync` path.
+- **`MapContext` carries scenario context** beyond what the rule mapper
+  needs: `AvailableRunways` (airport → runway list, used by both the
+  fuzzy snap and the LLM user prompt) and `AircraftDestinations`
+  (callsign → destination, used by the LLM user prompt to correlate a
+  noisy callsign with the right airport's runway list). Populated by
+  `MainViewModel.BuildSpeechContext` from `NavigationDatabase.GetRunways`
+  and `AircraftState.Destination` / `AircraftState.Departure`.
 - `src/Yaat.Client/Services/LocalLlmCallsignResolver.cs` — LLM-based
   disambiguation for noisy callsign transcripts where fuzzy-matching
   inside `CallsignParser` doesn't pick a winner.
@@ -283,7 +351,15 @@ client. All flags run via
 | `--lmkit-gpus` | Enumerate detected GPU devices for LM-Kit backend selection. |
 | `--yaat-catalog` | Dump the filtered Whisper + LLM catalogs as they appear in the Settings picker. |
 
-No flag → Avalonia GUI for interactive probing.
+No flag → Avalonia GUI for interactive probing. The GUI exposes inputs
+for active callsigns, programmed fixes, **available runways** (per-
+airport, format `KOAK: 28R 28L 10R 10L 30 12 33 15`), **aircraft
+destinations** (callsign → airport), the editable LLM system prompt,
+and the **editable LLM user prompt** (auto-filled from inputs via
+"Build from inputs" or hand-edited; on Run the exact textbox content
+is sent to the LLM via `LocalLlmCommandMapper.MapWithPromptsAsync`,
+bypassing `BuildUserPrompt`). The Whisper prompt textbox is seeded
+at startup with `WhisperBiasingPrompt.Default` to match production.
 
 ## Tests & Audio Fixtures
 
@@ -363,6 +439,16 @@ infrastructure.
   over rules with captures at the same token count. New rules that add
   a capture in place of a literal token will lose the tie to the
   literal-only rule and not match.
+- **Runway validation escalates to the top of `Map`.** When a `{rwy}`
+  capture fails `TryRecoverRunway`, the post-pass sets a `runwayInvalid`
+  flag that propagates through `MatchTokens` / `FindLongestMatch` /
+  `Map` and forces a `null` return — even if a shorter runway-less rule
+  (e.g. `enter right downwind` → `ERD`) would have matched at the same
+  position. The reason: the user explicitly said a runway, and silently
+  downgrading to a runway-less rule would strip their intent. The LLM
+  fallback (which has the full transcript and the runway list) owns
+  recovery for these cases. If you add new runway-bearing rules, this
+  behavior applies automatically.
 - **Pipe order after STT is `normalize → rule → LLM`.** The LLM
   receives the normalized, filler-stripped transcript, not the raw
   Whisper output. If you add a new normalization pass, make sure both

@@ -1,4 +1,5 @@
 using Xunit;
+using Xunit.Abstractions;
 using Yaat.Client.Services;
 using Yaat.Sim.Speech;
 
@@ -24,9 +25,11 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
     private readonly LocalLlmCommandMapper? _llmMapper;
     private readonly LocalLlmCallsignResolver? _callsignResolver;
     private readonly PhraseologyCommandMapper _ruleMapper = new();
+    private readonly ITestOutputHelper _output;
 
-    public SpeechPipelineTranscriptIntegrationTests(LlmCudaFixture fixture)
+    public SpeechPipelineTranscriptIntegrationTests(LlmCudaFixture fixture, ITestOutputHelper output)
     {
+        _output = output;
         if (fixture.SharedServiceOrNull is { } shared)
         {
             _llmMapper = new LocalLlmCommandMapper(shared);
@@ -48,7 +51,7 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N346G"]);
+        var ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
         var result = await SpeechRecognitionService.MapTranscriptAsync(
             "november three four six golf turn left heading three one zero",
             ctx,
@@ -86,7 +89,7 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N346G"]);
+        var ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
         var result = await SpeechRecognitionService.MapTranscriptAsync(
             "november three four six golf turn left hitting tree one zero",
             ctx,
@@ -111,7 +114,7 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
     [Fact]
     public async Task Transcript_WhisperHittingForHeading_NoLlm_SurfacesPartialFallback()
     {
-        var ctx = BuildContext(["N346G"]);
+        var ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
         var result = await SpeechRecognitionService.MapTranscriptAsync(
             "november three four six golf turn left hitting tree one zero",
             ctx,
@@ -142,7 +145,7 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N9225L", "SWA123"]);
+        var ctx = BuildContext(["N9225L", "SWA123"], EmptyRunways, EmptyDestinations);
         var result = await SpeechRecognitionService.MapTranscriptAsync(
             "november diner 225 lima climb and maintain 2000",
             ctx,
@@ -171,7 +174,7 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N9225L"]);
+        var ctx = BuildContext(["N9225L"], EmptyRunways, EmptyDestinations);
         var result = await SpeechRecognitionService.MapTranscriptAsync(
             "november N9225L climb and maintain 2000",
             ctx,
@@ -186,11 +189,101 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
         Assert.False(result.UsedLlmFallback);
     }
 
-    private static SpeechContext BuildContext(string[] activeCallsigns)
+    /// <summary>
+    /// Regression for the user's reported "ERD 288" log: Whisper transcribed "right downwind for
+    /// runway 28R" as "...for runway 288" because "right" rhymes with "eight". With the
+    /// PhraseologyMapper.TryRecoverRunway fuzzy snap (3-digit runway with trailing 8 → ...R),
+    /// the rule engine now recovers this case deterministically without ever calling the LLM.
+    /// The LLM callsign resolver still runs because pipeline-level callsign extraction can't
+    /// recover "november 9 or 225 lima" → N9225L from rule-based parsing alone.
+    ///
+    /// Asserts <see cref="TranscriptMapResult.UsedLlmFallback"/> is FALSE: the rule engine
+    /// owns runway recovery now, the LLM mapper is only a backstop for cases that don't have
+    /// a phonetic snap (trailing 8 → R, trailing 0 → L, single-digit padding). If a future
+    /// change regresses that, this assertion will fail and the LLM path will quietly take
+    /// over — the fuzzy recovery is supposed to be the primary path.
+    /// </summary>
+    [Fact]
+    public async Task Transcript_WhisperMisheardRunway_RuleEngineFuzzyRecoversErd28R()
+    {
+        if (_llmMapper is null)
+        {
+            return;
+        }
+
+        var koakRunways = new[] { "28R", "10L", "28L", "10R", "30", "12", "33", "15" };
+        var ctx = BuildContext(
+            activeCallsigns: ["N9225L"],
+            availableRunways: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase) { ["KOAK"] = koakRunways },
+            aircraftDestinations: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["N9225L"] = "KOAK" }
+        );
+
+        const string rawTranscript = "okay we'll enter right downwind for runway 288 november 9 or 225 lima";
+
+        // Dump everything that would be passed to the LLM (when the rule-engine fuzzy recovery
+        // can't handle a future case and the LLM fallback kicks in instead) so a developer
+        // working this area can paste the exact prompts into the speech sandbox UI without
+        // having to re-derive them. xUnit prints ITestOutputHelper content on test failure;
+        // pass --logger "console;verbosity=detailed" to also see it on success.
+        var (commandText, _) = SpeechRecognitionService.ExtractAndStripCallsign(rawTranscript, ctx.ActiveCallsigns);
+        var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes)
+        {
+            CustomFixPatterns = ctx.CustomFixPatterns,
+            AvailableRunways = ctx.AvailableRunways,
+            AircraftDestinations = ctx.AircraftDestinations,
+        };
+        var systemPrompt = LocalLlmCommandMapper.GetDefaultSystemPrompt();
+        var userPrompt = LocalLlmCommandMapper.BuildUserPromptForDebug(commandText, mapContext);
+        _output.WriteLine("================ RAW TRANSCRIPT ================");
+        _output.WriteLine(rawTranscript);
+        _output.WriteLine("");
+        _output.WriteLine("======= COMMAND TEXT (after callsign strip + digit normalize) =======");
+        _output.WriteLine(commandText);
+        _output.WriteLine("");
+        _output.WriteLine("================ LLM SYSTEM PROMPT ================");
+        _output.WriteLine(systemPrompt);
+        _output.WriteLine("");
+        _output.WriteLine("================ LLM USER PROMPT ================");
+        _output.WriteLine(userPrompt);
+        _output.WriteLine("================ END OF PROMPTS ================");
+
+        var result = await SpeechRecognitionService.MapTranscriptAsync(
+            rawTranscript,
+            ctx,
+            _ruleMapper,
+            _llmMapper,
+            _callsignResolver,
+            CancellationToken.None
+        );
+
+        _output.WriteLine(
+            $"Pipeline result: callsign={result.Callsign ?? "<null>"}, canonical={result.Canonical ?? "<null>"}, usedLlmFallback={result.UsedLlmFallback}"
+        );
+
+        Assert.Equal("ERD 28R", result.Canonical);
+        Assert.Equal("N9225L", result.Callsign);
+        Assert.False(result.UsedLlmFallback);
+    }
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> EmptyRunways = new Dictionary<string, IReadOnlyList<string>>(
+        StringComparer.OrdinalIgnoreCase
+    );
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyDestinations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    private static SpeechContext BuildContext(
+        string[] activeCallsigns,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> availableRunways,
+        IReadOnlyDictionary<string, string> aircraftDestinations
+    )
     {
         // Empty programmed fixes + empty initial prompt — callers above don't exercise fix-based
         // rules. The Whisper initial_prompt field is unused by MapTranscriptAsync (it's only
         // consumed by the transcribe stage), so any value works; empty keeps the test minimal.
-        return new SpeechContext(activeCallsigns, [], string.Empty);
+        return new SpeechContext(activeCallsigns, [], string.Empty)
+        {
+            AvailableRunways = availableRunways,
+            AircraftDestinations = aircraftDestinations,
+        };
     }
 }

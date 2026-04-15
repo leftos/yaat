@@ -791,9 +791,75 @@ public partial class MainViewModel : ObservableObject
         // collapse multi-word natural-language references (e.g. "the runway 30 numbers") into
         // their canonical alias ("OAK30NUM") so downstream {fix} captures work unchanged. Only
         // available after the NavDb has finished loading — returns an empty list until then.
-        var customFixPatterns = NavigationDatabase.Instance?.CustomFixSpeechPatterns ?? [];
+        var navDb = NavigationDatabase.Instance;
+        var customFixPatterns = navDb?.CustomFixSpeechPatterns ?? [];
 
-        return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt) { CustomFixPatterns = customFixPatterns };
+        // Build the callsign → destination map from active aircraft flight plans. Used by the LLM
+        // fallback to correlate an in-transcript callsign with the right airport's runway list
+        // (e.g. "N9225L" → "KOAK" → KOAK runway list → recover misheard "288" as "28R").
+        var aircraftDestinations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var ac in snapshot)
+        {
+            if (!string.IsNullOrEmpty(ac.Callsign) && !string.IsNullOrEmpty(ac.Destination))
+            {
+                aircraftDestinations[ac.Callsign] = ac.Destination;
+            }
+        }
+
+        // Build the airport → runway-IDs map for every airport relevant to the active scenario.
+        // Scope (per the design plan): destinations of all active aircraft, plus the selected
+        // aircraft's departure airport (so a controller talking to a still-on-the-ground departure
+        // gets runway validation for that airport too). Falls back to empty when the NavDb hasn't
+        // finished loading — both the rule-engine validator and the LLM fallback skip their checks
+        // in that case.
+        var availableRunways = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        if (navDb is not null)
+        {
+            var airports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dest in aircraftDestinations.Values)
+            {
+                airports.Add(dest);
+            }
+            foreach (var ac in snapshot)
+            {
+                if (!string.IsNullOrEmpty(ac.Departure))
+                {
+                    airports.Add(ac.Departure);
+                }
+            }
+
+            foreach (var airport in airports)
+            {
+                // RunwayInfo is bidirectional — each entry represents one physical runway with
+                // two end designators (e.g. End1="28R", End2="10L"). Enumerate both ends so the
+                // validator/LLM see every designator the controller might issue. Distinct in case
+                // an airport's data has duplicate entries from both approach directions.
+                var rwys = new List<string>();
+                foreach (var rwy in navDb.GetRunways(airport))
+                {
+                    if (!string.IsNullOrEmpty(rwy.Id.End1))
+                    {
+                        rwys.Add(rwy.Id.End1);
+                    }
+                    if (!string.IsNullOrEmpty(rwy.Id.End2))
+                    {
+                        rwys.Add(rwy.Id.End2);
+                    }
+                }
+                var distinct = rwys.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                if (distinct.Count > 0)
+                {
+                    availableRunways[airport] = distinct;
+                }
+            }
+        }
+
+        return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt)
+        {
+            CustomFixPatterns = customFixPatterns,
+            AvailableRunways = availableRunways,
+            AircraftDestinations = aircraftDestinations,
+        };
     }
 
     private void HandleSpeechServiceStatusChange(SpeechStatus status)

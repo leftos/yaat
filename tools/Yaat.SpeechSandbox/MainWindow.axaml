@@ -36,6 +36,22 @@
                              MinHeight="40"
                              FontFamily="Consolas,Menlo,monospace" />
 
+                    <TextBlock Classes="h2" Text="Available runways" />
+                    <TextBlock Classes="subtle" Text="Per-airport runway lists for runway-validation + LLM recovery. One airport per line: 'AIRPORT: rwy1 rwy2 ...' (e.g. 'KOAK: 28R 28L 10R 10L 30 12 33 15'). Empty disables runway validation." />
+                    <TextBox x:Name="AvailableRunwaysBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="60"
+                             FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="Aircraft destinations" />
+                    <TextBlock Classes="subtle" Text="Callsign → destination airport, one per line: 'N9225L: KOAK'. Used by the LLM command mapper user prompt to correlate a noisy callsign with the right airport's runway list." />
+                    <TextBox x:Name="AircraftDestinationsBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="60"
+                             FontFamily="Consolas,Menlo,monospace" />
+
                     <TextBlock Classes="h2" Text="Whisper initial_prompt" />
                     <TextBlock Classes="subtle" Text="Edit and click 'Re-transcribe' to run Whisper on the saved clip with this prompt. 'Build from inputs' regenerates from active callsigns + programmed fixes the same way production does." />
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -109,6 +125,16 @@
                     <TextBlock x:Name="RuleElapsedText" Classes="subtle" />
 
                     <TextBlock Classes="h2" Text="Step 3: LLM command mapper (fallback if rule returned null)" />
+                    <TextBlock Classes="subtle" Text="LLM user prompt — editable. 'Build from inputs' regenerates it from the active callsigns + programmed fixes + available runways + aircraft destinations on the left. On Run this exact text is sent to the LLM (the sandbox skips BuildUserPrompt entirely when this box is non-empty), so you can iterate on phrasing without rebuilding the mapper class." />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button x:Name="BuildLlmUserPromptButton" Content="Build from inputs" Padding="10,4" />
+                    </StackPanel>
+                    <TextBox x:Name="LlmUserPromptBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="160"
+                             FontFamily="Consolas,Menlo,monospace"
+                             FontSize="11" />
                     <TextBlock x:Name="LlmRawText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
                     <TextBlock x:Name="LlmCanonicalText" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
                     <TextBlock x:Name="LlmElapsedText" Classes="subtle" />

@@ -73,6 +73,22 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
     /// matching. Default empty so callers that don't use custom fixes don't have to populate it.
     /// </summary>
     public IReadOnlyList<CustomFixSpeechPattern> CustomFixPatterns { get; init; } = [];
+
+    /// <summary>
+    /// Airport code → list of runway designators for every airport relevant to the active scenario
+    /// (destinations + departures of currently-active aircraft). Passed through to
+    /// <see cref="MapContext.AvailableRunways"/> so the rule engine can validate <c>{rwy}</c> captures
+    /// and the LLM fallback can recover misheard runways from scenario knowledge.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> AvailableRunways { get; init; } =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ICAO callsign → destination airport code for every active aircraft with a flight plan.
+    /// Passed through to <see cref="MapContext.AircraftDestinations"/> so the LLM fallback can
+    /// correlate an in-transcript callsign with the right airport's runways.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> AircraftDestinations { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -406,7 +422,12 @@ public sealed class SpeechRecognitionService : IDisposable
         // callsigns as output.
         var (commandText, callsign) = ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
 
-        var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes) { CustomFixPatterns = ctx.CustomFixPatterns };
+        var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes)
+        {
+            CustomFixPatterns = ctx.CustomFixPatterns,
+            AvailableRunways = ctx.AvailableRunways,
+            AircraftDestinations = ctx.AircraftDestinations,
+        };
 
         string? canonical = null;
         var usedLlmFallback = false;

@@ -62,8 +62,10 @@ public partial class MainWindow : Window
 
         var llmCommandPromptBox = this.FindControl<TextBox>("LlmCommandPromptBox")!;
         var llmResolverPromptBox = this.FindControl<TextBox>("LlmResolverPromptBox")!;
+        var whisperPromptBox = this.FindControl<TextBox>("WhisperPromptBox")!;
         llmCommandPromptBox.Text = LocalLlmCommandMapper.GetDefaultSystemPrompt();
         llmResolverPromptBox.Text = LocalLlmCallsignResolver.DefaultSystemPrompt;
+        whisperPromptBox.Text = WhisperBiasingPrompt.Default;
 
         var configText = this.FindControl<TextBlock>("ConfigText")!;
         configText.Text = BuildConfigSummary();
@@ -91,6 +93,9 @@ public partial class MainWindow : Window
 
         var buildWhisperPromptButton = this.FindControl<Button>("BuildWhisperPromptButton")!;
         buildWhisperPromptButton.Click += (_, _) => RebuildWhisperPromptFromInputs();
+
+        var buildLlmUserPromptButton = this.FindControl<Button>("BuildLlmUserPromptButton")!;
+        buildLlmUserPromptButton.Click += (_, _) => RebuildLlmUserPromptFromInputs();
 
         TryLoadPersistedClip();
 
@@ -281,39 +286,56 @@ public partial class MainWindow : Window
     {
         this.FindControl<TextBox>("ActiveCallsignsBox")!.Text = "N346G\nSWA123\nN9225L";
         this.FindControl<TextBox>("ProgrammedFixesBox")!.Text = "CEPIN, SUNOL";
-        this.FindControl<TextBox>("TranscriptBox")!.Text = "november three four six golf turn left hitting tree one zero";
+        // Seed the misheard-runway recovery scenario the user reported in the speech-pipeline
+        // debug log: N9225L destined for KOAK, Whisper transcribed "28R" as "288". With the new
+        // runway/destination context populated, the LLM fallback should snap "288" → "28R".
+        this.FindControl<TextBox>("AvailableRunwaysBox")!.Text = "KOAK: 28R 28L 10R 10L 30 12 33 15";
+        this.FindControl<TextBox>("AircraftDestinationsBox")!.Text = "N9225L: KOAK";
+        this.FindControl<TextBox>("TranscriptBox")!.Text = "okay we'll enter right downwind for runway 288 november 9 or 225 lima";
         // Rebuild the Whisper prompt from the example data so the user can see the same shape
         // production code produces (ICAO + spoken variant per callsign + fix names).
         RebuildWhisperPromptFromInputs();
     }
 
     /// <summary>
-    /// Builds a Whisper <c>initial_prompt</c> from the current <c>ActiveCallsignsBox</c> and
-    /// <c>ProgrammedFixesBox</c> contents using the same shape as
-    /// <c>MainViewModel.BuildSpeechContext</c>: ICAO callsign + first spoken variant per active
-    /// aircraft, followed by every programmed fix. Aircraft type is unknown in the sandbox
-    /// (no scenario state) so we pass null — that just skips type-based GA variants like
-    /// "skyhawk one two three". Pronunciation hints from <c>NavigationDatabase</c> are also
-    /// skipped because the sandbox doesn't load nav data.
+    /// Regenerate the LLM user prompt textbox from the current input fields, mirroring what
+    /// <see cref="LocalLlmCommandMapper.BuildUserPromptForDebug"/> would produce. Wired to the
+    /// "Build from inputs" button next to the textbox so the user can refresh it on demand
+    /// after changing inputs (without losing manual edits the rest of the time). Pulls
+    /// the same fields the Run pipeline uses so what the user sees matches what gets sent.
+    /// </summary>
+    private void RebuildLlmUserPromptFromInputs()
+    {
+        var rawTranscript = (this.FindControl<TextBox>("TranscriptBox")!.Text ?? string.Empty).Trim();
+        var activeCallsigns = ParseList(this.FindControl<TextBox>("ActiveCallsignsBox")!.Text);
+        var programmedFixes = ParseList(this.FindControl<TextBox>("ProgrammedFixesBox")!.Text);
+        var availableRunways = ParseAvailableRunways(this.FindControl<TextBox>("AvailableRunwaysBox")!.Text);
+        var aircraftDestinations = ParseAircraftDestinations(this.FindControl<TextBox>("AircraftDestinationsBox")!.Text);
+
+        // Mirror the Step 1 callsign-strip + digit-normalize so the textbox shows the same
+        // command-text the production LLM mapper sees as the "Transcript:" line.
+        var (commandText, _) = SpeechRecognitionService.ExtractAndStripCallsign(rawTranscript, activeCallsigns);
+
+        var mapContext = new MapContext(activeCallsigns, programmedFixes)
+        {
+            AvailableRunways = availableRunways,
+            AircraftDestinations = aircraftDestinations,
+        };
+
+        this.FindControl<TextBox>("LlmUserPromptBox")!.Text = LocalLlmCommandMapper.BuildUserPromptForDebug(commandText, mapContext);
+    }
+
+    /// <summary>
+    /// Populates the Whisper <c>initial_prompt</c> textbox with the same value the production
+    /// pipeline uses: <see cref="WhisperBiasingPrompt.Default"/> — the static NATO alphabet +
+    /// phonetic numbers + every literal token from <c>PhraseologyRules.All</c>, computed once
+    /// per process. Production no longer injects per-aircraft callsigns or fix names into the
+    /// Whisper prompt (the static vocabulary is enough for whisper-large-turbo3 to recognize
+    /// arbitrary tail numbers cleanly), so the sandbox should mirror that.
     /// </summary>
     private void RebuildWhisperPromptFromInputs()
     {
-        var activeCallsigns = ParseList(this.FindControl<TextBox>("ActiveCallsignsBox")!.Text);
-        var programmedFixes = ParseList(this.FindControl<TextBox>("ProgrammedFixesBox")!.Text);
-
-        var parts = new List<string>(capacity: activeCallsigns.Count * 2 + programmedFixes.Count);
-        foreach (var cs in activeCallsigns)
-        {
-            parts.Add(cs);
-            var variants = CallsignParser.GetSpokenVariants(cs, aircraftType: null, activeCallsigns);
-            if (variants.Count > 0)
-            {
-                parts.Add(variants[0]);
-            }
-        }
-        parts.AddRange(programmedFixes);
-
-        this.FindControl<TextBox>("WhisperPromptBox")!.Text = string.Join(' ', parts);
+        this.FindControl<TextBox>("WhisperPromptBox")!.Text = WhisperBiasingPrompt.Default;
     }
 
     private async void OnRunClicked(object? sender, RoutedEventArgs e)
@@ -349,12 +371,16 @@ public partial class MainWindow : Window
 
         var activeCallsigns = ParseList(this.FindControl<TextBox>("ActiveCallsignsBox")!.Text);
         var programmedFixes = ParseList(this.FindControl<TextBox>("ProgrammedFixesBox")!.Text);
+        var availableRunways = ParseAvailableRunways(this.FindControl<TextBox>("AvailableRunwaysBox")!.Text);
+        var aircraftDestinations = ParseAircraftDestinations(this.FindControl<TextBox>("AircraftDestinationsBox")!.Text);
         var commandPrompt = this.FindControl<TextBox>("LlmCommandPromptBox")!.Text ?? string.Empty;
         var resolverPrompt = this.FindControl<TextBox>("LlmResolverPromptBox")!.Text ?? string.Empty;
 
-        AppendLog($"Transcript:        {transcript}");
-        AppendLog($"Active callsigns:  [{string.Join(", ", activeCallsigns)}]");
-        AppendLog($"Programmed fixes:  [{string.Join(", ", programmedFixes)}]");
+        AppendLog($"Transcript:           {transcript}");
+        AppendLog($"Active callsigns:     [{string.Join(", ", activeCallsigns)}]");
+        AppendLog($"Programmed fixes:     [{string.Join(", ", programmedFixes)}]");
+        AppendLog($"Available runways:    [{string.Join("; ", availableRunways.Select(kv => $"{kv.Key}={string.Join(' ', kv.Value)}"))}]");
+        AppendLog($"Aircraft destinations:[{string.Join(", ", aircraftDestinations.Select(kv => $"{kv.Key}->{kv.Value}"))}]");
         AppendLog("");
 
         // Step 1: Pipeline-level callsign extraction + transcript stripping.
@@ -363,7 +389,23 @@ public partial class MainWindow : Window
         this.FindControl<TextBlock>("StrippedCommandText")!.Text = $"Stripped command text: {commandText}";
         AppendLog($"[Step 1] callsign={extractedCallsign ?? "(none)"} stripped='{commandText}'");
 
-        var mapContext = new MapContext(activeCallsigns, programmedFixes);
+        var mapContext = new MapContext(activeCallsigns, programmedFixes)
+        {
+            AvailableRunways = availableRunways,
+            AircraftDestinations = aircraftDestinations,
+        };
+
+        // The LLM user prompt textbox is editable. If the user has populated it (either via
+        // "Build from inputs" or by hand-editing), Run honors that exact text and skips
+        // BuildUserPrompt entirely. If the box is empty, auto-fill it from the current inputs
+        // so the user sees what the production path would have generated and can iterate from
+        // there. Either way, the textbox content is the source of truth at Run time.
+        var llmUserPromptBox = this.FindControl<TextBox>("LlmUserPromptBox")!;
+        if (string.IsNullOrWhiteSpace(llmUserPromptBox.Text))
+        {
+            llmUserPromptBox.Text = LocalLlmCommandMapper.BuildUserPromptForDebug(commandText, mapContext);
+        }
+        var llmUserPromptOverride = llmUserPromptBox.Text ?? string.Empty;
 
         // Step 2: Rule mapper.
         var ruleSw = Stopwatch.StartNew();
@@ -379,7 +421,11 @@ public partial class MainWindow : Window
         string? callsign = extractedCallsign ?? ruleResult?.Callsign;
         var usedLlmFallback = false;
 
-        // Step 3: LLM command mapper fallback — only if the rule mapper didn't match.
+        // Step 3: LLM command mapper fallback — only if the rule mapper didn't match. We always
+        // use MapWithPromptsAsync (not MapAsync) because the user prompt textbox is editable,
+        // and Run must honor any manual edits the user made. The system prompt comes from the
+        // LlmCommandPromptBox above; the user prompt comes from the LlmUserPromptBox we just
+        // populated. This bypasses BuildUserPrompt entirely on the sandbox path.
         if (ruleResult is null)
         {
             if (!_llmService.IsConfigured)
@@ -389,9 +435,13 @@ public partial class MainWindow : Window
             }
             else
             {
-                var sandboxLlmMapper = new LocalLlmCommandMapper(_llmService, commandPrompt);
+                // The constructor takes a system prompt, but MapWithPromptsAsync accepts the
+                // system prompt explicitly per call — so we pass _llmService alone and supply
+                // the system + user prompt as method arguments. Keeps "what gets sent" purely
+                // a function of the textbox contents at Run time.
+                var sandboxLlmMapper = new LocalLlmCommandMapper(_llmService);
                 var llmSw = Stopwatch.StartNew();
-                var llmResult = await sandboxLlmMapper.MapAsync(commandText, mapContext, CancellationToken.None);
+                var llmResult = await sandboxLlmMapper.MapWithPromptsAsync(commandPrompt, llmUserPromptOverride, CancellationToken.None);
                 llmSw.Stop();
                 this.FindControl<TextBlock>("LlmCanonicalText")!.Text = llmResult is null
                     ? "LLM mapper: (no match)"
@@ -464,6 +514,8 @@ public partial class MainWindow : Window
         this.FindControl<TextBlock>("StrippedCommandText")!.Text = string.Empty;
         this.FindControl<TextBlock>("RuleResultText")!.Text = string.Empty;
         this.FindControl<TextBlock>("RuleElapsedText")!.Text = string.Empty;
+        // Note: LlmUserPromptBox is intentionally NOT cleared — Run must preserve any manual
+        // edits the user made between Runs. Use the "Build from inputs" button to refresh it.
         this.FindControl<TextBlock>("LlmRawText")!.Text = string.Empty;
         this.FindControl<TextBlock>("LlmCanonicalText")!.Text = string.Empty;
         this.FindControl<TextBlock>("LlmElapsedText")!.Text = string.Empty;
@@ -494,5 +546,87 @@ public partial class MainWindow : Window
         }
 
         return raw.Split(['\n', '\r', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    }
+
+    /// <summary>
+    /// Parses the AvailableRunwaysBox contents into a per-airport runway list dictionary. Format:
+    /// one airport per line, <c>"AIRPORT: rwy1 rwy2 ..."</c> — the same shape <see cref="LocalLlmCommandMapper.BuildUserPromptForDebug"/>
+    /// renders. Whitespace and empty lines are ignored. Lines without a colon are skipped silently
+    /// so the user can paste comments or partial input without breaking the parse.
+    /// </summary>
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseAvailableRunways(string? raw)
+    {
+        var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return result;
+        }
+
+        foreach (var line in raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var colonIdx = line.IndexOf(':');
+            if (colonIdx <= 0 || colonIdx >= line.Length - 1)
+            {
+                continue;
+            }
+
+            var airport = line[..colonIdx].Trim();
+            var runways = line[(colonIdx + 1)..]
+                .Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
+            if (airport.Length > 0 && runways.Count > 0)
+            {
+                result[airport] = runways;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Parses the AircraftDestinationsBox contents into a callsign → airport dictionary. Format:
+    /// one entry per line, <c>"CALLSIGN: AIRPORT"</c> or <c>"CALLSIGN -&gt; AIRPORT"</c>. Lines
+    /// without a separator are skipped silently.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> ParseAircraftDestinations(string? raw)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return result;
+        }
+
+        foreach (var line in raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            // Try arrow form first ("N9225L -> KOAK"), then colon form ("N9225L: KOAK").
+            var arrowIdx = line.IndexOf("->", StringComparison.Ordinal);
+            int sepIdx;
+            int sepLen;
+            if (arrowIdx > 0)
+            {
+                sepIdx = arrowIdx;
+                sepLen = 2;
+            }
+            else
+            {
+                var colonIdx = line.IndexOf(':');
+                if (colonIdx <= 0)
+                {
+                    continue;
+                }
+                sepIdx = colonIdx;
+                sepLen = 1;
+            }
+
+            var callsign = line[..sepIdx].Trim();
+            var airport = line[(sepIdx + sepLen)..].Trim();
+            if (callsign.Length > 0 && airport.Length > 0)
+            {
+                result[callsign] = airport;
+            }
+        }
+
+        return result;
     }
 }

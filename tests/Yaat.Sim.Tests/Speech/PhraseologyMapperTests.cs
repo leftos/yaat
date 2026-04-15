@@ -407,6 +407,169 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    // --- Runway capture validation ---
+    //
+    // PhraseologyMapper validates {rwy} captures against MapContext.AvailableRunways and fails
+    // the rule when the captured token isn't a real runway in any scenario airport. This catches
+    // Whisper mishears like "288" so the LLM fallback gets a chance to recover the intended
+    // runway. When AvailableRunways is empty (the default for MapContext.Empty / NoContext), the
+    // validator is skipped — every existing test in this file exercises that path implicitly.
+
+    /// <summary>
+    /// Build a MapContext containing a single airport's runway list. Used by the runway-validation
+    /// tests below to drive the post-pass without touching scenario-loading machinery.
+    /// </summary>
+    private static MapContext ContextWithRunways(string airport, params string[] runways)
+    {
+        return new MapContext([], [])
+        {
+            AvailableRunways = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase) { [airport] = runways },
+        };
+    }
+
+    [Fact]
+    public void RunwayCapture_ValidRunway_Matches()
+    {
+        var ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
+        var result = PhraseologyMapper.Map("enter right downwind for runway two eight right", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("ERD 28R", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void RunwayCapture_InvalidRunway_NoFuzzyRecovery_FailsRule()
+    {
+        // A captured runway with no fuzzy-recovery signal (e.g. "274" — trailing 4 has no
+        // phonetic mapping) drops the rule match entirely so the LLM fallback gets a chance to
+        // recover with full transcript context. The 28R/28L/etc. variants ARE in the airport's
+        // list, so the only reason this fails is the absent phonetic snap for trailing 4.
+        var ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
+        var result = PhraseologyMapper.Map("enter right downwind for runway 274", ctx);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void RunwayCapture_InvalidRunway_NoContext_PassesThrough()
+    {
+        // With AvailableRunways empty, validation is skipped — the rule still fires and produces
+        // its raw capture. This protects every existing PhraseologyMapperTests case that passes
+        // MapContext.Empty (NoContext) from regressing when the validator is added.
+        var result = PhraseologyMapper.Map("enter right downwind for runway 288", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("ERD 288", result!.CanonicalCommand);
+    }
+
+    [Theory]
+    // Single-digit runway numbers are zero-padded to two digits during the runway-collapse pass
+    // so they match real-world designators ("01R", "09L"). Without this, "one right" would become
+    // "1R" and miss the airport's actual runway list.
+    [InlineData("enter right downwind runway one right", "ERD 01R")]
+    [InlineData("enter right downwind runway zero one right", "ERD 01R")]
+    [InlineData("enter right downwind runway nine left", "ERD 09L")]
+    [InlineData("enter right downwind runway zero nine left", "ERD 09L")]
+    public void RunwayCapture_SingleDigit_ZeroPadded(string transcript, string expected)
+    {
+        // Validation requires the runway to be in AvailableRunways — supply both the padded form
+        // (the actual airport runway) and confirm the collapse produces it.
+        var ctx = ContextWithRunways("KSFO", "01L", "01R", "19L", "19R", "09L", "09R", "27L", "27R");
+        var result = PhraseologyMapper.Map(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
+    // CollapseRunwayDesignators uses .EndsWith matching for "ight" and "eft" so the long tail of
+    // Whisper rhyme mishears all collapse to the right suffix without us maintaining a static
+    // vocab. "10 tight" / "10 ight" / "10 sight" / "10 light" → 10R; "10 deft" / "10 weft" → 10L.
+    [InlineData("enter right downwind runway one zero tight", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero ight", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero light", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero sight", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero might", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero kite", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero bite", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero rite", "ERD 10R")]
+    [InlineData("enter right downwind runway one zero deft", "ERD 10L")]
+    [InlineData("enter right downwind runway one zero weft", "ERD 10L")]
+    [InlineData("enter right downwind runway one zero eft", "ERD 10L")]
+    public void RunwayCapture_PhoneticSuffixCollapse(string transcript, string expected)
+    {
+        var ctx = ContextWithRunways("KOAK", "10L", "10R", "28L", "28R");
+        var result = PhraseologyMapper.Map(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
+    // TryRecoverRunway: when the {rwy} capture is a 3-digit token (Whisper concatenated
+    // "two eight right" → "288"), snap to the matching real runway via the trailing-digit
+    // phonetic mapping. Trailing 8 → R is the strongest signal (right rhymes with eight) —
+    // this is the user's reported case.
+    [InlineData("288", "ERD 28R")]
+    [InlineData("108", "ERD 10R")]
+    [InlineData("018", "ERD 01R")]
+    [InlineData("098", "ERD 09R")]
+    public void RunwayCapture_FuzzyRecovery_TrailingEight(string captured, string expected)
+    {
+        var ctx = ContextWithRunways("KOAK", "01R", "01L", "09R", "09L", "10R", "10L", "28R", "28L");
+        var result = PhraseologyMapper.Map($"enter right downwind runway {captured}", ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
+    // Trailing 0 → L is a weaker fallback (used when "left" gets dropped into a digit slot).
+    // Only applied when the L-suffixed runway exists at that base; otherwise tries C, then bare.
+    [InlineData("280", "ERD 28L")]
+    [InlineData("100", "ERD 10L")]
+    public void RunwayCapture_FuzzyRecovery_TrailingZero_PrefersLeft(string captured, string expected)
+    {
+        var ctx = ContextWithRunways("KOAK", "10R", "10L", "28R", "28L");
+        var result = PhraseologyMapper.Map($"enter right downwind runway {captured}", ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void RunwayCapture_FuzzyRecovery_NoSignal_FailsRule()
+    {
+        // Trailing digits other than 8 and 0 have no phonetic mapping — TryRecoverRunway returns
+        // null, which escalates runwayInvalid and Map returns null. The LLM fallback (which
+        // doesn't run in this unit test) would then own recovery.
+        var ctx = ContextWithRunways("KOAK", "28R", "28L");
+        var result = PhraseologyMapper.Map("enter right downwind runway 285", ctx);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void RunwayCapture_FuzzyRecovery_BareNumberFallback()
+    {
+        // 3-digit "300" with no L/R/C variant in the airport's list — falls back to the bare
+        // base "30" if it exists.
+        var ctx = ContextWithRunways("KOAK", "30", "12", "33", "15");
+        var result = PhraseologyMapper.Map("enter right downwind runway 300", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("ERD 30", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void RunwayCapture_UnionAcrossMultipleAirports()
+    {
+        // Membership check spans every airport in AvailableRunways, not just one — a controller
+        // working multiple destinations should be able to issue a runway clearance for any of them.
+        var ctx = new MapContext([], [])
+        {
+            AvailableRunways = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["KOAK"] = ["28R", "28L"],
+                ["KSFO"] = ["28L", "28R", "01L", "01R"],
+            },
+        };
+        var result = PhraseologyMapper.Map("enter right downwind runway zero one right", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("ERD 01R", result!.CanonicalCommand);
+    }
+
     [Theory]
     // The two-pass logic must NOT regress rules that legitimately use "for" as a literal token.
     // Pass 1 against the unmodified tokens matches these rules directly, so pass 2 is never

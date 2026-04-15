@@ -83,20 +83,91 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         return new MapResult(null, canonical, 1);
     }
 
+    /// <summary>
+    /// Builds the per-call user prompt the way <see cref="MapAsync"/> does. Exposed as
+    /// <c>internal</c> so the speech sandbox and integration tests can dump the exact prompt
+    /// the LLM would receive — paste it into <c>tools/Yaat.SpeechSandbox</c>'s probe UI to
+    /// iterate on prompt phrasing without rebuilding the production class.
+    /// </summary>
+    internal static string BuildUserPromptForDebug(string transcript, MapContext context) => BuildUserPrompt(transcript, context);
+
+    /// <summary>
+    /// Run the LLM with explicit pre-built system and user prompts, bypassing
+    /// <see cref="BuildUserPrompt"/>. Used by the speech sandbox when the user has manually edited
+    /// the user prompt textbox and wants to test that exact prompt instead of regenerating it
+    /// from the input fields. Result still flows through <see cref="NormalizeOutput"/> and the
+    /// canonical-command grammar so the sandbox sees the same post-processing the production
+    /// path applies. Returns null on the same conditions as <see cref="MapAsync"/>: empty
+    /// generation, normalize-rejected output, or LLM unavailable.
+    /// </summary>
+    internal async Task<MapResult?> MapWithPromptsAsync(string systemPrompt, string userPrompt, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(userPrompt))
+        {
+            return null;
+        }
+
+        var raw = await _llm.GenerateAsync(systemPrompt, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var canonical = NormalizeOutput(raw);
+        if (canonical is null)
+        {
+            Log.LogDebug("LLM output did not parse as canonical command (override prompt path): {Raw}", raw);
+            return null;
+        }
+
+        return new MapResult(null, canonical, 1);
+    }
+
     private static string BuildUserPrompt(string transcript, MapContext context)
     {
-        // Active callsigns are deliberately NOT included here. The speech pipeline pre-strips
-        // the callsign before calling this mapper, so the transcript is command-only. Including
-        // an "Active callsigns:" line was causing the small instruct model to echo the callsigns
-        // back as "AT N314GT AT N346G ..." because it interpreted them as condition-prefixed
-        // clauses. Programmed fixes are still listed because commands like "direct CEPIN" need
-        // them for fix-name validation.
+        // A flat "Active callsigns:" line is deliberately NOT included here — the small instruct
+        // model echoed callsigns as "AT N314GT AT N346G ..." condition-prefixed clauses when it
+        // saw a bare list. The callsign → destination map below is safer because the arrow gives
+        // the model a clear "this is metadata, not a command" framing, and the destination column
+        // is what enables runway recovery (the model can pick the right airport's runway list
+        // when the transcript only has a partial/noisy callsign).
         var sb = new StringBuilder();
         sb.Append("Transcript: ").AppendLine(transcript);
 
         if (context.ProgrammedFixes.Count > 0)
         {
             sb.Append("Programmed fixes: ").AppendLine(string.Join(", ", context.ProgrammedFixes));
+        }
+
+        // Available runways grouped by airport: lets the model recover a misheard runway like
+        // "288" → "28R" by snapping to a real designator at the relevant airport. Compact format
+        // ("KOAK: 28R 28L 10R 10L 30 12 33 15") keeps the prompt small even when several airports
+        // are in scope. The directive line is critical — without it, greedy decoding on small
+        // models just echoes the misheard runway from the transcript verbatim instead of snapping
+        // to the closest real runway. Tested 2026-04-14 against gemma4:e4b: without the directive,
+        // "288" → "ERD 288"; with it, "288" → "ERD 28R".
+        if (context.AvailableRunways.Count > 0)
+        {
+            sb.AppendLine("Available runways:");
+            foreach (var (airport, runways) in context.AvailableRunways)
+            {
+                sb.Append("  ").Append(airport).Append(": ").AppendLine(string.Join(' ', runways));
+            }
+            sb.AppendLine(
+                "If the transcript mentions a runway that is not in the list above, replace it with the closest matching runway from the list."
+            );
+        }
+
+        // Active aircraft → destination so the model can pair an in-transcript callsign with the
+        // right airport's runway list above. The arrow notation matches the framing the instruct
+        // models tend to read as "lookup table" rather than "instruction list".
+        if (context.AircraftDestinations.Count > 0)
+        {
+            sb.AppendLine("Active aircraft (callsign -> destination):");
+            foreach (var (cs, dest) in context.AircraftDestinations)
+            {
+                sb.Append("  ").Append(cs).Append(" -> ").AppendLine(dest);
+            }
         }
 
         sb.AppendLine("Output only the canonical command string, nothing else.");

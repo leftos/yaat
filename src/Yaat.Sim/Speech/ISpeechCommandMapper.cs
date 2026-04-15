@@ -25,6 +25,25 @@ public sealed record MapContext(IReadOnlyCollection<string> ActiveCallsigns, IRe
     /// initializer to add patterns.
     /// </summary>
     public IReadOnlyList<CustomFixSpeechPattern> CustomFixPatterns { get; init; } = [];
+
+    /// <summary>
+    /// Airport code → list of runway designators (e.g. <c>"KOAK" → ["28R","28L","10R","10L","30","12","33","15"]</c>).
+    /// Pulled from <c>NavigationDatabase.GetRunways</c> for the destinations + departures of every active aircraft
+    /// in the scenario. <see cref="PhraseologyMapper"/> uses this to validate <c>{rwy}</c> captures so misheard
+    /// runways (Whisper "288" instead of "28R") fail the rule and fall through to the LLM fallback.
+    /// The LLM fallback also reads this to recover the intended runway from scenario knowledge.
+    /// Empty when no scenario state is available — both validators skip their checks in that case.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> AvailableRunways { get; init; } =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ICAO callsign → destination airport code (e.g. <c>"N9225L" → "KOAK"</c>). Built from
+    /// <c>AircraftState.Destination</c> across the active scenario. The LLM fallback uses this to
+    /// correlate the in-transcript callsign with the right airport's runway list when recovering
+    /// from a Whisper mistranscription.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> AircraftDestinations { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
