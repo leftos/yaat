@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Speech;
@@ -21,6 +22,8 @@ namespace Yaat.Sim.Speech;
 /// </remarks>
 public static class PhraseologyMapper
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PhraseologyMapper");
+
     // Filler words stripped before matching. Kept conservative so real command words stay intact.
     private static readonly HashSet<string> FillerWords = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -80,16 +83,30 @@ public static class PhraseologyMapper
 
         // Step 1: normalize spoken numbers to digits.
         var normalized = AtcNumberParser.NormalizeDigits(transcript);
+        if (!string.Equals(normalized, transcript, StringComparison.Ordinal))
+        {
+            Log.LogDebug("[Speech] NumberNormalize: \"{Before}\" → \"{After}\"", transcript, normalized);
+        }
 
         // Step 2: tokenize, strip filler, collapse custom fix names. Runway designator collapse
         // already happened inside AtcNumberParser.NormalizeDigits above so the canonical "28R"
         // form is visible to both this rule engine and the LLM fallback in
         // SpeechRecognitionService.MapTranscriptAsync.
         var tokens = Tokenize(normalized);
-        tokens = tokens.Where(t => !FillerWords.Contains(t)).ToList();
+        var strippedFillers = tokens.Where(t => FillerWords.Contains(t)).ToList();
+        if (strippedFillers.Count > 0)
+        {
+            Log.LogDebug("[Speech] FillerStrip: removed [{Fillers}]", string.Join(", ", strippedFillers));
+            tokens = tokens.Where(t => !FillerWords.Contains(t)).ToList();
+        }
         if (context.CustomFixPatterns.Count > 0)
         {
+            var beforeCustomFix = tokens;
             tokens = CollapseCustomFixNames(tokens, context.CustomFixPatterns);
+            if (!beforeCustomFix.SequenceEqual(tokens))
+            {
+                Log.LogDebug("[Speech] CustomFixCollapse: \"{Before}\" → \"{After}\"", string.Join(' ', beforeCustomFix), string.Join(' ', tokens));
+            }
         }
 
         if (tokens.Count == 0)
@@ -105,12 +122,16 @@ public static class PhraseologyMapper
         // We rebuild the protection set locally to guarantee the OrdinalIgnoreCase comparer
         // regardless of what the caller supplied in MapContext.ProgrammedFixes.
         var protectedFixes = new HashSet<string>(context.ProgrammedFixes, StringComparer.OrdinalIgnoreCase);
+        var beforeNearMiss = tokens;
         tokens = NatoNearMissResolver.Resolve(tokens, protectedFixes);
+        LogTokenRewrites("NatoNearMiss", beforeNearMiss, tokens);
 
         // Step 3: extract callsign from leading or trailing tokens.
         var callsign = ExtractCallsign(tokens, context.ActiveCallsigns, out var callsignStart, out var callsignEnd);
         if (callsign is not null)
         {
+            var consumedTokens = tokens.GetRange(callsignStart, callsignEnd - callsignStart);
+            Log.LogDebug("[Speech] CallsignExtract: \"{Spoken}\" → {Icao}", string.Join(' ', consumedTokens), callsign);
             // Remove the callsign tokens from the list.
             tokens = RemoveRange(tokens, callsignStart, callsignEnd - callsignStart);
         }
@@ -119,6 +140,8 @@ public static class PhraseologyMapper
         var conditionPrefix = ExtractConditionPrefix(tokens, out var conditionConsumed);
         if (conditionPrefix is not null)
         {
+            var consumedTokens = tokens.Take(conditionConsumed).ToList();
+            Log.LogDebug("[Speech] ConditionPrefix: \"{Spoken}\" → {Canonical}", string.Join(' ', consumedTokens), conditionPrefix);
             tokens = tokens.Skip(conditionConsumed).ToList();
         }
 
@@ -128,7 +151,17 @@ public static class PhraseologyMapper
         // Runs AFTER callsign extraction so "November 346 Golf, taxi via tango" still parses
         // the callsign correctly, and BEFORE rule matching so rules use plain single-token
         // captures against already-collapsed tokens.
+        var beforeNatoCollapse = tokens;
         tokens = NatoLetterNormalizer.Collapse(tokens, context.TaxiwayNames);
+        if (!beforeNatoCollapse.SequenceEqual(tokens))
+        {
+            Log.LogDebug(
+                "[Speech] NatoCollapse: \"{Before}\" → \"{After}\" (topology-aware, {Count} taxiway names)",
+                string.Join(' ', beforeNatoCollapse),
+                string.Join(' ', tokens),
+                context.TaxiwayNames.Count
+            );
+        }
 
         // Step 5: greedy left-to-right longest-match — two-pass over the token list.
         //
@@ -154,6 +187,11 @@ public static class PhraseologyMapper
         var inputContainsSecondPassFiller = tokens.Any(t => SecondPassFillers.Contains(t));
         if (inputContainsSecondPassFiller && !pass1UsedSecondPassFiller)
         {
+            var pass2Stripped = tokens.Where(t => SecondPassFillers.Contains(t)).ToList();
+            Log.LogDebug(
+                "[Speech] Pass2FillerStrip: retrying with [{Fillers}] removed (pass 1 did not consume them)",
+                string.Join(", ", pass2Stripped)
+            );
             var strippedTokens = tokens.Where(t => !SecondPassFillers.Contains(t)).ToList();
             var matchedRulesPass2 = new List<PhraseologyRule>();
             var (outputsPass2, consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2, ref runwayInvalid);
@@ -164,6 +202,7 @@ public static class PhraseologyMapper
             // additional non-filler tokens beyond what pass 1 reached.
             if (outputsPass2.Count > outputs.Count || (outputsPass2.Count == outputs.Count && consumedPass2 > consumedPass1))
             {
+                Log.LogDebug("[Speech] Pass2Wins: {Pass1Count} outputs → {Pass2Count} outputs", outputs.Count, outputsPass2.Count);
                 outputs = outputsPass2;
             }
         }
@@ -185,6 +224,27 @@ public static class PhraseologyMapper
         }
 
         return new MapResult(callsign, canonical, outputs.Count);
+    }
+
+    /// <summary>
+    /// Log per-index token rewrites between two same-length lists. Used for passes like
+    /// <see cref="NatoNearMissResolver"/> that produce a token-for-token rewritten output so
+    /// the user can see exactly which tokens changed and what they became, rather than just
+    /// a whole-list before/after diff. No-op when the lists are identical.
+    /// </summary>
+    private static void LogTokenRewrites(string step, IReadOnlyList<string> before, IReadOnlyList<string> after)
+    {
+        if (before.Count != after.Count)
+        {
+            return;
+        }
+        for (var i = 0; i < before.Count; i++)
+        {
+            if (!string.Equals(before[i], after[i], StringComparison.Ordinal))
+            {
+                Log.LogDebug("[Speech] {Step}: \"{Before}\" → \"{After}\"", step, before[i], after[i]);
+            }
+        }
     }
 
     /// <summary>
@@ -239,6 +299,12 @@ public static class PhraseologyMapper
             outputs.Add(best.Value.Output);
             matchedRules.Add(best.Value.Rule);
             totalConsumed += best.Value.Consumed;
+            Log.LogDebug(
+                "[Speech] RuleMatch: {Pattern} → {Canonical} (consumed {Consumed} tokens)",
+                string.Join(' ', best.Value.Rule.Pattern),
+                best.Value.Output,
+                best.Value.Consumed
+            );
             idx += best.Value.Consumed;
         }
         return (outputs, totalConsumed);
@@ -319,6 +385,12 @@ public static class PhraseologyMapper
                     var matched = PhoneticFixMatcher.TryMatch(rawValue, context.ProgrammedFixes);
                     if (matched is not null)
                     {
+                        // Only log on non-trivial rewrites — case-normalization ("cepin" →
+                        // "CEPIN") is routine and doesn't need a log line per call.
+                        if (!string.Equals(matched, rawValue, StringComparison.OrdinalIgnoreCase))
+                        {
+                            Log.LogDebug("[Speech] FixCorrect: \"{Before}\" → \"{After}\" (phonetic match to programmed fix)", rawValue, matched);
+                        }
                         captures[name] = matched;
                     }
                 }
@@ -342,12 +414,18 @@ public static class PhraseologyMapper
                         var recovered = TryRecoverRunway(rawValue, context.AvailableRunways);
                         if (recovered is null)
                         {
+                            Log.LogDebug("[Speech] RunwayRecover: \"{Raw}\" failed — not in scenario runway list, rule rejected", rawValue);
                             runwayInvalid = true;
                             output = "";
                             return false;
                         }
                         if (!string.Equals(recovered, rawValue, StringComparison.Ordinal))
                         {
+                            Log.LogDebug(
+                                "[Speech] RunwayRecover: \"{Raw}\" → \"{Recovered}\" (fuzzy-matched to scenario runway)",
+                                rawValue,
+                                recovered
+                            );
                             captures[name] = recovered;
                         }
                     }
@@ -364,9 +442,11 @@ public static class PhraseologyMapper
                     var heading = AtcNumberParser.TryResolveCardinalHeading(rawValue);
                     if (heading is null)
                     {
+                        Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" failed — not a cardinal direction, rule rejected", rawValue);
                         output = "";
                         return false;
                     }
+                    Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" → {Heading}", rawValue, heading);
                     captures[name] = heading;
                 }
             }

@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Logging;
 using Xunit;
+using Xunit.Abstractions;
 using Yaat.Sim.Speech;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Speech;
 
@@ -679,6 +682,54 @@ public class PhraseologyMapperTests
         var result = PhraseologyMapper.Map("pushback onto tango facing north", ctx);
         Assert.NotNull(result);
         Assert.Equal("PUSH T 360", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void LoggingPipeline_EmitsCorrectiveStepLines()
+    {
+        // Not a behavior test — this is a regression guard on the debug logging output. The
+        // user wants every corrective step to surface in the client log file so STT failures
+        // can be debugged post-hoc. Capture PhraseologyMapper's debug output against a
+        // transcript that exercises most of the transformations and assert each step logged.
+        var output = new CollectingOutput();
+        SimLogBuilder.CreateForTest(output).EnableCategory("PhraseologyMapper", LogLevel.Debug).InitializeSimLog();
+
+        var result = PhraseologyMapper.Map("runway 288 right uh taxi via tingo uniform whiskey november 346 gulf", NoContext);
+        Assert.NotNull(result);
+
+        // The order below is the exact pipeline order; each string is a tag from the log line.
+        string[] expectedSteps =
+        [
+            "NumberNormalize", // "288 right" → "28R" etc
+            "FillerStrip", // "uh" removed
+            "NatoNearMiss", // "tingo" → "tango", "gulf" → "golf"
+            "CallsignExtract", // "november 346 golf" → N346G
+            "NatoCollapse", // "tango uniform whiskey" → "T U W"
+            "RuleMatch", // matched rule
+        ];
+
+        var log = output.ToString();
+        foreach (var step in expectedSteps)
+        {
+            Assert.Contains($"[Speech] {step}", log);
+        }
+
+        // Reset SimLog to the null factory so subsequent tests don't inherit this capture.
+        SimLog.Initialize(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
+    }
+
+    // xUnit 2.x ITestOutputHelper shim that captures all output into a single string so the
+    // test can assert on accumulated log content without needing the real TestOutputHelper
+    // (which rejects output after the test completes).
+    private sealed class CollectingOutput : ITestOutputHelper
+    {
+        private readonly System.Text.StringBuilder _sb = new();
+
+        public void WriteLine(string message) => _sb.AppendLine(message);
+
+        public void WriteLine(string format, params object[] args) => _sb.AppendLine(string.Format(format, args));
+
+        public override string ToString() => _sb.ToString();
     }
 
     [Fact]
