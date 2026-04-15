@@ -791,6 +791,44 @@ public static class CommandRegistry
             ),
             Cmd(StripPush, "Push Strip to Bay", "Strip Operations", false, ["STRIP"], [O(null, [R("bay", "bay name")], "Push flight strip to bay")]),
             Cmd(
+                HalfStripCreate,
+                "Create Half-Strip",
+                "Strip Operations",
+                false,
+                ["HSC", "HALFSTRIPCREATE"],
+                [
+                    O(
+                        null,
+                        [R("bay", "bay[/rack]"), R("lines", @"line1\line2\... (up to 6)")],
+                        "Create half-strip in bay (callsign becomes line 1 if aircraft selected)"
+                    ),
+                ]
+            ),
+            Cmd(
+                HalfStripAmend,
+                "Amend Half-Strip",
+                "Strip Operations",
+                false,
+                ["HSA", "HALFSTRIPAMEND"],
+                [
+                    O("Auto-search", [R("body", @"key\new1\new2\...")], "Amend half-strip by first-line key (auto-search across bays)"),
+                    O("Explicit bay", [R("bay", "bay[/rack]"), R("body", @"key\new1\new2\...")], "Amend with explicit bay disambiguation"),
+                    O("Aircraft-scoped", [], "With aircraft selected: lookup by callsign, replace lines 2-6"),
+                ]
+            ),
+            Cmd(
+                HalfStripDelete,
+                "Delete Half-Strip",
+                "Strip Operations",
+                false,
+                ["HSD", "HALFSTRIPDEL"],
+                [
+                    O("Auto-search", [R("key", "first line of half-strip")], "Delete half-strip by first-line key (auto-search across bays)"),
+                    O("Explicit bay", [R("bay", "bay[/rack]"), R("key", "first line of half-strip")], "Delete with explicit bay disambiguation"),
+                    O("Aircraft-scoped", [], "With aircraft selected: delete half-strip whose first line is the callsign"),
+                ]
+            ),
+            Cmd(
                 Scratchpad1,
                 "Scratchpad 1",
                 "Data Operations",

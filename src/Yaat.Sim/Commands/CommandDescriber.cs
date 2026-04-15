@@ -165,6 +165,9 @@ public static class CommandDescriber
             DeconsolidateCommand => CanonicalCommandType.Deconsolidate,
             StripAnnotateCommand => CanonicalCommandType.Annotate,
             StripPushCommand => CanonicalCommandType.StripPush,
+            HalfStripCreateCommand => CanonicalCommandType.HalfStripCreate,
+            HalfStripAmendCommand => CanonicalCommandType.HalfStripAmend,
+            HalfStripDeleteCommand => CanonicalCommandType.HalfStripDelete,
             Scratchpad1Command => CanonicalCommandType.Scratchpad1,
             Scratchpad2Command => CanonicalCommandType.Scratchpad2,
             TemporaryAltitudeCommand => CanonicalCommandType.TemporaryAltitude,
@@ -484,7 +487,40 @@ public static class CommandDescriber
             CreateFlightPlanCommand cmd => $"FP {cmd.AircraftType} {cmd.CruiseAltitude / 100:D3} {cmd.Route}",
             CreateAbbreviatedFlightPlanCommand cmd => FormatDaCanonical(cmd),
             SetRemarksCommand cmd => $"REMARKS {cmd.Text}",
+            HalfStripCreateCommand cmd => FormatHalfStripCreateCanonical(cmd),
+            HalfStripAmendCommand cmd => FormatHalfStripMutateCanonical("HSA", cmd.BayName, cmd.Rack, cmd.Tokens),
+            HalfStripDeleteCommand cmd => FormatHalfStripMutateCanonical("HSD", cmd.BayName, cmd.Rack, cmd.Tokens),
             _ => command.ToString() ?? "?",
+        };
+    }
+
+    private static string FormatHalfStripCreateCanonical(HalfStripCreateCommand cmd)
+    {
+        var baySpec = cmd.Rack is int r ? $"{cmd.BayName}/{r}" : cmd.BayName;
+        var lines = cmd.Lines ?? [];
+        if (lines.Count == 0)
+        {
+            return $"HSC {baySpec}";
+        }
+
+        return $"HSC {baySpec} {string.Join('\\', lines)}";
+    }
+
+    private static string FormatHalfStripMutateCanonical(string verb, string? bayName, int? rack, IReadOnlyList<string>? tokens)
+    {
+        string? baySpec = null;
+        if (bayName is not null)
+        {
+            baySpec = rack is int r ? $"{bayName}/{r}" : bayName;
+        }
+
+        var body = (tokens is not null && tokens.Count > 0) ? string.Join('\\', tokens) : null;
+        return (baySpec, body) switch
+        {
+            (null, null) => verb,
+            (not null, null) => $"{verb} {baySpec}",
+            (null, not null) => $"{verb} {body}",
+            (not null, not null) => $"{verb} {baySpec} {body}",
         };
     }
 
@@ -638,8 +674,43 @@ public static class CommandDescriber
             CreateFlightPlanCommand cmd => $"Create {cmd.FlightRules} flight plan: {cmd.AircraftType}, {cmd.CruiseAltitude:N0} ft, {cmd.Route}",
             CreateAbbreviatedFlightPlanCommand cmd => DescribeDaNatural(cmd),
             SetRemarksCommand cmd => $"Set remarks: {cmd.Text}",
+            HalfStripCreateCommand cmd => DescribeHalfStripCreateNatural(cmd),
+            HalfStripAmendCommand cmd => DescribeHalfStripAmendNatural(cmd),
+            HalfStripDeleteCommand cmd => DescribeHalfStripDeleteNatural(cmd),
             _ => command.ToString() ?? "?",
         };
+    }
+
+    private static string DescribeHalfStripCreateNatural(HalfStripCreateCommand cmd)
+    {
+        var location = cmd.Rack is int r ? $"{cmd.BayName} rack {r}" : cmd.BayName;
+        var lines = cmd.Lines ?? [];
+        if (lines.Count == 0)
+        {
+            return $"Create half-strip in {location}";
+        }
+
+        return $"Create half-strip in {location}: {lines[0]}";
+    }
+
+    private static string DescribeHalfStripAmendNatural(HalfStripAmendCommand cmd)
+    {
+        var scope =
+            cmd.BayName is null ? ""
+            : cmd.Rack is int r ? $" in {cmd.BayName} rack {r}"
+            : $" in {cmd.BayName}";
+        var tokens = cmd.Tokens ?? [];
+        return tokens.Count > 0 ? $"Amend half-strip{scope}: {tokens[0]}" : $"Amend half-strip{scope}";
+    }
+
+    private static string DescribeHalfStripDeleteNatural(HalfStripDeleteCommand cmd)
+    {
+        var scope =
+            cmd.BayName is null ? ""
+            : cmd.Rack is int r ? $" in {cmd.BayName} rack {r}"
+            : $" in {cmd.BayName}";
+        var tokens = cmd.Tokens ?? [];
+        return tokens.Count > 0 ? $"Delete half-strip{scope}: {tokens[0]}" : $"Delete half-strip{scope}";
     }
 
     internal static bool IsTowerCommand(ParsedCommand command)
@@ -740,6 +811,9 @@ public static class CommandDescriber
                 or CanonicalCommandType.SayHeading
                 or CanonicalCommandType.SayPosition
                 or CanonicalCommandType.Annotate
+                or CanonicalCommandType.HalfStripCreate
+                or CanonicalCommandType.HalfStripAmend
+                or CanonicalCommandType.HalfStripDelete
                 or CanonicalCommandType.Scratchpad1
                 or CanonicalCommandType.Scratchpad2
                 or CanonicalCommandType.TemporaryAltitude

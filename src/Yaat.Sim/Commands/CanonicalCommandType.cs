@@ -212,6 +212,9 @@ public enum CanonicalCommandType
 
     // Strip operations
     StripPush,
+    HalfStripCreate,
+    HalfStripAmend,
+    HalfStripDelete,
 
     // Turn rate
     SetTurnRate,

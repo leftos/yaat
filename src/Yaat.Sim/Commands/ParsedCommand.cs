@@ -425,6 +425,12 @@ public record StripAnnotateCommand(int Box, string? Text) : ParsedCommand;
 
 public record StripPushCommand(string BayName) : ParsedCommand;
 
+public record HalfStripCreateCommand(string BayName, int? Rack, IReadOnlyList<string> Lines) : ParsedCommand;
+
+public record HalfStripAmendCommand(string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
+
+public record HalfStripDeleteCommand(string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
+
 public record Scratchpad1Command(string Text) : ParsedCommand;
 
 public record Scratchpad2Command(string Text) : ParsedCommand;

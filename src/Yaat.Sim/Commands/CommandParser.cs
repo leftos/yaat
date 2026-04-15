@@ -714,6 +714,9 @@ public static class CommandParser
             // Data operations
             Annotate when arg is not null => ParseStripAnnotate(arg),
             StripPush when arg is not null => PR.Ok(new StripPushCommand(arg.Trim().ToUpperInvariant())),
+            HalfStripCreate when arg is not null => ParseHalfStripCreate(arg),
+            HalfStripAmend => ParseHalfStripMutate(arg ?? "", isDelete: false),
+            HalfStripDelete => ParseHalfStripMutate(arg ?? "", isDelete: true),
             Scratchpad1 when arg is null => PR.Ok(new Scratchpad1Command("")),
             Scratchpad1 => PR.Ok(new Scratchpad1Command(arg!.Trim().ToUpperInvariant())),
             Scratchpad2 when arg is null => PR.Ok(new Scratchpad2Command("")),
@@ -760,6 +763,7 @@ public static class CommandParser
             or ExitTaxiway
             or Annotate
             or StripPush
+            or HalfStripCreate
             or Say
             or SetRemarks
             or Add when arg is null => PR.Fail($"{type} requires an argument"),
@@ -2008,6 +2012,130 @@ public static class CommandParser
 
         var text = parts.Length > 1 ? parts[1].Trim() : null;
         return PR.Ok(new StripAnnotateCommand(box, text));
+    }
+
+    private const int HalfStripMaxLines = 6;
+
+    private static bool TryParseBaySpec(string token, out string bayName, out int? rack, out string? error)
+    {
+        bayName = "";
+        rack = null;
+        error = null;
+
+        var slashIdx = token.IndexOf('/');
+        if (slashIdx < 0)
+        {
+            bayName = token.ToUpperInvariant();
+            return true;
+        }
+
+        bayName = token[..slashIdx].ToUpperInvariant();
+        var rackPart = token[(slashIdx + 1)..];
+        if (!int.TryParse(rackPart, out var rackVal) || rackVal < 0)
+        {
+            error = $"invalid rack index '{rackPart}' (expected non-negative integer)";
+            return false;
+        }
+
+        rack = rackVal;
+        return true;
+    }
+
+    private static PR ParseHalfStripCreate(string arg)
+    {
+        var trimmed = arg.Trim();
+        if (trimmed.Length == 0)
+        {
+            return PR.Fail("HS requires a bay name");
+        }
+
+        var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        var bayToken = parts[0];
+        if (!TryParseBaySpec(bayToken, out var bayName, out var rack, out var bayError))
+        {
+            return PR.Fail(bayError!);
+        }
+
+        var lines = Array.Empty<string>();
+        if (parts.Length > 1)
+        {
+            lines = parts[1].Split('\\', StringSplitOptions.TrimEntries);
+        }
+
+        if (lines.Length > HalfStripMaxLines)
+        {
+            return PR.Fail($"HS supports at most {HalfStripMaxLines} lines (got {lines.Length})");
+        }
+
+        return PR.Ok(new HalfStripCreateCommand(bayName, rack, lines));
+    }
+
+    /// <summary>
+    /// Parses HSA/HSD arguments with the bay/key disambiguation rule:
+    /// the first whitespace-separated token is treated as a bay specifier if and only if
+    /// (a) it contains no backslash AND (b) there is at least one more token after it.
+    /// Otherwise the entire trimmed arg is treated as the body (bay = null).
+    /// </summary>
+    private static PR ParseHalfStripMutate(string arg, bool isDelete)
+    {
+        var trimmed = arg.Trim();
+        string? bayName = null;
+        int? rack = null;
+        string body;
+
+        if (trimmed.Length == 0)
+        {
+            body = "";
+        }
+        else
+        {
+            var spaceIdx = trimmed.IndexOf(' ');
+            if (spaceIdx > 0 && !trimmed.AsSpan(0, spaceIdx).Contains('\\'))
+            {
+                var head = trimmed[..spaceIdx];
+                var rest = trimmed[(spaceIdx + 1)..].TrimStart();
+                if (!TryParseBaySpec(head, out var parsedBay, out var parsedRack, out var bayError))
+                {
+                    return PR.Fail(bayError!);
+                }
+
+                bayName = parsedBay;
+                rack = parsedRack;
+                body = rest;
+            }
+            else
+            {
+                body = trimmed;
+            }
+        }
+
+        string[] tokens;
+        if (body.Length == 0)
+        {
+            tokens = [];
+        }
+        else
+        {
+            tokens = body.Split('\\', StringSplitOptions.TrimEntries);
+        }
+
+        if (isDelete)
+        {
+            if (tokens.Length > 1)
+            {
+                return PR.Fail($"HSD takes at most one lookup key (got {tokens.Length} tokens)");
+            }
+
+            return PR.Ok(new HalfStripDeleteCommand(bayName, rack, tokens));
+        }
+
+        // Amend: up to 1 key + 6 new lines = 7 tokens.
+        if (tokens.Length > HalfStripMaxLines + 1)
+        {
+            return PR.Fail($"HSA supports at most {HalfStripMaxLines + 1} tokens (1 key + {HalfStripMaxLines} lines)");
+        }
+
+        return PR.Ok(new HalfStripAmendCommand(bayName, rack, tokens));
     }
 
     private static PR ParseSquawkOrReset(string? arg)

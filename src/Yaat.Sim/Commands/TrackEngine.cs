@@ -50,7 +50,8 @@ public static class TrackEngine
                 or OnHandoffCommand
                 or SetActivePositionCommand;
 
-    public static bool IsStripCommand(ParsedCommand? cmd) => cmd is StripPushCommand or StripAnnotateCommand;
+    public static bool IsStripCommand(ParsedCommand? cmd) =>
+        cmd is StripPushCommand or StripAnnotateCommand or HalfStripCreateCommand or HalfStripAmendCommand or HalfStripDeleteCommand;
 
     public static bool IsCoordinationCommand(ParsedCommand? cmd) =>
         cmd

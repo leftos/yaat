@@ -684,6 +684,9 @@ public class FlightStripsConfig
 {
     [JsonPropertyName("stripBays")]
     public List<StripBayConfig> StripBays { get; set; } = [];
+
+    [JsonPropertyName("externalBays")]
+    public List<ExternalStripBayConfig> ExternalBays { get; set; } = [];
 }
 
 public class StripBayConfig
@@ -696,4 +699,13 @@ public class StripBayConfig
 
     [JsonPropertyName("numberOfRacks")]
     public int NumberOfRacks { get; set; } = 3;
+}
+
+public class ExternalStripBayConfig
+{
+    [JsonPropertyName("facilityId")]
+    public string FacilityId { get; set; } = "";
+
+    [JsonPropertyName("bayId")]
+    public string BayId { get; set; } = "";
 }

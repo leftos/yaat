@@ -1105,6 +1105,35 @@ public partial class MainViewModel : ObservableObject
 
         if (target is null)
         {
+            // Half-strip commands (HSC/HSA/HSD) are dual-mode: when no aircraft is targeted,
+            // they run globally with an empty callsign and the server treats them as freeform.
+            if (TryGetCanonicalVerb(compound.CanonicalString, out var verb) && IsHalfStripVerb(verb))
+            {
+                try
+                {
+                    var canonical = compound.CanonicalString;
+                    _log.LogDebug("SendCommand (global half-strip): '{Canonical}' (input: '{Input}')", canonical, originalInput);
+                    var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                    if (!result.Success)
+                    {
+                        StatusText = result.Message ?? "Command rejected";
+                        return;
+                    }
+
+                    AddHistory(originalInput);
+                    _commandInput.DismissSuggestions();
+                    _commandInput.ResetHistoryNavigation();
+                    CommandText = "";
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Half-strip command failed");
+                    StatusText = $"Command error: {ex.Message}";
+                }
+
+                return;
+            }
+
             StatusText = "No aircraft matched — type a callsign (or partial) before the command";
             return;
         }
@@ -1354,6 +1383,21 @@ public partial class MainViewModel : ObservableObject
         }
 
         return false;
+    }
+
+    private static bool TryGetCanonicalVerb(string canonical, out string verb)
+    {
+        var trimmed = canonical.TrimStart();
+        var spaceIdx = trimmed.IndexOf(' ');
+        verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
+        return verb.Length > 0;
+    }
+
+    private static bool IsHalfStripVerb(string verb)
+    {
+        return string.Equals(verb, "HSC", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(verb, "HSA", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(verb, "HSD", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsGlobalCommand(CanonicalCommandType type)

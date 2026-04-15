@@ -240,7 +240,10 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Scratchpad | `SCRATCHPAD`/`SP` | `SP1`, `SP2` | YAAT has separate SP1/SP2 fields; bare `SP1`/`SP2` clears; undo/toggle on repeat |
-| Strip | `STRIP {bay}` | — | ATCTrainer-only |
+| Strip | `STRIP {bay}` | `STRIP {bay}` | Both — push aircraft strip to a bay |
+| Half-strip create | — | `HSC {bay} {l1\l2\...}` | YAAT-only; freeform half-strip with up to 6 lines (callsign auto-prepended if aircraft selected) |
+| Half-strip amend | — | `HSA [{bay}] {key\new1\...}` | YAAT-only; amend half-strip by first-line key, auto-search across bays |
+| Half-strip delete | — | `HSD [{bay}] {key}` | YAAT-only; delete half-strip by first-line key |
 | Act As | — | `AS` + per-command prefix | YAAT-only, allows user to act as any TCP for one command, or switch to that TCP as their primary for commands, independent of CRC |
 | Reject pointout | — | `PORJ` | YAAT-only; rejects pending inbound pointout |
 | Retract pointout | — | `PORT` | YAAT-only; retracts your outbound pending pointout |
