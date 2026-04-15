@@ -821,6 +821,17 @@ public static class PhraseologyMapper
                     // as ["one", "right"] → ["1", "right"], and we need to emit "01R" so the
                     // {rwy} capture matches the airport's actual runway list.
                     var digits = tokens[i].Length == 1 ? "0" + tokens[i] : tokens[i];
+                    // Trim 3+ digit prefixes back to 2 digits: real runway numbers are 01-36, so
+                    // any longer digit token followed by a suffix word is a Whisper mishear. The
+                    // load-bearing case is "two eight right" → Whisper doubles up the eight/right
+                    // homophone and emits "two eight eight right" → AtcNumberParser concatenates
+                    // to "288" → without this trim we'd emit "288R" which fails all runway
+                    // validation. Real runways max at 36, so the trim is unconditionally correct
+                    // in the controller-facing suffix context — no heuristic guessing required.
+                    if (digits.Length > 2)
+                    {
+                        digits = digits[..2];
+                    }
                     output.Add(digits + suffix);
                     i += 2;
                     continue;

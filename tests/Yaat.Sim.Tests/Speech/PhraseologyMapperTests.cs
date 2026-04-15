@@ -682,6 +682,20 @@ public class PhraseologyMapperTests
     }
 
     [Fact]
+    public void Taxi_LiveWhisperRegression_288RightWithNatoPath()
+    {
+        // Regression: live Whisper transcript from an instructor saying "runway two eight right
+        // taxi via tango uniform whiskey, November 346 Golf". Whisper doubled up the eight/right
+        // homophone → "288 right" (which must collapse to "28R", not "288R"), and the callsign
+        // trailed with a "for November..." leading filler that was a pilot-style signoff.
+        // Both mappers previously failed here; with the fix the rule engine handles it end-to-end.
+        var result = PhraseologyMapper.Map("runway 288 right taxi via tango uniform whiskey november three four six golf", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("N346G", result!.Callsign);
+        Assert.Equal("TAXI T U W 28R", result.CanonicalCommand);
+    }
+
+    [Fact]
     public void Pushback_Facing_InvalidCardinal_DropsFacingClause()
     {
         // "facing northeast" is an intercardinal and deliberately out of scope — the cardinal

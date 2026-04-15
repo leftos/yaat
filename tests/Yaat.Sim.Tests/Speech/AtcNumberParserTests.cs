@@ -61,6 +61,13 @@ public class AtcNumberParserTests
     [InlineData("cleared for takeoff runway 28 right", "cleared for takeoff runway 28R")]
     [InlineData("enter right downwind for runway 28 left", "enter right downwind for runway 28L")]
     [InlineData("hold short of runway 27 center", "hold short of runway 27C")]
+    // Whisper's right/eight homophone mishear: pilot says "two eight right", Whisper doubles up
+    // and emits "two eight eight right" → AtcNumberParser concatenates to "288 right" →
+    // CollapseRunwayDesignators must recognize the 3-digit prefix as a mishear and trim to
+    // 2 digits before appending the suffix, yielding "28R" instead of the nonsense "288R".
+    // Real runway numbers are 01-36, so any digit prefix longer than 2 is always a mishear.
+    [InlineData("cleared for takeoff runway 288 right", "cleared for takeoff runway 28R")]
+    [InlineData("runway 288 right taxi via bravo", "runway 28R taxi via bravo")]
     public void NormalizeDigits_WithCommandContext(string input, string expected)
     {
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));

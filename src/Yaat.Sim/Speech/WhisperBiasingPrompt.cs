@@ -4,10 +4,9 @@ namespace Yaat.Sim.Speech;
 
 /// <summary>
 /// Builds the static Whisper <c>initial_prompt</c> string YAAT feeds to the speech recognizer
-/// to bias decoding toward ATC vocabulary. The prompt is the union of three deterministic
+/// to bias decoding toward ATC vocabulary. The prompt is the union of two deterministic
 /// vocabulary sets:
 /// <list type="number">
-///   <item><description>The full ICAO/NATO phonetic alphabet (alpha … zulu).</description></item>
 ///   <item><description>Phonetic number forms used in ATC (zero/one/two/three/tree/four/fower/five/fife/six/seven/eight/niner) plus magnitude words (hundred, thousand, point, decimal, flight, level, altitude, knots).</description></item>
 ///   <item><description>Every distinct literal pattern token from <see cref="PhraseologyRules.All"/>, which together cover every word the rule engine knows how to map to a canonical command.</description></item>
 /// </list>
@@ -17,13 +16,26 @@ namespace Yaat.Sim.Speech;
 /// in dynamic per-PTT context (active scenario callsigns, programmed fixes) here — the static
 /// vocabulary is sufficient because:
 /// <list type="bullet">
-///   <item><description>The NATO alphabet covers any callsign character. The N346G probe showed
-///     <c>whisper-large-turbo3</c> recognizing tail numbers cleanly with no per-callsign biasing.</description></item>
 ///   <item><description>Avoiding per-PTT recomputation removes the 224-token budget concern and
 ///     drops a class of potential prompt truncation bugs.</description></item>
 ///   <item><description>The static prompt can be composed once into <see cref="Default"/> and
 ///     reused across every PTT press for the life of the process.</description></item>
 /// </list>
+///
+/// <para>
+/// <b>NATO phonetic alphabet is intentionally NOT in the prompt.</b> Early versions included
+/// <c>alpha … zulu</c> to "help" callsign and taxiway recognition. Live STT testing showed
+/// this was actively harmful: NATO words sorted into the biasing prompt + NATO letters already
+/// trained into whisper-large-turbo3 from ATC corpora primes the model to extrapolate the
+/// alphabetical sequence. Real regression — pilot said "taxi via tango uniform whiskey" (T U W),
+/// Whisper hallucinated "tango uniform whiskey xray yankee", appending X and Y that weren't in
+/// audio. Dropping NATO from the biasing set breaks the sequence hint. The model still
+/// recognizes individual NATO words fine — they're all common English vocabulary ("tango",
+/// "whiskey", "november", "bravo") that Whisper already knows. Callsign probes with N346G
+/// confirmed tail-number recognition works without per-callsign or NATO-alphabet biasing.
+/// See <c>WhisperBiasingPromptTests.Default_DoesNotContainNatoAlphabet</c> for the regression
+/// guard.
+/// </para>
 /// </summary>
 public static class WhisperBiasingPrompt
 {
@@ -31,40 +43,6 @@ public static class WhisperBiasingPrompt
 
     /// <summary>Cached default biasing prompt. Computed once on first access.</summary>
     public static string Default => DefaultLazy.Value;
-
-    /// <summary>
-    /// NATO / ICAO phonetic alphabet — the canonical spoken letter forms used in aviation
-    /// callsigns and clearance read-back. Sequence preserved for predictability.
-    /// </summary>
-    private static readonly string[] NatoAlphabet =
-    [
-        "alpha",
-        "bravo",
-        "charlie",
-        "delta",
-        "echo",
-        "foxtrot",
-        "golf",
-        "hotel",
-        "india",
-        "juliet",
-        "kilo",
-        "lima",
-        "mike",
-        "november",
-        "oscar",
-        "papa",
-        "quebec",
-        "romeo",
-        "sierra",
-        "tango",
-        "uniform",
-        "victor",
-        "whiskey",
-        "xray",
-        "yankee",
-        "zulu",
-    ];
 
     /// <summary>
     /// Phonetic / spoken number forms from FAA 7110.65 4-2-9 ("Numbers Usage"). Includes ATC
@@ -158,20 +136,17 @@ public static class WhisperBiasingPrompt
     ];
 
     /// <summary>
-    /// Builds the prompt by merging the NATO alphabet, phonetic number set, and every distinct
-    /// literal token in <see cref="PhraseologyRules.All"/>. Capture-group placeholders
-    /// (<c>{name}</c>) are excluded — they're regex-style holes, not vocabulary words. Trailing
-    /// <c>?</c> markers from optional tokens are stripped so we bias for the underlying word.
+    /// Builds the prompt by merging the phonetic number set and every distinct literal token
+    /// in <see cref="PhraseologyRules.All"/>. Capture-group placeholders (<c>{name}</c>) are
+    /// excluded — they're regex-style holes, not vocabulary words. Trailing <c>?</c> markers
+    /// and variadic <c>...</c> markers are stripped so we bias for the underlying word.
+    /// NATO phonetic letters are deliberately excluded — see the class-level remarks.
     /// </summary>
     public static string Build()
     {
         // StringComparer.OrdinalIgnoreCase de-duplicates "Climb"/"climb"/"CLIMB" into one entry.
         var vocab = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var word in NatoAlphabet)
-        {
-            vocab.Add(word);
-        }
         foreach (var word in PhoneticNumbers)
         {
             vocab.Add(word);
