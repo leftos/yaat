@@ -1570,21 +1570,30 @@ public static class CommandDispatcher
             return new CommandResult(false, "Traffic not in sight — issue RTIS first");
         }
 
+        // Bare FOLLOW (no explicit callsign) defaults to the most recently reported
+        // traffic. Explicit callsign always wins. If neither is available, reject.
+        // Message mirrors the "Unable, no traffic specified" wording used by RTIS.
+        var target = follow.TargetCallsign ?? aircraft.LastReportedTrafficCallsign;
+        if (string.IsNullOrEmpty(target))
+        {
+            return new CommandResult(false, "Unable, say traffic callsign");
+        }
+
         // If the follower is already in a pattern phase that honors FollowingCallsign,
         // just update the target — existing AirborneFollowHelper handles spacing.
         var current = aircraft.Phases?.CurrentPhase;
         if (current is PatternEntryPhase or DownwindPhase or BasePhase or FinalApproachPhase)
         {
-            aircraft.FollowingCallsign = follow.TargetCallsign;
-            return Ok($"Follow {follow.TargetCallsign}");
+            aircraft.FollowingCallsign = target;
+            return Ok($"Follow {target}");
         }
 
         // If the follower is already in VfrFollowPhase, retarget in place.
         if (current is VfrFollowPhase vfp)
         {
-            vfp.UpdateTarget(follow.TargetCallsign);
-            aircraft.FollowingCallsign = follow.TargetCallsign;
-            return Ok($"Follow {follow.TargetCallsign}");
+            vfp.UpdateTarget(target);
+            aircraft.FollowingCallsign = target;
+            return Ok($"Follow {target}");
         }
 
         // Otherwise install a fresh VfrFollowPhase, replacing any existing phases.
@@ -1596,10 +1605,10 @@ public static class CommandDispatcher
             existing.Clear(clearCtx);
         }
         aircraft.Phases = new PhaseList();
-        aircraft.Phases.Phases.Add(new VfrFollowPhase(follow.TargetCallsign));
+        aircraft.Phases.Phases.Add(new VfrFollowPhase(target));
         var startCtx = BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Start(startCtx);
-        aircraft.FollowingCallsign = follow.TargetCallsign;
-        return Ok($"Follow {follow.TargetCallsign}");
+        aircraft.FollowingCallsign = target;
+        return Ok($"Follow {target}");
     }
 }

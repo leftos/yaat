@@ -1501,15 +1501,17 @@ public static class CommandParser
 
     private static PR ParseFollowAirborne(string? arg)
     {
+        // Callsign is optional: bare FOLLOW defaults to the most recently
+        // reported-in-sight traffic. The dispatcher handles the null case.
         if (arg is null)
         {
-            return PR.Fail("FOLLOW requires a callsign");
+            return PR.Ok(new FollowCommand(null));
         }
 
         var callsign = arg.Trim();
         if (callsign.Length == 0)
         {
-            return PR.Fail("FOLLOW requires a callsign");
+            return PR.Ok(new FollowCommand(null));
         }
 
         return PR.Ok(new FollowCommand(callsign.ToUpperInvariant()));

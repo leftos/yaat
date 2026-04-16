@@ -1055,9 +1055,15 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)
     {
         // Fast path: if the tick processor has already confirmed acquisition on an
-        // active FOLLOW, just echo the in-sight response.
+        // active FOLLOW, just echo the in-sight response. Still update the stored
+        // callsign if a new one is supplied so a later bare FOLLOW targets the
+        // most recently reported traffic.
         if (aircraft.HasReportedTrafficInSight)
         {
+            if (!string.IsNullOrWhiteSpace(targetCallsign))
+            {
+                aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
+            }
             var fastMsg = targetCallsign is not null
                 ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
                 : $"{aircraft.Callsign} has the traffic in sight";
@@ -1095,6 +1101,7 @@ internal static class NavigationCommandHandler
         if (result.Acquired)
         {
             aircraft.HasReportedTrafficInSight = true;
+            aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
             aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the traffic in sight ({targetCallsign})");
             return CommandDispatcher.Ok("Traffic in sight");
         }
@@ -1176,6 +1183,10 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchReportTrafficInSightForced(AircraftState aircraft, string? targetCallsign)
     {
         aircraft.HasReportedTrafficInSight = true;
+        if (!string.IsNullOrWhiteSpace(targetCallsign))
+        {
+            aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
+        }
         var msg = targetCallsign is not null
             ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
             : $"{aircraft.Callsign} has the traffic in sight";

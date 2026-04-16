@@ -94,6 +94,7 @@ public sealed class AircraftSnapshotDto
     // Visual approach
     public required bool HasReportedFieldInSight { get; init; }
     public required bool HasReportedTrafficInSight { get; init; }
+    public string? LastReportedTrafficCallsign { get; init; }
     public string? FollowingCallsign { get; init; }
 
     // CRC display

@@ -189,7 +189,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Rich approach forms | — | `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL ILS28R` | YAAT-only — combines navigation + clearance |
 | Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach for DCT fix programming feature |
 | Visual approach | — | `CVA 28R` (+ LEFT/RIGHT/FOLLOW) | YAAT-only |
-| Follow (airborne VFR) | — | `FOLLOW`/`FOL` | YAAT-only — VFR-only, requires RTIS/RTISF (traffic in sight gate). From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Altitude held per controller assignment. |
+| Follow (airborne VFR) | — | `FOLLOW [callsign]`/`FOL` | YAAT-only — VFR-only, requires RTIS/RTISF (traffic in sight gate). Callsign argument is **optional**: bare `FOLLOW` defaults to the most recently reported in-sight traffic. From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Altitude held per controller assignment. |
 | Report field in sight | — | `RFIS` | YAAT-only |
 | Report field (forced) | — | `RFISF` | YAAT-only — bypasses visual detection |
 | Report traffic in sight | — | `RTIS` | YAAT-only |

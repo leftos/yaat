@@ -223,6 +223,14 @@ public class AircraftState
     // Visual approach state
     public bool HasReportedFieldInSight { get; set; }
     public bool HasReportedTrafficInSight { get; set; }
+
+    /// <summary>
+    /// Callsign of the most recently acquired traffic (RTIS or RTISF). A bare
+    /// FOLLOW with no explicit argument defaults to this value; a second RTIS/RTISF
+    /// for different traffic replaces it. Null until the first successful report.
+    /// </summary>
+    public string? LastReportedTrafficCallsign { get; set; }
+
     public string? FollowingCallsign { get; set; }
 
     // Voice type (CRC display): 0=Unknown, 1=Full, 2=ReceiveOnly, 3=TextOnly
@@ -360,6 +368,7 @@ public class AircraftState
             PatternAltitudeOverrideFt = dto.PatternAltitudeOverrideFt,
             HasReportedFieldInSight = dto.HasReportedFieldInSight,
             HasReportedTrafficInSight = dto.HasReportedTrafficInSight,
+            LastReportedTrafficCallsign = dto.LastReportedTrafficCallsign,
             FollowingCallsign = dto.FollowingCallsign,
             VoiceType = dto.VoiceType,
             TdlsDumped = dto.TdlsDumped,
@@ -505,6 +514,7 @@ public class AircraftState
             PatternAltitudeOverrideFt = PatternAltitudeOverrideFt,
             HasReportedFieldInSight = HasReportedFieldInSight,
             HasReportedTrafficInSight = HasReportedTrafficInSight,
+            LastReportedTrafficCallsign = LastReportedTrafficCallsign,
             FollowingCallsign = FollowingCallsign,
             VoiceType = VoiceType,
             TdlsDumped = TdlsDumped,

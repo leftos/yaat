@@ -1236,7 +1236,14 @@ public static class CommandRegistry
                 ["CVA", "VISUAL"],
                 [O(null, [R("runway", "runway designator")], "Clear for visual approach to runway")]
             ),
-            Cmd(Follow, "Follow Traffic", "Approach", false, ["FOLLOW", "FOL"], [O(null, [R("callsign", "traffic callsign")], "Follow traffic")]),
+            Cmd(
+                Follow,
+                "Follow Traffic",
+                "Approach",
+                false,
+                ["FOLLOW", "FOL"],
+                [O(null, [], "Follow last-reported traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Follow specific traffic")]
+            ),
             Bare(ReportFieldInSight, "Report Field In Sight", "Approach", true, ["RFIS"]),
             Bare(ReportFieldInSightForced, "Report Field In Sight (Forced)", "Approach", true, ["RFISF"]),
             Cmd(

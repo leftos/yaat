@@ -255,7 +255,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Depart fix | `DEPART SUNOL 270` | `DEP`, `D` | — |
 | Holding pattern | `HOLDP SUNOL R 180 1M` | `HOLD` (with args) | — |
 | Expect approach | `EAPP I28R` | `EXPECT` | — |
-| Follow traffic | `FOLLOW UAL456` | `FOL` | — |
+| Follow traffic | `FOLLOW UAL456` / `FOLLOW` | `FOL` | Callsign optional — bare `FOLLOW` defaults to last in-sight traffic |
 | Visual approach | `CVA 28R` | `VISUAL` | — |
 | Report field | `RFIS` | — | — |
 | Report field (forced) | `RFISF` | — | — |
@@ -585,6 +585,7 @@ The `GA` altitude argument uses the same format as CM/DM (see [Altitude Argument
 | `MLS 3` / `MRS 4` | S-turns with specified count |
 | `CA` / `CIRCLE` | Circle the airport |
 | `FOLLOW UAL123` | Follow traffic (VFR): pursue lead and auto-join its pattern when close |
+| `FOLLOW` | Follow the most recently reported in-sight traffic (bare form — no callsign needed) |
 
 All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional runway argument. ELB/ERB behave in two modes:
 
@@ -599,6 +600,8 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 - **Free pursuit** (lead not yet in a pattern, or follower far from the pattern): the follower turns toward the lead and matches the lead's speed with distance-based correction (±20 kts, wider free-flight spacing of 1.5/2.0/2.5 nm by category). Altitude is left at whatever the controller last assigned — real pilots do not dive/climb onto the lead; they maintain visual separation from their current level.
 - **Pattern auto-join** (lead is in a pattern phase, follower within 3 nm of the lead's downwind abeam point, within 5 nm of the lead, and on the correct side of the runway): the follower's phase list is rebuilt with `PatternEntryPhase → DownwindPhase → BasePhase → FinalApproachPhase → LandingPhase` copying the lead's runway, pattern direction, and altitude. From then on, the existing pattern-tight spacing (1.0/1.5/2.0 nm) and extend-downwind logic take over.
+
+The callsign argument is **optional**. A bare `FOLLOW` defaults to the most recently reported in-sight traffic (the last callsign acquired via `RTIS` or `RTISF`). An explicit callsign always overrides the stored value. If no RTIS has succeeded yet, bare `FOLLOW` returns *"Unable, say traffic callsign"* without side effects.
 
 Follow is cancelled automatically when the lead disappears, lands, the follower can't maintain separation at minimum speed, or the gap to the lead has been growing for more than 30 seconds (runaway-distance cancel). Any subsequent vector command (`FH`, `CM`, `SPD`, etc.) clears the follow phase and returns control to the controller's direct targets. To retarget, just issue another `FOLLOW` with a different callsign — the existing phase updates in place.
 

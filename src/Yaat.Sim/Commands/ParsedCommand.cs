@@ -330,7 +330,7 @@ public record HoldShortCommand(string Target) : ParsedCommand;
 
 public record AssignRunwayCommand(string RunwayId) : ParsedCommand;
 
-public record FollowCommand(string TargetCallsign) : ParsedCommand;
+public record FollowCommand(string? TargetCallsign) : ParsedCommand;
 
 public record FollowGroundCommand(string TargetCallsign) : ParsedCommand;
 
