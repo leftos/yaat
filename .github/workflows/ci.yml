@@ -32,18 +32,8 @@ jobs:
       - name: Test
         run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.trx"
 
-      - name: Check if Yaat.Sim changed
-        if: github.event_name == 'push'
-        id: sim-changed
-        run: |
-          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q '^src/Yaat\.Sim/'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Trigger yaat-server CI
-        if: github.event_name == 'push' && steps.sim-changed.outputs.changed == 'true'
+        if: github.event_name == 'push'
         run: |
           gh api repos/leftos/yaat-server/dispatches \
             -f event_type=submodule-updated \
