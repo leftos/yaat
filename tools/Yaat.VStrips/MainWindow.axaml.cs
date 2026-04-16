@@ -8,10 +8,10 @@ using Yaat.Client.Views;
 namespace Yaat.VStrips;
 
 /// <summary>
-/// Code-behind for the standalone vStrips app's main window. Owns only the connect
-/// dialog hand-off and exit — every other interaction is bound directly to
-/// <see cref="MainViewModel"/> commands (Disconnect, Leave Room, etc.) and to
-/// <see cref="VStripsViewModel"/> through the center <c>VStripsView</c>.
+/// Code-behind for the standalone vStrips app's main window. Owns the connect
+/// dialog and room-picker hand-off — every other interaction is bound to
+/// <see cref="StandaloneViewModel"/> commands and to <see cref="VStripsViewModel"/>
+/// through the center <c>VStripsView</c>.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -20,12 +20,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-
-        // Share window geometry with the embedded Yaat.Client preferences store so
-        // the standalone app remembers its size/position across launches using the
-        // same preferences.json file YAAT writes. The "VStripsStandalone" key is
-        // distinct from the embedded pop-out window's "VStripsView" key so each
-        // host tracks its own geometry.
         var prefs = new UserPreferences();
         _geometryHelper = new WindowGeometryHelper(this, prefs, "VStripsStandalone", 1000, 700);
         _geometryHelper.Restore();
@@ -34,6 +28,12 @@ public partial class MainWindow : Window
         if (connectItem is not null)
         {
             connectItem.Click += OnConnectClick;
+        }
+
+        var joinItem = this.FindControl<MenuItem>("JoinRoomMenuItem");
+        if (joinItem is not null)
+        {
+            joinItem.Click += OnJoinRoomClick;
         }
 
         var exitItem = this.FindControl<MenuItem>("ExitMenuItem");
@@ -45,7 +45,7 @@ public partial class MainWindow : Window
 
     private async void OnConnectClick(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm)
+        if (DataContext is not StandaloneViewModel vm)
         {
             return;
         }
@@ -62,9 +62,25 @@ public partial class MainWindow : Window
         await connectWindow.ShowDialog(this);
     }
 
+    private async void OnJoinRoomClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not StandaloneViewModel vm || !vm.IsConnected)
+        {
+            return;
+        }
+
+        var picker = new RoomPickerWindow(vm);
+        await picker.ShowDialog(this);
+
+        if (picker.SelectedRoomId is { } roomId)
+        {
+            await vm.JoinRoomAsync(roomId);
+        }
+    }
+
     private void OnExitClick(object? sender, RoutedEventArgs e)
     {
-        if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Shutdown();
         }

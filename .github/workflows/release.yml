@@ -124,15 +124,11 @@ jobs:
             -p:LmKitLicenseKey="$LMKIT_LICENSE_KEY" \
             -o publish/${{ matrix.rid }}
 
-          # Standalone vStrips app ships alongside the main client so students
-          # can run flight-strip bays next to CRC without launching the full
-          # YAAT window. Same license injection path — the app references
-          # Yaat.Client which owns LmKitLicense.Initialize.
+          # Standalone vStrips app — references Yaat.Client.Core only (no LM-Kit).
           dotnet publish tools/Yaat.VStrips \
             -c Release -r ${{ matrix.rid }} --self-contained \
             -p:PublishSingleFile=true \
             -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ needs.version.outputs.short_sha }} \
-            -p:LmKitLicenseKey="$LMKIT_LICENSE_KEY" \
             -o publish-vstrips/${{ matrix.rid }}
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0

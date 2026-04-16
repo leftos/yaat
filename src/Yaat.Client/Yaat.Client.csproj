@@ -14,9 +14,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Yaat.Client.Tests" />
     <InternalsVisibleTo Include="Yaat.SpeechSandbox" />
-    <!-- Temporary: Yaat.VStrips still references MainViewModel until Commit 2 rewrites
-         the standalone to use VStripsStandaloneViewModel. Remove after the rewrite. -->
-    <InternalsVisibleTo Include="Yaat.VStrips" />
   </ItemGroup>
 
   <!-- LM-Kit license key, injected at publish time by the release workflow (see release.yml,

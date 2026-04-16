@@ -15,18 +15,13 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.13" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
-    <!-- Velopack is loaded eagerly in Program.Main so the locator is initialized
-         before UpdateService is constructed inside MainViewModel. Without this
-         reference the standalone app crashes on startup with
-         "No VelopackLocator has been set". -->
-    <PackageReference Include="Velopack" Version="0.0.1298" />
+    <!-- DataGrid needed for the room-picker dialog -->
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
   </ItemGroup>
 
-  <!-- Reuses Yaat.Client's MainViewModel wholesale. This ships all the ground/radar/speech
-       infrastructure inside the standalone app even though only the VStrips tab is bound —
-       acceptable overhead for guaranteed feature parity and no parallel base VM to maintain.
-       See docs/flight-strips.md for the architectural rationale. -->
+  <!-- References Core only — no transitive LM-Kit, SharpHook, PortAudio, or SkiaSharp.
+       The full Yaat.Client assembly is not in this project's dependency closure. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
+    <ProjectReference Include="..\..\src\Yaat.Client.Core\Yaat.Client.Core.csproj" />
   </ItemGroup>
 </Project>

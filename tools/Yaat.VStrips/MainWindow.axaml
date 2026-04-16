@@ -1,14 +1,11 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:Yaat.Client.ViewModels"
         xmlns:vstrips="using:Yaat.Client.Views.VStrips"
+        xmlns:local="using:Yaat.VStrips"
         x:Class="Yaat.VStrips.MainWindow"
-        Icon="avares://Yaat.Client/Resources/icon.png"
+        x:DataType="local:StandaloneViewModel"
+        Icon="avares://Yaat.Client.Core/Resources/icon.png"
         Title="YAAT Flight Strips">
-
-    <Design.DataContext>
-        <vm:MainViewModel />
-    </Design.DataContext>
 
     <DockPanel>
 
@@ -26,7 +23,7 @@
             </MenuItem>
             <MenuItem Header="_Room" IsEnabled="{Binding IsConnected}">
                 <MenuItem Header="_Join Room..."
-                          Command="{Binding ShowRoomsCommand}" />
+                          x:Name="JoinRoomMenuItem" />
                 <MenuItem Header="_Leave Room"
                           Command="{Binding LeaveRoomCommand}" />
             </MenuItem>
