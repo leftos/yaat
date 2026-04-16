@@ -188,6 +188,58 @@ internal static class PatternCommandHandler
             );
         }
 
+        // ERB/ELB without a distance argument: derive FinalDistanceNm from the
+        // aircraft's current along-track projection onto the extended centerline.
+        // This makes BasePhase turn onto final at the aircraft's present position
+        // along centerline, yielding a perpendicular base leg whose length equals
+        // the current cross-track. "Enter base from present distance" — rather
+        // than aiming for the standard pattern base turn point (which would force
+        // a diagonal leg). Setting useAircraftPositionAsEntry skips PatternEntryPhase
+        // below so BasePhase starts immediately from the aircraft's current position.
+        bool useAircraftPositionAsEntry = false;
+        if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Base && effectiveFinalDistanceNm is null)
+        {
+            TrueHeading reciprocal = waypoints.FinalHeading.ToReciprocal();
+            double alongTrackOutbound = GeoMath.AlongTrackDistanceNm(
+                aircraft.Latitude,
+                aircraft.Longitude,
+                waypoints.ThresholdLat,
+                waypoints.ThresholdLon,
+                reciprocal
+            );
+            if (alongTrackOutbound < MinimumPerpendicularBaseFinalDistanceNm(category))
+            {
+                return new CommandResult(false, "Unable, too close for base");
+            }
+
+            // Altitude feasibility: can the aircraft descend from its current
+            // altitude to runway elevation within the base + final path at
+            // category pattern descent rate and base speed? Controllers issuing
+            // "enter base" to an aircraft well above TPA should descend it first
+            // (AIM 4-3-3: pattern entry at TPA). Rejecting here prompts a DM.
+            double crossTrackAbsNm = Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(
+                    aircraft.Latitude,
+                    aircraft.Longitude,
+                    waypoints.ThresholdLat,
+                    waypoints.ThresholdLon,
+                    waypoints.FinalHeading
+                )
+            );
+            double totalPathNm = crossTrackAbsNm + alongTrackOutbound;
+            double baseSpeedKt = CategoryPerformance.BaseSpeed(category);
+            double pathMinutes = totalPathNm / (baseSpeedKt / 60.0);
+            double maxDescentFt = CategoryPerformance.PatternDescentRate(category) * pathMinutes;
+            double altitudeToLoseFt = aircraft.Altitude - runway.ElevationFt;
+            if (altitudeToLoseFt > maxDescentFt)
+            {
+                return new CommandResult(false, "Unable, too high for base");
+            }
+
+            effectiveFinalDistanceNm = alongTrackOutbound;
+            useAircraftPositionAsEntry = true;
+        }
+
         var circuitPhases = PatternBuilder.BuildCircuit(
             runway,
             category,
@@ -212,7 +264,9 @@ internal static class PatternCommandHandler
         // downwind heading before reaching the abeam point.
         if (!aircraft.IsOnGround && !isOnWrongSide)
         {
-            var (entryLat, entryLon) = GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm, category);
+            var (entryLat, entryLon) = useAircraftPositionAsEntry
+                ? (aircraft.Latitude, aircraft.Longitude)
+                : GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm, category);
             double distToEntry = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, entryLat, entryLon);
 
             if (distToEntry > 1.0)
@@ -912,6 +966,22 @@ internal static class PatternCommandHandler
             _ => (wp.DownwindAbeamLat, wp.DownwindAbeamLon),
         };
     }
+
+    /// <summary>
+    /// Minimum along-track distance (nm) for an ERB/ELB-no-distance turn to base —
+    /// below this, the aircraft cannot establish a stable final approach segment
+    /// after the base-to-final turn. Tuned per category so the turn radius still
+    /// leaves useful final: jets need ~2 nm, pistons ~1 nm, helicopters ~0.5 nm.
+    /// </summary>
+    private static double MinimumPerpendicularBaseFinalDistanceNm(AircraftCategory category) =>
+        category switch
+        {
+            AircraftCategory.Jet => 2.0,
+            AircraftCategory.Turboprop => 2.0,
+            AircraftCategory.Piston => 1.0,
+            AircraftCategory.Helicopter => 0.5,
+            _ => 2.0,
+        };
 
     /// <summary>
     /// Ensure the aircraft is in pattern mode. If TrafficDirection is not set,

@@ -562,9 +562,9 @@ The `GA` altitude argument uses the same format as CM/DM (see [Altitude Argument
 |---------|--------|
 | `ELD` / `ERD` | Enter left/right downwind |
 | `ELD 28R` / `ERD 28R` | Enter left/right downwind, assign runway |
-| `ELB` / `ERB` | Enter left/right base |
-| `ELB 3` / `ERB 5` | Enter left/right base with specified final distance (NM) |
-| `ELB 28R` / `ERB 28R` | Enter left/right base, assign runway |
+| `ELB` / `ERB` | Enter left/right base perpendicular to centerline from present position (base leg length = current cross-track) |
+| `ELB 3` / `ERB 5` | Enter left/right base projected to a fixed final distance (NM) |
+| `ELB 28R` / `ERB 28R` | Enter left/right base, assign runway (perpendicular from present position) |
 | `ELB 28R 3` | Enter left base, assign runway 28R, 3nm final |
 | `EF` | Enter final (straight-in) |
 | `EF 28R` | Enter final, assign runway |
@@ -586,7 +586,10 @@ The `GA` altitude argument uses the same format as CM/DM (see [Altitude Argument
 | `CA` / `CIRCLE` | Circle the airport |
 | `FOLLOW UAL123` | Follow traffic (VFR): pursue lead and auto-join its pattern when close |
 
-All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional runway argument. ELB/ERB also accept an optional distance argument that controls how far from the threshold the final turn occurs.
+All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional runway argument. ELB/ERB behave in two modes:
+
+- **Without a distance** — the aircraft turns perpendicular to the extended centerline from its current position (matching 7110.65 §3-1-9 *"TURN BASE LEG NOW"*). The base-leg length equals the aircraft's current cross-track; the final turn fires at the aircraft's projection onto centerline. Rejected with `"Unable, too close for base"` if the along-track from threshold is below the category floor (jets/turboprops 2.0 nm, pistons 1.0 nm, helicopters 0.5 nm) or the aircraft is past the threshold. Rejected with `"Unable, too high for base"` if the aircraft cannot descend to field elevation within the remaining base + final path at the category's pattern descent rate — issue `DM` (descend maintain) first.
+- **With a distance** — the aircraft flies to a base entry point on the extended centerline at that NM from the threshold (offset by the standard pattern width), then flies the standard base leg.
 
 `P270` plans a 270° turn at the next pattern turn point without executing immediately. The turn direction is automatically determined from the traffic pattern direction (left 270 for left traffic, right 270 for right traffic). Use `NO270` to cancel.
 

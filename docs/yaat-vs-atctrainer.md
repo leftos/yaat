@@ -202,7 +202,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Enter base | `ELB`/`ERB` | `ELB`/`ERB` + optional runway + distance | YAAT adds final distance |
+| Enter base | `ELB`/`ERB` | `ELB`/`ERB` + optional runway + distance | YAAT adds final distance; no-distance turns base perpendicular from present position (7110.65 §3-1-9 "turn base leg now"), not a fixed standard base turn point |
 | Make traffic | `MLT`/`MRT` | `MLT`/`MRT` + optional runway | YAAT adds cross-runway pattern |
 | Make 270 | — | `L270`/`R270` | YAAT adds direction (left/right 270) |
 | Plan 270 | `M2`/`M270` | `P270`/`PLAN270` | plans 270 at next pattern turn |

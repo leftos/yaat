@@ -285,10 +285,10 @@ public class PatternEntryTests : IDisposable
     // ───────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void ERB_From8nmEast_InsertsPatternEntryPhase()
+    public void ERB_NoDistance_From8nmEast_SkipsPatternEntry_UsesDerivedFinalDistance()
     {
         var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.80, -122.10, 3000, 270); // 8nm east, heading west
+        var aircraft = MakeAircraft(37.80, -122.10, 3000, 270); // 8nm east, heading west (NNE of centerline, on approach side)
 
         aircraft.Phases!.AssignedRunway = runway;
 
@@ -303,8 +303,13 @@ public class PatternEntryTests : IDisposable
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
 
-        Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
-        Assert.IsType<BasePhase>(aircraft.Phases.Phases[1]);
+        // ERB without a distance now enters base perpendicular from the aircraft's
+        // current position: no PatternEntryPhase, BasePhase first with a derived
+        // FinalDistanceNm equal to the aircraft's along-track distance (~2.6nm here).
+        Assert.IsType<BasePhase>(aircraft.Phases!.Phases[0]);
+        var basePhase = (BasePhase)aircraft.Phases.Phases[0];
+        Assert.NotNull(basePhase.FinalDistanceNm);
+        Assert.InRange(basePhase.FinalDistanceNm!.Value, 2.0, 3.5);
     }
 
     [Fact]
@@ -560,7 +565,6 @@ public class PatternEntryTests : IDisposable
 
     [Theory]
     [InlineData(PatternEntryLeg.Downwind, typeof(DownwindPhase))]
-    [InlineData(PatternEntryLeg.Base, typeof(BasePhase))]
     [InlineData(PatternEntryLeg.Final, typeof(FinalApproachPhase))]
     public void EntryLeg_ProducesCorrectFirstPatternPhase(PatternEntryLeg leg, Type expectedPhase)
     {
@@ -610,7 +614,9 @@ public class PatternEntryTests : IDisposable
     public void BaseEntry_HasCorrectSequence()
     {
         var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        // ERB-no-distance requires aircraft on the approach side (along-track > 0.5nm).
+        // (37.80, -122.10) is 8nm NE of the threshold → ~2.6nm along-track, ~5.9nm cross-track.
+        var aircraft = MakeAircraft(37.80, -122.10, 3000, 270);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);
@@ -618,11 +624,11 @@ public class PatternEntryTests : IDisposable
         var phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
 
-        Assert.Equal(4, phases.Count);
-        Assert.IsType<PatternEntryPhase>(phases[0]);
-        Assert.IsType<BasePhase>(phases[1]);
-        Assert.IsType<FinalApproachPhase>(phases[2]);
-        Assert.IsType<LandingPhase>(phases[3]);
+        // New ERB-no-distance behavior: no PatternEntryPhase; BasePhase starts from aircraft's present position.
+        Assert.Equal(3, phases.Count);
+        Assert.IsType<BasePhase>(phases[0]);
+        Assert.IsType<FinalApproachPhase>(phases[1]);
+        Assert.IsType<LandingPhase>(phases[2]);
     }
 
     [Fact]
