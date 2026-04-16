@@ -192,9 +192,37 @@ The helper reports each node's ID, type (HS/Twy/Parking), taxiway names, and dis
 | Ground taxi overshoot | `AssignedTaxiRoute.Segments`, lat/lon, current segment index, **nearest nodes** |
 | Runway exit wrong path | Phase name, gs, hdg, **nearest nodes**, exit waypoint IDs |
 
-### 5b. Hybrid replay with snapshots
+### 5b. Full replay from t=0 vs hybrid replay with snapshots
 
-When a full command replay from t=0 produces different state than what the user saw (because code has changed), use **hybrid replay**: restore a snapshot from the recording, then replay commands from that point with current code.
+Every replay test has to choose one of two strategies. Pick deliberately — the wrong choice either hides the bug or makes the test impossible to write.
+
+**Full replay from t=0** ticks the engine from the scenario start, applying every recorded command in order with the *current* code (fix included). This is the default and what most tests in this repo do.
+
+**Hybrid replay** restores a snapshot captured during recording at time T, then replays commands from T onward with current code. The pre-T state is frozen at what the user actually saw; only behavior from T onward is exercised by the fixed code.
+
+#### Decision rule
+
+Use **full replay from t=0** when the fix only changes behavior *at or after* the buggy moment. The aircraft still reaches the buggy state the same way the user saw, and your assertion fires there. This is the stronger test — it proves the fix works end-to-end, including that earlier phases still reach the moment of interest.
+
+Use **hybrid replay** when the fix changes behavior *before* the buggy moment — physics, command semantics, phase transitions, navigation, anything that alters the path through the session. The snapshot freezes pre-T state so your assertion at time T still has the setup it needs.
+
+#### What "localized" means
+
+A bug is localized when the fix only affects code paths executed at or after time T. Typical examples: a single command handler, a phase's exit condition, an approach transition selector, a descent-profile calculation invoked near the bug. If you can point at the file(s) the fix touches and confirm none of them run during the aircraft's earlier trajectory, full replay is fine.
+
+A bug is *not* localized when the fix touches turn rate, thrust response, lateral navigation, fix sequencing, phase transitions, or anything else the aircraft exercises continuously. Even "small" physics tweaks compound over minutes of flight.
+
+#### The failure mode each strategy avoids
+
+**Full replay avoids the false-pass from hybrid.** Hybrid only tests the post-snapshot slice. If your fix accidentally breaks behavior *before* T — e.g., an aircraft that used to descend correctly now stays high — hybrid won't catch it, because the snapshot restores the pre-fix state regardless. Full replay re-exercises every earlier phase with the new code, so regressions surface.
+
+**Hybrid avoids the unreachable-assertion trap from full replay.** If your fix changes pre-T behavior (even correctly), the aircraft may no longer reach the buggy state from t=0 the same way. It might turn earlier, descend sooner, sequence a fix at a different time, or never enter the phase where the bug lives. Your assertion at T then has nothing meaningful to check — the test either fails for the wrong reason or passes vacuously. Hybrid sidesteps this by pinning the setup.
+
+#### Canonical case for hybrid: WAIT presets
+
+Aircraft with `WAIT` preset commands are sensitive to dispatch timing (see Rules). If your fix touches WAIT behavior or anything that affects when a WAIT fires, full replay from t=0 will dispatch the aircraft at a different time — every downstream event shifts, and any assertion tied to a specific time `t` is now pointing at the wrong moment. Hybrid replay with a snapshot captured after the WAIT already fired is the right tool here.
+
+#### How to do hybrid replay
 
 ```csharp
 [Fact]
@@ -228,7 +256,7 @@ public void HybridReplay_FixAppliesAfterSnapshot()
 }
 ```
 
-**When to use hybrid replay:** full command replay from t=0 diverges from what the user saw. **Most issue fixes don't need it** — full replay is fine when the bug is localized.
+Most issue fixes in this repo use full replay — the bugs were localized enough that earlier state still reached the buggy moment correctly. Reach for hybrid when the decision rule above tells you to, not by default.
 
 ### 6. Write the real assertion
 
@@ -424,7 +452,7 @@ Assert.Null(failReason);
 - **Silent skip on missing data.** Return early if recording, NavData, or GeoJSON is absent. No `Assert.Skip`, no exceptions — just `return`. CI stays green.
 - **One test class per issue.** File name: `Issue{N}{ShortDescription}Tests.cs`. Class doc comment explains the bug, recording, and aircraft.
 - **Wire SimLog to xunit output.** Always initialize `SimLog` with `AddXUnit(output)` so Yaat.Sim's internal logs appear in test results. This is invaluable when diagnosing why a test fails.
-- **Watch out for WAIT presets.** Aircraft with `WAIT` preset commands are sensitive to dispatch timing. If WAIT behavior changes, recordings made before the change will produce different state at any given time `t`. Prefer testing aircraft without WAIT presets, or re-record after the fix.
+- **Watch out for WAIT presets.** Aircraft with `WAIT` preset commands are sensitive to dispatch timing. If WAIT behavior changes, recordings made before the change will produce different state at any given time `t`. Prefer testing aircraft without WAIT presets, re-record after the fix, or use hybrid replay with a snapshot captured after the WAIT fires (see §5b).
 
 ## Test Data
 
