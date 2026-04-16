@@ -31,16 +31,16 @@ GroundNavigator
 
 ## LandingPhase Braking Strategy
 
-LandingPhase's job is to decelerate the aircraft to coast speed. That's it. It does **not** try to deliver the aircraft to a specific speed at a specific point. RunwayExitPhase and GroundNavigator handle precision braking for the turn.
+LandingPhase's job is to decelerate the aircraft to the speed needed for the committed exit. For high-speed exits this is coast speed; for standard exits whose turnoff is below coast it is the exit's turnoff speed. RunwayExitPhase and GroundNavigator handle turn geometry and precision braking through the turn.
 
 ### Default exits (no explicit preference)
 
-The pilot picks the first comfortable exit. "Comfortable" means achievable at 1.5x the default rollout decel rate — not the first exit that requires maximum effort.
+The pilot picks the first comfortable forward exit (AIM 4-3-21.1 "exit at the first available taxiway"). "Comfortable" means achievable at 1.5x the default rollout decel rate — not the first exit that requires maximum effort. Back-exits (>100°) are deferred during the centerline walk: `FindExitFromCenterline` keeps looking for a forward exit and only returns a back-exit if nothing forward is found within the walk range.
 
-- Target coast speed with a braking buffer, same as explicit exits
+- Target the smaller of `coastSpeed` and the exit's `turnOffSpeed` — a 12-kt standard exit needs the aircraft at 12 kt at the branch, not at 25 kt coast
 - Subtract a braking buffer: the distance RunwayExitPhase needs to brake from coast speed to the exit's turn-off speed (using the default decel rate)
-- Plan decel to reach coast speed at that buffer point — not at the exit itself
-- If the exit is far enough that normal braking would reach coast too early, use a gentler rate (floored at 0.5 kts/s) to avoid a long pointless coast
+- Plan decel to reach the target speed at that buffer point — not at the exit itself
+- If the exit is far enough that normal braking would reach target too early, use a gentler rate (floored at 0.5 kts/s) to avoid a long pointless coast
 
 ### Explicit exits (EXIT T, EL, ER, etc.)
 
@@ -87,7 +87,7 @@ GroundNavigator handles the actual turn through the exit. It uses:
 | Constant | Jet | Turboprop | Piston | Helicopter |
 |----------|-----|-----------|--------|------------|
 | Coast speed (kts) | 40 | 35 | 25 | 15 |
-| Default rollout decel (kts/s) | 2.5 | 2.0 | 1.5 | 0 |
+| Default rollout decel (kts/s) | 2.5 | 2.0 | 2.5 | 0 |
 | High-speed exit turn-off (kts) | 30 | 25 | 18 | 15 |
 | Standard exit turn-off (kts) | 15 | 15 | 12 | 10 |
 | Ground turn rate (deg/s) | 20 | 25 | 35 | 30 |
@@ -126,4 +126,4 @@ GroundNavigator handles the actual turn through the exit. It uses:
 
 **Do not loosen the unable/degenerate guards.** Standard exits at the branch point are always rejected. This prevents degenerate near-zero virtual segments that cause heading reversals. Fix the braking planning instead.
 
-**Do not brake below coast speed in LandingPhase for explicit exits.** That's RunwayExitPhase's job. LandingPhase plans the decel to coast, accounts for the braking buffer, and hands off.
+**Brake toward the exit's turn-off speed when it is below coast.** LandingPhase targets `min(coastSpeed, candidateExit.TurnOffSpeed)` so a slow piston can actually take a 12-kt standard exit — the missed-exit check at `distToBranch≤0` fires unconditionally for standard exits, so the aircraft has to be at or below turn-off speed *before* the branch, not at coast. RunwayExitPhase still owns braking through the turn; LandingPhase just stops stranding slow aircraft above a reachable exit's turn-off.

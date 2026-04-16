@@ -565,9 +565,13 @@ public sealed class LandingPhase : Phase
 
                 if (requiredDecel <= brakingLimit)
                 {
-                    // Hand off at coast speed. RunwayExitPhase + GroundNavigator
-                    // handle braking below coast for the turn.
-                    targetSpeed = coastSpeed;
+                    // Plan speed: down to the exit's turnoff speed if it is slower
+                    // than coast (e.g. 12-kt standard exits for a piston whose coast
+                    // is 25 kt). RunwayExitPhase still handles the final braking through
+                    // the turn, but letting LandingPhase drop below coast is what allows
+                    // a slow piston to actually take a 90° midfield exit — otherwise the
+                    // missed-exit check at distToBranch≤0 always fires for standard exits.
+                    targetSpeed = Math.Min(coastSpeed, _candidateExit.TurnOffSpeed);
 
                     // Raise the decel rate if the direct turn-off requires firmer
                     // braking than the default — can't make the exit otherwise.

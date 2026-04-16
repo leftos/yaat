@@ -215,11 +215,14 @@ public static class CategoryPerformance
     /// </summary>
     public static double RolloutDecelRate(AircraftCategory cat)
     {
+        // Piston: 2.5 kts/s ≈ 0.13 g. Matches routine C172/PA28 braking on a dry runway
+        // (AIM 4-3-21, POH short-field max ≈ 0.25 g). ComfortableBrakingMultiplier×this
+        // becomes the ceiling used by LandingPhase exit planning.
         return cat switch
         {
             AircraftCategory.Jet => 2.5,
             AircraftCategory.Turboprop => 2.0,
-            AircraftCategory.Piston => 1.5,
+            AircraftCategory.Piston => 2.5,
             AircraftCategory.Helicopter => 0,
             _ => 2.5,
         };

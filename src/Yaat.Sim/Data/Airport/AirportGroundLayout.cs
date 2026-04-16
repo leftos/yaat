@@ -758,9 +758,15 @@ public sealed class AirportGroundLayout
             return null;
         }
 
-        // Walk along-track: only consider centerline nodes ahead of the aircraft
+        // Walk along-track: only consider centerline nodes ahead of the aircraft.
+        // When no taxiway preference is set, defer any back-exit (>100°) and keep
+        // walking — a real pilot wouldn't U-turn on the runway to reach E if G or
+        // H is available further ahead. Commit to the deferred back-exit only if
+        // nothing forward turns up.
         const int maxCenterlineHops = 30;
+        const double BackExitAngleThreshold = 100.0;
         var current = startNode;
+        (GroundNode Node, string Taxiway, List<GroundNode> Path, double ExitAngle)? deferredBackExit = null;
         for (int hop = 0; hop < maxCenterlineHops && current is not null; hop++)
         {
             double alongTrack = GeoMath.AlongTrackDistanceNm(current.Latitude, current.Longitude, lat, lon, runwayHeading);
@@ -797,13 +803,24 @@ public sealed class AirportGroundLayout
                     exitAngle,
                     string.Join("→", result.Value.Path.Select(n => n.Id))
                 );
+
+                bool isBackExit = (exitAngle is not null) && (exitAngle.Value > BackExitAngleThreshold);
+                bool hasTaxiwayPreference = preference?.Taxiway is not null;
+                if (isBackExit && !hasTaxiwayPreference)
+                {
+                    // Remember the nearest back-exit but keep walking for a forward one.
+                    deferredBackExit ??= (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle!.Value);
+                    current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
+                    continue;
+                }
+
                 return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle ?? 90);
             }
 
             current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
         }
 
-        return null;
+        return deferredBackExit;
     }
 
     /// <summary>
