@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- WinExe so double-clicking the release executable doesn't spawn a console window.
+         Students run this alongside CRC and a browser; they don't need stdout. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Yaat.VStrips</RootNamespace>
+    <ApplicationIcon>..\..\src\Yaat.Client\Resources\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
+    <!-- Velopack is loaded eagerly in Program.Main so the locator is initialized
+         before UpdateService is constructed inside MainViewModel. Without this
+         reference the standalone app crashes on startup with
+         "No VelopackLocator has been set". -->
+    <PackageReference Include="Velopack" Version="0.0.1298" />
+  </ItemGroup>
+
+  <!-- Reuses Yaat.Client's MainViewModel wholesale. This ships all the ground/radar/speech
+       infrastructure inside the standalone app even though only the VStrips tab is bound —
+       acceptable overhead for guaranteed feature parity and no parallel base VM to maintain.
+       See docs/flight-strips.md for the architectural rationale. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
+  </ItemGroup>
+</Project>

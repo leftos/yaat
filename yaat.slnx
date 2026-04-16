@@ -14,5 +14,6 @@
     <Project Path="tools/Yaat.RecordingConsolidator/Yaat.RecordingConsolidator.csproj" />
     <Project Path="tools/Yaat.Scratch/Yaat.Scratch.csproj" />
     <Project Path="tools/Yaat.SpeechSandbox/Yaat.SpeechSandbox.csproj" />
+    <Project Path="tools/Yaat.VStrips/Yaat.VStrips.csproj" />
   </Folder>
 </Solution>

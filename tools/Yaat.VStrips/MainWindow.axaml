@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Yaat.Client.ViewModels"
+        xmlns:vstrips="using:Yaat.Client.Views.VStrips"
+        x:Class="Yaat.VStrips.MainWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="YAAT Flight Strips">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <DockPanel>
+
+        <!-- Menu bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="Connect..."
+                          x:Name="ConnectMenuItem" />
+                <MenuItem Header="Disconnect"
+                          Command="{Binding DisconnectCommand}"
+                          IsVisible="{Binding IsConnected}" />
+                <Separator />
+                <MenuItem Header="E_xit"
+                          x:Name="ExitMenuItem" />
+            </MenuItem>
+            <MenuItem Header="_Room" IsEnabled="{Binding IsConnected}">
+                <MenuItem Header="_Join Room..."
+                          Command="{Binding ShowRoomsCommand}" />
+                <MenuItem Header="_Leave Room"
+                          Command="{Binding LeaveRoomCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#252529"
+                BorderBrush="#3A3A40"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusText}"
+                           FontSize="11"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding ActiveRoomName}"
+                           FontSize="11"
+                           Foreground="#B0B0B0"
+                           VerticalAlignment="Center"
+                           IsVisible="{Binding IsInRoom}"/>
+            </Grid>
+        </Border>
+
+        <!-- Center: the VStrips view, bound directly to the shared VStripsViewModel -->
+        <vstrips:VStripsView DataContext="{Binding VStrips}" />
+
+    </DockPanel>
+
+</Window>
