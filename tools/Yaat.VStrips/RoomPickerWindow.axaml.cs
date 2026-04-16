@@ -15,6 +15,13 @@ public partial class RoomPickerWindow : Window
     /// <summary>The room ID the user selected, or null if they cancelled.</summary>
     public string? SelectedRoomId { get; private set; }
 
+    /// <summary>Parameterless ctor required by Avalonia's XAML runtime loader. Not used at runtime.</summary>
+    public RoomPickerWindow()
+    {
+        _vm = null!;
+        InitializeComponent();
+    }
+
     public RoomPickerWindow(StandaloneViewModel vm)
     {
         _vm = vm;
