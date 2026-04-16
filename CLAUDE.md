@@ -42,6 +42,7 @@ Key use cases: trace multi-hop exit paths (`--bfs 230 T`), find all exits from a
 python tools/bug_bundle.py info <bundle.zip>                           # manifest summary + aircraft at t=0
 python tools/bug_bundle.py snapshot <bundle.zip> --at 182              # snapshot nearest to t=182s
 python tools/bug_bundle.py snapshot <bundle.zip> --at 182 --callsign X # filter to one aircraft
+python tools/bug_bundle.py track <bundle.zip> --pair N436MS N9225L --start 115 --end 220 # time-series + gap/runaway timer between two callsigns
 python tools/bug_bundle.py actions <bundle.zip>                        # timeline of user actions
 python tools/bug_bundle.py logs <bundle.zip>                           # extract yaat-client/server logs to .tmp/
 python tools/bug_bundle.py install <local.zip> --issue 134 --desc slug # copy to TestData/ with naming convention
@@ -49,7 +50,7 @@ python tools/bug_bundle.py install --issue 134 --desc slug             # fetch f
 python tools/bug_bundle.py validate <bundle.zip>                       # manifest + decompression integrity
 ```
 
-Full subcommand list: `info`, `snapshot`, `actions`, `scenario`, `weather`, `layouts`, `logs`, `install`, `validate`. See `.claude/skills/bug-bundle/SKILL.md` for the full reference.
+Full subcommand list: `info`, `snapshot`, `track`, `actions`, `scenario`, `weather`, `layouts`, `logs`, `install`, `validate`. See `.claude/skills/bug-bundle/SKILL.md` for the full reference.
 
 ## Logs
 

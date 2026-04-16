@@ -241,11 +241,38 @@ public sealed class VfrFollowPhase : Phase
 
     /// <summary>
     /// Returns the lead's current pattern waypoints if the lead is in a pattern
-    /// phase (Downwind/Base/Crosswind/Upwind), otherwise null.
+    /// leg phase (Downwind/Base/Crosswind/Upwind). When the lead is in
+    /// <see cref="PatternEntryPhase"/> — navigating to downwind abeam before
+    /// the real circuit begins — the waypoints already exist on the next
+    /// pattern-leg phase in the phase list (populated by
+    /// <see cref="PatternBuilder.BuildCircuit"/>), so we look ahead.
     /// </summary>
     private static PatternWaypoints? ExtractPatternWaypoints(AircraftState lead)
     {
-        return lead.Phases?.CurrentPhase switch
+        var current = lead.Phases?.CurrentPhase;
+        var fromCurrent = WaypointsOf(current);
+        if (fromCurrent is not null)
+        {
+            return fromCurrent;
+        }
+
+        if (current is PatternEntryPhase && lead.Phases is { } phases)
+        {
+            for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+            {
+                var waypoints = WaypointsOf(phases.Phases[i]);
+                if (waypoints is not null)
+                {
+                    return waypoints;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static PatternWaypoints? WaypointsOf(Phase? phase) =>
+        phase switch
         {
             DownwindPhase d => d.Waypoints,
             BasePhase b => b.Waypoints,
@@ -253,7 +280,6 @@ public sealed class VfrFollowPhase : Phase
             UpwindPhase u => u.Waypoints,
             _ => null,
         };
-    }
 
     /// <summary>
     /// Returns true if <paramref name="follower"/> is on the same side of the

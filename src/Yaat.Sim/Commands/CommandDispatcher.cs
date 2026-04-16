@@ -1573,7 +1573,7 @@ public static class CommandDispatcher
         // If the follower is already in a pattern phase that honors FollowingCallsign,
         // just update the target — existing AirborneFollowHelper handles spacing.
         var current = aircraft.Phases?.CurrentPhase;
-        if (current is DownwindPhase or BasePhase or FinalApproachPhase)
+        if (current is PatternEntryPhase or DownwindPhase or BasePhase or FinalApproachPhase)
         {
             aircraft.FollowingCallsign = follow.TargetCallsign;
             return Ok($"Follow {follow.TargetCallsign}");

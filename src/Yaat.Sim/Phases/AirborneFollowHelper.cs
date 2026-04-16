@@ -69,6 +69,34 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
+    /// Variant of <see cref="GetAdjustedSpeed"/> that uses the wider
+    /// free-flight desired spacing instead of pattern-tight spacing. Used by
+    /// phases that are navigating toward the pattern but not yet established
+    /// on a downwind/base/final leg — real pilots don't tighten to pattern
+    /// spacing until they're actually flying the rhythm of the pattern.
+    /// </summary>
+    public static double? GetAdjustedSpeedFreeFlight(PhaseContext ctx, double normalSpeed, double minSpeed)
+    {
+        string? targetCallsign = ctx.Aircraft.FollowingCallsign;
+        if (targetCallsign is null)
+        {
+            return null;
+        }
+
+        var target = ctx.AircraftLookup?.Invoke(targetCallsign);
+        if (target is null)
+        {
+            Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
+            ctx.Aircraft.FollowingCallsign = null;
+            return null;
+        }
+
+        var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
+        double desired = FreeFlightDistanceForLeader(leaderCategory);
+        return ComputeAdjustedSpeedWithDesired(ctx.Aircraft, target, normalSpeed, minSpeed, desired, Log);
+    }
+
+    /// <summary>
     /// Phase-context-free variant used by <see cref="VfrFollowPhase"/> during free
     /// pursuit (lead not in a pattern). Treats the lead's ground speed as the
     /// "normal" target so the follower tracks the lead's speed with distance-based

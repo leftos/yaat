@@ -168,6 +168,15 @@ public sealed class PatternWaypointsDto
     public required double DownwindHeadingDeg { get; init; }
     public required double BaseHeadingDeg { get; init; }
     public required double FinalHeadingDeg { get; init; }
+
+    /// <summary>Pattern altitude MSL (feet). Optional for backward compat
+    /// with snapshots predating this field — restore infers 0 on miss.</summary>
+    public double? PatternAltitudeFt { get; init; }
+
+    /// <summary>0=Left, 1=Right. Optional for backward compat — when null,
+    /// FromSnapshot infers from the abeam position relative to the threshold
+    /// along the landing heading.</summary>
+    public int? Direction { get; init; }
 }
 
 // --- Phase (polymorphic) ---

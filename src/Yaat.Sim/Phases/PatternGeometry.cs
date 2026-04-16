@@ -76,10 +76,34 @@ public sealed class PatternWaypoints
             DownwindHeadingDeg = DownwindHeading.Degrees,
             BaseHeadingDeg = BaseHeading.Degrees,
             FinalHeadingDeg = FinalHeading.Degrees,
+            PatternAltitudeFt = PatternAltitude,
+            Direction = (int)Direction,
         };
 
-    public static PatternWaypoints FromSnapshot(PatternWaypointsDto dto) =>
-        new()
+    public static PatternWaypoints FromSnapshot(PatternWaypointsDto dto)
+    {
+        // Infer Direction from geometry when the snapshot predates the
+        // Direction field: signed cross-track of the downwind abeam from the
+        // threshold along the landing heading is positive for a right pattern
+        // and negative for a left pattern.
+        PatternDirection direction;
+        if (dto.Direction is { } explicitDir)
+        {
+            direction = (PatternDirection)explicitDir;
+        }
+        else
+        {
+            double cross = GeoMath.SignedCrossTrackDistanceNmRaw(
+                dto.DownwindAbeamLat,
+                dto.DownwindAbeamLon,
+                dto.ThresholdLat,
+                dto.ThresholdLon,
+                dto.FinalHeadingDeg
+            );
+            direction = cross >= 0 ? PatternDirection.Right : PatternDirection.Left;
+        }
+
+        return new PatternWaypoints
         {
             DepartureEndLat = dto.DepartureEndLat,
             DepartureEndLon = dto.DepartureEndLon,
@@ -98,7 +122,10 @@ public sealed class PatternWaypoints
             DownwindHeading = new TrueHeading(dto.DownwindHeadingDeg),
             BaseHeading = new TrueHeading(dto.BaseHeadingDeg),
             FinalHeading = new TrueHeading(dto.FinalHeadingDeg),
+            PatternAltitude = dto.PatternAltitudeFt ?? 0,
+            Direction = direction,
         };
+    }
 }
 
 /// <summary>

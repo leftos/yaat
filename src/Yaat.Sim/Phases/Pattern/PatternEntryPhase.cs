@@ -117,6 +117,24 @@ public sealed class PatternEntryPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // If the aircraft is following, close the gap during entry rather
+        // than waiting until DownwindPhase to engage spacing control. Use
+        // free-flight desired spacing (wider than pattern-tight) because the
+        // aircraft isn't on a pattern leg yet — real pilots don't tighten to
+        // pattern rhythm until they're actually on the downwind. DownwindSpeed
+        // is the fixed baseline each tick; feeding the previous TargetSpeed
+        // back in would compound the ±20 kt clamp over ticks.
+        if (ctx.Targets.TargetSpeed is not null)
+        {
+            double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
+            if (adjusted is not null)
+            {
+                ctx.Targets.TargetSpeed = adjusted.Value;
+            }
+        }
+
         // FlightPhysics drains NavigationRoute as waypoints are reached
         return ctx.Targets.NavigationRoute.Count == 0;
     }
@@ -182,6 +200,7 @@ public sealed class PatternEntryPhase : Phase
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

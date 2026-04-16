@@ -327,6 +327,151 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: track
+# ---------------------------------------------------------------------------
+
+
+def _haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    import math
+
+    lat1r, lon1r, lat2r, lon2r = map(math.radians, (lat1, lon1, lat2, lon2))
+    dlat = lat2r - lat1r
+    dlon = lon2r - lon1r
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1r) * math.cos(lat2r) * math.sin(dlon / 2) ** 2
+    return 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 3440.065
+
+
+def _phase_name(ac: dict[str, Any]) -> str:
+    phases = (ac.get("Phases") or {}).get("Phases") or []
+    idx = (ac.get("Phases") or {}).get("CurrentIndex")
+    if not phases or idx is None or idx < 0 or idx >= len(phases):
+        return "-"
+    name = phases[idx].get("$type") or "-"
+    return name.removesuffix("Phase") if name.endswith("Phase") else name
+
+
+def cmd_track(args: argparse.Namespace) -> int:
+    """Iterate all snapshots and emit a per-snapshot row per callsign.
+
+    For each callsign, prints t, pos/alt/hdg/ias, TargetSpeed, FollowingCallsign,
+    and the active phase. When --pair is given, also prints the gap (nm) between
+    the two callsigns and a running VfrFollowPhase-style runaway timer (seconds
+    the gap has been strictly above the best-seen gap since follow started).
+    """
+    callsigns = [c.upper() for c in (args.callsigns or [])]
+    if args.pair:
+        callsigns = list({*callsigns, *[c.upper() for c in args.pair]})
+    if not callsigns:
+        print("error: supply at least one callsign (or --pair A B)", file=sys.stderr)
+        return 2
+
+    with BundleReader(args.bundle) as reader:
+        snaps_meta = reader.manifest.get("Snapshots") or []
+        if not snaps_meta:
+            print("error: bundle has no snapshots", file=sys.stderr)
+            return 1
+
+        rows: list[dict[str, Any]] = []
+        best_gap = float("inf")
+        runaway_elapsed = 0.0
+        prev_t: float | None = None
+        prev_follow_cs: str | None = None
+
+        for i in range(len(snaps_meta)):
+            entry = snaps_meta[i]
+            t = entry["ElapsedSeconds"]
+            if args.start is not None and t < args.start:
+                continue
+            if args.end is not None and t > args.end:
+                break
+            snap = reader.read_snapshot(i)
+            by_cs = {
+                (ac.get("Callsign") or "").upper(): ac
+                for ac in (snap.get("Aircraft") or [])
+            }
+            present = {cs: by_cs.get(cs) for cs in callsigns}
+
+            row: dict[str, Any] = {"t": t, "index": i}
+            for cs in callsigns:
+                ac = present[cs]
+                if ac is None:
+                    row[cs] = None
+                    continue
+                row[cs] = {
+                    "lat": ac["Latitude"],
+                    "lon": ac["Longitude"],
+                    "alt": ac["Altitude"],
+                    "ias": ac["IndicatedAirspeed"],
+                    "hdg": ac["TrueHeadingDeg"],
+                    "tgt_spd": (ac.get("Targets") or {}).get("TargetSpeed"),
+                    "following": ac.get("FollowingCallsign"),
+                    "phase": _phase_name(ac),
+                }
+
+            if args.pair:
+                a_cs, b_cs = args.pair[0].upper(), args.pair[1].upper()
+                a, b = present.get(a_cs), present.get(b_cs)
+                if a is not None and b is not None:
+                    gap = _haversine_nm(a["Latitude"], a["Longitude"], b["Latitude"], b["Longitude"])
+                    row["gap_nm"] = gap
+                    follow_cs = a.get("FollowingCallsign")
+                    if follow_cs != prev_follow_cs:
+                        best_gap = float("inf")
+                        runaway_elapsed = 0.0
+                    if follow_cs == b_cs:
+                        delta = (t - prev_t) if prev_t is not None else 1.0
+                        if gap <= best_gap:
+                            best_gap = gap
+                            runaway_elapsed = 0.0
+                        else:
+                            runaway_elapsed += delta
+                        row["best_gap"] = best_gap
+                        row["runaway_s"] = runaway_elapsed
+                    prev_follow_cs = follow_cs
+                prev_t = t
+            rows.append(row)
+
+        if args.json:
+            write_output(json.dumps(rows, indent=2), args.out)
+            return 0
+
+        # Text table
+        lines: list[str] = []
+        header_cols = ["t"]
+        for cs in callsigns:
+            header_cols.append(f"{cs}.phase")
+            header_cols.append(f"{cs}.ias")
+            header_cols.append(f"{cs}.tgt")
+            header_cols.append(f"{cs}.foll")
+        if args.pair:
+            header_cols.extend(["gap_nm", "best", "runaway_s"])
+        lines.append(" | ".join(header_cols))
+        lines.append("-+-".join("-" * max(6, len(c)) for c in header_cols))
+        for row in rows:
+            parts: list[str] = [f"{row['t']:4}"]
+            for cs in callsigns:
+                d = row.get(cs)
+                if d is None:
+                    parts.extend(["-", "-", "-", "-"])
+                else:
+                    tgt = d["tgt_spd"]
+                    parts.append(f"{d['phase']:<14}")
+                    parts.append(f"{d['ias']:5.1f}")
+                    parts.append(f"{tgt:5.1f}" if isinstance(tgt, (int, float)) else "  -  ")
+                    parts.append(f"{(d['following'] or '-'):<7}")
+            if args.pair:
+                gap = row.get("gap_nm")
+                bg = row.get("best_gap")
+                ra = row.get("runaway_s")
+                parts.append(f"{gap:6.3f}" if isinstance(gap, (int, float)) else "   -  ")
+                parts.append(f"{bg:5.2f}" if isinstance(bg, (int, float)) and bg != float("inf") else "  -  ")
+                parts.append(f"{ra:5.1f}" if isinstance(ra, (int, float)) else "  -  ")
+            lines.append(" | ".join(parts))
+        write_output("\n".join(lines), args.out)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: actions
 # ---------------------------------------------------------------------------
 
@@ -652,6 +797,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_snap.add_argument("--at", type=float, required=True, help="target elapsed seconds")
     p_snap.add_argument("--callsign", type=str, default=None, help="filter to one aircraft")
     p_snap.set_defaults(func=cmd_snapshot)
+
+    p_trk = sub.add_parser("track", help="time-series of aircraft state across all snapshots")
+    _add_bundle_arg(p_trk)
+    _add_out_arg(p_trk)
+    p_trk.add_argument("--callsigns", nargs="+", default=None, help="one or more callsigns to track")
+    p_trk.add_argument("--pair", nargs=2, default=None, metavar=("FOLLOWER", "LEADER"), help="compute gap + runaway timer between two callsigns")
+    p_trk.add_argument("--start", type=float, default=None, help="only include snapshots at t >= START")
+    p_trk.add_argument("--end", type=float, default=None, help="only include snapshots at t <= END")
+    p_trk.add_argument("--json", action="store_true", help="structured JSON output")
+    p_trk.set_defaults(func=cmd_track)
 
     p_act = sub.add_parser("actions", help="list recorded user actions")
     _add_bundle_arg(p_act)
