@@ -116,23 +116,46 @@ internal static class PatternCommandHandler
             // the arc needed, the maneuver is infeasible (loop).
             double distToEntry = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, eLat, eLon);
 
-            // Turn radius at current IAS (nm). Standard rate = 3°/s, or pattern
-            // rate. TAS ≈ IAS at low altitude. radius = TAS / (ω in rad/s).
-            double turnRateDegs = 3.0;
-            double tasKts = Math.Max(aircraft.IndicatedAirspeed, 80);
-            double radiusNm = (tasKts / 3600.0) / (turnRateDegs * Math.PI / 180.0);
+            // Turn radius model depends on flight rules. IFR keeps the
+            // conservative standard-rate envelope (3°/s on IAS); VFR uses a
+            // pattern-rate envelope on groundspeed so light/slow VFR traffic
+            // can accept the tighter turns it actually flies in the pattern.
+            // Precedent for IsVfr branching: FinalApproachPhase.cs:367.
+            double turnRateDegs;
+            double speedKts;
+            if (aircraft.IsVfr)
+            {
+                // 12°/s ≈ 25° bank at 90 kt — AIM medium-bank ceiling for
+                // traffic-pattern maneuvering (AIM 4-3-2/3 + FAA Airplane
+                // Flying Handbook pattern-turn guidance). Groundspeed is
+                // wind-corrected, floored at 60 kt so a light single on a
+                // strong headwind isn't granted an unrealistically tight
+                // radius.
+                turnRateDegs = 12.0;
+                speedKts = Math.Max(aircraft.GroundSpeed, 60);
+            }
+            else
+            {
+                turnRateDegs = 3.0;
+                speedKts = Math.Max(aircraft.IndicatedAirspeed, 80);
+            }
+            double radiusNm = (speedKts / 3600.0) / (turnRateDegs * Math.PI / 180.0);
 
             // Arc distance for both turns combined
             double totalTurnDeg = turnToEntry + turnAtEntry;
             double arcNm = (totalTurnDeg * Math.PI / 180.0) * radiusNm;
 
             Log.LogDebug(
-                "[EF-LoopCheck] {Callsign}: hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, dist={Dist:F1}nm, arc={Arc:F1}nm",
+                "[EF-LoopCheck] {Callsign}: vfr={IsVfr}, hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, spd={Spd:F0}kt, rate={Rate:F0}°/s, r={R:F2}nm, dist={Dist:F1}nm, arc={Arc:F1}nm",
                 aircraft.Callsign,
+                aircraft.IsVfr,
                 aircraft.TrueHeading.Degrees,
                 bearingToEntry,
                 turnToEntry,
                 turnAtEntry,
+                speedKts,
+                turnRateDegs,
+                radiusNm,
                 distToEntry,
                 arcNm
             );
