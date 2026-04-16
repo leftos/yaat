@@ -220,12 +220,14 @@ internal static class PatternCommandHandler
                 double? leadInLat = null;
                 double? leadInLon = null;
 
-                // For downwind entry: add a lead-in waypoint ~1.5nm before the abeam point
-                // along the reverse downwind track, so the aircraft arrives aligned.
+                // For downwind entry: choose between a 45° midfield intercept (AIM 4-3-3)
+                // and a straight-in join to the extended downwind leg. Score each by the
+                // total heading change required along aircraft → lead-in → abeam → downwind,
+                // with a penalty on any single turn >120° (discourages U-turns / looping past
+                // the field).
                 if (effectiveEntryLeg == PatternEntryLeg.Downwind)
                 {
-                    TrueHeading reverseDownwind = waypoints.DownwindHeading.ToReciprocal();
-                    var leadIn = GeoMath.ProjectPoint(entryLat, entryLon, reverseDownwind, 1.5);
+                    var leadIn = ChooseDownwindLeadIn(aircraft, runway, direction, category, waypoints, entryLat, entryLon);
                     leadInLat = leadIn.Lat;
                     leadInLon = leadIn.Lon;
                 }
@@ -756,6 +758,99 @@ internal static class PatternCommandHandler
             _ => "hover",
         };
         return CommandDispatcher.Ok($"Hold at {fixName}, {dirStr}");
+    }
+
+    /// <summary>
+    /// Choose the lead-in waypoint for a downwind entry. Evaluates two candidates
+    /// — a 45° midfield intercept (AIM 4-3-3) and a straight-in join to the
+    /// extended downwind leg — and picks whichever requires less total maneuvering
+    /// from the aircraft's current position and heading. A penalty on any single
+    /// turn exceeding 120° discourages near-U-turn (loop) paths.
+    ///
+    /// 45° entry heading: downwind ± 45° (+ for right pattern, − for left).
+    /// 45° lead-in distance: 50% of runway length, with per-category floors so
+    /// turboprops and jets get enough room to stabilize on the entry leg:
+    ///   Piston/Helicopter: 0.5 × runway length (no floor — tight patterns)
+    ///   Turboprop:         max(0.5 × runway length, 1.5 nm)
+    ///   Jet:               max(0.5 × runway length, 2.0 nm)
+    /// Extended-downwind lead-in distance: 1.5 nm (legacy default).
+    /// </summary>
+    private static (double Lat, double Lon) ChooseDownwindLeadIn(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        PatternDirection direction,
+        AircraftCategory category,
+        PatternWaypoints waypoints,
+        double abeamLat,
+        double abeamLon
+    )
+    {
+        const double UTurnPenaltyThresholdDeg = 120.0;
+        const double ExtendedDownwindLeadInNm = 1.5;
+
+        double downwindDeg = waypoints.DownwindHeading.Degrees;
+        double entry45Deg = direction == PatternDirection.Right ? downwindDeg + 45.0 : downwindDeg - 45.0;
+        var entry45Hdg = new TrueHeading(entry45Deg);
+        TrueHeading reverseEntry45 = entry45Hdg.ToReciprocal();
+        TrueHeading reverseDownwind = waypoints.DownwindHeading.ToReciprocal();
+
+        double runwayHalfNm = runway.LengthFt * 0.5 / 6076.12;
+        double categoryFloorNm = category switch
+        {
+            AircraftCategory.Jet => 2.0,
+            AircraftCategory.Turboprop => 1.5,
+            _ => 0.0,
+        };
+        double leadIn45Nm = Math.Max(runwayHalfNm, categoryFloorNm);
+        var lead45 = GeoMath.ProjectPoint(abeamLat, abeamLon, reverseEntry45, leadIn45Nm);
+        var leadXtdDownwind = GeoMath.ProjectPoint(abeamLat, abeamLon, reverseDownwind, ExtendedDownwindLeadInNm);
+
+        double score45 = ScoreLeadInPath(aircraft, lead45.Lat, lead45.Lon, entry45Deg, downwindDeg, UTurnPenaltyThresholdDeg);
+        double scoreXtdDownwind = ScoreLeadInPath(
+            aircraft,
+            leadXtdDownwind.Lat,
+            leadXtdDownwind.Lon,
+            downwindDeg,
+            downwindDeg,
+            UTurnPenaltyThresholdDeg
+        );
+
+        Log.LogDebug(
+            "[PatternEntry.LeadIn] {Callsign}: 45° score={Score45:F1} XDW score={ScoreXDW:F1} → {Chosen}",
+            aircraft.Callsign,
+            score45,
+            scoreXtdDownwind,
+            score45 <= scoreXtdDownwind ? "45°" : "XDW"
+        );
+
+        return score45 <= scoreXtdDownwind ? (lead45.Lat, lead45.Lon) : (leadXtdDownwind.Lat, leadXtdDownwind.Lon);
+    }
+
+    /// <summary>
+    /// Sum of absolute heading changes along the path aircraft → lead-in → abeam → downwind,
+    /// plus a penalty for any single turn exceeding <paramref name="uTurnThresholdDeg"/>.
+    /// The penalty is linear past the threshold so a 160° turn scores far worse than a 119°
+    /// one, which is what distinguishes a clean 45° intercept from a loop-around.
+    /// </summary>
+    private static double ScoreLeadInPath(
+        AircraftState aircraft,
+        double leadInLat,
+        double leadInLon,
+        double entryHeadingDeg,
+        double downwindHeadingDeg,
+        double uTurnThresholdDeg
+    )
+    {
+        double bearingToLeadIn = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, leadInLat, leadInLon);
+        double turnInit = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, bearingToLeadIn);
+        double turnMid = GeoMath.AbsBearingDifference(bearingToLeadIn, entryHeadingDeg);
+        double turnAbeam = GeoMath.AbsBearingDifference(entryHeadingDeg, downwindHeadingDeg);
+
+        double total = turnInit + turnMid + turnAbeam;
+        total += Math.Max(0.0, turnInit - uTurnThresholdDeg);
+        total += Math.Max(0.0, turnMid - uTurnThresholdDeg);
+        total += Math.Max(0.0, turnAbeam - uTurnThresholdDeg);
+        return total;
     }
 
     /// <summary>

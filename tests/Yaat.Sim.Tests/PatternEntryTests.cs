@@ -963,4 +963,246 @@ public class PatternEntryTests : IDisposable
             Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
         }
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // 45° midfield entry selection (AIM 4-3-3)
+    //
+    // ERD/ELD should prefer a 45° intercept lead-in (from the outside of the
+    // pattern, at 45° to the downwind leg) when that requires less maneuvering
+    // than a straight-in join to the extended downwind leg. The extended-downwind
+    // lead-in is preserved for upwind-aligned aircraft.
+    //
+    // Right pattern:  entry heading = downwind + 45°, lead-in bearing from abeam = (entry + 180°)
+    // Left pattern:   entry heading = downwind - 45°, lead-in bearing from abeam = (entry + 180°)
+    // Lead-in distance for 45° entry = 50% of runway length.
+    // ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ERD_AircraftDownwindOfAbeam_Picks45DegreeLeadIn()
+    {
+        // VPMOR-like: aircraft east of KOAK heading west. The extended-downwind
+        // lead-in would be west of abeam (reverse of downwind heading 112°, i.e. 292°),
+        // forcing a near-U-turn at the lead-in and flying past the field.
+        // 45° entry lead-in is NNW of abeam (reverse of entry heading 157°, i.e. 337°).
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270); // ~10nm east, heading west
+        aircraft.Phases!.AssignedRunway = runway;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+
+        Assert.True(result.Success, result.Message);
+        DumpPhases(aircraft);
+
+        var entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
+        Assert.NotNull(entry.LeadInLat);
+        Assert.NotNull(entry.LeadInLon);
+
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
+        double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
+        double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees + 45.0 + 180.0).Degrees; // 337° for OAK 28R right
+        double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees; // 292° for OAK 28R
+
+        _output.WriteLine(
+            $"Lead-in bearing from abeam: {bearingAbeamToLeadIn:F1}° (45° expects {expected45Bearing:F1}°, XDW expects {expectedXDWBearing:F1}°)"
+        );
+
+        double distTo45 = GeoMath.AbsBearingDifference(bearingAbeamToLeadIn, expected45Bearing);
+        double distToXDW = GeoMath.AbsBearingDifference(bearingAbeamToLeadIn, expectedXDWBearing);
+        Assert.True(
+            distTo45 < distToXDW,
+            $"Lead-in should be on 45° side of abeam. 45° side ({expected45Bearing:F0}°) off by {distTo45:F1}°; XDW side ({expectedXDWBearing:F0}°) off by {distToXDW:F1}°."
+        );
+    }
+
+    [Fact]
+    public void ELD_AircraftDownwindOfAbeam_Picks45DegreeLeadIn()
+    {
+        // Left pattern mirror: aircraft southeast of KOAK heading west.
+        // Left pattern downwind is south of runway. Extended-downwind lead-in
+        // would force a near-U-turn. 45° entry lead-in is SW of abeam
+        // (reverse of entry heading 67°, i.e. 247°).
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.65, -122.00, 3000, 270); // SE of field, heading west, correct side for left pattern
+        aircraft.Phases!.AssignedRunway = runway;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+
+        Assert.True(result.Success, result.Message);
+        DumpPhases(aircraft);
+
+        var entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
+        Assert.NotNull(entry.LeadInLat);
+        Assert.NotNull(entry.LeadInLon);
+
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Left, null, null, null);
+        double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
+        double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees - 45.0 + 180.0).Degrees; // 247° for OAK 28R left
+        double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees;
+
+        _output.WriteLine(
+            $"Lead-in bearing from abeam: {bearingAbeamToLeadIn:F1}° (45° expects {expected45Bearing:F1}°, XDW expects {expectedXDWBearing:F1}°)"
+        );
+
+        double distTo45 = GeoMath.AbsBearingDifference(bearingAbeamToLeadIn, expected45Bearing);
+        double distToXDW = GeoMath.AbsBearingDifference(bearingAbeamToLeadIn, expectedXDWBearing);
+        Assert.True(
+            distTo45 < distToXDW,
+            $"Lead-in should be on 45° side of abeam. 45° side ({expected45Bearing:F0}°) off by {distTo45:F1}°; XDW side ({expectedXDWBearing:F0}°) off by {distToXDW:F1}°."
+        );
+    }
+
+    [Fact]
+    public void ERD_AircraftUpwindAligned_PicksExtendedDownwindLeadIn()
+    {
+        // Aircraft positioned ~5nm upwind of abeam, on the extended downwind leg,
+        // heading downwind direction. Extended-downwind entry is a pure straight-in
+        // (0° turns everywhere) — should be preferred over 45°.
+        var runway = MakeOak28R();
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
+        var upwindPos = GeoMath.ProjectPoint(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.ToReciprocal(), 5.0);
+        var aircraft = MakeAircraft(upwindPos.Lat, upwindPos.Lon, wp.PatternAltitude, wp.DownwindHeading.Degrees);
+        aircraft.Phases!.AssignedRunway = runway;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+
+        Assert.True(result.Success, result.Message);
+        DumpPhases(aircraft);
+
+        var entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
+        Assert.NotNull(entry.LeadInLat);
+        Assert.NotNull(entry.LeadInLon);
+
+        double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
+        double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees + 45.0 + 180.0).Degrees;
+        double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees;
+
+        _output.WriteLine(
+            $"Lead-in bearing from abeam: {bearingAbeamToLeadIn:F1}° (45° expects {expected45Bearing:F1}°, XDW expects {expectedXDWBearing:F1}°)"
+        );
+
+        double distTo45 = GeoMath.AbsBearingDifference(bearingAbeamToLeadIn, expected45Bearing);
+        double distToXDW = GeoMath.AbsBearingDifference(bearingAbeamToLeadIn, expectedXDWBearing);
+        Assert.True(
+            distToXDW < distTo45,
+            $"Upwind-aligned aircraft should pick extended-downwind lead-in. XDW side ({expectedXDWBearing:F0}°) off by {distToXDW:F1}°; 45° side ({expected45Bearing:F0}°) off by {distTo45:F1}°."
+        );
+    }
+
+    [Fact]
+    public void Erd_Piston_LeadInDistanceIs50PercentOfRunwayLength()
+    {
+        // Pistons get no floor — 0.5 × runway length is the stabilization distance.
+        // For OAK 28R (6213ft) with a C182 (piston), that is ~0.511nm.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270); // C182, VPMOR-like → 45° expected
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
+        double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
+        double expectedNm = runway.LengthFt * 0.5 / 6076.12;
+
+        _output.WriteLine($"Piston lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected {expectedNm:F3}nm for 6213ft runway)");
+        Assert.InRange(distAbeamToLeadIn, expectedNm - 0.03, expectedNm + 0.03);
+    }
+
+    [Fact]
+    public void Erd_Turboprop_LeadInDistanceHas1_5nmFloor()
+    {
+        // Turboprops get a 1.5nm floor. For OAK 28R (6213ft), 0.5×length=0.511nm, so
+        // the floor dominates: expect 1.5nm.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
+        aircraft.AircraftType = "DH8D"; // Dash 8-Q400 — turboprop
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        Assert.Equal(AircraftCategory.Turboprop, cat);
+        var wp = PatternGeometry.Compute(runway, cat, PatternDirection.Right, null, null, null);
+        double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
+
+        _output.WriteLine($"Turboprop lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected 1.5nm floor)");
+        Assert.InRange(distAbeamToLeadIn, 1.47, 1.53);
+    }
+
+    [Fact]
+    public void Erd_Jet_LeadInDistanceHas2_0nmFloor()
+    {
+        // Jets get a 2.0nm floor. For OAK 28R (6213ft), expect 2.0nm.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
+        aircraft.AircraftType = "B738"; // 737-800 — jet
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        Assert.Equal(AircraftCategory.Jet, cat);
+        var wp = PatternGeometry.Compute(runway, cat, PatternDirection.Right, null, null, null);
+        double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
+
+        _output.WriteLine($"Jet lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected 2.0nm floor)");
+        Assert.InRange(distAbeamToLeadIn, 1.97, 2.03);
+    }
+
+    [Fact]
+    public void Erd_Jet_OnVeryLongRunway_LeadInDistanceIs50PercentOfLength()
+    {
+        // For a >4nm runway, 0.5×length > 2.0nm, so the floor stops binding.
+        // SFO 28R is 11870ft = 1.95nm half-length, which is still under 2.0nm, so
+        // the jet floor barely dominates. Use a synthesized runway-length test:
+        // we pick a hypothetical 30000ft runway → half=2.47nm > 2.0 floor.
+        var runway = TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "KOAK", // reuse KOAK so NavDb finds the 28R designator
+            thresholdLat: 37.72152,
+            thresholdLon: -122.20065,
+            endLat: 37.73833,
+            endLon: -122.23416, // ~30000ft = 4.94nm, heading ~292°
+            heading: 292,
+            elevationFt: 9,
+            lengthFt: 30000,
+            widthFt: 150
+        );
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        var wp = PatternGeometry.Compute(runway, cat, PatternDirection.Right, null, null, null);
+        double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
+        double expectedNm = runway.LengthFt * 0.5 / 6076.12;
+
+        _output.WriteLine($"Jet on long runway lead-in distance: {distAbeamToLeadIn:F3}nm (expected {expectedNm:F3}nm, floor {2.0:F1}nm)");
+        Assert.InRange(distAbeamToLeadIn, expectedNm - 0.05, expectedNm + 0.05);
+    }
 }
