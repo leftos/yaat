@@ -297,6 +297,37 @@ public sealed class LayoutAnalyzer
         return new IntersectionResult(twy1, twy2, result);
     }
 
+    /// <summary>
+    /// Every individual runway-end designator known to this layout (e.g. "10L", "28R").
+    /// Flattens GroundRunway names of the form "10L/28R" into both ends.
+    /// </summary>
+    public List<string> KnownRunwayDesignators()
+    {
+        var designators = new List<string>();
+        foreach (var rwy in Layout.Runways)
+        {
+            var id = RunwayIdentifier.Parse(rwy.Name);
+            designators.Add(id.End1);
+            designators.Add(id.End2);
+        }
+
+        return designators.OrderBy(d => d, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public bool HasRunwayDesignator(string designator)
+    {
+        foreach (var rwy in Layout.Runways)
+        {
+            var id = RunwayIdentifier.Parse(rwy.Name);
+            if (id.Contains(designator))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public List<NodeInfo> GetParking()
     {
         return Layout

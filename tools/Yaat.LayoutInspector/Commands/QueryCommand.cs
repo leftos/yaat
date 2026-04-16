@@ -47,6 +47,14 @@ public sealed class QueryCommand : ICommand
 
         foreach (string runway in options.Runways)
         {
+            if (!analyzer.HasRunwayDesignator(runway))
+            {
+                Console.Error.WriteLine(
+                    $"Runway {runway} not found at {analyzer.AirportId}. " + $"Known runways: {string.Join(", ", analyzer.KnownRunwayDesignators())}"
+                );
+                return 1;
+            }
+
             formatter.WriteRunway(analyzer.GetRunwayDetail(runway));
         }
 
@@ -64,6 +72,15 @@ public sealed class QueryCommand : ICommand
 
         foreach (string exitsRunway in options.ExitsRunways)
         {
+            if (!analyzer.HasRunwayDesignator(exitsRunway))
+            {
+                Console.Error.WriteLine(
+                    $"Runway {exitsRunway} not found at {analyzer.AirportId}. "
+                        + $"Known runways: {string.Join(", ", analyzer.KnownRunwayDesignators())}"
+                );
+                return 1;
+            }
+
             formatter.WriteExits(analyzer.GetExits(exitsRunway));
         }
 
