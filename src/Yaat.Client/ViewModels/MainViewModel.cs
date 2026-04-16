@@ -1135,16 +1135,19 @@ public partial class MainViewModel : ObservableObject
                     var canonical = compound.CanonicalString;
                     _log.LogDebug("SendCommand (global half-strip): '{Canonical}' (input: '{Input}')", canonical, originalInput);
                     var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                    if (!result.Success)
-                    {
-                        StatusText = result.Message ?? "Command rejected";
-                        return;
-                    }
 
+                    // Always drop the typed text: even when the server rejects, the RPO has
+                    // seen the result and should not retype the whole command. The error
+                    // message surfaces through StatusText and the terminal history.
                     AddHistory(originalInput);
                     _commandInput.DismissSuggestions();
                     _commandInput.ResetHistoryNavigation();
                     CommandText = "";
+
+                    if (!result.Success)
+                    {
+                        StatusText = result.Message ?? "Command rejected";
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1167,17 +1170,19 @@ public partial class MainViewModel : ObservableObject
             _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalInput);
             var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
 
-            if (!result.Success)
-            {
-                StatusText = result.Message ?? "Command rejected";
-                return;
-            }
-
+            // Always drop the typed text: even when the server rejects (or the pilot
+            // soft-fails e.g. RTIS "looking"), the RPO has seen the result and should
+            // not retype the whole command. The error surfaces through StatusText and
+            // the terminal history.
             AddHistory(originalInput);
-
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
+
+            if (!result.Success)
+            {
+                StatusText = result.Message ?? "Command rejected";
+            }
         }
         catch (Exception ex)
         {

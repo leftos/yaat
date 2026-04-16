@@ -231,6 +231,15 @@ public class AircraftState
     /// </summary>
     public string? LastReportedTrafficCallsign { get; set; }
 
+    /// <summary>
+    /// Pilot-side "watch for a condition" state — populated when RTIS soft-fails
+    /// (pilot keeps looking for traffic) or, in the future, for other
+    /// report-when-satisfied conditions. Re-evaluated each tick by
+    /// <see cref="PilotObservationUpdater"/>. Ephemeral runtime state — not
+    /// persisted in snapshots.
+    /// </summary>
+    public List<PilotObservation> PendingObservations { get; } = [];
+
     public string? FollowingCallsign { get; set; }
 
     // Voice type (CRC display): 0=Unknown, 1=Full, 2=ReceiveOnly, 3=TextOnly

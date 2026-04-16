@@ -1442,6 +1442,7 @@ public static class ApproachCommandHandler
         aircraft.HasReportedFieldInSight = false;
         aircraft.HasReportedTrafficInSight = false;
         aircraft.FollowingCallsign = null;
+        aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
     }
 
     private static void StartPhases(AircraftState aircraft)

@@ -189,6 +189,7 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 # Core
 AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops, visual approach state, pattern overrides, ghost track fields (GhostAirportId/GhostRunwayId)
                                # GroundLayout is [JsonIgnore]; GroundLayoutAirportId preserves reference for archive restore
+                               # PendingObservations: ephemeral pilot-side "watch for condition" state (not persisted in snapshots)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
                                # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
@@ -236,6 +237,14 @@ VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportFor
                                # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
                                # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
                                # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)
+VisualAcquisition.cs           # Static helper: TryAcquireTraffic(ownship, target, weather) — bundles METAR/elevation/bank-angle lookup
+                               # around VisualDetection.TryAcquireTraffic so RTIS first-check and PilotObservationUpdater re-check use identical inputs
+PilotObservation.cs            # Abstract record PilotObservation + TrafficAcquisitionObservation(TargetCallsign)
+                               # Pilot-side "watch for a condition" state — populated when RTIS soft-fails (pilot keeps looking)
+                               # Extension points for future "report leaving altitude", "report passing fix", etc.
+PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhysics.Update after UpdateCommandQueue
+                               # Re-runs VisualAcquisition.TryAcquireTraffic; on success sets HasReportedTrafficInSight + pilot readback
+                               # Silently drops observations whose target has left the sim
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
 
 # Track operations

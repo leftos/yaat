@@ -53,6 +53,7 @@ public static class FlightPhysics
         UpdatePosition(aircraft, deltaSeconds, weather);
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
         UpdateGiveWayResume(aircraft, aircraftLookup);
+        PilotObservationUpdater.Update(aircraft, aircraftLookup, weather);
     }
 
     private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather)

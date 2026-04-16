@@ -194,38 +194,53 @@ public class ReportInSightTests
         Assert.Contains("traffic in sight", ownship.PendingNotifications[0]);
     }
 
+    // When the pilot can't acquire traffic on the first check, RTIS now soft-fails:
+    // command returns success, pilot notification names the reason, and a
+    // TrafficAcquisitionObservation is queued for per-tick re-check. See
+    // RtisSoftFailLookingTests for the full soft-fail contract; these cases pin the
+    // per-reason pilot phraseology.
+
     [Fact]
-    public void Rtis_Fails_WhenTargetBehind()
+    public void Rtis_TargetBehind_PilotReportsNegativeContactAndLooking()
     {
-        // Ownship heading north, target to the south → behind
+        // Reviewed with aviation-sim-expert: pilot readback for "traffic behind us"
+        // is the plain "negative contact, {cs}, looking" — real crews don't
+        // verbally report hemisphere geometry.
         var ownship = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "OWN1");
         var lead = MakeAircraft(37.70, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "LEAD");
         var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
-        Assert.False(result.Success);
-        Assert.Contains("behind", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success);
+        Assert.False(ownship.HasReportedTrafficInSight);
+        var notification = ownship.PendingNotifications[0];
+        Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LEAD", notification);
+        Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Rtis_Fails_WhenTargetOutOfRange()
+    public void Rtis_TargetOutOfRange_PilotReportsNegativeContactAndLooking()
     {
-        // C172 detection range is ~2.5 nm; put target ~10 nm away
         var ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
         var lead = MakeAircraft(37.60, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD", aircraftType: "C172");
         var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
-        Assert.False(result.Success);
-        Assert.Contains("Negative contact", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success);
+        Assert.False(ownship.HasReportedTrafficInSight);
+        var notification = ownship.PendingNotifications[0];
+        Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Rtis_Fails_OnMixedCeiling()
+    public void Rtis_OnMixedCeiling_PilotReportsCloudsBetweenAndLooking()
     {
-        // Ownship below ceiling, target above → mixed
+        // Reviewed with aviation-sim-expert: pilot paraphrases the METAR code as
+        // "clouds between us" rather than reading the raw OVC030 tag.
         var ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 2000, destination: "KOAK", callsign: "OWN1");
         var lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 5000, destination: "KOAK", callsign: "LEAD");
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC030 20/12 A2992"] };
@@ -233,10 +248,11 @@ public class ReportInSightTests
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
-        Assert.False(result.Success);
-        // Message should name the binding layer (OVC030) rather than just "cloud layer".
-        Assert.Contains("OVC030", result.Message);
-        Assert.Contains("between us", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success);
+        Assert.False(ownship.HasReportedTrafficInSight);
+        var notification = ownship.PendingNotifications[0];
+        Assert.Contains("clouds between us", notification, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
     }
 
     // -------------------------------------------------------------------------

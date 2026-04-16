@@ -1064,10 +1064,7 @@ internal static class NavigationCommandHandler
             {
                 aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
             }
-            var fastMsg = targetCallsign is not null
-                ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
-                : $"{aircraft.Callsign} has the traffic in sight";
-            aircraft.PendingNotifications.Add(fastMsg);
+            aircraft.PendingNotifications.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
             return CommandDispatcher.Ok("Traffic in sight");
         }
 
@@ -1088,12 +1085,51 @@ internal static class NavigationCommandHandler
         {
             aircraft.HasReportedTrafficInSight = true;
             aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
-            aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the traffic in sight ({targetCallsign})");
+            aircraft.PendingNotifications.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
+            // First-check acquisition supersedes any in-flight "looking" state.
+            aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
             return CommandDispatcher.Ok("Traffic in sight");
         }
 
-        return new CommandResult(false, FormatTrafficFailure(result, target));
+        // Soft-fail: pilot acknowledges the request but can't see the traffic yet.
+        // Record the reason in a pilot readback and keep looking each tick via
+        // PilotObservationUpdater. A new RTIS (same or different callsign) replaces
+        // the prior observation — the latest request always wins.
+        var targetCallsignUpper = targetCallsign.ToUpperInvariant();
+        aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
+        aircraft.PendingObservations.Add(new TrafficAcquisitionObservation(targetCallsignUpper));
+        aircraft.PendingNotifications.Add(FormatTrafficLookingNotification(result, target));
+        return CommandDispatcher.Ok("Looking for traffic");
     }
+
+    /// <summary>
+    /// Pilot readback when the traffic has been acquired. Broadcast into the RPO
+    /// terminal so the ownship callsign leads (for disambiguation in busy logs),
+    /// then the standard "traffic in sight" phraseology (AIM 5-5-10 / 5-5-11),
+    /// then the target tag for context.
+    /// </summary>
+    internal static string FormatTrafficInSightNotification(AircraftState aircraft, string? targetCallsign) =>
+        string.IsNullOrWhiteSpace(targetCallsign)
+            ? $"{aircraft.Callsign}, traffic in sight"
+            : $"{aircraft.Callsign}, traffic in sight, {targetCallsign}";
+
+    /// <summary>
+    /// Pilot readback when RTIS can't be satisfied on the first check — the
+    /// pilot acknowledges the request and commits to keep looking. Reviewed with
+    /// aviation-sim-expert: pilot phraseology only ("negative contact",
+    /// "looking"), no simulator-internal diagnostics ("outside forward
+    /// hemisphere", detection-range numbers). Layer details are paraphrased as
+    /// "clouds between us". "Unable" is reserved for refused clearances
+    /// (7110.65 2-4-20) and is NOT used here. See AIM 4-4-14 (visual separation)
+    /// and AIM 5-5-10 (pilot traffic advisories).
+    /// </summary>
+    private static string FormatTrafficLookingNotification(VisualAcquisitionResult r, AircraftState target) =>
+        r.Reason switch
+        {
+            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {target.Callsign}, clouds between us, looking",
+            VisualAcquisitionFailure.OccludedByBank => $"Negative contact, {target.Callsign}, in the turn, looking",
+            _ => $"Negative contact, {target.Callsign}, looking",
+        };
 
     // Phraseology borrowed from AIM §4-1-15 and §5-5-8 (traffic advisories use
     // "negative contact" when the pilot cannot visually acquire a target) and
@@ -1109,17 +1145,6 @@ internal static class NavigationCommandHandler
                 $"Negative contact, {airportId}, {r.DistanceNm:F1} miles out (need {r.MaxRangeNm:F1} nm or less{VisibilityQualifier(metar)})",
             VisualAcquisitionFailure.OppositeSideOfRunway => $"Unable, {airportId} on the opposite side of the runway",
             _ => $"Unable, {airportId} not in sight",
-        };
-
-    private static string FormatTrafficFailure(VisualAcquisitionResult r, AircraftState target) =>
-        r.Reason switch
-        {
-            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {target.Callsign}, {FormatLayer(r.BindingLayer)} between us",
-            VisualAcquisitionFailure.BehindOwnship => $"Unable, {target.Callsign} behind us (outside forward hemisphere)",
-            VisualAcquisitionFailure.OccludedByBank => $"Unable, {target.Callsign} lost visual in the turn (high wing blocking view)",
-            VisualAcquisitionFailure.OutOfRange =>
-                $"Negative contact, {target.Callsign}, {r.DistanceNm:F1} miles out (detection range {r.MaxRangeNm:F1} nm for {target.AircraftType})",
-            _ => $"Negative contact, {target.Callsign}",
         };
 
     /// <summary>
@@ -1173,10 +1198,7 @@ internal static class NavigationCommandHandler
         {
             aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
         }
-        var msg = targetCallsign is not null
-            ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
-            : $"{aircraft.Callsign} has the traffic in sight";
-        aircraft.PendingNotifications.Add(msg);
+        aircraft.PendingNotifications.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
         return CommandDispatcher.Ok("Traffic in sight (forced)");
     }
 }
