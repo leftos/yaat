@@ -425,7 +425,6 @@ Assert.Null(failReason);
 - **One test class per issue.** File name: `Issue{N}{ShortDescription}Tests.cs`. Class doc comment explains the bug, recording, and aircraft.
 - **Wire SimLog to xunit output.** Always initialize `SimLog` with `AddXUnit(output)` so Yaat.Sim's internal logs appear in test results. This is invaluable when diagnosing why a test fails.
 - **Watch out for WAIT presets.** Aircraft with `WAIT` preset commands are sensitive to dispatch timing. If WAIT behavior changes, recordings made before the change will produce different state at any given time `t`. Prefer testing aircraft without WAIT presets, or re-record after the fix.
-- **Migrate recordings to v4 before committing.** New recordings exported from the client/server are already v4. However, recordings created from **user-submitted attachments** or **old bug report bundles** may still be v3. Before committing any recording to TestData, run `pwsh tools/migrate-recordings-v4.ps1` to ensure v4 format (deduplicated GroundLayouts, ~75% smaller). The script is idempotent — v4 archives are skipped.
 
 ## Test Data
 
@@ -521,7 +520,6 @@ dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData
 | `NearestNodeHelper` | `tests/Yaat.Sim.Tests/Helpers/NearestNodeHelper.cs` | Reports 3 closest ground nodes to an aircraft with ID, type, taxiway names, and distance in feet. Use in all ground/exit diagnostic tests. |
 | `RecordingLoader` | `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` | Loads `SessionRecording` from `.json`, `.zip` archive, or `.yaat-bug-report-bundle.zip`. Uses `ToBaseSessionRecording()` (zero snapshots). |
 | `RecordingArchive` | `src/Yaat.Sim/Simulation/RecordingArchive.cs` | On-demand archive reader: `ReadSnapshotAt()`, `FindNearestSnapshotIndex()`, `ToBaseSessionRecording()` |
-| `migrate-recordings-v4.ps1` | `tools/migrate-recordings-v4.ps1` | Migrates v3 recordings to v4 (strips inline GroundLayout, ~75% smaller). Run before committing new recordings. |
 | `TestVnasData` | `tests/Yaat.Sim.Tests/TestVnasData.cs` | Thread-safe singleton loader for NavData + CIFP + aircraft specs |
 | `TestAirportGroundData` | `tests/Yaat.Sim.Tests/Helpers/TestAirportGroundData.cs` | `IAirportGroundData` impl that loads from TestData GeoJSON |
 | `SimLog` | `src/Yaat.Sim/SimLog.cs` | Static logger facade — wire to xunit output via `SimLog.Initialize(loggerFactory)` |
