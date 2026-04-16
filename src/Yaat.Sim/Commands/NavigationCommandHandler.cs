@@ -1082,21 +1082,7 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, $"Negative contact, {targetCallsign} not on this frequency");
         }
 
-        // Cloud layers/visibility reference the destination airport — that's where the
-        // relevant METAR lives. If no destination, skip the layer-side check.
-        IReadOnlyList<MetarParser.CloudLayer>? layers = null;
-        double? visibilitySm = null;
-        double aptElevation = 0.0;
-        var destination = aircraft.Destination;
-        if (!string.IsNullOrWhiteSpace(destination))
-        {
-            var metar = ctx.Weather?.GetWeatherForAirport(destination);
-            layers = metar?.Layers;
-            visibilitySm = metar?.VisibilityStatuteMiles;
-            aptElevation = NavigationDatabase.Instance.GetAirportElevation(destination) ?? 0.0;
-        }
-
-        var result = VisualDetection.TryAcquireTraffic(aircraft, target, layers, aptElevation, visibilitySm, aircraft.BankAngle);
+        var result = VisualAcquisition.TryAcquireTraffic(aircraft, target, ctx.Weather);
 
         if (result.Acquired)
         {
