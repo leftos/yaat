@@ -1,0 +1,101 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yaat.Client.ViewModels"
+             x:Class="Yaat.Client.Views.VStrips.StripItemView"
+             x:DataType="vm:StripItemViewModel"
+             Focusable="False"
+             Background="Transparent">
+
+    <Border x:Name="StripBorder"
+            BorderBrush="#4A4A52"
+            BorderThickness="1"
+            CornerRadius="2"
+            Margin="1"
+            Padding="2"
+            Background="#1E1E22">
+
+        <!-- Departure / arrival / blank full-strip layout:
+             Row 1: callsign | rev | equipment | CID | beacon | PropDep | RequestedAlt | Departure | 8A
+             Row 2: Route/remarks (full width) plus annotation boxes 10-18 on the right -->
+        <Grid>
+            <!-- Full strip (departure / arrival / blank) -->
+            <Grid IsVisible="{Binding IsFullStrip}"
+                  ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,120"
+                  RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding AircraftIdField}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="13"
+                           FontWeight="Bold" Padding="4,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Revision}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="11" Padding="2,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Equipment}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="12" Padding="4,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding Cid}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="11" Padding="4,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="4" Text="{Binding BeaconCode}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="12" Padding="4,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="5" Text="{Binding PropDep}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="11" Padding="4,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="6" Text="{Binding ReqAltitude}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="12" Padding="4,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="7" Text="{Binding Departure}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="12" Padding="4,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="8" Text="{Binding Field8A}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="11" Padding="4,2"/>
+
+                <!-- 3x3 annotation box grid on the right spanning both rows -->
+                <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="9"
+                      ColumnDefinitions="*,*,*" RowDefinitions="*,*,*"
+                      Margin="2">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Annotation10}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Annotation11}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Annotation12}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Annotation13}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Annotation14}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Annotation15}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding Annotation16}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Annotation17}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Annotation18}"
+                               FontSize="10" HorizontalAlignment="Center"/>
+                </Grid>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="9"
+                           Text="{Binding RouteRemarks}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="11"
+                           Padding="4,2" TextWrapping="NoWrap"/>
+            </Grid>
+
+            <!-- Half-strip (left or right) -->
+            <ItemsControl IsVisible="{Binding IsHalfStrip}"
+                          ItemsSource="{Binding FieldValues}"
+                          Padding="4,2">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}"
+                                   FontFamily="{StaticResource MonoFont}"
+                                   FontSize="11"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Separator: a thin colored band with optional label -->
+            <Border IsVisible="{Binding IsSeparator}"
+                    Background="#3A3A40"
+                    Padding="6,2"
+                    MinHeight="8">
+                <TextBlock Text="{Binding Annotation10}"
+                           FontFamily="{StaticResource MonoFont}"
+                           FontSize="10" HorizontalAlignment="Center"/>
+            </Border>
+        </Grid>
+
+    </Border>
+
+</UserControl>

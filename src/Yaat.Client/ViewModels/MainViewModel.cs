@@ -52,6 +52,7 @@ public partial class MainViewModel : ObservableObject
 
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
+    public VStripsViewModel VStrips { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
@@ -236,6 +237,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRadarViewPoppedOut;
 
+    [ObservableProperty]
+    private bool _isVStripsPoppedOut;
+
     partial void OnIsDataGridPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("DataGrid", value);
@@ -263,26 +267,41 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    partial void OnIsVStripsPoppedOutChanged(bool value)
+    {
+        _preferences.SetPoppedOut("VStrips", value);
+        if (value && SelectedTabIndex == 3)
+        {
+            SelectedTabIndex = FindNextVisibleTabIndex(3);
+        }
+    }
+
     private int FindNextVisibleTabIndex(int currentIndex)
     {
-        // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View
-        if (currentIndex == 0)
+        // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View, Tab 3: Strips
+        // Walk forward through the remaining tabs and pick the first one that's
+        // still embedded. Wraps back to the start so no popped-out tab is ever
+        // selected.
+        for (var offset = 1; offset < 4; offset++)
         {
-            return IsGroundViewPoppedOut ? 2 : 1;
+            var candidate = (currentIndex + offset) % 4;
+            if (IsTabVisible(candidate))
+            {
+                return candidate;
+            }
         }
-
-        if (currentIndex == 1)
-        {
-            return IsDataGridPoppedOut ? 2 : 0;
-        }
-
-        if (currentIndex == 2)
-        {
-            return IsGroundViewPoppedOut ? 0 : 1;
-        }
-
         return 0;
     }
+
+    private bool IsTabVisible(int index) =>
+        index switch
+        {
+            0 => !IsDataGridPoppedOut,
+            1 => !IsGroundViewPoppedOut,
+            2 => !IsRadarViewPoppedOut,
+            3 => !IsVStripsPoppedOut,
+            _ => false,
+        };
 
     [ObservableProperty]
     private int _selectedTabIndex;
@@ -598,11 +617,13 @@ public partial class MainViewModel : ObservableObject
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);
         Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
+        VStrips = new VStripsViewModel(_connection, SendCommandForViewAsync, _preferences);
 
         _dataGridScale = _preferences.DataGridFontSize / 12.0;
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
+        IsVStripsPoppedOut = _preferences.IsVStripsPoppedOut;
 
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;

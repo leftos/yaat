@@ -5,6 +5,7 @@
         xmlns:views="using:Yaat.Client.Views"
         xmlns:ground="using:Yaat.Client.Views.Ground"
         xmlns:radar="using:Yaat.Client.Views.Radar"
+        xmlns:vstrips="using:Yaat.Client.Views.VStrips"
         x:Class="Yaat.Client.Views.MainWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="YAAT">
@@ -58,6 +59,9 @@
                 <MenuItem Header="Pop Out _Radar View"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
+                <MenuItem Header="Pop Out _Strips"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsVStripsPoppedOut, Mode=TwoWay}" />
                 <Separator />
                 <MenuItem Header="Show _Timeline Bar"
                           ToggleType="CheckBox"
@@ -236,6 +240,11 @@
                          x:Name="RadarViewTab"
                          IsVisible="{Binding !IsRadarViewPoppedOut}">
                     <radar:RadarView DataContext="{Binding Radar}" />
+                </TabItem>
+                <TabItem Header="Strips"
+                         x:Name="VStripsTab"
+                         IsVisible="{Binding !IsVStripsPoppedOut}">
+                    <vstrips:VStripsView DataContext="{Binding VStrips}" />
                 </TabItem>
             </TabControl>
 

@@ -101,6 +101,7 @@ public sealed class UserPreferences
     public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
+    public bool IsVStripsPoppedOut => _data.IsVStripsPoppedOut;
     public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
     public bool ShowTimelineBar => _data.ShowTimelineBar;
     public string? LastScenarioFolder => _data.LastScenarioFolder;
@@ -269,6 +270,9 @@ public sealed class UserPreferences
                 break;
             case "RadarView":
                 _data.IsRadarViewPoppedOut = poppedOut;
+                break;
+            case "VStrips":
+                _data.IsVStripsPoppedOut = poppedOut;
                 break;
         }
         Save();
@@ -691,6 +695,7 @@ public sealed class UserPreferences
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
+            IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
@@ -877,6 +882,7 @@ public sealed class UserPreferences
         public bool IsDataGridPoppedOut { get; set; }
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
+        public bool IsVStripsPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];

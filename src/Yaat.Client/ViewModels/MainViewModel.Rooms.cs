@@ -433,6 +433,12 @@ public partial class MainViewModel
             {
                 Radar.ApplyPositionDisplayConfig(state.PositionDisplayConfig);
             }
+
+            // Bootstrap vStrips bay layout. For ScenarioLoaded broadcasts the VM
+            // also subscribes to ServerConnection.ScenarioLoaded directly; this
+            // path covers the JoinRoom RPC response when the scenario was
+            // already loaded before the client joined.
+            VStrips.ApplyBayConfig(state.FlightStripsConfig);
         }
 
         Aircraft.Clear();

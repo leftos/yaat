@@ -370,7 +370,14 @@ public partial class VStripsViewModel : ObservableObject
             _ => SeparatorStyle.Handwritten,
         };
 
-    // Testing hooks — exposed so the reconciliation tests can inspect state
-    // without needing the Avalonia dispatcher thread.
+    /// <summary>
+    /// All known strip view-models keyed by id. Exposed internally so the view
+    /// code-behind can resolve drag/drop payloads (which carry only the strip
+    /// id) and so reconciliation tests can inspect state without going through
+    /// the Avalonia dispatcher.
+    /// </summary>
+    internal IReadOnlyDictionary<string, StripItemViewModel> ItemsById => _items;
+
+    // Kept as an alias so existing test code still compiles.
     internal IReadOnlyDictionary<string, StripItemViewModel> ItemsByIdForTests => _items;
 }

@@ -14,6 +14,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.VStrips;
 using Yaat.Sim.Data;
 using Yaat.Sim.Scenarios;
 
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
     private RadarViewWindow? _radarViewWindow;
+    private VStripsViewWindow? _vstripsViewWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
@@ -157,6 +159,11 @@ public partial class MainWindow : Window
         if (vm.IsRadarViewPoppedOut)
         {
             OpenRadarViewWindow(vm);
+        }
+
+        if (vm.IsVStripsPoppedOut)
+        {
+            OpenVStripsViewWindow(vm);
         }
 
         var slider = this.FindControl<Slider>("TimelineSlider");
@@ -899,6 +906,9 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.IsRadarViewPoppedOut):
                 HandleRadarViewPopOut(vm);
                 break;
+            case nameof(MainViewModel.IsVStripsPoppedOut):
+                HandleVStripsViewPopOut(vm);
+                break;
             case nameof(MainViewModel.ActiveScenarioId):
                 RefreshRecentScenariosEnabled(vm);
                 break;
@@ -975,6 +985,18 @@ public partial class MainWindow : Window
         }
     }
 
+    private void HandleVStripsViewPopOut(MainViewModel vm)
+    {
+        if (vm.IsVStripsPoppedOut)
+        {
+            OpenVStripsViewWindow(vm);
+        }
+        else
+        {
+            CloseVStripsViewWindow();
+        }
+    }
+
     private void OpenDataGridWindow(MainViewModel vm)
     {
         _dataGridWindow = new DataGridWindow(vm.Preferences) { DataContext = vm };
@@ -1033,6 +1055,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OpenVStripsViewWindow(MainViewModel vm)
+    {
+        _vstripsViewWindow = new VStripsViewWindow(vm.Preferences) { DataContext = vm };
+        _vstripsViewWindow.Closing += OnVStripsViewWindowClosing;
+        _vstripsViewWindow.Show();
+    }
+
+    private void CloseVStripsViewWindow()
+    {
+        if (_vstripsViewWindow is not null)
+        {
+            _vstripsViewWindow.Closing -= OnVStripsViewWindowClosing;
+            _vstripsViewWindow.Close();
+            _vstripsViewWindow = null;
+        }
+    }
+
     private void OnTerminalWindowClosing(object? sender, WindowClosingEventArgs e)
     {
         if (!_isMainWindowClosing && DataContext is MainViewModel vm)
@@ -1067,6 +1106,15 @@ public partial class MainWindow : Window
             vm.IsRadarViewPoppedOut = false;
         }
         _radarViewWindow = null;
+    }
+
+    private void OnVStripsViewWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
+        {
+            vm.IsVStripsPoppedOut = false;
+        }
+        _vstripsViewWindow = null;
     }
 
     private void RefreshRecentScenariosEnabled(MainViewModel vm)
