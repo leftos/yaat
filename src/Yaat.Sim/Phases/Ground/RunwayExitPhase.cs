@@ -67,6 +67,13 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     public bool IsOnCenterline => _state == ExitState.RollingOnCenterline;
 
+    /// <summary>
+    /// The runway being exited. Captured in <see cref="OnStart"/> from the
+    /// aircraft's assigned runway. Used by the client info text to render
+    /// "Exiting runway {id} via {taxiway}".
+    /// </summary>
+    public string? RunwayId => _runwayId;
+
     public override string Name => "Runway Exit";
 
     public override void OnStart(PhaseContext ctx)

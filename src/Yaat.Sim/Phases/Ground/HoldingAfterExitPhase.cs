@@ -27,6 +27,12 @@ public sealed class HoldingAfterExitPhase : Phase
     /// </summary>
     public int? HoldShortNodeId => _holdShortNodeId;
 
+    /// <summary>
+    /// The runway the aircraft just exited. Used by the client info text
+    /// to render "clear of runway {id} via {taxiway}".
+    /// </summary>
+    public string? RunwayId => _runwayId;
+
     public HoldingAfterExitPhase() { }
 
     public HoldingAfterExitPhase(string? runwayId, string? exitTaxiway, int? holdShortNodeId)

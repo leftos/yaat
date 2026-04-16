@@ -494,7 +494,10 @@ public record AircraftDto(
     double? AssignedMach = null,
     int WindDirection = 0,
     int WindSpeed = 0,
-    List<double[]>? PositionHistory = null
+    List<double[]>? PositionHistory = null,
+    string? PatternEntryKind = null,
+    string? FollowingCallsign = null,
+    string? ExitingRunwayId = null
 );
 
 public record LoadScenarioResultDto(

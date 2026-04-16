@@ -326,6 +326,7 @@ public class LahsoTests
                 EntryLat = 0,
                 EntryLon = 0,
                 PatternAltitude = 1000,
+                Kind = PatternEntryKind.Direct,
             },
         };
 

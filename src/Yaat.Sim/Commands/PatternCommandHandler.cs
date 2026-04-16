@@ -242,12 +242,14 @@ internal static class PatternCommandHandler
                     entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDist, runway.ElevationFt, gsAngle);
                 }
 
+                var kind = ClassifyEntryKind(aircraft, runway, direction, effectiveEntryLeg);
                 phases.Add(
                     new PatternEntryPhase
                     {
                         EntryLat = entryLat,
                         EntryLon = entryLon,
                         PatternAltitude = entryAltitude,
+                        Kind = kind,
                         LeadInLat = leadInLat,
                         LeadInLon = leadInLon,
                     }
@@ -1125,5 +1127,27 @@ internal static class PatternCommandHandler
         aircraft.Phases.LandingClearance = null;
         aircraft.Phases.ClearedRunwayId = null;
         return CommandDispatcher.Ok($"Landing clearance cancelled{CommandDispatcher.RunwayLabel(aircraft)}");
+    }
+
+    /// <summary>
+    /// Determines the entry kind for a PatternEntryPhase. Non-downwind legs map
+    /// directly; a downwind entry is classified by the angular delta between the
+    /// aircraft's current track and the downwind course.
+    /// </summary>
+    internal static PatternEntryKind ClassifyEntryKind(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        PatternDirection direction,
+        PatternEntryLeg entryLeg
+    )
+    {
+        _ = direction;
+        return entryLeg switch
+        {
+            PatternEntryLeg.Upwind => PatternEntryKind.Upwind,
+            PatternEntryLeg.Base => PatternEntryKind.Base,
+            PatternEntryLeg.Final => PatternEntryKind.Final,
+            _ => PatternEntryPhase.ClassifyDownwindEntry(aircraft.TrueTrack, runway.TrueHeading.ToReciprocal()),
+        };
     }
 }

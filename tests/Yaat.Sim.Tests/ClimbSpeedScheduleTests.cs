@@ -215,6 +215,7 @@ public sealed class ClimbSpeedScheduleTests
             EntryLat = runway.ThresholdLatitude,
             EntryLon = runway.ThresholdLongitude,
             PatternAltitude = 1000,
+            Kind = PatternEntryKind.Direct,
         };
         phases.Add(entryPhase);
         phases.Start(

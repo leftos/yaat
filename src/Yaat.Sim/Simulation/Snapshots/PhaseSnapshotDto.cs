@@ -598,6 +598,7 @@ public sealed class PatternEntryPhaseDto : PhaseDto
     public required double EntryLat { get; init; }
     public required double EntryLon { get; init; }
     public required double PatternAltitude { get; init; }
+    public required int Kind { get; init; }
     public double? LeadInLat { get; init; }
     public double? LeadInLon { get; init; }
 }

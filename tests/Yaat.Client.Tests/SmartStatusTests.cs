@@ -220,7 +220,7 @@ public class SmartStatusTests
         ac.IsOnGround = true;
         ac.ComputeSmartStatus();
 
-        Assert.Equal("Taxi to RWY 28R via A B C", ac.SmartStatus);
+        Assert.Equal("Taxi to RWY 28R via A B C D E", ac.SmartStatus);
     }
 
     [Fact]
@@ -272,8 +272,10 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void InitialClimb_WithHeading()
+    public void InitialClimb_WithHeading_SuppressesHdgSuffix()
     {
+        // InitialClimb implies a vector (SID or runway heading); the trailing
+        // "hdg XXX" duplicates info already in the phase name.
         var ac = CreateModel();
         ac.CurrentPhase = "InitialClimb";
         ac.DepartureRunway = "28R";
@@ -282,7 +284,7 @@ public class SmartStatusTests
         ac.NavigatingTo = "";
         ac.ComputeSmartStatus();
 
-        Assert.Equal("Departing 28R, hdg 280", ac.SmartStatus);
+        Assert.Equal("Departing 28R", ac.SmartStatus);
     }
 
     [Fact]
@@ -490,8 +492,10 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void Phase_AssignedHeading_AppendsHeading()
+    public void Phase_AssignedHeading_SuppressedOnPatternLeg()
     {
+        // A pattern leg's heading is implied by the leg name; the trailing
+        // "hdg XXX" is redundant noise.
         var ac = CreateModel();
         ac.CurrentPhase = "Downwind";
         ac.PatternDirection = "Left";
@@ -499,7 +503,22 @@ public class SmartStatusTests
         ac.AssignedHeading = 90;
         ac.ComputeSmartStatus();
 
-        Assert.Equal("Left downwind 28R, hdg 90", ac.SmartStatus);
+        Assert.Equal("Left downwind 28R", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void Phase_AssignedHeading_KeptOnProceedToFix()
+    {
+        // ProceedToFix is a vector-style phase; heading is informative. The
+        // suffix always shows the numeric heading, never the fix name ("hdg
+        // OAKEY" would be nonsense).
+        var ac = CreateModel();
+        ac.CurrentPhase = "ProceedToFix";
+        ac.NavigatingTo = "OAKEY";
+        ac.AssignedHeading = 270;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Proceeding to OAKEY, hdg 270", ac.SmartStatus);
     }
 
     [Fact]
@@ -571,7 +590,7 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void PatternEntry()
+    public void PatternEntry_FallbackWithoutKind()
     {
         var ac = CreateModel();
         ac.CurrentPhase = "Pattern Entry";

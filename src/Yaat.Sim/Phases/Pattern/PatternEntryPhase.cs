@@ -7,6 +7,32 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Pattern;
 
 /// <summary>
+/// Classifies how a pattern entry is joining the traffic pattern, so the client
+/// can render informative status text (e.g. "direct left downwind 28R" vs
+/// "45 to left downwind 28R"). Computed at phase construction by the caller.
+/// </summary>
+public enum PatternEntryKind
+{
+    /// <summary>Joining downwind from roughly along the downwind course (≤30° angular delta).</summary>
+    Direct,
+
+    /// <summary>Classic 45° intercept to downwind (AIM 4-3-3), >30° up to 75°.</summary>
+    FortyFive,
+
+    /// <summary>Entering downwind from a crosswind-like angle (>75°), typically after a teardrop or from the opposite side.</summary>
+    Crosswind,
+
+    /// <summary>Joining on the upwind leg (parallel to departure end), used for go-around re-entry and wrong-side corrections.</summary>
+    Upwind,
+
+    /// <summary>Joining directly onto base.</summary>
+    Base,
+
+    /// <summary>Joining directly onto final (straight-in).</summary>
+    Final,
+}
+
+/// <summary>
 /// Navigates an airborne aircraft to a pattern entry point, descending to pattern
 /// altitude and decelerating to pattern speed. Inserted before the first pattern
 /// leg phase (downwind, base, etc.) when the aircraft is far from the pattern.
@@ -19,6 +45,12 @@ public sealed class PatternEntryPhase : Phase
     public required double EntryLat { get; init; }
     public required double EntryLon { get; init; }
     public required double PatternAltitude { get; init; }
+
+    /// <summary>
+    /// How the aircraft is joining the pattern. Set by the caller at construction
+    /// based on aircraft track vs downwind course and the target entry leg.
+    /// </summary>
+    public required PatternEntryKind Kind { get; init; }
 
     /// <summary>
     /// Optional lead-in waypoint placed before the entry point so the aircraft
@@ -98,6 +130,7 @@ public sealed class PatternEntryPhase : Phase
             EntryLat = EntryLat,
             EntryLon = EntryLon,
             PatternAltitude = PatternAltitude,
+            Kind = (int)Kind,
             LeadInLat = LeadInLat,
             LeadInLon = LeadInLon,
         };
@@ -109,12 +142,36 @@ public sealed class PatternEntryPhase : Phase
             EntryLat = dto.EntryLat,
             EntryLon = dto.EntryLon,
             PatternAltitude = dto.PatternAltitude,
+            Kind = (PatternEntryKind)dto.Kind,
             LeadInLat = dto.LeadInLat,
             LeadInLon = dto.LeadInLon,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         return phase;
+    }
+
+    /// <summary>
+    /// Classifies a downwind entry by the angular delta between the aircraft's
+    /// current track and the downwind course. Thresholds reflect AIM 4-3-3:
+    /// the recommended 45° entry lives in roughly 20°–60° off-course; below
+    /// 20° the aircraft is effectively along downwind (direct); above 60°
+    /// the geometry is more perpendicular than a 45° intercept (crosswind).
+    /// For non-downwind target legs, callers should pass the leg directly
+    /// (Upwind/Base/Final) rather than calling this.
+    /// </summary>
+    public static PatternEntryKind ClassifyDownwindEntry(TrueHeading aircraftTrack, TrueHeading downwindCourse)
+    {
+        double delta = aircraftTrack.AbsAngleTo(downwindCourse);
+        if (delta <= 20.0)
+        {
+            return PatternEntryKind.Direct;
+        }
+        if (delta <= 60.0)
+        {
+            return PatternEntryKind.FortyFive;
+        }
+        return PatternEntryKind.Crosswind;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

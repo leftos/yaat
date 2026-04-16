@@ -153,6 +153,29 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasPattern))]
     private string _patternDirection = "";
 
+    /// <summary>
+    /// When CurrentPhase is "Pattern Entry", classifies how the aircraft is
+    /// joining the pattern (Direct / FortyFive / Crosswind / Upwind / Base / Final).
+    /// Null when not in a pattern-entry phase.
+    /// </summary>
+    [ObservableProperty]
+    private string? _patternEntryKind;
+
+    /// <summary>
+    /// When set, the callsign this aircraft is following (VFR follow / visual
+    /// with follow-traffic). Null when not following.
+    /// </summary>
+    [ObservableProperty]
+    private string? _followingCallsign;
+
+    /// <summary>
+    /// When in <c>Runway Exit</c> or <c>Holding After Exit</c>, the runway being
+    /// exited. Distinct from <see cref="AssignedRunway"/> which can change once
+    /// the aircraft accepts a taxi clearance. Null otherwise.
+    /// </summary>
+    [ObservableProperty]
+    private string? _exitingRunwayId;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNavigationRoute))]
     [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
@@ -583,6 +606,9 @@ public partial class AircraftModel : ObservableObject
             AssignedMach = dto.AssignedMach,
             Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "",
             PositionHistory = dto.PositionHistory,
+            PatternEntryKind = dto.PatternEntryKind,
+            FollowingCallsign = dto.FollowingCallsign,
+            ExitingRunwayId = dto.ExitingRunwayId,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.ComputeSmartStatus();
@@ -646,6 +672,9 @@ public partial class AircraftModel : ObservableObject
         AssignedMach = dto.AssignedMach;
         Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "";
         PositionHistory = dto.PositionHistory;
+        PatternEntryKind = dto.PatternEntryKind;
+        FollowingCallsign = dto.FollowingCallsign;
+        ExitingRunwayId = dto.ExitingRunwayId;
         DistanceFromFix = computeDistance?.Invoke(this);
         ComputeSmartStatus();
     }
@@ -663,14 +692,29 @@ public partial class AircraftModel : ObservableObject
         if (!string.IsNullOrEmpty(CurrentPhase))
         {
             var (text, severity) = ComputePhaseStatus();
-            SmartStatus = AppendHeadingIfAssigned(text);
+            SmartStatus = CapitalizeFirst(AppendHeadingIfAssigned(text, ShouldKeepHeadingSuffix(CurrentPhase)));
             SmartStatusSeverity = severity;
             return;
         }
 
         var noPhase = ComputeNoPhaseStatus();
-        SmartStatus = AppendHeadingIfAssigned(noPhase.Text);
+        SmartStatus = CapitalizeFirst(AppendHeadingIfAssigned(noPhase.Text, keep: true));
         SmartStatusSeverity = noPhase.Severity;
+    }
+
+    /// <summary>
+    /// Uppercases the first character of <paramref name="s"/> if it is a
+    /// lowercase letter. All internal phase-status formatters emit lowercase
+    /// text so they chain naturally; capitalization is applied once here so
+    /// the UI's Info column reads like a sentence.
+    /// </summary>
+    internal static string CapitalizeFirst(string s)
+    {
+        if (string.IsNullOrEmpty(s) || !char.IsLower(s[0]))
+        {
+            return s;
+        }
+        return char.ToUpperInvariant(s[0]) + s[1..];
     }
 
     private (string Text, SmartStatusSeverity Severity)? CheckAlerts()
@@ -710,56 +754,111 @@ public partial class AircraftModel : ObservableObject
 
     private (string Text, SmartStatusSeverity Severity) ComputePhaseStatus()
     {
+        // Text here is lowercase-first; CapitalizeFirst is applied once in
+        // ComputeSmartStatus so fragments chain naturally. Abbreviations and
+        // identifiers (LUAW, HPP, runway ids, callsigns, procedure ids) keep
+        // their native casing.
+        var dir = string.IsNullOrEmpty(PatternDirection) ? "" : PatternDirection.ToLowerInvariant();
         var text = CurrentPhase switch
         {
-            "At Parking" => string.IsNullOrEmpty(ParkingSpot) ? "At parking" : $"At parking {ParkingSpot}",
-            "Pushback" or "Pushback to Spot" => "Pushing back",
-            "Holding After Pushback" or "Holding In Position" => "Holding position",
-            "Holding After Exit" => "Clear of runway",
+            "At Parking" => string.IsNullOrEmpty(ParkingSpot) ? "at parking" : $"at parking {ParkingSpot}",
+            "Pushback" or "Pushback to Spot" => "pushing back",
+            "Holding After Pushback" or "Holding In Position" => "holding position",
+            "Holding After Exit" => FormatHoldingAfterExitStatus(),
             "Taxiing" => FormatTaxiStatus(),
-            "AirTaxi" => "Air taxi",
-            "Crossing Runway" => "Crossing runway",
-            "LiningUp" => $"Lining up {AssignedRunway}",
+            "AirTaxi" => string.IsNullOrEmpty(AssignedRunway) ? "air taxi" : $"air taxi to {AssignedRunway}",
+            "Crossing Runway" => string.IsNullOrEmpty(AssignedRunway) ? "crossing runway" : $"crossing runway {AssignedRunway}",
+            "LiningUp" => $"lining up {AssignedRunway}",
             "LinedUpAndWaiting" => $"LUAW {AssignedRunway}",
-            "Takeoff" or "Takeoff-H" => $"Takeoff {AssignedRunway}",
+            "Takeoff" or "Takeoff-H" => $"takeoff {AssignedRunway}",
             "InitialClimb" => FormatInitialClimbStatus(),
-            "InterceptCourse" => string.IsNullOrEmpty(ActiveApproachId) ? "Intercepting course" : $"Intercepting {ActiveApproachId}",
+            "InterceptCourse" => string.IsNullOrEmpty(ActiveApproachId) ? "intercepting course" : $"intercepting {ActiveApproachId}",
             "ApproachNav" => FormatApproachNavStatus(),
-            "HoldingPattern" or "HoldingAtFix" => string.IsNullOrEmpty(NavigatingTo) ? "Holding" : $"Holding at {NavigatingTo}",
-            "ProceedToFix" => string.IsNullOrEmpty(NavigatingTo) ? "Proceeding to fix" : $"Proceeding to {NavigatingTo}",
+            "HoldingPattern" or "HoldingAtFix" => string.IsNullOrEmpty(NavigatingTo) ? "holding" : $"holding at {NavigatingTo}",
+            "ProceedToFix" => string.IsNullOrEmpty(NavigatingTo) ? "proceeding to fix" : $"proceeding to {NavigatingTo}",
             "FinalApproach" => FormatFinalApproachStatus(),
-            "Pattern Entry" => $"{PatternDirection} pattern entry",
-            "Upwind" or "Crosswind" or "Downwind" or "Base" => $"{PatternDirection} {CurrentPhase.ToLowerInvariant()} {AssignedRunway}",
-            "MidfieldCrossing" => $"Midfield crossing {AssignedRunway}",
-            "Landing" or "Landing-H" => $"Landing {(string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway)}",
-            "Runway Exit" => "Exiting runway",
-            "TouchAndGo" => $"Touch-and-go {ClearedRunway}",
-            "StopAndGo" => $"Stop-and-go {ClearedRunway}",
-            "LowApproach" => $"Low approach {ClearedRunway}",
-            "GoAround" => $"Go-around {(string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway)}",
-            "HPP-L" or "HPP-R" or "HPP" => "Hold present position",
-            "S-Turns" => "S-turns",
+            "Pattern Entry" => FormatPatternEntryStatus(),
+            "Upwind" or "Crosswind" or "Downwind" or "Base" => JoinNonEmpty(dir, CurrentPhase.ToLowerInvariant(), AssignedRunway),
+            "MidfieldCrossing" => $"midfield crossing {AssignedRunway}",
+            "Landing" or "Landing-H" => $"landing {(string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway)}",
+            "Runway Exit" => FormatRunwayExitStatus(),
+            "TouchAndGo" => $"touch-and-go {ClearedRunway}",
+            "StopAndGo" => $"stop-and-go {ClearedRunway}",
+            "LowApproach" => $"low approach {ClearedRunway}",
+            "GoAround" => $"go-around {(string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway)}",
+            "HPP-L" or "HPP-R" or "HPP" => "hold present position",
+            "S-Turns" => "s-turns",
+            "VFR Follow" => string.IsNullOrEmpty(FollowingCallsign) ? "VFR follow" : $"following {FollowingCallsign}",
             _ => FormatFallbackPhase(),
         };
 
         return (text, SmartStatusSeverity.Normal);
     }
 
+    private string FormatPatternEntryStatus()
+    {
+        var dir = string.IsNullOrEmpty(PatternDirection) ? "" : PatternDirection.ToLowerInvariant();
+        var rwy = AssignedRunway;
+
+        return PatternEntryKind switch
+        {
+            "Direct" => JoinNonEmpty("direct", dir, "downwind", rwy),
+            "FortyFive" => JoinNonEmpty("45 to", dir, "downwind", rwy),
+            "Crosswind" => JoinNonEmpty("crosswind to", dir, "downwind", rwy),
+            "Upwind" => JoinNonEmpty("upwind entry", rwy),
+            "Base" => JoinNonEmpty(dir, "base entry", rwy),
+            "Final" => JoinNonEmpty("straight-in", rwy),
+            _ => JoinNonEmpty(dir, "pattern entry", rwy),
+        };
+    }
+
+    private static string JoinNonEmpty(params string?[] parts)
+    {
+        var nonEmpty = parts.Where(p => !string.IsNullOrEmpty(p));
+        return string.Join(" ", nonEmpty);
+    }
+
+    private string FormatHoldingAfterExitStatus()
+    {
+        var rwy = string.IsNullOrEmpty(ExitingRunwayId) ? AssignedRunway : ExitingRunwayId;
+        if (string.IsNullOrEmpty(rwy))
+        {
+            return "clear of runway";
+        }
+        if (!string.IsNullOrEmpty(CurrentTaxiway))
+        {
+            return $"clear of runway {rwy} via {CurrentTaxiway}";
+        }
+        return $"clear of runway {rwy}";
+    }
+
+    private string FormatRunwayExitStatus()
+    {
+        var rwy = string.IsNullOrEmpty(ExitingRunwayId) ? AssignedRunway : ExitingRunwayId;
+        if (string.IsNullOrEmpty(rwy))
+        {
+            return "exiting runway";
+        }
+        if (!string.IsNullOrEmpty(CurrentTaxiway))
+        {
+            return $"exiting runway {rwy} via {CurrentTaxiway}";
+        }
+        return $"exiting runway {rwy}";
+    }
+
     private string FormatTaxiStatus()
     {
-        var baseText = string.IsNullOrEmpty(AssignedRunway) ? "Taxiing" : $"Taxi to RWY {AssignedRunway}";
+        var baseText = string.IsNullOrEmpty(AssignedRunway) ? "taxiing" : $"taxi to RWY {AssignedRunway}";
         if (!string.IsNullOrEmpty(TaxiRoute))
         {
-            var taxiways = TaxiRoute.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var preview = string.Join(" ", taxiways.Length > 3 ? taxiways.AsSpan(0, 3).ToArray() : taxiways);
-            baseText = $"{baseText} via {preview}";
+            baseText = $"{baseText} via {TaxiRoute}";
         }
         return baseText;
     }
 
     private string FormatInitialClimbStatus()
     {
-        var text = $"Departing {DepartureRunway}";
+        var text = $"departing {DepartureRunway}";
         if (!string.IsNullOrEmpty(ActiveSidId))
         {
             return $"{text}, {ActiveSidId}";
@@ -784,7 +883,7 @@ public partial class AircraftModel : ObservableObject
             return $"{ActiveApproachId} final";
         }
         var rwy = string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway;
-        return $"Final {rwy}";
+        return $"final {rwy}";
     }
 
     private string FormatFallbackPhase()
@@ -792,37 +891,56 @@ public partial class AircraftModel : ObservableObject
         if (CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
             var target = CurrentPhase.Length > 14 ? CurrentPhase[14..] : "";
-            return string.IsNullOrEmpty(target) ? "Hold short" : $"Hold short {target}";
+            return string.IsNullOrEmpty(target) ? "hold short" : $"hold short {target}";
         }
 
         if (CurrentPhase.StartsWith("Following ", StringComparison.Ordinal))
         {
-            return CurrentPhase;
+            // Ground FollowingPhase embeds the target callsign in its name; lowercase
+            // only the leading verb so CapitalizeFirst re-applies sentence casing.
+            return "following " + CurrentPhase[10..];
         }
 
         if (CurrentPhase.StartsWith("Turn", StringComparison.Ordinal))
         {
-            return "Turning";
+            return "turning";
         }
 
         return CurrentPhase;
+    }
+
+    /// <summary>
+    /// Decides whether the trailing <c>hdg XXX</c> suffix is informative for a
+    /// given phase. Kept only for phases where an assigned heading diverges from
+    /// the phase's intrinsic path (vector phases). For legs, approaches, taxi,
+    /// and ground phases, the heading is either implied by the text or meaningless,
+    /// so it is suppressed.
+    /// </summary>
+    private static bool ShouldKeepHeadingSuffix(string phase)
+    {
+        return phase switch
+        {
+            "ProceedToFix" or "InterceptCourse" or "HoldingPattern" or "HoldingAtFix" => true,
+            _ when phase.StartsWith("Turn", StringComparison.Ordinal) => true,
+            _ => false,
+        };
     }
 
     private (string Text, SmartStatusSeverity Severity) ComputeNoPhaseStatus()
     {
         if (IsOnGround && GroundSpeed < 5)
         {
-            return ("On ground", SmartStatusSeverity.Normal);
+            return ("on ground", SmartStatusSeverity.Normal);
         }
 
         if (!IsOnGround && VerticalSpeed > 300)
         {
-            return (FormatClimbDescentStatus("Climbing", "\u2191"), SmartStatusSeverity.Normal);
+            return (FormatClimbDescentStatus("climbing", "\u2191"), SmartStatusSeverity.Normal);
         }
 
         if (!IsOnGround && VerticalSpeed < -300)
         {
-            return (FormatClimbDescentStatus("Descending", "\u2193"), SmartStatusSeverity.Normal);
+            return (FormatClimbDescentStatus("descending", "\u2193"), SmartStatusSeverity.Normal);
         }
 
         if (!IsOnGround)
@@ -838,14 +956,17 @@ public partial class AircraftModel : ObservableObject
             return ($"{FormatAltitudeCompact(Altitude)}, on course", SmartStatusSeverity.Normal);
         }
 
-        return ("Taxiing", SmartStatusSeverity.Normal);
+        return ("taxiing", SmartStatusSeverity.Normal);
     }
 
-    private string AppendHeadingIfAssigned(string text)
+    private string AppendHeadingIfAssigned(string text, bool keep)
     {
-        if (AssignedHeading.HasValue)
+        // Use the numeric heading only; AssignedHeadingDisplay also returns
+        // NavigatingTo (fix name) as a convenience for the Heading column,
+        // but "hdg OAKEY" is nonsense as a sentence fragment.
+        if (keep && AssignedHeading.HasValue)
         {
-            return $"{text}, hdg {AssignedHeadingDisplay}";
+            return $"{text}, hdg {AssignedHeading.Value:F0}";
         }
         return text;
     }
