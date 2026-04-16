@@ -352,6 +352,7 @@ public sealed class PhaseList
             FinalApproachPhaseDto d => FinalApproachPhase.FromSnapshot(d),
             LandingPhaseDto d => LandingPhase.FromSnapshot(d, groundLayout),
             MidfieldCrossingPhaseDto d => MidfieldCrossingPhase.FromSnapshot(d),
+            TeardropReentryPhaseDto d => TeardropReentryPhase.FromSnapshot(d),
             PatternEntryPhaseDto d => PatternEntryPhase.FromSnapshot(d),
             BasePhaseDto d => BasePhase.FromSnapshot(d),
             CrosswindPhaseDto d => CrosswindPhase.FromSnapshot(d),

@@ -1205,4 +1205,295 @@ public class PatternEntryTests : IDisposable
         _output.WriteLine($"Jet on long runway lead-in distance: {distAbeamToLeadIn:F3}nm (expected {expectedNm:F3}nm, floor {2.0:F1}nm)");
         Assert.InRange(distAbeamToLeadIn, expectedNm - 0.05, expectedNm + 0.05);
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Wrong-side teardrop re-entry (AIM 4-3-3.1.b, AC 90-66B §11.3-§11.4)
+    //
+    // Pistons and helicopters cross midfield at pattern altitude and drop
+    // directly into DownwindPhase. Turboprops and jets cross at TPA+500 and
+    // hand off to TeardropReentryPhase, which descends to TPA via an outbound
+    // leg and 45° intercept to abeam.
+    // ───────────────────────────────────────────────────────────────────────
+
+    private static PhaseContext MakeContext(AircraftState aircraft) => CommandDispatcher.BuildMinimalContext(aircraft);
+
+    [Fact]
+    public void WrongSide_Piston_CrossesAtTpa()
+    {
+        // C182 south of KOAK 28R, right pattern → south is wrong side.
+        // Piston should cross AT pattern altitude (not +500).
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0); // C182 default
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        var ctx = MakeContext(aircraft);
+        mc.OnStart(ctx);
+
+        double expectedAlt = mc.Waypoints!.PatternAltitude;
+        _output.WriteLine($"Piston crossing target alt: {ctx.Targets.TargetAltitude:F0}ft (expected {expectedAlt:F0}ft)");
+        Assert.Equal(expectedAlt, ctx.Targets.TargetAltitude);
+    }
+
+    [Fact]
+    public void WrongSide_Jet_CrossesAtTpaPlus500()
+    {
+        // B738 same position. Jet crosses at TPA+500.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        var ctx = MakeContext(aircraft);
+        mc.OnStart(ctx);
+
+        double expectedAlt = mc.Waypoints!.PatternAltitude + 500.0;
+        _output.WriteLine($"Jet crossing target alt: {ctx.Targets.TargetAltitude:F0}ft (expected {expectedAlt:F0}ft)");
+        Assert.Equal(expectedAlt, ctx.Targets.TargetAltitude);
+    }
+
+    [Fact]
+    public void WrongSide_Turboprop_PhaseChain_IncludesTeardrop()
+    {
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "DH8D";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        Assert.IsType<TeardropReentryPhase>(phases[1]);
+        Assert.IsType<DownwindPhase>(phases[2]);
+    }
+
+    [Fact]
+    public void WrongSide_Jet_PhaseChain_IncludesTeardrop()
+    {
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        Assert.IsType<TeardropReentryPhase>(phases[1]);
+        Assert.IsType<DownwindPhase>(phases[2]);
+    }
+
+    [Fact]
+    public void WrongSide_Piston_PhaseChain_NoTeardrop()
+    {
+        // C182 wrong-side: only MidfieldCrossing → Downwind, no teardrop.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+    }
+
+    [Fact]
+    public void TeardropReentry_RightPattern_OutboundAnchorOnPatternSide()
+    {
+        // Outbound anchor should be on crosswind heading from abeam (pattern-side perpendicular).
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
+        var ctx = MakeContext(aircraft);
+        teardrop.OnStart(ctx);
+
+        var route = ctx.Targets.NavigationRoute;
+        Assert.True(route.Count >= 1, "Teardrop route should have at least one waypoint");
+        var outbound = route[0];
+        double bearingAbeamToOutbound = GeoMath.BearingTo(
+            teardrop.Waypoints.DownwindAbeamLat,
+            teardrop.Waypoints.DownwindAbeamLon,
+            outbound.Latitude,
+            outbound.Longitude
+        );
+        double expected = teardrop.Waypoints.CrosswindHeading.Degrees; // 22° for right pattern 28R
+
+        _output.WriteLine($"Outbound anchor bearing from abeam: {bearingAbeamToOutbound:F1}° (expected ~{expected:F1}°)");
+        Assert.InRange(GeoMath.AbsBearingDifference(bearingAbeamToOutbound, expected), 0, 5.0);
+    }
+
+    [Fact]
+    public void TeardropReentry_LeftPattern_OutboundAnchorOnPatternSide()
+    {
+        // Mirror for left pattern — outbound on crosswind heading 202° for 28L.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.87, -122.21, 3000, 180); // N of field, wrong side for left pattern
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
+        var ctx = MakeContext(aircraft);
+        teardrop.OnStart(ctx);
+
+        var outbound = ctx.Targets.NavigationRoute[0];
+        double bearing = GeoMath.BearingTo(
+            teardrop.Waypoints.DownwindAbeamLat,
+            teardrop.Waypoints.DownwindAbeamLon,
+            outbound.Latitude,
+            outbound.Longitude
+        );
+        double expected = teardrop.Waypoints.CrosswindHeading.Degrees; // 202° for left pattern
+
+        _output.WriteLine($"Outbound anchor bearing from abeam: {bearing:F1}° (expected ~{expected:F1}°)");
+        Assert.InRange(GeoMath.AbsBearingDifference(bearing, expected), 0, 5.0);
+    }
+
+    [Fact]
+    public void TeardropReentry_LeadInAndAbeamAreOn45DegreeLine()
+    {
+        // Right pattern: lead-in and abeam (waypoints 2 and 3 in the route) should both be
+        // on the 45° reverse-entry line (bearing 337° from abeam).
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
+        var ctx = MakeContext(aircraft);
+        teardrop.OnStart(ctx);
+
+        var route = ctx.Targets.NavigationRoute;
+        Assert.Equal(3, route.Count);
+
+        double expected45Reverse = new TrueHeading(teardrop.Waypoints.DownwindHeading.Degrees + 45.0 + 180.0).Degrees;
+
+        // Lead-in (route[1]): bearing from abeam should be ~ reverse-45° entry heading.
+        double bearingLeadIn = GeoMath.BearingTo(
+            teardrop.Waypoints.DownwindAbeamLat,
+            teardrop.Waypoints.DownwindAbeamLon,
+            route[1].Latitude,
+            route[1].Longitude
+        );
+        Assert.InRange(GeoMath.AbsBearingDifference(bearingLeadIn, expected45Reverse), 0, 2.0);
+
+        // Abeam (route[2]): should match the abeam point itself.
+        Assert.Equal(teardrop.Waypoints.DownwindAbeamLat, route[2].Latitude, precision: 5);
+        Assert.Equal(teardrop.Waypoints.DownwindAbeamLon, route[2].Longitude, precision: 5);
+    }
+
+    [Fact]
+    public void WrongSide_Helicopter_CrossesAtHelicopterTpa_500Agl()
+    {
+        // Helicopters fly the pattern at 500 AGL per AIM 4-3-3.1.c.
+        // PatternAltitudeAgl(Helicopter) = 500, so Waypoints.PatternAltitude = field + 500.
+        // Wrong-side helo should cross at that altitude — not 1000, not 1500.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 1500, 0);
+        aircraft.AircraftType = "R44";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        Assert.Equal(AircraftCategory.Helicopter, cat);
+        var ctx = MakeContext(aircraft);
+        mc.OnStart(ctx);
+
+        double expectedAlt = runway.ElevationFt + 500.0; // helo TPA = 500 AGL
+        _output.WriteLine($"Helo crossing target alt: {ctx.Targets.TargetAltitude:F0}ft (expected {expectedAlt:F0}ft = field+500 AGL)");
+        Assert.Equal(expectedAlt, ctx.Targets.TargetAltitude);
+        Assert.DoesNotContain(aircraft.Phases.Phases, p => p is TeardropReentryPhase);
+    }
+
+    [Fact]
+    public void TeardropReentry_Jet_OutboundAnchorAt3Nm()
+    {
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
+        var ctx = MakeContext(aircraft);
+        teardrop.OnStart(ctx);
+
+        var outbound = ctx.Targets.NavigationRoute[0];
+        double dist = GeoMath.DistanceNm(
+            teardrop.Waypoints.DownwindAbeamLat,
+            teardrop.Waypoints.DownwindAbeamLon,
+            outbound.Latitude,
+            outbound.Longitude
+        );
+        _output.WriteLine($"Jet outbound distance from abeam: {dist:F2}nm (expected 3.0nm)");
+        Assert.InRange(dist, 2.95, 3.05);
+    }
+
+    [Fact]
+    public void TeardropReentry_Turboprop_OutboundAnchorAt2_5Nm()
+    {
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "DH8D";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
+        var ctx = MakeContext(aircraft);
+        teardrop.OnStart(ctx);
+
+        var outbound = ctx.Targets.NavigationRoute[0];
+        double dist = GeoMath.DistanceNm(
+            teardrop.Waypoints.DownwindAbeamLat,
+            teardrop.Waypoints.DownwindAbeamLon,
+            outbound.Latitude,
+            outbound.Longitude
+        );
+        _output.WriteLine($"Turboprop outbound distance from abeam: {dist:F2}nm (expected 2.5nm)");
+        Assert.InRange(dist, 2.45, 2.55);
+    }
+
+    [Fact]
+    public void TeardropReentry_AltitudeProfileDescendsLinearly()
+    {
+        // Waypoint altitude restrictions: anchor > lead-in > abeam, ending at TPA.
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
+        var ctx = MakeContext(aircraft);
+        teardrop.OnStart(ctx);
+
+        var route = ctx.Targets.NavigationRoute;
+        int anchorAlt = route[0].AltitudeRestriction!.Altitude1Ft;
+        int leadInAlt = route[1].AltitudeRestriction!.Altitude1Ft;
+        int abeamAlt = route[2].AltitudeRestriction!.Altitude1Ft;
+        int tpa = (int)teardrop.Waypoints.PatternAltitude;
+
+        _output.WriteLine($"Altitude profile: anchor={anchorAlt}, lead-in={leadInAlt}, abeam={abeamAlt}, TPA={tpa}");
+        Assert.True(anchorAlt > leadInAlt, $"anchor ({anchorAlt}) should be above lead-in ({leadInAlt})");
+        Assert.True(leadInAlt > abeamAlt, $"lead-in ({leadInAlt}) should be above abeam ({abeamAlt})");
+        Assert.Equal(tpa, abeamAlt);
+    }
 }

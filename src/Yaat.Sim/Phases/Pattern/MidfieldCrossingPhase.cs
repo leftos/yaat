@@ -5,16 +5,19 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Pattern;
 
 /// <summary>
-/// Crosses midfield from the wrong side to the correct pattern side.
-/// Per AIM 4-3-3: aircraft crosses at pattern altitude + 500ft (safe altitude
-/// above pattern traffic), then enters downwind normally.
+/// Crosses midfield from the wrong side to the correct pattern side. Per
+/// AIM 4-3-3.1.b and AC 90-66B §11.3-§11.4: small pistons/helicopters cross
+/// at pattern altitude (1000 AGL); large and turbine-powered aircraft cross
+/// at pattern altitude + 500 ft. Turboprops/jets are handed off to
+/// <see cref="TeardropReentryPhase"/> afterward to descend to TPA; pistons
+/// and helicopters drop directly into <see cref="DownwindPhase"/>.
 /// </summary>
 public sealed class MidfieldCrossingPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("MidfieldCrossingPhase");
 
     private const double ArrivalNm = 0.5;
-    private const double CrossingAltitudeOffsetFt = 500.0;
+    private const double LargeTurbineAltitudeOffsetFt = 500.0;
 
     private double _targetLat;
     private double _targetLon;
@@ -41,18 +44,18 @@ public sealed class MidfieldCrossingPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
-        // Climb/maintain pattern altitude + 500ft for safe crossing
-        ctx.Targets.TargetAltitude = Waypoints.PatternAltitude + CrossingAltitudeOffsetFt;
+        // Large/turbine cross at TPA+500 (AIM 4-3-3.1.b); pistons/helicopters
+        // cross at pattern altitude (AC 90-66B §11.3-§11.4).
+        double crossingAlt = ctx.Category is AircraftCategory.Jet or AircraftCategory.Turboprop
+            ? Waypoints.PatternAltitude + LargeTurbineAltitudeOffsetFt
+            : Waypoints.PatternAltitude;
+        ctx.Targets.TargetAltitude = crossingAlt;
         ctx.Targets.DesiredVerticalRate = null;
 
         // Downwind speed for the category
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
-        Log.LogDebug(
-            "[MidfieldCrossing] {Callsign}: started, crossingAlt={Alt:F0}ft",
-            ctx.Aircraft.Callsign,
-            Waypoints.PatternAltitude + CrossingAltitudeOffsetFt
-        );
+        Log.LogDebug("[MidfieldCrossing] {Callsign}: started, cat={Cat}, crossingAlt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Category, crossingAlt);
     }
 
     public override bool OnTick(PhaseContext ctx)

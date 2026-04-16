@@ -258,6 +258,15 @@ internal static class PatternCommandHandler
         if (isOnWrongSide)
         {
             phases.Add(new MidfieldCrossingPhase { Waypoints = waypoints });
+
+            // Large/turbine cross at TPA+500 per AIM 4-3-3.1.b; they still need to
+            // descend to TPA before joining downwind. TeardropReentryPhase does that
+            // via an outbound leg + 45° intercept to abeam. Pistons/helicopters already
+            // cross at TPA (see MidfieldCrossingPhase) and can drop straight into downwind.
+            if (category is AircraftCategory.Jet or AircraftCategory.Turboprop)
+            {
+                phases.Add(new TeardropReentryPhase { Waypoints = waypoints });
+            }
         }
 
         foreach (var phase in circuitPhases)

@@ -201,6 +201,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(FinalApproachPhaseDto), "FinalApproach")]
 [JsonDerivedType(typeof(LandingPhaseDto), "Landing")]
 [JsonDerivedType(typeof(MidfieldCrossingPhaseDto), "MidfieldCrossing")]
+[JsonDerivedType(typeof(TeardropReentryPhaseDto), "TeardropReentry")]
 [JsonDerivedType(typeof(PatternEntryPhaseDto), "PatternEntry")]
 [JsonDerivedType(typeof(BasePhaseDto), "Base")]
 [JsonDerivedType(typeof(CrosswindPhaseDto), "Crosswind")]
@@ -581,6 +582,15 @@ public sealed class MidfieldCrossingPhaseDto : PhaseDto
     public PatternWaypointsDto? Waypoints { get; init; }
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }
+}
+
+public sealed class TeardropReentryPhaseDto : PhaseDto
+{
+    public required PatternWaypointsDto Waypoints { get; init; }
+    public required double OutboundLat { get; init; }
+    public required double OutboundLon { get; init; }
+    public required double LeadInLat { get; init; }
+    public required double LeadInLon { get; init; }
 }
 
 public sealed class PatternEntryPhaseDto : PhaseDto
