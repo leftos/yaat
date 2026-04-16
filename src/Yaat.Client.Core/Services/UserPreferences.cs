@@ -6,7 +6,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
-using Yaat.Client.Views.Ground;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;

@@ -21,5 +21,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
+    <ProjectReference Include="..\..\src\Yaat.Client.Core\Yaat.Client.Core.csproj" />
   </ItemGroup>
 </Project>

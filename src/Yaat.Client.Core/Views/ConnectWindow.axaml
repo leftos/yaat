@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Yaat.Client.ViewModels"
         x:Class="Yaat.Client.Views.ConnectWindow"
-        Icon="avares://Yaat.Client/Resources/icon.png"
+        Icon="avares://Yaat.Client.Core/Resources/icon.png"
         Title="Connect to Server"
         Width="560"
         Height="400"

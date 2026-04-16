@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vstrips="using:Yaat.Client.Views.VStrips"
         x:Class="Yaat.Client.Views.VStrips.VStripsViewWindow"
-        Icon="avares://Yaat.Client/Resources/icon.png"
+        Icon="avares://Yaat.Client.Core/Resources/icon.png"
         Title="Flight Strips">
 
     <vstrips:VStripsView DataContext="{Binding VStrips}" />

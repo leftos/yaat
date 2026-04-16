@@ -14,6 +14,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Yaat.Client.Tests" />
     <InternalsVisibleTo Include="Yaat.SpeechSandbox" />
+    <!-- Temporary: Yaat.VStrips still references MainViewModel until Commit 2 rewrites
+         the standalone to use VStripsStandaloneViewModel. Remove after the rewrite. -->
     <InternalsVisibleTo Include="Yaat.VStrips" />
   </ItemGroup>
 
@@ -65,6 +67,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Yaat.Client.Core\Yaat.Client.Core.csproj" />
     <ProjectReference Include="..\Yaat.Sim\Yaat.Sim.csproj" />
   </ItemGroup>
 </Project>

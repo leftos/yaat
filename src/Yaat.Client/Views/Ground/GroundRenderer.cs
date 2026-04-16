@@ -11,16 +11,6 @@ using Yaat.Sim.Data.Faa;
 namespace Yaat.Client.Views.Ground;
 
 /// <summary>
-/// Tri-state filter for ground view elements: both icon+label, icon only, or fully hidden.
-/// </summary>
-public enum GroundFilterMode
-{
-    LabelsAndIcons,
-    IconsOnly,
-    Off,
-}
-
-/// <summary>
 /// Computed datablock geometry. Shared by renderer (draw) and canvas (hit-test).
 /// </summary>
 internal readonly struct DataBlockLayout

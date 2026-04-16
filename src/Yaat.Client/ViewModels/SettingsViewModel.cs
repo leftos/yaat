@@ -1036,37 +1036,8 @@ public partial class SettingsViewModel : ObservableObject
         return string.Join(" + ", display);
     }
 
-    public static bool ParseKeybind(string combo, out Key key, out KeyModifiers modifiers)
-    {
-        key = Key.None;
-        modifiers = KeyModifiers.None;
-
-        var parts = combo.Split('+');
-        foreach (var part in parts)
-        {
-            var trimmed = part.Trim();
-            switch (trimmed)
-            {
-                case "Ctrl":
-                    modifiers |= KeyModifiers.Control;
-                    break;
-                case "Alt":
-                    modifiers |= KeyModifiers.Alt;
-                    break;
-                case "Shift":
-                    modifiers |= KeyModifiers.Shift;
-                    break;
-                default:
-                    if (!Enum.TryParse(trimmed, out key))
-                    {
-                        return false;
-                    }
-                    break;
-            }
-        }
-
-        return key != Key.None;
-    }
+    public static bool ParseKeybind(string combo, out Key key, out KeyModifiers modifiers) =>
+        KeybindHelper.ParseKeybind(combo, out key, out modifiers);
 
     // ---------- LM-Kit catalog selection ----------
 
