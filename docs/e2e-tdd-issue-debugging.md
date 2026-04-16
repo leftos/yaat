@@ -73,6 +73,30 @@ Download the recording or bug report bundle from the issue and place it in TestD
 
 Convention: `issue{N}-{short-description}-recording.zip` or `-recording.yaat-bug-report-bundle.zip`. Including the issue number makes it easy to trace back to the GitHub thread.
 
+**Use `tools/bug_bundle.py` to install and triage.** Requires `brotli` (`pip install brotli`).
+
+```bash
+# Install from a local download
+python tools/bug_bundle.py install /path/to/bundle.zip --issue 77 --desc alwys-descent
+
+# ...or fetch the first .zip attachment from the GitHub issue directly (uses gh)
+python tools/bug_bundle.py install --issue 77 --desc alwys-descent
+
+# Quick triage: duration, ARTCC, aircraft at t=0, logs present?
+python tools/bug_bundle.py info tests/Yaat.Sim.Tests/TestData/issue77-alwys-descent-recording.yaat-bug-report-bundle.zip
+
+# Aircraft state at the moment the bug manifests
+python tools/bug_bundle.py snapshot <bundle> --at 182 --callsign UAL238 --out .tmp/ual238-182.json
+
+# Actions the user took (to find the triggering command)
+python tools/bug_bundle.py actions <bundle>
+
+# Extract logs for grepping
+python tools/bug_bundle.py logs <bundle>
+```
+
+See `.claude/skills/bug-bundle/SKILL.md` for the full subcommand reference.
+
 ### 2. Understand the bug from the issue
 
 Read the user's description. Key things to extract:

@@ -34,6 +34,23 @@ dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> --ticks .tmp/r
 
 Key use cases: trace multi-hop exit paths (`--bfs 230 T`), find all exits from a runway (`--exits 28R`), inspect node connectivity (`--node N`), verify hold-short runway IDs (`--runway 28R`), dump entire airport to JSON for grepping (`--dump > .tmp/oak.json`), inspect a recorded aircraft trajectory against a runway reference (`--tick-table --tick-ref`). See `docs/e2e-tdd-issue-debugging.md` for detailed examples.
 
+## Bug Bundle Tool
+
+`tools/bug_bundle.py` inspects, extracts, installs, and validates v4 bug bundles (`*.yaat-bug-report-bundle.zip`, `*-recording.zip`). Requires `brotli` (`pip install brotli`). Use it whenever a bundle is attached to an issue — faster than writing throwaway C# or unzipping by hand.
+
+```bash
+python tools/bug_bundle.py info <bundle.zip>                           # manifest summary + aircraft at t=0
+python tools/bug_bundle.py snapshot <bundle.zip> --at 182              # snapshot nearest to t=182s
+python tools/bug_bundle.py snapshot <bundle.zip> --at 182 --callsign X # filter to one aircraft
+python tools/bug_bundle.py actions <bundle.zip>                        # timeline of user actions
+python tools/bug_bundle.py logs <bundle.zip>                           # extract yaat-client/server logs to .tmp/
+python tools/bug_bundle.py install <local.zip> --issue 134 --desc slug # copy to TestData/ with naming convention
+python tools/bug_bundle.py install --issue 134 --desc slug             # fetch from GitHub issue via gh
+python tools/bug_bundle.py validate <bundle.zip>                       # manifest + decompression integrity
+```
+
+Full subcommand list: `info`, `snapshot`, `actions`, `scenario`, `weather`, `layouts`, `logs`, `install`, `validate`. See `.claude/skills/bug-bundle/SKILL.md` for the full reference.
+
 ## Logs
 
 Read log files first before speculating about runtime errors:
