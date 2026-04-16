@@ -31,6 +31,8 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<SessionSettingsDto>? SessionSettingsChanged;
     public event Action<string>? KickedFromRoom;
     public event Action<int, int>? ExportRecordingProgress;
+    public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
+    public event Action<List<StripItemDto>>? StripItemsChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -75,6 +77,8 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<SessionSettingsDto>("SessionSettingsChanged", dto => SessionSettingsChanged?.Invoke(dto));
         _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));
         _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
+        _connection.On<FlightStripsStateDto>("FlightStripsStateChanged", dto => FlightStripsStateChanged?.Invoke(dto));
+        _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
 
         _connection.Reconnecting += error =>
         {
@@ -508,7 +512,8 @@ public record LoadScenarioResultDto(
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     bool AutoClearedToLand = false,
     bool IsStudentTowerPosition = true,
-    string? StudentPositionType = null
+    string? StudentPositionType = null,
+    FlightStripsConfigDto? FlightStripsConfig = null
 );
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
@@ -546,7 +551,8 @@ public record RoomStateDto(
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
-    bool ValidateDctFixes = true
+    bool ValidateDctFixes = true,
+    FlightStripsConfigDto? FlightStripsConfig = null
 );
 
 public record ScenarioLoadedDto(
@@ -563,7 +569,8 @@ public record ScenarioLoadedDto(
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
-    bool ValidateDctFixes = true
+    bool ValidateDctFixes = true,
+    FlightStripsConfigDto? FlightStripsConfig = null
 );
 
 public record SessionSettingsDto(
