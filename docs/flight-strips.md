@@ -68,7 +68,7 @@ as the `StripItemType` enum, and match CRC vStrips one-for-one:
 | Value | Name | What it is |
 |-------|------|------------|
 | 0 | `DepartureStrip` | Full strip printed from a filed IFR departure flight plan. 18 annotation-aware field slots. |
-| 1 | `ArrivalStrip` | Full strip printed when an airborne aircraft is within ~20 min of arrival. Similar field layout. |
+| 1 | `ArrivalStrip` | Full strip auto-printed when an airborne aircraft is within 20 minutes of destination. Similar field layout. |
 | 2 | `HandwrittenSeparator` | Rack separator with freeform label. |
 | 3 | `WhiteSeparator` | Colored rack separators. |
 | 4 | `RedSeparator` | — |
@@ -77,10 +77,10 @@ as the `StripItemType` enum, and match CRC vStrips one-for-one:
 | 7 | `HalfStripRight` | Same, slid to the right side. |
 | 8 | `BlankStrip` | Blank full-size strip printed on demand. |
 
-YAAT currently only ever produces types `0` (via `STRIP`) and `6` (via
-`HSC`). Separators, blanks, the right-half variant, and arrival strips
-are all defined in the DTO enum for CRC compatibility but nothing on the
-server side creates them yet.
+YAAT produces types `0` (via `STRIP`), `1` (auto), `2`–`8` (via `SEP`,
+`HSC`, `HSS`, `BLANK`, etc.). Arrival strip auto-printing is triggered
+by `TickProcessor.ProcessAutoArrivalStrips` when the arrival is within
+`StripMutations.ArrivalAutoPrintMinutes` (default 20.0) of destination.
 
 ## Server state model
 
@@ -176,32 +176,42 @@ Defined in `src/Yaat.Sim/Commands/`:
 | `HalfStripCreate` | `HSC` | `HALFSTRIPCREATE` | `HalfStripCreateCommand(BayName, Rack, Lines)` |
 | `HalfStripAmend` | `HSA` | `HALFSTRIPAMEND` | `HalfStripAmendCommand(BayName, Rack, Tokens)` |
 | `HalfStripDelete` | `HSD` | `HALFSTRIPDEL` | `HalfStripDeleteCommand(BayName, Rack, Tokens)` |
+| `StripDelete` | `STRIPD` | — | `StripDeleteCommand(Callsign)` |
+| `StripOffset` | `STRIPO` | — | `StripOffsetCommand(Callsign)` |
+| `HalfStripMove` | `HSM` | — | `HalfStripMoveCommand(Tokens)` |
+| `HalfStripOffset` | `HSO` | — | `HalfStripOffsetCommand(Tokens)` |
+| `HalfStripSlide` | `HSS` | — | `HalfStripSlideCommand(Tokens)` |
+| `SeparatorCreate` | `SEP` | — | `SeparatorCreateCommand(Type, BayName, Rack, Index, Label)` |
+| `SeparatorDelete` | `SEPD` | — | `SeparatorDeleteCommand(BayName, LabelOrPosition)` |
+| `BlankCreate` | `BLANK` | — | `BlankCreateCommand(BayName, Rack, Index)` |
+| `BlankDelete` | `BLANKD` | — | `BlankDeleteCommand(BayName)` |
 
-All five are marked **phase-transparent** in `CommandDescriber.IsPhaseTransparent`
+All strip commands are marked **phase-transparent** in `CommandDescriber.IsPhaseTransparent`
 — they never interact with flight physics — and the parser routes them
 through `TrackEngine.IsStripCommand`, which is checked in
 `RoomEngine.SendCommandAsync` *before* the dispatcher so they bypass
 aircraft phase gating and go straight to `HandleStripCmd`.
 
-### Full strip: `STRIP` and `AN`
+### Full strip: `STRIP`, `AN`, `STRIPD`, `STRIPO`
 
-Both are aircraft-scoped (require a selected or prefix callsign):
+All four are aircraft-scoped (require a selected or prefix callsign):
 
-- `STRIP {bay}` pushes or reassigns a full flight strip keyed by
-  `STRIP_{callsign}` to the named bay, rack 0. The record is type
-  `DepartureStrip (0)`.
+- `STRIP {bay} [{rack}] [{index}]` pushes or reassigns a full flight
+  strip keyed by `STRIP_{callsign}` to the named bay. Rack and index
+  default to 0. The record is type `DepartureStrip (0)`. Bay matching
+  uses greedy longest-prefix for multi-word bay names; arguments are
+  tokenized via `StripMoveCommand`.
 - `AN {box} [text]` writes (or clears) annotation text into one of
   boxes 1–9 on the aircraft's strip. Field index is `box + 9`. Accepts
   `AN 10`–`AN 18` as aliases for `AN 1`–`AN 9`.
+- `STRIPD` deletes the full strip keyed by `STRIP_{callsign}`.
+- `STRIPO` toggles the offset flag on the full strip.
 
-`HandleStripPush` resolves the bay using `GetStripBay(artccId, studentFacilityId, bayName)`.
-That's still the legacy TrackOwner-facility path and has the tower
-caveat above — it works for non-tower students and, because of the
-normalized fallback, for tower students *only* when the TRACON happens
-to have a bay with the same name as the user wrote. Fixing STRIP to use
-`GetAccessibleStripBay` is a follow-up.
+`HandleStripPush` resolves the bay using `GetAccessibleStripBay(artccId, positionCallsign, bayName)`,
+closing the tower-vs-TRACON facility gap. Tower students can now `STRIP`
+against all bays visible to their tower position.
 
-### Half-strips: `HSC` / `HSA` / `HSD`
+### Half-strips: `HSC` / `HSA` / `HSD` / `HSM` / `HSO` / `HSS`
 
 #### Dual-mode operation
 
@@ -329,6 +339,50 @@ lines). `HSD` is capped at 1 token.
 All three are also wired into `HandleStripReplay` so recording tapes
 that contain half-strip commands replay correctly.
 
+#### `HSM` (half-strip move)
+
+Moves a half-strip to a new bay/rack/index. Works in global and
+aircraft-scoped modes:
+
+- **Global**: `HSM bay [rack] [index] dest-bay/rack/index` where the
+  source half-strip is identified by its first line (lookup key).
+- **Aircraft-scoped**: `HSM dest-bay [rack] [index]` moves the half-strip
+  keyed by the aircraft callsign.
+
+#### `HSO` (half-strip offset)
+
+Toggles the `IsOffset` flag on a half-strip. Dual-mode:
+
+- **Global**: `HSO [bay [rack]] key` identifies the half-strip by key.
+- **Aircraft-scoped**: `HSO [bay [rack]]` toggles the callsign's strip.
+
+#### `HSS` (half-strip slide)
+
+Toggles a half-strip between `HalfStripLeft` and `HalfStripRight`.
+Dual-mode:
+
+- **Global**: `HSS [bay [rack]] key` identifies the half-strip by key.
+- **Aircraft-scoped**: `HSS [bay [rack]]` toggles the callsign's strip.
+
+#### `SEP` / `SEPD` (separators)
+
+Create and delete rack separators:
+
+- `SEP H|W|R|G bay [rack] [index] [label]` creates a separator of type
+  Handwritten (H), White (W), Red (R), or Green (G). Label is optional
+  freeform text. Defaults to rack 0, index 0.
+- `SEPD bay [rack] label-or-position` deletes a separator by its label
+  (exact match) or numeric position.
+
+#### `BLANK` / `BLANKD` (blanks)
+
+Create and delete blank strips:
+
+- `BLANK [bay [rack] [index]]` creates a blank full-size strip. Without
+  arguments, adds the blank to the printer queue (not a specific bay).
+- `BLANKD bay [rack]` deletes one blank from the specified bay/rack
+  (blanks are fungible).
+
 ## CRC protocol integration
 
 The server ships strip state to CRC clients on the **FlightStrips**
@@ -355,40 +409,56 @@ CRC can also drive strips itself — the hub partial
 controller moves a strip in vStrips; the server acknowledges, mutates
 state, and rebroadcasts.
 
-## Yaat.Client status
+## CRC → canonical translation
 
-The instructor/RPO desktop app has **no strip display**. It only
-produces strip commands. Any strip feature visible to the trainee
-relies on a real CRC client being connected to the same training
-room as a subscriber of the `FlightStrips` topic. Tests for strips
-run entirely on the server side (`tests/Yaat.Server.Tests/HalfStripCommandTests.cs`,
-`tests/Yaat.Sim.Tests/HalfStripCommandParserTests.cs`, `StripCommandParserTests.cs`).
+When CRC sends a strip mutation (e.g., `UpdateStripItem`), the handler in
+`CrcClientState.Strips.cs` parses the MessagePack payload, converts vNAS
+bay ULIDs to bay names via `ArtccConfigService.GetAccessibleStripBayById`,
+builds a canonical command string via `StripCommandTranslator`, and
+dispatches it through `RoomEngine.RecordAndDispatchStripAsync` with
+`initials="CRC"`. The wire-format wrapper DTOs match vNAS
+`messaging/Commands/` enum definitions for compatibility across systems.
 
-If YAAT ever grows its own in-client strip view, it would subscribe
-to the existing broadcast topic and render the same `StripItemDto`
-payloads CRC consumes — no server changes required.
+## Yaat.Client strip view (continued)
 
-## Known gaps / future work
+Tests for strips run on the server side (`tests/Yaat.Server.Tests/HalfStripCommandTests.cs`,
+`tests/Yaat.Sim.Tests/HalfStripCommandParserTests.cs`, `StripCommandParserTests.cs`)
+and in the client unit tests for `VStripsViewModel`. The architecture
+delegates all state management to the server and broadcasts — both apps
+(embedded and standalone) consume identical payloads.
 
-- `STRIP` (full-strip push) still uses `GetStripBay(studentFacilityId, …)`,
-  which for tower positions points at the parent TRACON and fails
-  unless the TRACON happens to have a bay with a matching name.
-  Switch it to `GetAccessibleStripBay(artccCallsign, …)` to match the
-  half-strip path. Until then, tower students can only use `STRIP`
-  against TRACON-owned bays.
-- `StripItemType.HalfStripRight` is never produced. Adding a right-side
-  variant (e.g. `HSC ... /R` flag, or a separate `HSCR` verb) is
-  straightforward once there's a use case.
-- Separators (`HandwrittenSeparator`, colored variants) and blank
-  strips have no command surface. Real CRC creates these via its vStrips
-  UI; YAAT instructors currently can't.
-- `FieldValues` layout for half-strips is just the raw lines. For full
-  departure/arrival strips, CRC expects specific field indices (flight
-  plan fields at 0–9, annotation boxes at 10–18). `HandleStripAnnotateBox`
-  already respects the `box + 9` offset, but there's no surface for
-  directly editing the "printed" fields (callsign, equipment, route, …)
-  because they come from the scenario flight plan.
-- Bay row stacking in `Bays[bayId][rack]` is currently always a
-  one-row array. If multi-row racks are ever needed, the prepend
-  helper and the enumeration in `BuildFlightStripsStateDto` already
-  handle the list-of-lists shape.
+## vStrips clone work (completed)
+
+All major vStrips features implemented in YAAT:
+
+- **`STRIP` bay resolution** now uses `GetAccessibleStripBay`, closing
+  the tower-vs-TRACON facility gap. Tower students can use `STRIP`
+  against all accessible bays.
+- **`HalfStripRight`** produced by `HSS` (half-strip slide toggle).
+- **Separators** + **blanks** have full command surface via `SEP`, `SEPD`,
+  `BLANK`, `BLANKD`.
+- **Half-strip move/offset/slide** via `HSM`, `HSO`, `HSS`.
+- **Full strip delete/offset** via `STRIPD`, `STRIPO`.
+- **Auto-departure/auto-arrival** strip printing configured by scenario.
+  Arrivals auto-print when within 20 minutes of destination
+  (`StripMutations.ArrivalAutoPrintMinutes = 20.0`).
+- **CRC → canonical translation** in `CrcClientState.Strips.cs` parses
+  MessagePack invocations, converts bay IDs to names via
+  `ArtccConfigService.GetAccessibleStripBayById`, builds canonical
+  command strings via `StripCommandTranslator`, and dispatches through
+  `RoomEngine.RecordAndDispatchStripAsync`. Wire-format wrapper DTOs
+  match vNAS messaging/Commands/ enum layout.
+
+## Yaat.Client strip view
+
+The **embedded Strips tab** in Yaat.Client subscribes to
+`FlightStripsStateChanged` and `StripItemsChanged` broadcasts,
+reconciles via `ReconcileFullState`/`ReconcileItems`, and emits every
+user action as a canonical command through `_sendCommand`. Supports
+drag/drop, keyboard shortcuts, and offset/offset-reverse annotation.
+
+A **standalone Yaat.VStrips app** ships as a ~109 MB binary, cloned from
+the shared `src/Yaat.Sim` core with a thin Avalonia UI. It uses
+`Yaat.Client.Core` (no LM-Kit dependency), connects via `VStripsViewModel`
+to the same `FlightStrips` topic as the main client, and renders the
+identical `StripItemDto` payloads.

@@ -46,6 +46,42 @@
 Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironments.json
 ```
 
+## Yaat.Client.Core — Shared library (`src/Yaat.Client.Core/`)
+
+Shared code referenced by Yaat.Client and Yaat.VStrips. No LM-Kit, PortAudio, or SharpHook dependencies. Namespace stays `Yaat.Client.*`.
+
+```
+Logging/
+  AppLog.cs                     # Static logger factory
+  FileLoggerProvider.cs         # Writes to %LOCALAPPDATA%/yaat/yaat-client.log
+
+Services/
+  ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
+  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json
+
+ViewModels/
+  VStripsViewModel.cs           # Root vStrips VM; manages strip bays, items, rack state
+  StripItemViewModel.cs         # Per-strip observable model: flight data, annotations
+  StripBayViewModel.cs          # Per-bay container: list of strips, visibility state
+  StripRackViewModel.cs         # Rack (visual height) management per bay
+  StripPrinterViewModel.cs      # Auto-print on aircraft departure/arrival
+  ConnectViewModel.cs           # Room/identity connection flow
+
+Views/
+  ConnectWindow.axaml.cs        # Server/room/identity entry dialog
+  VStripsView.axaml.cs          # Embedded vStrips control
+  VStripsViewWindow.axaml.cs    # Pop-out window for vStrips view
+  StripItemView.axaml.cs        # Per-strip display template
+
+Services/
+  VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations
+  WindowGeometryHelper.cs       # Save/restore window position+size+topmost
+  KeybindHelper.cs              # Keyboard shortcut resolution
+  MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames
+  GroundColorScheme.cs          # Theme/color scheme for strips
+  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
+```
+
 ## Yaat.Client — Avalonia desktop app (`src/Yaat.Client/`)
 
 ```
@@ -132,6 +168,17 @@ Views/Radar/
   RadarRenderer.cs              # Stateless SkiaSharp radar renderer
   VideoMapRenderer.cs           # Video map line/label rendering
   TargetRenderer.cs             # Aircraft target/datablock rendering
+```
+
+## Yaat.VStrips — Standalone app (`tools/Yaat.VStrips/`)
+
+Flight strip display client independent of Yaat.Client. References Yaat.Client.Core only. 109 MB self-contained publish (no LM-Kit, no PortAudio, no SharpHook). Students run this alongside CRC while YAAT awaits vNAS vStrips approval.
+
+```
+StandaloneViewModel.cs         # ~200 lines: owns ServerConnection + VStripsViewModel + connect/room flow; handles lifecycle
+RoomPickerWindow.axaml.cs      # Room selection after login
+App.axaml.cs                   # XAML app root
+Program.cs                     # Entry point
 ```
 
 ## Yaat.Sim — Shared simulation library (`src/Yaat.Sim/`)
@@ -230,6 +277,7 @@ Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Tra
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry
+Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
 
 # Phases/ — clearance-gated behavior
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance, ManagesSpeed (suppresses auto schedule)
@@ -445,6 +493,10 @@ src/Yaat.Server/
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch; BroadcastToTopicSubscribersAsync
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules
     StarsLineNumberAssigner.cs # Per-room sequential line number assignment (1-99 wrap)
+    StripCommandHandler.cs     # Flight strip command dispatch (all 14 canonical verbs)
+    StripBroadcaster.cs        # Flight strip broadcast coordination: SignalR + CRC topic paths
+    StripMutations.cs          # Stateless strip mutation helper: create/delete/amend logic
+    StripCommandTranslator.cs  # Translate CRC MessagePack invocations → canonical command strings
     DtoConverter.cs            # AircraftState → CRC + training DTOs + ASDEX/strip converters
 
   Commands/
@@ -462,6 +514,7 @@ src/Yaat.Server/
     CrcDtos.Stars.cs           # Partial: STARS display-related CRC DTOs (line numbers, short-term conflicts, readout area)
     CrcDtos.Asdex.cs           # ASDEX event DTOs (temp data, presets, safety config, hold bars, alerts)
     CrcDtos.Strips.cs          # Flight strip DTOs (StripItemDto, FlightStripsStateDto, StripBayContentsDto)
+    FlightStripsConfigDto.cs   # Flight strip bay layout config (delivered on ScenarioLoaded/RoomStateDto)
     CrcEnums.cs                # Enums for CRC protocol
     CrcFormatters.cs           # Formatting helpers for CRC DTOs
     TopicFormatter.cs          # Topic subscription/message formatting

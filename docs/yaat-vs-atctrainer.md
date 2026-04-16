@@ -240,10 +240,20 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Scratchpad | `SCRATCHPAD`/`SP` | `SP1`, `SP2` | YAAT has separate SP1/SP2 fields; bare `SP1`/`SP2` clears; undo/toggle on repeat |
-| Strip | `STRIP {bay}` | `STRIP {bay}` | Both — push aircraft strip to a bay |
+| Strip move | `STRIP {bay}` | `STRIP {bay} [{rack}] [{index}]` | YAAT extends to rack/index positioning within bay |
+| Strip delete | — | `STRIPD` | YAAT-only |
+| Strip offset toggle | — | `STRIPO` | YAAT-only |
+| Annotate box | — | `AN {box} [text]` | YAAT-only; annotate strip box 1-9 |
 | Half-strip create | — | `HSC {bay} {l1\l2\...}` | YAAT-only; freeform half-strip with up to 6 lines (callsign auto-prepended if aircraft selected) |
 | Half-strip amend | — | `HSA [{bay}] {key\new1\...}` | YAAT-only; amend half-strip by first-line key, auto-search across bays |
 | Half-strip delete | — | `HSD [{bay}] {key}` | YAAT-only; delete half-strip by first-line key |
+| Half-strip move | — | `HSM [{bay}] {key} {new-bay}` | YAAT-only; move half-strip to different bay |
+| Half-strip offset | — | `HSO [{bay}] {key}` | YAAT-only; toggle half-strip offset |
+| Half-strip slide | — | `HSS [{bay}] {key} {LEFT\|RIGHT}` | YAAT-only; slide half-strip left/right within bay |
+| Separator create | — | `SEP {style} {bay} [{rack}] [{index}] [label]` | YAAT-only; create separator line |
+| Separator delete | — | `SEPD {bay} [{index}]` | YAAT-only; delete separator |
+| Blank create | — | `BLANK {bay} [{rack}] [{index}]` | YAAT-only; create blank strip space |
+| Blank delete | — | `BLANKD {bay} [{index}]` | YAAT-only; delete blank space |
 | Act As | — | `AS` + per-command prefix | YAAT-only, allows user to act as any TCP for one command, or switch to that TCP as their primary for commands, independent of CRC |
 | Reject pointout | — | `PORJ` | YAAT-only; rejects pending inbound pointout |
 | Retract pointout | — | `PORT` | YAAT-only; retracts your outbound pending pointout |
@@ -447,8 +457,13 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 - Ground and Radar view settings saved independently per scenario
 - Copy View Settings From... to reuse across scenarios
 
+### Standalone vStrips App
+- `tools/Yaat.VStrips` — independent flight strip display client for students
+- 109 MB self-contained executable (no simulation engine, no speech processing)
+- Runs alongside CRC while YAAT awaits vNAS vStrips approval
+- Auto-departure/arrival strip printing
+
 ### Commands Not in YAAT
-- `STRIP` (Push flight strips)
 - `OPENCHAT` (Open PM window)
 - `OPS`/`STATS` (Operations statistics)
 - `SAYF` (Frequency message)
