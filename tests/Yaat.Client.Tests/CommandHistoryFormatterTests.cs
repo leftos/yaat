@@ -6,19 +6,19 @@ namespace Yaat.Client.Tests;
 public class CommandHistoryFormatterTests
 {
     [Fact]
-    public void PartialCallsignPrefix_RewritesToCanonical()
+    public void PartialCallsignPrefix_StripsCallsignAndCanonicalizes()
     {
         var result = CommandHistoryFormatter.Format("436 ERD 28R", resolvedCallsign: "N436MS", canonicalCommand: "ERD 28R");
 
-        Assert.Equal("N436MS ERD 28R", result);
+        Assert.Equal("ERD 28R", result);
     }
 
     [Fact]
-    public void AlreadyCanonical_NoVisibleChange()
+    public void FullCallsignPrefix_StripsCallsign()
     {
         var result = CommandHistoryFormatter.Format("N436MS ERD 28R", resolvedCallsign: "N436MS", canonicalCommand: "ERD 28R");
 
-        Assert.Equal("N436MS ERD 28R", result);
+        Assert.Equal("ERD 28R", result);
     }
 
     [Fact]
@@ -42,22 +42,22 @@ public class CommandHistoryFormatterTests
     {
         var result = CommandHistoryFormatter.Format("436 erd 28R", resolvedCallsign: "N436MS", canonicalCommand: "ERD 28R");
 
-        Assert.Equal("N436MS ERD 28R", result);
+        Assert.Equal("ERD 28R", result);
     }
 
     [Fact]
-    public void ArgumentCallsignRewrite_ReflectedInCanonical()
+    public void ArgumentCallsignRewrite_KeepsCanonicalArgument()
     {
         var result = CommandHistoryFormatter.Format("AAL123 FOLLOW SWA", resolvedCallsign: "AAL123", canonicalCommand: "FOLLOW SWA456");
 
-        Assert.Equal("AAL123 FOLLOW SWA456", result);
+        Assert.Equal("FOLLOW SWA456", result);
     }
 
     [Fact]
-    public void CompoundCommand_UsesCanonicalSeparators()
+    public void CompoundCommand_StripsLeadingCallsign()
     {
         var result = CommandHistoryFormatter.Format("436 fh 270, cm 240", resolvedCallsign: "N436MS", canonicalCommand: "FH 270, CM 240");
 
-        Assert.Equal("N436MS FH 270, CM 240", result);
+        Assert.Equal("FH 270, CM 240", result);
     }
 }

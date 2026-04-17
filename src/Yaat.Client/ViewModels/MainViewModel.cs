@@ -1175,8 +1175,8 @@ public partial class MainViewModel : ObservableObject
             // Always drop the typed text: even when the server rejects (or the pilot
             // soft-fails e.g. RTIS "looking"), the RPO has seen the result and should
             // not retype the whole command. The error surfaces through StatusText and
-            // the terminal history. Partial callsign prefixes are canonicalized here so
-            // up-arrow recall replays the dispatched form, not the partial input.
+            // the terminal history. The leading callsign is stripped so up-arrow recall
+            // produces the canonical command alone — easy to rerun on a new aircraft.
             AddHistory(CommandHistoryFormatter.Format(originalInput, resolvedCallsign, compound.CanonicalString));
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
