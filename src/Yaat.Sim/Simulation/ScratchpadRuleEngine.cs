@@ -1,3 +1,4 @@
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Simulation;
@@ -51,7 +52,7 @@ public static class ScratchpadRuleEngine
             bool airportMatch = false;
             foreach (var apt in rule.AirportIds)
             {
-                if (ac.Departure.Equals(apt, StringComparison.OrdinalIgnoreCase) || ac.Destination.Equals(apt, StringComparison.OrdinalIgnoreCase))
+                if (NavigationDatabase.AirportIdsMatch(ac.Departure, apt) || NavigationDatabase.AirportIdsMatch(ac.Destination, apt))
                 {
                     airportMatch = true;
                     break;

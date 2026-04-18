@@ -1,0 +1,50 @@
+using Xunit;
+using Yaat.Sim.Data;
+
+namespace Yaat.Sim.Tests;
+
+/// <summary>
+/// Unit tests for the ICAO/FAA-aware airport id matching helpers exposed on
+/// <see cref="NavigationDatabase"/>. These back the auto-departure strip
+/// fix — without them, an aircraft filed as "KOAK" and a scenario with
+/// primaryAirportId "OAK" compare as different airports and the strip
+/// never auto-prints.
+/// </summary>
+public class NavigationDatabaseAirportMatchTests
+{
+    [Theory]
+    [InlineData("KOAK", "OAK", true)]
+    [InlineData("OAK", "KOAK", true)]
+    [InlineData("KSFO", "SFO", true)]
+    [InlineData("OAK", "OAK", true)]
+    [InlineData("KOAK", "KOAK", true)]
+    [InlineData("oak", "KOAK", true)] // case-insensitive
+    [InlineData("  KOAK  ", "OAK", true)] // whitespace tolerant
+    [InlineData("KOAK", "KSFO", false)]
+    [InlineData("KOAK", "SFO", false)]
+    [InlineData("KOAK", "", false)]
+    [InlineData("", "OAK", false)]
+    [InlineData(null, "OAK", false)]
+    [InlineData("KOAK", null, false)]
+    public void AirportIdsMatch_HandlesIcaoAndFaaEquivalence(string? a, string? b, bool expected)
+    {
+        Assert.Equal(expected, NavigationDatabase.AirportIdsMatch(a, b));
+    }
+
+    [Fact]
+    public void NormalizeAirport_StripsKPrefixForCONUS()
+    {
+        Assert.Equal("OAK", NavigationDatabase.NormalizeAirport("KOAK"));
+        Assert.Equal("OAK", NavigationDatabase.NormalizeAirport("OAK"));
+        Assert.Equal("OAK", NavigationDatabase.NormalizeAirport("  koak  "));
+    }
+
+    [Fact]
+    public void NormalizeAirport_LeavesNonCONUSAlone()
+    {
+        // 4-char ICAO not starting with K (e.g. EGLL) — leave as-is.
+        Assert.Equal("EGLL", NavigationDatabase.NormalizeAirport("EGLL"));
+        // 3-char FAA that happens to start with K (none real; stay safe) — leave.
+        Assert.Equal("KEY", NavigationDatabase.NormalizeAirport("KEY"));
+    }
+}

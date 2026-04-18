@@ -1223,10 +1223,30 @@ public sealed class NavigationDatabase
         }
     }
 
-    private static string NormalizeAirport(string code)
+    /// <summary>
+    /// Canonicalizes an airport identifier by uppercasing and stripping the CONUS
+    /// K-prefix (e.g. "KOAK" → "OAK"). Used wherever two airport IDs must be
+    /// compared without caring whether the caller wrote ICAO or FAA form. Scenario
+    /// files and vNAS data use both interchangeably.
+    /// </summary>
+    public static string NormalizeAirport(string code)
     {
         string upper = code.ToUpperInvariant().Trim();
         return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
+    }
+
+    /// <summary>
+    /// Returns true when two airport identifiers refer to the same airport after
+    /// canonicalization. Handles the common ICAO-vs-FAA mismatch: "KOAK" matches
+    /// "OAK". Safe on null/empty — empty strings never match anything.
+    /// </summary>
+    public static bool AirportIdsMatch(string? a, string? b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+        {
+            return false;
+        }
+        return NormalizeAirport(a).Equals(NormalizeAirport(b), StringComparison.Ordinal);
     }
 
     private static (char? TypeCode, string? Runway, string? Variant)? ParseShorthand(string s)
