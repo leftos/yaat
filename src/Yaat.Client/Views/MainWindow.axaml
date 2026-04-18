@@ -227,9 +227,11 @@
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Center: TabControl + Terminal with splitter -->
-        <Grid x:Name="ContentGrid" Margin="8,4,8,0" RowDefinitions="3*,Auto,*">
+        <Grid x:Name="ContentGrid" Margin="8,4,8,0" RowDefinitions="3*,Auto,*"
+              IsVisible="{Binding IsContentGridVisible}">
             <TabControl Grid.Row="0"
                         x:Name="MainTabControl"
+                        IsVisible="{Binding IsAnyTabVisible}"
                         SelectedIndex="{Binding SelectedTabIndex}">
                 <TabItem Header="Aircraft List"
                          x:Name="DataGridTab"
@@ -257,7 +259,7 @@
             <GridSplitter Grid.Row="1"
                           Height="6"
                           Background="#3F3F46"
-                          IsVisible="{Binding IsTerminalDocked}" />
+                          IsVisible="{Binding IsTabSplitterVisible}" />
 
             <views:TerminalPanelView Grid.Row="2"
                 IsVisible="{Binding IsTerminalDocked}" />

@@ -1,3 +1,5 @@
+using System.Collections.Specialized;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Yaat.Client.ViewModels;
@@ -67,5 +69,42 @@ public partial class MainViewModel
             return;
         }
         StripsEntries.Remove(entry);
+    }
+
+    private void OnStripsEntriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+        {
+            foreach (VStripsDockEntryViewModel added in e.NewItems)
+            {
+                SubscribeStripsEntry(added);
+            }
+        }
+        if (e.OldItems is not null)
+        {
+            foreach (VStripsDockEntryViewModel removed in e.OldItems)
+            {
+                UnsubscribeStripsEntry(removed);
+            }
+        }
+        OnTabPoppedOutChanged();
+    }
+
+    private void SubscribeStripsEntry(VStripsDockEntryViewModel entry)
+    {
+        entry.PropertyChanged += OnStripsEntryPropertyChanged;
+    }
+
+    private void UnsubscribeStripsEntry(VStripsDockEntryViewModel entry)
+    {
+        entry.PropertyChanged -= OnStripsEntryPropertyChanged;
+    }
+
+    private void OnStripsEntryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(VStripsDockEntryViewModel.IsPoppedOut))
+        {
+            OnTabPoppedOutChanged();
+        }
     }
 }

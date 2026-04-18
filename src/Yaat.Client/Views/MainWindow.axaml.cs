@@ -162,6 +162,12 @@ public partial class MainWindow : Window
 
         WireStripsEntryWindows(vm);
 
+        // Sync the content grid's row heights to the initial pop-out state
+        // since the partial methods fired before we subscribed above. Without
+        // this, a session that restored with all tabs popped out would still
+        // hold Row 0 at 3* (an empty 75 % stripe above the terminal).
+        UpdateContentGridLayout(vm);
+
         var slider = this.FindControl<Slider>("TimelineSlider");
         if (slider is not null)
         {
@@ -893,6 +899,9 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.IsTerminalDocked):
                 HandleTerminalPopOut(vm);
                 break;
+            case nameof(MainViewModel.IsAnyTabVisible):
+                UpdateContentGridLayout(vm);
+                break;
             case nameof(MainViewModel.IsDataGridPoppedOut):
                 HandleDataGridPopOut(vm);
                 break;
@@ -913,26 +922,16 @@ public partial class MainWindow : Window
 
     private void HandleTerminalPopOut(MainViewModel vm)
     {
-        var grid = this.FindControl<Grid>("ContentGrid");
+        UpdateContentGridLayout(vm);
 
         if (!vm.IsTerminalDocked)
         {
-            if (grid is { RowDefinitions.Count: >= 3 })
-            {
-                grid.RowDefinitions[2].Height = GridLength.Auto;
-            }
-
             _terminalWindow = new TerminalWindow(vm.Preferences) { DataContext = vm };
             _terminalWindow.Closing += OnTerminalWindowClosing;
             _terminalWindow.Show();
         }
         else
         {
-            if (grid is { RowDefinitions.Count: >= 3 })
-            {
-                grid.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
-            }
-
             if (_terminalWindow is not null)
             {
                 _terminalWindow.Closing -= OnTerminalWindowClosing;
@@ -940,6 +939,28 @@ public partial class MainWindow : Window
                 _terminalWindow = null;
             }
         }
+    }
+
+    /// <summary>
+    /// Resizes the central content grid's rows to match the current
+    /// pop-out state. Row 0 (TabControl) collapses when every tab is
+    /// popped out; row 2 (Terminal) collapses when the terminal is
+    /// popped out. With both popped out the entire grid is hidden via
+    /// the <c>IsContentGridVisible</c> binding so only the menu bar
+    /// remains. Bindings handle <c>IsVisible</c>; this call only fixes
+    /// row heights so docked content fills the freed space instead of
+    /// leaving the popped-out region holding 75 % of empty grid.
+    /// </summary>
+    private void UpdateContentGridLayout(MainViewModel vm)
+    {
+        var grid = this.FindControl<Grid>("ContentGrid");
+        if (grid is not { RowDefinitions.Count: >= 3 })
+        {
+            return;
+        }
+
+        grid.RowDefinitions[0].Height = vm.IsAnyTabVisible ? new GridLength(3, GridUnitType.Star) : new GridLength(0);
+        grid.RowDefinitions[2].Height = vm.IsTerminalDocked ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
     }
 
     private void HandleDataGridPopOut(MainViewModel vm)

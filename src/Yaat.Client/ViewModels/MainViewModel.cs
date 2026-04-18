@@ -253,50 +253,120 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRadarViewPoppedOut;
 
+    partial void OnIsTerminalDockedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsContentGridVisible));
+        OnPropertyChanged(nameof(IsTabSplitterVisible));
+    }
+
     partial void OnIsDataGridPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("DataGrid", value);
-        if (value && SelectedTabIndex == 0)
-        {
-            SelectedTabIndex = FindNextVisibleTabIndex(0);
-        }
+        OnTabPoppedOutChanged();
     }
 
     partial void OnIsGroundViewPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("GroundView", value);
-        if (value && SelectedTabIndex == 1)
-        {
-            SelectedTabIndex = FindNextVisibleTabIndex(1);
-        }
+        OnTabPoppedOutChanged();
     }
 
     partial void OnIsRadarViewPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("RadarView", value);
-        if (value && SelectedTabIndex == 2)
+        OnTabPoppedOutChanged();
+    }
+
+    /// <summary>
+    /// Common bookkeeping after any tab's pop-out state changes (the three
+    /// fixed tabs <i>or</i> any strip entry). Re-publishes the derived
+    /// visibility properties that drive the main-window layout and shifts
+    /// <see cref="SelectedTabIndex"/> off a tab that just became invisible
+    /// so the TabControl never falls through to rendering popped-out
+    /// content in the docked area.
+    /// </summary>
+    private void OnTabPoppedOutChanged()
+    {
+        OnPropertyChanged(nameof(IsAnyTabVisible));
+        OnPropertyChanged(nameof(IsContentGridVisible));
+        OnPropertyChanged(nameof(IsTabSplitterVisible));
+        EnsureSelectedTabVisible();
+    }
+
+    private void EnsureSelectedTabVisible()
+    {
+        if (IsTabVisible(SelectedTabIndex))
         {
-            SelectedTabIndex = FindNextVisibleTabIndex(2);
+            return;
+        }
+        var next = FindNextVisibleTabIndex(SelectedTabIndex);
+        if (next >= 0)
+        {
+            SelectedTabIndex = next;
         }
     }
+
+    /// <summary>
+    /// True when at least one TabItem is still docked (any of the three
+    /// fixed tabs or any strip entry). Drives the TabControl's IsVisible
+    /// binding so the entire tab area collapses when every view has been
+    /// popped out into its own window.
+    /// </summary>
+    public bool IsAnyTabVisible
+    {
+        get
+        {
+            if (!IsDataGridPoppedOut || !IsGroundViewPoppedOut || !IsRadarViewPoppedOut)
+            {
+                return true;
+            }
+            foreach (var entry in StripsEntries)
+            {
+                if (!entry.IsPoppedOut)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// True when the splitter between the tab area and the terminal has
+    /// something to split — both regions are docked and visible. False
+    /// when either region is popped out so the splitter doesn't render a
+    /// 6 px stripe with nothing above or below it.
+    /// </summary>
+    public bool IsTabSplitterVisible => IsAnyTabVisible && IsTerminalDocked;
+
+    /// <summary>
+    /// True when the central content grid (tabs + terminal) has anything
+    /// to show. When false the main window collapses down to just the
+    /// menu bar since every view has been popped out into its own window.
+    /// </summary>
+    public bool IsContentGridVisible => IsAnyTabVisible || IsTerminalDocked;
 
     private int FindNextVisibleTabIndex(int currentIndex)
     {
         // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View.
-        // Strips tabs start at index 3 and are always visible when docked
-        // (their own IsPoppedOut flips visibility on the TabItem directly).
-        // Walk forward through the three fixed tabs and pick the first one
-        // that's still embedded; wraps back so a popped-out tab is never
-        // selected.
-        for (var offset = 1; offset < 3; offset++)
+        // Strips tabs start at index 3, ordered to match StripsEntries.
+        // Walk all tabs (wrapping) and pick the next still-docked one.
+        // Returns -1 when every tab is popped out — caller then leaves
+        // SelectedTabIndex alone since the TabControl is hidden anyway.
+        var total = 3 + StripsEntries.Count;
+        if (total <= 0)
         {
-            var candidate = (currentIndex + offset) % 3;
+            return -1;
+        }
+        for (var offset = 1; offset <= total; offset++)
+        {
+            var candidate = (currentIndex + offset) % total;
             if (IsTabVisible(candidate))
             {
                 return candidate;
             }
         }
-        return 0;
+        return -1;
     }
 
     private bool IsTabVisible(int index) =>
@@ -305,7 +375,8 @@ public partial class MainViewModel : ObservableObject
             0 => !IsDataGridPoppedOut,
             1 => !IsGroundViewPoppedOut,
             2 => !IsRadarViewPoppedOut,
-            _ => true,
+            _ when index >= 3 && index - 3 < StripsEntries.Count => !StripsEntries[index - 3].IsPoppedOut,
+            _ => false,
         };
 
     [ObservableProperty]
@@ -626,6 +697,12 @@ public partial class MainViewModel : ObservableObject
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
         var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, _preferences);
         StripsEntries.Add(new VStripsDockEntryViewModel(studentVm, isStudentEntry: true));
+        // Subscribe so a strip tab being popped out / docked feeds the same
+        // tab-visibility bookkeeping as the three fixed tabs (collapses the
+        // TabControl row when the last docked tab disappears, advances
+        // SelectedTabIndex off an invisible tab, etc.).
+        SubscribeStripsEntry(StripsEntries[0]);
+        StripsEntries.CollectionChanged += OnStripsEntriesCollectionChanged;
 
         _dataGridScale = _preferences.DataGridFontSize / 12.0;
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
