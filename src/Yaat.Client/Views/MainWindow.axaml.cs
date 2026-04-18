@@ -978,74 +978,12 @@ public partial class MainWindow : Window
         }
     }
 
-    // ── Strips tab header click handlers ───────────────────────
+    // ── Strips entries: tabs, pop-out windows, View menu ──────
 
-    /// <summary>
-    /// Click handler for the '⧉' pop-out button on each strips sub-tab header.
-    /// The button's Tag carries the entry VM; toggling <see cref="VStripsDockEntryViewModel.IsPoppedOut"/>
-    /// lets <see cref="AttachStripsEntry"/> open/close the window.
-    /// </summary>
-    private void OnStripsEntryPopOutClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: VStripsDockEntryViewModel entry })
-        {
-            entry.IsPoppedOut = !entry.IsPoppedOut;
-        }
-    }
-
-    /// <summary>
-    /// Click handler for the '×' close button on non-student strips sub-tabs.
-    /// Student entries are kept — the button is <c>IsVisible=False</c> for
-    /// them via binding, but the handler also defensively checks
-    /// <see cref="VStripsDockEntryViewModel.IsStudentEntry"/>.
-    /// </summary>
-    private void OnStripsEntryCloseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: VStripsDockEntryViewModel entry } && DataContext is MainViewModel vm)
-        {
-            vm.CloseStripsEntryCommand.Execute(entry);
-        }
-    }
-
-    /// <summary>
-    /// Click handler for the '+ New' button. Shows a popup of the student
-    /// entry's <see cref="VStripsViewModel.AccessibleFacilities"/>; picking
-    /// one invokes <see cref="MainViewModel.OpenStripsEntryForFacilityAsync"/>.
-    /// </summary>
-    private void OnOpenStripsForFacilityClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (sender is not Button button || DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        var studentVm = vm.StripsEntries.FirstOrDefault()?.Vm;
-        if (studentVm is null || studentVm.AccessibleFacilities.Count == 0)
-        {
-            return;
-        }
-
-        var menu = new MenuFlyout();
-        foreach (var facility in studentVm.AccessibleFacilities)
-        {
-            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
-            var item = new MenuItem { Header = header, Tag = facility };
-            item.Click += async (_, _) =>
-            {
-                if (item.Tag is Services.AccessibleFacilityDto f)
-                {
-                    await vm.OpenStripsEntryForFacilityAsync(f.FacilityId);
-                }
-            };
-            menu.Items.Add(item);
-        }
-        menu.ShowAt(button);
-    }
-
-    // ── Per-entry strips pop-out windows ───────────────────────
-
-    // One window per dock entry, keyed by the entry's VM reference (entries
-    // are stable for the lifetime of the app; VM is the natural identity).
+    // Per-entry materializations managed in response to StripsEntries changes.
+    // TabItem is the docked representation; VStripsViewWindow is the popped-out
+    // representation; exactly one is shown at a time, flipped by entry.IsPoppedOut.
+    private readonly Dictionary<VStripsDockEntryViewModel, TabItem> _stripsTabItems = [];
     private readonly Dictionary<VStripsDockEntryViewModel, VStripsViewWindow> _stripsWindows = [];
 
     private void WireStripsEntryWindows(MainViewModel vm)
@@ -1070,23 +1008,53 @@ public partial class MainWindow : Window
                     DetachStripsEntry(removed);
                 }
             }
+            RebuildStripsSubmenu(vm);
         };
+        RebuildStripsSubmenu(vm);
     }
 
     private void AttachStripsEntry(MainViewModel vm, VStripsDockEntryViewModel entry)
     {
+        // Create the docked TabItem and add it as a sibling of the other main tabs.
+        var tabControl = this.FindControl<TabControl>("MainTabControl");
+        if (tabControl is not null)
+        {
+            var tab = new TabItem
+            {
+                Header = entry.TabTitle,
+                Content = new VStripsView { DataContext = entry.Vm },
+                IsVisible = !entry.IsPoppedOut,
+            };
+            _stripsTabItems[entry] = tab;
+            tabControl.Items.Add(tab);
+        }
+
         entry.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(VStripsDockEntryViewModel.IsPoppedOut))
+            switch (e.PropertyName)
             {
-                if (entry.IsPoppedOut)
-                {
-                    OpenStripsEntryWindow(vm, entry);
-                }
-                else
-                {
-                    CloseStripsEntryWindow(entry);
-                }
+                case nameof(VStripsDockEntryViewModel.IsPoppedOut):
+                    if (entry.IsPoppedOut)
+                    {
+                        OpenStripsEntryWindow(vm, entry);
+                    }
+                    else
+                    {
+                        CloseStripsEntryWindow(entry);
+                    }
+                    if (_stripsTabItems.TryGetValue(entry, out var t))
+                    {
+                        t.IsVisible = !entry.IsPoppedOut;
+                    }
+                    RebuildStripsSubmenu(vm);
+                    break;
+                case nameof(VStripsDockEntryViewModel.TabTitle):
+                    if (_stripsTabItems.TryGetValue(entry, out var titleTab))
+                    {
+                        titleTab.Header = entry.TabTitle;
+                    }
+                    RebuildStripsSubmenu(vm);
+                    break;
             }
         };
 
@@ -1099,6 +1067,11 @@ public partial class MainWindow : Window
     private void DetachStripsEntry(VStripsDockEntryViewModel entry)
     {
         CloseStripsEntryWindow(entry);
+        if (_stripsTabItems.Remove(entry, out var tab))
+        {
+            var tabControl = this.FindControl<TabControl>("MainTabControl");
+            tabControl?.Items.Remove(tab);
+        }
     }
 
     private void OpenStripsEntryWindow(MainViewModel vm, VStripsDockEntryViewModel entry)
@@ -1108,29 +1081,15 @@ public partial class MainWindow : Window
             return;
         }
         var window = new VStripsViewWindow(vm.Preferences, entry.Vm.FacilityId, entry.TabTitle) { DataContext = entry.Vm };
-
-        // Keep the popped window's title in sync with any in-place facility
-        // switches on the same entry.
-        entry.PropertyChanged += OnTrackedEntryTitleChanged;
-
-        void OnTrackedEntryTitleChanged(object? _, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(VStripsDockEntryViewModel.TabTitle))
-            {
-                window.SetWindowTitle(entry.TabTitle);
-            }
-        }
-
+        _stripsWindows[entry] = window;
         window.Closing += (_, _) =>
         {
-            entry.PropertyChanged -= OnTrackedEntryTitleChanged;
             if (!_isMainWindowClosing)
             {
                 entry.IsPoppedOut = false;
             }
             _stripsWindows.Remove(entry);
         };
-        _stripsWindows[entry] = window;
         window.Show();
     }
 
@@ -1141,6 +1100,101 @@ public partial class MainWindow : Window
             _stripsWindows.Remove(entry);
             window.Close();
         }
+    }
+
+    /// <summary>
+    /// Rebuilds the View → Strips submenu from current
+    /// <see cref="MainViewModel.StripsEntries"/>. Each entry becomes a
+    /// checkable 'Pop Out …' item; non-student entries also get a
+    /// 'Close …' action. A trailing 'New Strips Tab…' item opens a
+    /// facility picker. Called whenever the collection or any entry's
+    /// pop-out state / facility name changes.
+    /// </summary>
+    private void RebuildStripsSubmenu(MainViewModel vm)
+    {
+        var submenu = this.FindControl<MenuItem>("StripsSubmenu");
+        if (submenu is null)
+        {
+            return;
+        }
+
+        var items = new List<object>();
+        foreach (var entry in vm.StripsEntries)
+        {
+            var popOut = new MenuItem
+            {
+                Header = $"Pop Out {entry.TabTitle}",
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = entry.IsPoppedOut,
+                Tag = entry,
+            };
+            popOut.Click += (_, _) =>
+            {
+                if (popOut.Tag is VStripsDockEntryViewModel e)
+                {
+                    e.IsPoppedOut = !e.IsPoppedOut;
+                }
+            };
+            items.Add(popOut);
+
+            if (!entry.IsStudentEntry)
+            {
+                var close = new MenuItem { Header = $"Close {entry.TabTitle}", Tag = entry };
+                close.Click += (_, _) =>
+                {
+                    if (close.Tag is VStripsDockEntryViewModel e)
+                    {
+                        vm.CloseStripsEntryCommand.Execute(e);
+                    }
+                };
+                items.Add(close);
+            }
+        }
+        items.Add(new Separator());
+        var newTabItem = new MenuItem { Header = "_New Strips Tab...", Tag = vm };
+        newTabItem.Click += OnNewStripsTabClick;
+        items.Add(newTabItem);
+
+        submenu.ItemsSource = items;
+    }
+
+    private void OnNewStripsTabClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not MenuItem anchor || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var studentVm = vm.StripsEntries.FirstOrDefault()?.Vm;
+        if (studentVm is null || studentVm.AccessibleFacilities.Count == 0)
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+        foreach (var facility in studentVm.AccessibleFacilities)
+        {
+            // Exclude facilities that already have a tab.
+            if (vm.StripsEntries.Any(x => x.Vm.FacilityId == facility.FacilityId))
+            {
+                continue;
+            }
+            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
+            var item = new MenuItem { Header = header, Tag = facility };
+            item.Click += async (_, _) =>
+            {
+                if (item.Tag is Services.AccessibleFacilityDto f)
+                {
+                    await vm.OpenStripsEntryForFacilityAsync(f.FacilityId);
+                }
+            };
+            menu.Items.Add(item);
+        }
+        if (menu.Items.Count == 0)
+        {
+            return;
+        }
+        menu.ShowAt(anchor);
     }
 
     private void OpenDataGridWindow(MainViewModel vm)

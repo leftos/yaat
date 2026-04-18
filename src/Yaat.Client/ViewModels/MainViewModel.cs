@@ -282,13 +282,15 @@ public partial class MainViewModel : ObservableObject
 
     private int FindNextVisibleTabIndex(int currentIndex)
     {
-        // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View, Tab 3: Strips
-        // Walk forward through the remaining tabs and pick the first one that's
-        // still embedded. Wraps back to the start so no popped-out tab is ever
+        // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View.
+        // Strips tabs start at index 3 and are always visible when docked
+        // (their own IsPoppedOut flips visibility on the TabItem directly).
+        // Walk forward through the three fixed tabs and pick the first one
+        // that's still embedded; wraps back so a popped-out tab is never
         // selected.
-        for (var offset = 1; offset < 4; offset++)
+        for (var offset = 1; offset < 3; offset++)
         {
-            var candidate = (currentIndex + offset) % 4;
+            var candidate = (currentIndex + offset) % 3;
             if (IsTabVisible(candidate))
             {
                 return candidate;
@@ -303,8 +305,7 @@ public partial class MainViewModel : ObservableObject
             0 => !IsDataGridPoppedOut,
             1 => !IsGroundViewPoppedOut,
             2 => !IsRadarViewPoppedOut,
-            3 => true, // Strips tab always visible — its nested tabs hide individually
-            _ => false,
+            _ => true,
         };
 
     [ObservableProperty]

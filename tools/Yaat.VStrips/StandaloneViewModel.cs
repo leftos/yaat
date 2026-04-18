@@ -207,23 +207,6 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Opens an additional free-floating <see cref="VStripsViewModel"/>
-    /// scoped to a non-student facility. Used by the 'New Window…' menu
-    /// in the standalone app. Caller is responsible for creating the
-    /// window UI; this method returns the VM so the window can bind to it.
-    /// The VM is constructed with autoBootstrapFromScenarioLoaded=false so
-    /// it only listens for broadcasts — its config comes from the RPC
-    /// round-trip inside SwitchFacilityAsync.
-    /// </summary>
-    public async Task<VStripsViewModel> OpenAdditionalFacilityAsync(string facilityId)
-    {
-        var vm = new VStripsViewModel(_connection, SendCommandForViewAsync, Preferences, autoBootstrapFromScenarioLoaded: false);
-        await vm.SwitchFacilityAsync(facilityId);
-        await vm.RefreshAccessibleFacilitiesAsync();
-        return vm;
-    }
-
     public async ValueTask DisposeAsync()
     {
         await _connection.DisposeAsync();

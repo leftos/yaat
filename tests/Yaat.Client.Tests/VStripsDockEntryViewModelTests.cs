@@ -24,7 +24,7 @@ public class VStripsDockEntryViewModelTests
 
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
-        Assert.Equal("OAK ATCT", entry.TabTitle);
+        Assert.Equal("Strips (OAK ATCT)", entry.TabTitle);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class VStripsDockEntryViewModelTests
 
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
-        Assert.Equal("FAC1", entry.TabTitle);
+        Assert.Equal("Strips (FAC1)", entry.TabTitle);
     }
 
     [Fact]

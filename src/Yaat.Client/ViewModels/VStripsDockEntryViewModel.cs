@@ -45,9 +45,17 @@ public partial class VStripsDockEntryViewModel : ObservableObject
 
     /// <summary>
     /// Display string for the entry's tab header and popped-out window title.
-    /// Uses <see cref="VStripsViewModel.FacilityName"/> when present; falls
-    /// back to the id, then to a generic label so the tab still names
-    /// something before the first scenario load.
+    /// Always prefixed with "Strips " + the facility discriminator so multiple
+    /// strip tabs/windows can be told apart at a glance ("Strips (OAK)",
+    /// "Strips (NCT)"). Falls back to the facility id, then to a bare
+    /// "Strips" before the first scenario load.
     /// </summary>
-    public string TabTitle => Vm.FacilityName ?? Vm.FacilityId ?? "Strips";
+    public string TabTitle
+    {
+        get
+        {
+            var facility = !string.IsNullOrEmpty(Vm.FacilityName) ? Vm.FacilityName : Vm.FacilityId;
+            return string.IsNullOrEmpty(facility) ? "Strips" : $"Strips ({facility})";
+        }
+    }
 }

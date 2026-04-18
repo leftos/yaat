@@ -382,6 +382,11 @@ public partial class MainViewModel
         Radar.ApplyScenarioBootstrap(bootstrap, artccId);
         Ground.ApplyScenarioBootstrap(bootstrap, artccId);
         VStrips.ApplyBayConfig(bootstrap.FlightStripsConfig);
+        // Populate the student VM's accessible-facility list so the View →
+        // Strips → New Strips Tab… picker has entries. The ScenarioLoaded
+        // broadcast path (other clients) refreshes via VStripsViewModel's
+        // own subscription; the loader path goes through here instead.
+        _ = VStrips.RefreshAccessibleFacilitiesAsync();
     }
 
     private void OnScenarioUnloaded()

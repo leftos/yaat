@@ -1,6 +1,4 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
-using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
 
@@ -10,17 +8,23 @@ namespace Yaat.Client.ViewModels;
 /// non-student entries. The student entry itself (index 0 in
 /// <see cref="StripsEntries"/>) is constructed once in the main VM constructor
 /// and follows the scenario lifecycle.
+///
+/// Each entry is a top-level TabItem in the main window, adjacent to
+/// Aircraft List / Ground View / Radar View. The code-behind watches
+/// <see cref="StripsEntries"/> and materializes a TabItem per entry. Per-tab
+/// pop-out mirrors the pattern used by the other views
+/// (<see cref="IsDataGridPoppedOut"/> et al.) but is stored on the entry
+/// itself so each facility has its own pop-out state.
 /// </summary>
 public partial class MainViewModel
 {
     /// <summary>
-    /// Opens a new strips tab/window for the given facility id. Called from
-    /// the main window's "Open strips window…" picker, which iterates the
+    /// Opens a new strips tab for the given facility id. Called from the
+    /// main window's View → 'New Strips Tab…' picker, which iterates the
     /// student entry's <see cref="VStripsViewModel.AccessibleFacilities"/>.
     /// New entries start docked (<see cref="VStripsDockEntryViewModel.IsPoppedOut"/>
     /// = false) and can be popped out by the user via the header action.
-    /// Idempotent: if an entry for the facility already exists, selects it
-    /// rather than creating a duplicate.
+    /// Idempotent: if an entry for the facility already exists, dock it.
     /// </summary>
     [RelayCommand]
     public async Task OpenStripsEntryForFacilityAsync(string facilityId)
@@ -30,7 +34,7 @@ public partial class MainViewModel
             return;
         }
 
-        // Existing entry? Just surface it.
+        // Existing entry? Just dock it back if it was popped out.
         var existing = StripsEntries.FirstOrDefault(e => e.Vm.FacilityId == facilityId);
         if (existing is not null)
         {
@@ -50,9 +54,10 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Closes a non-student strips entry. The student entry is kept because
+    /// Closes a non-student strips tab. The student entry is kept because
     /// it's the position's own facility — the user can pop it out but not
-    /// remove it. Called from the tab's close-button affordance.
+    /// remove it. Non-student tabs can be closed via the × button on the
+    /// tab header.
     /// </summary>
     [RelayCommand]
     public void CloseStripsEntry(VStripsDockEntryViewModel entry)
@@ -62,96 +67,5 @@ public partial class MainViewModel
             return;
         }
         StripsEntries.Remove(entry);
-    }
-
-    /// <summary>
-    /// Toggles the dock state of a strips entry — the actual window
-    /// open/close is wired in MainWindow.axaml.cs via an IsPoppedOut
-    /// property-changed handler on each entry. Entry-level pop-out lets
-    /// each facility's window be dragged to a second monitor independently.
-    /// </summary>
-    [RelayCommand]
-    public void ToggleStripsEntryPopOut(VStripsDockEntryViewModel entry)
-    {
-        entry.IsPoppedOut = !entry.IsPoppedOut;
-    }
-
-    /// <summary>
-    /// Docked-entry subset — the nested TabControl in MainWindow binds to
-    /// this filtered collection so popped-out entries disappear from the
-    /// tab strip. Recomputed whenever <see cref="StripsEntries"/> changes
-    /// or any entry toggles its pop-out state.
-    /// </summary>
-    public ReadOnlyObservableCollection<VStripsDockEntryViewModel> DockedStripsEntries => _dockedStripsEntriesReadOnly ??= BuildDockedStripsEntries();
-
-    private ObservableCollection<VStripsDockEntryViewModel>? _dockedStripsEntriesBacking;
-    private ReadOnlyObservableCollection<VStripsDockEntryViewModel>? _dockedStripsEntriesReadOnly;
-
-    private ReadOnlyObservableCollection<VStripsDockEntryViewModel> BuildDockedStripsEntries()
-    {
-        _dockedStripsEntriesBacking = [];
-        var readOnly = new ReadOnlyObservableCollection<VStripsDockEntryViewModel>(_dockedStripsEntriesBacking);
-
-        // Seed with anything currently docked.
-        foreach (var entry in StripsEntries)
-        {
-            if (!entry.IsPoppedOut)
-            {
-                _dockedStripsEntriesBacking.Add(entry);
-            }
-            entry.PropertyChanged += OnStripsEntryPoppedChanged;
-        }
-
-        StripsEntries.CollectionChanged += OnStripsEntriesChanged;
-        return readOnly;
-    }
-
-    private void OnStripsEntriesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-    {
-        if (_dockedStripsEntriesBacking is null)
-        {
-            return;
-        }
-        if (e.OldItems is not null)
-        {
-            foreach (VStripsDockEntryViewModel entry in e.OldItems)
-            {
-                entry.PropertyChanged -= OnStripsEntryPoppedChanged;
-                _dockedStripsEntriesBacking.Remove(entry);
-            }
-        }
-        if (e.NewItems is not null)
-        {
-            foreach (VStripsDockEntryViewModel entry in e.NewItems)
-            {
-                entry.PropertyChanged += OnStripsEntryPoppedChanged;
-                if (!entry.IsPoppedOut)
-                {
-                    _dockedStripsEntriesBacking.Add(entry);
-                }
-            }
-        }
-    }
-
-    private void OnStripsEntryPoppedChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (_dockedStripsEntriesBacking is null || sender is not VStripsDockEntryViewModel entry)
-        {
-            return;
-        }
-        if (e.PropertyName != nameof(VStripsDockEntryViewModel.IsPoppedOut))
-        {
-            return;
-        }
-        if (entry.IsPoppedOut)
-        {
-            _dockedStripsEntriesBacking.Remove(entry);
-        }
-        else if (!_dockedStripsEntriesBacking.Contains(entry))
-        {
-            // Reinsert in the same order they appear in StripsEntries.
-            var idx = StripsEntries.Take(StripsEntries.IndexOf(entry)).Count(e => !e.IsPoppedOut);
-            _dockedStripsEntriesBacking.Insert(idx, entry);
-        }
     }
 }
