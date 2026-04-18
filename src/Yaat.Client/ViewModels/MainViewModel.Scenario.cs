@@ -342,6 +342,8 @@ public partial class MainViewModel
         {
             Radar.ApplyPositionDisplayConfig(result.PositionDisplayConfig);
         }
+
+        VStrips.ApplyBayConfig(result.FlightStripsConfig);
     }
 
     private void OnScenarioLoaded(ScenarioLoadedDto dto)
