@@ -23,7 +23,20 @@ public enum StripItemType
     BlankStrip = 8,
 }
 
-public record StripItemDto(string Id, string? AircraftId, bool IsDisconnected, StripItemType Type, bool IsOffset, string[] FieldValues);
+public record StripItemDto(
+    string Id,
+    string? AircraftId,
+    bool IsDisconnected,
+    StripItemType Type,
+    bool IsOffset,
+    string[] FieldValues,
+    // Ownership fields (YAAT-only, JSON over SignalR). Empty strings when the
+    // strip predates the multi-facility change or arrived via a CRC
+    // MessagePack path where they aren't serialized. Used by
+    // VStripsViewModel to filter broadcasts to its own facility scope.
+    string FacilityId = "",
+    string BayId = ""
+);
 
 public record StripBayContentsDto(string BayId, string[][] ItemIds);
 

@@ -157,6 +157,30 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<LoadScenarioResultDto>("LoadScenario", scenarioJson);
     }
 
+    // --- Flight-strips facility discovery ---
+
+    /// <summary>
+    /// Lists every facility the current room's student position can open a
+    /// strips window for. Drives the facility-switcher popup and the
+    /// 'Open strips window…' picker in the main client.
+    /// </summary>
+    public async Task<List<AccessibleFacilityDto>> GetAccessibleFacilitiesAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<AccessibleFacilityDto>>("GetAccessibleFacilities");
+    }
+
+    /// <summary>
+    /// Fetches the bay layout DTO for a specific accessible facility. Returns
+    /// null if the facility isn't in the position's accessible set, which the
+    /// client treats as 'refuse to switch'.
+    /// </summary>
+    public async Task<FlightStripsConfigDto?> GetFlightStripsConfigForFacilityAsync(string facilityId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<FlightStripsConfigDto?>("GetFlightStripsConfigForFacility", facilityId);
+    }
+
     // --- Weather ---
 
     public async Task<CommandResultDto> LoadWeatherAsync(string weatherJson)
@@ -520,6 +544,8 @@ public record LoadScenarioResultDto(
 );
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
+
+public record AccessibleFacilityDto(string FacilityId, string FacilityName, bool IsStudentFacility);
 
 public record CommandResultDto(bool Success, string? Message);
 

@@ -410,4 +410,62 @@ public class VStripsViewModelTests
         // must remain null so the main rack area renders empty.
         Assert.Null(vm.SelectedBay);
     }
+
+    // ── Facility-scoped broadcast filter (Item 3) ────────────────
+
+    private static StripItemDto FullStripFor(string id, string callsign, string facilityId, string bayId) =>
+        new(
+            id,
+            callsign,
+            IsDisconnected: false,
+            StripItemType.DepartureStrip,
+            IsOffset: false,
+            FieldValues: [callsign],
+            FacilityId: facilityId,
+            BayId: bayId
+        );
+
+    [Fact]
+    public void ReconcileItems_DropsItemsFromOtherFacility_WhenScopedToOwnFacility()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig()); // FacilityId = "FAC1"
+
+        vm.ReconcileItems([
+            FullStripFor("STRIP_OWN", "UAL1", facilityId: "FAC1", bayId: "bay-gnd"),
+            FullStripFor("STRIP_OTHER", "UAL2", facilityId: "OTHER_FAC", bayId: "other-bay"),
+        ]);
+
+        Assert.True(vm.ItemsByIdForTests.ContainsKey("STRIP_OWN"));
+        Assert.False(vm.ItemsByIdForTests.ContainsKey("STRIP_OTHER"));
+    }
+
+    [Fact]
+    public void ReconcileItems_KeepsItemsBelongingToKnownBay_EvenIfFacilityIdMismatches()
+    {
+        // Edge case: when an item's FacilityId is stale but its BayId is one
+        // we know about (e.g. external bay pushed from elsewhere), we keep
+        // the item so drag-drop UX stays correct.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig()); // bays bay-gnd, bay-loc
+
+        vm.ReconcileItems([FullStripFor("STRIP_X", "X1", facilityId: "UNKNOWN", bayId: "bay-loc")]);
+
+        Assert.True(vm.ItemsByIdForTests.ContainsKey("STRIP_X"));
+    }
+
+    [Fact]
+    public void ReconcileItems_UnscopedVm_AcceptsEverything()
+    {
+        // Legacy (FacilityId unset) path: VM accepts every broadcast item.
+        // This matches the pre-Item-3 behavior used by existing tests.
+        var (vm, _) = MakeVm();
+
+        vm.ReconcileItems([
+            FullStripFor("STRIP_A", "A1", facilityId: "FOO", bayId: "any"),
+            FullStripFor("STRIP_B", "B1", facilityId: "BAR", bayId: "any"),
+        ]);
+
+        Assert.Equal(2, vm.ItemsByIdForTests.Count);
+    }
 }

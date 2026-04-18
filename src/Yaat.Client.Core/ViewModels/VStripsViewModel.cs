@@ -35,6 +35,13 @@ public partial class VStripsViewModel : ObservableObject
     public ObservableCollection<StripBayViewModel> Bays { get; } = [];
     public StripPrinterViewModel Printer { get; } = new();
 
+    /// <summary>
+    /// Facilities the current position can open strips windows for. Populated
+    /// once per scenario load by <see cref="RefreshAccessibleFacilitiesAsync"/>
+    /// and drives the facility-switcher popup in the header.
+    /// </summary>
+    public ObservableCollection<AccessibleFacilityDto> AccessibleFacilities { get; } = [];
+
     [ObservableProperty]
     private StripBayViewModel? _selectedBay;
 
@@ -50,16 +57,34 @@ public partial class VStripsViewModel : ObservableObject
     [ObservableProperty]
     private bool _separatorsLocked;
 
-    public VStripsViewModel(ServerConnection connection, Func<string, string, string, Task> sendCommand, UserPreferences? preferences)
+    /// <summary>
+    /// When true, this VM auto-applies <see cref="ServerConnection.ScenarioLoaded"/>
+    /// events (the student-facility bootstrap path used by the embedded tab
+    /// and the standalone app's primary instance). Additional VMs opened for
+    /// other facilities set this to false and get their bay config via
+    /// <see cref="SwitchFacilityAsync"/>.
+    /// </summary>
+    private readonly bool _autoBootstrapFromScenarioLoaded;
+
+    public VStripsViewModel(
+        ServerConnection connection,
+        Func<string, string, string, Task> sendCommand,
+        UserPreferences? preferences,
+        bool autoBootstrapFromScenarioLoaded = true
+    )
     {
         _connection = connection;
         _sendCommand = sendCommand;
         _preferences = preferences;
+        _autoBootstrapFromScenarioLoaded = autoBootstrapFromScenarioLoaded;
 
         _connection.FlightStripsStateChanged += OnFlightStripsStateChanged;
         _connection.StripItemsChanged += OnStripItemsChanged;
-        _connection.ScenarioLoaded += OnScenarioLoaded;
-        _connection.ScenarioUnloaded += OnScenarioUnloaded;
+        if (_autoBootstrapFromScenarioLoaded)
+        {
+            _connection.ScenarioLoaded += OnScenarioLoaded;
+            _connection.ScenarioUnloaded += OnScenarioUnloaded;
+        }
     }
 
     // ── Bay config bootstrap ─────────────────────────────────────
@@ -114,7 +139,11 @@ public partial class VStripsViewModel : ObservableObject
 
     // ── Server event handlers ────────────────────────────────────
 
-    private void OnScenarioLoaded(ScenarioLoadedDto dto) => ApplyBayConfig(dto.FlightStripsConfig);
+    private void OnScenarioLoaded(ScenarioLoadedDto dto)
+    {
+        ApplyBayConfig(dto.FlightStripsConfig);
+        _ = RefreshAccessibleFacilitiesAsync();
+    }
 
     private void OnScenarioUnloaded() => ApplyBayConfig(null);
 
@@ -192,6 +221,10 @@ public partial class VStripsViewModel : ObservableObject
             bayVm.HasNewItem = state.NewItemInBayId == bayVm.BayId;
         }
 
+        // Printer queue is room-wide on the server, one list across all
+        // facilities. ReplaceAll already skips ids it can't resolve in
+        // _items, so scoped VMs naturally drop other facilities' printer
+        // strips — they never arrive as in-scope items in ReconcileItems.
         Printer.ReplaceAll(state.PrinterItems, _items);
     }
 
@@ -205,6 +238,10 @@ public partial class VStripsViewModel : ObservableObject
     {
         foreach (var dto in items)
         {
+            if (!IsInScope(dto))
+            {
+                continue;
+            }
             if (_items.TryGetValue(dto.Id, out var existing))
             {
                 existing.UpdateFromDto(dto);
@@ -213,6 +250,96 @@ public partial class VStripsViewModel : ObservableObject
             {
                 _items[dto.Id] = new StripItemViewModel(dto);
             }
+        }
+    }
+
+    /// <summary>
+    /// Facility-scope filter. A strip item is in scope when it either lives
+    /// in one of this VM's bays (own or linked external — anything in the
+    /// bay layout is something we care about rendering/pushing) or comes
+    /// from our own facility's printer queue (facility match on the item).
+    /// External-bay items are NOT dropped here — the VM tracks them in
+    /// <c>_items</c> so drag-drops onto them work; the view refuses to
+    /// SELECT external bays (see <see cref="SelectBayAsync"/>), which is
+    /// what makes them push-only.
+    /// </summary>
+    private bool IsInScope(StripItemDto dto)
+    {
+        if (FacilityId is null)
+        {
+            return true; // unscoped VM accepts everything (legacy behavior)
+        }
+        // Accept items whose bay belongs to this facility's bay set, OR
+        // whose FacilityId matches exactly. Items with no ownership metadata
+        // (both fields empty) are accepted too — used by older tests and by
+        // command broadcasts that don't thread the ownership through.
+        var hasBay = !string.IsNullOrEmpty(dto.BayId);
+        var hasFacility = !string.IsNullOrEmpty(dto.FacilityId);
+        if (!hasBay && !hasFacility)
+        {
+            return true;
+        }
+        if (hasBay && _baysById.ContainsKey(dto.BayId))
+        {
+            return true;
+        }
+        if (hasFacility && string.Equals(dto.FacilityId, FacilityId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Switches this VM to a different accessible facility in place. Fetches
+    /// the new facility's bay layout via
+    /// <see cref="ServerConnection.GetFlightStripsConfigForFacilityAsync"/>,
+    /// then drives <see cref="ApplyBayConfig"/> with the result. The server
+    /// rejects out-of-scope facility ids (returns null), in which case we
+    /// leave the current config untouched.
+    /// </summary>
+    public async Task SwitchFacilityAsync(string facilityId)
+    {
+        try
+        {
+            var config = await _connection.GetFlightStripsConfigForFacilityAsync(facilityId);
+            if (config is null)
+            {
+                _log.LogWarning("SwitchFacilityAsync: server refused facility {FacilityId} (not in accessible set)", facilityId);
+                return;
+            }
+            ApplyBayConfig(config);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "SwitchFacilityAsync failed for {FacilityId}", facilityId);
+        }
+    }
+
+    /// <summary>
+    /// Populates <see cref="AccessibleFacilities"/> for the current student
+    /// position. Called once on scenario load (via
+    /// <see cref="OnScenarioLoaded"/>) and any time the caller explicitly
+    /// refreshes. Swallows errors — an empty list just means the switcher
+    /// popup has no entries.
+    /// </summary>
+    public async Task RefreshAccessibleFacilitiesAsync()
+    {
+        try
+        {
+            var list = await _connection.GetAccessibleFacilitiesAsync();
+            Dispatcher.UIThread.Post(() =>
+            {
+                AccessibleFacilities.Clear();
+                foreach (var f in list)
+                {
+                    AccessibleFacilities.Add(f);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "RefreshAccessibleFacilitiesAsync failed");
         }
     }
 
