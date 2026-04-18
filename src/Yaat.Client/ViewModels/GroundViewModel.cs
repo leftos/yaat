@@ -408,6 +408,26 @@ public partial class GroundViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Bootstraps ground state from a scenario activation event. Called from
+    /// <see cref="MainViewModel.ApplyScenarioBootstrap"/> for all three paths
+    /// that can activate a scenario (loader, other-clients broadcast, join-room).
+    /// </summary>
+    public void ApplyScenarioBootstrap(ScenarioBootstrap bootstrap, string? artccId)
+    {
+        SetScenarioId(bootstrap.ScenarioId);
+
+        if (!string.IsNullOrEmpty(bootstrap.PrimaryAirportId))
+        {
+            _ = LoadLayoutAsync(bootstrap.PrimaryAirportId);
+
+            if (!string.IsNullOrEmpty(artccId))
+            {
+                _ = LoadTowerCabLayersAsync(artccId, bootstrap.PrimaryAirportId);
+            }
+        }
+    }
+
     public void ClearLayout()
     {
         _activeScenarioId = null;

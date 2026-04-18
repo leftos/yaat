@@ -335,6 +335,26 @@ public partial class RadarViewModel : ObservableObject
         PrimaryAirportId = id;
     }
 
+    /// <summary>
+    /// Bootstraps radar state from a scenario activation event. Called from
+    /// <see cref="MainViewModel.ApplyScenarioBootstrap"/> for all three paths
+    /// that can activate a scenario (loader, other-clients broadcast, join-room).
+    /// </summary>
+    public void ApplyScenarioBootstrap(ScenarioBootstrap bootstrap, string? artccId)
+    {
+        SetPrimaryAirportId(bootstrap.PrimaryAirportId);
+
+        if (!string.IsNullOrEmpty(artccId))
+        {
+            _ = LoadVideoMapsForArtccAsync(artccId, bootstrap.PrimaryAirportId, bootstrap.ScenarioId);
+        }
+
+        if (bootstrap.PositionDisplayConfig is not null)
+        {
+            ApplyPositionDisplayConfig(bootstrap.PositionDisplayConfig);
+        }
+    }
+
     public void SetPrimaryAirportPosition(double lat, double lon)
     {
         _primaryAirportLat = lat;

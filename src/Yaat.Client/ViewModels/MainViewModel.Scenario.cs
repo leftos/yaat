@@ -293,57 +293,26 @@ public partial class MainViewModel
 
     private void ApplyScenarioResult(LoadScenarioResultDto result)
     {
-        ActiveScenarioId = result.ScenarioId;
-        ActiveScenarioName = result.Name;
-        _preferences.SetScenarioName(result.ScenarioId, result.Name);
-        _commandInput.PrimaryAirportId = result.PrimaryAirportId;
-        Radar.SetPrimaryAirportId(result.PrimaryAirportId);
-        SetRadarAirportPosition(result.PrimaryAirportId);
-        ApplySimState(result.IsPaused, result.SimRate);
-
-        if (!string.IsNullOrEmpty(result.PrimaryAirportId))
-        {
-            SetDistanceReference(result.PrimaryAirportId);
-        }
-
         _studentPositionType = result.StudentPositionType;
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
 
-        Aircraft.Clear();
-        foreach (var dto in result.AllAircraft)
-        {
-            var model = AircraftModel.FromDto(dto, ComputeDistance);
-            ApplyAutoClearedToLand(model);
-            Aircraft.Add(model);
-        }
+        ApplyScenarioBootstrap(
+            new ScenarioBootstrap(
+                result.ScenarioId,
+                result.Name,
+                result.PrimaryAirportId,
+                result.PositionDisplayConfig,
+                result.FlightStripsConfig,
+                result.AllAircraft
+            )
+        );
+        ApplySimState(result.IsPaused, result.SimRate);
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
         _ = SendValidateDctFixes();
         _ = SendAutoClearedToLand();
         _ = SendAutoCrossRunway();
-
-        Ground.SetScenarioId(result.ScenarioId);
-        if (!string.IsNullOrEmpty(result.PrimaryAirportId))
-        {
-            _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
-            if (!string.IsNullOrEmpty(_preferences.ArtccId))
-            {
-                _ = Ground.LoadTowerCabLayersAsync(_preferences.ArtccId, result.PrimaryAirportId);
-            }
-        }
-
-        if (!string.IsNullOrEmpty(_preferences.ArtccId))
-        {
-            _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, result.PrimaryAirportId, result.ScenarioId);
-        }
-
-        if (result.PositionDisplayConfig is not null)
-        {
-            Radar.ApplyPositionDisplayConfig(result.PositionDisplayConfig);
-        }
-
-        VStrips.ApplyBayConfig(result.FlightStripsConfig);
     }
 
     private void OnScenarioLoaded(ScenarioLoadedDto dto)
@@ -352,45 +321,20 @@ public partial class MainViewModel
         {
             _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
 
-            ActiveScenarioId = dto.ScenarioId;
-            ActiveScenarioName = dto.ScenarioName;
-            _preferences.SetScenarioName(dto.ScenarioId, dto.ScenarioName);
-            _commandInput.PrimaryAirportId = dto.PrimaryAirportId;
-            Radar.SetPrimaryAirportId(dto.PrimaryAirportId);
-            SetRadarAirportPosition(dto.PrimaryAirportId);
-            ApplySimState(dto.IsPaused, dto.SimRate);
-
-            Ground.SetScenarioId(dto.ScenarioId);
-            if (!string.IsNullOrEmpty(dto.PrimaryAirportId))
-            {
-                SetDistanceReference(dto.PrimaryAirportId);
-                _ = Ground.LoadLayoutAsync(dto.PrimaryAirportId);
-                if (!string.IsNullOrEmpty(_preferences.ArtccId))
-                {
-                    _ = Ground.LoadTowerCabLayersAsync(_preferences.ArtccId, dto.PrimaryAirportId);
-                }
-            }
-
             _studentPositionType = dto.StudentPositionType;
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
 
-            Aircraft.Clear();
-            foreach (var ac in dto.AllAircraft)
-            {
-                var model = AircraftModel.FromDto(ac, ComputeDistance);
-                ApplyAutoClearedToLand(model);
-                Aircraft.Add(model);
-            }
-
-            if (!string.IsNullOrEmpty(_preferences.ArtccId))
-            {
-                _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, dto.PrimaryAirportId, dto.ScenarioId);
-            }
-
-            if (dto.PositionDisplayConfig is not null)
-            {
-                Radar.ApplyPositionDisplayConfig(dto.PositionDisplayConfig);
-            }
+            ApplyScenarioBootstrap(
+                new ScenarioBootstrap(
+                    dto.ScenarioId,
+                    dto.ScenarioName,
+                    dto.PrimaryAirportId,
+                    dto.PositionDisplayConfig,
+                    dto.FlightStripsConfig,
+                    dto.AllAircraft
+                )
+            );
+            ApplySimState(dto.IsPaused, dto.SimRate);
 
             // Apply session settings from the server (set by the loading RPO).
             // Do NOT send our preferences — only the loading RPO applies theirs.
@@ -400,6 +344,44 @@ public partial class MainViewModel
             StatusText = $"Scenario loaded: {dto.ScenarioName}";
             AddSystemEntry($"Scenario loaded: {dto.ScenarioName} ({dto.AllAircraft.Count} aircraft)");
         });
+    }
+
+    /// <summary>
+    /// Shared scenario-activation router. Applies the fields common to all
+    /// three paths (loader, other-clients broadcast, join-room) and fans out
+    /// to the sub-VM bootstrap methods. Per-path extras — ApplySimState
+    /// signature, ApplySessionSettings*, _studentPositionType, prefs push,
+    /// StatusText/AddSystemEntry — stay at the call site.
+    /// </summary>
+    private void ApplyScenarioBootstrap(ScenarioBootstrap bootstrap)
+    {
+        ActiveScenarioId = bootstrap.ScenarioId;
+        ActiveScenarioName = bootstrap.ScenarioName;
+        if (bootstrap.ScenarioName is not null)
+        {
+            _preferences.SetScenarioName(bootstrap.ScenarioId, bootstrap.ScenarioName);
+        }
+
+        _commandInput.PrimaryAirportId = bootstrap.PrimaryAirportId;
+        SetRadarAirportPosition(bootstrap.PrimaryAirportId);
+
+        if (!string.IsNullOrEmpty(bootstrap.PrimaryAirportId))
+        {
+            SetDistanceReference(bootstrap.PrimaryAirportId);
+        }
+
+        Aircraft.Clear();
+        foreach (var dto in bootstrap.Aircraft)
+        {
+            var model = AircraftModel.FromDto(dto, ComputeDistance);
+            ApplyAutoClearedToLand(model);
+            Aircraft.Add(model);
+        }
+
+        var artccId = _preferences.ArtccId;
+        Radar.ApplyScenarioBootstrap(bootstrap, artccId);
+        Ground.ApplyScenarioBootstrap(bootstrap, artccId);
+        VStrips.ApplyBayConfig(bootstrap.FlightStripsConfig);
     }
 
     private void OnScenarioUnloaded()

@@ -401,52 +401,30 @@ public partial class MainViewModel
 
         if (state.ScenarioId is not null)
         {
-            ActiveScenarioId = state.ScenarioId;
-            ActiveScenarioName = state.ScenarioName;
-            if (state.ScenarioName is not null)
-            {
-                _preferences.SetScenarioName(state.ScenarioId, state.ScenarioName);
-            }
-
-            _commandInput.PrimaryAirportId = state.PrimaryAirportId;
-            Radar.SetPrimaryAirportId(state.PrimaryAirportId);
-            SetRadarAirportPosition(state.PrimaryAirportId);
+            ApplyScenarioBootstrap(
+                new ScenarioBootstrap(
+                    state.ScenarioId,
+                    state.ScenarioName,
+                    state.PrimaryAirportId,
+                    state.PositionDisplayConfig,
+                    state.FlightStripsConfig,
+                    state.AllAircraft
+                )
+            );
             ApplySimState(state.IsPaused, (int)state.SimRate, state.ElapsedSeconds, state.IsPlayback, state.TapeEnd);
-
-            Ground.SetScenarioId(state.ScenarioId);
-            if (!string.IsNullOrEmpty(state.PrimaryAirportId))
-            {
-                SetDistanceReference(state.PrimaryAirportId);
-                _ = Ground.LoadLayoutAsync(state.PrimaryAirportId);
-                if (!string.IsNullOrEmpty(_preferences.ArtccId))
-                {
-                    _ = Ground.LoadTowerCabLayersAsync(_preferences.ArtccId, state.PrimaryAirportId);
-                }
-            }
-
-            if (!string.IsNullOrEmpty(_preferences.ArtccId))
-            {
-                _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, state.PrimaryAirportId, state.ScenarioId);
-            }
-
-            if (state.PositionDisplayConfig is not null)
-            {
-                Radar.ApplyPositionDisplayConfig(state.PositionDisplayConfig);
-            }
-
-            // Bootstrap vStrips bay layout. For ScenarioLoaded broadcasts the VM
-            // also subscribes to ServerConnection.ScenarioLoaded directly; this
-            // path covers the JoinRoom RPC response when the scenario was
-            // already loaded before the client joined.
-            VStrips.ApplyBayConfig(state.FlightStripsConfig);
         }
-
-        Aircraft.Clear();
-        foreach (var dto in state.AllAircraft)
+        else
         {
-            var model = AircraftModel.FromDto(dto, ComputeDistance);
-            ApplyAutoClearedToLand(model);
-            Aircraft.Add(model);
+            // Room with no scenario loaded: still reset the aircraft list from
+            // whatever the server says (normally empty) so we don't carry
+            // stale aircraft from a prior room.
+            Aircraft.Clear();
+            foreach (var dto in state.AllAircraft)
+            {
+                var model = AircraftModel.FromDto(dto, ComputeDistance);
+                ApplyAutoClearedToLand(model);
+                Aircraft.Add(model);
+            }
         }
 
         // Apply the room's session settings from the server.
