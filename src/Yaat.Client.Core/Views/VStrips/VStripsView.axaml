@@ -6,6 +6,17 @@
              x:DataType="vm:VStripsViewModel"
              Focusable="True">
 
+    <UserControl.Styles>
+        <!-- Own bay buttons: filled, neutral grey. External (push-only) bays:
+             transparent fill, thin outline — matches CRC's BOS vs CD/GC/LC
+             distinction in docs/crc/img/header.png. -->
+        <Style Selector="Button.external">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#808080"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="36,*">
 
         <!-- Header: bay buttons + trash + printer toggle -->
@@ -23,6 +34,9 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="vm:StripBayViewModel">
+                        <!-- External bays render as thinner outlined buttons (matches CRC
+                             docs/crc/img/header.png: BOS vs CD/GC/LC). Own bays render with
+                             a solid fill to signal viewability. -->
                         <Button x:Name="BayButton"
                                 Content="{Binding Name}"
                                 Tag="{Binding}"
@@ -30,7 +44,9 @@
                                 Padding="10,2"
                                 FontFamily="{StaticResource MonoFont}"
                                 FontSize="11"
-                                Click="OnBayButtonClick"/>
+                                Classes.external="{Binding IsExternal}"
+                                Click="OnBayButtonClick"
+                                Loaded="OnBayButtonLoaded"/>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

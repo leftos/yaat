@@ -101,9 +101,12 @@ public partial class VStripsViewModel : ObservableObject
                 _baysById[bayDto.Id] = bayVm;
             }
 
-            if (Bays.Count > 0)
+            // Initial selection must be an own bay — external bays are
+            // push-only drop-zones (see SelectBayAsync).
+            var firstOwnBay = Bays.FirstOrDefault(b => !b.IsExternal);
+            if (firstOwnBay is not null)
             {
-                SelectedBay = Bays[0];
+                SelectedBay = firstOwnBay;
                 SelectedBay.IsSelected = true;
             }
         });
@@ -218,6 +221,16 @@ public partial class VStripsViewModel : ObservableObject
     [RelayCommand]
     public async Task SelectBayAsync(StripBayViewModel bay)
     {
+        // External bays are push-only drop-zones, never viewable — their
+        // strips live on the owning facility's own window. Clicking one is
+        // a no-op so the current selection (an own bay) keeps driving the
+        // main rack area. See docs/crc/vstrips.md: "external bays cannot be
+        // selected for viewing".
+        if (bay.IsExternal)
+        {
+            return;
+        }
+
         if (SelectedBay is { } prior)
         {
             prior.IsSelected = false;
@@ -230,23 +243,46 @@ public partial class VStripsViewModel : ObservableObject
     [RelayCommand]
     public async Task NextBayAsync()
     {
-        if (Bays.Count == 0)
+        var target = CycleBay(forward: true);
+        if (target is not null)
         {
-            return;
+            await SelectBayAsync(target);
         }
-        var idx = SelectedBay is null ? 0 : (Bays.IndexOf(SelectedBay) + 1) % Bays.Count;
-        await SelectBayAsync(Bays[idx]);
     }
 
     [RelayCommand]
     public async Task PreviousBayAsync()
     {
+        var target = CycleBay(forward: false);
+        if (target is not null)
+        {
+            await SelectBayAsync(target);
+        }
+    }
+
+    /// <summary>
+    /// Walk <see cref="Bays"/> from the current selection, skipping external
+    /// bays (push-only, not viewable). Returns the next (or previous, when
+    /// <paramref name="forward"/> is false) own bay, or null if no own bays
+    /// exist at all. Wraps around.
+    /// </summary>
+    private StripBayViewModel? CycleBay(bool forward)
+    {
         if (Bays.Count == 0)
         {
-            return;
+            return null;
         }
-        var idx = SelectedBay is null ? 0 : (Bays.IndexOf(SelectedBay) - 1 + Bays.Count) % Bays.Count;
-        await SelectBayAsync(Bays[idx]);
+        var step = forward ? 1 : -1;
+        var start = SelectedBay is null ? 0 : Bays.IndexOf(SelectedBay);
+        for (var i = 1; i <= Bays.Count; i++)
+        {
+            var idx = ((start + step * i) % Bays.Count + Bays.Count) % Bays.Count;
+            if (!Bays[idx].IsExternal)
+            {
+                return Bays[idx];
+            }
+        }
+        return null;
     }
 
     /// <summary>Move a strip into a bay/rack/index. Callsign picked by strip type.</summary>

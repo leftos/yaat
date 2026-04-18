@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -57,14 +58,51 @@ public partial class VStripsView : UserControl
         }
     }
 
+    /// <summary>
+    /// Wires up drag/drop handlers the first time a bay-header button is
+    /// realized. ItemsControl creates containers lazily, so the .axaml.cs
+    /// constructor runs before these buttons exist — the Loaded event is the
+    /// first point at which they're guaranteed to be in the visual tree.
+    /// </summary>
+    private void OnBayButtonLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            DragDrop.SetAllowDrop(button, true);
+            button.AddHandler(DragDrop.DragOverEvent, OnGenericDragOver);
+            button.AddHandler(DragDrop.DropEvent, OnBayButtonDrop);
+        }
+    }
+
+    /// <summary>
+    /// Drop target for bay-header buttons. Drops a strip onto the bay's top
+    /// rack (rack 0, index 0) — matches CRC behavior where dropping on a
+    /// header drop-zone pushes to the top of the first rack. Works for both
+    /// own bays (becomes a move within the window) and external bays
+    /// (becomes a push to the other facility).
+    /// </summary>
+    private async void OnBayButtonDrop(object? sender, DragEventArgs e)
+    {
+        if (sender is not Button { Tag: StripBayViewModel bay } || DataContext is not VStripsViewModel vm || e.DataTransfer is null)
+        {
+            return;
+        }
+
+        var stripId = e.DataTransfer.TryGetValue(StripIdFormat);
+        if (stripId is null || !vm.ItemsById.TryGetValue(stripId, out var strip))
+        {
+            return;
+        }
+
+        await vm.MoveStripAsync(strip, bay, rack: 0, index: 0);
+        e.Handled = true;
+    }
+
     // ── Drag source ─────────────────────────────────────────────
 
     private async void OnStripPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
+        var props = e.GetCurrentPoint(this).Properties;
 
         // Walk up from the click target to find the StripItemView under the
         // cursor. StripItemView's Tag is the StripItemViewModel (bound in the
@@ -76,6 +114,21 @@ public partial class VStripsView : UserControl
 
         var stripView = hit.FindAncestorOfType<StripItemView>();
         if (stripView?.Tag is not StripItemViewModel strip || DataContext is not VStripsViewModel vm)
+        {
+            return;
+        }
+
+        // Right-click → Push to… menu. Matches CRC's strip context menu
+        // (docs/crc/vstrips.md:221). Menu lists every accessible bay (own
+        // AND external) so users can push without drag-drop.
+        if (props.IsRightButtonPressed)
+        {
+            ShowPushToMenu(stripView, strip, vm);
+            e.Handled = true;
+            return;
+        }
+
+        if (!props.IsLeftButtonPressed)
         {
             return;
         }
@@ -102,6 +155,33 @@ public partial class VStripsView : UserControl
         var dataTransfer = new DataTransfer();
         dataTransfer.Add(DataTransferItem.Create(StripIdFormat, strip.Id));
         await DragDrop.DoDragDropAsync(e, dataTransfer, DragDropEffects.Move);
+    }
+
+    // ── Push-to context menu ────────────────────────────────────
+
+    /// <summary>
+    /// Builds and shows a flyout menu with one item per accessible bay.
+    /// Selecting an item pushes the strip to that bay's top rack (rack 0,
+    /// index 0) using the existing <see cref="VStripsViewModel.MoveStripAsync"/>
+    /// path — the same canonical command emitted by drag-drop onto a bay
+    /// header. Own bays and external bays are both listed (matches CRC).
+    /// </summary>
+    private void ShowPushToMenu(Control anchor, StripItemViewModel strip, VStripsViewModel vm)
+    {
+        var menu = new MenuFlyout();
+        foreach (var bay in vm.Bays)
+        {
+            var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name, Tag = bay };
+            item.Click += async (_, _) =>
+            {
+                if (item.Tag is StripBayViewModel target)
+                {
+                    await vm.MoveStripAsync(strip, target, rack: 0, index: 0);
+                }
+            };
+            menu.Items.Add(item);
+        }
+        menu.ShowAt(anchor);
     }
 
     // ── Rack drop target ────────────────────────────────────────

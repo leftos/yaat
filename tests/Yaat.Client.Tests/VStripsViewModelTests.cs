@@ -321,4 +321,93 @@ public class VStripsViewModelTests
 
         Assert.Equal(("", "BLANK"), captured[0]);
     }
+
+    // ── External bay behavior (Item 2) ───────────────────────────
+
+    private static FlightStripsConfigDto ConfigWithExternal() =>
+        new(
+            FacilityId: "FAC_OWN",
+            FacilityName: "OAK ATCT",
+            Bays:
+            [
+                new StripBayConfigDto("bay-gnd", "GROUND", 2, IsExternal: false),
+                new StripBayConfigDto("bay-loc", "LOCAL", 2, IsExternal: false),
+                new StripBayConfigDto("bay-nct", "NCT", 3, IsExternal: true),
+            ],
+            HasTwoPrinters: false,
+            SeparatorsLocked: false
+        );
+
+    [Fact]
+    public async Task SelectBayAsync_ExternalBay_LeavesSelectionUnchanged()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithExternal());
+        // Pick the own ground bay first so there is a prior selection to preserve.
+        await vm.SelectBayAsync(vm.Bays[0]);
+        var priorSelection = vm.SelectedBay;
+        Assert.NotNull(priorSelection);
+
+        var externalBay = vm.Bays.First(b => b.IsExternal);
+        await vm.SelectBayAsync(externalBay);
+
+        Assert.Same(priorSelection, vm.SelectedBay);
+        Assert.False(externalBay.IsSelected);
+    }
+
+    [Fact]
+    public async Task MoveStripAsync_ToExternalBay_EmitsPushCanonical()
+    {
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, ConfigWithExternal());
+        vm.ReconcileItems([FullStrip("STRIP_UAL100", "UAL100")]);
+        var strip = vm.ItemsByIdForTests["STRIP_UAL100"];
+        var externalBay = vm.Bays.First(b => b.IsExternal);
+
+        await vm.MoveStripAsync(strip, externalBay, rack: 0, index: 0);
+
+        // Push to an external bay uses the exact same canonical verb as a
+        // move within the same window — the server's GetAccessibleStripBay
+        // already accepts external bays.
+        var (callsign, canonical) = captured[0];
+        Assert.Equal("UAL100", callsign);
+        Assert.StartsWith("STRIP NCT", canonical);
+    }
+
+    [Fact]
+    public async Task NextBayAsync_SkipsExternalBays()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithExternal());
+        await vm.SelectBayAsync(vm.Bays[0]); // GROUND (own)
+
+        await vm.NextBayAsync();
+        Assert.Equal("LOCAL", vm.SelectedBay?.Name);
+
+        await vm.NextBayAsync();
+        // After LOCAL, the external "NCT" is skipped, wrapping back to GROUND.
+        Assert.Equal("GROUND", vm.SelectedBay?.Name);
+    }
+
+    [Fact]
+    public void ApplyBayConfig_ExternalOnlyBays_LeavesNoSelection()
+    {
+        var (vm, _) = MakeVm();
+        // Simulate the edge case where ApplyBayConfig's post-dispatcher work
+        // runs via the test seeding path: only external bays present.
+        SeedBays(
+            vm,
+            new FlightStripsConfigDto(
+                FacilityId: "FAC_OWN",
+                FacilityName: "None",
+                Bays: [new StripBayConfigDto("bay-ext", "EXT", 1, IsExternal: true)],
+                HasTwoPrinters: false,
+                SeparatorsLocked: false
+            )
+        );
+
+        // With only external bays there is no viewable target — SelectedBay
+        // must remain null so the main rack area renders empty.
+        Assert.Null(vm.SelectedBay);
+    }
 }

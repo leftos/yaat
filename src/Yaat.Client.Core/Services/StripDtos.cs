@@ -36,6 +36,6 @@ public record FlightStripsStateDto(
     string? ItemMovedOrCreatedBySessionId
 );
 
-public record StripBayConfigDto(string Id, string Name, int NumberOfRacks);
+public record StripBayConfigDto(string Id, string Name, int NumberOfRacks, bool IsExternal = false);
 
 public record FlightStripsConfigDto(string FacilityId, string FacilityName, StripBayConfigDto[] Bays, bool HasTwoPrinters, bool SeparatorsLocked);
