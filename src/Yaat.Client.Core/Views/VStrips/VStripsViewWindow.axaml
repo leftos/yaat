@@ -5,6 +5,8 @@
         Icon="avares://Yaat.Client.Core/Resources/icon.png"
         Title="Flight Strips">
 
-    <vstrips:VStripsView DataContext="{Binding VStrips}" />
+    <!-- DataContext is the scoped VStripsViewModel (set by the host code
+         when creating the window) — directly, not via a VStrips sub-path. -->
+    <vstrips:VStripsView />
 
 </Window>

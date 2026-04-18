@@ -27,7 +27,6 @@ public partial class MainWindow : Window
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
     private RadarViewWindow? _radarViewWindow;
-    private VStripsViewWindow? _vstripsViewWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
@@ -161,10 +160,7 @@ public partial class MainWindow : Window
             OpenRadarViewWindow(vm);
         }
 
-        if (vm.IsVStripsPoppedOut)
-        {
-            OpenVStripsViewWindow(vm);
-        }
+        WireStripsEntryWindows(vm);
 
         var slider = this.FindControl<Slider>("TimelineSlider");
         if (slider is not null)
@@ -906,9 +902,6 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.IsRadarViewPoppedOut):
                 HandleRadarViewPopOut(vm);
                 break;
-            case nameof(MainViewModel.IsVStripsPoppedOut):
-                HandleVStripsViewPopOut(vm);
-                break;
             case nameof(MainViewModel.ActiveScenarioId):
                 RefreshRecentScenariosEnabled(vm);
                 break;
@@ -985,15 +978,168 @@ public partial class MainWindow : Window
         }
     }
 
-    private void HandleVStripsViewPopOut(MainViewModel vm)
+    // ── Strips tab header click handlers ───────────────────────
+
+    /// <summary>
+    /// Click handler for the '⧉' pop-out button on each strips sub-tab header.
+    /// The button's Tag carries the entry VM; toggling <see cref="VStripsDockEntryViewModel.IsPoppedOut"/>
+    /// lets <see cref="AttachStripsEntry"/> open/close the window.
+    /// </summary>
+    private void OnStripsEntryPopOutClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (vm.IsVStripsPoppedOut)
+        if (sender is Button { Tag: VStripsDockEntryViewModel entry })
         {
-            OpenVStripsViewWindow(vm);
+            entry.IsPoppedOut = !entry.IsPoppedOut;
         }
-        else
+    }
+
+    /// <summary>
+    /// Click handler for the '×' close button on non-student strips sub-tabs.
+    /// Student entries are kept — the button is <c>IsVisible=False</c> for
+    /// them via binding, but the handler also defensively checks
+    /// <see cref="VStripsDockEntryViewModel.IsStudentEntry"/>.
+    /// </summary>
+    private void OnStripsEntryCloseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: VStripsDockEntryViewModel entry } && DataContext is MainViewModel vm)
         {
-            CloseVStripsViewWindow();
+            vm.CloseStripsEntryCommand.Execute(entry);
+        }
+    }
+
+    /// <summary>
+    /// Click handler for the '+ New' button. Shows a popup of the student
+    /// entry's <see cref="VStripsViewModel.AccessibleFacilities"/>; picking
+    /// one invokes <see cref="MainViewModel.OpenStripsEntryForFacilityAsync"/>.
+    /// </summary>
+    private void OnOpenStripsForFacilityClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Button button || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var studentVm = vm.StripsEntries.FirstOrDefault()?.Vm;
+        if (studentVm is null || studentVm.AccessibleFacilities.Count == 0)
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+        foreach (var facility in studentVm.AccessibleFacilities)
+        {
+            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
+            var item = new MenuItem { Header = header, Tag = facility };
+            item.Click += async (_, _) =>
+            {
+                if (item.Tag is Services.AccessibleFacilityDto f)
+                {
+                    await vm.OpenStripsEntryForFacilityAsync(f.FacilityId);
+                }
+            };
+            menu.Items.Add(item);
+        }
+        menu.ShowAt(button);
+    }
+
+    // ── Per-entry strips pop-out windows ───────────────────────
+
+    // One window per dock entry, keyed by the entry's VM reference (entries
+    // are stable for the lifetime of the app; VM is the natural identity).
+    private readonly Dictionary<VStripsDockEntryViewModel, VStripsViewWindow> _stripsWindows = [];
+
+    private void WireStripsEntryWindows(MainViewModel vm)
+    {
+        foreach (var entry in vm.StripsEntries)
+        {
+            AttachStripsEntry(vm, entry);
+        }
+        vm.StripsEntries.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems is not null)
+            {
+                foreach (VStripsDockEntryViewModel added in e.NewItems)
+                {
+                    AttachStripsEntry(vm, added);
+                }
+            }
+            if (e.OldItems is not null)
+            {
+                foreach (VStripsDockEntryViewModel removed in e.OldItems)
+                {
+                    DetachStripsEntry(removed);
+                }
+            }
+        };
+    }
+
+    private void AttachStripsEntry(MainViewModel vm, VStripsDockEntryViewModel entry)
+    {
+        entry.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VStripsDockEntryViewModel.IsPoppedOut))
+            {
+                if (entry.IsPoppedOut)
+                {
+                    OpenStripsEntryWindow(vm, entry);
+                }
+                else
+                {
+                    CloseStripsEntryWindow(entry);
+                }
+            }
+        };
+
+        if (entry.IsPoppedOut)
+        {
+            OpenStripsEntryWindow(vm, entry);
+        }
+    }
+
+    private void DetachStripsEntry(VStripsDockEntryViewModel entry)
+    {
+        CloseStripsEntryWindow(entry);
+    }
+
+    private void OpenStripsEntryWindow(MainViewModel vm, VStripsDockEntryViewModel entry)
+    {
+        if (_stripsWindows.ContainsKey(entry))
+        {
+            return;
+        }
+        var window = new VStripsViewWindow(vm.Preferences, entry.Vm.FacilityId, entry.TabTitle) { DataContext = entry.Vm };
+
+        // Keep the popped window's title in sync with any in-place facility
+        // switches on the same entry.
+        entry.PropertyChanged += OnTrackedEntryTitleChanged;
+
+        void OnTrackedEntryTitleChanged(object? _, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(VStripsDockEntryViewModel.TabTitle))
+            {
+                window.SetWindowTitle(entry.TabTitle);
+            }
+        }
+
+        window.Closing += (_, _) =>
+        {
+            entry.PropertyChanged -= OnTrackedEntryTitleChanged;
+            if (!_isMainWindowClosing)
+            {
+                entry.IsPoppedOut = false;
+            }
+            _stripsWindows.Remove(entry);
+        };
+        _stripsWindows[entry] = window;
+        window.Show();
+    }
+
+    private void CloseStripsEntryWindow(VStripsDockEntryViewModel entry)
+    {
+        if (_stripsWindows.TryGetValue(entry, out var window))
+        {
+            _stripsWindows.Remove(entry);
+            window.Close();
         }
     }
 
@@ -1055,23 +1201,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenVStripsViewWindow(MainViewModel vm)
-    {
-        _vstripsViewWindow = new VStripsViewWindow(vm.Preferences) { DataContext = vm };
-        _vstripsViewWindow.Closing += OnVStripsViewWindowClosing;
-        _vstripsViewWindow.Show();
-    }
-
-    private void CloseVStripsViewWindow()
-    {
-        if (_vstripsViewWindow is not null)
-        {
-            _vstripsViewWindow.Closing -= OnVStripsViewWindowClosing;
-            _vstripsViewWindow.Close();
-            _vstripsViewWindow = null;
-        }
-    }
-
     private void OnTerminalWindowClosing(object? sender, WindowClosingEventArgs e)
     {
         if (!_isMainWindowClosing && DataContext is MainViewModel vm)
@@ -1106,15 +1235,6 @@ public partial class MainWindow : Window
             vm.IsRadarViewPoppedOut = false;
         }
         _radarViewWindow = null;
-    }
-
-    private void OnVStripsViewWindowClosing(object? sender, WindowClosingEventArgs e)
-    {
-        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
-        {
-            vm.IsVStripsPoppedOut = false;
-        }
-        _vstripsViewWindow = null;
     }
 
     private void RefreshRecentScenariosEnabled(MainViewModel vm)

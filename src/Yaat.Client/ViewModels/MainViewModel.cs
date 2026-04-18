@@ -52,7 +52,23 @@ public partial class MainViewModel : ObservableObject
 
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
-    public VStripsViewModel VStrips { get; }
+
+    /// <summary>
+    /// Short-hand for the student-facility strips VM (the first entry in
+    /// <see cref="StripsEntries"/>). Kept as a property so scenario-bootstrap
+    /// code calling <c>VStrips.ApplyBayConfig</c> keeps working — the
+    /// student entry is always element 0.
+    /// </summary>
+    public VStripsViewModel VStrips => StripsEntries[0].Vm;
+
+    /// <summary>
+    /// All flight-strips instances in this client — the student-facility one
+    /// at index 0 (auto-created in the constructor) plus any additional
+    /// per-facility entries the user opened via the 'Open strips window…'
+    /// affordance. Each entry carries its own dock state (see
+    /// <see cref="VStripsDockEntryViewModel.IsPoppedOut"/>).
+    /// </summary>
+    public System.Collections.ObjectModel.ObservableCollection<VStripsDockEntryViewModel> StripsEntries { get; } = [];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
@@ -237,9 +253,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRadarViewPoppedOut;
 
-    [ObservableProperty]
-    private bool _isVStripsPoppedOut;
-
     partial void OnIsDataGridPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("DataGrid", value);
@@ -267,15 +280,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    partial void OnIsVStripsPoppedOutChanged(bool value)
-    {
-        _preferences.SetPoppedOut("VStrips", value);
-        if (value && SelectedTabIndex == 3)
-        {
-            SelectedTabIndex = FindNextVisibleTabIndex(3);
-        }
-    }
-
     private int FindNextVisibleTabIndex(int currentIndex)
     {
         // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View, Tab 3: Strips
@@ -299,7 +303,7 @@ public partial class MainViewModel : ObservableObject
             0 => !IsDataGridPoppedOut,
             1 => !IsGroundViewPoppedOut,
             2 => !IsRadarViewPoppedOut,
-            3 => !IsVStripsPoppedOut,
+            3 => true, // Strips tab always visible — its nested tabs hide individually
             _ => false,
         };
 
@@ -617,13 +621,15 @@ public partial class MainViewModel : ObservableObject
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);
         Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
-        VStrips = new VStripsViewModel(_connection, SendCommandForViewAsync, _preferences);
+        // Student entry is always the first strips entry. Additional
+        // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
+        var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, _preferences);
+        StripsEntries.Add(new VStripsDockEntryViewModel(studentVm, isStudentEntry: true));
 
         _dataGridScale = _preferences.DataGridFontSize / 12.0;
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
-        IsVStripsPoppedOut = _preferences.IsVStripsPoppedOut;
 
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;

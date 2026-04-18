@@ -58,6 +58,38 @@ public partial class VStripsView : UserControl
         }
     }
 
+    // ── Facility switcher ───────────────────────────────────────
+
+    /// <summary>
+    /// Click handler for the leftmost facility button. Opens a popup menu of
+    /// <see cref="VStripsViewModel.AccessibleFacilities"/> and switches the
+    /// VM to the selected facility in-place via
+    /// <see cref="VStripsViewModel.SwitchFacilityAsync"/>.
+    /// </summary>
+    private void OnFacilityButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || DataContext is not VStripsViewModel vm || vm.AccessibleFacilities.Count == 0)
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+        foreach (var facility in vm.AccessibleFacilities)
+        {
+            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
+            var item = new MenuItem { Header = header, Tag = facility };
+            item.Click += async (_, _) =>
+            {
+                if (item.Tag is Yaat.Client.Services.AccessibleFacilityDto f)
+                {
+                    await vm.SwitchFacilityAsync(f.FacilityId);
+                }
+            };
+            menu.Items.Add(item);
+        }
+        menu.ShowAt(button);
+    }
+
     /// <summary>
     /// Wires up drag/drop handlers the first time a bay-header button is
     /// realized. ItemsControl creates containers lazily, so the .axaml.cs
@@ -309,6 +341,28 @@ public partial class VStripsView : UserControl
         // Ctrl+Alt+1..9: jump to bay by ordinal (matches vstrips.md).
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
+            // Ctrl+Alt+←/→: cycle facility in this VM. Matches CRC's
+            // 'Change to next/previous facility' bindings in
+            // docs/crc/vstrips.md:284.
+            if (e.Key is Key.Left or Key.Right && vm.AccessibleFacilities.Count > 0)
+            {
+                var currentIdx = 0;
+                for (var i = 0; i < vm.AccessibleFacilities.Count; i++)
+                {
+                    if (vm.AccessibleFacilities[i].FacilityId == vm.FacilityId)
+                    {
+                        currentIdx = i;
+                        break;
+                    }
+                }
+                var step = e.Key == Key.Right ? 1 : -1;
+                var count = vm.AccessibleFacilities.Count;
+                var nextIdx = ((currentIdx + step) % count + count) % count;
+                await vm.SwitchFacilityAsync(vm.AccessibleFacilities[nextIdx].FacilityId);
+                e.Handled = true;
+                return;
+            }
+
             var bayIdx = e.Key switch
             {
                 Key.D1 => 0,

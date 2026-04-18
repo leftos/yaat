@@ -27,6 +27,10 @@
                 <MenuItem Header="_Leave Room"
                           Command="{Binding LeaveRoomCommand}" />
             </MenuItem>
+            <MenuItem Header="_View" IsEnabled="{Binding IsInRoom}">
+                <MenuItem Header="_New Window..."
+                          x:Name="NewWindowMenuItem" />
+            </MenuItem>
         </Menu>
 
         <!-- Status bar -->
@@ -49,7 +53,9 @@
             </Grid>
         </Border>
 
-        <!-- Center: the VStrips view, bound directly to the shared VStripsViewModel -->
+        <!-- Center: the student-facility strips view. Additional facilities open
+             as separate VStripsViewWindow instances via the 'View → New Window…'
+             menu item; each holds its own VStripsViewModel scoped to one facility. -->
         <vstrips:VStripsView DataContext="{Binding VStrips}" />
 
     </DockPanel>

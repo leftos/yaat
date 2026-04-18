@@ -59,9 +59,9 @@
                 <MenuItem Header="Pop Out _Radar View"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
-                <MenuItem Header="Pop Out _Strips"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding IsVStripsPoppedOut, Mode=TwoWay}" />
+                <!-- Strips pop-out is per-facility; use the ⧉ button on each
+                     strips sub-tab. Multi-facility windows each have their own
+                     persisted geometry. -->
                 <Separator />
                 <MenuItem Header="Show _Timeline Bar"
                           ToggleType="CheckBox"
@@ -242,9 +242,56 @@
                     <radar:RadarView DataContext="{Binding Radar}" />
                 </TabItem>
                 <TabItem Header="Strips"
-                         x:Name="VStripsTab"
-                         IsVisible="{Binding !IsVStripsPoppedOut}">
-                    <vstrips:VStripsView DataContext="{Binding VStrips}" />
+                         x:Name="VStripsTab">
+                    <!-- Nested TabControl over docked strips entries. The student
+                         entry is always element 0; additional entries spawn via the
+                         '+ New' button (right-aligned) and live alongside it. Each
+                         entry has its own pop-out button so it can detach to a
+                         VStripsViewWindow with per-facility geometry. -->
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,0,6,0">
+                            <Button x:Name="OpenStripsForFacilityButton"
+                                    Content="+ New"
+                                    Margin="2,2"
+                                    Padding="8,2"
+                                    FontSize="11"
+                                    ToolTip.Tip="Open strips window for another facility"
+                                    Click="OnOpenStripsForFacilityClick"/>
+                        </StackPanel>
+                        <TabControl x:Name="StripsInnerTabs"
+                                    ItemsSource="{Binding DockedStripsEntries}">
+                            <TabControl.ItemTemplate>
+                                <DataTemplate DataType="vm:VStripsDockEntryViewModel">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding TabTitle}" VerticalAlignment="Center"/>
+                                        <Button Content="⧉"
+                                                ToolTip.Tip="Pop out into a separate window"
+                                                Padding="4,0"
+                                                Margin="6,0,0,0"
+                                                FontSize="10"
+                                                Tag="{Binding}"
+                                                Click="OnStripsEntryPopOutClick"/>
+                                        <Button Content="×"
+                                                ToolTip.Tip="Close this strips tab"
+                                                Padding="4,0"
+                                                Margin="2,0,0,0"
+                                                FontSize="10"
+                                                IsVisible="{Binding !IsStudentEntry}"
+                                                Tag="{Binding}"
+                                                Click="OnStripsEntryCloseClick"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </TabControl.ItemTemplate>
+                            <TabControl.ContentTemplate>
+                                <DataTemplate DataType="vm:VStripsDockEntryViewModel">
+                                    <vstrips:VStripsView DataContext="{Binding Vm}"/>
+                                </DataTemplate>
+                            </TabControl.ContentTemplate>
+                        </TabControl>
+                    </DockPanel>
                 </TabItem>
             </TabControl>
 

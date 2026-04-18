@@ -22,9 +22,19 @@
         <!-- Header: bay buttons + trash + printer toggle -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Background="#252529">
 
-            <TextBlock Grid.Column="0" Text="{Binding FacilityName}"
-                       FontFamily="{StaticResource MonoFont}" FontSize="12"
-                       VerticalAlignment="Center" Padding="8,0" Foreground="#B0B0B0"/>
+            <!-- Facility switcher button — matches CRC's leftmost facility
+                 indicator (docs/crc/img/header.png: BOS box on the left).
+                 Click opens a MenuFlyout of accessible facilities built by
+                 OnFacilityButtonClick in the code-behind. -->
+            <Button Grid.Column="0"
+                    x:Name="FacilityButton"
+                    Content="{Binding FacilityName}"
+                    ToolTip.Tip="Switch this window's facility"
+                    Margin="2,4"
+                    Padding="10,2"
+                    FontFamily="{StaticResource MonoFont}"
+                    FontSize="12"
+                    Click="OnFacilityButtonClick"/>
 
             <ItemsControl Grid.Column="1" ItemsSource="{Binding Bays}">
                 <ItemsControl.ItemsPanel>
