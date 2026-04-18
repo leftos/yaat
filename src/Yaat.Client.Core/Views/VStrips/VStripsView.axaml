@@ -61,28 +61,27 @@
         <!-- Main area: selected bay's racks + printer panel overlay -->
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
 
-            <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto">
+            <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="RacksHost"
                               ItemsSource="{Binding SelectedBay.Racks}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:StripRackViewModel">
-                            <Border BorderBrush="#3A3A40" BorderThickness="0,0,0,1"
+                            <Border BorderBrush="#3A3A40" BorderThickness="0,0,1,0"
                                     Padding="4" Margin="0">
-                                <StackPanel Orientation="Vertical">
-                                    <TextBlock Text="{Binding RackIndex, StringFormat='Rack {0}'}"
-                                               FontSize="10"
-                                               Foreground="#808080"
-                                               Margin="2,0,0,2"/>
-                                    <ItemsControl x:Name="RackStripsHost"
-                                                  Tag="{Binding}"
-                                                  ItemsSource="{Binding Strips}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="vm:StripItemViewModel">
-                                                <vstrips:StripItemView Tag="{Binding}"/>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
+                                <ItemsControl x:Name="RackStripsHost"
+                                              Tag="{Binding}"
+                                              ItemsSource="{Binding Strips}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:StripItemViewModel">
+                                            <vstrips:StripItemView Tag="{Binding}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
