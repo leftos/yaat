@@ -228,14 +228,29 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
             $"aircraft should be airborne within {maxSeconds}s (taxi+LineUp+roll) — last phase was '{prevPhase}'"
         );
 
-        // Sanity-check the timeline: taxi over a multi-segment route with two
-        // ~90° turns should take at least 60 s (the route is ~1200 ft at
-        // ~20 kt with two corner-speed slowdowns). A sub-30 s transition to
-        // LineUp would indicate the pathfinder picked a shortcut or the
-        // aircraft cut a corner.
+        // Sanity-check the timeline with BOTH bounds so the test catches
+        // two classes of regression:
+        //
+        //   * Lower bound (>= 30 s): the route is ~1200 ft with two corner-
+        //     speed slowdowns plus a synthesised slow-turn through the SFO
+        //     A1 apex (node 507). A sub-30 s Taxi→LineUp transition would
+        //     mean the pathfinder picked a shortcut, the aircraft cut a
+        //     corner, or the synthesis was skipped and physics drove through
+        //     the corner at cruise speed.
+        //
+        //   * Upper bound (<= 75 s): before the slow-turn-synthesis fix
+        //     (PlanSynthesisLookahead), the aircraft would orbit node 877
+        //     for 30+ s after overshooting the 90° bend at node 507 — total
+        //     taxi time was 80+ s. Capping at 75 s catches any regression
+        //     that reintroduces the spiral or removes the synthesis.
+        int taxiDuration = lineUpAt - taxiStartedAt;
         Assert.True(
-            lineUpAt - taxiStartedAt >= 60,
-            $"taxi should take at least 60 s for the M2 → A → A1 route; got {lineUpAt - taxiStartedAt} s"
+            taxiDuration >= 30,
+            $"taxi should take at least 30 s for the M2 → A → A1 route (catch shortcut/corner-cutting); got {taxiDuration} s"
+        );
+        Assert.True(
+            taxiDuration <= 75,
+            $"taxi should complete within 75 s for the M2 → A → A1 route (catch spiral regression at node 507); got {taxiDuration} s"
         );
     }
 

@@ -110,6 +110,12 @@ public sealed class GroundNavigator
     /// <summary>The compiled primitive for the current segment. Null until first <see cref="SetupSegment"/>.</summary>
     private PathPrimitive? _currentPrimitive;
 
+    /// <summary>Test-only accessor for the currently-executing primitive.</summary>
+    internal PathPrimitive? CurrentPrimitive => _currentPrimitive;
+
+    /// <summary>Test-only accessor for the currently-active synthesis plan (non-null while the aircraft is approaching a planned tangent-entry point).</summary>
+    internal PlannedSynthesis? ActiveSynthesisPlan => _plannedSynthesis;
+
     /// <summary>
     /// Working arc-playback state: the aircraft's current compass bearing
     /// from the centre of <c>_currentPrimitive</c> when that primitive is a
@@ -149,6 +155,79 @@ public sealed class GroundNavigator
     /// </summary>
     private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
+    /// <summary>
+    /// Minimum turn angle (deg) below which slow-turn synthesis is skipped.
+    /// Under this threshold the pure-pursuit blend on straight segments
+    /// handles realignment cleanly without a dedicated primitive.
+    /// </summary>
+    private const double SlowTurnSynthesisMinAngleDeg = 45.0;
+
+    /// <summary>
+    /// Synthesise a slow-turn when the natural turn arc length at
+    /// <see cref="CategoryPerformance.CornerSpeedForAngle"/> exceeds this
+    /// fraction of the upcoming straight segment's length. Factor 0.5 = the
+    /// natural turn would consume more than half the next segment — too tight
+    /// for the normal pre-turn blend.
+    /// </summary>
+    private const double SlowTurnSynthesisSegmentFraction = 0.5;
+
+    /// <summary>
+    /// Forward lookahead cap (feet) when scanning for upcoming corners that
+    /// need synthesis. Corners past this distance will be planned in a later
+    /// <see cref="SetupSegment"/> call. Prevents runaway scans on long routes.
+    /// </summary>
+    private const double SynthesisLookaheadCapFt = 500.0;
+
+    /// <summary>
+    /// Maximum bearing difference (deg) for two consecutive straight segments
+    /// to be treated as collinear when walking backward from a corner to find
+    /// the tangent-entry segment. Small jogs below this threshold are treated
+    /// as effectively straight so the backward walk can cross them.
+    /// </summary>
+    private const double CollinearBearingToleranceDeg = 5.0;
+
+    /// <summary>
+    /// Strict-geometry tolerance (feet): when the plan's trigger fires, the
+    /// aircraft's position must be within this distance of the planned tangent
+    /// entry point on the segment line. Otherwise synthesis is skipped and a
+    /// warning is logged — the straight's pure-pursuit steering carries on
+    /// and the aircraft cuts the corner without a dedicated primitive.
+    /// </summary>
+    private const double TangentEntryStrictToleranceFt = 3.0;
+
+    /// <summary>
+    /// Cached plan for an upcoming synthesised slow-turn: when and where in
+    /// the current segment to engage the arc, plus the pre-built
+    /// <see cref="PathPrimitiveSlowTurn"/> to swap in. Populated by
+    /// <see cref="PlanSynthesisLookahead"/> in <see cref="SetupSegment"/>;
+    /// consumed by <see cref="TickStraight"/> when the aircraft reaches the
+    /// trigger distance; cleared when the plan fires or when a new segment
+    /// is set up. Null when no synthesis is planned for the current segment.
+    /// </summary>
+    private PlannedSynthesis? _plannedSynthesis;
+
+    /// <summary>
+    /// Plan record describing a pre-computed synthesised slow-turn to be
+    /// engaged mid-segment. All positions are absolute; geometry is fixed
+    /// at plan time and does not adapt to the aircraft's actual pose.
+    /// </summary>
+    internal readonly record struct PlannedSynthesis(
+        /// <summary>Distance along the current segment (feet from segment start) at which the arc engages. Typically `segmentLengthFt - tangentInsetFt`.</summary>
+        double TriggerDistFromSegStartFt,
+        /// <summary>Pre-built slow-turn primitive (entry on segment line, exit aligned with post-corner segment bearing).</summary>
+        PathPrimitiveSlowTurn SlowTurn,
+        /// <summary>Tangent-entry latitude (for strict-geometry verification at trigger time).</summary>
+        double TangentEntryLat,
+        /// <summary>Tangent-entry longitude (for strict-geometry verification at trigger time).</summary>
+        double TangentEntryLon,
+        /// <summary>Corner node id (logged on synthesis engagement).</summary>
+        int CornerNodeId,
+        /// <summary>Tangent inset in nautical miles — how far before the corner the arc engages. Used by <c>ComputeTargetSpeed</c> for the pre-trigger brake curve.</summary>
+        double TangentInsetNm,
+        /// <summary>Chosen target speed (knots) at the trigger point, derived from the chosen radius via <c>v = r × ω</c> and clamped to <c>[SlowTurnSpeedKts, CornerSpeedForAngle(θ)]</c>. Used by the pre-trigger brake constraint so the aircraft decelerates to the correct entry speed, not the global <c>SlowTurnSpeedKts</c> floor.</summary>
+        double ChosenSpeedKts
+    );
+
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         var seg = route.CurrentSegment;
@@ -167,6 +246,17 @@ public sealed class GroundNavigator
         _segmentFromLat = from.Latitude;
         _segmentFromLon = from.Longitude;
         PrevDistToTarget = double.MaxValue;
+
+        // Slow-turn synthesis lookahead: when the pathfinder emits two
+        // consecutive straights at a sharp corner (e.g. the same-taxiway apex
+        // at SFO A1 node 507) and the natural turn radius at corner speed
+        // exceeds what the post-corner segment can accommodate, plan a
+        // tangent-entry arc that engages part-way through the incoming
+        // straight so the aircraft traces a proper fillet-style turn
+        // through the corner instead of orbiting inside it at node-arrival
+        // time. Plan lives in `_plannedSynthesis` until `TickStraight`
+        // triggers at the tangent-entry distance.
+        _plannedSynthesis = PlanSynthesisLookahead(route, ctx, seg);
 
         if (_currentPrimitive is PathPrimitiveArc arcPrim)
         {
@@ -206,6 +296,7 @@ public sealed class GroundNavigator
     /// </summary>
     public void SetupPrimitive(PathPrimitive primitive, double fromLat, double fromLon, double targetLat, double targetLon, double? nextSegmentBearingDeg)
     {
+        _plannedSynthesis = null;
         _currentPrimitive = primitive;
         TargetNodeId = primitive.ToNodeId;
         TargetLat = targetLat;
@@ -234,6 +325,237 @@ public sealed class GroundNavigator
         _nextSegmentBearing = nextSegmentBearingDeg;
     }
 
+    /// <summary>
+    /// Forward-scan the route for the next corner that needs slow-turn
+    /// synthesis, then walk backward through collinear straight segments to
+    /// find the segment + along-track distance where the arc should engage
+    /// (tangent-entry geometry: <c>r × tan(θ/2)</c> before the corner node).
+    /// Returns a plan iff the trigger point lands inside the CURRENT segment;
+    /// otherwise returns null (either deferred to a later <c>SetupSegment</c>
+    /// or impossible geometry — logged in the latter case).
+    /// </summary>
+    /// <remarks>
+    /// Synthesis is needed when the natural turn radius at corner speed
+    /// (<c>cornerSpeed / turnRate</c>) produces an arc longer than
+    /// <see cref="SlowTurnSynthesisSegmentFraction"/> of the post-corner
+    /// segment — i.e. physics can't complete the turn before running off the
+    /// outgoing segment. The synthesised arc uses the category's nose-wheel
+    /// minimum radius at <see cref="CategoryPerformance.SlowTurnSpeedKts"/>
+    /// so it fits where a natural-radius turn cannot.
+    ///
+    /// <para>
+    /// The backward walk stops at the first segment long enough to fit the
+    /// remaining tangent inset, or at the first non-collinear transition
+    /// (bearing difference &gt; <see cref="CollinearBearingToleranceDeg"/>),
+    /// or at the current segment boundary. Forward scan is bounded by
+    /// <see cref="SynthesisLookaheadCapFt"/>.
+    /// </para>
+    /// </remarks>
+    private static PlannedSynthesis? PlanSynthesisLookahead(TaxiRoute route, PhaseContext ctx, TaxiRouteSegment currentSeg)
+    {
+        int curIdx = route.CurrentSegmentIndex;
+        double distFromCurEndFt = 0;
+
+        for (int k = curIdx + 1; k < route.Segments.Count; k++)
+        {
+            if (distFromCurEndFt > SynthesisLookaheadCapFt)
+            {
+                break;
+            }
+
+            var prevK = route.Segments[k - 1];
+            var segK = route.Segments[k];
+            double segKLengthFt = segK.Edge.DistanceNm * GeoMath.FeetPerNm;
+
+            if ((prevK.Edge.Edge is GroundArc) || (segK.Edge.Edge is GroundArc))
+            {
+                distFromCurEndFt += segKLengthFt;
+                continue;
+            }
+
+            double inbound = prevK.Edge.ArrivalBearing;
+            double outbound = segK.Edge.DepartureBearing;
+            double turnAngleDeg = GeoMath.AbsBearingDifference(inbound, outbound);
+
+            if (turnAngleDeg < SlowTurnSynthesisMinAngleDeg)
+            {
+                distFromCurEndFt += segKLengthFt;
+                continue;
+            }
+
+            double cornerSpeedKts = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngleDeg);
+            double cornerSpeedFtPerSec = cornerSpeedKts * GeoMath.FeetPerNm / 3600.0;
+            double turnRateRadPerSec = CategoryPerformance.GroundTurnRate(ctx.Category) * Math.PI / 180.0;
+            double naturalRadiusFt = cornerSpeedFtPerSec / turnRateRadPerSec;
+            double naturalArcLengthFt = naturalRadiusFt * turnAngleDeg * Math.PI / 180.0;
+
+            if (naturalArcLengthFt <= segKLengthFt * SlowTurnSynthesisSegmentFraction)
+            {
+                distFromCurEndFt += segKLengthFt;
+                continue;
+            }
+
+            // Sharp corner into short segment — synthesis needed.
+            //
+            // Walk backward through collinear straight segments to measure
+            // how much pre-corner "incoming room" is available along the
+            // tangent direction. The walk stops at: (a) an arc segment,
+            // (b) a non-collinear transition (> CollinearBearingToleranceDeg),
+            // or (c) the current segment boundary (segments before curIdx
+            // are already traversed and unavailable).
+            double availIncomingFt = 0;
+            int earliestReachableSegIdx = k;
+            for (int b = k - 1; b >= curIdx; b--)
+            {
+                var segB = route.Segments[b];
+                if (segB.Edge.Edge is GroundArc)
+                {
+                    break;
+                }
+                double bearingDiff = GeoMath.AbsBearingDifference(segB.Edge.ArrivalBearing, inbound);
+                if (bearingDiff > CollinearBearingToleranceDeg)
+                {
+                    break;
+                }
+                availIncomingFt += segB.Edge.DistanceNm * GeoMath.FeetPerNm;
+                earliestReachableSegIdx = b;
+            }
+
+            // Available outgoing room is the post-corner segment length
+            // (not extending through further collinear segments — keeping
+            // the tangent exit conservatively inside segK).
+            double availOutgoingFt = segKLengthFt;
+
+            // Pick the largest radius that fits both tangent insets, with
+            // 20% safety margin for pure-pursuit lag, fillet-paint variance,
+            // and the outgoing segment's own pre-turn blend for any
+            // follow-on corner. Floor at the category's nose-wheel minimum
+            // — when geometry wants tighter than that, log a warning (graph
+            // or scenario-design issue worth surfacing) and clamp to the
+            // floor anyway; the strict-geometry check will still gate
+            // engagement on the aircraft being near the planned entry.
+            const double GeometrySafetyFactor = 0.8;
+            double minRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+            double maxInsetFt = GeometrySafetyFactor * Math.Min(availIncomingFt, availOutgoingFt);
+            double halfAngleRad = turnAngleDeg * 0.5 * Math.PI / 180.0;
+            double maxRadiusFt = maxInsetFt / Math.Tan(halfAngleRad);
+
+            double chosenRadiusFt;
+            if (maxRadiusFt < minRadiusFt)
+            {
+                Log.LogWarning(
+                    "[NavV2] Synth geometry tight: corner node {NodeId} (seg {K}, {TurnDeg:F1}°) availIn={AvailIn:F1}ft availOut={AvailOut:F1}ft — geometry wants r={MaxR:F1}ft below nose-wheel min {MinR:F1}ft; clamping to min (may fall outside segment)",
+                    prevK.Edge.ToNodeId,
+                    k,
+                    turnAngleDeg,
+                    availIncomingFt,
+                    availOutgoingFt,
+                    maxRadiusFt,
+                    minRadiusFt
+                );
+                chosenRadiusFt = minRadiusFt;
+            }
+            else
+            {
+                chosenRadiusFt = maxRadiusFt;
+            }
+
+            // Speed derives from the geometry via v = r × ω (same turn-rate
+            // the existing cornerSpeed calibration uses), so lateral
+            // acceleration stays consistent with natural turns. Floor at
+            // SlowTurnSpeedKts (3 kt) for pathological tight cases; cap at
+            // CornerSpeedForAngle so 150°+ reversals respect the tight-
+            // corner schedule (8 kt for jets).
+            double chosenSpeedFtPerSec = chosenRadiusFt * turnRateRadPerSec;
+            double chosenSpeedKts = chosenSpeedFtPerSec * 3600.0 / GeoMath.FeetPerNm;
+            chosenSpeedKts = Math.Clamp(chosenSpeedKts, CategoryPerformance.SlowTurnSpeedKts, cornerSpeedKts);
+
+            double tangentInsetFt = chosenRadiusFt * Math.Tan(halfAngleRad);
+
+            // Find the trigger segment by walking backward from the corner
+            // by tangentInsetFt through the (already-verified-collinear)
+            // incoming chain. Uses the same stop criteria as the availIn
+            // walk above — they're a matched pair.
+            double remainingInsetFt = tangentInsetFt;
+            int triggerIdx = -1;
+            double triggerDistFromSegStartFt = 0;
+            for (int b = k - 1; b >= earliestReachableSegIdx; b--)
+            {
+                var segB = route.Segments[b];
+                double segBLengthFt = segB.Edge.DistanceNm * GeoMath.FeetPerNm;
+                if (segBLengthFt >= remainingInsetFt)
+                {
+                    triggerIdx = b;
+                    triggerDistFromSegStartFt = segBLengthFt - remainingInsetFt;
+                    break;
+                }
+                remainingInsetFt -= segBLengthFt;
+            }
+
+            if (triggerIdx < 0)
+            {
+                // Even clamped to minRadius the inset exceeded the reachable
+                // incoming chain. Skip synthesis — the aircraft will cut the
+                // corner as a plain straight-to-straight and rely on pure-
+                // pursuit + natural physics. Warning already logged above
+                // when maxRadius fell below min.
+                return null;
+            }
+
+            if (triggerIdx != curIdx)
+            {
+                // Trigger is in a future segment — defer to that segment's SetupSegment.
+                return null;
+            }
+
+            var cornerNode = prevK.Edge.ToNode;
+            double tangentInsetNm = tangentInsetFt / GeoMath.FeetPerNm;
+            var (tangentEntryLat, tangentEntryLon) = GeoMath.ProjectPoint(
+                cornerNode.Latitude,
+                cornerNode.Longitude,
+                new TrueHeading(((inbound + 180.0) % 360.0 + 360.0) % 360.0),
+                tangentInsetNm
+            );
+
+            var slowTurn = PathPrimitiveBuilder.SlowTurn(
+                fromLat: tangentEntryLat,
+                fromLon: tangentEntryLon,
+                fromHdgDeg: inbound,
+                toHdgDeg: outbound,
+                radiusFt: chosenRadiusFt,
+                maxSpeedKts: chosenSpeedKts,
+                toNodeId: cornerNode.Id
+            );
+
+            Log.LogDebug(
+                "[NavV2] Synth plan: corner node {NodeId} (seg {K}) turn={TurnDeg:F1}° natArc={NatArc:F1}ft segLen={SegLen:F1}ft availIn={AvailIn:F1}ft availOut={AvailOut:F1}ft chosenR={ChosenR:F1}ft chosenV={ChosenV:F1}kt inset={Inset:F1}ft triggerDist={TrigDist:F1}ft",
+                cornerNode.Id,
+                k,
+                turnAngleDeg,
+                naturalArcLengthFt,
+                segKLengthFt,
+                availIncomingFt,
+                availOutgoingFt,
+                chosenRadiusFt,
+                chosenSpeedKts,
+                tangentInsetFt,
+                triggerDistFromSegStartFt
+            );
+
+            return new PlannedSynthesis(
+                TriggerDistFromSegStartFt: triggerDistFromSegStartFt,
+                SlowTurn: slowTurn,
+                TangentEntryLat: tangentEntryLat,
+                TangentEntryLon: tangentEntryLon,
+                CornerNodeId: cornerNode.Id,
+                TangentInsetNm: tangentInsetNm,
+                ChosenSpeedKts: chosenSpeedKts
+            );
+        }
+
+        return null;
+    }
+
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         return _currentPrimitive switch
@@ -248,10 +570,60 @@ public sealed class GroundNavigator
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        double edgeLengthNm = GeoMath.DistanceNm(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+
+        // Planned-synthesis trigger: when the aircraft reaches the tangent-
+        // entry point on the current segment (distance to target drops below
+        // the tangent inset), swap in the pre-built slow-turn and let
+        // TickSlowTurn drive the arc through the corner. Strict-geometry
+        // check ensures we only engage when the aircraft is actually on the
+        // segment line within tolerance — if it's drifted off-line, skip
+        // synthesis (logged) and let the straight finish as-is.
+        if (_plannedSynthesis is { } plan && (distNm <= plan.TangentInsetNm + 1e-9))
+        {
+            double distFromEntryFt =
+                GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.TangentEntryLat, plan.TangentEntryLon) * GeoMath.FeetPerNm;
+            // Scale strict-geometry tolerance with chosen radius so piston
+            // aircraft with a 10 ft nose-wheel minimum don't constantly trip
+            // the warning path from small pure-pursuit lag. 15% of radius
+            // matches typical pure-pursuit tracking error as a fraction of
+            // turn radius; the 3 ft floor handles the jet-minimum case.
+            double strictToleranceFt = Math.Max(TangentEntryStrictToleranceFt, 0.15 * plan.SlowTurn.RadiusFt);
+            if (distFromEntryFt > strictToleranceFt)
+            {
+                Log.LogWarning(
+                    "[NavV2] Synth trigger: aircraft {DistFt:F1}ft from planned tangent entry (tol {Tol:F1}ft for r={RadiusFt:F1}ft) — skipping synthesis for corner node {NodeId}",
+                    distFromEntryFt,
+                    strictToleranceFt,
+                    plan.SlowTurn.RadiusFt,
+                    plan.CornerNodeId
+                );
+                _plannedSynthesis = null;
+            }
+            else
+            {
+                Log.LogDebug(
+                    "[NavV2] Synth engaged: corner node {NodeId} r={RadiusFt:F1}ft v={SpeedKts:F1}kt entry-dist={EntryFt:F2}ft gs={Gs:F1}kt",
+                    plan.CornerNodeId,
+                    plan.SlowTurn.RadiusFt,
+                    plan.ChosenSpeedKts,
+                    distFromEntryFt,
+                    ctx.Aircraft.IndicatedAirspeed
+                );
+                _currentPrimitive = plan.SlowTurn;
+                _arcBearingFromCenterDeg = plan.SlowTurn.StartBearingFromCenterDeg;
+                _arcRemainingSweepDeg = plan.SlowTurn.SweepDeg;
+                _plannedSynthesis = null;
+                PrevDistToTarget = double.MaxValue;
+                return NavigatorResult.Navigating;
+            }
+        }
 
         // Tight arrival threshold when any of:
         //   - last segment of the route (always stop precisely),
         //   - the current target is a stop (_currentNodeRequiredSpeed == 0),
+        //   - a synthesis plan is active (trigger above owns arrival; the
+        //     loose 91 ft threshold would fire before the tangent inset),
         //   - the effective edge (segment start to current TargetLat/Lon) is
         //     shorter than 1.5× the loose threshold.
         // The last case handles the hold-short override — TaxiingPhase moves
@@ -260,10 +632,10 @@ public sealed class GroundNavigator
         // the underlying segment is long. Without this check, the loose
         // 91 ft arrival threshold can fire 10-80 ft short of a hold-short
         // stop, leaving the aircraft parked well behind the painted line.
-        double edgeLengthNm = GeoMath.DistanceNm(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
         bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
         bool isStopTarget = _currentNodeRequiredSpeed == 0;
-        double arrivalThresholdNm = (isLastSegment || shortEdge || isStopTarget) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+        bool synthPlanActive = _plannedSynthesis is not null;
+        double arrivalThresholdNm = (isLastSegment || shortEdge || isStopTarget || synthPlanActive) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
 
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
@@ -517,6 +889,24 @@ public sealed class GroundNavigator
             double totalDist = distToEndpointNm + pathDist;
             double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
             brakingLimit = Math.Min(brakingLimit, limit);
+        }
+
+        // Planned-synthesis trigger constraint: the tangent-entry arc engages
+        // `plan.TangentInsetNm` before the current target, at
+        // `plan.ChosenSpeedKts`. Ensure the aircraft can brake to the
+        // chosen speed by the trigger point. Handled outside
+        // `_speedConstraints` because this is a PRE-target constraint
+        // (negative path distance) and the backward-propagation machinery
+        // assumes non-negative distances.
+        if (_plannedSynthesis is { } plan)
+        {
+            double triggerDistNm = distToEndpointNm - plan.TangentInsetNm;
+            if (triggerDistNm < 0)
+            {
+                triggerDistNm = 0;
+            }
+            double triggerLimit = Math.Sqrt(plan.ChosenSpeedKts * plan.ChosenSpeedKts + 2.0 * decelRate * triggerDistNm * 3600.0);
+            brakingLimit = Math.Min(brakingLimit, triggerLimit);
         }
 
         // Quadratic scaling by heading error so the aircraft slows during

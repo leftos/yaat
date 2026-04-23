@@ -14,11 +14,8 @@
 - [x] `5261ff9` — feat: 1:1 aircraft silhouette in `Yaat.LayoutInspector` tick overlay (`--tick-aircraft-length-ft`, `--tick-aircraft-wingspan-ft`; fuselage + wings + tailplane drawn at feet-to-pixels scale; 10 px floor)
 - [x] `4ff7a39` — revert `b7f3d38` (ingress resolver) — rationale in commit message
 - [x] `dc12009` — feat: snap off-graph ground spawns onto nearest taxi edge (`GroundSpawnSnap` + `AirportGroundLayout.FindNearestTaxiEdge`, runs in `ScenarioLoader` after heading derivation, before any tick)
-
-**Uncommitted on disk at the time of this plan write:**
-
-- [ ] `tools/Yaat.LayoutInspector/inspector-template.html` — opacity tweak: non-highlighted edges/arcs bumped from 0.1 → 0.25 when something is highlighted (still dim, but visible on the dark background)
-- [ ] `tests/Yaat.Sim.Tests/Simulation/SfoM2MultiTurnTaxiTests.cs` — E2E test spawning an aircraft ~20 ft off M2 at SFO and issuing `TAXI M2 A A1 1R` + `CTO 1R`. Currently passes its phase/airborne assertions but exposes the pathology described below (aircraft spirals around node 877 before LineUp). Keeping it as a regression test for the upcoming fix.
+- [x] `73786a8` — chore: add M2 multi-turn test + LI opacity tweak + this handoff plan
+- [x] **Item 1 (this commit)** — feat: navigator lookahead tangent-entry slow-turn synthesis (see "Item 1 — done this session" below)
 
 ## Context
 
@@ -82,13 +79,13 @@ bool alongTrackArrived = alongNm >= edgeLengthNm - arrivalThresholdNm;
 
 **Decision:** dropped. The user's guidance was "I was hoping for something more robust than our previous overshoot detection, but not these failed attempts" — meaning arrival detection is a separate future improvement, not a band-aid for the off-graph spawn problem. Deferred.
 
-## Current open pathology (the reason this plan isn't closed)
+## Original pathology — addressed by Item 1 (kept for historical context)
 
-`SfoM2MultiTurnTaxiTests` (uncommitted) exercises this: spawn an aircraft ~20 ft off M2 at SFO node 1529 area, issue `TAXI M2 A A1 1R` + `CTO 1R`. The snap works, the aircraft taxis M2 → A correctly, but at the A1 bend around node 507 it:
+`SfoM2MultiTurnTaxiTests` exercised this: spawn an aircraft ~20 ft off M2 at SFO node 1529 area, issue `TAXI M2 A A1 1R` + `CTO 1R`. The snap works, the aircraft taxis M2 → A correctly, but at the A1 bend around node 507 it used to:
 
-1. **Doesn't use the `2185/2186` fillet arc** — the route is constructed as 14 segments including `2186 → 507 → 2185` as two consecutive **straights through the apex** of the A1 bend (see seg 11 + seg 12 in the runtime log). The fillet arc `2186 → 2185` (`TaxiwayNames=[A1]`, radius 74 ft, length 0.0194 nm) is in the graph but ignored by the pathfinder.
-2. **Overshoots the 90° turn at node 507** — aircraft enters the bend at the `cornerSpeed(90°) = 15` kt constraint, but physics (`GroundTurnRate = 20°/s`) gives a natural 72 ft turn radius. The 507→2185 segment is only 75 ft. Physics cannot complete the turn in the available space.
-3. **Spirals around node 877** — after overshooting, the aircraft ends up past node 2185 with target 877 (the 1R hold-short, 74 ft further along A1). Navigator steers toward 877 but can never slow to 0 within the tight turn radius, so it orbits at taxi-corner speed for 30+ seconds before LineUp finally fires with a degenerate pose. CSV evidence (from `.tmp/sfo-m2-multiturn.csv`, ticks 93–127): position stays in a ~10 ft patch while heading rotates continuously at 17.5°/s.
+1. **Not use the `2185/2186` fillet arc** — the route is constructed as 14 segments including `2186 → 507 → 2185` as two consecutive **straights through the apex** of the A1 bend (see seg 11 + seg 12 in the runtime log). The fillet arc `2186 → 2185` (`TaxiwayNames=[A1]`, radius 74 ft, length 0.0194 nm) is in the graph but ignored by the pathfinder. **Item 2 addresses this root cause.**
+2. **Overshoot the 90° turn at node 507** — aircraft enters the bend at the `cornerSpeed(90°) = 15` kt constraint, but physics (`GroundTurnRate = 20°/s`) gives a natural 72 ft turn radius. The 507→2185 segment is only 75 ft. Physics cannot complete the turn in the available space. **Item 1 fixed this.**
+3. **Spiral around node 877** — after overshooting, the aircraft ends up past node 2185 with target 877 (the 1R hold-short, 74 ft further along A1). Navigator steers toward 877 but can never slow to 0 within the tight turn radius, so it orbits at taxi-corner speed for 30+ seconds before LineUp finally fires with a degenerate pose. **Item 1's lookahead synthesis prevents this by engaging a tangent-entry arc before the corner at geometry-appropriate radius/speed.**
 
 ### Root causes identified
 
@@ -110,29 +107,28 @@ The navigator **does** lookahead (`BuildSpeedConstraints` at `GroundNavigator.cs
 
 ## Plan for next session (ordered)
 
-### Item 1 — Navigator SlowTurn synthesis (do this FIRST)
+### Item 1 — Navigator SlowTurn synthesis — **DONE this session**
 
-**Why first**: makes the navigator robust to ANY sharp corner, not just the ones the fillet generator covered. Any future pathfinder regression, any airport with incomplete fillet coverage, any manual-geometry taxiway is then handled at the navigator level.
+Implemented not as at-node synthesis (original sketch) but as **lookahead tangent-entry synthesis**: the aircraft slows and begins the turn *before* the corner node, arcs tangent to the incoming segment, passes through the corner vicinity, and exits tangent to the outgoing segment. The original at-node sketch (which would have orbited inside the corner starting at node arrival) was superseded once a trajectory render showed the aircraft "realising" the corner only at node arrival — visibly un-pilot-like.
 
-**Where**: `GroundNavigator.SetupSegment` (ephemeral, check-and-synthesize at segment-transition time). **Not** `TaxiRoute` construction — per conversation, we prefer keeping `TaxiRouteSegment` pure, and the existing `LineUpPhase` precedent already shows the pattern (synthesize `PathPrimitiveSlowTurn` at phase-setup time).
+**Final design** (in `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs`):
 
-**Algorithm sketch**:
-1. At segment transition, compute `turnAngle = AbsBearingDifference(currentSegArrivalBearing, nextSegDepartureBearing)`.
-2. Compute `naturalTurnRadius = cornerSpeed / GroundTurnRate` (in ft, unit-converted). At 15 kt and 20°/s that's ≈72 ft.
-3. Compute `naturalArcLength = turnRadius × turnAngle_rad`.
-4. If `naturalArcLength > nextSegmentLength × someFactor` (e.g., the turn can't complete in the first half of the next segment), the natural turn won't fit → synthesize a SlowTurn.
-5. SlowTurn primitive uses `MinGroundTurnRadiusFt` (~25 ft for jet) at `ArcSpeedFloorKts`/low taxi speed, plays out via `TickSlowTurn`. Entry is at the end of the current segment, exit aligned with the next segment's bearing.
+1. **`PlanSynthesisLookahead`** (called from `SetupSegment`) forward-scans the route (capped at 500 ft) for the next transition needing synthesis. Criteria: turn angle ≥ 45° AND natural arc length > `0.5 × postCornerSegmentLength`.
+2. When found, walks **backward** through collinear straight segments (bearing diff < 5°) accumulating incoming room.
+3. **Dynamic radius/speed**: picks the largest radius that fits `0.8 × min(availIncomingFt, availOutgoingFt) / tan(θ/2)`, floored at `NoseWheelTurnRadiusFt`. Speed derives from `v = r × ω` (same `GroundTurnRate` the `CornerSpeed` calibration uses, so lateral acceleration stays consistent with natural turns), clamped to `[SlowTurnSpeedKts, CornerSpeedForAngle(θ)]`. For SFO M2 (both sides 75 ft): r = 60 ft, v = 12.4 kt — effectively a soft fillet. Only pathological geometry drops to the 3 kt / 25 ft floor, which emits a Warning.
+4. `PlannedSynthesis` record caches the pre-built slow-turn primitive + tangent entry point + chosen speed iff the trigger lands in the current segment; otherwise defers to a later `SetupSegment`.
+5. **`ComputeTargetSpeed`** adds a pre-trigger brake constraint using `plan.ChosenSpeedKts` at `distToTarget - tangentInset`, so the aircraft decelerates to the chosen entry speed (not the global 3 kt floor) by the tangent point.
+6. **`TickStraight`** fires the trigger when `distToTarget ≤ tangentInset` AND the aircraft is within `max(3 ft, 0.15 × chosenRadius)` of the planned tangent-entry point (strict-geometry check; scales with radius so piston aircraft with small radii don't trip false warnings). Engaging = swap `_currentPrimitive` to the pre-built slow-turn. Missing = log warning and skip synthesis; pure-pursuit carries on.
+7. Suppresses normal arrival detection while a plan is active so the loose 91 ft threshold doesn't fire before the tangent inset (25–60 ft).
+8. On arc completion `TickSlowTurn` returns `ArrivedAtNode` normally; `TaxiingPhase` advances the route index and sets up the outgoing segment's straight, which pure-pursuit steers cleanly to the next node.
 
-**Tests**:
-- Existing `SfoM2MultiTurnTaxiTests` (uncommitted) — aircraft should now make the 90° turn at node 507 cleanly without spiraling. Key assertion: aircraft reaches LineUp at a pose on A1 (not spiraling 20+ seconds).
-- Unit tests in `GroundNavigatorTests.cs` (or new file) exercising the synthesis directly: construct two short straights with a 90° transition, verify navigator inserts a SlowTurn, verify completion.
-- Full suite must stay green.
+**Aviation review**: approved by `aviation-sim-expert`. Anchors: AIM 4-3-18 §2 (PIC authority over taxi mechanics — no FAA rule prescribes taxi turn radius/speed), AIM 4-3-18 §5 (blast exposure), 7110.65 3-7-2 (ATC issues route, not turn mechanics). No ground-separation rule applies behind a slow aircraft, so dynamic radius (keeping speeds ~10–15 kt in the common case) is a realism win, not just an aesthetics one.
 
-**Files likely to touch**:
-- `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — `SetupSegment` / `SetupPrimitive` — detection + synthesis hook
-- `src/Yaat.Sim/Phases/Ground/PathPrimitiveBuilder.cs` — possibly extend `BuildSlowTurn` factory
-- `src/Yaat.Sim/AircraftCategory.cs` — reference `MinGroundTurnRadiusFt` constant already exists
-- New tests
+**Verification**: `SfoM2MultiTurnTaxiTests` — arc engages at 0.84 ft from tangent entry at gs=13.5 kt, rotates 89.7° at v=12.4 kt constant, exits at heading 117.85° (exact A1 bearing) with zero off-line error, accelerates on A1. Taxi 42 s (was 80+ s pre-fix). Full 3161-test suite green, zero warnings. Tightened `SfoM2MultiTurnTaxiTests` time assertion from `>= 60s` (pre-fix trip-wire) to paired `30s ≤ taxi ≤ 75s` bounds that catch both shortcutting and spiral regression.
+
+**Key files changed**:
+- `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — `PlannedSynthesis` record, `_plannedSynthesis` field, `PlanSynthesisLookahead`, trigger constraint in `ComputeTargetSpeed`, mid-segment trigger in `TickStraight`, arrival-threshold suppression, supporting constants.
+- `tests/Yaat.Sim.Tests/Simulation/SfoM2MultiTurnTaxiTests.cs` — assertion polarity fix.
 
 ### Item 2 — Pathfinder: prefer same-taxiway arc iff shortcut
 
