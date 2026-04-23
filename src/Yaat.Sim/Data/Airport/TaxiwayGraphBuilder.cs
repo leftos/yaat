@@ -123,12 +123,24 @@ internal static class TaxiwayGraphBuilder
         {
             for (int b = 0; b < tw2.Coords.Count - 1; b++)
             {
-                var (lat, lon) = SegmentIntersection(tw1.Coords[a], tw1.Coords[a + 1], tw2.Coords[b], tw2.Coords[b + 1]);
+                var result = GeoMath.SegmentsIntersect(
+                    tw1.Coords[a].Lat,
+                    tw1.Coords[a].Lon,
+                    tw1.Coords[a + 1].Lat,
+                    tw1.Coords[a + 1].Lon,
+                    tw2.Coords[b].Lat,
+                    tw2.Coords[b].Lon,
+                    tw2.Coords[b + 1].Lat,
+                    tw2.Coords[b + 1].Lon
+                );
 
-                if (double.IsNaN(lat))
+                if (result is null)
                 {
                     continue;
                 }
+
+                double lat = result.Value.Lat;
+                double lon = result.Value.Lon;
 
                 // Check if there's already a node at this location
                 int? existing = coordIndex.FindNearest(lat, lon);
@@ -190,44 +202,6 @@ internal static class TaxiwayGraphBuilder
         tw.NodeIds.Insert(insertAt, nodeId);
     }
 
-    /// <summary>
-    /// Compute intersection of two line segments.
-    /// Returns (NaN, NaN) if no intersection.
-    /// </summary>
-    private static (double Lat, double Lon) SegmentIntersection(
-        (double Lat, double Lon) a1,
-        (double Lat, double Lon) a2,
-        (double Lat, double Lon) b1,
-        (double Lat, double Lon) b2
-    )
-    {
-        double d1Lat = a2.Lat - a1.Lat;
-        double d1Lon = a2.Lon - a1.Lon;
-        double d2Lat = b2.Lat - b1.Lat;
-        double d2Lon = b2.Lon - b1.Lon;
-
-        double cross = d1Lat * d2Lon - d1Lon * d2Lat;
-        if (Math.Abs(cross) < 1e-12)
-        {
-            return (double.NaN, double.NaN);
-        }
-
-        double diffLat = b1.Lat - a1.Lat;
-        double diffLon = b1.Lon - a1.Lon;
-
-        double t = (diffLat * d2Lon - diffLon * d2Lat) / cross;
-        double u = (diffLat * d1Lon - diffLon * d1Lat) / cross;
-
-        if (t < 0 || t > 1 || u < 0 || u > 1)
-        {
-            return (double.NaN, double.NaN);
-        }
-
-        double lat = a1.Lat + t * d1Lat;
-        double lon = a1.Lon + t * d1Lon;
-
-        return (lat, lon);
-    }
 }
 
 /// <summary>

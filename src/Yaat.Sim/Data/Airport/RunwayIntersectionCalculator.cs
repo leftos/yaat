@@ -39,7 +39,7 @@ public static class RunwayIntersectionCalculator
 
             for (int j = 0; j < crossCoords.Count - 1; j++)
             {
-                var result = SegmentIntersection(
+                var result = GeoMath.SegmentsIntersect(
                     landCoords[i].Lat,
                     landCoords[i].Lon,
                     landCoords[i + 1].Lat,
@@ -130,42 +130,4 @@ public static class RunwayIntersectionCalculator
         return firstEnd.Equals(designator, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Computes the intersection of two line segments using parametric form.
-    /// Returns null if segments are parallel or don't intersect within their extents.
-    /// </summary>
-    private static (double Lat, double Lon, double T)? SegmentIntersection(
-        double ax1,
-        double ay1,
-        double ax2,
-        double ay2,
-        double bx1,
-        double by1,
-        double bx2,
-        double by2
-    )
-    {
-        double dx1 = ax2 - ax1;
-        double dy1 = ay2 - ay1;
-        double dx2 = bx2 - bx1;
-        double dy2 = by2 - by1;
-
-        double denom = dx1 * dy2 - dy1 * dx2;
-        if (Math.Abs(denom) < 1e-12)
-        {
-            return null; // Parallel
-        }
-
-        double t = ((bx1 - ax1) * dy2 - (by1 - ay1) * dx2) / denom;
-        double u = ((bx1 - ax1) * dy1 - (by1 - ay1) * dx1) / denom;
-
-        if (t < 0 || t > 1 || u < 0 || u > 1)
-        {
-            return null; // Intersection outside segment extents
-        }
-
-        double lat = ax1 + t * dx1;
-        double lon = ay1 + t * dy1;
-        return (lat, lon, t);
-    }
 }

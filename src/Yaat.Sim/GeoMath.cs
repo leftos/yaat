@@ -210,27 +210,138 @@ public static class GeoMath
     /// </summary>
     public static double DistanceToSegmentFt(double pointLat, double pointLon, double segALat, double segALon, double segBLat, double segBLon)
     {
-        double segBearing = BearingTo(segALat, segALon, segBLat, segBLon);
-        double segLengthNm = DistanceNm(segALat, segALon, segBLat, segBLon);
+        var (footLat, footLon, _, _) = FootOfPerpendicular(pointLat, pointLon, segALat, segALon, segBLat, segBLon);
+        return DistanceNm(pointLat, pointLon, footLat, footLon) * FeetPerNm;
+    }
 
+    /// <summary>
+    /// Project a point onto a line segment and return the foot of perpendicular
+    /// clamped to the segment's endpoints. Also returns the along-segment distance
+    /// (nautical miles, 0 at segment start, <see cref="DistanceNm"/> between endpoints
+    /// at segment end) and a flag indicating whether the foot was clamped — callers
+    /// that need to distinguish "point projects onto segment interior" vs
+    /// "point projects past an endpoint" use this to filter out off-segment candidates.
+    /// </summary>
+    /// <param name="pointLat">Point latitude (degrees).</param>
+    /// <param name="pointLon">Point longitude (degrees).</param>
+    /// <param name="segALat">Segment start latitude (degrees).</param>
+    /// <param name="segALon">Segment start longitude (degrees).</param>
+    /// <param name="segBLat">Segment end latitude (degrees).</param>
+    /// <param name="segBLon">Segment end longitude (degrees).</param>
+    /// <returns>
+    /// (FootLat, FootLon) — the foot of perpendicular on the segment, clamped to endpoints.
+    /// AlongNm — distance from segment start along the segment to the foot.
+    /// Clamped — true if the perpendicular projection fell outside the segment
+    /// and the result was clamped to the nearest endpoint.
+    /// </returns>
+    public static (double FootLat, double FootLon, double AlongNm, bool Clamped) FootOfPerpendicular(
+        double pointLat,
+        double pointLon,
+        double segALat,
+        double segALon,
+        double segBLat,
+        double segBLon
+    )
+    {
+        double segLengthNm = DistanceNm(segALat, segALon, segBLat, segBLon);
         if (segLengthNm < 1e-10)
         {
-            return DistanceNm(pointLat, pointLon, segALat, segALon) * FeetPerNm;
+            return (segALat, segALon, 0.0, true);
         }
 
+        double segBearing = BearingTo(segALat, segALon, segBLat, segBLon);
         double alongNm = AlongTrackDistanceNmRaw(pointLat, pointLon, segALat, segALon, segBearing);
 
-        if (alongNm <= 0)
+        if (alongNm <= 0.0)
         {
-            return DistanceNm(pointLat, pointLon, segALat, segALon) * FeetPerNm;
+            return (segALat, segALon, 0.0, true);
         }
 
         if (alongNm >= segLengthNm)
         {
-            return DistanceNm(pointLat, pointLon, segBLat, segBLon) * FeetPerNm;
+            return (segBLat, segBLon, segLengthNm, true);
         }
 
-        double crossNm = SignedCrossTrackDistanceNmRaw(pointLat, pointLon, segALat, segALon, segBearing);
-        return Math.Abs(crossNm) * FeetPerNm;
+        var (footLat, footLon) = ProjectPointRaw(segALat, segALon, segBearing, alongNm);
+        return (footLat, footLon, alongNm, false);
+    }
+
+    /// <summary>
+    /// Parametric line-segment intersection in lat/lon coordinates. Treats the
+    /// inputs as 2-D Cartesian for the purposes of the crossing test — adequate
+    /// for airport-scale geometry (errors are small-angle). Returns null when
+    /// the segments are parallel, when their infinite-line intersection falls
+    /// outside either extent, or when they only meet at an endpoint of both
+    /// segments (endpoint-only touches are not treated as crossings; segments
+    /// share a common endpoint all the time in a connected graph).
+    ///
+    /// <para>
+    /// Lat is treated as the first coordinate and Lon as the second. The
+    /// returned <c>T</c> parameter is along segment A (0 at A1, 1 at A2) and
+    /// <c>U</c> is along segment B. Use <c>(1 - epsilon, epsilon)</c>
+    /// boundaries from either end via the <paramref name="excludeEndpoints"/>
+    /// argument to reject touching-at-endpoint cases (useful when callers test
+    /// whether a synthetic segment crosses graph edges that share a common
+    /// node).
+    /// </para>
+    /// </summary>
+    /// <param name="ax1">Segment A, endpoint 1 latitude.</param>
+    /// <param name="ay1">Segment A, endpoint 1 longitude.</param>
+    /// <param name="ax2">Segment A, endpoint 2 latitude.</param>
+    /// <param name="ay2">Segment A, endpoint 2 longitude.</param>
+    /// <param name="bx1">Segment B, endpoint 1 latitude.</param>
+    /// <param name="by1">Segment B, endpoint 1 longitude.</param>
+    /// <param name="bx2">Segment B, endpoint 2 latitude.</param>
+    /// <param name="by2">Segment B, endpoint 2 longitude.</param>
+    /// <param name="excludeEndpoints">
+    /// When true, intersections within <c>1e-6</c> of either segment's endpoints
+    /// are not reported. Use when the inputs may legitimately share endpoints
+    /// (e.g. testing a synthesised "aircraft → node" ingress segment against
+    /// other graph edges incident to that same node).
+    /// </param>
+    /// <returns>(Lat, Lon, T, U) at the intersection, or null.</returns>
+    public static (double Lat, double Lon, double T, double U)? SegmentsIntersect(
+        double ax1,
+        double ay1,
+        double ax2,
+        double ay2,
+        double bx1,
+        double by1,
+        double bx2,
+        double by2,
+        bool excludeEndpoints = false
+    )
+    {
+        double dx1 = ax2 - ax1;
+        double dy1 = ay2 - ay1;
+        double dx2 = bx2 - bx1;
+        double dy2 = by2 - by1;
+
+        double denom = dx1 * dy2 - dy1 * dx2;
+        if (Math.Abs(denom) < 1e-12)
+        {
+            return null;
+        }
+
+        double t = ((bx1 - ax1) * dy2 - (by1 - ay1) * dx2) / denom;
+        double u = ((bx1 - ax1) * dy1 - (by1 - ay1) * dx1) / denom;
+
+        if (t < 0.0 || t > 1.0 || u < 0.0 || u > 1.0)
+        {
+            return null;
+        }
+
+        if (excludeEndpoints)
+        {
+            const double eps = 1e-6;
+            if (t < eps || t > 1.0 - eps || u < eps || u > 1.0 - eps)
+            {
+                return null;
+            }
+        }
+
+        double lat = ax1 + t * dx1;
+        double lon = ay1 + t * dy1;
+        return (lat, lon, t, u);
     }
 }
