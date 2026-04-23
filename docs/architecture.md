@@ -306,7 +306,9 @@ Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category 
 Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, UpdateWaypoints
 
 # Phases/Tower/
-LineUpPhase.cs                 # Analog lineup: turn perpendicular → drive to centerline (cross-track) → align runway heading; no ground graph node dependency
+LineUpPhase.cs                 # State-machine lineup via LineUpGeometry: Aligned (straight → fillet arc → rollout) or Pivot (SlowTurn → perpendicular straight → SlowTurn → rollout) chosen by waste-straight vs remaining-runway. Faulted stays stopped (user recovers via TAXI / CANCEL CLEARANCE)
+LineUpGeometry.cs              # Pure geometry: classifies aircraft pose as Aligned, Pivot, or Fault; builds LineUpPathPlan with closed-form primitives (nose-out, arc, pivot turns, straight, rollout). Pivot fallback used when straight path would waste >20% of remaining runway (issue #142)
+LineUpArcPlayback.cs           # Closed-form circular-arc playback (invariant I2: position and heading are functions of a single scalar)
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode; RV SID heading hold until handoff+5s

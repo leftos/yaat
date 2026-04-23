@@ -498,6 +498,35 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>
+    /// Minimum ground-turn radius (ft) achievable at full nose-wheel deflection
+    /// at very low forward speed. Derived from approximate aircraft wheelbase
+    /// and max nose-wheel deflection angle (typical jets: 54 ft wheelbase × 65°
+    /// deflection ≈ 25 ft; narrower for smaller categories). Used by the
+    /// <see cref="PathPrimitiveKind.SlowTurn"/> primitive for tight programmatic
+    /// maneuvers (lineup pivots). Roughly ⅓ of <see cref="LineUpTurnRadiusFt"/>.
+    /// </summary>
+    public static double NoseWheelTurnRadiusFt(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 25.0,
+            AircraftCategory.Turboprop => 18.0,
+            AircraftCategory.Piston => 10.0,
+            AircraftCategory.Helicopter => 10.0,
+            _ => 25.0,
+        };
+    }
+
+    /// <summary>
+    /// Target forward speed (knots) during a <see cref="PathPrimitiveKind.SlowTurn"/>
+    /// primitive. Walking pace — matches real nose-wheel-steering practice
+    /// (full deflection is only usable at very low speed; above ~5 kts the
+    /// steering authority drops off as tyre scrub increases). Constant across
+    /// categories because the rate-limit is ergonomic, not performance-limited.
+    /// </summary>
+    public const double SlowTurnSpeedKts = 3.0;
+
     /// <summary>Target speed (kts) when executing a taxiway turn of 90° or more.</summary>
     public static double TaxiCornerSpeed(AircraftCategory cat)
     {

@@ -638,6 +638,75 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Result of a nearest-taxi-edge lookup.
+    /// </summary>
+    /// <param name="Edge">The straight <see cref="GroundEdge"/> nearest to the query point.</param>
+    /// <param name="DistNm">Perpendicular distance from the query point to the foot-of-perpendicular on the edge (clamped to endpoints).</param>
+    /// <param name="FootLat">Latitude of the foot-of-perpendicular.</param>
+    /// <param name="FootLon">Longitude of the foot-of-perpendicular.</param>
+    /// <param name="AlongNm">Distance from <c>Edge.Nodes[0]</c> to the foot along the edge direction.</param>
+    public readonly record struct NearestTaxiEdge(GroundEdge Edge, double DistNm, double FootLat, double FootLon, double AlongNm);
+
+    /// <summary>
+    /// Find the nearest straight taxi edge to a query point. Filters out:
+    /// <list type="bullet">
+    /// <item><see cref="GroundArc"/> (fillet curves at junctions — aircraft can't sit mid-arc)</item>
+    /// <item>runway-centerline edges (<see cref="IGroundEdge.IsRunwayCenterline"/>)</item>
+    /// <item>ramp connector edges (<see cref="IGroundEdge.IsRamp"/>)</item>
+    /// </list>
+    /// Used by the ground-spawn snap to realign off-graph ground-coord aircraft
+    /// onto a taxi surface before the first tick fires.
+    /// </summary>
+    public NearestTaxiEdge? FindNearestTaxiEdge(double lat, double lon)
+    {
+        GroundEdge? bestEdge = null;
+        double bestDistNm = double.MaxValue;
+        double bestFootLat = 0;
+        double bestFootLon = 0;
+        double bestAlongNm = 0;
+
+        var seen = new HashSet<IGroundEdge>();
+        foreach (var node in Nodes.Values)
+        {
+            foreach (var edge in node.Edges)
+            {
+                if (!seen.Add(edge))
+                {
+                    continue;
+                }
+                if (edge is not GroundEdge straight)
+                {
+                    continue;
+                }
+                if (edge.IsRunwayCenterline || edge.IsRamp)
+                {
+                    continue;
+                }
+
+                var (footLat, footLon, alongNm, _) = GeoMath.FootOfPerpendicular(
+                    lat,
+                    lon,
+                    straight.Nodes[0].Latitude,
+                    straight.Nodes[0].Longitude,
+                    straight.Nodes[1].Latitude,
+                    straight.Nodes[1].Longitude
+                );
+                double distNm = GeoMath.DistanceNm(lat, lon, footLat, footLon);
+                if (distNm < bestDistNm)
+                {
+                    bestDistNm = distNm;
+                    bestEdge = straight;
+                    bestFootLat = footLat;
+                    bestFootLon = footLon;
+                    bestAlongNm = alongNm;
+                }
+            }
+        }
+
+        return bestEdge is null ? null : new NearestTaxiEdge(bestEdge, bestDistNm, bestFootLat, bestFootLon, bestAlongNm);
+    }
+
+    /// <summary>
     /// Find the nearest runway centerline node that is ahead of or abeam the
     /// aircraft along the given heading. When <paramref name="runwayDesignator"/>
     /// is provided, only considers nodes with RWY edges matching that runway.

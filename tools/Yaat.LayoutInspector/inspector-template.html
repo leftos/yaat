@@ -167,7 +167,7 @@ function draw() {
     if (!na || !nb) return;
     const [x1, y1] = toScreen(na.lat, na.lon);
     const [x2, y2] = toScreen(nb.lat, nb.lon);
-    ctx.globalAlpha = hasHl ? 0.1 : 0.3;
+    ctx.globalAlpha = hasHl ? 0.25 : 0.3;
     ctx.strokeStyle = e.rwy ? '#58a6ff' : e.ramp ? '#8b949e' : '#3fb950';
     ctx.lineWidth = 0.7;
     if (e.rwy) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
@@ -178,7 +178,7 @@ function draw() {
   // 3. Non-highlighted arcs
   D.arcs.forEach(a => {
     if (a.hl) return;
-    ctx.globalAlpha = hasHl ? 0.1 : 0.3;
+    ctx.globalAlpha = hasHl ? 0.25 : 0.3;
     ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 0.7; ctx.setLineDash([4, 3]);
     ctx.beginPath();
     a.pts.forEach((p, i) => {
@@ -304,21 +304,75 @@ function draw() {
     }
     ctx.globalAlpha = 1;
 
-    // Aircraft triangle at current tick
+    // Aircraft silhouette at current tick — drawn 1:1 with fuselage length
+    // and wingspan (from D.aircraftLengthFt / D.aircraftWingspanFt) so the
+    // render accurately reflects how big the aircraft is relative to
+    // taxiway/hold-short geometry. Falls back to a 10px triangle when
+    // dimensions aren't provided.
     const tick = D.ticks[tickIdx];
     const [ax, ay] = toScreen(tick.lat, tick.lon);
     const hdgRad = (tick.hdg - 90) * Math.PI / 180;
-    const sz = 10;
     ctx.save();
     ctx.translate(ax, ay);
     ctx.rotate(hdgRad);
+
+    let fuselagePx = 0, wingspanPx = 0;
+    if (D.aircraftLengthFt && D.aircraftWingspanFt) {
+      // Derive pixels-per-foot from toScreen at the aircraft's position:
+      // project 100 ft east of the aircraft and measure the pixel delta.
+      const [px0, py0] = toScreen(tick.lat, tick.lon);
+      const dLatFt = 100.0;
+      const dLat = dLatFt / (60.0 * 6076.12);
+      const [px1, py1] = toScreen(tick.lat + dLat, tick.lon);
+      const pxPerFt = Math.hypot(px1 - px0, py1 - py0) / 100.0;
+      fuselagePx = D.aircraftLengthFt * pxPerFt;
+      wingspanPx = D.aircraftWingspanFt * pxPerFt;
+    }
+    // Minimum visible silhouette so the aircraft doesn't vanish at low zoom.
+    if (fuselagePx < 10) fuselagePx = 10;
+    if (wingspanPx < 8) wingspanPx = 8;
+
+    const halfL = fuselagePx / 2;
+    const halfW = wingspanPx / 2;
+    // Nose-forward silhouette: fuselage = thin rectangle along x-axis,
+    // wings = perpendicular rectangle near the centre of mass.
+    ctx.fillStyle = '#ff6a00';
+    ctx.strokeStyle = '#0d1117';
+    ctx.lineWidth = 1;
+    // Fuselage body (centre line: full length)
+    const fuselageWidth = Math.max(3, wingspanPx * 0.12);
     ctx.beginPath();
-    ctx.moveTo(sz, 0);
-    ctx.lineTo(-sz * 0.6, -sz * 0.5);
-    ctx.lineTo(-sz * 0.6, sz * 0.5);
+    ctx.moveTo(halfL, 0);
+    ctx.lineTo(halfL - fuselageWidth, -fuselageWidth * 0.6);
+    ctx.lineTo(-halfL, -fuselageWidth * 0.5);
+    ctx.lineTo(-halfL, fuselageWidth * 0.5);
+    ctx.lineTo(halfL - fuselageWidth, fuselageWidth * 0.6);
     ctx.closePath();
-    ctx.fillStyle = '#ff6a00'; ctx.fill();
-    ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fill();
+    ctx.stroke();
+    // Wings (bar perpendicular to fuselage, placed ~40% from nose)
+    const wingX = halfL * 0.1;
+    const wingChord = Math.max(2, fuselagePx * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(wingX + wingChord * 0.5, -halfW);
+    ctx.lineTo(wingX - wingChord * 0.5, -halfW * 0.95);
+    ctx.lineTo(wingX - wingChord * 0.5, halfW * 0.95);
+    ctx.lineTo(wingX + wingChord * 0.5, halfW);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Tailplane (smaller bar near the tail)
+    const tailX = -halfL + fuselageWidth;
+    const tailspan = wingspanPx * 0.35;
+    const tailChord = Math.max(1, fuselagePx * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(tailX + tailChord * 0.5, -tailspan / 2);
+    ctx.lineTo(tailX - tailChord * 0.5, -tailspan / 2);
+    ctx.lineTo(tailX - tailChord * 0.5, tailspan / 2);
+    ctx.lineTo(tailX + tailChord * 0.5, tailspan / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
 
     // Bearing line to target node
