@@ -167,7 +167,7 @@ function draw() {
     if (!na || !nb) return;
     const [x1, y1] = toScreen(na.lat, na.lon);
     const [x2, y2] = toScreen(nb.lat, nb.lon);
-    ctx.globalAlpha = hasHl ? 0.1 : 0.3;
+    ctx.globalAlpha = hasHl ? 0.25 : 0.3;
     ctx.strokeStyle = e.rwy ? '#58a6ff' : e.ramp ? '#8b949e' : '#3fb950';
     ctx.lineWidth = 0.7;
     if (e.rwy) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
@@ -178,7 +178,7 @@ function draw() {
   // 3. Non-highlighted arcs
   D.arcs.forEach(a => {
     if (a.hl) return;
-    ctx.globalAlpha = hasHl ? 0.1 : 0.3;
+    ctx.globalAlpha = hasHl ? 0.25 : 0.3;
     ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 0.7; ctx.setLineDash([4, 3]);
     ctx.beginPath();
     a.pts.forEach((p, i) => {
