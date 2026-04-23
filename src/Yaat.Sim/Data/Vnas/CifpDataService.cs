@@ -27,8 +27,7 @@ public sealed class CifpDataService : IDisposable
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
 
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        _cacheDir = Path.Combine(localAppData, "yaat", "cache", "cifp");
+        _cacheDir = YaatPaths.Combine("cache", "cifp");
     }
 
     public async Task InitializeAsync()

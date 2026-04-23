@@ -4,6 +4,7 @@ using MetadataExtractor.Formats.Exif;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
 using Yaat.Client.Logging;
+using Yaat.Sim;
 using Directory = System.IO.Directory;
 
 namespace Yaat.Client.Services;
@@ -24,12 +25,7 @@ public sealed record TowerCabImage(SKImage Image, double BottomLeftLat, double B
 /// </summary>
 public sealed class TowerCabImageService : IDisposable
 {
-    private static readonly string CacheDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "yaat",
-        "cache",
-        "towercab"
-    );
+    private static readonly string CacheDir = YaatPaths.Combine("cache", "towercab");
 
     private readonly ILogger _log = AppLog.CreateLogger<TowerCabImageService>();
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(60) };

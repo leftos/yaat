@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Yaat.Client.Tests" />
+    <InternalsVisibleTo Include="Yaat.Client.UI.Tests" />
     <InternalsVisibleTo Include="Yaat.SpeechSandbox" />
   </ItemGroup>
 

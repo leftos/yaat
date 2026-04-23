@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
@@ -197,33 +196,16 @@ public partial class MainViewModel
             return;
         }
 
-        var mainWindow = Avalonia.Application.Current?.ApplicationLifetime
-            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
-
-        if (mainWindow?.StorageProvider is not { } storageProvider)
-        {
-            return;
-        }
-
         var sanitized = SanitizeFileName(ActiveWeatherName ?? "weather");
-        var file = await storageProvider.SaveFilePickerAsync(
-            new FilePickerSaveOptions
-            {
-                Title = "Save Weather As…",
-                SuggestedFileName = sanitized,
-                FileTypeChoices = [new FilePickerFileType("JSON") { Patterns = ["*.json"] }],
-                DefaultExtension = "json",
-            }
+        var path = await _filePicker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Save Weather As…",
+                SuggestedFileName: sanitized,
+                Filters: [new FilePickerFilter("JSON", ["*.json"])],
+                DefaultExtension: "json"
+            )
         );
 
-        if (file is null)
-        {
-            return;
-        }
-
-        var path = file.TryGetLocalPath();
         if (path is null)
         {
             return;

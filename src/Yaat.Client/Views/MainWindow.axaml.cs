@@ -28,6 +28,14 @@ public partial class MainWindow : Window
     private GroundViewWindow? _groundViewWindow;
     private RadarViewWindow? _radarViewWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
+
+    // Test hooks — read-only views of the subordinate windows the MainWindow creates
+    // in response to IsDataGridPoppedOut / IsGroundViewPoppedOut / IsRadarViewPoppedOut
+    // flipping. Not used in production; present so headless lifecycle tests can assert
+    // a pop-out actually spawned a window.
+    internal DataGridWindow? DataGridWindow => _dataGridWindow;
+    internal GroundViewWindow? GroundViewWindow => _groundViewWindow;
+    internal RadarViewWindow? RadarViewWindow => _radarViewWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
     private bool _isMainWindowClosing;
@@ -37,7 +45,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        var vm = new MainViewModel();
+        var vm = new MainViewModel(new AvaloniaFilePickerService(this));
         DataContext = vm;
 
         _geometryHelper = new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700);
@@ -1006,6 +1014,9 @@ public partial class MainWindow : Window
     // representation; exactly one is shown at a time, flipped by entry.IsPoppedOut.
     private readonly Dictionary<VStripsDockEntryViewModel, TabItem> _stripsTabItems = [];
     private readonly Dictionary<VStripsDockEntryViewModel, VStripsViewWindow> _stripsWindows = [];
+
+    // Test hook — see note on DataGridWindow/GroundViewWindow/RadarViewWindow above.
+    internal IReadOnlyDictionary<VStripsDockEntryViewModel, VStripsViewWindow> StripsWindows => _stripsWindows;
 
     private void WireStripsEntryWindows(MainViewModel vm)
     {

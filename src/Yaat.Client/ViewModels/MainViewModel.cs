@@ -25,6 +25,7 @@ public partial class MainViewModel : ObservableObject
     public ServerConnection Connection => _connection;
     private readonly UserPreferences _preferences = new();
     private readonly CommandInputController _commandInput = new();
+    private readonly IFilePickerService _filePicker;
     private readonly VideoMapService _videoMapService = new();
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
@@ -641,8 +642,9 @@ public partial class MainViewModel : ObservableObject
         IsSpeechEnabled = _preferences.SpeechEnabled;
     }
 
-    public MainViewModel()
+    public MainViewModel(IFilePickerService filePicker)
     {
+        _filePicker = filePicker;
         _isSpeechEnabled = _preferences.SpeechEnabled;
 
         // Speech pipeline wiring. The order here matters: LlmService must exist before

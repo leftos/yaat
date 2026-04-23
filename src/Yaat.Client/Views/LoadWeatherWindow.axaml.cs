@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
@@ -20,6 +19,7 @@ public partial class LoadWeatherWindow : Window
     private readonly UserPreferences _preferences;
     private readonly TrainingDataService _trainingData = new();
     private readonly string _artccId;
+    private readonly IFilePickerService _filePicker;
 
     // ARTCC tab state
     private readonly TextBlock _artccStatusText;
@@ -43,6 +43,7 @@ public partial class LoadWeatherWindow : Window
         _preferences = preferences;
         _artccId = preferences.ArtccId;
         InitializeComponent();
+        _filePicker = new AvaloniaFilePickerService(this);
         new WindowGeometryHelper(this, preferences, "LoadWeather", 550, 450).Restore();
 
         _sourceTabs = this.FindControl<TabControl>("SourceTabs")!;
@@ -110,17 +111,10 @@ public partial class LoadWeatherWindow : Window
 
     private async void OnBrowseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var folders = await StorageProvider.OpenFolderPickerAsync(
-            new FolderPickerOpenOptions { Title = "Select Weather Folder", AllowMultiple = false }
-        );
-
-        if (folders.Count > 0)
+        var path = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select Weather Folder"));
+        if (path is not null)
         {
-            var path = folders[0].TryGetLocalPath();
-            if (path is not null)
-            {
-                ScanFolder(path);
-            }
+            ScanFolder(path);
         }
     }
 
