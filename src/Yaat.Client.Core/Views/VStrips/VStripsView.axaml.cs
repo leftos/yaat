@@ -33,6 +33,7 @@ public partial class VStripsView : UserControl
     // Ghost overlay state for the drag preview. Lives for the duration of a
     // single DoDragDropAsync invocation; cleared in the finally block.
     private Control? _dragGhost;
+    private TranslateTransform? _dragGhostTransform;
     private StripItemViewModel? _draggingStrip;
     private StripRackViewModel? _draggingFromRack;
     private int _draggingFromIndex = -1;
@@ -42,6 +43,18 @@ public partial class VStripsView : UserControl
     // the slot, which also keeps ComputeDropIndex from treating the source's
     // own position as a valid drop target.
     private ContentPresenter? _draggingSourcePresenter;
+
+    // Per-rack cache of (ContentPresenter, vm) pairs for the duration of a
+    // drag. Windows throttles DragOver events to ~30 Hz, and each event
+    // would otherwise walk the full visual subtree of every rack the pointer
+    // enters via GetVisualDescendants().OfType<ContentPresenter>() — for a
+    // 5-strip rack with nested FlightStripControl children, that's 100+
+    // allocations per event. The cache populates on first entry into a rack
+    // (after the source hide has settled) and reuses for subsequent events
+    // over the same rack. Top-Y positions are still re-read each time (they
+    // change as the preview margin shifts) but the lookup is a direct index
+    // into the cached list, not a tree walk. Cleared in HideDragGhost.
+    private readonly Dictionary<StripRackViewModel, List<(ContentPresenter Presenter, StripItemViewModel Vm)>> _presenterCache = [];
 
     // Drag-hover bay-preview state (docs/crc/vstrips.md:217). When the user
     // hovers a drag over a bay header for >500ms without dropping, we
@@ -327,25 +340,59 @@ public partial class VStripsView : UserControl
     }
 
     /// <summary>
-    /// Collects visible ContentPresenters from the rack's inner ItemsControl,
-    /// skipping the hidden source presenter during a same-rack drag and any
-    /// presenter whose IsVisible has been toggled off. Results are sorted by
-    /// top-Y descending — so <c>result[0]</c> is the visual-bottom strip and
-    /// <c>result[^1]</c> is the visual-top strip. Using visual order
-    /// (instead of model index) lets the preview math treat the returned
-    /// index uniformly across cross-rack and same-rack drags: visual idx V
-    /// always means "drop at bottom-up position V" and maps cleanly to the
-    /// server's STRIP index on the wire.
+    /// Returns visible ContentPresenters from the rack's inner ItemsControl
+    /// in visual bottom-up order (<c>result[0]</c> = visual-bottom strip,
+    /// <c>result[^1]</c> = visual-top), with each entry's current top-Y in
+    /// <paramref name="stripsHost"/> coordinates.
+    ///
+    /// Walking the visual tree for every DragOver is expensive — see
+    /// <see cref="_presenterCache"/>. We cache the (Presenter, Vm) pairs on
+    /// first entry to a rack during a drag and reuse them for subsequent
+    /// events. The cache order matches the rack's Children order (model
+    /// order), which for bottom-up DockPanel docking also matches visual
+    /// bottom-up order, so no sort is needed. Top-Y is re-read every call
+    /// because the preview margin shifts positions as the drag progresses.
     /// </summary>
     private List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> GetVisiblePresenters(
         ItemsControl stripsHost,
         StripRackViewModel rack
     )
     {
+        var cache = GetCachedPresenters(stripsHost, rack);
+        var result = new List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)>(cache.Count);
+        foreach (var (presenter, vm) in cache)
+        {
+            if (!presenter.IsVisible)
+            {
+                continue;
+            }
+            var topPoint = presenter.TranslatePoint(new Point(0, 0), stripsHost);
+            if (topPoint is null)
+            {
+                continue;
+            }
+            result.Add((presenter, vm, topPoint.Value.Y));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Returns the cached (Presenter, Vm) list for a rack, populating the
+    /// cache on first access. The cache skips the source strip (for
+    /// same-rack drags) up front, so downstream callers don't need to
+    /// re-check. Populated in <see cref="rack.Strips"/> order, which
+    /// matches ItemsControl.Children order and therefore bottom-up visual
+    /// order under DockPanel docking.
+    /// </summary>
+    private List<(ContentPresenter Presenter, StripItemViewModel Vm)> GetCachedPresenters(ItemsControl stripsHost, StripRackViewModel rack)
+    {
+        if (_presenterCache.TryGetValue(rack, out var cached))
+        {
+            return cached;
+        }
         var sourceStrip = _draggingStrip;
         var sourceRackEqualsThis = ReferenceEquals(_draggingFromRack, rack);
-
-        var result = new List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)>();
+        var list = new List<(ContentPresenter Presenter, StripItemViewModel Vm)>(rack.Strips.Count);
         foreach (var presenter in stripsHost.GetVisualDescendants().OfType<ContentPresenter>())
         {
             if (presenter.Child is not FlightStripControl strip || strip.DataContext is not StripItemViewModel stripVm)
@@ -356,19 +403,10 @@ public partial class VStripsView : UserControl
             {
                 continue;
             }
-            if (!presenter.IsVisible)
-            {
-                continue;
-            }
-            var topPoint = presenter.TranslatePoint(new Point(0, 0), stripsHost);
-            if (topPoint is null)
-            {
-                continue;
-            }
-            result.Add((presenter, stripVm, topPoint.Value.Y));
+            list.Add((presenter, stripVm));
         }
-        result.Sort((a, b) => b.Top.CompareTo(a.Top));
-        return result;
+        _presenterCache[rack] = list;
+        return list;
     }
 
     /// <summary>
@@ -602,29 +640,40 @@ public partial class VStripsView : UserControl
         {
             return;
         }
+        // Park the ghost at Canvas (0,0) once; per-frame movement is handled
+        // by mutating a single TranslateTransform below. Canvas.Left/Top
+        // would invalidate the Canvas's arrange on every DragOver — with
+        // Windows throttling drag events to ~30 Hz, adding layout work per
+        // event compounds into visible stutter. RenderTransform skips layout
+        // entirely and re-renders in the composition pass.
+        var ghostTransform = new TranslateTransform();
         var ghost = new FlightStripControl
         {
             DataContext = strip,
             Tag = strip,
             Opacity = 0.75,
             IsHitTestVisible = false,
+            RenderTransform = ghostTransform,
         };
+        Canvas.SetLeft(ghost, 0);
+        Canvas.SetTop(ghost, 0);
         canvas.Children.Add(ghost);
         _dragGhost = ghost;
+        _dragGhostTransform = ghostTransform;
         UpdateGhostPosition(e.GetPosition(canvas));
     }
 
     private void UpdateGhostPosition(Point pointerInCanvas)
     {
-        if (_dragGhost is null)
+        if (_dragGhostTransform is null)
         {
             return;
         }
         // Offset the ghost so the cursor sits inside the strip rather than at
         // the top-left corner — matches CRC's feel where the strip "sticks" to
         // the pointer as if you grabbed it somewhere in the middle.
-        Canvas.SetLeft(_dragGhost, pointerInCanvas.X - 24);
-        Canvas.SetTop(_dragGhost, pointerInCanvas.Y - 16);
+        _dragGhostTransform.X = pointerInCanvas.X - 24;
+        _dragGhostTransform.Y = pointerInCanvas.Y - 16;
     }
 
     private void HideDragGhost()
@@ -647,6 +696,8 @@ public partial class VStripsView : UserControl
             canvas.Children.Remove(_dragGhost);
         }
         _dragGhost = null;
+        _dragGhostTransform = null;
+        _presenterCache.Clear();
 
         // Restore the pre-hover selected bay if the drag ended while a bay
         // preview was active. We only restore if the user DID NOT drop on
