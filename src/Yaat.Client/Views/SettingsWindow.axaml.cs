@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Platform.Storage;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -9,13 +8,11 @@ namespace Yaat.Client.Views;
 
 public partial class SettingsWindow : Window
 {
-    private static readonly FilePickerFileType MacroFileType = new("YAAT Macros")
-    {
-        Patterns = ["*.yaat-macros.json"],
-        MimeTypes = ["application/json"],
-    };
+    private static readonly FilePickerFilter MacroFileType = new("YAAT Macros", ["*.yaat-macros.json"]);
 
-    private static readonly FilePickerFileType JsonFileType = new("JSON Files") { Patterns = ["*.json"], MimeTypes = ["application/json"] };
+    private static readonly FilePickerFilter JsonFileType = new("JSON Files", ["*.json"]);
+
+    private readonly IFilePickerService _filePicker;
 
     public SettingsWindow()
         : this(new UserPreferences(), audioCapture: null) { }
@@ -26,6 +23,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture)
     {
         InitializeComponent();
+        _filePicker = new AvaloniaFilePickerService(this);
 
         var vm = new SettingsViewModel(preferences, audioCapture);
         DataContext = vm;
@@ -82,21 +80,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var files = await StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions
-            {
-                Title = "Select LLM Model File (GGUF)",
-                AllowMultiple = false,
-                FileTypeFilter = [new FilePickerFileType("GGUF Models") { Patterns = ["*.gguf"] }],
-            }
-        );
-
-        if (files.Count == 0)
-        {
-            return;
-        }
-
-        var path = files[0].TryGetLocalPath();
+        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Select LLM Model File (GGUF)", [new FilePickerFilter("GGUF Models", ["*.gguf"])]));
         if (!string.IsNullOrEmpty(path))
         {
             vm.LlmModelPath = path;
@@ -125,23 +109,15 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var files = await StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions
-            {
-                Title = "Import Macros",
-                AllowMultiple = false,
-                FileTypeFilter = [MacroFileType, JsonFileType],
-            }
-        );
-
-        if (files.Count == 0)
+        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Macros", [MacroFileType, JsonFileType]));
+        if (path is null)
         {
             return;
         }
 
         try
         {
-            await using var stream = await files[0].OpenReadAsync();
+            await using var stream = File.OpenRead(path);
             var macros = await JsonSerializer.DeserializeAsync<List<SavedMacro>>(stream, UserPreferences.JsonOptions);
             if (macros is null || macros.Count == 0)
             {
@@ -279,21 +255,21 @@ public partial class SettingsWindow : Window
 
     private async Task ExportMacrosAsync(List<SavedMacro> macros)
     {
-        var file = await StorageProvider.SaveFilePickerAsync(
-            new FilePickerSaveOptions
-            {
-                Title = "Export Macros",
-                SuggestedFileName = "macros.yaat-macros.json",
-                FileTypeChoices = [MacroFileType, JsonFileType],
-            }
+        var path = await _filePicker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Export Macros",
+                SuggestedFileName: "macros.yaat-macros.json",
+                Filters: [MacroFileType, JsonFileType],
+                DefaultExtension: "yaat-macros.json"
+            )
         );
 
-        if (file is null)
+        if (path is null)
         {
             return;
         }
 
-        await using var stream = await file.OpenWriteAsync();
+        await using var stream = File.Create(path);
         await JsonSerializer.SerializeAsync(stream, macros, UserPreferences.JsonOptions);
     }
 }

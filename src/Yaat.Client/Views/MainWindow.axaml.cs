@@ -37,7 +37,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        var vm = new MainViewModel();
+        var vm = new MainViewModel(new AvaloniaFilePickerService(this));
         DataContext = vm;
 
         _geometryHelper = new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700);

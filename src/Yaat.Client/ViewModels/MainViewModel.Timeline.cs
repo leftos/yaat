@@ -1,6 +1,5 @@
 using System.IO;
 using System.IO.Compression;
-using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -148,33 +147,21 @@ public partial class MainViewModel
                 return;
             }
 
-            var window = Avalonia.Application.Current?.ApplicationLifetime
-                is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
-
-            if (window is null)
-            {
-                return;
-            }
-
-            var file = await window.StorageProvider.SaveFilePickerAsync(
-                new FilePickerSaveOptions
-                {
-                    Title = "Save Recording",
-                    DefaultExtension = "yaat-recording.zip",
-                    FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.zip", "*.yaat-recording.br"] }],
-                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.zip",
-                }
+            var path = await _filePicker.SaveFileAsync(
+                new SaveFileOptions(
+                    Title: "Save Recording",
+                    SuggestedFileName: $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.zip",
+                    Filters: [new FilePickerFilter("YAAT Recording", ["*.yaat-recording.zip", "*.yaat-recording.br"])],
+                    DefaultExtension: "yaat-recording.zip"
+                )
             );
 
-            if (file is null)
+            if (path is null)
             {
                 return;
             }
 
-            await using var stream = await file.OpenWriteAsync();
-            await stream.WriteAsync(compressedBytes);
+            await File.WriteAllBytesAsync(path, compressedBytes);
 
             StatusText = "Recording saved";
         }
@@ -231,32 +218,21 @@ public partial class MainViewModel
                 return;
             }
 
-            var window = Avalonia.Application.Current?.ApplicationLifetime
-                is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
-
-            if (window is null)
-            {
-                return;
-            }
-
-            var file = await window.StorageProvider.SaveFilePickerAsync(
-                new FilePickerSaveOptions
-                {
-                    Title = "Save Bug Report Bundle",
-                    DefaultExtension = "yaat-bug-report-bundle.zip",
-                    FileTypeChoices = [new FilePickerFileType("YAAT Bug Report Bundle") { Patterns = ["*.yaat-bug-report-bundle.zip"] }],
-                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-bug-report-bundle.zip",
-                }
+            var path = await _filePicker.SaveFileAsync(
+                new SaveFileOptions(
+                    Title: "Save Bug Report Bundle",
+                    SuggestedFileName: $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-bug-report-bundle.zip",
+                    Filters: [new FilePickerFilter("YAAT Bug Report Bundle", ["*.yaat-bug-report-bundle.zip"])],
+                    DefaultExtension: "yaat-bug-report-bundle.zip"
+                )
             );
 
-            if (file is null)
+            if (path is null)
             {
                 return;
             }
 
-            await using var stream = await file.OpenWriteAsync();
+            await using var stream = File.Create(path);
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
 
             using var recordingStream = new MemoryStream(compressedBytes);
@@ -337,40 +313,19 @@ public partial class MainViewModel
     {
         try
         {
-            var window = Avalonia.Application.Current?.ApplicationLifetime
-                is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
-
-            if (window is null)
-            {
-                return;
-            }
-
-            var files = await window.StorageProvider.OpenFilePickerAsync(
-                new FilePickerOpenOptions
-                {
-                    Title = "Load Recording",
-                    AllowMultiple = false,
-                    FileTypeFilter =
-                    [
-                        new FilePickerFileType("YAAT Recording")
-                        {
-                            Patterns = ["*.yaat-recording.zip", "*.yaat-recording.br", "*.yaat-recording.json"],
-                        },
-                    ],
-                }
+            var path = await _filePicker.OpenFileAsync(
+                new OpenFileOptions(
+                    Title: "Load Recording",
+                    Filters: [new FilePickerFilter("YAAT Recording", ["*.yaat-recording.zip", "*.yaat-recording.br", "*.yaat-recording.json"])]
+                )
             );
 
-            if (files.Count == 0)
+            if (path is null)
             {
                 return;
             }
 
-            await using var stream = await files[0].OpenReadAsync();
-            using var memStream = new MemoryStream();
-            await stream.CopyToAsync(memStream);
-            var recordingBytes = memStream.ToArray();
+            var recordingBytes = await File.ReadAllBytesAsync(path);
 
             StatusText = "Loading recording...";
             var result = await _connection.LoadRecordingAsync(recordingBytes);

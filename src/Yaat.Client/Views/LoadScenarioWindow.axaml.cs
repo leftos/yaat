@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
@@ -22,6 +21,7 @@ public partial class LoadScenarioWindow : Window
     private readonly UserPreferences _preferences;
     private readonly TrainingDataService _trainingData = new();
     private readonly string _artccId;
+    private readonly IFilePickerService _filePicker;
 
     // ARTCC tab state
     private readonly ComboBox _artccFacilityFilter;
@@ -49,6 +49,7 @@ public partial class LoadScenarioWindow : Window
         _preferences = preferences;
         _artccId = preferences.ArtccId;
         InitializeComponent();
+        _filePicker = new AvaloniaFilePickerService(this);
         new WindowGeometryHelper(this, preferences, "LoadScenario", 600, 500).Restore();
 
         _sourceTabs = this.FindControl<TabControl>("SourceTabs")!;
@@ -155,17 +156,10 @@ public partial class LoadScenarioWindow : Window
 
     private async void OnBrowseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var folders = await StorageProvider.OpenFolderPickerAsync(
-            new FolderPickerOpenOptions { Title = "Select Scenario Folder", AllowMultiple = false }
-        );
-
-        if (folders.Count > 0)
+        var path = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select Scenario Folder"));
+        if (path is not null)
         {
-            var path = folders[0].TryGetLocalPath();
-            if (path is not null)
-            {
-                ScanFolder(path);
-            }
+            ScanFolder(path);
         }
     }
 

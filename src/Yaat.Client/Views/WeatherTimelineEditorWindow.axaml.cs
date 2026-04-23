@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
@@ -12,6 +11,7 @@ public partial class WeatherTimelineEditorWindow : Window
     private static readonly ILogger Log = AppLog.CreateLogger<WeatherTimelineEditorWindow>();
 
     private readonly Func<string, string, Task>? _applyCallback;
+    private readonly IFilePickerService _filePicker;
 
     public WeatherTimelineEditorWindow()
         : this(WeatherTimelineEditorViewModel.CreateEmpty(""), new UserPreferences(), null) { }
@@ -25,6 +25,7 @@ public partial class WeatherTimelineEditorWindow : Window
         _applyCallback = applyCallback;
         DataContext = viewModel;
         InitializeComponent();
+        _filePicker = new AvaloniaFilePickerService(this);
         new WindowGeometryHelper(this, preferences, "WeatherTimelineEditor", 800, 600).Restore();
 
         this.FindControl<Button>("ApplyButton")!.Click += OnApplyClick;
@@ -58,22 +59,15 @@ public partial class WeatherTimelineEditorWindow : Window
             return;
         }
 
-        var file = await StorageProvider.SaveFilePickerAsync(
-            new FilePickerSaveOptions
-            {
-                Title = "Save Weather As…",
-                SuggestedFileName = string.IsNullOrWhiteSpace(vm.Name) ? "weather" : vm.Name,
-                FileTypeChoices = [new FilePickerFileType("JSON") { Patterns = ["*.json"] }],
-                DefaultExtension = "json",
-            }
+        var path = await _filePicker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Save Weather As…",
+                SuggestedFileName: string.IsNullOrWhiteSpace(vm.Name) ? "weather" : vm.Name,
+                Filters: [new FilePickerFilter("JSON", ["*.json"])],
+                DefaultExtension: "json"
+            )
         );
 
-        if (file is null)
-        {
-            return;
-        }
-
-        var path = file.TryGetLocalPath();
         if (path is null)
         {
             return;

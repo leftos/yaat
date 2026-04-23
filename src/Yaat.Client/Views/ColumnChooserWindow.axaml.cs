@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
 
@@ -13,12 +12,13 @@ namespace Yaat.Client.Views;
 
 public partial class ColumnChooserWindow : Window
 {
-    private static readonly FilePickerFileType GridLayoutFileType = new("YAAT Grid Layout") { Patterns = ["*.yaat-grid-layout.json"] };
+    private static readonly FilePickerFilter GridLayoutFileType = new("YAAT Grid Layout", ["*.yaat-grid-layout.json"]);
 
     private readonly Dictionary<string, double>? _columnWidths;
     private readonly string? _sortColumn;
     private readonly ListSortDirection? _sortDirection;
     private readonly List<string> _defaultOrder;
+    private readonly IFilePickerService _filePicker;
 
     public ObservableCollection<ColumnEntry> Entries { get; } = [];
     public bool Confirmed { get; private set; }
@@ -29,6 +29,7 @@ public partial class ColumnChooserWindow : Window
     {
         InitializeComponent();
         _defaultOrder = [];
+        _filePicker = new AvaloniaFilePickerService(this);
     }
 
     public ColumnChooserWindow(
@@ -41,6 +42,7 @@ public partial class ColumnChooserWindow : Window
     )
     {
         InitializeComponent();
+        _filePicker = new AvaloniaFilePickerService(this);
 
         _columnWidths = columnWidths;
         _sortColumn = sortColumn;
@@ -208,36 +210,28 @@ public partial class ColumnChooserWindow : Window
             SortDirection = _sortDirection,
         };
 
-        var file = await StorageProvider.SaveFilePickerAsync(
-            new FilePickerSaveOptions
-            {
-                Title = "Export Grid Layout",
-                SuggestedFileName = "layout.yaat-grid-layout.json",
-                FileTypeChoices = [GridLayoutFileType],
-            }
+        var path = await _filePicker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Export Grid Layout",
+                SuggestedFileName: "layout.yaat-grid-layout.json",
+                Filters: [GridLayoutFileType],
+                DefaultExtension: "yaat-grid-layout.json"
+            )
         );
 
-        if (file is null)
+        if (path is null)
         {
             return;
         }
 
-        await using var stream = await file.OpenWriteAsync();
+        await using var stream = File.Create(path);
         await JsonSerializer.SerializeAsync(stream, layout, UserPreferences.JsonOptions);
     }
 
     private async void OnImport(object? sender, RoutedEventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions
-            {
-                Title = "Import Grid Layout",
-                AllowMultiple = false,
-                FileTypeFilter = [GridLayoutFileType],
-            }
-        );
-
-        if (files.Count == 0)
+        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Grid Layout", [GridLayoutFileType]));
+        if (path is null)
         {
             return;
         }
@@ -245,7 +239,7 @@ public partial class ColumnChooserWindow : Window
         SavedGridLayout? layout;
         try
         {
-            await using var stream = await files[0].OpenReadAsync();
+            await using var stream = File.OpenRead(path);
             layout = await JsonSerializer.DeserializeAsync<SavedGridLayout>(stream, UserPreferences.JsonOptions);
         }
         catch (JsonException)
