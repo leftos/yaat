@@ -158,6 +158,11 @@ public sealed class GroundNavigator
             _arcBearingFromCenterDeg = arcPrim.StartBearingFromCenterDeg;
             _arcRemainingSweepDeg = arcPrim.SweepDeg;
         }
+        else if (_currentPrimitive is PathPrimitiveSlowTurn slowPrim)
+        {
+            _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
+            _arcRemainingSweepDeg = slowPrim.SweepDeg;
+        }
         else
         {
             _arcRemainingSweepDeg = 0;
@@ -175,12 +180,52 @@ public sealed class GroundNavigator
         );
     }
 
+    /// <summary>
+    /// Inject a primitive directly, bypassing the <see cref="TaxiRoute"/>
+    /// machinery. Used by phases that synthesise primitives programmatically
+    /// (e.g. <c>LineUpPhase</c> building <see cref="PathPrimitiveSlowTurn"/>
+    /// primitives for its pivot states). Does not build future-segment speed
+    /// constraints — callers driving synthesised primitives are responsible
+    /// for their own speed policy (which for <see cref="PathPrimitiveSlowTurn"/>
+    /// is the primitive's own <see cref="PathPrimitiveSlowTurn.MaxSpeedKts"/>).
+    /// </summary>
+    public void SetupPrimitive(PathPrimitive primitive, double fromLat, double fromLon, double targetLat, double targetLon, double? nextSegmentBearingDeg)
+    {
+        _currentPrimitive = primitive;
+        TargetNodeId = primitive.ToNodeId;
+        TargetLat = targetLat;
+        TargetLon = targetLon;
+        _segmentFromLat = fromLat;
+        _segmentFromLon = fromLon;
+        PrevDistToTarget = double.MaxValue;
+
+        if (primitive is PathPrimitiveArc arcPrim)
+        {
+            _arcBearingFromCenterDeg = arcPrim.StartBearingFromCenterDeg;
+            _arcRemainingSweepDeg = arcPrim.SweepDeg;
+        }
+        else if (primitive is PathPrimitiveSlowTurn slowPrim)
+        {
+            _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
+            _arcRemainingSweepDeg = slowPrim.SweepDeg;
+        }
+        else
+        {
+            _arcRemainingSweepDeg = 0;
+        }
+
+        _speedConstraints.Clear();
+        _currentNodeRequiredSpeed = 0;
+        _nextSegmentBearing = nextSegmentBearingDeg;
+    }
+
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         return _currentPrimitive switch
         {
             PathPrimitiveStraight s => TickStraight(ctx, s, isLastSegment, isHoldShortCleared),
             PathPrimitiveArc a => TickArc(ctx, a, isLastSegment, isHoldShortCleared),
+            PathPrimitiveSlowTurn t => TickSlowTurn(ctx, t),
             _ => NavigatorResult.ArrivedAtNode,
         };
     }
@@ -323,6 +368,70 @@ public sealed class GroundNavigator
     {
         double tangent = prim.RightTurn ? _arcBearingFromCenterDeg + 90.0 : _arcBearingFromCenterDeg - 90.0;
         return ((tangent % 360.0) + 360.0) % 360.0;
+    }
+
+    private double CurrentSlowTurnTangentDeg(PathPrimitiveSlowTurn prim)
+    {
+        double tangent = prim.RightTurn ? _arcBearingFromCenterDeg + 90.0 : _arcBearingFromCenterDeg - 90.0;
+        return ((tangent % 360.0) + 360.0) % 360.0;
+    }
+
+    private NavigatorResult TickSlowTurn(PhaseContext ctx, PathPrimitiveSlowTurn prim)
+    {
+        // I7 speed floor — aircraft must be moving forward before the arc can advance.
+        // Target speed is held at the primitive's cap so physics re-accelerates us.
+        double vKts = ctx.Aircraft.IndicatedAirspeed;
+        double cappedTarget = ClampBySpeedLimit(ctx, prim.MaxSpeedKts);
+        if (vKts < ArcSpeedFloorKts)
+        {
+            double currentTangent = CurrentSlowTurnTangentDeg(prim);
+            ctx.Targets.TargetTrueHeading = new TrueHeading(currentTangent);
+            ctx.Targets.TargetSpeed = cappedTarget;
+            AdjustSpeed(ctx, cappedTarget);
+            return NavigatorResult.Navigating;
+        }
+
+        // Advance the arc by ds = v·dt, clamped to remaining sweep.
+        double vFtPerSec = vKts * GeoMath.FeetPerNm / 3600.0;
+        double dsFt = vFtPerSec * ctx.DeltaSeconds;
+        double dAngleRad = dsFt / prim.RadiusFt;
+        double dAngleDeg = dAngleRad * (180.0 / Math.PI);
+        dAngleDeg = Math.Min(dAngleDeg, _arcRemainingSweepDeg);
+
+        double signed = prim.RightTurn ? +dAngleDeg : -dAngleDeg;
+        _arcBearingFromCenterDeg = (((_arcBearingFromCenterDeg + signed) % 360.0) + 360.0) % 360.0;
+        _arcRemainingSweepDeg = Math.Max(0.0, _arcRemainingSweepDeg - dAngleDeg);
+
+        // Write position + heading directly from playback state (invariant I2).
+        var (lat, lon) = GeoMath.ProjectPoint(prim.CenterLat, prim.CenterLon, new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
+        double tangentDeg = CurrentSlowTurnTangentDeg(prim);
+        ctx.Aircraft.Latitude = lat;
+        ctx.Aircraft.Longitude = lon;
+        ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
+
+        // Speed policy: cap to the primitive's own MaxSpeedKts — no
+        // ComputeTargetSpeed braking-curve logic because SlowTurn primitives
+        // don't participate in the multi-segment speed constraint system.
+        ctx.Targets.TargetTrueHeading = new TrueHeading(tangentDeg);
+        ctx.Targets.TargetSpeed = cappedTarget;
+        AdjustSpeed(ctx, cappedTarget);
+
+        double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        PrevDistToTarget = distToNode;
+        UpdateDiag(ctx, distToNode, tangentDeg, cappedTarget, onArc: true);
+
+        if (_arcRemainingSweepDeg <= 0.01)
+        {
+            if (_nextSegmentBearing is { } nextBrg)
+            {
+                double maxTurnArc = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+                ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
+            }
+            PrevDistToTarget = double.MaxValue;
+            return NavigatorResult.ArrivedAtNode;
+        }
+
+        return NavigatorResult.Navigating;
     }
 
     private double ArcRemainingLengthNm(PathPrimitiveArc prim) => _arcRemainingSweepDeg * prim.RadiusFt * Math.PI / 180.0 / GeoMath.FeetPerNm;

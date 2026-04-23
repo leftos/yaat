@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Tests;
@@ -253,5 +255,211 @@ public class PathPrimitiveBuilderTests
 
         // Centre is west of P0 → bearing from centre to P0 is 90° (east).
         Assert.InRange(arcPrim.StartBearingFromCenterDeg, 89.5, 90.5);
+    }
+
+    // ---- SlowTurn primitive ----
+
+    [Fact]
+    public void SlowTurn_RightTurn_ProducesRightArcWithCorrectGeometry()
+    {
+        // 90° right turn: entry heading north (0°), exit heading east (90°).
+        // Centre of the turn lies 25 ft east of entry (perpendicular-right of
+        // north heading). Start bearing from centre → entry is 270° (west,
+        // opposite of perpHdg 90°). Sweep 90°. Right turn.
+        const double fromLat = 37.0;
+        const double fromLon = -122.0;
+        const double radiusFt = 25.0;
+        const double maxSpeedKts = 3.0;
+
+        var slow = PathPrimitiveBuilder.SlowTurn(
+            fromLat: fromLat,
+            fromLon: fromLon,
+            fromHdgDeg: 0.0,
+            toHdgDeg: 90.0,
+            radiusFt: radiusFt,
+            maxSpeedKts: maxSpeedKts,
+            toNodeId: 99
+        );
+
+        Assert.Equal(PathPrimitiveKind.SlowTurn, slow.Kind);
+        Assert.Equal(99, slow.ToNodeId);
+        Assert.Equal(radiusFt, slow.RadiusFt);
+        Assert.Equal(maxSpeedKts, slow.MaxSpeedKts);
+        Assert.True(slow.RightTurn, "0°→90° short way is a right turn");
+        Assert.InRange(slow.SweepDeg, 89.9, 90.1);
+        Assert.InRange(slow.EntryTangentBearingDeg, -0.1, 0.1);
+        Assert.InRange(slow.ExitTangentBearingDeg, 89.9, 90.1);
+        Assert.InRange(slow.StartBearingFromCenterDeg, 269.5, 270.5);
+
+        // Arc length = 90° × 25 ft × π/180 ≈ 39.27 ft
+        Assert.InRange(slow.LengthFt, 39.0, 39.5);
+    }
+
+    [Fact]
+    public void SlowTurn_LeftTurn_ProducesLeftArcWithCorrectGeometry()
+    {
+        // 90° left turn: entry heading east (90°), exit heading north (0°).
+        // Centre sits 25 ft north of entry (perpendicular-left of east heading).
+        const double fromLat = 37.0;
+        const double fromLon = -122.0;
+
+        var slow = PathPrimitiveBuilder.SlowTurn(
+            fromLat: fromLat,
+            fromLon: fromLon,
+            fromHdgDeg: 90.0,
+            toHdgDeg: 0.0,
+            radiusFt: 25.0,
+            maxSpeedKts: 3.0,
+            toNodeId: 100
+        );
+
+        Assert.False(slow.RightTurn, "90°→0° short way is a left turn");
+        Assert.InRange(slow.SweepDeg, 89.9, 90.1);
+        Assert.InRange(slow.EntryTangentBearingDeg, 89.9, 90.1);
+        Assert.InRange(slow.ExitTangentBearingDeg, -0.1, 0.1);
+    }
+
+    [Fact]
+    public void SlowTurn_TightRadiusIsSmallerThanLineUpTurnRadius()
+    {
+        // Regression guard: NoseWheelTurnRadiusFt must be substantially
+        // tighter than LineUpTurnRadiusFt for every category. The SlowTurn
+        // primitive is the one callers reach for when they need a footprint
+        // smaller than a normal lineup arc.
+        foreach (var cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston, AircraftCategory.Helicopter })
+        {
+            double nose = CategoryPerformance.NoseWheelTurnRadiusFt(cat);
+            double lineup = CategoryPerformance.LineUpTurnRadiusFt(cat);
+            Assert.True(
+                nose < lineup * 0.6,
+                $"{cat}: nose-wheel radius ({nose} ft) should be substantially tighter than lineup radius ({lineup} ft)"
+            );
+            Assert.True(nose > 0, $"{cat}: nose-wheel radius must be positive");
+        }
+    }
+
+    [Fact]
+    public void SlowTurn_SpeedCapIsWalkingPace()
+    {
+        // SlowTurnSpeedKts should be ~walking pace — low enough that full
+        // nose-wheel deflection is mechanically usable without tyre scrub
+        // dominating. Guard against accidental future tuning into an
+        // unrealistic regime.
+        Assert.InRange(CategoryPerformance.SlowTurnSpeedKts, 1.0, 5.0);
+    }
+
+    // ---- GroundNavigator dispatch for SlowTurn ----
+
+    private static (AircraftState Aircraft, PhaseContext Ctx) MakeSlowTurnFixture(double acLat, double acLon, double acHdgDeg)
+    {
+        var aircraft = new AircraftState
+        {
+            Callsign = "SLOWTEST",
+            AircraftType = "B738",
+            Latitude = acLat,
+            Longitude = acLon,
+            TrueHeading = new TrueHeading(acHdgDeg),
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 0.25,
+            Runway = null,
+            FieldElevation = 0,
+            GroundLayout = null,
+            Logger = NullLogger.Instance,
+        };
+        return (aircraft, ctx);
+    }
+
+    [Fact]
+    public void GroundNavigator_SlowTurnDispatch_AdvancesOnCircleAndHoldsSpeedCap()
+    {
+        // Plant the aircraft at the entry of a 90° right SlowTurn and tick
+        // forward until the sweep completes. Assert: (1) position stays on
+        // the arc circle (invariant I2), (2) target speed is held at the
+        // primitive's MaxSpeedKts cap, (3) final heading matches exit tangent.
+        const double fromLat = 37.0;
+        const double fromLon = -122.0;
+        const double radiusFt = 25.0;
+        const double maxSpeedKts = 3.0;
+        var slow = PathPrimitiveBuilder.SlowTurn(fromLat, fromLon, 0.0, 90.0, radiusFt, maxSpeedKts, toNodeId: 99);
+
+        // Place the aircraft at the arc exit for target lat/lon. The primitive's
+        // closed-form playback drives position directly — the "target" is just
+        // used for distance-to-target diagnostics and arrival handling.
+        double radiusNm = radiusFt / GeoMath.FeetPerNm;
+        var (toLat, toLon) = GeoMath.ProjectPoint(slow.CenterLat, slow.CenterLon, new TrueHeading(0.0), radiusNm);
+
+        var (aircraft, ctx) = MakeSlowTurnFixture(fromLat, fromLon, 0.0);
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
+        nav.SetupPrimitive(slow, fromLat, fromLon, toLat, toLon, nextSegmentBearingDeg: null);
+
+        bool arrived = false;
+        for (int i = 0; i < 400; i++)
+        {
+            // Speed the physics integration with a simple accelerator — without
+            // a real FlightPhysics.Update call the aircraft's IAS never leaves
+            // zero and the I7 floor blocks arc advance forever.
+            double accelTarget = ctx.Targets.TargetSpeed ?? 0;
+            if (aircraft.IndicatedAirspeed < accelTarget)
+            {
+                aircraft.IndicatedAirspeed = Math.Min(accelTarget, aircraft.IndicatedAirspeed + 3.0 * ctx.DeltaSeconds);
+            }
+
+            var result = nav.Tick(ctx, isLastSegment: true, _ => true);
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                arrived = true;
+                break;
+            }
+
+            // Invariant: position must lie on the arc circle of radius
+            // radiusFt around (CenterLat, CenterLon).
+            double distToCenterFt = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, slow.CenterLat, slow.CenterLon) * GeoMath.FeetPerNm;
+            Assert.InRange(distToCenterFt, radiusFt - 0.1, radiusFt + 0.1);
+
+            // Target speed is capped at the primitive's MaxSpeedKts.
+            Assert.NotNull(ctx.Targets.TargetSpeed);
+            Assert.InRange(ctx.Targets.TargetSpeed!.Value, 0.0, maxSpeedKts + 0.001);
+        }
+
+        Assert.True(arrived, "SlowTurn dispatch never reached ArrivedAtNode within 400 ticks");
+        // Final heading matches exit tangent (90° = east).
+        double finalHdg = aircraft.TrueHeading.Degrees;
+        Assert.InRange(finalHdg, 89.5, 90.5);
+    }
+
+    [Fact]
+    public void GroundNavigator_SlowTurnDispatch_RefusesToAdvanceBelowSpeedFloor()
+    {
+        // Aircraft stationary at arc entry. The navigator must set target speed
+        // but must NOT advance the arc on this tick (I7 — no pivot-in-place).
+        // Note: the navigator's own AdjustSpeed will accelerate the aircraft
+        // toward the cap during this tick, so the speed floor only blocks arc
+        // advance on the tick where IAS enters at < floor — subsequent ticks
+        // have IAS above the floor and proceed normally.
+        const double fromLat = 37.0;
+        const double fromLon = -122.0;
+        var slow = PathPrimitiveBuilder.SlowTurn(fromLat, fromLon, 0.0, 90.0, 25.0, 3.0, toNodeId: 99);
+
+        var (aircraft, ctx) = MakeSlowTurnFixture(fromLat, fromLon, 0.0);
+        aircraft.IndicatedAirspeed = 0;
+
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
+        nav.SetupPrimitive(slow, fromLat, fromLon, slow.CenterLat, slow.CenterLon, nextSegmentBearingDeg: null);
+
+        nav.Tick(ctx, isLastSegment: true, _ => true);
+
+        // Position unchanged — the arc integrator did not advance this tick.
+        Assert.Equal(fromLat, aircraft.Latitude);
+        Assert.Equal(fromLon, aircraft.Longitude);
+        // Target speed nonzero so physics (or AdjustSpeed) can re-accelerate.
+        Assert.NotNull(ctx.Targets.TargetSpeed);
+        Assert.True(ctx.Targets.TargetSpeed!.Value > 0);
     }
 }

@@ -115,4 +115,65 @@ public static class PathPrimitiveBuilder
             ExitTangentBearingDeg = exitBearingDeg,
         };
     }
+
+    /// <summary>
+    /// Build a <see cref="PathPrimitiveSlowTurn"/> from entry pose + desired exit
+    /// heading. The turn direction is the short-way rotation from
+    /// <paramref name="fromHdgDeg"/> to <paramref name="toHdgDeg"/>; the arc
+    /// centre sits at <paramref name="radiusFt"/> perpendicular-inward from the
+    /// entry point on the turn side.
+    ///
+    /// <para>
+    /// Used by callers that need a programmatic tight turn (not derived from a
+    /// <see cref="GroundArc"/>) — e.g. <c>LineUpPhase</c>'s pivot states.
+    /// </para>
+    /// </summary>
+    /// <param name="fromLat">Entry-point latitude (degrees).</param>
+    /// <param name="fromLon">Entry-point longitude (degrees).</param>
+    /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
+    /// <param name="toHdgDeg">Tangent heading at exit (degrees true, 0–360).</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="maxSpeedKts">Target-speed cap in knots. Typically <see cref="CategoryPerformance.SlowTurnSpeedKts"/>.</param>
+    /// <param name="toNodeId">Synthetic end-of-primitive node id for arrival detection.</param>
+    public static PathPrimitiveSlowTurn SlowTurn(
+        double fromLat,
+        double fromLon,
+        double fromHdgDeg,
+        double toHdgDeg,
+        double radiusFt,
+        double maxSpeedKts,
+        int toNodeId
+    )
+    {
+        // Short-way signed turn angle, normalised to (-180, 180].
+        double dthetaDeg = (((toHdgDeg - fromHdgDeg) + 540.0) % 360.0) - 180.0;
+        double sweepDeg = Math.Abs(dthetaDeg);
+        bool rightTurn = dthetaDeg > 0;
+
+        // Centre is perpendicular-inward from entry at radius distance.
+        // Right turn: centre 90° clockwise of entry tangent; left: 90° CCW.
+        double perpHdgDeg = ((fromHdgDeg + (rightTurn ? 90.0 : -90.0)) + 360.0) % 360.0;
+        double radiusNm = radiusFt / GeoMath.FeetPerNm;
+        var (centerLat, centerLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(perpHdgDeg), radiusNm);
+
+        // Entry point relative to centre sits on the radial opposite perpHdg.
+        double startBearingFromCenterDeg = ((perpHdgDeg + 180.0) % 360.0 + 360.0) % 360.0;
+        double lengthFt = sweepDeg * radiusFt * Math.PI / 180.0;
+
+        return new PathPrimitiveSlowTurn
+        {
+            Kind = PathPrimitiveKind.SlowTurn,
+            LengthFt = lengthFt,
+            ToNodeId = toNodeId,
+            CenterLat = centerLat,
+            CenterLon = centerLon,
+            RadiusFt = radiusFt,
+            StartBearingFromCenterDeg = startBearingFromCenterDeg,
+            SweepDeg = sweepDeg,
+            RightTurn = rightTurn,
+            EntryTangentBearingDeg = ((fromHdgDeg % 360.0) + 360.0) % 360.0,
+            ExitTangentBearingDeg = ((toHdgDeg % 360.0) + 360.0) % 360.0,
+            MaxSpeedKts = maxSpeedKts,
+        };
+    }
 }
