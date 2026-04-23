@@ -252,6 +252,154 @@ public class VStripsViewModelTests
     }
 
     [Fact]
+    public async Task MoveStripAsync_DropOnOwnIdx_EmitsNothing()
+    {
+        // User drops the strip back on its own slot — remove-then-insert is a
+        // no-op, so the canonical dispatch is suppressed. Without the no-op
+        // guard, the terminal buffer + command log would echo a redundant
+        // STRIP that the server silently rewinds. Covers the "drop on own
+        // position" branch of IsNoOpMove.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100")]);
+        vm.ReconcileFullState(
+            State(
+                null,
+                (
+                    "bay-gnd",
+                    [
+                        ["S1"],
+                        [],
+                    ]
+                )
+            )
+        );
+
+        await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: 0);
+
+        Assert.Empty(captured);
+    }
+
+    [Fact]
+    public async Task MoveStripAsync_TopmostStripDroppedOnOwnIdx_EmitsNothing()
+    {
+        // Regression for the bug that motivated the source-hiding refactor:
+        // dragging the topmost strip, ComputeDropIndex formerly returned
+        // count (append-above-self) which slipped past the first no-op check
+        // because strips[count] doesn't exist. With hiding + visual-idx math,
+        // target == fromIdx (== count - 1) and the existing no-op guard fires.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200"), FullStrip("S3", "UAL300")]);
+        vm.ReconcileFullState(
+            State(
+                null,
+                (
+                    "bay-gnd",
+                    [
+                        ["S1", "S2", "S3"],
+                        [],
+                    ]
+                )
+            )
+        );
+
+        // S3 is topmost (model idx 2). Drop back on its own slot.
+        await vm.MoveStripAsync(vm.ItemsByIdForTests["S3"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: 2);
+
+        Assert.Empty(captured);
+    }
+
+    [Fact]
+    public async Task MoveStripAsync_DropOneIdxUp_EmitsCanonical()
+    {
+        // Dropping one slot above the source in the same rack is NOT a no-op —
+        // server does remove-then-insert, and with the source at fromIdx=1 in
+        // a 3-strip rack, target=2 produces [A, C, B, D] (different from
+        // original [A, B, C, D]). An earlier iteration of the no-op guard
+        // included this as a no-op and suppressed a real move; this test
+        // locks in the correct "emit" behavior.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200"), FullStrip("S3", "UAL300"), FullStrip("S4", "UAL400")]);
+        vm.ReconcileFullState(
+            State(
+                null,
+                (
+                    "bay-gnd",
+                    [
+                        ["S1", "S2", "S3", "S4"],
+                        [],
+                    ]
+                )
+            )
+        );
+
+        // S2 is at model idx 1; target idx 2 reorders to [S1, S3, S2, S4] server-side.
+        await vm.MoveStripAsync(vm.ItemsByIdForTests["S2"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: 2);
+
+        var entry = Assert.Single(captured);
+        Assert.Equal("STRIP GROUND 1 3", entry.Command);
+    }
+
+    [Fact]
+    public async Task MoveStripAsync_DifferentBay_EmitsCanonical()
+    {
+        // Cross-bay drags never qualify as no-op, even if the target idx
+        // matches the source idx — the destination bay/rack is different, so
+        // the strip moves. Pairs with the own-idx test above to confirm the
+        // no-op guard keys on bay + rack, not just index.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100")]);
+        vm.ReconcileFullState(
+            State(
+                null,
+                (
+                    "bay-gnd",
+                    [
+                        ["S1"],
+                        [],
+                    ]
+                )
+            )
+        );
+
+        await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-loc"), rack: 0, index: 0);
+
+        Assert.Single(captured);
+    }
+
+    [Fact]
+    public async Task MoveStripAsync_NullIndex_AlwaysEmits()
+    {
+        // null index = "append to the tail of the rack" on the wire. Server
+        // decides placement, so the client can't short-circuit even if the
+        // strip is already in the target rack. Dispatch always fires.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100")]);
+        vm.ReconcileFullState(
+            State(
+                null,
+                (
+                    "bay-gnd",
+                    [
+                        ["S1"],
+                        [],
+                    ]
+                )
+            )
+        );
+
+        await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: null);
+
+        var entry = Assert.Single(captured);
+        // Wire without index token.
+        Assert.Equal("STRIP GROUND 1", entry.Command);
+    }
+
+    [Fact]
     public async Task MoveStripAsync_HalfStrip_EmitsHsmWithKey()
     {
         var (vm, captured) = MakeVm();

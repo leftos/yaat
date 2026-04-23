@@ -730,6 +730,22 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void ShowStripContextMenu(Control anchor, StripItemViewModel strip, VStripsViewModel vm)
     {
+        var menu = BuildStripContextMenu(strip, vm, anchor);
+        menu.ShowAt(anchor);
+    }
+
+    /// <summary>
+    /// Builds the strip context menu's items without showing it — factored out
+    /// of <see cref="ShowStripContextMenu"/> so view-level tests can assert
+    /// the offered items (Offset, Push to, Delete, plus type-specific
+    /// entries) without needing to intercept a Popup in the headless visual
+    /// tree. The <paramref name="editorAnchor"/> is passed through to the
+    /// inline-editor Open() calls inside the click handlers; pass the same
+    /// anchor you intend to ShowAt on for real invocations.
+    /// </summary>
+    internal MenuFlyout BuildStripContextMenu(StripItemViewModel strip, VStripsViewModel vm, Control? editorAnchor = null)
+    {
+        var anchor = editorAnchor ?? (Control)this;
         var menu = new MenuFlyout();
 
         var offsetItem = new MenuItem { Header = strip.IsOffset ? "Un-offset" : "Offset" };
@@ -798,7 +814,7 @@ public partial class VStripsView : UserControl
         deleteItem.Click += async (_, _) => await vm.DeleteStripAsync(strip);
         menu.Items.Add(deleteItem);
 
-        menu.ShowAt(anchor);
+        return menu;
     }
 
     // ── Empty-rack context menu ─────────────────────────────────
@@ -813,9 +829,27 @@ public partial class VStripsView : UserControl
     /// </summary>
     private static void ShowEmptyRackMenu(Control anchor, StripRackViewModel rack, VStripsViewModel vm)
     {
-        if (vm.SelectedBay is null)
+        var menu = BuildEmptyRackMenu(rack, vm);
+        if (menu is null)
         {
             return;
+        }
+        menu.ShowAt(anchor);
+    }
+
+    /// <summary>
+    /// Builds the empty-rack context menu's items without showing it —
+    /// factored out of <see cref="ShowEmptyRackMenu"/> so view-level tests
+    /// can assert the offered items (Add half-strip, Add separator with its
+    /// four styles or the locked single-handwritten fallback, Add blank
+    /// strip) without needing a visible Popup. Returns null when no bay is
+    /// selected (there's nothing to anchor the new strip to).
+    /// </summary>
+    internal static MenuFlyout? BuildEmptyRackMenu(StripRackViewModel rack, VStripsViewModel vm)
+    {
+        if (vm.SelectedBay is null)
+        {
+            return null;
         }
         var selectedBay = vm.SelectedBay;
         var menu = new MenuFlyout();
@@ -850,7 +884,7 @@ public partial class VStripsView : UserControl
         addBlank.Click += async (_, _) => await vm.CreateBlankAsync(selectedBay, rack.RackIndex, index: 0);
         menu.Items.Add(addBlank);
 
-        menu.ShowAt(anchor);
+        return menu;
     }
 
     /// <summary>

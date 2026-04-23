@@ -1,13 +1,14 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.VStrips;
-using Xunit;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -35,6 +36,178 @@ public class VStripsViewInteractionTests
     }
 
     [AvaloniaFact]
+    public void StripsInRack_RenderInBottomUpVisualOrder()
+    {
+        // Regression guard for the entire drop-preview math, which depends
+        // on DockPanel bottom-up docking (rack.Strips[0] at the visual
+        // bottom, Strips[^1] at the visual top). If the docking direction
+        // or the ItemsControl.Styles DockPanel.Dock="Bottom" selector ever
+        // flips, strips would render top-down and every ComputeDropIndex
+        // branch would silently target the wrong visual slot.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1", "S2", "S3"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strips = view.GetVisualDescendants().OfType<FlightStripControl>().Where(c => c.DataContext is StripItemViewModel).ToList();
+        // The rack-mounted controls + the drag-ghost slot (not used here) and
+        // printer carousels (not used here) share the FlightStripControl type,
+        // so filter by bay parent to only see the rack-rendered ones.
+        var rackStrips = strips.Where(s => s.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is StripRackViewModel)).ToList();
+        Assert.Equal(3, rackStrips.Count);
+
+        var positions = rackStrips
+            .Select(s => new { Id = ((StripItemViewModel)s.DataContext!).Id, Y = s.TranslatePoint(new Point(0, 0), view)?.Y ?? double.NaN })
+            .ToDictionary(p => p.Id, p => p.Y);
+        // Bottom-up: S1 (model idx 0) should have the largest Y, S3 the smallest.
+        Assert.True(positions["S1"] > positions["S2"], $"S1 Y={positions["S1"]} should be > S2 Y={positions["S2"]}");
+        Assert.True(positions["S2"] > positions["S3"], $"S2 Y={positions["S2"]} should be > S3 Y={positions["S3"]}");
+    }
+
+    [AvaloniaFact]
+    public void ZoomButtons_StepScaleAndClamp()
+    {
+        // Covers the zoom +/- buttons added in Round 1.5. Default is 0.8;
+        // minus steps by 0.1 down to 0.5, plus steps up to 1.5.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, view) = BootView(vm);
+
+        Assert.Equal(0.8, vm.ZoomScale, 3);
+
+        var zoomOut = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content is string s && s == "−");
+        var zoomIn = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content is string s && s == "+");
+
+        zoomOut.Command?.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0.7, vm.ZoomScale, 3);
+
+        zoomIn.Command?.Execute(null);
+        zoomIn.Command?.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0.9, vm.ZoomScale, 3);
+
+        // Clamp at 0.5 — step down 8 times from 0.9.
+        for (var i = 0; i < 8; i++)
+        {
+            zoomOut.Command?.Execute(null);
+        }
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0.5, vm.ZoomScale, 3);
+
+        // Clamp at 1.5 — step up 15 times from 0.5.
+        for (var i = 0; i < 15; i++)
+        {
+            zoomIn.Command?.Execute(null);
+        }
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1.5, vm.ZoomScale, 3);
+    }
+
+    [AvaloniaFact]
+    public void StripContextMenu_FullStrip_HasOffsetDeletePush()
+    {
+        // Right-click on a full strip shows: Offset, Push-to-{bays}, Delete.
+        // Half-strip and separator items are absent for full strips.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["S1"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var headers = ExtractHeaders(menu);
+
+        Assert.Contains("Offset", headers);
+        Assert.Contains("Push to", headers);
+        Assert.Contains("Delete", headers);
+        Assert.DoesNotContain("Slide", headers);
+        Assert.DoesNotContain("Edit lines", headers);
+        Assert.DoesNotContain("Edit label", headers);
+
+        // "Push to" sub-menu has one item per bay.
+        var pushItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push to");
+        var pushTargets = pushItem.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
+        Assert.Equal(2, pushTargets.Count);
+        Assert.Contains("GROUND", pushTargets);
+        Assert.Contains("LOCAL", pushTargets);
+    }
+
+    [AvaloniaFact]
+    public void EmptyRackContextMenu_Unlocked_OffersAllSeparatorStyles()
+    {
+        // Right-click on empty rack space in an unlocked facility exposes Add
+        // Half-Strip, Add Separator (4 styles: Handwritten, White, Red,
+        // Green), and Add Blank Strip. Matches docs/crc/vstrips.md:180-195.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, _) = BootView(vm);
+
+        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        Assert.NotNull(menu);
+        var headers = ExtractHeaders(menu!);
+
+        Assert.Contains("Add half-strip", headers);
+        Assert.Contains("Add separator", headers);
+        Assert.Contains("Add blank strip", headers);
+        Assert.DoesNotContain("Add handwritten separator", headers);
+
+        var sepItem = menu!.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Add separator");
+        var styles = sepItem.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
+        Assert.Equal(4, styles.Count);
+        Assert.Contains("Handwritten", styles);
+        Assert.Contains("White", styles);
+        Assert.Contains("Red", styles);
+        Assert.Contains("Green", styles);
+    }
+
+    [AvaloniaFact]
+    public void EmptyRackContextMenu_Locked_OnlyHandwrittenSeparator()
+    {
+        // Locked facilities collapse the separator styles to Handwritten only
+        // (docs/crc/vstrips.md:195).
+        var (vm, _) = MakeVm();
+        SeedBays(
+            vm,
+            new FlightStripsConfigDto(
+                FacilityId: "FAC1",
+                FacilityName: "Fresno ATCT",
+                Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
+                HasTwoPrinters: false,
+                SeparatorsLocked: true
+            )
+        );
+        var (_, _) = BootView(vm);
+
+        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        Assert.NotNull(menu);
+        var headers = ExtractHeaders(menu!);
+
+        Assert.Contains("Add half-strip", headers);
+        Assert.Contains("Add handwritten separator", headers);
+        Assert.Contains("Add blank strip", headers);
+        Assert.DoesNotContain("Add separator", headers);
+    }
+
+    [AvaloniaFact]
     public void BayButtonClick_SelectsBayViaViewModel()
     {
         var (vm, captured) = MakeVm();
@@ -44,9 +217,7 @@ public class VStripsViewInteractionTests
         // Click the LOCAL bay (second one). SelectBayAsync on an own-bay is a
         // local-only selection — no server command emitted. We verify the
         // observable property flipped to prove the click handler ran.
-        var localButton = view.GetVisualDescendants()
-            .OfType<Button>()
-            .FirstOrDefault(b => b.Tag is StripBayViewModel bay && bay.Name == "LOCAL");
+        var localButton = view.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Tag is StripBayViewModel bay && bay.Name == "LOCAL");
         Assert.NotNull(localButton);
 
         localButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -82,6 +253,29 @@ public class VStripsViewInteractionTests
             HasTwoPrinters: false,
             SeparatorsLocked: false
         );
+
+    private static StripItemDto FullStrip(string id) =>
+        new(id, id, IsDisconnected: false, StripItemType.DepartureStrip, IsOffset: false, FieldValues: [id, "", "B738/L"]);
+
+    // Seeds a set of full strips into bayId's racks at the positions given by
+    // rackStrips (outer = rack index, inner = strip ids in model order bottom-up).
+    private static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips)
+    {
+        var flatIds = rackStrips.SelectMany(r => r).ToArray();
+        vm.ReconcileItems(flatIds.Select(FullStrip).ToArray());
+        vm.ReconcileFullState(
+            new FlightStripsStateDto(
+                PrinterItems: [],
+                BayItems: [new StripBayContentsDto(bayId, rackStrips)],
+                NewItemInPrinter: false,
+                NewItemInArrivalPrinter: false,
+                NewItemInBayId: null,
+                ItemMovedOrCreatedBySessionId: null
+            )
+        );
+    }
+
+    private static List<string?> ExtractHeaders(MenuFlyout menu) => menu.Items.OfType<MenuItem>().Select(i => (string?)i.Header).ToList();
 
     // ApplyBayConfig posts to the dispatcher. Under an Avalonia.Headless test
     // that's fine — RunJobs flushes. The reflection path in the unit-test MakeVm
