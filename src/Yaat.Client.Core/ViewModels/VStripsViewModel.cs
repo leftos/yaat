@@ -130,6 +130,16 @@ public partial class VStripsViewModel : ObservableObject
     /// from <see cref="ApplyRoomState"/> when the main VM receives a RoomStateDto
     /// during JoinRoom.
     /// </summary>
+    // Cache of the most recent server-supplied state / items. Join-existing-room
+    // has a race: the server sends the initial strip broadcasts BEFORE
+    // JoinRoom returns, so they arrive and reconcile against empty bays
+    // (bays aren't populated until ApplyRoomState → ApplyBayConfig runs with
+    // the RoomStateDto return value). Caching lets us re-apply the latest
+    // broadcast once bays exist so racks/printer populate without requiring
+    // the user to trigger a state-broadcast (e.g., "Move to Bay") first.
+    private FlightStripsStateDto? _lastReceivedFullState;
+    private List<StripItemDto>? _lastReceivedItems;
+
     public void ApplyBayConfig(FlightStripsConfigDto? config)
     {
         Dispatcher.UIThread.Post(() =>
@@ -169,6 +179,18 @@ public partial class VStripsViewModel : ObservableObject
                 SelectedBay = firstOwnBay;
                 SelectedBay.IsSelected = true;
             }
+
+            // Re-apply any cached broadcasts that arrived before this bay
+            // config was in place. Items must go first so ReconcileFullState
+            // can resolve their ids into the local VM lookup.
+            if (_lastReceivedItems is { } pendingItems)
+            {
+                ReconcileItems(pendingItems);
+            }
+            if (_lastReceivedFullState is { } pendingState)
+            {
+                ReconcileFullState(pendingState);
+            }
         });
     }
 
@@ -180,11 +202,24 @@ public partial class VStripsViewModel : ObservableObject
         _ = RefreshAccessibleFacilitiesAsync();
     }
 
-    private void OnScenarioUnloaded() => ApplyBayConfig(null);
+    private void OnScenarioUnloaded()
+    {
+        _lastReceivedFullState = null;
+        _lastReceivedItems = null;
+        ApplyBayConfig(null);
+    }
 
-    private void OnFlightStripsStateChanged(FlightStripsStateDto state) => Dispatcher.UIThread.Post(() => ReconcileFullState(state));
+    private void OnFlightStripsStateChanged(FlightStripsStateDto state)
+    {
+        _lastReceivedFullState = state;
+        Dispatcher.UIThread.Post(() => ReconcileFullState(state));
+    }
 
-    private void OnStripItemsChanged(List<StripItemDto> items) => Dispatcher.UIThread.Post(() => ReconcileItems(items));
+    private void OnStripItemsChanged(List<StripItemDto> items)
+    {
+        _lastReceivedItems = items;
+        Dispatcher.UIThread.Post(() => ReconcileItems(items));
+    }
 
     // ── Reconciliation ───────────────────────────────────────────
 
@@ -697,12 +732,12 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Rename a separator by deleting the old one and creating a new one at
-    /// the same position with the new label. Atomic in practice because the
-    /// server processes both commands before the next broadcast; user sees a
-    /// single reconcile step. Locked facilities (SeparatorsLocked=true) drop
-    /// this call to match the CRC constraint that only handwritten separators
-    /// can be edited.
+    /// Rename a separator atomically via the server-side SEPE command.
+    /// Single mutation under the state gate replaces the prior
+    /// delete-then-create pair — no broadcast gap, no race with concurrent
+    /// moves. Locked facilities (SeparatorsLocked=true) drop this call to
+    /// match the CRC constraint that only handwritten separators can be
+    /// edited.
     /// </summary>
     public async Task EditSeparatorLabelAsync(StripItemViewModel strip, string newLabel)
     {
@@ -715,10 +750,9 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        // Locate the separator so we can recreate it at its current rack/index
-        // with the new label. Scan every rack since the server's authoritative
-        // position lives on the strip record, not the VM, and the VM's rack
-        // ordering matches the server.
+        // Locate the separator by scanning the selected bay's racks; the
+        // server's authoritative position lives on the strip record and the
+        // VM's rack ordering mirrors it, so the first match wins.
         var rackIndex = -1;
         var posIndex = -1;
         for (var r = 0; r < SelectedBay.Racks.Count; r++)
@@ -736,14 +770,8 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        var style = MapSeparator(strip.Type);
-        var oldLabel = strip.FieldValues.Length > 0 ? strip.FieldValues[0] : null;
-
-        var deleteCanonical = VStripsCanonicalBuilder.BuildSeparatorDelete(SelectedBay.Name, rackIndex, oldLabel, posIndex);
-        await _sendCommand("", deleteCanonical, _preferences?.UserInitials ?? "");
-
-        var createCanonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, SelectedBay.Name, rackIndex, posIndex, newLabel);
-        await _sendCommand("", createCanonical, _preferences?.UserInitials ?? "");
+        var canonical = VStripsCanonicalBuilder.BuildSeparatorEdit(SelectedBay.Name, rackIndex, posIndex, newLabel);
+        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
     }
 
     public async Task SlideHalfStripAsync(StripItemViewModel strip)
@@ -789,22 +817,41 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Requests a flight strip for the given aircraft ID. Not yet wired to a
-    /// server RPC — the hub currently exposes no RequestFlightStripForAircraft
-    /// call, and threading one through touches server/DTO/hub surface area
-    /// beyond the current round's scope. For now this logs the intent and
-    /// returns; the Request Strip button in the printer modal provides the UX
-    /// so the feature can light up as soon as the RPC lands on yaat-server.
+    /// Printer-modal "Request Strip" button — invokes the server's
+    /// idempotent <c>RequestFlightStripForAircraft</c> hub method. Logs the
+    /// outcome (success and failure) so controllers see feedback in the
+    /// terminal log without blocking on a modal dialog. Idempotent on the
+    /// server, so rapid clicks won't print duplicates.
     /// </summary>
-    public Task RequestStripAsync(string aircraftId)
+    public async Task RequestStripAsync(string aircraftId)
     {
-        _log.LogInformation(
-            "RequestStripAsync({Aircraft}): server RPC not yet implemented — "
-                + "flight-strip printing relies on scenario-load broadcasts and "
-                + "aircraft-lifecycle triggers today",
-            aircraftId
-        );
-        return Task.CompletedTask;
+        if (string.IsNullOrWhiteSpace(aircraftId))
+        {
+            return;
+        }
+
+        var trimmed = aircraftId.Trim();
+        try
+        {
+            var result = await _connection.RequestFlightStripForAircraftAsync(trimmed);
+            if (result.Success)
+            {
+                _log.LogInformation("RequestStripAsync({Aircraft}): {Message}", trimmed, result.Message);
+                // Bring the new strip into view immediately — CRC parity so the
+                // user doesn't have to scroll the carousel to find what they
+                // just printed. Mark as pending in case the broadcast hasn't
+                // landed yet; the next ReplaceAll will honour it.
+                Printer.RequestFocusOnCallsign(trimmed);
+            }
+            else
+            {
+                _log.LogWarning("RequestStripAsync({Aircraft}) failed: {Message}", trimmed, result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "RequestStripAsync({Aircraft}) RPC threw", trimmed);
+        }
     }
 
     /// <summary>

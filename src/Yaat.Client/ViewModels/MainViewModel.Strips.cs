@@ -104,6 +104,10 @@ public partial class MainViewModel
     {
         if (e.PropertyName == nameof(VStripsDockEntryViewModel.IsPoppedOut))
         {
+            if (sender is VStripsDockEntryViewModel entry && entry.IsStudentEntry)
+            {
+                _preferences.SetPoppedOut("VStrips", entry.IsPoppedOut);
+            }
             OnTabPoppedOutChanged();
         }
     }

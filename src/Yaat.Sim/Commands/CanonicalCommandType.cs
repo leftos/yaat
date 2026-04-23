@@ -222,6 +222,7 @@ public enum CanonicalCommandType
     HalfStripSlide,
     SeparatorCreate,
     SeparatorDelete,
+    SeparatorEdit,
     BlankCreate,
     BlankDelete,
 

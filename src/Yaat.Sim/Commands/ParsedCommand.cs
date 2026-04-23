@@ -464,6 +464,12 @@ public record SeparatorCreateCommand(SeparatorStyle Style, IReadOnlyList<string>
 // if no label matches and the token is numeric, fall back to rack/index position.
 public record SeparatorDeleteCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
+// SEPE <bay> <rack> <oldLabelOrIndex> <new label...>: atomic label edit. Bay +
+// rack + (label-or-1-based-index) locate the existing separator; remaining
+// tokens are the new label. Replaces the prior client-side delete+create
+// pattern which could race under reconnect. Label may contain spaces.
+public record SeparatorEditCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
+
 // BLANK [<bay> [<rack>] [<index>]]: empty tokens → create in printer queue.
 public record BlankCreateCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 

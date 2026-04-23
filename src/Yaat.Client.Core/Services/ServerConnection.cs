@@ -235,6 +235,17 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<CommandResultDto>("AmendFlightPlan", callsign, dto);
     }
 
+    /// <summary>
+    /// Task #18 — printer-modal "Request Strip" button. Idempotent server-side,
+    /// so a double-click doesn't print twice. Returns a descriptive result so
+    /// the UI can show success/failure feedback.
+    /// </summary>
+    public async Task<CommandResultDto> RequestFlightStripForAircraftAsync(string callsign)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("RequestFlightStripForAircraft", callsign);
+    }
+
     public async Task<UnloadScenarioResultDto> UnloadScenarioAircraftAsync()
     {
         EnsureConnected();

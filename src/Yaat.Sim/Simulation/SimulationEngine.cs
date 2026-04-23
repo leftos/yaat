@@ -862,6 +862,11 @@ public sealed class SimulationEngine
         {
             ac.GroundLayout = ResolveGroundLayout(ac);
         }
+
+        // Bump the revision counter so the strip can render the new value.
+        // CRC displays revision regardless of which fields changed — the counter
+        // is a "has been edited" signal, not a per-field diff.
+        ac.RevisionNumber++;
     }
 
     public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft)

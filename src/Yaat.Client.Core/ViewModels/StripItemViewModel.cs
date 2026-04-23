@@ -67,6 +67,13 @@ public partial class StripItemViewModel : ObservableObject
     }
     public string ReqAltitude => Field(6);
     public string Departure => Field(7);
+
+    /// <summary>
+    /// Col 3 row 1 display — server packs "{dep} {dest}" (or just "{dep}" when
+    /// destination is unset) into field 8 in
+    /// <see cref="Yaat.Server.Simulation.StripMutations.BuildDepartureStripFields"/>.
+    /// Rendered as a single TextBlock on the strip.
+    /// </summary>
     public string Field8A => Field(8);
     public string RouteRemarks => Field(9);
 

@@ -78,23 +78,11 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <Border Grid.Column="2"
-                    x:Name="TrashZone"
-                    Width="40" Height="28"
-                    Margin="4"
-                    Background="#3A1A1A"
-                    BorderBrush="#8A3A3A"
-                    BorderThickness="1"
-                    CornerRadius="2"
-                    ToolTip.Tip="Drag here to delete">
-                <TextBlock Text="🗑" FontSize="16"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
-            </Border>
-
             <!-- Zoom controls scale the racks area (not the header) via a
-                 LayoutTransformControl. Min 0.5, max 1.5, 0.1 steps. -->
-            <StackPanel Grid.Column="3" Orientation="Horizontal"
+                 LayoutTransformControl. Min 0.5, max 1.5, 0.1 steps. Sits to
+                 the left of the trash can so pointer travel from the bays to
+                 the zoom +/- is shorter than the reach to the trash. -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal"
                         VerticalAlignment="Center" Margin="8,0,4,0" Spacing="2">
                 <Button Content="−"
                         Padding="8,2" MinWidth="28"
@@ -114,6 +102,20 @@
                         ToolTip.Tip="Zoom in"
                         Command="{Binding ZoomInCommand}"/>
             </StackPanel>
+
+            <Border Grid.Column="3"
+                    x:Name="TrashZone"
+                    Width="40" Height="28"
+                    Margin="4"
+                    Background="#3A1A1A"
+                    BorderBrush="#8A3A3A"
+                    BorderThickness="1"
+                    CornerRadius="2"
+                    ToolTip.Tip="Drag here to delete">
+                <TextBlock Text="🗑" FontSize="16"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Border>
 
             <ToggleButton Grid.Column="4"
                           x:Name="PrinterToggle"
@@ -163,10 +165,19 @@
                                      lands at the visual bottom and subsequent items
                                      stack upward — matching CRC bottom-up FIFO
                                      semantics. -->
+                                <!-- Background=Transparent is load-bearing for drag-drop:
+                                     without a background, Avalonia's hit-testing skips
+                                     the Border's empty areas (the top padding and any
+                                     unfilled space above the bottom-docked strips), so
+                                     drops there return the ancestor ScrollContentPresenter
+                                     and OnRootDrop can't walk back to the rack. Transparent
+                                     keeps the Border invisible while making it a solid
+                                     hit-test target across its full arranged bounds. -->
                                 <Border BorderBrush="#3A3A40" BorderThickness="0,0,1,0"
                                         Padding="4" Margin="0"
                                         Width="547"
                                         VerticalAlignment="Stretch"
+                                        Background="Transparent"
                                         Tag="{Binding}"
                                         Loaded="OnRackBorderLoaded">
                                     <ItemsControl x:Name="RackStripsHost"
@@ -206,10 +217,12 @@
                  they target a rack. -->
             <!-- No backdrop dim — the racks stay fully visible behind the
                  printer modal so "Move to Bay" updates show up immediately
-                 without having to close the printer. The inner modal border
-                 is still opaque and clearly distinguishes itself. -->
-            <Border IsVisible="{Binding Printer.IsOpen}"
-                    Background="Transparent">
+                 without having to close the printer. The outer wrapper has
+                 no Background so pointer events in its transparent margins
+                 pass through to the racks underneath (a Transparent brush
+                 would still intercept hit-testing). The inner modal has a
+                 solid background and is fully interactive. -->
+            <Border IsVisible="{Binding Printer.IsOpen}">
                 <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                         Width="760"
                         Background="#2B2D31"
@@ -219,7 +232,7 @@
                     <DockPanel>
                         <!-- Header row with Close (X) button -->
                         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
-                            <TextBlock Grid.Column="0" Text="Flight Strip Printers"
+                            <TextBlock Grid.Column="0" Text=""
                                        HorizontalAlignment="Center"
                                        FontSize="16" FontWeight="Bold"
                                        Foreground="White"/>
@@ -294,10 +307,6 @@
                             <Separator Margin="0,4" Background="#4A4A52"/>
                             <TextBlock Text="Departure Printer:"
                                        IsVisible="{Binding Printer.HasTwoPrinters}"
-                                       HorizontalAlignment="Center"
-                                       FontSize="14" Foreground="White"/>
-                            <TextBlock Text="Flight Strip Printer:"
-                                       IsVisible="{Binding !Printer.HasTwoPrinters}"
                                        HorizontalAlignment="Center"
                                        FontSize="14" Foreground="White"/>
                             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">

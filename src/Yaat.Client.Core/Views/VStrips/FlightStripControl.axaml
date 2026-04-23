@@ -115,12 +115,16 @@
                                Foreground="{StaticResource StripPrintedBrush}"/>
                 </Border>
 
-                <!-- Column 3: field 8 (departure + optional destination airport),
-                     then 8A and 8B as inline-editable annotation placeholders. -->
+                <!-- Column 3 row 1: field 8 packs "KOAK KSTS" (dep + optional
+                     destination, space-separated) per
+                     StripMutations.BuildDepartureStripFields. A strip without a
+                     destination shows just the departure. Rows 2-3 are
+                     reserved for future annotation placeholders; blank today
+                     so the separator borders still render. -->
                 <Border Grid.Row="0" Grid.Column="2"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding Departure}"
+                    <TextBlock Text="{Binding Field8A}"
                                FontFamily="{StaticResource MonoFont}"
                                FontSize="13" FontWeight="Bold"
                                VerticalAlignment="Center"
@@ -128,50 +132,48 @@
                 </Border>
                 <Border Grid.Row="1" Grid.Column="2"
                         BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding Field8A}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold"
-                               FontSize="12"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
-                </Border>
+                        BorderThickness="0,0,1,0" Padding="4,0"/>
                 <Border Grid.Row="2" Grid.Column="2"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="4,0"/>
 
                 <!-- Column 4 path A: no remarks — route wraps across all 3 rows
-                     with MaxLines=3. Text is trimmed if it overflows. -->
+                     with MaxLines=3. Single TextBlock; code-behind
+                     FitRouteBlock owns block.Text so it can middle-truncate
+                     with "***" when the full "DEP … DEST" string overflows.
+                     NOTE: no Text binding — binding would race FitRouteBlock
+                     and intermittently restore the untrimmed text. -->
                 <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="6,2"
                         IsVisible="{Binding !HasRemarks}">
-                    <TextBlock Text="{Binding RouteText}"
+                    <TextBlock x:Name="RouteBlockNoRemarks"
                                FontFamily="{StaticResource MonoFont}"
                                FontSize="12" FontWeight="Bold"
                                TextWrapping="Wrap"
                                MaxLines="3"
-                               TextTrimming="CharacterEllipsis"
                                LineHeight="22"
                                VerticalAlignment="Top"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               SizeChanged="OnRouteBlockSizeChanged"/>
                 </Border>
 
                 <!-- Column 4 path B: remarks present — route wraps rows 1-2
-                     (MaxLines=2, trimmed if overflow), remarks anchor row 3. -->
+                     (MaxLines=2), remarks anchor row 3. Same middle-trim
+                     pass applies; destination stays pinned at the last line. -->
                 <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="3"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="6,2,6,0"
                         IsVisible="{Binding HasRemarks}">
-                    <TextBlock Text="{Binding RouteText}"
+                    <TextBlock x:Name="RouteBlockWithRemarks"
                                FontFamily="{StaticResource MonoFont}"
                                FontSize="12" FontWeight="Bold"
                                TextWrapping="Wrap"
                                MaxLines="2"
-                               TextTrimming="CharacterEllipsis"
                                LineHeight="22"
                                VerticalAlignment="Top"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               SizeChanged="OnRouteBlockSizeChanged"/>
                 </Border>
                 <Border Grid.Row="2" Grid.Column="3"
                         BorderBrush="{StaticResource StripBorderBrush}"

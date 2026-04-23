@@ -51,6 +51,57 @@ public partial class StripPrinterViewModel : ObservableObject
     public string ArrivalCounter => ArrivalQueue.Count == 0 ? "0/0" : $"{VisibleArrivalIndex + 1}/{ArrivalQueue.Count}";
     public string CombinedCounter => Queue.Count == 0 ? "0/0" : $"{VisibleIndex + 1}/{Queue.Count}";
 
+    /// <summary>
+    /// Callsign the user last asked to bring into view via "Request Strip".
+    /// Consumed by <see cref="ReplaceAll"/> on the next reconcile so the
+    /// carousel jumps to the newly-printed strip without requiring the user
+    /// to arrow through the queue. Cleared after the focus is applied (or
+    /// when any other navigation overrides it).
+    /// </summary>
+    private string? _pendingFocusCallsign;
+
+    /// <summary>
+    /// Marks <paramref name="callsign"/> as the target to focus on the next
+    /// reconcile. Called from <c>VStripsViewModel.RequestStripAsync</c> after
+    /// the server RPC succeeds. Also attempts to focus immediately in case
+    /// the queue is already up to date.
+    /// </summary>
+    public void RequestFocusOnCallsign(string callsign)
+    {
+        if (string.IsNullOrEmpty(callsign))
+        {
+            return;
+        }
+        _pendingFocusCallsign = callsign;
+        TryApplyPendingFocus();
+    }
+
+    private void TryApplyPendingFocus()
+    {
+        if (string.IsNullOrEmpty(_pendingFocusCallsign))
+        {
+            return;
+        }
+        for (var i = 0; i < DepartureQueue.Count; i++)
+        {
+            if (string.Equals(DepartureQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
+            {
+                VisibleDepartureIndex = i;
+                _pendingFocusCallsign = null;
+                return;
+            }
+        }
+        for (var i = 0; i < ArrivalQueue.Count; i++)
+        {
+            if (string.Equals(ArrivalQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
+            {
+                VisibleArrivalIndex = i;
+                _pendingFocusCallsign = null;
+                return;
+            }
+        }
+    }
+
     /// <summary>Reconcile the queue to match <paramref name="itemIds"/>, preserving existing VM instances.</summary>
     public void ReplaceAll(IEnumerable<string> itemIds, IReadOnlyDictionary<string, StripItemViewModel> itemLookup)
     {
@@ -88,6 +139,10 @@ public partial class StripPrinterViewModel : ObservableObject
         {
             VisibleArrivalIndex = Math.Max(0, ArrivalQueue.Count - 1);
         }
+
+        // Apply any outstanding focus request (from the "Request Strip"
+        // button) now that the queue reflects the server's latest state.
+        TryApplyPendingFocus();
 
         OnPropertyChanged(nameof(VisibleStrip));
         OnPropertyChanged(nameof(VisibleDepartureStrip));

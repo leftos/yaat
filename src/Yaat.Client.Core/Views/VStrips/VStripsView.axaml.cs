@@ -1,10 +1,13 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -20,6 +23,8 @@ namespace Yaat.Client.Views.VStrips;
 /// </summary>
 public partial class VStripsView : UserControl
 {
+    private static readonly ILogger Log = AppLog.CreateLogger<VStripsView>();
+
     // Application-scoped data format for drag/drop. Strip ids fit in a string so
     // the drop target can resolve the view-model through VStripsViewModel.ItemsById
     // without marshalling anything across the drag boundary.
@@ -64,12 +69,10 @@ public partial class VStripsView : UserControl
         AddHandler(PointerPressedEvent, OnStripPointerPressed, RoutingStrategies.Tunnel);
 
         // DragOver + Drop at the root level. DragOver paints the drop-effects
-        // cursor + drives the ghost. Drop walks up from e.Source to figure
-        // out which zone (rack / trash / bay button) the drop belongs to.
-        // A root-level drop handler is the only reliable path — rack Borders
-        // are created inside a DataTemplate and their Loaded events don't
-        // fire consistently across Avalonia rebuilds, so per-border wiring
-        // silently drops events when the Loaded callback misses.
+        // cursor + drives the ghost. Drop hit-tests the pointer position to
+        // figure out which zone (rack / trash / bay button) the drop belongs
+        // to. Root-level registration keeps the wiring independent of the
+        // DataTemplate Loaded timing for rack Borders.
         AddHandler(DragDrop.DragOverEvent, OnGenericDragOver);
         AddHandler(DragDrop.DropEvent, OnRootDrop);
     }
@@ -195,18 +198,33 @@ public partial class VStripsView : UserControl
     /// </summary>
     private async void OnRootDrop(object? sender, DragEventArgs e)
     {
-        if (DataContext is not VStripsViewModel vm || e.DataTransfer is null || e.Source is not Visual hit)
+        Log.LogInformation("OnRootDrop fired: source={SourceType} hasDataTransfer={HasDt}", e.Source?.GetType().Name, e.DataTransfer is not null);
+        if (DataContext is not VStripsViewModel vm || e.DataTransfer is null)
         {
+            Log.LogInformation("OnRootDrop: bailing — vm={VmOk} dt={DtOk}", DataContext is VStripsViewModel, e.DataTransfer is not null);
             return;
         }
 
         var stripId = e.DataTransfer.TryGetValue(StripIdFormat);
         if (stripId is null || !vm.ItemsById.TryGetValue(stripId, out var strip) || vm.SelectedBay is null)
         {
+            Log.LogInformation("OnRootDrop: no strip match — stripId={StripId} selectedBay={Bay}", stripId, vm.SelectedBay?.Name);
             return;
         }
 
-        // Walk up to find the enclosing rack Border.
+        // Prefer an explicit hit-test at the pointer position over walking
+        // e.Source — Avalonia can set e.Source to a root-level visual (not
+        // the deepest hit target) for some drop events, which would break
+        // the rack walk. InputHitTest with the drag-ghost canvas suppressed
+        // (IsHitTestVisible=false) returns the underlying rack visual.
+        var rootPos = e.GetPosition(this);
+        var hit = this.InputHitTest(rootPos) as Visual ?? e.Source as Visual;
+        if (hit is null)
+        {
+            Log.LogInformation("OnRootDrop: no hit target at pointer position {Pos}", rootPos);
+            return;
+        }
+
         Border? rackBorder = null;
         Visual? v = hit;
         while (v is not null)
@@ -220,10 +238,20 @@ public partial class VStripsView : UserControl
         }
         if (rackBorder is null || rackBorder.Tag is not StripRackViewModel rack)
         {
+            Log.LogInformation("OnRootDrop: no rack border under hit={HitType} at {Pos}", hit.GetType().Name, rootPos);
             return;
         }
 
         var index = ComputeDropIndex(rackBorder, rack, e);
+        Log.LogInformation(
+            "OnRootDrop: strip={StripId} → bay={Bay} rack={Rack} index={Index} (from {FromRack}/{FromIdx})",
+            stripId,
+            vm.SelectedBay.Name,
+            rack.RackIndex,
+            index,
+            _draggingFromRack?.RackIndex,
+            _draggingFromIndex
+        );
         await vm.MoveStripAsync(strip, vm.SelectedBay, rack.RackIndex, index);
         e.Handled = true;
     }
@@ -236,11 +264,13 @@ public partial class VStripsView : UserControl
     }
 
     /// <summary>
-    /// Computes the zero-based insertion index for a drop inside a rack. Walks
-    /// the rack's strip children, finds which one the pointer is over, and
-    /// rounds to before/after based on whether the pointer sits in the top or
-    /// bottom half of that strip. Drops below every strip append (index =
-    /// rack.Strips.Count).
+    /// Computes the zero-based model insertion index for a drop inside a rack.
+    /// Queries each rendered strip's actual Y-bounds instead of approximating
+    /// via <c>hostHeight / count</c> — the DockPanel stretches vertically past
+    /// the strip stack, so an approximate divisor misplaces drops that land in
+    /// the empty space above the topmost strip (it would round them to middle
+    /// indices instead of "append"). See
+    /// <see cref="ComputeDropIndexFromBands"/> for the pure index math.
     /// </summary>
     private static int ComputeDropIndex(Border rackBorder, StripRackViewModel rack, DragEventArgs e)
     {
@@ -251,13 +281,70 @@ public partial class VStripsView : UserControl
         }
 
         var pos = e.GetPosition(stripsHost);
-        var approxStripHeight = stripsHost.Bounds.Height / Math.Max(rack.Strips.Count, 1);
-        if (approxStripHeight <= 0)
+        var bands = new List<(double Top, double Bottom)>(rack.Strips.Count);
+        foreach (var presenter in stripsHost.GetVisualDescendants().OfType<ContentPresenter>())
         {
+            if (presenter.Child is not FlightStripControl strip || strip.DataContext is not StripItemViewModel stripVm)
+            {
+                continue;
+            }
+            var modelIdx = rack.Strips.IndexOf(stripVm);
+            if (modelIdx < 0)
+            {
+                continue;
+            }
+            var topPoint = presenter.TranslatePoint(new Point(0, 0), stripsHost);
+            if (topPoint is null)
+            {
+                continue;
+            }
+            while (bands.Count <= modelIdx)
+            {
+                bands.Add((0, 0));
+            }
+            bands[modelIdx] = (topPoint.Value.Y, topPoint.Value.Y + presenter.Bounds.Height);
+        }
+
+        if (bands.Count != rack.Strips.Count || bands.Any(b => b.Bottom <= b.Top))
+        {
+            // Pre-layout or partial child list — treat as append so the drop
+            // still produces a sensible result (top of the rack).
             return rack.Strips.Count;
         }
-        var idx = (int)(pos.Y / approxStripHeight);
-        return Math.Clamp(idx, 0, rack.Strips.Count);
+        return ComputeDropIndexFromBands(pos.Y, bands);
+    }
+
+    /// <summary>
+    /// Given the Y-bands (top..bottom) of each strip keyed by model index,
+    /// returns the zero-based model insertion index for a drop at pointer
+    /// <paramref name="posY"/>. Strips render bottom-up (strip[0] at the
+    /// visual bottom) so:
+    /// - Inside strip[i]'s band, top half → insert at i+1 (above it); bottom
+    ///   half → insert at i (below it).
+    /// - Above the entire stack → append (index = count).
+    /// - Between bands or anywhere below strip[0] → insert at i.
+    /// Empty bands → 0.
+    /// </summary>
+    internal static int ComputeDropIndexFromBands(double posY, IReadOnlyList<(double Top, double Bottom)> bands)
+    {
+        if (bands.Count == 0)
+        {
+            return 0;
+        }
+        for (var i = 0; i < bands.Count; i++)
+        {
+            var (top, bottom) = bands[i];
+            if (posY >= top && posY <= bottom)
+            {
+                var mid = (top + bottom) / 2;
+                return posY < mid ? i + 1 : i;
+            }
+        }
+        // Not inside any strip band — decide between "above the stack" (append)
+        // and "below the stack" (insert at 0) by comparing against the topmost
+        // strip's top. Bottom-up render means strip[count-1] has the smallest Top.
+        var stackTop = bands[^1].Top;
+        return posY < stackTop ? bands.Count : 0;
     }
 
     // ── Drag source ─────────────────────────────────────────────
@@ -337,10 +424,17 @@ public partial class VStripsView : UserControl
         var dataTransfer = new DataTransfer();
         dataTransfer.Add(DataTransferItem.Create(StripIdFormat, strip.Id));
 
+        Log.LogInformation(
+            "Strip drag start: strip={StripId} fromRack={FromRack} fromIdx={FromIdx}",
+            strip.Id,
+            _draggingFromRack?.RackIndex,
+            _draggingFromIndex
+        );
+        DragDropEffects effect;
         try
         {
             ShowDragGhost(strip, e);
-            await DragDrop.DoDragDropAsync(e, dataTransfer, DragDropEffects.Move);
+            effect = await DragDrop.DoDragDropAsync(e, dataTransfer, DragDropEffects.Move);
         }
         finally
         {
@@ -349,6 +443,7 @@ public partial class VStripsView : UserControl
             _draggingFromRack = null;
             _draggingFromIndex = -1;
         }
+        Log.LogInformation("Strip drag end: strip={StripId} effect={Effect}", strip.Id, effect);
     }
 
     /// <summary>

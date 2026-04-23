@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Yaat.Client.ViewModels;
 
@@ -40,9 +41,14 @@ public partial class FlightStripControl : UserControl
                 {
                     RefreshVisuals();
                 }
+                if (args.PropertyName is nameof(StripItemViewModel.RouteText) or nameof(StripItemViewModel.HasRemarks))
+                {
+                    RefreshRouteBlocks();
+                }
             };
         }
         RefreshVisuals();
+        RefreshRouteBlocks();
     }
 
     private void OnVisualPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -140,10 +146,126 @@ public partial class FlightStripControl : UserControl
     }
 
     /// <summary>
-    /// Draws the diagonal red ✗ overlay for disconnected strips
-    /// (docs/crc/img/disconnected.png). Sized to the current strip bounds so
-    /// the line tracks resizes; re-rendered on bounds change.
+    /// Re-renders both route TextBlocks (with-remarks and without) so the
+    /// displayed text reflects the latest RouteText and available width.
+    /// Called on DataContext change and from each block's SizeChanged handler.
+    /// Only the currently-visible block is reachable on-screen, but we touch
+    /// both so HasRemarks toggles don't leave stale text in the hidden one.
+    ///
+    /// Deferred second pass: when DataContext fires *before* the initial
+    /// layout arrange (common for items rendered inside an ItemsControl),
+    /// <see cref="TextBlock.Bounds"/> is still (0, 0) the first time
+    /// FitRouteBlock runs. The outer grid fixes the route column's width, so
+    /// setting block.Text doesn't cause a Bounds change → SizeChanged would
+    /// never fire to trigger a re-fit. Scheduling a Background-priority
+    /// dispatcher hop runs FitRouteBlock once more after arrange completes.
     /// </summary>
+    private void RefreshRouteBlocks()
+    {
+        FitRouteBlock(this.FindControl<TextBlock>("RouteBlockNoRemarks"));
+        FitRouteBlock(this.FindControl<TextBlock>("RouteBlockWithRemarks"));
+
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                FitRouteBlock(this.FindControl<TextBlock>("RouteBlockNoRemarks"));
+                FitRouteBlock(this.FindControl<TextBlock>("RouteBlockWithRemarks"));
+            },
+            DispatcherPriority.Background
+        );
+    }
+
+    private void OnRouteBlockSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (sender is TextBlock block)
+        {
+            FitRouteBlock(block);
+        }
+    }
+
+    /// <summary>
+    /// Lays the full "DEP … DEST" route string into the TextBlock and, when it
+    /// overflows MaxLines, progressively drops tokens from the route body
+    /// (between dep and dest) with a "***" placeholder so the destination
+    /// airport stays visible at the end of the last rendered line. Matches
+    /// CRC's middle-ellipsis behaviour since Avalonia's built-in
+    /// TextTrimming only supports end-ellipsis.
+    ///
+    /// Measurement uses the block's own font properties through a standalone
+    /// TextLayout so we can evaluate candidate strings synchronously without
+    /// triggering a full layout pass. The first call during initial layout
+    /// (before Bounds is populated) assigns the full text and returns — a
+    /// follow-up call from the SizeChanged handler re-evaluates once
+    /// <see cref="TextBlock.Bounds"/> reflects the arranged width.
+    /// </summary>
+    private static void FitRouteBlock(TextBlock? block)
+    {
+        if (block?.DataContext is not StripItemViewModel vm)
+        {
+            return;
+        }
+
+        var fullText = vm.RouteText ?? "";
+        var maxLines = block.MaxLines > 0 ? block.MaxLines : 3;
+        var availableWidth = block.Bounds.Width;
+        if (availableWidth <= 0)
+        {
+            // First layout pass — assign the full text so Avalonia can measure
+            // and raise SizeChanged; the follow-up pass will trim if needed.
+            block.Text = fullText;
+            return;
+        }
+
+        var typeface = new Typeface(block.FontFamily, block.FontStyle, block.FontWeight);
+        // Small safety margin: rounding between our standalone TextLayout and
+        // the TextBlock's internal layout can disagree by a sub-pixel and let
+        // a string that "fits by 0.3 px" still get a 3rd line in the actual
+        // render. Subtracting 1px eagerly trims in those edge cases without
+        // visibly shrinking the route column.
+        var measureWidth = Math.Max(1.0, availableWidth - 1.0);
+        var tokens = fullText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (tokens.Length <= 2 || FitsWithinMaxLines(fullText, typeface, block.FontSize, measureWidth, maxLines))
+        {
+            block.Text = fullText;
+            return;
+        }
+
+        // Middle-truncate by dropping tokens from the tail of the route body
+        // (closest to destination first — the start of the route typically
+        // identifies the SID / initial fix which we want to keep).
+        var dep = tokens[0];
+        var dest = tokens[^1];
+        var middle = tokens[1..^1];
+        for (var keep = middle.Length - 1; keep > 0; keep--)
+        {
+            var head = string.Join(' ', middle, 0, keep);
+            var candidate = $"{dep} {head} *** {dest}";
+            if (FitsWithinMaxLines(candidate, typeface, block.FontSize, measureWidth, maxLines))
+            {
+                block.Text = candidate;
+                return;
+            }
+        }
+
+        // Last resort: dep + *** + dest (three tokens guaranteed to fit unless
+        // the column is pathologically narrow).
+        block.Text = $"{dep} *** {dest}";
+    }
+
+    private static bool FitsWithinMaxLines(string text, Typeface typeface, double fontSize, double maxWidth, int maxLines)
+    {
+        var layout = new Avalonia.Media.TextFormatting.TextLayout(
+            text,
+            typeface,
+            fontSize,
+            Brushes.Black,
+            textWrapping: TextWrapping.Wrap,
+            maxWidth: maxWidth
+        );
+        return layout.TextLines.Count <= maxLines;
+    }
+
     /// <summary>
     /// Click handler for annotation cells 10..18. Tag carries the canonical box
     /// number (1..9) which the server maps to FieldValues[box+9]. Opens the

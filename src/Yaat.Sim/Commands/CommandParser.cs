@@ -724,6 +724,7 @@ public static class CommandParser
             HalfStripSlide => ParseHalfStripOffsetOrSlide(arg ?? "", isSlide: true),
             SeparatorCreate when arg is not null => ParseSeparatorCreate(arg),
             SeparatorDelete when arg is not null => ParseSeparatorDelete(arg),
+            SeparatorEdit when arg is not null => ParseSeparatorEdit(arg),
             BlankCreate => PR.Ok(new BlankCreateCommand(SplitWhitespace(arg ?? ""))),
             BlankDelete when arg is not null => ParseBlankDelete(arg),
             Scratchpad1 when arg is null => PR.Ok(new Scratchpad1Command("")),
@@ -776,6 +777,7 @@ public static class CommandParser
             or HalfStripMove
             or SeparatorCreate
             or SeparatorDelete
+            or SeparatorEdit
             or BlankDelete
             or Say
             or SetRemarks
@@ -2307,6 +2309,17 @@ public static class CommandParser
         }
 
         return PR.Ok(new SeparatorDeleteCommand(tokens));
+    }
+
+    private static PR ParseSeparatorEdit(string arg)
+    {
+        var tokens = SplitWhitespace(arg);
+        if (tokens.Count < 3)
+        {
+            return PR.Fail("SEPE requires a bay, a rack, a locator (old label or 1-based index), and a new label");
+        }
+
+        return PR.Ok(new SeparatorEditCommand(tokens));
     }
 
     private static bool TryParseSeparatorStyle(string token, out SeparatorStyle style)

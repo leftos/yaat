@@ -126,6 +126,15 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
+    public void BuildSeparatorEdit_EmitsAtomicSepeOneBasedWire()
+    {
+        // Task #17 — single atomic verb replaces the prior delete+create pair.
+        // 0-based rack/index convert to 1-based; label is space-joined.
+        Assert.Equal("SEPE Ground 2 3 LONG LINE", VStripsCanonicalBuilder.BuildSeparatorEdit("Ground", 1, 2, "LONG LINE"));
+        Assert.Equal("SEPE Local 1 1 HOLD", VStripsCanonicalBuilder.BuildSeparatorEdit("Local", 0, 0, "  HOLD  "));
+    }
+
+    [Fact]
     public void BuildBlankCreate_NullBay_EmitsBareVerb()
     {
         Assert.Equal("BLANK", VStripsCanonicalBuilder.BuildBlankCreate(null, null, null));

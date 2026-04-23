@@ -117,6 +117,19 @@ public static class VStripsCanonicalBuilder
         return $"SEPD {bayName} {OneBased(rack)} {tail}";
     }
 
+    /// <summary>
+    /// Atomic separator label edit. Emits <c>SEPE bay rack index newLabel</c>
+    /// where <paramref name="rack"/> / <paramref name="index"/> are 0-based
+    /// internally and converted to 1-based on the wire. Replaces the prior
+    /// delete+create pattern which was racy under reconnect. New label may
+    /// contain spaces — the server joins remaining tokens after the locator.
+    /// </summary>
+    public static string BuildSeparatorEdit(string bayName, int rack, int index, string newLabel)
+    {
+        var trimmed = newLabel.Trim();
+        return $"SEPE {bayName} {OneBased(rack)} {OneBased(index)} {trimmed}";
+    }
+
     /// <summary>Create a blank strip. Null bay = printer queue; otherwise bay/rack/index.</summary>
     public static string BuildBlankCreate(string? bayName, int? rack, int? index)
     {

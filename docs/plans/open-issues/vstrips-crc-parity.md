@@ -2,11 +2,15 @@
 
 ## Status
 
-**Rounds 1–6 landed (client + server).** The bulk of the CRC parity plan is
-implemented and compiling clean on both repos. Several targeted polish items
-came out of user testing on top of the original plan; those are captured here.
+**Rounds 1–6 landed (client + server), plus several rounds of user-testing
+polish**: CWT equipment format, inline route with middle `***` trim,
+facility-gated destination field, initial strip state on room join, rack
+hit-test fix for drag-drop reliability, printer UX (request-focus, modal
+pass-through), and misc. UX tweaks. Drag-drop now works reliably across
+racks and bays after the rack Border background fix.
 
-Remaining work is a small set of follow-ups flagged at the bottom.
+Remaining work is listed under "Still open" at the bottom — primarily the
+drop-preview UX where strips visibly shift to show the insertion point.
 
 ---
 
@@ -210,40 +214,196 @@ Not in the original plan but requested during review.
 
 All build cleanly; these are enhancements / deferred work, not blockers.
 
-- [ ] **Server: pack destination airport into strip field 8** — currently
-  col 3 row 1 shows just the departure airport. `FieldIdxDeparture = 7`
-  holds `ac.Departure` alone; to render "KOAK KLAX" (facility-configurable
-  per user spec), pack both into that field or add a new slot. Task #13.
-- [ ] **Server: wire revision counter into `FieldIdxRevision`** —
-  `FlightStripControl.axaml` DockPanel already renders it at half size;
-  server writes `""`. Increment on every Flight Plan Editor amend. Task #14.
+- [x] **Server: pack destination airport into strip field 8, gated on
+  facility flag**. `StripMutations.BuildDepartureStripFields` (and
+  `RequestDepartureStripForAircraft`, `RefreshStripForAircraft`) take an
+  optional `displayDestinationAirportIds` parameter. When true, field 8
+  packs `"{ac.Departure} {ac.Destination}"` as a single space-separated
+  string. When false (default), field 8 holds just the departure. The
+  flag is sourced from the facility's `FlightStripsConfig` (new
+  `ArtccConfigService.GetFacility` helper); threaded through all four
+  call sites (scenario auto-print, yaat-client `RequestStrip` RPC,
+  amend-refresh, CRC client path). `FlightStripsConfig` now also parses
+  the full JSON set: `displayDestinationAirportIds`, `displayBarcodes`,
+  `enableArrivalStrips`, `enableSeparateArrDepPrinters`, `lockSeparators`.
+  Col 3 row 1 in `FlightStripControl.axaml` binds to `Field8A`. Covered
+  by `BuildDepartureStripFields_DestPackingGatedOnFacilityFlag`
+  (all four dep/dest permutations + both flag states). Task #13.
+- [x] **Server: wire revision counter into `FieldIdxRevision`**.
+  `AircraftState.RevisionNumber` added and bumped in
+  `SimulationEngine.AmendFlightPlan`; serialized via
+  `AircraftSnapshotDto.RevisionNumber`; rendered by both
+  `BuildDepartureStripFields` and `BuildArrivalStripFields`. New
+  `StripMutations.RefreshStripForAircraft` rebuilds field values in place
+  (preserving annotation boxes 10..18) and `RoomEngine.AmendFlightPlan`
+  broadcasts the surgical update via `StripBroadcaster.BroadcastItemsAsync`.
+  Tests in `StripMutationsTests`. Task #14.
+- [x] **Add `SEPE` canonical command** (atomic separator label edit).
+  `SeparatorEditCommand` + `CanonicalCommandType.SeparatorEdit` added to
+  Yaat.Sim, parser routes `SEPE` args, registry + describer emit the
+  canonical form. Server `StripCommandHandler.HandleSeparatorEditAsync`
+  supports locator-by-position (default) and locator-by-old-label
+  (fallback), mutates `FieldValues[0]` under the state gate, broadcasts a
+  surgical `StripItemsChanged`. Client `EditSeparatorLabelAsync` replaced
+  with a single `VStripsCanonicalBuilder.BuildSeparatorEdit` dispatch.
+  Tests: `VStripsCanonicalBuilderTests.BuildSeparatorEdit_…`,
+  `CrcStripDispatchTests.Dispatch_SepEdit_ByPosition_…` and `_ByOldLabel_…`.
+  Task #17.
+- [x] **Implement `RequestFlightStripForAircraft` SignalR RPC**.
+  Server exposes `TrainingHub.RequestFlightStripForAircraft(callsign)` →
+  `RoomEngine.RequestFlightStripForAircraft` which resolves the student's
+  own (non-external) bay facility, delegates to the existing idempotent
+  `StripMutations.RequestDepartureStripForAircraft`, and broadcasts both
+  the item and full state. Client `ServerConnection.RequestFlightStripForAircraftAsync`
+  wraps the invoke; `VStripsViewModel.RequestStripAsync` replaces the
+  prior log-only stub with a real call (with success/failure logging).
+  Tests in `CrcStripDispatchTests`: unknown-callsign failure,
+  empty-callsign failure, idempotent double-request success. Task #18.
+- [x] **Server: emit push-warning broadcast** when a strip is pushed to an
+  external bay that has no connected controller. `StripCommandHandler`
+  picked up `CrcClientManager`; `HandleStripMoveAsync` looks up the
+  resolved accessible bay's `IsExternal` flag and, when true, checks
+  whether any CRC client in the room holds a primary or secondary
+  position at the target facility. Missing → appends a "WARNING: no
+  controller connected at {facilityId}" to the command-result message,
+  which surfaces on the yaat-client via the existing `StatusText` /
+  terminal-entry response path. Tests:
+  `CrcStripDispatchTests.StripMove_ExternalBay_NoController_…` and
+  `StripMove_OwnBay_NoWarning`. Task #19.
+- [x] **Rack context menu: separators + half-strips.** Verified:
+  `ShowEmptyRackMenu` (`VStripsView.axaml.cs:537-577`) exposes Add Half-Strip,
+  Add Separator (Handwritten/White/Red/Green, with locked-facility fallback to
+  handwritten-only per docs/crc/vstrips.md:195), and Add Blank Strip. Task #28.
+- [x] **Same-bay inter-rack drag-drop.** Root cause was
+  `ComputeDropIndex` returning a *visual top-down* index while the rack
+  DockPanel renders bottom-up (strip[0] at visual bottom). A drop at the
+  visual top targeted model index 0 (bottom slot), which looked like
+  "nothing happened" for inter-rack moves. Pure flip extracted into
+  `VStripsView.ComputeDropModelIndex(posY, hostHeight, count)` →
+  `count - visualIdx`. Covered by `VStripsDropIndexTests` (7 cases). Also
+  fixed two stale `VStripsViewModelTests` that still asserted 0-based wire
+  output after the 1-based migration. Task #29.
+- [x] **Route trim preserves tail — inline with `***` middle-trim.** The
+  3-column sub-grid approach was reverted per user feedback: "the route
+  is trimmed to the middle when the departure/destination occupy
+  separate auto columns, constraining the route". Replaced with a single
+  `TextBlock` bound to no data (code-behind owns `Text`) — the new
+  `FitRouteBlock` helper in `FlightStripControl.axaml.cs` measures the
+  full `"DEP … route … DEST"` string against `block.Bounds.Width` via a
+  standalone `TextLayout`, and if the result exceeds `MaxLines` (2 with
+  remarks / 3 without), progressively drops tokens from the tail end of
+  the route body and inserts `***` until the string fits — keeping the
+  destination visible at the end of the last line. Two fit-timing
+  gotchas addressed: (a) removed the `Text` binding so the XAML binding
+  can't race `FitRouteBlock` and intermittently restore untrimmed text;
+  (b) `RefreshRouteBlocks` schedules a deferred `Dispatcher.UIThread.Post
+  (Background)` because `Bounds` is 0 at initial DataContextChanged for
+  items inside an `ItemsControl` and the outer Grid fixes the column
+  width so setting Text never triggers a size change on its own. Task #30.
+- [x] **Persist primary Strips window pop-out state / position.** Student
+  entry's `IsPoppedOut` now wires through `_preferences.SetPoppedOut("VStrips", …)`
+  in `MainViewModel.Strips.cs:OnStripsEntryPropertyChanged` (guarded by
+  `entry.IsStudentEntry`) and is restored on ctor at
+  `MainViewModel.cs:712`. Geometry was already persisted via
+  `WindowGeometryHelper` with per-facility key. Non-student per-facility
+  entries remain session-scoped (out of scope per plan). Task #32.
+- [x] **Equipment field format: CWT letter prefix, no duplication.**
+  `FormatEquipment` in `StripMutations.cs` was double-prefixing weight
+  class + equipment suffix (`H/H/B763/L/L`) whenever the scenario
+  supplied `AircraftType` with a pre-existing `H/`. Fix: use
+  `AircraftState.BaseAircraftType` (which strips the legacy FAA weight
+  prefix) and format as `"{CWT}/{base}/{suffix}"` where CWT is the
+  full letter A-I from `WakeTurbulenceData.GetCwt`, not the legacy `H/`
+  shorthand. Unknown types drop the CWT prefix entirely. Tests in
+  `StripMutationsTests`: `PopulatesExpectedIndices` updated, plus
+  `HeavyAircraft_PrefixesCwtLetter`, `ScenarioPrefixedType_DoesNotDuplicate`,
+  `UnknownCwt_DropsPrefix`.
+- [x] **Zoom controls moved left of trash.** UX feedback — zoom +/-
+  cluster now sits in column 2, trash zone in column 3 of the header
+  Grid. Pointer travel from bay buttons to zoom is shorter than the
+  reach to the trash.
+- [x] **Focus requested strip in printer carousel.** After "Request Strip"
+  succeeds, `VStripsViewModel.RequestStripAsync` calls
+  `Printer.RequestFocusOnCallsign(trimmed)` which sets a pending-focus
+  callsign and jumps `VisibleDepartureIndex` / `VisibleArrivalIndex` to
+  the matching entry immediately (or on the next `ReplaceAll` if the
+  broadcast hasn't landed yet). User no longer has to arrow through the
+  queue to find the just-printed strip.
+- [x] **Initial strip state broadcast on room join.** New
+  `StripBroadcaster.SendInitialStateToClientAsync(room, connectionId)`
+  emits both `StripItemsChanged` (seeds `ItemsById`) and
+  `FlightStripsStateChanged` (populates racks + printer queue) to a
+  single just-joined connection. Called from `TrainingHub.JoinRoom`
+  after adding to the SignalR group. Without this, clients joining an
+  in-progress room saw empty racks and a 0/0 printer.
+- [x] **Re-apply cached strip state after ApplyBayConfig.** Companion
+  fix to the above: the server-initiated broadcasts arrive on the
+  client BEFORE `JoinRoom` returns its `RoomStateDto`, so the first
+  `ReconcileFullState` runs against empty bays (config hasn't been
+  applied yet) and the state is lost. `VStripsViewModel` now caches
+  the latest `_lastReceivedFullState` and `_lastReceivedItems` and
+  re-applies them at the end of `ApplyBayConfig`, so racks populate
+  on first load without requiring a user action like "Move to Bay" to
+  trigger a fresh broadcast.
+- [x] **Drag-drop rack hit-test fix (the big one).** Every failed drop
+  in the user's logs had `source=ScrollContentPresenter` — the pointer
+  was in empty rack space, but the rack `Border` had no `Background`
+  set, so Avalonia's hit-test passed straight through to the ancestor
+  `ScrollContentPresenter`. `OnRootDrop`'s walk-up-to-rack then failed.
+  Successful drops only happened when the pointer was directly over a
+  strip's children (Border/Rectangle/TextBlock). Fix: add
+  `Background="Transparent"` to the rack Border in `VStripsView.axaml`
+  — invisible but a solid hit-test target. Drops in padding, empty
+  rack areas, and between-rack drops all work reliably now.
+  Information-level drag-drop logs kept in place
+  (`Strip drag start: ...`, `OnRootDrop fired: ...`, `Strip drag end:
+  effect=...`) so future issues can be diagnosed from
+  `%LOCALAPPDATA%/yaat/yaat-client.log`.
+- [x] **`OnRootDrop` uses explicit InputHitTest.** Alongside the
+  background fix, the drop handler now calls
+  `this.InputHitTest(e.GetPosition(this))` as the primary hit target
+  (falling back to `e.Source` as Visual) — Avalonia can set `e.Source`
+  to a root-level visual for some drop events.
+- [x] **Printer modal no longer blocks racks behind.** The outer
+  transparent wrapper around the printer modal was hit-testable
+  (`Background="Transparent"` is a solid hit target); removed the
+  background entirely so pointer and drag events pass through the
+  outer margins to the racks while the inner opaque modal stays
+  interactive. Earlier attempt with `IsHitTestVisible="False"` on the
+  wrapper broke the modal because Avalonia propagates non-hit-testable
+  to all descendants regardless of their own setting — reverted.
+- [x] **Atomic SEPE command for separator label edits** (was Task #17):
+  see entry above.
+- [x] **RequestFlightStripForAircraft RPC** (was Task #18): see entry above.
+- [x] **External-bay push warning** (was Task #19): see entry above.
+
+---
+
+## Still open
+
+- [ ] **Drop preview with shifting strips.** User asked: while dragging,
+  show where the strip will land by physically shifting existing
+  strips apart to leave a visible gap. Example: as the cursor crosses
+  the mid-point of strip A (moving up), A shifts up one slot, leaving
+  an empty slot between A and B where the dragged strip will be
+  dropped. Implementation sketch:
+  - Track `_dropPreviewRack`, `_dropPreviewIndex`, `_dropPreviewSource`
+    on `VStripsView` (or a helper).
+  - On rack DragOver, compute target index (using the existing bands
+    logic) and update the preview state.
+  - Either: add a "placeholder" `StripItemViewModel` to the rack's
+    `Strips` collection at the preview index (simplest but mutates the
+    collection during drag), or: render an overlay spacer via an
+    attached-property margin on each `FlightStripControl` whose model
+    index is ≥ the preview index.
+  - Clear preview on DragLeave / Drop / drag cancel.
 - [ ] **Verify visual parity end-to-end against `docs/crc/img/printer.png`**
   by running the client and side-by-side comparing. Task #15.
-- [ ] **Verify drag-drop end-to-end** for within-rack reorder / between-racks
-  move / printer-to-rack (user reported some of these still broken prior to
-  the bottom-up + zoom rework). Task #16.
-- [ ] **Add `SEPE` canonical command** (atomic separator label edit). Today
-  the client uses delete+create which is racy under reconnect. Task #17.
-- [ ] **Implement `RequestFlightStripForAircraft` SignalR RPC.** The printer
-  button renders and logs; server handler is not yet wired. Task #18.
-- [ ] **Server: emit push-warning broadcast** when a strip is pushed to an
-  external bay that has no connected controller. Client already listens.
-  Task #19.
-- [ ] **Rack context menu: separators + half-strips.** Right-click on empty
-  rack space should open "Add Separator (handwritten/white/red/green)" and
-  "Add Half-Strip (left/right)". `ShowEmptyRackMenu` exists; verify it's
-  wired and has the expected items. Task #28.
-- [ ] **Same-bay inter-rack drag-drop.** User reported that moving a strip
-  between racks within the same bay doesn't work, though between-bays does.
-  `OnRootDrop` needs to detect the target rack index correctly when source
-  and target share a bay container. Task #29.
-- [ ] **Route trim preserves tail.** With `MaxLines=2` and remarks present
-  long routes truncate mid-text (`SSKII3…`) instead of showing the
-  destination (`BUMMP*** KDEN`). Consider middle-ellipsis that preserves
-  start + end. Task #30.
-- [ ] **Persist primary Strips window pop-out state / position.** Multiple
-  facility-scoped Strips windows can be popped out — at minimum persist
-  the PRIMARY window's pop-out flag, position, size. Task #32.
+- [ ] **End-to-end drag-drop verification** across within-rack reorder,
+  between-racks same-bay, between-bays, printer → rack, rack → trash.
+  Previous attempts in the plan were closed optimistically; the
+  underlying rack hit-test bug resurfaced in later testing. Re-verify
+  now that the `Background="Transparent"` fix has landed. Task #16.
 
 ---
 

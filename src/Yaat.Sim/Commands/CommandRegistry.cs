@@ -892,6 +892,20 @@ public static class CommandRegistry
                 ]
             ),
             Cmd(
+                SeparatorEdit,
+                "Edit Separator Label",
+                "Strip Operations",
+                false,
+                ["SEPE"],
+                [
+                    O(
+                        null,
+                        [R("bay", "bay name"), R("rack", "rack index"), R("locator", "old label or 1-based slot"), R("label", "new label text")],
+                        "Atomic separator label edit (replaces delete+create)"
+                    ),
+                ]
+            ),
+            Cmd(
                 BlankCreate,
                 "Create Blank Strip",
                 "Strip Operations",

@@ -32,6 +32,7 @@ public sealed class AircraftSnapshotDto
     public required string Destination { get; init; }
     public required string Route { get; init; }
     public required string Remarks { get; init; }
+    public int RevisionNumber { get; init; }
     public required string EquipmentSuffix { get; init; }
     public required string FlightRules { get; init; }
     public required int CruiseAltitude { get; init; }

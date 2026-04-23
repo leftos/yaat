@@ -64,6 +64,7 @@ public static class TrackEngine
                 or HalfStripSlideCommand
                 or SeparatorCreateCommand
                 or SeparatorDeleteCommand
+                or SeparatorEditCommand
                 or BlankCreateCommand
                 or BlankDeleteCommand;
 

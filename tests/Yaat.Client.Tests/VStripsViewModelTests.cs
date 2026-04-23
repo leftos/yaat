@@ -247,7 +247,8 @@ public class VStripsViewModelTests
 
         var entry = Assert.Single(captured);
         Assert.Equal("UAL100", entry.Callsign);
-        Assert.Equal("STRIP LOCAL 1 2", entry.Command);
+        // Wire format is 1-based per VStripsCanonicalBuilder.OneBased: rack 1 → "2", index 2 → "3".
+        Assert.Equal("STRIP LOCAL 2 3", entry.Command);
     }
 
     [Fact]
@@ -261,7 +262,8 @@ public class VStripsViewModelTests
 
         var entry = Assert.Single(captured);
         Assert.Equal("", entry.Callsign);
-        Assert.Equal("HSM NORDO LOCAL/0/0", entry.Command);
+        // 1-based wire: rack 0 → "1", index 0 → "1".
+        Assert.Equal("HSM NORDO LOCAL/1/1", entry.Command);
     }
 
     [Fact]

@@ -708,6 +708,9 @@ public partial class MainViewModel : ObservableObject
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
+        // Student Strips entry pop-out state persists across restarts. Non-student
+        // per-facility entries are session-scoped and always start docked.
+        StripsEntries[0].IsPoppedOut = _preferences.IsVStripsPoppedOut;
 
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;

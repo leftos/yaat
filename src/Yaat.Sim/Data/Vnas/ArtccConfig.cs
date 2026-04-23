@@ -687,6 +687,27 @@ public class FlightStripsConfig
 
     [JsonPropertyName("externalBays")]
     public List<ExternalStripBayConfig> ExternalBays { get; set; } = [];
+
+    /// <summary>
+    /// Whether strip col 3 row 1 packs the destination airport next to the
+    /// departure ("KOAK KLAX"). Tower ATCTs typically enable this; Center
+    /// positions leave it off. Mapped from the "displayDestinationAirportIds"
+    /// key on the facility's flightStripConfiguration in the ARTCC JSON.
+    /// </summary>
+    [JsonPropertyName("displayDestinationAirportIds")]
+    public bool DisplayDestinationAirportIds { get; set; }
+
+    [JsonPropertyName("displayBarcodes")]
+    public bool DisplayBarcodes { get; set; } = true;
+
+    [JsonPropertyName("enableArrivalStrips")]
+    public bool EnableArrivalStrips { get; set; }
+
+    [JsonPropertyName("enableSeparateArrDepPrinters")]
+    public bool EnableSeparateArrDepPrinters { get; set; }
+
+    [JsonPropertyName("lockSeparators")]
+    public bool LockSeparators { get; set; }
 }
 
 public class StripBayConfig

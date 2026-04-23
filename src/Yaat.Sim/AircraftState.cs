@@ -110,6 +110,18 @@ public class AircraftState
     private string? _groundLayoutAirportId;
     public string Route { get; set; } = "";
     public string Remarks { get; set; } = "";
+
+    /// <summary>
+    /// Monotonically increasing count of flight-plan amendments applied to this
+    /// aircraft. Starts at 0 for a freshly-spawned aircraft; incremented by
+    /// <see cref="SimulationEngine.AmendFlightPlan"/> on every amendment
+    /// (empty-amendment calls still tick to match CRC's behavior of showing a
+    /// revision bump any time the controller presses "amend"). Rendered on the
+    /// strip in <see cref="StripMutations.FieldIdxRevision"/> so controllers
+    /// can spot amended flight plans at a glance.
+    /// </summary>
+    public int RevisionNumber { get; set; }
+
     public string EquipmentSuffix { get; set; } = "A";
     public string FlightRules { get; set; } = "IFR";
     public bool IsVfr => FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
@@ -322,6 +334,7 @@ public class AircraftState
             Destination = dto.Destination,
             Route = dto.Route,
             Remarks = dto.Remarks,
+            RevisionNumber = dto.RevisionNumber,
             EquipmentSuffix = dto.EquipmentSuffix,
             FlightRules = dto.FlightRules,
             CruiseAltitude = dto.CruiseAltitude,
@@ -471,6 +484,7 @@ public class AircraftState
             Destination = Destination,
             Route = Route,
             Remarks = Remarks,
+            RevisionNumber = RevisionNumber,
             EquipmentSuffix = EquipmentSuffix,
             FlightRules = FlightRules,
             CruiseAltitude = CruiseAltitude,
