@@ -719,6 +719,10 @@ public static class TaxiPathfinder
         var diagnosticLog = opts.DiagnosticLog;
         endNodeId = startNodeId;
 
+        // Record where this walk's segments begin in the shared list so the
+        // post-walk arc-shortcut pass only rewrites THIS taxiway's segments.
+        int walkStartIdx = segments.Count;
+
         if (!layout.Nodes.TryGetValue(startNodeId, out var currentNode))
         {
             return false;
@@ -953,7 +957,116 @@ public static class TaxiPathfinder
         }
 
         endNodeId = currentId;
+
+        // Post-walk: check for same-taxiway fillet arcs that would shortcut
+        // the straight-walk through the corner apex. E.g. SFO A1's 2186↔2185
+        // fillet spans the 2186→507→2185 straight pair — the main walk's
+        // "prefer straights over arcs" rule correctly keeps same-taxiway
+        // arcs out of transition picks but needs this post-pass to put
+        // them back in as through-turn shortcuts.
+        ApplySameTaxiwayArcShortcuts(layout, segments, walkStartIdx, startNodeId, taxiwayName, diagnosticLog);
+
         return segments.Count > 0;
+    }
+
+    /// <summary>
+    /// Replace straight-through spans with same-taxiway fillet arcs when the
+    /// arc connects two walk nodes non-adjacently. Iterates until no further
+    /// shortcut applies, so chained shortcuts on the same walk all fire.
+    /// </summary>
+    /// <remarks>
+    /// A same-taxiway arc is a <see cref="GroundArc"/> with a single entry in
+    /// <see cref="GroundArc.TaxiwayNames"/> (vs. two-entry junction arcs
+    /// connecting different taxiways). <see cref="FilletArcGenerator"/>
+    /// creates these at bends WITHIN a single taxiway (e.g. SFO A1's apex
+    /// near node 507); they represent the physical pavement curve an
+    /// aircraft would naturally follow. The main walk prefers straights to
+    /// keep arcs out of junction picks — this pass re-introduces them as
+    /// shortcuts when the straight walk visits both endpoints with at least
+    /// one intermediate node skipped.
+    /// </remarks>
+    private static void ApplySameTaxiwayArcShortcuts(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        int walkStartIdx,
+        int startNodeId,
+        string taxiwayName,
+        Action<string>? diagnosticLog
+    )
+    {
+        bool changed;
+        do
+        {
+            changed = false;
+
+            // Build the ordered node sequence for THIS walk's segments.
+            // nodeSequence[0] = startNodeId; nodeSequence[i>0] = segments[walkStartIdx+i-1].ToNodeId.
+            int walkLen = segments.Count - walkStartIdx;
+            if (walkLen < 2)
+            {
+                return; // Need at least two segments for a shortcut (three nodes).
+            }
+
+            var nodeSequence = new List<int>(walkLen + 1) { startNodeId };
+            for (int i = walkStartIdx; i < segments.Count; i++)
+            {
+                nodeSequence.Add(segments[i].ToNodeId);
+            }
+
+            var nodePositionMap = new Dictionary<int, int>(nodeSequence.Count);
+            for (int i = 0; i < nodeSequence.Count; i++)
+            {
+                nodePositionMap[nodeSequence[i]] = i;
+            }
+
+            foreach (var arc in layout.Arcs)
+            {
+                if (arc.TaxiwayNames.Length != 1)
+                {
+                    continue; // Skip junction arcs — they connect different taxiways by design.
+                }
+                if (!arc.MatchesTaxiway(taxiwayName))
+                {
+                    continue;
+                }
+
+                int ep0 = arc.Nodes[0].Id;
+                int ep1 = arc.Nodes[1].Id;
+                if (!nodePositionMap.TryGetValue(ep0, out int pos0) || !nodePositionMap.TryGetValue(ep1, out int pos1))
+                {
+                    continue; // Arc endpoint not visited by this walk.
+                }
+
+                int fromPos = Math.Min(pos0, pos1);
+                int toPos = Math.Max(pos0, pos1);
+                if (toPos - fromPos < 2)
+                {
+                    continue; // Adjacent — no intermediate nodes to skip.
+                }
+
+                var fromNode = nodeSequence[fromPos] == arc.Nodes[0].Id ? arc.Nodes[0] : arc.Nodes[1];
+                var toNode = nodeSequence[toPos] == arc.Nodes[0].Id ? arc.Nodes[0] : arc.Nodes[1];
+
+                // segments[walkStartIdx + i - 1] goes nodeSequence[i-1] → nodeSequence[i].
+                // Spanning segments for fromPos..toPos = segments[walkStartIdx + fromPos] .. [walkStartIdx + toPos - 1].
+                int segFromIdx = walkStartIdx + fromPos;
+                int spanCount = toPos - fromPos;
+
+                diagnosticLog?.Invoke(
+                    $"[WalkTaxiway] {taxiwayName}: same-taxiway arc shortcut — collapsing {spanCount} straight segments through intermediate node(s) "
+                        + $"[{string.Join(",", nodeSequence.Skip(fromPos + 1).Take(spanCount - 1))}] into arc {fromNode.Id}↔{toNode.Id}"
+                );
+
+                segments.RemoveRange(segFromIdx, spanCount);
+                segments.Insert(
+                    segFromIdx,
+                    new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = arc.Directed(fromNode, toNode) }
+                );
+
+                changed = true;
+                break; // Restart scan with updated segment list.
+            }
+        } while (changed);
     }
 
     /// <summary>

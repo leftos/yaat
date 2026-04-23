@@ -282,6 +282,21 @@ public static class ScenarioLoader
             ApplyAltitudeProfile(state, navigationPath, warnings);
         }
 
+        // Snap "Coordinates" / "FixOrFrd" ground spawns onto the nearest taxi
+        // edge and rotate the heading to match. Coord spawns are how
+        // scenarios express "ready to taxi from this point" (parking spawns
+        // use the "Parking" type and are already on a graph node); without
+        // the snap, the aircraft ends up a few feet off every taxiway and
+        // any TAXI preset has to cut diagonally across terrain to acquire
+        // the first segment. After snap, the TAXI command plans from an
+        // on-edge, aligned pose. Runs AFTER heading derivation so the
+        // scenario's intended heading is used as the "which edge direction"
+        // tiebreaker.
+        if (state.IsOnGround && state.GroundLayout is not null)
+        {
+            GroundSpawnSnap.Apply(state, state.GroundLayout);
+        }
+
         return new LoadedAircraft
         {
             State = state,
