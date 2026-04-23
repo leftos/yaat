@@ -81,6 +81,21 @@ public sealed class GroundNavigator
     /// <summary>Speed floor below which the arc integrator refuses to advance (I7: no pivot-in-place).</summary>
     private const double ArcSpeedFloorKts = 0.1;
 
+    /// <summary>
+    /// Pure-pursuit look-ahead distance floor in feet, used on straight
+    /// segments when the aircraft is nearly stationary. Prevents the
+    /// look-ahead point from collapsing onto the aircraft's foot-of-
+    /// perpendicular — which would leave steering undefined.
+    /// </summary>
+    private const double LookAheadFloorFt = 10.0;
+
+    /// <summary>
+    /// Pure-pursuit look-ahead distance cap in feet on straight segments.
+    /// Keeps the look-ahead from anticipating the next turn too aggressively
+    /// on long straights.
+    /// </summary>
+    private const double LookAheadCapFt = 50.0;
+
     public int TargetNodeId { get; private set; }
     public double TargetLat { get; set; }
     public double TargetLon { get; set; }
@@ -266,7 +281,56 @@ public sealed class GroundNavigator
             return NavigatorResult.ArrivedAtNode;
         }
 
-        double bearingToTargetDeg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        // Pure-pursuit steering on straight segments: steer toward a look-ahead
+        // point on the segment line, not toward the target node directly.
+        //
+        // Why: if the aircraft is off-segment (e.g. spawned at Coordinates
+        // slightly off a taxiway, or nudged by a prior corner), bearing-to-
+        // target cuts diagonally across terrain rather than re-acquiring the
+        // segment line. The look-ahead projects the aircraft's foot-of-
+        // perpendicular forward along the segment, so the steering target
+        // sits on the segment — convergence onto the line is first-class
+        // instead of implicit-on-arrival.
+        //
+        // Fallback: a zero-length segment means we have nothing to project
+        // onto. Steer at the target directly (matches pre-change behaviour).
+        double bearingToSteerDeg;
+        if (edgeLengthNm < 1e-9)
+        {
+            bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        }
+        else
+        {
+            var (_, _, alongNm, _) = GeoMath.FootOfPerpendicular(
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _segmentFromLat,
+                _segmentFromLon,
+                TargetLat,
+                TargetLon
+            );
+
+            double speedFtPerSec = ctx.Aircraft.IndicatedAirspeed * GeoMath.FeetPerNm / 3600.0;
+            double lookAheadFt = Math.Clamp(2.0 * speedFtPerSec * ctx.DeltaSeconds, LookAheadFloorFt, LookAheadCapFt);
+            double lookAheadNm = lookAheadFt / GeoMath.FeetPerNm;
+            double lookAheadAlongNm = Math.Min(edgeLengthNm, alongNm + lookAheadNm);
+
+            // Look-ahead point = segment start projected forward by
+            // lookAheadAlongNm along the segment bearing. Clamping to the
+            // target when we'd run past preserves arrival detection semantics
+            // and keeps bearingToSteerDeg identical to bearing-to-target in
+            // the last look-ahead window.
+            double segBearingDeg = GeoMath.BearingTo(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+            if (lookAheadAlongNm >= edgeLengthNm - 1e-9)
+            {
+                bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+            }
+            else
+            {
+                var (lookLat, lookLon) = GeoMath.ProjectPointRaw(_segmentFromLat, _segmentFromLon, segBearingDeg, lookAheadAlongNm);
+                bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, lookLat, lookLon);
+            }
+        }
 
         // Pre-turn blend: in the last ~50 ft of a straight that precedes a
         // gentle turn, start blending the steer target toward the next
@@ -274,18 +338,18 @@ public sealed class GroundNavigator
         // (>60°) get no blend to avoid yanking the tail early.
         if (_nextSegmentBearing is { } nextBearingDeg)
         {
-            double turnAngle = GeoMath.AbsBearingDifference(bearingToTargetDeg, nextBearingDeg);
+            double turnAngle = GeoMath.AbsBearingDifference(bearingToSteerDeg, nextBearingDeg);
             double angleScale = Math.Clamp(1.0 - ((turnAngle - 30.0) / 60.0), 0.0, 1.0);
             const double preturnDistNm = 0.008; // ~50 ft
             if (distNm < preturnDistNm && angleScale > 0.01)
             {
                 double blend = (1.0 - distNm / preturnDistNm) * angleScale;
-                bearingToTargetDeg = GeoMath.BlendBearings(bearingToTargetDeg, nextBearingDeg, blend);
+                bearingToSteerDeg = GeoMath.BlendBearings(bearingToSteerDeg, nextBearingDeg, blend);
             }
         }
 
         double maxTurnDeg = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToTargetDeg, maxTurnDeg);
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToSteerDeg, maxTurnDeg);
 
         double targetSpeed = ComputeTargetSpeed(ctx, distNm, isHoldShortCleared);
 
@@ -303,7 +367,7 @@ public sealed class GroundNavigator
         AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? targetSpeed);
 
         PrevDistToTarget = distNm;
-        UpdateDiag(ctx, distNm, bearingToTargetDeg, targetSpeed, onArc: false);
+        UpdateDiag(ctx, distNm, bearingToSteerDeg, targetSpeed, onArc: false);
         return NavigatorResult.Navigating;
     }
 
