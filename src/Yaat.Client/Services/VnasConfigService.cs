@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Sim;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Services;
@@ -14,12 +15,7 @@ public sealed class VnasConfigService : IDisposable
 {
     private const string ConfigUrl = "https://configuration.vnas.vatsim.net/";
 
-    private static readonly string CachePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "yaat",
-        "cache",
-        "vnas-config.json"
-    );
+    private static readonly string CachePath = YaatPaths.Combine("cache", "vnas-config.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 

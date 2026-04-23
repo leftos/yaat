@@ -274,13 +274,7 @@ public partial class GroundViewModel : ObservableObject
 
     private static async Task<TowerCabMapData?> DownloadAndParseTowerCabMapAsync(string videoMapBaseUrl, string artccId, string videoMapId)
     {
-        var cacheDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "yaat",
-            "cache",
-            "towercab-maps",
-            artccId
-        );
+        var cacheDir = YaatPaths.Combine("cache", "towercab-maps", artccId);
         Directory.CreateDirectory(cacheDir);
         var cachePath = Path.Combine(cacheDir, $"{videoMapId}.geojson");
 

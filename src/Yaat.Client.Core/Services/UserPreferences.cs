@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
@@ -31,9 +32,9 @@ public sealed class UserPreferences
 {
     private static readonly ILogger Log = AppLog.CreateLogger<UserPreferences>();
 
-    private static readonly string ConfigDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat");
+    private static readonly string ConfigDir = YaatPaths.AppDataRoot;
 
-    private static readonly string ConfigPath = Path.Combine(ConfigDir, "preferences.json");
+    private static readonly string ConfigPath = YaatPaths.Combine("preferences.json");
 
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {

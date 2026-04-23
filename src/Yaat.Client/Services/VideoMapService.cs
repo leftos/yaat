@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.Services;
@@ -12,12 +13,7 @@ public sealed class VideoMapService
 {
     private const string DataApiBase = "https://data-api.vnas.vatsim.net/Files/VideoMaps";
 
-    private static readonly string CacheDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "yaat",
-        "cache",
-        "videomaps"
-    );
+    private static readonly string CacheDir = YaatPaths.Combine("cache", "videomaps");
 
     private readonly ILogger _log = AppLog.CreateLogger<VideoMapService>();
 

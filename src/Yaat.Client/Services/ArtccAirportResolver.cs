@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Sim;
 
 namespace Yaat.Client.Services;
 
@@ -16,12 +17,7 @@ public sealed class ArtccAirportResolver
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(6);
 
-    private static readonly string CacheDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "yaat",
-        "cache",
-        "artcc"
-    );
+    private static readonly string CacheDir = YaatPaths.Combine("cache", "artcc");
 
     private readonly ILogger _log = AppLog.CreateLogger<ArtccAirportResolver>();
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };

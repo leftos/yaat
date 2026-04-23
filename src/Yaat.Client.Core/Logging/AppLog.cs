@@ -16,8 +16,7 @@ public static class AppLog
 
     public static void Initialize()
     {
-        var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat");
-        LogPath = Path.Combine(logDir, "yaat-client.log");
+        LogPath = YaatPaths.Combine("yaat-client.log");
 
         var provider = new FileLoggerProvider(LogPath);
 

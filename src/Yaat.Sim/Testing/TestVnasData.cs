@@ -100,8 +100,7 @@ public static class TestVnasData
         }
 
         // Fall back to system CIFP cache
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var cacheDir = Path.Combine(localAppData, "yaat", "cache", "cifp");
+        var cacheDir = YaatPaths.Combine("cache", "cifp");
         if (!Directory.Exists(cacheDir))
         {
             return null;

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Headless;
+using Velopack;
 using Yaat.Client;
 using Yaat.Client.UI.Tests;
 
@@ -15,6 +16,19 @@ namespace Yaat.Client.UI.Tests;
 // and custom draw ops work without SkiaSharp GPU backends.
 public static class TestAppBuilder
 {
-    public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = true }).WithInterFont();
+    private static int _velopackInitialized;
+
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        // MainViewModel constructs UpdateService eagerly, which requires the
+        // VelopackLocator to be initialized. VelopackApp.Build().Run() is idempotent
+        // in test context (no install hook args), so doing it here lets the real VM
+        // construct without patching production code.
+        if (Interlocked.CompareExchange(ref _velopackInitialized, 1, 0) == 0)
+        {
+            VelopackApp.Build().Run();
+        }
+
+        return AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = true }).WithInterFont();
+    }
 }

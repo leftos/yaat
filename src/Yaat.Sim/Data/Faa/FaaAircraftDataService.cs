@@ -26,8 +26,7 @@ public sealed class FaaAircraftDataService : IDisposable
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        _cacheDir = Path.Combine(localAppData, "yaat", "cache", "faa-acd");
+        _cacheDir = YaatPaths.Combine("cache", "faa-acd");
     }
 
     public async Task InitializeAsync()
