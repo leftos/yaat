@@ -109,7 +109,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
             if (enteredLineUp && phase is LineUpPhase livePhase)
             {
                 wasRolling = wasRolling || livePhase.RollingMode;
-                if (livePhase.Plan is { } plan && arcSpeedKts == 0)
+                if (livePhase.PathPlan is { } plan && arcSpeedKts == 0)
                 {
                     arcSpeedKts = plan.ArcSpeedKts;
                 }
@@ -189,7 +189,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
 
         SimLogBuilder
             .CreateForTest(output)
-            .EnableCategory("LineUpPlanBuilder", LogLevel.Debug)
+            .EnableCategory("LineUpGeometry", LogLevel.Debug)
             .EnableCategory("LineUpPhase", LogLevel.Debug)
             .InitializeSimLog();
 

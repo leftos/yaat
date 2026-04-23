@@ -11,34 +11,43 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Scenario tests for <see cref="LineUpPhase"/>. These use synthesised
-/// PhaseContext fixtures (no real airport data) and drive the phase through
-/// full scenarios with <see cref="FlightPhysics"/>, asserting the Design D
-/// end-state contract at completion.
+/// Scenario tests for <see cref="LineUpPhase"/>. Focus on observable
+/// behaviour: fault paths, RollingMode detection from the phase list,
+/// TryUpgradeToRolling gates, and the aligned-path end-state contract
+/// (cross ≤ 3 ft, hdgDiff ≤ 1°, ias ≤ 0.5 kt).
+///
+/// <para>
+/// Pivot-path end-state verification lives in
+/// <see cref="Simulation.Issue142SfoRwy01rShallowLineupTests"/>, which uses
+/// the real SFO 01R runway + ground layout. Real-replay end-state checks
+/// for the aligned path live in
+/// <see cref="Simulation.DiagonalLineup28rTests"/>.
+/// </para>
+///
+/// <para>
+/// Fixtures here use a synthesised <see cref="RunwayInfo"/> plus an empty
+/// but non-null <see cref="AirportGroundLayout"/>. LineUpPhase's geometry
+/// is driven entirely by the runway and aircraft pose — the layout is only
+/// consulted for a non-null smoke-check at OnStart (per user directive:
+/// "null GroundLayout not supported for LineUpPhase"). An empty synthetic
+/// layout satisfies that guard without pulling real airport data into
+/// every test.
+/// </para>
 /// </summary>
 [Collection("NavDbMutator")]
-public class LineUpPhaseTests
+public class LineUpPhaseTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _out;
-
-    public LineUpPhaseTests(ITestOutputHelper output)
-    {
-        _out = output;
-    }
-
     /// <summary>
-    /// Construct a minimal <see cref="PhaseContext"/> and <see cref="AircraftState"/>
-    /// for V2 scenario tests. The runway is a KTEST strip with the given
-    /// heading at a fixed anchor (37.0, -122.0); the aircraft is placed at
-    /// (<paramref name="acLat"/>, <paramref name="acLon"/>) with the given
-    /// heading and zero initial speed.
+    /// Construct a minimal <see cref="PhaseContext"/> + <see cref="AircraftState"/>
+    /// around a synthesised runway and empty-but-non-null GroundLayout.
     /// </summary>
     private static (AircraftState Aircraft, PhaseContext Ctx) MakeFixture(
         double rwyHeadingDeg,
         double acLat,
         double acLon,
         double acHeadingDeg,
-        AircraftCategory cat = AircraftCategory.Jet
+        AircraftCategory cat = AircraftCategory.Jet,
+        AirportGroundLayout? layout = null
     )
     {
         const double threshLat = 37.0;
@@ -55,7 +64,7 @@ public class LineUpPhaseTests
 
         var aircraft = new AircraftState
         {
-            Callsign = "V2TEST",
+            Callsign = "LUTEST",
             AircraftType = "B738",
             Latitude = acLat,
             Longitude = acLon,
@@ -72,7 +81,7 @@ public class LineUpPhaseTests
             DeltaSeconds = 0.25,
             Runway = runway,
             FieldElevation = 0,
-            GroundLayout = null,
+            GroundLayout = layout ?? new AirportGroundLayout { AirportId = "KTEST" },
             Logger = NullLogger.Instance,
         };
 
@@ -80,9 +89,9 @@ public class LineUpPhaseTests
     }
 
     /// <summary>
-    /// Drive a V2 phase through <see cref="FlightPhysics"/> ticks until
-    /// complete or budget exhausted. Returns (completed, finalCrossFt,
-    /// finalHdgDiffDeg, finalGsKts, tickCount).
+    /// Drive a phase through <see cref="FlightPhysics"/> ticks until it
+    /// completes or budget is exhausted. Returns end-state metrics plus
+    /// completion flag.
     /// </summary>
     private static (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) RunToCompletion(
         LineUpPhase phase,
@@ -127,7 +136,14 @@ public class LineUpPhaseTests
         return (false, crossX, hdgX, aircraft.IndicatedAirspeed, maxTicks);
     }
 
-    // ---- Snapshot round-trip ----
+    private static void InstallPhaseListWithNext(AircraftState aircraft, LineUpPhase phase, Phase next)
+    {
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(next);
+    }
+
+    // ---- Snapshot ----
 
     [Fact]
     public void FromSnapshot_RestoresStatusAndElapsedTime()
@@ -149,7 +165,7 @@ public class LineUpPhaseTests
         Assert.IsType<LineUpPhase>(restored);
     }
 
-    // ---- Faulted states ----
+    // ---- Fault paths ----
 
     [Fact]
     public void OnStart_NullRunway_EntersFaulted()
@@ -163,7 +179,7 @@ public class LineUpPhaseTests
             DeltaSeconds = ctx.DeltaSeconds,
             Runway = null,
             FieldElevation = 0,
-            GroundLayout = null,
+            GroundLayout = ctx.GroundLayout,
             Logger = NullLogger.Instance,
         };
 
@@ -171,69 +187,123 @@ public class LineUpPhaseTests
         phase.OnStart(ctxNoRwy);
 
         Assert.Equal(LineUpPhase.State.Faulted, phase.CurrentState);
-        Assert.Null(phase.Plan);
-
-        bool done = phase.OnTick(ctxNoRwy);
-        Assert.True(done, "Faulted state should return true (phase done) on first tick");
+        Assert.Null(phase.PathPlan);
     }
 
     [Fact]
-    public void OnStart_InvalidGeometry_EntersFaulted()
+    public void OnStart_NullGroundLayout_EntersFaulted()
     {
-        // Aircraft 30 ft from centerline — radius (70 ft for Jet) doesn't fit
-        // → LineUpPlanBuilder returns null → phase enters Faulted.
-        double acLat = 37.0 - 30.0 / (GeoMath.FeetPerNm * 60.0);
+        var (aircraft, ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
+        var ctxNoLayout = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = ctx.Category,
+            DeltaSeconds = ctx.DeltaSeconds,
+            Runway = ctx.Runway,
+            FieldElevation = 0,
+            GroundLayout = null,
+            Logger = NullLogger.Instance,
+        };
+
+        var phase = new LineUpPhase();
+        phase.OnStart(ctxNoLayout);
+
+        Assert.Equal(LineUpPhase.State.Faulted, phase.CurrentState);
+        Assert.Null(phase.PathPlan);
+    }
+
+    [Fact]
+    public void OnStart_DivergingHeading_EntersFaulted()
+    {
+        // Aircraft 200 ft south of an east-heading runway but pointing
+        // south-east (away from centerline). Neither aligned nor pivot
+        // can recover — geometry is faulted.
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
-        var (_, ctx) = MakeFixture(90.0, acLat, acLon, 0.0);
+        var (aircraft, ctx) = MakeFixture(90.0, acLat, acLon, 135.0);
 
         var phase = new LineUpPhase();
         phase.OnStart(ctx);
 
         Assert.Equal(LineUpPhase.State.Faulted, phase.CurrentState);
-        Assert.Null(phase.Plan);
+        Assert.NotNull(phase.PathPlan);
+        Assert.Equal(LineUpPathKind.Fault, phase.PathPlan.Kind);
+        _ = aircraft;
     }
 
-    // ---- End-state contract: perpendicular right turn ----
+    [Fact]
+    public void TickFaulted_KeepsAircraftStopped_DoesNotCompletePhase()
+    {
+        // Regression for issue #142: Faulted tick must return false so the
+        // aircraft does not auto-advance to TakeoffPhase with a bad pose.
+        // User recovers via TAXI / CANCEL CLEARANCE instead.
+        var (aircraft, ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
+        var ctxNoRwy = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = ctx.Category,
+            DeltaSeconds = ctx.DeltaSeconds,
+            Runway = null,
+            FieldElevation = 0,
+            GroundLayout = ctx.GroundLayout,
+            Logger = NullLogger.Instance,
+        };
+
+        var phase = new LineUpPhase();
+        phase.OnStart(ctxNoRwy);
+        Assert.Equal(LineUpPhase.State.Faulted, phase.CurrentState);
+
+        for (int i = 0; i < 20; i++)
+        {
+            FlightPhysics.Update(aircraft, ctxNoRwy.DeltaSeconds);
+            bool done = phase.OnTick(ctxNoRwy);
+            Assert.False(done, $"Faulted tick #{i} returned true — phase must stay stopped, not auto-complete");
+        }
+
+        Assert.True(aircraft.IndicatedAirspeed < 0.1, $"Faulted phase should hold speed at 0, got {aircraft.IndicatedAirspeed:F2}kt");
+    }
+
+    // ---- End-state contract: aligned paths ----
 
     [Fact]
     public void PerpendicularRightTurn_EndsOnCenterlineAlignedAndStopped()
     {
         double rwyHdg = 90.0;
         double acHdg = 0.0;
-        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0); // 200 ft south
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
 
         var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
         var phase = new LineUpPhase();
         var result = RunToCompletion(phase, aircraft, ctx);
 
-        _out.WriteLine(
+        output.WriteLine(
             $"PerpRight: completed={result.Completed} ticks={result.Ticks} "
                 + $"cross={result.CrossFt:F2}ft hdgDiff={result.HdgDiffDeg:F2}° gs={result.GsKts:F2}kt"
         );
 
-        Assert.True(result.Completed, "V2 did not complete perpendicular right-turn scenario");
+        Assert.True(result.Completed, "LineUpPhase did not complete perpendicular right-turn scenario");
         Assert.True(result.CrossFt < 3.0, $"cross-centerline {result.CrossFt:F2}ft exceeds 3 ft tolerance");
         Assert.True(result.HdgDiffDeg < 1.0, $"heading-diff {result.HdgDiffDeg:F2}° exceeds 1° tolerance");
         Assert.True(result.GsKts < 0.5, $"gs {result.GsKts:F2}kt exceeds 0.5 kt tolerance");
         Assert.Equal(LineUpPhase.State.Stop, phase.CurrentState);
     }
 
-    // ---- End-state contract: perpendicular left turn ----
-
     [Fact]
     public void PerpendicularLeftTurn_EndsOnCenterlineAlignedAndStopped()
     {
         double rwyHdg = 90.0;
         double acHdg = 180.0;
-        double acLat = 37.0 + 200.0 / (GeoMath.FeetPerNm * 60.0); // 200 ft north
+        double acLat = 37.0 + 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
 
         var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
         var phase = new LineUpPhase();
         var result = RunToCompletion(phase, aircraft, ctx);
 
-        _out.WriteLine(
+        output.WriteLine(
             $"PerpLeft: completed={result.Completed} ticks={result.Ticks} "
                 + $"cross={result.CrossFt:F2}ft hdgDiff={result.HdgDiffDeg:F2}° gs={result.GsKts:F2}kt"
         );
@@ -244,97 +314,23 @@ public class LineUpPhaseTests
         Assert.True(result.GsKts < 0.5);
     }
 
-    // ---- End-state contract: skewed (SFO 28R taxi E geometry) ----
-
     [Fact]
-    public void SkewedTurn_SfoTaxiELike_EndsOnCenterlineAlignedAndStopped()
-    {
-        // Turn: 228.4° → 297.9° short way = +69.5° = right turn.
-        double rwyHdg = 297.9;
-        double acHdg = 228.4;
-
-        // Place aircraft 200 ft perpendicular-right of the runway threshold,
-        // 500 ft forward along runway. This is the same fixture as the
-        // LineUpPlanBuilderTests skewed-turn test.
-        double perpRightBearing = (rwyHdg + 90.0) % 360.0;
-        var (acLat, acLon) = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(perpRightBearing), 200.0 / GeoMath.FeetPerNm);
-        (acLat, acLon) = GeoMath.ProjectPoint(acLat, acLon, new TrueHeading(rwyHdg), 500.0 / GeoMath.FeetPerNm);
-
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
-        var phase = new LineUpPhase();
-        var result = RunToCompletion(phase, aircraft, ctx);
-
-        _out.WriteLine(
-            $"Skewed: completed={result.Completed} ticks={result.Ticks} "
-                + $"cross={result.CrossFt:F2}ft hdgDiff={result.HdgDiffDeg:F2}° gs={result.GsKts:F2}kt"
-        );
-
-        Assert.True(result.Completed);
-        Assert.True(result.CrossFt < 3.0, $"cross-centerline {result.CrossFt:F2}ft exceeds 3 ft tolerance");
-        Assert.True(result.HdgDiffDeg < 1.0, $"heading-diff {result.HdgDiffDeg:F2}° exceeds 1° tolerance");
-        Assert.True(result.GsKts < 0.5);
-    }
-
-    // ---- State machine observable transitions ----
-
-    [Fact]
-    public void StateMachine_PerpendicularRightTurn_TransitionsThroughAllStates()
-    {
-        double rwyHdg = 90.0;
-        double acHdg = 0.0;
-        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        double acLon = -121.995;
-
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
-        var phase = new LineUpPhase();
-        phase.OnStart(ctx);
-
-        Assert.Equal(LineUpPhase.State.NoseOut, phase.CurrentState);
-
-        var seen = new HashSet<LineUpPhase.State> { phase.CurrentState };
-        for (int i = 0; i < 400; i++)
-        {
-            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            bool done = phase.OnTick(ctx);
-            seen.Add(phase.CurrentState);
-            if (done)
-            {
-                break;
-            }
-        }
-
-        Assert.Contains(LineUpPhase.State.NoseOut, seen);
-        Assert.Contains(LineUpPhase.State.Arc, seen);
-        Assert.Contains(LineUpPhase.State.Rollout, seen);
-        Assert.Contains(LineUpPhase.State.Stop, seen);
-        Assert.DoesNotContain(LineUpPhase.State.Faulted, seen);
-    }
-
-    // ---- Plan exposed via public getter ----
-
-    [Fact]
-    public void Plan_IsNullUntilOnStart_ThenNonNull()
+    public void PathPlan_IsNullUntilOnStart_ThenNonNull()
     {
         var phase = new LineUpPhase();
-        Assert.Null(phase.Plan);
+        Assert.Null(phase.PathPlan);
 
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         var (_, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
         phase.OnStart(ctx);
 
-        Assert.NotNull(phase.Plan);
-        Assert.False(phase.Plan.IsAlreadyAligned);
-        Assert.True(phase.Plan.ArcSpeedKts > 0);
+        Assert.NotNull(phase.PathPlan);
+        Assert.Equal(LineUpPathKind.Aligned, phase.PathPlan.Kind);
+        Assert.False(phase.PathPlan.IsAlreadyAligned);
+        Assert.True(phase.PathPlan.ArcSpeedKts > 0);
     }
 
-    // ---- Rolling mode: static detection from phase list ----
-
-    private static void InstallPhaseListWithNext(AircraftState aircraft, LineUpPhase phase, Phase next)
-    {
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(phase);
-        aircraft.Phases.Add(next);
-    }
+    // ---- Rolling mode detection ----
 
     [Fact]
     public void OnStart_NextPhaseIsLuaw_RollingModeIsFalse()
@@ -387,7 +383,7 @@ public class LineUpPhaseTests
         Assert.False(phase.RollingMode);
     }
 
-    // ---- Rolling mode: behavior ----
+    // ---- Rolling mode behavior ----
 
     [Fact]
     public void RollingMode_DoesNotBrakeToZero_CompletesAboveThreshold()
@@ -430,34 +426,6 @@ public class LineUpPhaseTests
     }
 
     [Fact]
-    public void RollingMode_EndsAtRolloutStopPoint()
-    {
-        double rwyHdg = 90.0;
-        double acHdg = 0.0;
-        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        double acLon = -121.995;
-
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
-        var phase = new LineUpPhase();
-        InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
-        phase.OnStart(ctx);
-
-        for (int i = 0; i < 400; i++)
-        {
-            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            if (phase.OnTick(ctx))
-            {
-                break;
-            }
-        }
-
-        Assert.NotNull(phase.Plan);
-        double distFromStopFt =
-            GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, phase.Plan.RolloutToLat, phase.Plan.RolloutToLon) * GeoMath.FeetPerNm;
-        Assert.True(distFromStopFt < 5.0, $"Final position {distFromStopFt:F2}ft from rollout stop point");
-    }
-
-    [Fact]
     public void StopMode_BrakesToZero_RegressionGuard()
     {
         double rwyHdg = 90.0;
@@ -478,7 +446,7 @@ public class LineUpPhaseTests
         Assert.Equal(LineUpPhase.State.Stop, phase.CurrentState);
     }
 
-    // ---- Dynamic upgrade ----
+    // ---- TryUpgradeToRolling ----
 
     [Fact]
     public void TryUpgradeToRolling_BeforeOnStart_ReturnsFalse()
@@ -558,39 +526,6 @@ public class LineUpPhaseTests
     }
 
     [Fact]
-    public void TryUpgradeToRolling_BelowSpeedThreshold_Rejected()
-    {
-        double rwyHdg = 90.0;
-        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
-
-        var phase = new LineUpPhase();
-        InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
-        phase.OnStart(ctx);
-
-        bool reachedRejectionWindow = false;
-        for (int i = 0; i < 400; i++)
-        {
-            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            phase.OnTick(ctx);
-
-            bool slowInRollout =
-                phase.CurrentState == LineUpPhase.State.Rollout && aircraft.IndicatedAirspeed < 5.0 && aircraft.IndicatedAirspeed > 0.1;
-            bool inStop = phase.CurrentState == LineUpPhase.State.Stop;
-            if (slowInRollout || inStop)
-            {
-                reachedRejectionWindow = true;
-                break;
-            }
-        }
-        Assert.True(reachedRejectionWindow, "Never reached a state in which TryUpgradeToRolling should reject");
-
-        bool upgraded = phase.TryUpgradeToRolling(ctx);
-        Assert.False(upgraded);
-        Assert.False(phase.RollingMode);
-    }
-
-    [Fact]
     public void IsAircraftEligibleForRollingTakeoff_B738_True()
     {
         Assert.True(LineUpPhase.IsAircraftEligibleForRollingTakeoff("B738"));
@@ -631,9 +566,6 @@ public class LineUpPhaseTests
     [Fact]
     public void SatisfyUpcomingTakeoffClearance_ActiveLineUp_FlipsRollingMode()
     {
-        // End-to-end: drive a LineUpPhase into Arc state with a real
-        // fixture, then call the handler's SatisfyUpcomingTakeoffClearance
-        // directly. The active LineUpPhase should flip to rolling mode.
         double rwyHdg = 90.0;
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);

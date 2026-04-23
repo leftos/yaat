@@ -126,7 +126,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
             if (enteredLineUp && phase is LineUpPhase livePhase)
             {
                 wasRolling = wasRolling || livePhase.RollingMode;
-                if (livePhase.Plan is { } plan && arcSpeedKts == 0)
+                if (livePhase.PathPlan is { } plan && arcSpeedKts == 0)
                 {
                     arcSpeedKts = plan.ArcSpeedKts;
                 }

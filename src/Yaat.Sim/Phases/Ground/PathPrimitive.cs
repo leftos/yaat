@@ -38,8 +38,8 @@ public enum PathPrimitiveKind
 /// These primitives are intentionally "compiled" — they hold pre-computed
 /// geometry (arc center, radius, sweep for arcs; bearing for straights) so
 /// the navigator's tick loop can advance without re-deriving geometry each
-/// tick. This mirrors the role of <c>LineUpPlan</c> in V2 of the lineup
-/// phase: plan once at setup, play back per tick.
+/// tick. This mirrors the role of <c>LineUpPathPlan</c> produced by
+/// <c>LineUpGeometry</c>: plan once at setup, play back per tick.
 /// </para>
 /// </summary>
 public abstract record PathPrimitive
