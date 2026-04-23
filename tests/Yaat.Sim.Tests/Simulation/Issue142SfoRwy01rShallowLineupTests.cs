@@ -231,4 +231,98 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
         recorder.WriteCsv(outPath);
         output.WriteLine($"[diag] wrote {recorder.Count} ticks to {outPath}");
     }
+
+    /// <summary>
+    /// Diagnostic (upstream follow-up): replay the recorded scenario through
+    /// the current engine and capture UAL859's pose during the taxi →
+    /// hold-short transition. The bundle shows UAL859 spawned at (37.606822,
+    /// -122.382064) heading 104° true, then TAXI A1 1R fires as a preset.
+    /// Within ~5 s the aircraft reaches HoldingShort but at heading 37.69°
+    /// (near-parallel to runway) instead of ~117° (perpendicular-to-runway
+    /// along A1). This diagnostic captures the per-second taxi trace to
+    /// pinpoint where the rotation goes wrong.
+    ///
+    /// Writes <c>.tmp/issue142-ual859-taxi.csv</c>. Render with:
+    /// <code>
+    /// dotnet run --project tools/Yaat.LayoutInspector -- \
+    ///     tests/Yaat.Sim.Tests/TestData/sfo.geojson \
+    ///     --ticks .tmp/issue142-ual859-taxi.csv \
+    ///     --html .tmp/issue142-ual859-taxi.html \
+    ///     --html-runway 01R
+    /// </code>
+    /// </summary>
+    [Fact]
+    public void Diagnostic_TraceUal859TaxiApproachToHoldShort()
+    {
+        var recording = Helpers.RecordingLoader.Load("TestData/issue142-sfo-rwy01r-shallow-recording.zip");
+        if (recording is null)
+        {
+            output.WriteLine("SKIP: recording not available");
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            output.WriteLine("SKIP: navdata not available");
+            return;
+        }
+
+        SimLogBuilder
+            .CreateForTest(output)
+            .EnableCategory("TaxiIngressResolver", Microsoft.Extensions.Logging.LogLevel.Debug)
+            .EnableCategory("GroundCommandHandler", Microsoft.Extensions.Logging.LogLevel.Debug)
+            .EnableCategory("TaxiingPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
+            .EnableCategory("GroundNavigator", Microsoft.Extensions.Logging.LogLevel.Debug)
+            .InitializeSimLog();
+
+        var groundData = new TestAirportGroundData();
+        var engine = new Yaat.Sim.Simulation.SimulationEngine(groundData);
+        engine.Replay(recording, 0);
+
+        TickRecorder? recorder = null;
+
+        // Run all the way through: spawn → taxi → hold-short → CTO (t=46) →
+        // LineUp (pivot fallback in current code) → Takeoff → airborne.
+        // Stop when the aircraft is no longer OnGround (takeoff complete) or
+        // at a generous budget.
+        const int maxSeconds = 120;
+        int lastT = 0;
+        for (int t = 1; t <= maxSeconds; t++)
+        {
+            engine.ReplayOneSecond();
+            var ac = engine.FindAircraft("UAL859");
+            if (ac is null)
+            {
+                continue;
+            }
+
+            recorder ??= new TickRecorder(ac);
+            recorder.Record(t);
+            lastT = t;
+
+            bool logThis = t <= 10 || t >= 45 || (t % 5 == 0);
+            if (logThis)
+            {
+                output.WriteLine(
+                    $"[t={t}] phase={ac.Phases?.CurrentPhase?.Name ?? "(none)"} "
+                        + $"lat={ac.Latitude:F6} lon={ac.Longitude:F6} hdg={ac.TrueHeading.Degrees:F2}° "
+                        + $"ias={ac.IndicatedAirspeed:F2}kt alt={ac.Altitude:F0}ft twy={ac.CurrentTaxiway ?? "-"}"
+                );
+            }
+
+            if (!ac.IsOnGround && ac.IndicatedAirspeed > 100)
+            {
+                output.WriteLine($"[t={t}] UAL859 airborne — stopping trace");
+                break;
+            }
+        }
+
+        if (recorder is not null)
+        {
+            string outPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "issue142-ual859-fullchain.csv");
+            recorder.WriteCsv(outPath);
+            output.WriteLine($"[diag] wrote {recorder.Count} ticks ({lastT}s) to {outPath}");
+        }
+    }
 }

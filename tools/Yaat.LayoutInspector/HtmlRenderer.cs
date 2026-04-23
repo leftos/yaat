@@ -20,6 +20,8 @@ public sealed class HtmlRenderer
     private readonly Dictionary<int, string> _nodeAnnotations = [];
     private readonly List<int> _routeNodeIds = [];
     private List<TickDataRow>? _tickData;
+    private double _aircraftLengthFt = 110.0;
+    private double _aircraftWingspanFt = 110.0;
 
     public HtmlRenderer(AirportGroundLayout layout) => _layout = layout;
 
@@ -34,6 +36,17 @@ public sealed class HtmlRenderer
     public void AddRouteNode(int id) => _routeNodeIds.Add(id);
 
     public void SetTickData(List<TickDataRow> ticks) => _tickData = ticks;
+
+    /// <summary>
+    /// Aircraft fuselage length in feet. Used to render the aircraft silhouette
+    /// at 1:1 scale over the airport — so at high zooms the aircraft marker
+    /// is visibly sized relative to runway/taxiway/hold-short geometry.
+    /// </summary>
+    public void SetAircraftDimensions(double lengthFt, double wingspanFt)
+    {
+        _aircraftLengthFt = lengthFt;
+        _aircraftWingspanFt = wingspanFt;
+    }
 
     public string Render()
     {
@@ -208,6 +221,8 @@ public sealed class HtmlRenderer
 
         if (_tickData is not null)
         {
+            writer.WriteNumber("aircraftLengthFt", _aircraftLengthFt);
+            writer.WriteNumber("aircraftWingspanFt", _aircraftWingspanFt);
             writer.WriteStartArray("ticks");
             foreach (var tick in _tickData)
             {

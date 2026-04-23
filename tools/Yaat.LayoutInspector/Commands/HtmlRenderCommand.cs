@@ -72,7 +72,10 @@ public sealed class HtmlRenderCommand : ICommand
         {
             var ticks = TickCsvReader.Read(options.TicksCsvPath);
             htmlRenderer.SetTickData(ticks);
-            Console.Error.WriteLine($"Loaded {ticks.Count} ticks from {options.TicksCsvPath}");
+            htmlRenderer.SetAircraftDimensions(options.TickAircraftLengthFt, options.TickAircraftWingspanFt);
+            Console.Error.WriteLine(
+                $"Loaded {ticks.Count} ticks from {options.TicksCsvPath} (aircraft {options.TickAircraftLengthFt:F0}×{options.TickAircraftWingspanFt:F0} ft)"
+            );
         }
 
         string html = htmlRenderer.Render();

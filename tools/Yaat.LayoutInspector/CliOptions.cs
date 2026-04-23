@@ -41,6 +41,19 @@ public sealed record CliOptions
     public string? HtmlOutputPath { get; init; }
     public string? TicksCsvPath { get; init; }
 
+    /// <summary>
+    /// Aircraft fuselage length in feet for 1:1 rendering of the aircraft
+    /// silhouette at tick positions. Default 110 ft ≈ narrow-body jet
+    /// (B737/A320). Set via <c>--tick-aircraft-length-ft</c>.
+    /// </summary>
+    public double TickAircraftLengthFt { get; init; } = 110.0;
+
+    /// <summary>
+    /// Aircraft wingspan in feet for 1:1 rendering. Default 110 ft matches
+    /// a typical narrow-body span. Set via <c>--tick-aircraft-wingspan-ft</c>.
+    /// </summary>
+    public double TickAircraftWingspanFt { get; init; } = 110.0;
+
     public List<string> HtmlHighlightTaxiways { get; init; } = [];
     public List<string> HtmlHighlightRunways { get; init; } = [];
     public List<int> HtmlHighlightNodes { get; init; } = [];
@@ -107,6 +120,8 @@ public sealed record CliOptions
         (int Lo, int Hi)? tickRange = null;
         string? tickRefRunway = null;
         var tickHoldShorts = new List<string>();
+        double tickAircraftLengthFt = 110.0;
+        double tickAircraftWingspanFt = 110.0;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -240,6 +255,22 @@ public sealed record CliOptions
                     }
 
                     break;
+                case "--tick-aircraft-length-ft" when i + 1 < args.Length:
+                    if (!double.TryParse(args[++i], System.Globalization.CultureInfo.InvariantCulture, out tickAircraftLengthFt))
+                    {
+                        error = "--tick-aircraft-length-ft expects a numeric value";
+                        return false;
+                    }
+
+                    break;
+                case "--tick-aircraft-wingspan-ft" when i + 1 < args.Length:
+                    if (!double.TryParse(args[++i], System.Globalization.CultureInfo.InvariantCulture, out tickAircraftWingspanFt))
+                    {
+                        error = "--tick-aircraft-wingspan-ft expects a numeric value";
+                        return false;
+                    }
+
+                    break;
                 default:
                     error = $"Unknown flag: {args[i]}";
                     return false;
@@ -282,6 +313,8 @@ public sealed record CliOptions
             TickRange = tickRange,
             TickRefRunway = tickRefRunway,
             TickHoldShorts = tickHoldShorts,
+            TickAircraftLengthFt = tickAircraftLengthFt,
+            TickAircraftWingspanFt = tickAircraftWingspanFt,
         };
         return true;
     }
