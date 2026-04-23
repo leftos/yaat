@@ -77,6 +77,15 @@ internal static class GroundCommandHandler
             return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
         }
 
+        // Prepend an ingress segment (or two) when the aircraft is off-graph
+        // relative to the pathfinder's start node. Without this, GroundNavigator
+        // steers across open terrain to acquire the first segment; with it,
+        // the navigator has an explicit ingress line that avoids crossing
+        // other taxiways/runways.
+        var firstRouteSegment = route.Segments.Count > 0 ? route.Segments[0] : null;
+        var ingressPlan = TaxiIngressResolver.Resolve(groundLayout, startNode, aircraft.Latitude, aircraft.Longitude, firstRouteSegment);
+        TaxiIngressResolver.Apply(route, ingressPlan);
+
         // Compute dynamic hold-short positions based on aircraft fuselage length
         double aircraftLengthFt =
             FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
@@ -580,6 +589,14 @@ internal static class GroundCommandHandler
         {
             return new CommandResult(false, $"No route to {(push.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
         }
+
+        // Prepend ingress segment(s) if the aircraft is off-graph relative to
+        // the pathfinder's start node. Same rationale as TryTaxi: give
+        // GroundNavigator an explicit ingress line instead of relying on
+        // steering heuristics to cross the gap.
+        var pushFirstRouteSegment = route.Segments.Count > 0 ? route.Segments[0] : null;
+        var pushIngressPlan = TaxiIngressResolver.Resolve(groundLayout, startNode, aircraft.Latitude, aircraft.Longitude, pushFirstRouteSegment);
+        TaxiIngressResolver.Apply(route, pushIngressPlan);
 
         // Resolve final heading: explicit heading, facing taxiway, or parking node's heading
         int? resolvedHeading = push.MagneticHeading?.ToDisplayInt();
