@@ -147,6 +147,18 @@ public sealed class GroundNavigator
     private double? _nextSegmentBearing;
 
     /// <summary>
+    /// True when the immediately-following route segment is a
+    /// <see cref="GroundArc"/> (fillet, junction, etc.). Used by
+    /// <see cref="TickStraight"/> to switch to the tight arrival threshold —
+    /// the loose 91 ft threshold would fire with the aircraft still a
+    /// visible distance from the arc's entry node, and the next
+    /// <see cref="TickArc"/> would then write position directly from arc
+    /// state (invariant I2), producing a visible teleport. Set by
+    /// <see cref="BuildSpeedConstraints"/> alongside <see cref="_nextSegmentBearing"/>.
+    /// </summary>
+    private bool _nextSegmentIsArc;
+
+    /// <summary>
     /// Speed constraints from future segments, each as a tuple of:
     /// (path distance from current target, required speed at that point, node id).
     /// Computed during <see cref="SetupSegment"/> via forward-walk + backward-
@@ -323,6 +335,7 @@ public sealed class GroundNavigator
         _speedConstraints.Clear();
         _currentNodeRequiredSpeed = 0;
         _nextSegmentBearing = nextSegmentBearingDeg;
+        _nextSegmentIsArc = false;
     }
 
     /// <summary>
@@ -624,6 +637,11 @@ public sealed class GroundNavigator
         //   - the current target is a stop (_currentNodeRequiredSpeed == 0),
         //   - a synthesis plan is active (trigger above owns arrival; the
         //     loose 91 ft threshold would fire before the tangent inset),
+        //   - the next segment is an arc — TickArc writes position directly
+        //     from arc-centre state at engagement (invariant I2), so the
+        //     loose 91 ft threshold would teleport the aircraft up to 91 ft
+        //     to the arc entry node on the first TickArc call. Tight
+        //     threshold bounds the teleport to <2 ft (imperceptible).
         //   - the effective edge (segment start to current TargetLat/Lon) is
         //     shorter than 1.5× the loose threshold.
         // The last case handles the hold-short override — TaxiingPhase moves
@@ -635,7 +653,8 @@ public sealed class GroundNavigator
         bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
         bool isStopTarget = _currentNodeRequiredSpeed == 0;
         bool synthPlanActive = _plannedSynthesis is not null;
-        double arrivalThresholdNm = (isLastSegment || shortEdge || isStopTarget || synthPlanActive) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+        double arrivalThresholdNm =
+            (isLastSegment || shortEdge || isStopTarget || synthPlanActive || _nextSegmentIsArc) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
 
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
@@ -938,6 +957,7 @@ public sealed class GroundNavigator
         {
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
+            _nextSegmentIsArc = false;
         }
         else if (!isLastSegment)
         {
@@ -948,11 +968,13 @@ public sealed class GroundNavigator
             double turnAngle = GeoMath.AbsBearingDifference(inbound, outbound);
             _currentNodeRequiredSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
             _nextSegmentBearing = outbound;
+            _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
         }
         else
         {
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
+            _nextSegmentIsArc = false;
         }
 
         // Forward walk: collect future speed constraints.
