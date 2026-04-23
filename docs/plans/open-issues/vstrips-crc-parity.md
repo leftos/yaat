@@ -6,11 +6,12 @@
 polish**: CWT equipment format, inline route with middle `***` trim,
 facility-gated destination field, initial strip state on room join, rack
 hit-test fix for drag-drop reliability, printer UX (request-focus, modal
-pass-through), and misc. UX tweaks. Drag-drop now works reliably across
-racks and bays after the rack Border background fix.
+pass-through), drop-preview gap (shifting strips) with append line, and
+misc. UX tweaks. Drag-drop now works reliably across racks and bays after
+the rack Border background fix.
 
-Remaining work is listed under "Still open" at the bottom — primarily the
-drop-preview UX where strips visibly shift to show the insertion point.
+Remaining work is listed under "Still open" at the bottom — manual visual
+parity and drag-drop verification against a running client.
 
 ---
 
@@ -376,27 +377,25 @@ All build cleanly; these are enhancements / deferred work, not blockers.
   see entry above.
 - [x] **RequestFlightStripForAircraft RPC** (was Task #18): see entry above.
 - [x] **External-bay push warning** (was Task #19): see entry above.
+- [x] **Drop-preview gap with shifting strips.** During a rack drag,
+  `VStripsView.UpdateDropPreview` walks the hit-tested rack's
+  `ContentPresenter`s and finds the one bound to `rack.Strips[index]`,
+  then bumps its `Margin.Bottom` by the dragged strip's rendered
+  height. The rack's bottom-up `DockPanel` cascades that shift so every
+  strip visually above it moves up by the same amount, leaving a
+  visible gap below the target strip where the drop will land. When
+  the target index equals `rack.Strips.Count` (append-at-top) there is
+  no strip to shift, so instead a thin yellow line is added as a
+  sibling overlay inside the rack's new `RackContent` grid, anchored
+  to the topmost strip's top edge via a computed `Margin.Top`. The
+  preview clears whenever the hit leaves all racks, the rack/index
+  changes, or the drag ends (drop or cancel). No-op when hovering
+  the dragged strip's own origin slot so the rack doesn't flicker.
 
 ---
 
 ## Still open
 
-- [ ] **Drop preview with shifting strips.** User asked: while dragging,
-  show where the strip will land by physically shifting existing
-  strips apart to leave a visible gap. Example: as the cursor crosses
-  the mid-point of strip A (moving up), A shifts up one slot, leaving
-  an empty slot between A and B where the dragged strip will be
-  dropped. Implementation sketch:
-  - Track `_dropPreviewRack`, `_dropPreviewIndex`, `_dropPreviewSource`
-    on `VStripsView` (or a helper).
-  - On rack DragOver, compute target index (using the existing bands
-    logic) and update the preview state.
-  - Either: add a "placeholder" `StripItemViewModel` to the rack's
-    `Strips` collection at the preview index (simplest but mutates the
-    collection during drag), or: render an overlay spacer via an
-    attached-property margin on each `FlightStripControl` whose model
-    index is ≥ the preview index.
-  - Clear preview on DragLeave / Drop / drag cancel.
 - [ ] **Verify visual parity end-to-end against `docs/crc/img/printer.png`**
   by running the client and side-by-side comparing. Task #15.
 - [ ] **End-to-end drag-drop verification** across within-rack reorder,
@@ -404,6 +403,9 @@ All build cleanly; these are enhancements / deferred work, not blockers.
   Previous attempts in the plan were closed optimistically; the
   underlying rack hit-test bug resurfaced in later testing. Re-verify
   now that the `Background="Transparent"` fix has landed. Task #16.
+- [ ] **User-test the new drop preview** — confirm the margin-shift gap
+  feels right and the append-line position is legible across zoom levels
+  and mixed strip heights (full / half / separator).
 
 ---
 

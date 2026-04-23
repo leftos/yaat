@@ -623,15 +623,14 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public async Task MoveStripAsync(StripItemViewModel strip, StripBayViewModel destBay, int rack, int? index)
     {
-        // No-op guard: if the strip already sits at the target slot, skip the
-        // canonical dispatch entirely. Without this, a drag that releases over
-        // the strip's own bay/rack/position still emits a STRIP command — the
-        // server applies it harmlessly but users see the canonical echoed in
-        // logs and the canonical-trace pane, which reads as noise. See the
-        // user feedback on docs/plans/open-issues/vstrips-crc-parity.md.
-        // Append (null index) always dispatches — we can't short-circuit
-        // without knowing where the server will place the strip.
-        if (index is int explicitIdx && IsStripAlreadyAt(strip, destBay, rack, explicitIdx))
+        // No-op guard: if the strip already sits at the target slot — or the
+        // target is "one slot above" it in the same rack (remove-then-insert
+        // lands it right back at fromIdx) — skip the canonical dispatch
+        // entirely. Without this, a drag that releases on the dragged strip's
+        // own slot still emits a STRIP command — harmless server-side but it
+        // echoes in the command log and terminal buffer as noise. Append
+        // (null index) can't short-circuit without predicting server placement.
+        if (index is int explicitIdx && IsNoOpMove(strip, destBay, rack, explicitIdx))
         {
             return;
         }
@@ -915,19 +914,24 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// True when <paramref name="strip"/> currently sits in
-    /// <paramref name="destBay"/>.Racks[<paramref name="rack"/>] at exactly
-    /// <paramref name="index"/>. Used by <see cref="MoveStripAsync"/> to
-    /// suppress canonical-dispatch when a drag lands on the strip's own slot.
+    /// True when sending a STRIP move at <paramref name="index"/> in
+    /// <paramref name="destBay"/>.Racks[<paramref name="rack"/>] would leave
+    /// the strip in its current position — the server's remove-then-insert
+    /// lands the strip back where it was. The view's drop-index math returns
+    /// the post-move visual position (== post-move model index in bottom-up
+    /// rendering), so a drop whose target equals the strip's current model
+    /// index is a no-op. Used by <see cref="MoveStripAsync"/> to suppress
+    /// the canonical dispatch so the terminal buffer and command log don't
+    /// echo an already-satisfied move.
     /// </summary>
-    private static bool IsStripAlreadyAt(StripItemViewModel strip, StripBayViewModel destBay, int rack, int index)
+    private static bool IsNoOpMove(StripItemViewModel strip, StripBayViewModel destBay, int rack, int index)
     {
-        if (rack < 0 || rack >= destBay.Racks.Count)
+        if (rack < 0 || rack >= destBay.Racks.Count || index < 0)
         {
             return false;
         }
         var strips = destBay.Racks[rack].Strips;
-        return index >= 0 && index < strips.Count && ReferenceEquals(strips[index], strip);
+        return index < strips.Count && ReferenceEquals(strips[index], strip);
     }
 
     private static SeparatorStyle MapSeparator(StripItemType type) =>

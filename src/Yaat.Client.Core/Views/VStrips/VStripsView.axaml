@@ -180,26 +180,31 @@
                                         Background="Transparent"
                                         Tag="{Binding}"
                                         Loaded="OnRackBorderLoaded">
-                                    <ItemsControl x:Name="RackStripsHost"
-                                                  Tag="{Binding}"
-                                                  VerticalAlignment="Stretch"
-                                                  ItemsSource="{Binding Strips}">
-                                        <ItemsControl.Styles>
-                                            <Style Selector="ItemsControl > ContentPresenter">
-                                                <Setter Property="DockPanel.Dock" Value="Bottom"/>
-                                            </Style>
-                                        </ItemsControl.Styles>
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <DockPanel LastChildFill="False"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="vm:StripItemViewModel">
-                                                <vstrips:FlightStripControl Tag="{Binding}"/>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <!-- Grid wrapper lets the drop-preview code-behind
+                                         add an overlay yellow line (append case) as
+                                         a sibling of the strips host. -->
+                                    <Grid x:Name="RackContent">
+                                        <ItemsControl x:Name="RackStripsHost"
+                                                      Tag="{Binding}"
+                                                      VerticalAlignment="Stretch"
+                                                      ItemsSource="{Binding Strips}">
+                                            <ItemsControl.Styles>
+                                                <Style Selector="ItemsControl > ContentPresenter">
+                                                    <Setter Property="DockPanel.Dock" Value="Bottom"/>
+                                                </Style>
+                                            </ItemsControl.Styles>
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <DockPanel LastChildFill="False"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="vm:StripItemViewModel">
+                                                    <vstrips:FlightStripControl Tag="{Binding}"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

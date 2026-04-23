@@ -37,6 +37,12 @@ public partial class VStripsView : UserControl
     private StripRackViewModel? _draggingFromRack;
     private int _draggingFromIndex = -1;
 
+    // Source ContentPresenter hidden during drag so the dragged strip only
+    // appears as the cursor-tracked ghost — the rack's DockPanel collapses
+    // the slot, which also keeps ComputeDropIndex from treating the source's
+    // own position as a valid drop target.
+    private ContentPresenter? _draggingSourcePresenter;
+
     // Drag-hover bay-preview state (docs/crc/vstrips.md:217). When the user
     // hovers a drag over a bay header for >500ms without dropping, we
     // temporarily switch SelectedBay to that bay so they can pick a specific
@@ -44,6 +50,19 @@ public partial class VStripsView : UserControl
     private StripBayViewModel? _hoverBay;
     private StripBayViewModel? _preHoverSelectedBay;
     private Avalonia.Threading.DispatcherTimer? _hoverTimer;
+
+    // Drop-preview state. While dragging over a rack, we shift the strip at
+    // the computed target index up by the dragged strip's height to open a
+    // visible gap where the drop will land. For the append case (index ==
+    // count) we overlay a yellow insertion line above the topmost strip
+    // instead (no strip to shift). Cleared when the rack/index changes,
+    // when the pointer leaves all racks, on drop, and on drag cancel.
+    private StripRackViewModel? _dropPreviewRack;
+    private int _dropPreviewIndex = -1;
+    private ContentPresenter? _dropPreviewShiftedPresenter;
+    private Thickness _dropPreviewOriginalMargin;
+    private Border? _dropPreviewLine;
+    private Grid? _dropPreviewLineHost;
 
     public VStripsView()
     {
@@ -252,6 +271,10 @@ public partial class VStripsView : UserControl
             _draggingFromRack?.RackIndex,
             _draggingFromIndex
         );
+        // Clear the preview before the move so the post-move layout doesn't
+        // inherit the lingering Margin.Bottom (it would revisit the wrong
+        // presenter after the collection re-orders).
+        ClearDropPreview();
         await vm.MoveStripAsync(strip, vm.SelectedBay, rack.RackIndex, index);
         e.Handled = true;
     }
@@ -269,10 +292,17 @@ public partial class VStripsView : UserControl
     /// via <c>hostHeight / count</c> — the DockPanel stretches vertically past
     /// the strip stack, so an approximate divisor misplaces drops that land in
     /// the empty space above the topmost strip (it would round them to middle
-    /// indices instead of "append"). See
-    /// <see cref="ComputeDropIndexFromBands"/> for the pure index math.
+    /// indices instead of "append").
+    ///
+    /// When a drop preview is active in this rack the shifted presenter and
+    /// everything above it are rendered <c>shiftAmount</c> pixels higher than
+    /// their natural position. We undo that shift when building the bands so
+    /// the pointer-to-index mapping remains stable as the preview moves —
+    /// otherwise the pointer would repeatedly cross band boundaries shifted
+    /// by the preview itself and the preview would oscillate between indices.
+    /// See <see cref="ComputeDropIndexFromBands"/> for the pure index math.
     /// </summary>
-    private static int ComputeDropIndex(Border rackBorder, StripRackViewModel rack, DragEventArgs e)
+    private int ComputeDropIndex(Border rackBorder, StripRackViewModel rack, DragEventArgs e)
     {
         var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
         if (stripsHost is null || rack.Strips.Count == 0)
@@ -280,16 +310,53 @@ public partial class VStripsView : UserControl
             return 0;
         }
 
+        var visible = GetVisiblePresenters(stripsHost, rack);
+        if (visible.Count == 0)
+        {
+            return 0;
+        }
+
         var pos = e.GetPosition(stripsHost);
-        var bands = new List<(double Top, double Bottom)>(rack.Strips.Count);
+        var bands = BuildUnshiftedBands(visible, rack);
+        if (bands.Any(b => b.Bottom <= b.Top))
+        {
+            // Pre-layout — treat as append.
+            return visible.Count;
+        }
+        return ComputeDropIndexFromBands(pos.Y, bands);
+    }
+
+    /// <summary>
+    /// Collects visible ContentPresenters from the rack's inner ItemsControl,
+    /// skipping the hidden source presenter during a same-rack drag and any
+    /// presenter whose IsVisible has been toggled off. Results are sorted by
+    /// top-Y descending — so <c>result[0]</c> is the visual-bottom strip and
+    /// <c>result[^1]</c> is the visual-top strip. Using visual order
+    /// (instead of model index) lets the preview math treat the returned
+    /// index uniformly across cross-rack and same-rack drags: visual idx V
+    /// always means "drop at bottom-up position V" and maps cleanly to the
+    /// server's STRIP index on the wire.
+    /// </summary>
+    private List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> GetVisiblePresenters(
+        ItemsControl stripsHost,
+        StripRackViewModel rack
+    )
+    {
+        var sourceStrip = _draggingStrip;
+        var sourceRackEqualsThis = ReferenceEquals(_draggingFromRack, rack);
+
+        var result = new List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)>();
         foreach (var presenter in stripsHost.GetVisualDescendants().OfType<ContentPresenter>())
         {
             if (presenter.Child is not FlightStripControl strip || strip.DataContext is not StripItemViewModel stripVm)
             {
                 continue;
             }
-            var modelIdx = rack.Strips.IndexOf(stripVm);
-            if (modelIdx < 0)
+            if (sourceRackEqualsThis && ReferenceEquals(stripVm, sourceStrip))
+            {
+                continue;
+            }
+            if (!presenter.IsVisible)
             {
                 continue;
             }
@@ -298,20 +365,46 @@ public partial class VStripsView : UserControl
             {
                 continue;
             }
-            while (bands.Count <= modelIdx)
-            {
-                bands.Add((0, 0));
-            }
-            bands[modelIdx] = (topPoint.Value.Y, topPoint.Value.Y + presenter.Bounds.Height);
+            result.Add((presenter, stripVm, topPoint.Value.Y));
+        }
+        result.Sort((a, b) => b.Top.CompareTo(a.Top));
+        return result;
+    }
+
+    /// <summary>
+    /// Builds the Y-bands list for <see cref="ComputeDropIndexFromBands"/>,
+    /// undoing any active preview shift so the pointer-to-index mapping
+    /// reflects natural strip positions. Without this, a band already
+    /// shifted up by the active preview would make the pointer cross a
+    /// different mid-point than the user intended, and the preview would
+    /// oscillate between indices.
+    /// </summary>
+    private List<(double Top, double Bottom)> BuildUnshiftedBands(
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible,
+        StripRackViewModel rack
+    )
+    {
+        var shiftedVisualIdx = -1;
+        var shiftAmount = 0.0;
+        if (_dropPreviewShiftedPresenter is not null && ReferenceEquals(_dropPreviewRack, rack))
+        {
+            shiftAmount = _dropPreviewShiftedPresenter.Margin.Bottom - _dropPreviewOriginalMargin.Bottom;
+            shiftedVisualIdx = visible.FindIndex(r => ReferenceEquals(r.Presenter, _dropPreviewShiftedPresenter));
         }
 
-        if (bands.Count != rack.Strips.Count || bands.Any(b => b.Bottom <= b.Top))
+        var bands = new List<(double Top, double Bottom)>(visible.Count);
+        for (var i = 0; i < visible.Count; i++)
         {
-            // Pre-layout or partial child list — treat as append so the drop
-            // still produces a sensible result (top of the rack).
-            return rack.Strips.Count;
+            var top = visible[i].Top;
+            var bottom = top + visible[i].Presenter.Bounds.Height;
+            if (shiftedVisualIdx >= 0 && i >= shiftedVisualIdx && shiftAmount > 0)
+            {
+                top += shiftAmount;
+                bottom += shiftAmount;
+            }
+            bands.Add((top, bottom));
         }
-        return ComputeDropIndexFromBands(pos.Y, bands);
+        return bands;
     }
 
     /// <summary>
@@ -421,6 +514,32 @@ public partial class VStripsView : UserControl
         (_draggingFromRack, _draggingFromIndex) = FindStripOrigin(stripView, strip);
         _draggingStrip = strip;
 
+        // Hide the source ContentPresenter (only for rack drags — printer-queue
+        // drags keep the strip visible in the carousel) so the rack's DockPanel
+        // collapses the slot during the drag. The dragged strip appears only as
+        // the cursor ghost, matching the user's "picked up" mental model. Also
+        // means ComputeDropIndex won't treat the source's own position as a
+        // valid drop target, so dropping the topmost strip back on itself
+        // resolves to the source's current idx (caught by IsNoOpMove)
+        // instead of count + 1 (which would slip past the no-op guard).
+        if (_draggingFromRack is not null)
+        {
+            _draggingSourcePresenter = stripView.FindAncestorOfType<ContentPresenter>();
+            if (_draggingSourcePresenter is not null)
+            {
+                _draggingSourcePresenter.IsVisible = false;
+                // Synchronously apply the initial preview at the source's own
+                // slot (visual idx == fromIdx because bottom-up rendering
+                // makes visual and model idx coincide). Without this, the
+                // user sees the rack collapse under the hide for one layout
+                // pass before the first DragOver restores a gap. Applying
+                // here queues both changes into the same layout pass so the
+                // strip visually "lifts out" into the cursor ghost without
+                // the rest of the rack shifting underneath.
+                ApplyInitialDropPreview(_draggingFromRack, _draggingFromIndex);
+            }
+        }
+
         var dataTransfer = new DataTransfer();
         dataTransfer.Add(DataTransferItem.Create(StripIdFormat, strip.Id));
 
@@ -510,6 +629,18 @@ public partial class VStripsView : UserControl
 
     private void HideDragGhost()
     {
+        // Clear any lingering drop-preview before the drag ends so the
+        // rack layout snaps back immediately on cancel/drop.
+        ClearDropPreview();
+
+        // Restore the source presenter first so any post-drop broadcast
+        // that re-renders the rack finds it in its normal visible state.
+        if (_draggingSourcePresenter is not null)
+        {
+            _draggingSourcePresenter.IsVisible = true;
+            _draggingSourcePresenter = null;
+        }
+
         var canvas = this.FindControl<Canvas>("DragGhostCanvas");
         if (canvas is not null && _dragGhost is not null)
         {
@@ -733,6 +864,232 @@ public partial class VStripsView : UserControl
         {
             UpdateGhostPosition(e.GetPosition(canvas));
         }
+
+        UpdateDropPreview(e);
+    }
+
+    // ── Drop preview (shifting strips + append line) ────────────
+
+    /// <summary>
+    /// Tracks the insertion target during a strip drag and shows a visible
+    /// gap where the strip will land. For an insertion between existing
+    /// strips, the strip at model-index N is pushed up by the dragged
+    /// strip's height (Margin.Bottom), which — because the rack DockPanel
+    /// docks bottom-up — cascades the shift to every strip visually above
+    /// it. For an append (index == count), draws a thin yellow line just
+    /// above the topmost strip. Called from <see cref="OnGenericDragOver"/>
+    /// so the preview follows the pointer continuously.
+    /// </summary>
+    private void UpdateDropPreview(DragEventArgs e)
+    {
+        if (_draggingStrip is null || e.DataTransfer?.Contains(StripIdFormat) != true)
+        {
+            ClearDropPreview();
+            return;
+        }
+
+        var rootPos = e.GetPosition(this);
+        var hit = this.InputHitTest(rootPos) as Visual;
+        if (hit is null)
+        {
+            ClearDropPreview();
+            return;
+        }
+
+        Border? rackBorder = null;
+        Visual? v = hit;
+        while (v is not null)
+        {
+            if (v is Border b && b.Tag is StripRackViewModel)
+            {
+                rackBorder = b;
+                break;
+            }
+            v = v.GetVisualParent() as Visual;
+        }
+        if (rackBorder?.Tag is not StripRackViewModel rack)
+        {
+            ClearDropPreview();
+            return;
+        }
+
+        var index = ComputeDropIndex(rackBorder, rack, e);
+        if (ReferenceEquals(_dropPreviewRack, rack) && _dropPreviewIndex == index)
+        {
+            return;
+        }
+
+        ClearDropPreview();
+        ApplyDropPreview(rackBorder, rack, index);
+    }
+
+    /// <summary>
+    /// Applies the drop preview for visual index <paramref name="visualIdx"/>
+    /// in <paramref name="rack"/>. <c>visualIdx &lt; visible.Count</c> shifts
+    /// the visible strip at that bottom-up position up by one strip height
+    /// (via Margin.Bottom) — the DockPanel cascade pushes every strip above
+    /// it up too, opening a gap at the target position. <c>visualIdx ==
+    /// visible.Count</c> is "append above the visual top" and draws a thin
+    /// yellow line above the topmost visible strip. Uses visual idx (not
+    /// model idx) so the logic is uniform across cross-rack drags (visible
+    /// = all strips) and same-rack drags (visible = all strips except the
+    /// hidden source), and maps 1:1 to the STRIP wire index.
+    /// </summary>
+    private void ApplyDropPreview(Border rackBorder, StripRackViewModel rack, int visualIdx)
+    {
+        var rackContent = rackBorder.FindDescendantOfType<Grid>();
+        var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
+        if (rackContent is null || stripsHost is null)
+        {
+            return;
+        }
+
+        var visible = GetVisiblePresenters(stripsHost, rack);
+        ApplyDropPreviewToVisible(rackContent, rack, visualIdx, visible);
+    }
+
+    private void ApplyDropPreviewToVisible(
+        Grid rackContent,
+        StripRackViewModel rack,
+        int visualIdx,
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible
+    )
+    {
+        var stripHeight = ResolveDragStripHeight(visible);
+        _dropPreviewRack = rack;
+        _dropPreviewIndex = visualIdx;
+
+        if (visualIdx < visible.Count)
+        {
+            var targetPresenter = visible[visualIdx].Presenter;
+            _dropPreviewShiftedPresenter = targetPresenter;
+            _dropPreviewOriginalMargin = targetPresenter.Margin;
+            targetPresenter.Margin = new Thickness(
+                targetPresenter.Margin.Left,
+                targetPresenter.Margin.Top,
+                targetPresenter.Margin.Right,
+                targetPresenter.Margin.Bottom + stripHeight
+            );
+        }
+        else if (visible.Count > 0)
+        {
+            // Append-at-top: overlay a yellow line at the top edge of the
+            // visual-topmost strip. visible is sorted by top-Y descending, so
+            // visible[^1] is the topmost.
+            var topmost = visible[^1].Presenter;
+            var topPoint = topmost.TranslatePoint(new Point(0, 0), rackContent);
+            if (topPoint is null)
+            {
+                return;
+            }
+            var line = new Border
+            {
+                Height = 2,
+                Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xD7, 0x00)),
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                Margin = new Thickness(0, Math.Max(0, topPoint.Value.Y - 1), 0, 0),
+                IsHitTestVisible = false,
+            };
+            rackContent.Children.Add(line);
+            _dropPreviewLine = line;
+            _dropPreviewLineHost = rackContent;
+        }
+    }
+
+    /// <summary>
+    /// Applies the initial preview synchronously on drag start at the source
+    /// strip's own slot (visual idx == <paramref name="fromIdx"/>), before
+    /// DoDragDropAsync kicks off the first DragOver. Without this, the
+    /// layout pass that processes IsVisible=false on the source runs before
+    /// the first DragOver computes a preview — the user briefly sees the
+    /// strips above the source fall down to occupy the empty slot, then
+    /// pop back up when the gap preview lands. Applying here queues the
+    /// shift (or yellow line, for source-at-top) into the same layout pass
+    /// as the hide, so the rack lifts out into the ghost smoothly without
+    /// the other strips shifting underneath.
+    /// </summary>
+    private void ApplyInitialDropPreview(StripRackViewModel rack, int fromIdx)
+    {
+        if (_draggingSourcePresenter is null)
+        {
+            return;
+        }
+        Border? rackBorder = null;
+        Visual? walk = _draggingSourcePresenter;
+        while (walk is not null)
+        {
+            walk = walk.GetVisualParent() as Visual;
+            if (walk is Border b && b.Tag is StripRackViewModel)
+            {
+                rackBorder = b;
+                break;
+            }
+        }
+        if (rackBorder is null)
+        {
+            return;
+        }
+        var rackContent = rackBorder.FindDescendantOfType<Grid>();
+        var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
+        if (rackContent is null || stripsHost is null)
+        {
+            return;
+        }
+
+        // GetVisiblePresenters excludes the just-hidden source. It still sorts
+        // by current Y (pre-hide), which for strips *above* the source is
+        // wrong post-hide — they'll drop by stripHeight — but ApplyDropPreview
+        // only reads bounds for the append-line case, and that case only
+        // fires when fromIdx == rack.Strips.Count - 1 (source topmost), in
+        // which case strips *below* the source are unaffected by the hide.
+        var visible = GetVisiblePresenters(stripsHost, rack);
+        ApplyDropPreviewToVisible(rackContent, rack, fromIdx, visible);
+    }
+
+    /// <summary>
+    /// Height to use for the drop-preview gap. Prefers the source presenter
+    /// (the strip being dragged — guaranteed correct and available on drag
+    /// start before the ghost has been laid out), falls back to any visible
+    /// strip's height, then to 69 px (full-strip default).
+    /// </summary>
+    private double ResolveDragStripHeight(List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible)
+    {
+        if (_draggingSourcePresenter is not null && _draggingSourcePresenter.Bounds.Height > 0)
+        {
+            return _draggingSourcePresenter.Bounds.Height;
+        }
+        if (_dragGhost is not null && _dragGhost.Bounds.Height > 0)
+        {
+            return _dragGhost.Bounds.Height;
+        }
+        if (visible.Count > 0 && visible[0].Presenter.Bounds.Height > 0)
+        {
+            return visible[0].Presenter.Bounds.Height;
+        }
+        return 69;
+    }
+
+    /// <summary>
+    /// Undoes any active drop preview: restores the shifted presenter's
+    /// margin and removes the append-line overlay. Safe to call repeatedly
+    /// — a no-op when no preview is active.
+    /// </summary>
+    private void ClearDropPreview()
+    {
+        if (_dropPreviewShiftedPresenter is not null)
+        {
+            _dropPreviewShiftedPresenter.Margin = _dropPreviewOriginalMargin;
+            _dropPreviewShiftedPresenter = null;
+        }
+        if (_dropPreviewLine is not null && _dropPreviewLineHost is not null)
+        {
+            _dropPreviewLineHost.Children.Remove(_dropPreviewLine);
+        }
+        _dropPreviewLine = null;
+        _dropPreviewLineHost = null;
+        _dropPreviewRack = null;
+        _dropPreviewIndex = -1;
     }
 
     // ── Trash drop target ───────────────────────────────────────
