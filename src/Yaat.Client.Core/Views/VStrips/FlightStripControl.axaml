@@ -1,0 +1,410 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yaat.Client.ViewModels"
+             x:Class="Yaat.Client.Views.VStrips.FlightStripControl"
+             x:DataType="vm:StripItemViewModel"
+             Focusable="False"
+             Background="Transparent">
+
+    <!-- CRC vStrips visual parity:
+         Reference is docs/crc/img/printer.png (DAL713 strip — the red number
+         labels in docs/crc/img/departure-strip.png and arrival-strip.png are
+         documentation overlays, not rendered).
+         Structure is a 7-column × 3-row grid, equal rows, fixed col widths:
+           col 1: callsign / aircraft type / CID+barcode   (22%)
+           col 2: beacon   / P-prop-dep   / requested alt  (8.5%)
+           col 3: departure+dest / 8A / 8B                 (13.5%)
+           col 4: route/remarks (spans 3 rows)             (37.9%)
+           cols 5-7: annotation boxes 10|11|12 / 13|14|15 / 16|17|18 (3×6%)
+         Col 1 exception: revision (field 2) is tucked at the bottom of row 1
+         as a half-size inline line beneath the callsign, so row 1 holds both
+         callsign (top) and revision (bottom-small) without the row growing.
+         Col 4 exception: when remarks exist the route wraps across rows 1-2
+         (MaxLines=2) and remarks anchor row 3. With no remarks the route
+         wraps across all 3 rows (MaxLines=3).
+         All printed text is bold for legibility at controller-desk distance. -->
+    <Border x:Name="StripRoot"
+            Background="{StaticResource StripCellBrush}"
+            BorderBrush="{StaticResource StripBorderBrush}"
+            BorderThickness="1"
+            Margin="1,1,1,0">
+        <Grid>
+            <Grid x:Name="FullStripGrid"
+                  IsVisible="{Binding IsFullStrip}"
+                  Width="535"
+                  RowDefinitions="23,23,23"
+                  ColumnDefinitions="118,46,72,*,32,32,33">
+
+                <!-- Column 1, row 1: callsign (top) + revision (bottom-small).
+                     DockPanel stacks them so both fit inside a single row. -->
+                <Border Grid.Row="0" Grid.Column="0"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <DockPanel LastChildFill="True">
+                        <TextBlock DockPanel.Dock="Bottom"
+                                   Text="{Binding Revision}"
+                                   FontFamily="{StaticResource MonoFont}"
+                                   FontSize="8" FontWeight="Bold"
+                                   Margin="0,0,0,1"
+                                   Foreground="{StaticResource StripPrintedBrush}"/>
+                        <TextBlock Text="{Binding AircraftIdField}"
+                                   FontFamily="{StaticResource MonoFont}"
+                                   FontSize="13" FontWeight="Bold"
+                                   VerticalAlignment="Top"
+                                   Margin="0,1,0,0"
+                                   Foreground="{StaticResource StripPrintedBrush}"/>
+                    </DockPanel>
+                </Border>
+                <!-- Column 1, row 2: aircraft type (equipment field). -->
+                <Border Grid.Row="1" Grid.Column="0"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding Equipment}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="13" FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+                <!-- Column 1, row 3: CID + barcode side-by-side. -->
+                <Border Grid.Row="2" Grid.Column="0"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding Cid}"
+                                   FontFamily="{StaticResource MonoFont}"
+                                   FontSize="13" FontWeight="Bold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource StripPrintedBrush}"/>
+                        <Canvas x:Name="BarcodeCanvas"
+                                Grid.Column="1"
+                                Height="16"
+                                Margin="4,0,0,0"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Column 2: beacon / prop-dep / requested altitude. PropDep
+                     already comes out of the VM with the "P" prefix. -->
+                <Border Grid.Row="0" Grid.Column="1"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding BeaconCode}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="13" FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="1"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding PropDep}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="13" FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="1"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding ReqAltitude}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="13" FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+
+                <!-- Column 3: field 8 (departure + optional destination airport),
+                     then 8A and 8B as inline-editable annotation placeholders. -->
+                <Border Grid.Row="0" Grid.Column="2"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding Departure}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="13" FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="2"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding Field8A}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="2"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="4,0"/>
+
+                <!-- Column 4 path A: no remarks — route wraps across all 3 rows
+                     with MaxLines=3. Text is trimmed if it overflows. -->
+                <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="6,2"
+                        IsVisible="{Binding !HasRemarks}">
+                    <TextBlock Text="{Binding RouteText}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="12" FontWeight="Bold"
+                               TextWrapping="Wrap"
+                               MaxLines="3"
+                               TextTrimming="CharacterEllipsis"
+                               LineHeight="22"
+                               VerticalAlignment="Top"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+
+                <!-- Column 4 path B: remarks present — route wraps rows 1-2
+                     (MaxLines=2, trimmed if overflow), remarks anchor row 3. -->
+                <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="3"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="6,2,6,0"
+                        IsVisible="{Binding HasRemarks}">
+                    <TextBlock Text="{Binding RouteText}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="12" FontWeight="Bold"
+                               TextWrapping="Wrap"
+                               MaxLines="2"
+                               TextTrimming="CharacterEllipsis"
+                               LineHeight="22"
+                               VerticalAlignment="Top"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="3"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="6,0,6,2"
+                        IsVisible="{Binding HasRemarks}">
+                    <TextBlock Text="{Binding Remarks}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="12" FontWeight="Bold"
+                               TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource StripPrintedBrush}"/>
+                </Border>
+
+                <!-- Columns 5-7: 3×3 annotation grid. Each cell's Tag carries
+                     the canonical box number 1..9 that AN {box} writes to
+                     FieldValues[box+9] = 10..18 on the server. -->
+                <Border Grid.Row="0" Grid.Column="4" Tag="1"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,1" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation10}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="0" Grid.Column="5" Tag="2"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,1" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation11}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="0" Grid.Column="6" Tag="3"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,0,1" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation12}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="4" Tag="4"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,1" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation13}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="5" Tag="5"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,1" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation14}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="6" Tag="6"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,0,1" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation15}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="4" Tag="7"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation16}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="5" Tag="8"
+                        PointerPressed="OnAnnotationCellPressed"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="0,0,1,0" Padding="2,0">
+                    <TextBlock Text="{Binding Annotation17}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="6" Tag="9"
+                        PointerPressed="OnAnnotationCellPressed"
+                        Padding="2,0">
+                    <TextBlock Text="{Binding Annotation18}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+            </Grid>
+
+            <!-- Half-strip: narrow cream tile with the opposite side rendered
+                 as a grey drop-zone (docs/crc/img/half-strip.png). -->
+            <Grid x:Name="HalfStripGrid"
+                  IsVisible="{Binding IsHalfStrip}"
+                  Width="535"
+                  Height="69"
+                  ColumnDefinitions="*,*">
+                <Border Grid.Column="0"
+                        Background="{StaticResource StripCellBrush}"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="1"
+                        Padding="6,4"
+                        IsVisible="{Binding !IsHalfStripRight}">
+                    <ItemsControl ItemsSource="{Binding FieldValues}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           FontFamily="{StaticResource StripScriptFont}"
+                                           FontStyle="Italic" FontWeight="Bold"
+                                           FontSize="12"
+                                           Foreground="{StaticResource StripPrintedBrush}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+                <Border Grid.Column="1"
+                        Background="{StaticResource StripDropZoneBrush}"
+                        IsVisible="{Binding !IsHalfStripRight}"/>
+                <Border Grid.Column="0"
+                        Background="{StaticResource StripDropZoneBrush}"
+                        IsVisible="{Binding IsHalfStripRight}"/>
+                <Border Grid.Column="1"
+                        Background="{StaticResource StripCellBrush}"
+                        BorderBrush="{StaticResource StripBorderBrush}"
+                        BorderThickness="1"
+                        Padding="6,4"
+                        IsVisible="{Binding IsHalfStripRight}">
+                    <ItemsControl ItemsSource="{Binding FieldValues}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           FontFamily="{StaticResource StripScriptFont}"
+                                           FontStyle="Italic" FontWeight="Bold"
+                                           FontSize="12"
+                                           Foreground="{StaticResource StripPrintedBrush}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </Grid>
+
+            <!-- Separator bands — full-rack-width colored strips with centered
+                 labels (docs/crc/img/separators.png). -->
+            <Border x:Name="HandwrittenSeparator"
+                    IsVisible="{Binding IsHandwrittenSeparator}"
+                    Width="535" Height="23"
+                    Background="{StaticResource StripSeparatorWhiteBrush}"
+                    BorderBrush="{StaticResource StripBorderBrush}"
+                    BorderThickness="1"
+                    Padding="4,0">
+                <TextBlock Text="{Binding Annotation10}"
+                           FontFamily="{StaticResource StripScriptFont}"
+                           FontStyle="Italic" FontWeight="Bold" FontSize="13"
+                           Foreground="{StaticResource StripPrintedBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Border>
+            <Border x:Name="WhiteSeparator"
+                    IsVisible="{Binding IsWhiteSeparator}"
+                    Width="535" Height="23"
+                    Background="{StaticResource StripSeparatorWhiteBrush}"
+                    BorderBrush="{StaticResource StripBorderBrush}"
+                    BorderThickness="1"
+                    Padding="4,0">
+                <TextBlock Text="{Binding Annotation10}"
+                           FontFamily="{StaticResource MonoFont}"
+                           FontSize="13" FontWeight="Bold"
+                           Foreground="{StaticResource StripPrintedBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Border>
+            <Border x:Name="RedSeparator"
+                    IsVisible="{Binding IsRedSeparator}"
+                    Width="535" Height="23"
+                    Background="{StaticResource StripSeparatorRedBrush}"
+                    BorderBrush="{StaticResource StripBorderBrush}"
+                    BorderThickness="1"
+                    Padding="4,0">
+                <TextBlock Text="{Binding Annotation10}"
+                           FontFamily="{StaticResource MonoFont}"
+                           FontSize="13" FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Border>
+            <Border x:Name="GreenSeparator"
+                    IsVisible="{Binding IsGreenSeparator}"
+                    Width="535" Height="23"
+                    Background="{StaticResource StripSeparatorGreenBrush}"
+                    BorderBrush="{StaticResource StripBorderBrush}"
+                    BorderThickness="1"
+                    Padding="4,0">
+                <TextBlock Text="{Binding Annotation10}"
+                           FontFamily="{StaticResource MonoFont}"
+                           FontSize="13" FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Border>
+
+            <!-- Disconnected overlay: diagonal red stroke drawn in code-behind
+                 so it tracks the rendered bounds. -->
+            <Canvas x:Name="DisconnectedOverlay"
+                    IsVisible="{Binding IsDisconnected}"
+                    IsHitTestVisible="False"/>
+
+            <!-- Selection highlight: yellow outline when this strip is the
+                 VStripsViewModel.SelectedStrip. Driven by IsSelected on the
+                 StripItemViewModel so selection flows from VM into the visual
+                 without extra plumbing. -->
+            <Border IsVisible="{Binding IsSelected}"
+                    IsHitTestVisible="False"
+                    BorderBrush="{StaticResource StripSelectedBorderBrush}"
+                    BorderThickness="2"
+                    Margin="-2"/>
+        </Grid>
+    </Border>
+</UserControl>

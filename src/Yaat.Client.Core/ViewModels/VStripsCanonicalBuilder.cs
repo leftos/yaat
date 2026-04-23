@@ -10,12 +10,27 @@ namespace Yaat.Client.ViewModels;
 /// view — drag/drop, delete, offset toggle, annotation edit, separator or blank
 /// creation — funnels through one of these builders so the wire format stays
 /// replay-safe and the command pipeline mirrors every other yaat-client surface.
+///
+/// <para>The canonical wire format uses <b>1-based</b> rack/index values — users
+/// think in "rack 1" and "slot 1", not "rack 0" / "slot 0". Callers pass
+/// 0-based integers (matching the internal view-model representation) and the
+/// builders add +1 on the wire. The server's
+/// <c>StripMutations.ResolveStripTokens</c> performs the reverse mapping.</para>
+///
+/// <para>Omitting the index argument on STRIP is valid: <c>STRIP bay rack</c>
+/// (no trailing index) means "append to the end of the rack" (CRC bottom-up
+/// first-available semantics). Pass <c>index = null</c> to <see cref="BuildStripMove"/>
+/// to emit that form.</para>
 /// </summary>
 public static class VStripsCanonicalBuilder
 {
-    /// <summary>Move an existing full strip (departure/arrival) into a bay position.</summary>
-    public static string BuildStripMove(string bayName, int rack, int index) =>
-        $"STRIP {bayName} {rack.ToString(CultureInfo.InvariantCulture)} {index.ToString(CultureInfo.InvariantCulture)}";
+    /// <summary>
+    /// Move an existing full strip (departure/arrival) into a bay position.
+    /// Pass <paramref name="index"/> <c>null</c> to append to the tail of the
+    /// rack (the first-available bottom slot).
+    /// </summary>
+    public static string BuildStripMove(string bayName, int rack, int? index) =>
+        index is int i ? $"STRIP {bayName} {OneBased(rack)} {OneBased(i)}" : $"STRIP {bayName} {OneBased(rack)}";
 
     /// <summary>Delete the full strip owned by the currently-selected aircraft.</summary>
     public static string BuildStripDelete() => "STRIPD";
@@ -35,7 +50,7 @@ public static class VStripsCanonicalBuilder
     /// <summary>Create a new half-strip in a bay/rack with the given lines (max 6).</summary>
     public static string BuildHalfStripCreate(string bayName, int rack, IReadOnlyList<string> lines)
     {
-        var sb = new StringBuilder("HSC ").Append(bayName).Append('/').Append(rack.ToString(CultureInfo.InvariantCulture));
+        var sb = new StringBuilder("HSC ").Append(bayName).Append('/').Append(OneBased(rack));
         if (lines.Count > 0)
         {
             sb.Append(' ');
@@ -64,7 +79,7 @@ public static class VStripsCanonicalBuilder
 
     /// <summary>Move a half-strip by lookup key to a destination bay/rack/index.</summary>
     public static string BuildHalfStripMove(string lookupKey, string destBayName, int rack, int index) =>
-        $"HSM {lookupKey} {destBayName}/{rack.ToString(CultureInfo.InvariantCulture)}/{index.ToString(CultureInfo.InvariantCulture)}";
+        $"HSM {lookupKey} {destBayName}/{OneBased(rack)}/{OneBased(index)}";
 
     /// <summary>Delete a half-strip by lookup key.</summary>
     public static string BuildHalfStripDelete(string lookupKey) => $"HSD {lookupKey}";
@@ -83,9 +98,9 @@ public static class VStripsCanonicalBuilder
             .Append(' ')
             .Append(bayName)
             .Append(' ')
-            .Append(rack.ToString(CultureInfo.InvariantCulture))
+            .Append(OneBased(rack))
             .Append(' ')
-            .Append(index.ToString(CultureInfo.InvariantCulture));
+            .Append(OneBased(index));
         var trimmed = label?.Trim();
         if (!string.IsNullOrEmpty(trimmed))
         {
@@ -98,8 +113,8 @@ public static class VStripsCanonicalBuilder
     public static string BuildSeparatorDelete(string bayName, int rack, string? label, int? index)
     {
         var trimmed = label?.Trim();
-        var tail = !string.IsNullOrEmpty(trimmed) ? trimmed : (index ?? 0).ToString(CultureInfo.InvariantCulture);
-        return $"SEPD {bayName} {rack.ToString(CultureInfo.InvariantCulture)} {tail}";
+        var tail = !string.IsNullOrEmpty(trimmed) ? trimmed : OneBased(index ?? 0);
+        return $"SEPD {bayName} {OneBased(rack)} {tail}";
     }
 
     /// <summary>Create a blank strip. Null bay = printer queue; otherwise bay/rack/index.</summary>
@@ -109,8 +124,8 @@ public static class VStripsCanonicalBuilder
         {
             return "BLANK";
         }
-        var rackVal = (rack ?? 0).ToString(CultureInfo.InvariantCulture);
-        var indexVal = (index ?? 0).ToString(CultureInfo.InvariantCulture);
+        var rackVal = OneBased(rack ?? 0);
+        var indexVal = OneBased(index ?? 0);
         return $"BLANK {bayName} {rackVal} {indexVal}";
     }
 
@@ -121,8 +136,11 @@ public static class VStripsCanonicalBuilder
         {
             return $"BLANKD {bayName}";
         }
-        return $"BLANKD {bayName} {rack.Value.ToString(CultureInfo.InvariantCulture)}";
+        return $"BLANKD {bayName} {OneBased(rack.Value)}";
     }
+
+    /// <summary>Converts a 0-based view-model index into its 1-based wire form.</summary>
+    private static string OneBased(int zeroBased) => (zeroBased + 1).ToString(CultureInfo.InvariantCulture);
 
     private static char StyleChar(SeparatorStyle style) =>
         style switch

@@ -48,6 +48,21 @@ public partial class VStripsViewModel : ObservableObject
     [ObservableProperty]
     private StripItemViewModel? _selectedStrip;
 
+    partial void OnSelectedStripChanged(StripItemViewModel? oldValue, StripItemViewModel? newValue)
+    {
+        // Keep StripItemViewModel.IsSelected in sync so FlightStripControl can
+        // render a highlight ring. Without this, selection state is observable
+        // only at the VM level and never flows to the visual.
+        if (oldValue is not null)
+        {
+            oldValue.IsSelected = false;
+        }
+        if (newValue is not null)
+        {
+            newValue.IsSelected = true;
+        }
+    }
+
     [ObservableProperty]
     private string? _facilityId;
 
@@ -56,6 +71,26 @@ public partial class VStripsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _separatorsLocked;
+
+    /// <summary>
+    /// Zoom scale applied to the racks host (and every strip/rack inside it)
+    /// via a LayoutTransformControl. Does NOT affect the header bar. Default
+    /// 0.8 — at natural 535-px strip width this renders ~428 px per strip,
+    /// which fits two comfortably-sized racks side-by-side on a 1080p screen.
+    /// ZoomIn/ZoomOut commands step in 0.1 increments between 0.5 and 1.5.
+    /// </summary>
+    [ObservableProperty]
+    private double _zoomScale = 0.8;
+
+    public string ZoomLabel => $"{(int)Math.Round(ZoomScale * 100)}%";
+
+    partial void OnZoomScaleChanged(double value) => OnPropertyChanged(nameof(ZoomLabel));
+
+    [RelayCommand]
+    private void ZoomIn() => ZoomScale = Math.Min(1.5, Math.Round(ZoomScale + 0.1, 2));
+
+    [RelayCommand]
+    private void ZoomOut() => ZoomScale = Math.Max(0.5, Math.Round(ZoomScale - 0.1, 2));
 
     /// <summary>
     /// When true, this VM auto-applies <see cref="ServerConnection.ScenarioLoaded"/>
@@ -388,6 +423,139 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Moves <see cref="SelectedStrip"/> to an adjacent strip inside the
+    /// currently-selected bay. Up/Down move within the same rack; Left/Right
+    /// jump to the adjacent rack and keep the vertical slot (clamped to that
+    /// rack's strip count). With no current selection, Down picks the first
+    /// strip in the first rack so the keyboard alone can enter selection mode.
+    /// </summary>
+    public void SelectAdjacentStrip(NavDirection direction)
+    {
+        if (SelectedBay is null || SelectedBay.Racks.Count == 0)
+        {
+            return;
+        }
+
+        if (SelectedStrip is null)
+        {
+            for (var r = 0; r < SelectedBay.Racks.Count; r++)
+            {
+                if (SelectedBay.Racks[r].Strips.Count > 0)
+                {
+                    SelectedStrip = SelectedBay.Racks[r].Strips[0];
+                    return;
+                }
+            }
+            return;
+        }
+
+        // Find the current strip's rack and index.
+        var curRack = -1;
+        var curIdx = -1;
+        for (var r = 0; r < SelectedBay.Racks.Count; r++)
+        {
+            var idx = SelectedBay.Racks[r].Strips.IndexOf(SelectedStrip);
+            if (idx >= 0)
+            {
+                curRack = r;
+                curIdx = idx;
+                break;
+            }
+        }
+        if (curRack < 0)
+        {
+            return;
+        }
+
+        switch (direction)
+        {
+            case NavDirection.Up:
+                if (curIdx > 0)
+                {
+                    SelectedStrip = SelectedBay.Racks[curRack].Strips[curIdx - 1];
+                }
+                break;
+            case NavDirection.Down:
+                if (curIdx + 1 < SelectedBay.Racks[curRack].Strips.Count)
+                {
+                    SelectedStrip = SelectedBay.Racks[curRack].Strips[curIdx + 1];
+                }
+                break;
+            case NavDirection.Left:
+            case NavDirection.Right:
+            {
+                var step = direction == NavDirection.Right ? 1 : -1;
+                var nextRack = curRack + step;
+                if (nextRack < 0 || nextRack >= SelectedBay.Racks.Count)
+                {
+                    return;
+                }
+                var nextStrips = SelectedBay.Racks[nextRack].Strips;
+                if (nextStrips.Count == 0)
+                {
+                    return;
+                }
+                SelectedStrip = nextStrips[Math.Min(curIdx, nextStrips.Count - 1)];
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Move the currently-selected strip by one slot in the given direction —
+    /// keyboard equivalent of a drag-drop. Up/Down shifts within the rack,
+    /// Left/Right pushes to the adjacent rack at the same index.
+    /// </summary>
+    public async Task MoveSelectedStripAsync(NavDirection direction)
+    {
+        if (SelectedStrip is null || SelectedBay is null)
+        {
+            return;
+        }
+
+        // Find current position.
+        var curRack = -1;
+        var curIdx = -1;
+        for (var r = 0; r < SelectedBay.Racks.Count; r++)
+        {
+            var idx = SelectedBay.Racks[r].Strips.IndexOf(SelectedStrip);
+            if (idx >= 0)
+            {
+                curRack = r;
+                curIdx = idx;
+                break;
+            }
+        }
+        if (curRack < 0)
+        {
+            return;
+        }
+
+        int destRack = curRack,
+            destIdx = curIdx;
+        switch (direction)
+        {
+            case NavDirection.Up:
+                destIdx = Math.Max(0, curIdx - 1);
+                break;
+            case NavDirection.Down:
+                destIdx = curIdx + 1;
+                break;
+            case NavDirection.Left:
+                destRack = curRack - 1;
+                break;
+            case NavDirection.Right:
+                destRack = curRack + 1;
+                break;
+        }
+        if (destRack < 0 || destRack >= SelectedBay.Racks.Count)
+        {
+            return;
+        }
+        await MoveStripAsync(SelectedStrip, SelectedBay, destRack, destIdx);
+    }
+
+    /// <summary>
     /// Walk <see cref="Bays"/> from the current selection, skipping external
     /// bays (push-only, not viewable). Returns the next (or previous, when
     /// <paramref name="forward"/> is false) own bay, or null if no own bays
@@ -412,9 +580,30 @@ public partial class VStripsViewModel : ObservableObject
         return null;
     }
 
-    /// <summary>Move a strip into a bay/rack/index. Callsign picked by strip type.</summary>
-    public async Task MoveStripAsync(StripItemViewModel strip, StripBayViewModel destBay, int rack, int index)
+    /// <summary>
+    /// Move a strip into a bay/rack/index. Callsign picked by strip type.
+    /// A null <paramref name="index"/> means "append to the tail of the rack"
+    /// (CRC bottom-up first-available slot) — passed through as a missing
+    /// index token on the STRIP wire, interpreted server-side.
+    /// </summary>
+    public async Task MoveStripAsync(StripItemViewModel strip, StripBayViewModel destBay, int rack, int? index)
     {
+        // No-op guard: if the strip already sits at the target slot, skip the
+        // canonical dispatch entirely. Without this, a drag that releases over
+        // the strip's own bay/rack/position still emits a STRIP command — the
+        // server applies it harmlessly but users see the canonical echoed in
+        // logs and the canonical-trace pane, which reads as noise. See the
+        // user feedback on docs/plans/open-issues/vstrips-crc-parity.md.
+        // Append (null index) always dispatches — we can't short-circuit
+        // without knowing where the server will place the strip.
+        if (index is int explicitIdx && IsStripAlreadyAt(strip, destBay, rack, explicitIdx))
+        {
+            return;
+        }
+
+        // HSM / SEP / BLANK all take an explicit index; the "append" affordance
+        // is STRIP-only for now. Default null → 0 for the other builders.
+        var indexOrZero = index ?? 0;
         var canonical = strip.Type switch
         {
             StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripMove(destBay.Name, rack, index),
@@ -422,17 +611,17 @@ public partial class VStripsViewModel : ObservableObject
                 strip.LookupKey,
                 destBay.Name,
                 rack,
-                index
+                indexOrZero
             ),
             StripItemType.HandwrittenSeparator or StripItemType.WhiteSeparator or StripItemType.RedSeparator or StripItemType.GreenSeparator =>
                 VStripsCanonicalBuilder.BuildSeparatorCreate(
                     MapSeparator(strip.Type),
                     destBay.Name,
                     rack,
-                    index,
+                    indexOrZero,
                     strip.FieldValues.Length > 0 ? strip.FieldValues[0] : null
                 ),
-            StripItemType.BlankStrip => VStripsCanonicalBuilder.BuildBlankCreate(destBay.Name, rack, index),
+            StripItemType.BlankStrip => VStripsCanonicalBuilder.BuildBlankCreate(destBay.Name, rack, indexOrZero),
             _ => null,
         };
 
@@ -492,6 +681,71 @@ public partial class VStripsViewModel : ObservableObject
         await _sendCommand(strip.AircraftId, canonical, _preferences?.UserInitials ?? "");
     }
 
+    /// <summary>
+    /// Replace the lines of an existing half-strip. Wraps the
+    /// <c>HSA {key} {line1} {line2}…</c> canonical verb. Empty lines are
+    /// preserved so users can blank a line without collapsing the strip.
+    /// </summary>
+    public async Task AmendHalfStripAsync(StripItemViewModel strip, IReadOnlyList<string> lines)
+    {
+        if (!strip.IsHalfStrip)
+        {
+            return;
+        }
+        var canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.LookupKey, lines);
+        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+    }
+
+    /// <summary>
+    /// Rename a separator by deleting the old one and creating a new one at
+    /// the same position with the new label. Atomic in practice because the
+    /// server processes both commands before the next broadcast; user sees a
+    /// single reconcile step. Locked facilities (SeparatorsLocked=true) drop
+    /// this call to match the CRC constraint that only handwritten separators
+    /// can be edited.
+    /// </summary>
+    public async Task EditSeparatorLabelAsync(StripItemViewModel strip, string newLabel)
+    {
+        if (!strip.IsSeparator || SelectedBay is null)
+        {
+            return;
+        }
+        if (SeparatorsLocked && strip.Type != StripItemType.HandwrittenSeparator)
+        {
+            return;
+        }
+
+        // Locate the separator so we can recreate it at its current rack/index
+        // with the new label. Scan every rack since the server's authoritative
+        // position lives on the strip record, not the VM, and the VM's rack
+        // ordering matches the server.
+        var rackIndex = -1;
+        var posIndex = -1;
+        for (var r = 0; r < SelectedBay.Racks.Count; r++)
+        {
+            var idx = SelectedBay.Racks[r].Strips.IndexOf(strip);
+            if (idx >= 0)
+            {
+                rackIndex = r;
+                posIndex = idx;
+                break;
+            }
+        }
+        if (rackIndex < 0)
+        {
+            return;
+        }
+
+        var style = MapSeparator(strip.Type);
+        var oldLabel = strip.FieldValues.Length > 0 ? strip.FieldValues[0] : null;
+
+        var deleteCanonical = VStripsCanonicalBuilder.BuildSeparatorDelete(SelectedBay.Name, rackIndex, oldLabel, posIndex);
+        await _sendCommand("", deleteCanonical, _preferences?.UserInitials ?? "");
+
+        var createCanonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, SelectedBay.Name, rackIndex, posIndex, newLabel);
+        await _sendCommand("", createCanonical, _preferences?.UserInitials ?? "");
+    }
+
     public async Task SlideHalfStripAsync(StripItemViewModel strip)
     {
         if (!strip.IsHalfStrip)
@@ -524,6 +778,111 @@ public partial class VStripsViewModel : ObservableObject
         await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
     }
 
+    /// <summary>
+    /// Prints a blank strip directly into the printer queue. Matches the CRC
+    /// "Print Blank Strip" button in docs/crc/img/printer.png — blanks go to
+    /// the printer first, from where users drag them into racks.
+    /// </summary>
+    public async Task PrintBlankStripAsync()
+    {
+        await CreateBlankAsync(bay: null, rack: null, index: null);
+    }
+
+    /// <summary>
+    /// Requests a flight strip for the given aircraft ID. Not yet wired to a
+    /// server RPC — the hub currently exposes no RequestFlightStripForAircraft
+    /// call, and threading one through touches server/DTO/hub surface area
+    /// beyond the current round's scope. For now this logs the intent and
+    /// returns; the Request Strip button in the printer modal provides the UX
+    /// so the feature can light up as soon as the RPC lands on yaat-server.
+    /// </summary>
+    public Task RequestStripAsync(string aircraftId)
+    {
+        _log.LogInformation(
+            "RequestStripAsync({Aircraft}): server RPC not yet implemented — "
+                + "flight-strip printing relies on scenario-load broadcasts and "
+                + "aircraft-lifecycle triggers today",
+            aircraftId
+        );
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Moves the visible printer strip (for the given queue kind) into
+    /// <see cref="SelectedBay"/>'s rack 0 index 0. Matches CRC's "Move to Bay"
+    /// button in docs/crc/img/printer.png. Resolves the visible strip from
+    /// <see cref="StripPrinterViewModel"/> carousel pointers so users stage
+    /// strips one at a time.
+    /// </summary>
+    public async Task MoveVisiblePrinterStripToBayAsync(PrinterQueueKind kind)
+    {
+        if (SelectedBay is null)
+        {
+            return;
+        }
+        var strip = kind switch
+        {
+            PrinterQueueKind.Departure => Printer.VisibleDepartureStrip,
+            PrinterQueueKind.Arrival => Printer.VisibleArrivalStrip,
+            _ => Printer.VisibleStrip,
+        };
+        if (strip is null)
+        {
+            return;
+        }
+        // Index null → server appends to the tail of rack 0 (CRC bottom-up
+        // FIFO: first strip placed lands at the visual bottom, each new
+        // arrival stacks above). The canonical emitted is "STRIP <bay> 1"
+        // (no index token).
+        await MoveStripAsync(strip, SelectedBay, rack: 0, index: null);
+    }
+
+    /// <summary>
+    /// Deletes the visible printer strip (for the given queue kind). Mirrors
+    /// the "Delete" button next to the carousel in docs/crc/img/printer.png.
+    /// </summary>
+    public async Task DeleteVisiblePrinterStripAsync(PrinterQueueKind kind)
+    {
+        var strip = kind switch
+        {
+            PrinterQueueKind.Departure => Printer.VisibleDepartureStrip,
+            PrinterQueueKind.Arrival => Printer.VisibleArrivalStrip,
+            _ => Printer.VisibleStrip,
+        };
+        if (strip is null)
+        {
+            return;
+        }
+        await DeleteStripAsync(strip);
+    }
+
+    /// <summary>
+    /// Dispatch an already-built canonical string with an empty callsign.
+    /// Used by the keyboard-shortcut separator style-cycle path where the
+    /// client computes both SEPD and SEP commands and wants them to go out
+    /// via the same <c>_sendCommand</c> as the rest of the VM operations.
+    /// </summary>
+    public async Task DispatchRawAsync(string canonical)
+    {
+        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+    }
+
+    /// <summary>
+    /// True when <paramref name="strip"/> currently sits in
+    /// <paramref name="destBay"/>.Racks[<paramref name="rack"/>] at exactly
+    /// <paramref name="index"/>. Used by <see cref="MoveStripAsync"/> to
+    /// suppress canonical-dispatch when a drag lands on the strip's own slot.
+    /// </summary>
+    private static bool IsStripAlreadyAt(StripItemViewModel strip, StripBayViewModel destBay, int rack, int index)
+    {
+        if (rack < 0 || rack >= destBay.Racks.Count)
+        {
+            return false;
+        }
+        var strips = destBay.Racks[rack].Strips;
+        return index >= 0 && index < strips.Count && ReferenceEquals(strips[index], strip);
+    }
+
     private static SeparatorStyle MapSeparator(StripItemType type) =>
         type switch
         {
@@ -543,4 +902,29 @@ public partial class VStripsViewModel : ObservableObject
 
     // Kept as an alias so existing test code still compiles.
     internal IReadOnlyDictionary<string, StripItemViewModel> ItemsByIdForTests => _items;
+}
+
+/// <summary>
+/// Direction for keyboard navigation and movement commands.
+/// </summary>
+public enum NavDirection
+{
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+/// <summary>
+/// Which printer carousel a command targets. Used by
+/// <see cref="VStripsViewModel.MoveVisiblePrinterStripToBayAsync"/> and
+/// <see cref="VStripsViewModel.DeleteVisiblePrinterStripAsync"/> so a single
+/// entry point services both the two-printer and the combined single-printer
+/// rendering paths.
+/// </summary>
+public enum PrinterQueueKind
+{
+    Combined,
+    Departure,
+    Arrival,
 }

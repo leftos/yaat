@@ -1,0 +1,297 @@
+# YAAT vStrips: CRC Parity
+
+## Status
+
+**Rounds 1–6 landed (client + server).** The bulk of the CRC parity plan is
+implemented and compiling clean on both repos. Several targeted polish items
+came out of user testing on top of the original plan; those are captured here.
+
+Remaining work is a small set of follow-ups flagged at the bottom.
+
+---
+
+## What shipped
+
+### Round 1 — Visual custom control + fixed-width racks
+
+- New `src/Yaat.Client.Core/Views/VStrips/FlightStripControl.axaml[.cs]`.
+  - 7 × 3 grid (not 5 as originally planned — the annotation column is three
+    actual columns, not a `UniformGrid`), equal-height rows, fixed column widths.
+  - Column ratios derived from pixel-measuring `docs/crc/img/printer.png`
+    (DAL713 strip, 681 × 82 px): 22 / 8.5 / 13.5 / 37.9 / 6 / 6 / 6.
+  - At the user-spec natural size 535 × 66 px: column widths
+    `118 / 46 / 72 / * / 32 / 32 / 33`, row heights `23 / 23 / 23`.
+  - Col 1 row 1 exception: `DockPanel` stacks callsign (top, 13 pt bold) over
+    revision (bottom, 8 pt bold) without the row growing.
+  - All printed text is **bold** for controller-desk legibility.
+  - Col 1 row 3 puts `CID + barcode` side-by-side. Barcode is a deterministic
+    glyph derived from `strip.Id.GetHashCode()`; uses `canvas.Bounds.Width`
+    so bars fill whatever width is available after the CID.
+  - Col 3 row 1 shows `field 8` (departure airport, optionally + destination —
+    see server note below).
+  - Col 4 (route + remarks) spans all three rows. Two layout paths:
+    - `HasRemarks = false` → single TextBlock spanning 3 rows, `MaxLines=3`,
+      `TextTrimming=CharacterEllipsis`, `LineHeight=22`.
+    - `HasRemarks = true` → route TextBlock spans rows 1–2 (`MaxLines=2`),
+      remarks TextBlock anchors row 3.
+  - Cols 5–7 are the 3 × 3 annotation grid. Each cell's `Tag` carries the
+    canonical box number 1..9 that `AN {box}` writes to `FieldValues[box+9]`.
+  - Offset = negative left margin applied from code-behind when
+    `IsOffset = true` (matches `docs/crc/img/offset.png`).
+  - Disconnected = diagonal red stroke drawn on an overlay `Canvas`, sized
+    to `Bounds` so it tracks resizes.
+- `src/Yaat.Client/App.axaml` carries the CRC palette resources
+  (`StripCellBrush #EEEBE0`, `StripBorderBrush #BFBBAE`, separator colors,
+  `StripScriptFont`).
+- `StripItemView.axaml[.cs]` deleted (replaced by `FlightStripControl`).
+- Rack Border width: `547` (strip 535 + padding). Racks scroll horizontally
+  in the parent `ScrollViewer` when many don't fit.
+
+### Round 1.5 — Zoom + bottom-up rendering
+
+Not in the original plan but requested during review.
+
+- `VStripsViewModel.ZoomScale` observable property (default 0.8, range 0.5–1.5).
+  `ZoomInCommand` / `ZoomOutCommand` step by 0.1. `ZoomLabel` exposes the
+  percent display for the header.
+- Header has `−` / `80%` / `+` controls between the trash icon and the
+  printer toggle.
+- Racks area wrapped in a `LayoutTransformControl` bound to `ZoomScale` so
+  strips + racks + padding all scale together; the header does not.
+- **Bottom-up rendering**: rack inner `ItemsControl` uses a `DockPanel`
+  with `LastChildFill="False"` and each `ContentPresenter` is styled with
+  `DockPanel.Dock="Bottom"`. Item index 0 docks first → bottom; later items
+  stack upward. Paired with the server change below, this gives CRC bottom-up
+  FIFO: strip #1 lands at the bottom, strip #2 above it, strip #3 above #2.
+
+### Round 2 — Context menus
+
+- Right-click on a strip opens a `MenuFlyout` with Offset / Delete / Push-to /
+  strip-type-specific items (Slide for half-strips, etc.).
+- Right-click on empty rack space opens Add Half-Strip / Add Separator
+  (submenu: Handwritten / White / Red / Green) / Add Blank. (Context menu for
+  empty rack space is wired in `ShowEmptyRackMenu`; see remaining work list —
+  verify in session.)
+
+### Round 3 — Inline editing + `IsSelected`
+
+- New `src/Yaat.Client.Core/Views/VStrips/InlineTextEditPopup.axaml[.cs]` —
+  one reusable `Popup`-anchored single-line editor (`Enter` commits, `Esc`
+  cancels). `Open(anchor, initial, onCommit)`.
+- `StripItemViewModel.IsSelected` (`[ObservableProperty]`) flipped from
+  `VStripsViewModel.OnSelectedStripChanged` so the `FlightStripControl`
+  draws a yellow ring on the selected strip without extra plumbing.
+- Clicking an annotation cell opens the editor; commit emits
+  `AnnotateAsync(strip, box, text)` which builds `AN {box} {text}`.
+- Separator label editing uses **delete+create** pattern
+  (`EditSeparatorLabelAsync`) — the server-side `SEPE` canonical wasn't
+  added in this round; see follow-ups.
+- Half-strip line amend wired via `AmendHalfStripAsync` →
+  `HSA {key} {line…}`.
+
+### Round 4 — Keyboard shortcuts
+
+- Arrow keys navigate selection; Ctrl+arrow moves a strip.
+- Shift+arrow toggles offset; Ctrl+click selects without dragging;
+  Alt+click deletes.
+- Ctrl+Shift+H/S adds half-strip / separator above selection.
+- Ctrl+1..9 edits annotation box 10..18.
+- Ctrl+Alt+1..9 jumps-to-bay (or pushes strip to bay N when a strip is
+  selected).
+- `PageUp`/`PageDown` bay switching, `Ctrl+Alt+←/→` facility switching
+  (already wired pre-plan).
+
+### Round 5 — Printer panel parity
+
+- Printer panel rebuilt as a centered modal matching
+  `docs/crc/img/printer.png`:
+  - Request-Strip input + green "Request Strip" button
+  - "Print Blank Strip" button
+  - Departure + Arrival carousels (single "Flight Strip Printer" section when
+    `HasTwoPrinters == false`)
+  - `<` / `>` arrows flanking a single-strip preview
+  - `N/M` counter
+  - Move-to-Bay / Delete buttons below each carousel
+- `StripPrinterViewModel` split `DepartureQueue` / `ArrivalQueue` with
+  `VisibleDepartureIndex` / `VisibleArrivalIndex`. Client-side demux in
+  `ReplaceAll` (arrivals → ArrivalQueue, else → DepartureQueue).
+- The printer modal backdrop is **fully transparent** (was `#CC000000`) so
+  "Move to Bay" rack updates are visible without closing the printer first.
+- `MoveVisiblePrinterStripToBayAsync(kind)` + `DeleteVisiblePrinterStripAsync`
+  wired for both queues.
+- `RequestStripAsync` stub: button renders and logs but the RPC isn't
+  implemented yet — see follow-ups.
+
+### Round 6 — Polish
+
+- Disconnected ✗ overlay drawn in code-behind, tracks bounds.
+- Offset rendering via negative outer margin.
+- Drag ghost: absolutely-positioned `Canvas` above every control renders a
+  clone of the dragged strip tracking the pointer (`DragGhostCanvas` in
+  `VStripsView.axaml`).
+- Drag-drop reliability: root-level handler `OnRootDrop` walks up from
+  `e.Source` to find a rack `Border` by `Tag`. More reliable than per-rack
+  `Loaded` handlers which didn't always fire in DataTemplate-generated visuals.
+- `IsStripAlreadyAt` no-op guard in `MoveStripAsync` avoids emitting a
+  redundant STRIP canonical when a drag releases on the strip's current slot.
+
+### Visual-parity polish from user testing
+
+- **Octal beacon bug** fixed: `GenerateBeaconCode` stores the squawk as a
+  decimal int whose digits are already 0–7 (e.g. 3447). The old
+  `FormatBeacon` did `Convert.ToString((int)beacon, 8)` — a *base conversion*
+  that turned 3447 into "6567", silently mislabelling every strip. Fix:
+  `beacon.ToString("D4")` keeps the digits as assigned. Test updated to
+  assert the new behaviour with `AssignedBeaconCode = 1234u` → "1234".
+- **Route wrapped with dep + dest**: `FormatRouteField` prepends
+  `ac.Departure` and appends `ac.Destination` (token-aware, so "KBOSTON"
+  isn't mistaken for "KBOS"), producing e.g. `KBOS ... KLAX`. Remarks
+  separated by `\n`; client `StripItemViewModel.RouteText` / `.Remarks` /
+  `.HasRemarks` split on the first newline.
+- **1-based rack/index on the wire, null index = append.** User feedback:
+  "users don't really think in 0-based indices". `ResolveStripTokens` on
+  the server expects 1-based tokens, rejects `< 1`, converts internally to
+  0-based. `Index` is nullable — null means "the caller omitted the index
+  token entirely". `HandleStripMoveAsync` treats null as "append to the
+  tail of the rack" (CRC bottom-up first-available slot; accounts for
+  already-in-this-rack by subtracting 1). Client
+  `VStripsCanonicalBuilder.BuildStripMove` takes `int? index`; null drops
+  the trailing token on the wire (`STRIP Ground 1`). `BuildHSC / BuildHSM /
+  BuildSEP / BuildBLANK` all pass through `OneBased(n)` for rack+index.
+- **`MoveStripAsync(strip, destBay, rack, int? index)`** — callers that
+  want append semantics now pass `index: null`. Printer "Move to Bay",
+  bay-button drop, "Push to <bay>" context menu, and the Ctrl+Alt+N
+  keyboard shortcut all use null. Rack drop with a specific slot still
+  passes an int.
+- **Whitespace-insensitive bay matching** already worked
+  (`ResolveStripTokens` strips spaces from both sides); test added to
+  prevent regression — `STRIP Ground2 1` resolves to bay "Ground 2".
+
+---
+
+## Key learnings (save your future self the pain)
+
+- **Reference = printer.png, not departure-strip.png.** The red "1..9 / 10..18"
+  numbers in `departure-strip.png` and `arrival-strip.png` are *documentation
+  overlays*, not rendered strip text. Use the DAL713 render inside
+  `docs/crc/img/printer.png` as the pixel ground truth.
+- **DockPanel with `Dock=Bottom` is the bottom-up list panel.** No custom
+  panel needed: first item docks to the bottom, subsequent items dock into
+  the shrinking remaining space (stacking upward). Set via
+  `ItemsControl.Styles { Selector: "ItemsControl > ContentPresenter" }`.
+- **`int[]` has `.Length`, not `.Count` — `.Count` silently resolves to the
+  LINQ extension method group and fails with CS0019.** Hit this when
+  computing the append index from `state.Bays[bayId][rackKey]` which is
+  `List<string>[]`.
+- **Avalonia `LayoutTransformControl` is the right scale primitive.** Unlike
+  `RenderTransform`, it reallocates layout bounds under the transform, so
+  a wrapping `ScrollViewer` honors the scaled size.
+- **Root-level drop handlers are more reliable than per-template Loaded
+  hooks** for `DataTemplate`-generated visuals. The `OnRootDrop` walk finds
+  the rack `Border` via `Tag = StripRackViewModel` regardless of where the
+  pointer released (strip, padding, empty space).
+- **No-op guard matters.** Without `IsStripAlreadyAt`, every drag that
+  releases on the strip's existing slot emits a redundant STRIP canonical
+  — harmless server-side but noisy in the command log.
+- **Beacon codes are stored as decimal ints with octal-valid digits, not as
+  binary octal values.** `SimulationWorld.GenerateBeaconCode` builds
+  `3447` (decimal) one digit at a time via `rng.Next(0, 8)`, so the display
+  is just `ToString("D4")`. `Convert.ToString(_, 8)` would treat 3447 as a
+  base-10 number to convert, producing a wrong string.
+- **Strip height limit: 66 px at 100 % zoom, 13 pt font bold** fits three
+  rows comfortably with 1 px vertical padding each.
+- **Route trimming**: at 12 pt bold, a ~200 px route column fits roughly
+  26 chars per wrapped line. `MaxLines=2` (when remarks present) truncates
+  mid-route for long flights — see the "Route trim preserves tail" follow-up.
+
+---
+
+## Remaining follow-ups
+
+All build cleanly; these are enhancements / deferred work, not blockers.
+
+- [ ] **Server: pack destination airport into strip field 8** — currently
+  col 3 row 1 shows just the departure airport. `FieldIdxDeparture = 7`
+  holds `ac.Departure` alone; to render "KOAK KLAX" (facility-configurable
+  per user spec), pack both into that field or add a new slot. Task #13.
+- [ ] **Server: wire revision counter into `FieldIdxRevision`** —
+  `FlightStripControl.axaml` DockPanel already renders it at half size;
+  server writes `""`. Increment on every Flight Plan Editor amend. Task #14.
+- [ ] **Verify visual parity end-to-end against `docs/crc/img/printer.png`**
+  by running the client and side-by-side comparing. Task #15.
+- [ ] **Verify drag-drop end-to-end** for within-rack reorder / between-racks
+  move / printer-to-rack (user reported some of these still broken prior to
+  the bottom-up + zoom rework). Task #16.
+- [ ] **Add `SEPE` canonical command** (atomic separator label edit). Today
+  the client uses delete+create which is racy under reconnect. Task #17.
+- [ ] **Implement `RequestFlightStripForAircraft` SignalR RPC.** The printer
+  button renders and logs; server handler is not yet wired. Task #18.
+- [ ] **Server: emit push-warning broadcast** when a strip is pushed to an
+  external bay that has no connected controller. Client already listens.
+  Task #19.
+- [ ] **Rack context menu: separators + half-strips.** Right-click on empty
+  rack space should open "Add Separator (handwritten/white/red/green)" and
+  "Add Half-Strip (left/right)". `ShowEmptyRackMenu` exists; verify it's
+  wired and has the expected items. Task #28.
+- [ ] **Same-bay inter-rack drag-drop.** User reported that moving a strip
+  between racks within the same bay doesn't work, though between-bays does.
+  `OnRootDrop` needs to detect the target rack index correctly when source
+  and target share a bay container. Task #29.
+- [ ] **Route trim preserves tail.** With `MaxLines=2` and remarks present
+  long routes truncate mid-text (`SSKII3…`) instead of showing the
+  destination (`BUMMP*** KDEN`). Consider middle-ellipsis that preserves
+  start + end. Task #30.
+- [ ] **Persist primary Strips window pop-out state / position.** Multiple
+  facility-scoped Strips windows can be popped out — at minimum persist
+  the PRIMARY window's pop-out flag, position, size. Task #32.
+
+---
+
+## Quick reference for a fresh instance
+
+### Critical files (client)
+
+- `src/Yaat.Client.Core/Views/VStrips/FlightStripControl.axaml[.cs]` — 7×3
+  strip layout; DockPanel trick for callsign+revision; code-behind draws
+  barcode + disconnected overlay + applies offset margin.
+- `src/Yaat.Client.Core/Views/VStrips/VStripsView.axaml[.cs]` — racks area,
+  drag-ghost canvas, printer modal, root-level drop handler, zoom wiring,
+  keyboard shortcuts, InlineEditor instance.
+- `src/Yaat.Client.Core/Views/VStrips/InlineTextEditPopup.axaml[.cs]` —
+  reusable `Popup` editor.
+- `src/Yaat.Client.Core/ViewModels/VStripsViewModel.cs` — `MoveStripAsync`
+  with nullable index, `MoveVisiblePrinterStripToBayAsync`, zoom commands,
+  selection nav, separator delete+create flow.
+- `src/Yaat.Client.Core/ViewModels/VStripsCanonicalBuilder.cs` — every
+  builder uses `OneBased(n)` for wire emission.
+- `src/Yaat.Client.Core/ViewModels/StripItemViewModel.cs` — `RouteText` /
+  `Remarks` / `HasRemarks` split on `\n`; `Revision` half-size hook.
+- `src/Yaat.Client.Core/ViewModels/StripPrinterViewModel.cs` — Departure /
+  Arrival carousel indexes + counters.
+- `src/Yaat.Client/App.axaml` — CRC palette resources.
+
+### Critical files (server)
+
+- `src/Yaat.Server/Simulation/StripMutations.cs` — `FormatBeacon` (decimal,
+  not `Convert.ToString(_, 8)`); `FormatRouteField` / `FormatDestRemarks`
+  (wrap route with dep+dest, separate remarks with `\n`);
+  `ResolveStripTokens` (1-based input, nullable Index, whitespace-insensitive
+  bay match); `AppendStripToBay` (used by half-strip create).
+- `src/Yaat.Server/Simulation/StripCommandHandler.cs` — `HandleStripMoveAsync`
+  computes append index under the state gate (already-in-this-rack aware).
+- `tests/Yaat.Server.Tests/StripMutationsTests.cs` — updated for nullable
+  Index, 1-based wire, beacon-as-decimal, whitespace-insensitive bay match.
+
+### Build / test
+
+```powershell
+dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log
+timeout 30 dotnet test 2>&1 | tee .tmp/test.log
+# server, run from yaat-server/ :
+dotnet build yaat-server.slnx -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build-server.log
+timeout 30 dotnet test 2>&1 | tee .tmp/test-server.log
+```
+
+If the server or client is running, file-lock errors on `Yaat.Server.exe` /
+`Yaat.Client.Core.dll` are expected and non-fatal to compilation. Filter
+with `grep -E "error CS"` to see real errors only.

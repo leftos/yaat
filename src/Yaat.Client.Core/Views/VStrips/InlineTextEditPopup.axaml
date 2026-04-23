@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Yaat.Client.Views.VStrips.InlineTextEditPopup"
+             Focusable="True">
+    <!-- Anchored popup that opens next to the cell being edited. Enter commits
+         via OnKeyDown; Esc closes without committing. Shared by annotation
+         edits, half-strip line edits, and separator label edits. -->
+    <Popup x:Name="EditPopup"
+           Placement="AnchorAndGravity"
+           PlacementAnchor="TopLeft"
+           PlacementGravity="TopLeft"
+           IsLightDismissEnabled="True">
+        <Border Background="#1A1A1E"
+                BorderBrush="#4A4A52"
+                BorderThickness="1"
+                Padding="6">
+            <TextBox x:Name="EditTextBox"
+                     MinWidth="160"
+                     FontFamily="{StaticResource MonoFont}"
+                     FontSize="12"
+                     KeyDown="OnEditKeyDown"/>
+        </Border>
+    </Popup>
+</UserControl>

@@ -71,7 +71,8 @@ Views/
   ConnectWindow.axaml.cs        # Server/room/identity entry dialog
   VStripsView.axaml.cs          # Embedded vStrips control
   VStripsViewWindow.axaml.cs    # Pop-out window for vStrips view
-  StripItemView.axaml.cs        # Per-strip display template
+  VStrips/FlightStripControl.axaml.cs  # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring)
+  VStrips/InlineTextEditPopup.axaml.cs # Shared popup editor for annotations, half-strip lines, and separator labels
 
 Services/
   VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations

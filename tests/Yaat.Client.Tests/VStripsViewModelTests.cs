@@ -105,13 +105,16 @@ public class VStripsViewModelTests
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
         var original = vm.ItemsByIdForTests["S1"];
 
-        var fieldsUpdated = new string[18];
-        for (var i = 0; i < 18; i++)
+        // Server writes annotation box 10 at FieldValues[box+9] = [10] per
+        // StripMutations.SetAnnotationBox — FieldValues[9] is route/remarks,
+        // NOT box 10. The VM's Annotation10 reads Field(10).
+        var fieldsUpdated = new string[19];
+        for (var i = 0; i < 19; i++)
         {
             fieldsUpdated[i] = "";
         }
         fieldsUpdated[0] = "UAL100";
-        fieldsUpdated[9] = "RV"; // annotation box 10
+        fieldsUpdated[10] = "RV"; // annotation box 10
 
         vm.ReconcileItems([new StripItemDto("S1", "UAL100", false, StripItemType.DepartureStrip, false, fieldsUpdated)]);
 
