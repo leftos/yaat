@@ -1,8 +1,10 @@
 using System.IO;
+using System.Linq;
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -2028,5 +2030,151 @@ public class TaxiPathfinderTests
         Assert.Null(failReason);
         Assert.NotNull(route);
         Assert.Equal(3, route.Segments[^1].ToNodeId);
+    }
+
+    // ----- Same-taxiway arc shortcut (Item 2) -----
+
+    /// <summary>
+    /// Build a three-node linear walk (A→B→C, single taxiway "T") plus a
+    /// same-taxiway fillet arc A↔C. The arc shares the taxiway name with
+    /// the walk edges, so <see cref="TaxiPathfinder.WalkTaxiway"/>'s
+    /// post-pass should collapse the A→B→C straight pair into a single
+    /// arc segment A→C.
+    /// </summary>
+    private static AirportGroundLayout BuildArcShortcutLayout(bool arcSameTaxiway)
+    {
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        var nodeA = new GroundNode
+        {
+            Id = 0,
+            Latitude = 37.700,
+            Longitude = -122.200,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var nodeB = new GroundNode
+        {
+            Id = 1,
+            Latitude = 37.7007,
+            Longitude = -122.200,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var nodeC = new GroundNode
+        {
+            Id = 2,
+            Latitude = 37.7007,
+            Longitude = -122.2007,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        layout.Nodes[0] = nodeA;
+        layout.Nodes[1] = nodeB;
+        layout.Nodes[2] = nodeC;
+
+        var edgeAB = new GroundEdge
+        {
+            Nodes = [nodeA, nodeB],
+            TaxiwayName = "T",
+            DistanceNm = 0.04,
+        };
+        var edgeBC = new GroundEdge
+        {
+            Nodes = [nodeB, nodeC],
+            TaxiwayName = "T",
+            DistanceNm = 0.04,
+        };
+        layout.Edges.AddRange([edgeAB, edgeBC]);
+
+        var arcAC = new GroundArc
+        {
+            Nodes = [nodeA, nodeC],
+            // Single name → same-taxiway fillet; two names → junction arc.
+            TaxiwayNames = arcSameTaxiway ? ["T"] : ["T", "U"],
+            DistanceNm = 0.055,
+            MinRadiusOfCurvatureFt = 50.0,
+            P1Lat = 37.7004,
+            P1Lon = -122.200,
+            P2Lat = 37.7007,
+            P2Lon = -122.2003,
+        };
+        layout.Arcs.Add(arcAC);
+
+        nodeA.Edges.AddRange([edgeAB, arcAC]);
+        nodeB.Edges.AddRange([edgeAB, edgeBC]);
+        nodeC.Edges.AddRange([edgeBC, arcAC]);
+
+        layout.RebuildAdjacencyLists();
+        return layout;
+    }
+
+    [Fact]
+    public void WalkTaxiway_SameTaxiwayArcShortcutsStraightPair()
+    {
+        var layout = BuildArcShortcutLayout(arcSameTaxiway: true);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: 0, taxiwayNames: ["T"], out _, new ExplicitPathOptions());
+
+        Assert.NotNull(route);
+        // Straight walk would yield [A→B, B→C] (2 segments). The arc shortcut
+        // collapses them into a single arc segment A→C.
+        Assert.Single(route.Segments);
+        Assert.IsType<GroundArc>(route.Segments[0].Edge.Edge);
+        Assert.Equal(0, route.Segments[0].FromNodeId);
+        Assert.Equal(2, route.Segments[0].ToNodeId);
+    }
+
+    [Fact]
+    public void WalkTaxiway_JunctionArcNotUsedAsShortcut()
+    {
+        // Same topology but the arc is tagged as a two-taxiway junction arc.
+        // Junction arcs connect different taxiways at transitions — using
+        // one as a same-taxiway shortcut would misrepresent the pavement.
+        var layout = BuildArcShortcutLayout(arcSameTaxiway: false);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: 0, taxiwayNames: ["T"], out _, new ExplicitPathOptions());
+
+        Assert.NotNull(route);
+        // Straight walk is preserved — 2 straight segments, no arc.
+        Assert.Equal(2, route.Segments.Count);
+        Assert.All(route.Segments, s => Assert.IsType<GroundEdge>(s.Edge.Edge));
+    }
+
+    [Fact]
+    public void ResolveExplicitPath_SfoM2_UsesSameTaxiwayArcAtA1Apex()
+    {
+        // SFO A1 has a same-taxiway fillet arc (TaxiwayNames=["A1"])
+        // connecting nodes 2186 and 2185 around the apex at node 507. The
+        // M2 → A → A1 → 1R route's straight walk visits [..., 2186, 507,
+        // 2185, 877]; Item 2's shortcut pass must replace the 2186→507→2185
+        // straight pair with the arc so the aircraft tracks the real
+        // pavement curve at natural speed rather than orbiting through the
+        // apex (which Item 1's synthesis would otherwise rescue at 12 kt).
+        TestVnasData.EnsureInitialized();
+        var groundData = new TestAirportGroundData();
+        var layout = groundData.GetLayout("SFO");
+        if (layout is null)
+        {
+            return; // SFO geojson absent — silent skip.
+        }
+
+        // Start node matches the M2 multi-turn test's spawn area.
+        const int startNode = 1529;
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            fromNodeId: startNode,
+            taxiwayNames: ["M2", "A", "A1"],
+            out string? failReason,
+            new ExplicitPathOptions { DestinationRunway = "1R", AirportId = "SFO" }
+        );
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+
+        bool usesArc = route.Segments.Any(s =>
+            s.Edge.Edge is GroundArc arc
+            && arc.TaxiwayNames.Length == 1
+            && arc.TaxiwayNames[0].Equals("A1", System.StringComparison.OrdinalIgnoreCase)
+            && (((arc.Nodes[0].Id == 2186) && (arc.Nodes[1].Id == 2185)) || ((arc.Nodes[0].Id == 2185) && (arc.Nodes[1].Id == 2186)))
+        );
+        Assert.True(usesArc, "route should use the 2186↔2185 same-taxiway arc at SFO A1 apex");
+
+        bool visitsApex = route.Segments.Any(s => (s.FromNodeId == 507) || (s.ToNodeId == 507));
+        Assert.False(visitsApex, "route should NOT visit A1 apex node 507 — the arc skips it");
     }
 }

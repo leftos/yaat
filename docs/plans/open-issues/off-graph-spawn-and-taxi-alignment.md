@@ -15,7 +15,8 @@
 - [x] `4ff7a39` — revert `b7f3d38` (ingress resolver) — rationale in commit message
 - [x] `dc12009` — feat: snap off-graph ground spawns onto nearest taxi edge (`GroundSpawnSnap` + `AirportGroundLayout.FindNearestTaxiEdge`, runs in `ScenarioLoader` after heading derivation, before any tick)
 - [x] `73786a8` — chore: add M2 multi-turn test + LI opacity tweak + this handoff plan
-- [x] **Item 1 (this commit)** — feat: navigator lookahead tangent-entry slow-turn synthesis (see "Item 1 — done this session" below)
+- [x] `8d5e813` — feat: navigator lookahead tangent-entry slow-turn synthesis (Item 1; see "Item 1 — done this session" below)
+- [x] **Item 2 (this commit)** — feat: pathfinder same-taxiway fillet arc shortcut (see "Item 2 — done this session" below)
 
 ## Context
 
@@ -130,26 +131,28 @@ Implemented not as at-node synthesis (original sketch) but as **lookahead tangen
 - `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — `PlannedSynthesis` record, `_plannedSynthesis` field, `PlanSynthesisLookahead`, trigger constraint in `ComputeTargetSpeed`, mid-segment trigger in `TickStraight`, arrival-threshold suppression, supporting constants.
 - `tests/Yaat.Sim.Tests/Simulation/SfoM2MultiTurnTaxiTests.cs` — assertion polarity fix.
 
-### Item 2 — Pathfinder: prefer same-taxiway arc iff shortcut
+### Item 2 — Pathfinder: prefer same-taxiway arc iff shortcut — **DONE this session**
 
-**Why second**: once the navigator is robust (Item 1), pathfinder-level arc preference becomes a pure optimization. If the pathfinder stops preferring the apex-detour, the aircraft taxis via the fillet arc naturally and doesn't need the navigator's SlowTurn rescue.
+**Problem recap**: `TaxiPathfinder.WalkTaxiway`'s blanket "prefer straights over arcs" rule discarded same-taxiway fillet arcs (created by `FilletArcGenerator` at bends within a single taxiway, `TaxiwayNames.Length == 1`). At SFO's A1 apex this emitted `2186 → 507 → 2185` as two straights through the corner, forcing Item 1's runtime synthesis to rescue the turn.
 
-**Rule per conversation**: prefer a same-taxiway arc *only when it's a shortcut along the same walk path*. Formally: walk without the arc would visit nodes `[... X Y Z ...]`, and the arc connects two of those nodes non-adjacently (e.g., `X` and `Z`), skipping `Y`. Then use the arc. If the arc endpoints aren't both nodes the walk would reach, don't use it.
+**Final design**: kept the main walk's straight-preference (it's correct for junction picks where two-taxiway arcs would otherwise derail transitions) and added a post-walk pass `ApplySameTaxiwayArcShortcuts` in `TaxiPathfinder.cs`. After the walk builds the straight-only segment list for one taxiway:
 
-**Implementation sketch** (`TaxiPathfinder.WalkTaxiway`):
-1. Walk the taxiway using only straights (current behaviour) — collect the resulting node sequence.
-2. For each same-taxiway arc incident to any node in that sequence, check if its other endpoint is *also* in the sequence, at a non-adjacent position.
-3. If yes, replace the intermediate segments with the arc.
+1. Build the ordered node sequence for this walk's segments: `[startNodeId, segments[i].ToNodeId for i in walkRange]`.
+2. For each arc in the layout with `TaxiwayNames.Length == 1` and matching the current walk's taxiway, check whether both endpoints appear in the sequence at non-adjacent positions (i.e. `|pos(ep0) − pos(ep1)| ≥ 2`). If yes, the arc represents a real shortcut — the straight walk goes `X → Y → Z` through intermediate node(s) and the arc connects `X ↔ Z` directly.
+3. Replace the spanning straight segments with a single `DirectionalEdge` built from the arc. Iterate until no further shortcut applies so chained arcs all fire in one pass.
+4. Junction arcs (`TaxiwayNames.Length == 2`) are skipped — their dual-name tag is the signal that they connect different taxiways at a transition; using one as a same-taxiway shortcut would misrepresent the pavement.
+5. The walk's `visited` set and `endNodeId` are not touched — both still reflect the nodes traversed (the skipped intermediates were visited by the original walk; the shortcut just removes them from the emitted segment list).
 
-Alternative / simpler: at each node, if there's a same-taxiway arc, peek ahead along the straight walk to see if the arc's other endpoint is visited within N steps; if yes, take the arc.
+**Effect**: `SfoM2MultiTurnTaxiTests` route drops from 14 segments to 13. The pathfinder now emits seg 11 as `kind=Arc dist=0.0194nm` (the 2186↔2185 fillet, natural radius 74 ft). Aircraft traverses the arc at gs ~21 kt (cornerSpeed-constrained by the arc's `MaxSafeSpeedKts`) — no Item 1 synthesis fires because node 507 isn't in the route. Taxi duration 37 s (was 42 s with Item 1 only, 80+ s pre-fix).
 
-**Tests**:
-- Add an LI `--pathfinder` flag parity test or inline unit test that exercises the M2→A→A1→1R route on SFO and asserts the arc 2186↔2185 is used.
-- Existing airport lifecycle tests (`Oak*`, `Sfo28r*`) must stay green — these don't depend on any same-taxiway fillet bypasses and shouldn't change.
+**Verification**: 3164 tests green (+3 new), zero warnings. Tests:
+- `TaxiPathfinderTests.WalkTaxiway_SameTaxiwayArcShortcutsStraightPair` — synthetic 3-node layout with a same-taxiway arc, asserts the walk collapses to a single arc segment.
+- `TaxiPathfinderTests.WalkTaxiway_JunctionArcNotUsedAsShortcut` — same topology with a two-taxiway-name arc, asserts the arc is NOT picked (junction arcs stay at transitions).
+- `TaxiPathfinderTests.ResolveExplicitPath_SfoM2_UsesSameTaxiwayArcAtA1Apex` — SFO integration; asserts the resolved route contains the arc 2186↔2185 and does NOT visit apex node 507.
 
-**Files to touch**:
-- `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` (`WalkTaxiway` candidate selection)
-- Tests
+**Files changed**:
+- `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` — `WalkTaxiway` records `walkStartIdx`; `ApplySameTaxiwayArcShortcuts` helper called before return.
+- `tests/Yaat.Sim.Tests/TaxiPathfinderTests.cs` — three new tests.
 
 ### Item 3 — `Yaat.LayoutInspector --pathfinder` runtime parity
 
