@@ -397,9 +397,10 @@ def cmd_track(args: argparse.Namespace) -> int:
                 if ac is None:
                     row[cs] = None
                     continue
+                pos = ac.get("Position") or {}
                 row[cs] = {
-                    "lat": ac["Latitude"],
-                    "lon": ac["Longitude"],
+                    "lat": pos.get("Lat"),
+                    "lon": pos.get("Lon"),
                     "alt": ac["Altitude"],
                     "ias": ac["IndicatedAirspeed"],
                     "hdg": ac["TrueHeadingDeg"],
@@ -412,7 +413,9 @@ def cmd_track(args: argparse.Namespace) -> int:
                 a_cs, b_cs = args.pair[0].upper(), args.pair[1].upper()
                 a, b = present.get(a_cs), present.get(b_cs)
                 if a is not None and b is not None:
-                    gap = _haversine_nm(a["Latitude"], a["Longitude"], b["Latitude"], b["Longitude"])
+                    a_pos = a.get("Position") or {}
+                    b_pos = b.get("Position") or {}
+                    gap = _haversine_nm(a_pos["Lat"], a_pos["Lon"], b_pos["Lat"], b_pos["Lon"])
                     row["gap_nm"] = gap
                     follow_cs = a.get("FollowingCallsign")
                     if follow_cs != prev_follow_cs:
