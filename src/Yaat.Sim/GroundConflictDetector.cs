@@ -119,7 +119,7 @@ public static class GroundConflictDetector
                     continue;
                 }
 
-                double distNm = GeoMath.DistanceNm(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
+                double distNm = GeoMath.DistanceNm(a.Position, b.Position);
                 if (distNm > SearchRangeNm)
                 {
                     continue;
@@ -175,7 +175,7 @@ public static class GroundConflictDetector
     /// </summary>
     public static bool IsClearOf(AircraftState subject, AircraftState reference, AirportGroundLayout? layout)
     {
-        double distNm = GeoMath.DistanceNm(subject.Latitude, subject.Longitude, reference.Latitude, reference.Longitude);
+        double distNm = GeoMath.DistanceNm(subject.Position, reference.Position);
         double distFt = distNm * FtPerNm;
 
         var (refState, _) = Classify(reference);
@@ -208,7 +208,7 @@ public static class GroundConflictDetector
                 return true;
             }
 
-            double bearing = GeoMath.BearingTo(subject.Latitude, subject.Longitude, reference.Latitude, reference.Longitude);
+            double bearing = GeoMath.BearingTo(subject.Position, reference.Position);
             return HeadingDifference(subDir.Value, bearing) >= 90;
         }
 
@@ -364,12 +364,12 @@ public static class GroundConflictDetector
             return false;
         }
 
-        double distA = GeoMath.DistanceNm(a.Latitude, a.Longitude, node.Latitude, node.Longitude);
-        double distB = GeoMath.DistanceNm(b.Latitude, b.Longitude, node.Latitude, node.Longitude);
+        double distA = GeoMath.DistanceNm(a.Position, node.Position);
+        double distB = GeoMath.DistanceNm(b.Position, node.Position);
         double distAFt = distA * FtPerNm;
         double distBFt = distB * FtPerNm;
 
-        double conflictDistFt = GeoMath.DistanceNm(a.Latitude, a.Longitude, b.Latitude, b.Longitude) * FtPerNm;
+        double conflictDistFt = GeoMath.DistanceNm(a.Position, b.Position) * FtPerNm;
 
         AircraftState yielder = distA > distB ? a : b;
         AircraftState winner = distA > distB ? b : a;
@@ -419,7 +419,7 @@ public static class GroundConflictDetector
         // Pushing aircraft only yields if it's actually closing on the other
         if (stateA == MovementState.Pushing && dirA is not null)
         {
-            double bearing = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
+            double bearing = GeoMath.BearingTo(a.Position, b.Position);
             if (HeadingDifference(dirA.Value, bearing) < 90)
             {
                 ApplyMinLimit(a, 0, "pushback yield", b, distFt);
@@ -428,7 +428,7 @@ public static class GroundConflictDetector
 
         if (stateB == MovementState.Pushing && dirB is not null)
         {
-            double bearing = GeoMath.BearingTo(b.Latitude, b.Longitude, a.Latitude, a.Longitude);
+            double bearing = GeoMath.BearingTo(b.Position, a.Position);
             if (HeadingDifference(dirB.Value, bearing) < 90)
             {
                 ApplyMinLimit(b, 0, "pushback yield", a, distFt);
@@ -438,7 +438,7 @@ public static class GroundConflictDetector
         // Moving aircraft approaching a pushing aircraft also slows
         if (stateA != MovementState.Pushing && stateA != MovementState.Stationary && dirA is not null)
         {
-            double bearing = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
+            double bearing = GeoMath.BearingTo(a.Position, b.Position);
             if (HeadingDifference(dirA.Value, bearing) < 90)
             {
                 ApplyTrailLimit(a, b, distFt);
@@ -447,7 +447,7 @@ public static class GroundConflictDetector
 
         if (stateB != MovementState.Pushing && stateB != MovementState.Stationary && dirB is not null)
         {
-            double bearing = GeoMath.BearingTo(b.Latitude, b.Longitude, a.Latitude, a.Longitude);
+            double bearing = GeoMath.BearingTo(b.Position, a.Position);
             if (HeadingDifference(dirB.Value, bearing) < 90)
             {
                 ApplyTrailLimit(b, a, distFt);
@@ -463,7 +463,7 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog = null
     )
     {
-        double bearing = GeoMath.BearingTo(mover.Latitude, mover.Longitude, obstacle.Latitude, obstacle.Longitude);
+        double bearing = GeoMath.BearingTo(mover.Position, obstacle.Position);
         double angleDiff = HeadingDifference(moveDir, bearing);
         if (angleDiff >= 90)
         {
@@ -523,7 +523,7 @@ public static class GroundConflictDetector
         }
 
         // Check that they're actually closing
-        double bearingAtoB = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
+        double bearingAtoB = GeoMath.BearingTo(a.Position, b.Position);
         if (HeadingDifference(dirA, bearingAtoB) < 90)
         {
             ApplyMinLimit(a, 0, "head-on", b, distFt);

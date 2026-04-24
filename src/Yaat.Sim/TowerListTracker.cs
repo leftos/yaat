@@ -76,7 +76,7 @@ public sealed class TowerListTracker
 
             foreach (var ac in snapshot)
             {
-                var dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, airport.Lat, airport.Lon);
+                var dist = GeoMath.DistanceNm(ac.Position, new LatLon(airport.Lat, airport.Lon));
                 if (dist <= airport.RangeNm)
                 {
                     inRangeCallsigns.Add(ac.Callsign);

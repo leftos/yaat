@@ -230,8 +230,7 @@ public static class ScenarioLoader
         }
 
         var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
-        state.Latitude = lat;
-        state.Longitude = lon;
+        state.Position = new LatLon(lat, lon);
         state.Altitude = alt;
         state.IndicatedAirspeed = speed;
         var code = SimulationWorld.GenerateBeaconCode(rng);
@@ -267,7 +266,7 @@ public static class ScenarioLoader
         {
             // BearingTo returns a true bearing
             var first = state.Targets.NavigationRoute[0];
-            double bearingDeg = GeoMath.BearingTo(lat, lon, first.Latitude, first.Longitude);
+            double bearingDeg = GeoMath.BearingTo(new LatLon(lat, lon), first.Position);
             state.TrueHeading = new TrueHeading(bearingDeg);
             state.TrueTrack = state.TrueHeading;
         }
@@ -335,8 +334,7 @@ public static class ScenarioLoader
         var init = AircraftInitializer.InitializeOnRunway(rwy, rwyCategory);
 
         var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
-        state.Latitude = init.Latitude;
-        state.Longitude = init.Longitude;
+        state.Position = new LatLon(init.Latitude, init.Longitude);
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
@@ -393,8 +391,7 @@ public static class ScenarioLoader
         );
 
         var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
-        state.Latitude = init.Latitude;
-        state.Longitude = init.Longitude;
+        state.Position = new LatLon(init.Latitude, init.Longitude);
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
@@ -468,8 +465,7 @@ public static class ScenarioLoader
         var init = AircraftInitializer.InitializeAtParking(node, elevation);
 
         var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
-        state.Latitude = init.Latitude;
-        state.Longitude = init.Longitude;
+        state.Position = new LatLon(init.Latitude, init.Longitude);
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
@@ -1007,7 +1003,7 @@ public static class ScenarioLoader
                     continue;
                 }
 
-                resolved.Add(new ResolvedFix(target.Name, target.Latitude, target.Longitude));
+                resolved.Add(new ResolvedFix(target.Name, target.Position.Lat, target.Position.Lon));
                 existingNames.Add(target.Name);
             }
 

@@ -94,7 +94,7 @@ public sealed class AtpaProcessor
             var follower = inVolume[i].Ac;
             var lead = inVolume[i - 1].Ac;
 
-            var actual = GeoMath.DistanceNm(follower.Latitude, follower.Longitude, lead.Latitude, lead.Longitude);
+            var actual = GeoMath.DistanceNm(follower.Position, lead.Position);
             var required = ComputeRequiredSeparation(lead, follower, volume.TwoPointFiveApproachEnabled);
 
             var alertTcps = alertTcpCodes.Count > 0 && actual < required ? alertTcpCodes : [];

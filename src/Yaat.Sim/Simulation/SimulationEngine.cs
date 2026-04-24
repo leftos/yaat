@@ -863,8 +863,7 @@ public sealed class SimulationEngine
         aircraft.Queue.Blocks.Clear();
 
         // Place on ground
-        aircraft.Latitude = latitude;
-        aircraft.Longitude = longitude;
+        aircraft.Position = new LatLon(latitude, longitude);
         aircraft.TrueHeading = trueHeading;
         aircraft.TrueTrack = trueHeading;
         aircraft.IndicatedAirspeed = 0;
@@ -965,14 +964,14 @@ public sealed class SimulationEngine
             return depLayout;
         }
 
-        var depNode = depLayout.FindNearestNode(aircraft.Latitude, aircraft.Longitude);
-        var destNode = destLayout.FindNearestNode(aircraft.Latitude, aircraft.Longitude);
+        var depNode = depLayout.FindNearestNode(aircraft.Position);
+        var destNode = destLayout.FindNearestNode(aircraft.Position);
 
         double depDist = depNode is not null
-            ? GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, depNode.Latitude, depNode.Longitude)
+            ? GeoMath.DistanceNm(aircraft.Position, depNode.Position)
             : double.MaxValue;
         double destDist = destNode is not null
-            ? GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, destNode.Latitude, destNode.Longitude)
+            ? GeoMath.DistanceNm(aircraft.Position, destNode.Position)
             : double.MaxValue;
 
         return destDist < depDist ? destLayout : depLayout;

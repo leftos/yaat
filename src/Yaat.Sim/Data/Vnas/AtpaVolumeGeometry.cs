@@ -28,11 +28,9 @@ public static class AtpaVolumeGeometry
             return false;
         }
 
-        var thresholdLat = volume.RunwayThreshold.Lat;
-        var thresholdLon = volume.RunwayThreshold.Lon;
-
-        var distNm = GeoMath.DistanceNm(thresholdLat, thresholdLon, ac.Latitude, ac.Longitude);
-        var bearingToAc = GeoMath.BearingTo(thresholdLat, thresholdLon, ac.Latitude, ac.Longitude);
+        var threshold = new LatLon(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon);
+        var distNm = GeoMath.DistanceNm(threshold, ac.Position);
+        var bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
 
         // Along-track and cross-track relative to volume centerline
         var angleDiff = (bearingToAc - volume.MagneticHeading) * Math.PI / 180.0;
@@ -58,8 +56,9 @@ public static class AtpaVolumeGeometry
     /// <summary>Along-track distance from runway threshold along the volume centerline (nm).</summary>
     public static double DistanceFromThreshold(AtpaVolumeConfig volume, AircraftState ac)
     {
-        var bearingToAc = GeoMath.BearingTo(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon, ac.Latitude, ac.Longitude);
-        var distNm = GeoMath.DistanceNm(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon, ac.Latitude, ac.Longitude);
+        var threshold = new LatLon(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon);
+        var bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
+        var distNm = GeoMath.DistanceNm(threshold, ac.Position);
         var angleDiff = (bearingToAc - volume.MagneticHeading) * Math.PI / 180.0;
         return distNm * Math.Cos(angleDiff);
     }

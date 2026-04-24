@@ -107,7 +107,7 @@ public static class ConflictAlertDetector
     private static (double Lat, double Lon, double Altitude) Predict(AircraftState ac)
     {
         double distNm = ac.GroundSpeed * PredictionSeconds / 3600.0;
-        var (lat, lon) = GeoMath.ProjectPoint(ac.Latitude, ac.Longitude, ac.TrueTrack, distNm);
+        var (lat, lon) = GeoMath.ProjectPoint(ac.Position, ac.TrueTrack, distNm);
         double altitude = ac.Altitude + (ac.VerticalSpeed * PredictionSeconds / 60.0);
         return (lat, lon, altitude);
     }
@@ -126,12 +126,12 @@ public static class ConflictAlertDetector
 
     private static bool IsInConflict(AircraftState a, AircraftState b, bool alreadyInConflict, ConflictAlertContext context)
     {
-        double currentHorizontal = GeoMath.DistanceNm(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
+        double currentHorizontal = GeoMath.DistanceNm(a.Position, b.Position);
         double currentVertical = Math.Abs(a.Altitude - b.Altitude);
 
         var (predLatA, predLonA, predAltA) = Predict(a);
         var (predLatB, predLonB, predAltB) = Predict(b);
-        double predictedHorizontal = GeoMath.DistanceNm(predLatA, predLonA, predLatB, predLonB);
+        double predictedHorizontal = GeoMath.DistanceNm(new LatLon(predLatA, predLonA), new LatLon(predLatB, predLonB));
         double predictedVertical = Math.Abs(predAltA - predAltB);
 
         // Divergence check: if separation is increasing in both dimensions, no alert
@@ -234,7 +234,7 @@ public static class ConflictAlertDetector
         var outboundCourse = new TrueHeading((runway.TrueHeading.Degrees + 180.0) % 360.0);
 
         // Cross-track: perpendicular distance from centerline
-        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(other.Latitude, other.Longitude, threshLat, threshLon, outboundCourse));
+        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(other.Position, new LatLon(threshLat, threshLon), outboundCourse));
 
         if (crossTrack > ApproachZoneHalfWidthNm)
         {
@@ -242,7 +242,7 @@ public static class ConflictAlertDetector
         }
 
         // Along-track: distance from threshold along the approach extended centerline
-        double alongTrack = GeoMath.AlongTrackDistanceNm(other.Latitude, other.Longitude, threshLat, threshLon, outboundCourse);
+        double alongTrack = GeoMath.AlongTrackDistanceNm(other.Position, new LatLon(threshLat, threshLon), outboundCourse);
 
         if (alongTrack < 0 || alongTrack > ApproachZoneLengthNm)
         {

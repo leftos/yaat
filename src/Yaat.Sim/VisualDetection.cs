@@ -130,7 +130,7 @@ public static class VisualDetection
         double bankAngleDeg
     )
     {
-        double distance = GeoMath.DistanceNm(ownship.Latitude, ownship.Longitude, target.Latitude, target.Longitude);
+        double distance = GeoMath.DistanceNm(ownship.Position, target.Position);
         double maxRange = WakeTurbulenceData.TrafficDetectionRangeNm(target.AircraftType, AircraftCategorization.Categorize(target.AircraftType));
         if (visibilitySm is not null)
         {
@@ -146,7 +146,7 @@ public static class VisualDetection
         }
 
         // Forward hemisphere check
-        double bearing = GeoMath.BearingTo(ownship.Latitude, ownship.Longitude, target.Latitude, target.Longitude);
+        double bearing = GeoMath.BearingTo(ownship.Position, target.Position);
         double angleDiff = ownship.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         if (angleDiff > 90.0)
         {
@@ -221,7 +221,7 @@ public static class VisualDetection
         double bankAngleDeg
     )
     {
-        double distance = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, airportLat, airportLon);
+        double distance = GeoMath.DistanceNm(aircraft.Position, new LatLon(airportLat, airportLon));
         double maxRange = visibilitySm is not null ? Math.Min(visibilitySm.Value * SmToNm, MaxAirportRangeNm) : MaxAirportRangeNm;
 
         // Class A: no visual approaches at or above FL180 (7110.65 §7-2-1.a)
@@ -240,7 +240,7 @@ public static class VisualDetection
         }
 
         // Forward hemisphere check: bearing to airport within ±90° of heading
-        double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, airportLat, airportLon);
+        double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(airportLat, airportLon));
         double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         if (angleDiff > 90.0)
         {
@@ -265,7 +265,7 @@ public static class VisualDetection
         if (runwayHeading is { } rwyHdg)
         {
             TrueHeading approachSide = rwyHdg.ToReciprocal();
-            double bearingFromAirport = GeoMath.BearingTo(airportLat, airportLon, aircraft.Latitude, aircraft.Longitude);
+            double bearingFromAirport = GeoMath.BearingTo(new LatLon(airportLat, airportLon), aircraft.Position);
             double sideAngle = approachSide.AbsAngleTo(new TrueHeading(bearingFromAirport));
             if (sideAngle > 120.0)
             {
