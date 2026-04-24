@@ -95,13 +95,13 @@ public class GroundCommandHandlerTests
         {
             Nodes = [layout.Nodes[1], layout.Nodes[2]],
             TaxiwayName = "A",
-            DistanceNm = GeoMath.DistanceNm(node1.Latitude, node1.Longitude, node2.Latitude, node2.Longitude),
+            DistanceNm = GeoMath.DistanceNm(node1.Position, node2.Position),
         };
         var edge23 = new GroundEdge
         {
             Nodes = [layout.Nodes[2], layout.Nodes[3]],
             TaxiwayName = "A",
-            DistanceNm = GeoMath.DistanceNm(node2.Latitude, node2.Longitude, node3.Latitude, node3.Longitude),
+            DistanceNm = GeoMath.DistanceNm(node2.Position, node3.Position),
         };
 
         layout.Edges.Add(edge12);
@@ -747,7 +747,7 @@ public class GroundCommandHandlerTests
         {
             Nodes = [n1, n2],
             TaxiwayName = "B",
-            DistanceNm = GeoMath.DistanceNm(n1.Latitude, n1.Longitude, n2.Latitude, n2.Longitude),
+            DistanceNm = GeoMath.DistanceNm(n1.Position, n2.Position),
         };
         minLayout.Edges.Add(edge);
         minLayout.RebuildAdjacencyLists();

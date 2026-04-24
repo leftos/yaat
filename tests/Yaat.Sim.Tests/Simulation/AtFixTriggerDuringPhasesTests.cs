@@ -183,7 +183,7 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
             bool hasCepin = aircraft.Targets.NavigationRoute.Any(f => f.Name == "CEPIN");
             bool hasAxmul = aircraft.Targets.NavigationRoute.Any(f => f.Name == "AXMUL");
             string phase = aircraft.Phases?.CurrentPhase?.Name ?? "-";
-            double distThr = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, threshLat, threshLon);
+            double distThr = GeoMath.DistanceNm(aircraft.Position, new LatLon(threshLat, threshLon));
             string evt = "";
 
             if (hadCepin && !hasCepin)

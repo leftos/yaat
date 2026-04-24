@@ -58,8 +58,8 @@ public sealed class TickRecorder
             new TickRow
             {
                 Time = time,
-                Lat = _aircraft.Latitude,
-                Lon = _aircraft.Longitude,
+                Lat = _aircraft.Position.Lat,
+                Lon = _aircraft.Position.Lon,
                 Hdg = _aircraft.TrueHeading.Degrees,
                 Gs = _aircraft.GroundSpeed,
                 Phase = _aircraft.Phases?.CurrentPhase?.Name ?? "none",

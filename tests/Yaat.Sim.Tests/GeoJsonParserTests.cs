@@ -65,8 +65,8 @@ public class GeoJsonParserTests
         Assert.NotNull(spot25);
         Assert.Equal(GroundNodeType.Parking, spot25.Type);
         Assert.Equal(68, spot25.TrueHeading?.Degrees);
-        Assert.InRange(spot25.Latitude, 37.710, 37.711);
-        Assert.InRange(spot25.Longitude, -122.213, -122.211);
+        Assert.InRange(spot25.Position.Lat, 37.710, 37.711);
+        Assert.InRange(spot25.Position.Lon, -122.213, -122.211);
 
         var spot32 = layout.FindParkingByName("32");
         Assert.NotNull(spot32);
@@ -162,8 +162,8 @@ public class GeoJsonParserTests
 
         // GeoJSON has [-122.211952, 37.710532] = [lon, lat]
         // Internal should store lat=37.710532, lon=-122.211952
-        Assert.InRange(spot25.Latitude, 37.710, 37.711);
-        Assert.InRange(spot25.Longitude, -122.213, -122.211);
+        Assert.InRange(spot25.Position.Lat, 37.710, 37.711);
+        Assert.InRange(spot25.Position.Lon, -122.213, -122.211);
     }
 
     [Fact]
@@ -341,13 +341,13 @@ public class GeoJsonParserTests
         _output.WriteLine($"B taxiway HS nodes for 28R/10L: {bHs28R.Count}");
         foreach (var hs in bHs28R)
         {
-            _output.WriteLine($"  Node {hs.Id}: ({hs.Latitude:F6}, {hs.Longitude:F6})");
+            _output.WriteLine($"  Node {hs.Id}: ({hs.Position.Lat:F6}, {hs.Position.Lon:F6})");
         }
 
         _output.WriteLine($"B taxiway HS nodes for 28L/10R: {bHs28L.Count}");
         foreach (var hs in bHs28L)
         {
-            _output.WriteLine($"  Node {hs.Id}: ({hs.Latitude:F6}, {hs.Longitude:F6})");
+            _output.WriteLine($"  Node {hs.Id}: ({hs.Position.Lat:F6}, {hs.Position.Lon:F6})");
         }
 
         Assert.True(bHs28R.Count >= 2, $"Expected ≥2 HS nodes for 28R/10L on taxiway B, got {bHs28R.Count}");
@@ -373,8 +373,8 @@ public class GeoJsonParserTests
                 new
                 {
                     id,
-                    lat = node.Latitude,
-                    lon = node.Longitude,
+                    lat = node.Position.Lat,
+                    lon = node.Position.Lon,
                     type = node.Type.ToString(),
                     name = node.Name,
                     runwayId = node.RunwayId,

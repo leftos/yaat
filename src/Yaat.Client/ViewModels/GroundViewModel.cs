@@ -561,14 +561,14 @@ public partial class GroundViewModel : ObservableObject
         return string.Join(" ", taxiways);
     }
 
-    public int? FindNearestNodeId(double lat, double lon)
+    public int? FindNearestNodeId(LatLon position)
     {
         if (_domainLayout is null)
         {
             return null;
         }
 
-        var node = _domainLayout.FindNearestNode(lat, lon);
+        var node = _domainLayout.FindNearestNode(position);
         return node?.Id;
     }
 
@@ -579,7 +579,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var node = _domainLayout.FindNearestNode(ac.Latitude, ac.Longitude);
+        var node = _domainLayout.FindNearestNode(ac.Position);
         return node?.Id;
     }
 
@@ -981,7 +981,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var bearing = GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
+            var bearing = GeoMath.BearingTo(node.Position, otherNode.Position);
             var heading = (int)Math.Round(bearing);
             if (heading <= 0)
             {

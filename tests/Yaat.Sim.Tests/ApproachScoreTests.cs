@@ -406,8 +406,7 @@ public class ApproachScoreTests
 
         var runway = MakeRunway();
         // Put aircraft on the runway threshold
-        aircraft.Latitude = runway.ThresholdLatitude;
-        aircraft.Longitude = runway.ThresholdLongitude;
+        aircraft.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         aircraft.TrueHeading = runway.TrueHeading;
 
         var landingPhase = new LandingPhase();
@@ -445,8 +444,7 @@ public class ApproachScoreTests
         // No ActiveApproachScore set
 
         var runway = MakeRunway();
-        aircraft.Latitude = runway.ThresholdLatitude;
-        aircraft.Longitude = runway.ThresholdLongitude;
+        aircraft.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         aircraft.TrueHeading = runway.TrueHeading;
         aircraft.Altitude = 9;
         aircraft.IndicatedAirspeed = 15;
@@ -569,8 +567,8 @@ public class ApproachScoreTests
         phase.OnTick(ctx);
 
         var score = aircraft.PendingApproachScores[0];
-        Assert.Equal(aircraft.Latitude, score.EstablishedLat);
-        Assert.Equal(aircraft.Longitude, score.EstablishedLon);
+        Assert.Equal(aircraft.Position.Lat, score.EstablishedLat);
+        Assert.Equal(aircraft.Position.Lon, score.EstablishedLon);
     }
 
     [Fact]

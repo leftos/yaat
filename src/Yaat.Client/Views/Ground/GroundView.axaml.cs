@@ -727,7 +727,7 @@ public partial class GroundView : UserControl
                 continue;
             }
 
-            var dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, node.Latitude, node.Longitude);
+            var dist = GeoMath.DistanceNm(ac.Position, new LatLon(node.Latitude, node.Longitude));
 
             if (dist >= 0.1)
             {

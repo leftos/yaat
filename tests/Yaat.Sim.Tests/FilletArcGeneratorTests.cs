@@ -44,7 +44,7 @@ public class FilletArcGeneratorTests
             };
             layout.Nodes[id] = node;
 
-            double dist = GeoMath.DistanceNm(0, 0, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(LatLon.Zero, node.Position);
             var edge = new GroundEdge
             {
                 Nodes = [intersection, node],
@@ -371,7 +371,7 @@ public class FilletArcGeneratorTests
             var n1 = layout.Nodes[edge.Nodes[1].Id];
             if ((n0.Type == GroundNodeType.TaxiwayIntersection) && (n1.Type == GroundNodeType.TaxiwayIntersection))
             {
-                double actualDistFt = GeoMath.DistanceNm(n0.Latitude, n0.Longitude, n1.Latitude, n1.Longitude) * GeoMath.FeetPerNm;
+                double actualDistFt = GeoMath.DistanceNm(n0.Position, n1.Position) * GeoMath.FeetPerNm;
                 if (actualDistFt < 1.0)
                 {
                     degenerateEdges.Add($"{edge.TaxiwayName} ({n0.Id}->{n1.Id}): {actualDistFt:F1}ft");
@@ -389,12 +389,7 @@ public class FilletArcGeneratorTests
         {
             for (int j = i + 1; j < intersectionNodes.Count; j++)
             {
-                double dist = GeoMath.DistanceNm(
-                    intersectionNodes[i].Latitude,
-                    intersectionNodes[i].Longitude,
-                    intersectionNodes[j].Latitude,
-                    intersectionNodes[j].Longitude
-                );
+                double dist = GeoMath.DistanceNm(intersectionNodes[i].Position, intersectionNodes[j].Position);
                 if (dist <= thresholdNm)
                 {
                     coincidentPairs.Add($"({intersectionNodes[i].Id}, {intersectionNodes[j].Id}): {dist * GeoMath.FeetPerNm:F1}ft");

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using SkiaSharp;
+using Yaat.Sim;
 
 namespace Yaat.Client.Services;
 
@@ -15,13 +16,13 @@ public sealed class TowerCabMapData
 
 public sealed class TowerCabPolygon
 {
-    public required List<(double Lat, double Lon)> Points { get; init; }
+    public required List<LatLon> Points { get; init; }
     public required SKColor Color { get; init; }
 }
 
 public sealed class TowerCabLine
 {
-    public required List<(double Lat, double Lon)> Points { get; init; }
+    public required List<LatLon> Points { get; init; }
     public required SKColor Color { get; init; }
     public required int Thickness { get; init; }
 }
@@ -160,9 +161,9 @@ public static class TowerCabMapParser
         }
     }
 
-    private static List<(double Lat, double Lon)> ParseCoordinateArray(JsonElement coordArray)
+    private static List<LatLon> ParseCoordinateArray(JsonElement coordArray)
     {
-        var points = new List<(double, double)>();
+        var points = new List<LatLon>();
         foreach (var coord in coordArray.EnumerateArray())
         {
             var arr = coord.EnumerateArray().ToArray();
@@ -179,7 +180,7 @@ public static class TowerCabMapParser
             // GeoJSON: [longitude, latitude]
             var lon = arr[0].GetDouble();
             var lat = arr[1].GetDouble();
-            points.Add((lat, lon));
+            points.Add(new LatLon(lat, lon));
         }
 
         return points;

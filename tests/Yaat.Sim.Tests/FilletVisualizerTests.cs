@@ -25,7 +25,7 @@ public class FilletVisualizerTests
         var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
 
         // Pick a node near where the old node 52 was (~37.7213, -122.2208) to visualize arcs in that area
-        var probe = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(n.Latitude, n.Longitude, 37.7213, -122.2208)).First();
+        var probe = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(n.Position, new LatLon(37.7213, -122.2208))).First();
 
         var visibleNodes = Collect2Hops(layout, probe.Id);
         string svg = GenerateSvg(layout, probe.Id, visibleNodes, $"Filleted area near node {probe.Id}");
@@ -89,7 +89,7 @@ public class FilletVisualizerTests
         {
             if (layout.Nodes.TryGetValue(nid, out var n))
             {
-                positions.Add((nid, n.Latitude, n.Longitude));
+                positions.Add((nid, n.Position.Lat, n.Position.Lon));
             }
         }
 
@@ -129,10 +129,10 @@ public class FilletVisualizerTests
                 continue;
             }
 
-            double x1 = ScaleX(edge.Nodes[0].Longitude);
-            double y1 = ScaleY(edge.Nodes[0].Latitude);
-            double x2 = ScaleX(edge.Nodes[1].Longitude);
-            double y2 = ScaleY(edge.Nodes[1].Latitude);
+            double x1 = ScaleX(edge.Nodes[0].Position.Lon);
+            double y1 = ScaleY(edge.Nodes[0].Position.Lat);
+            double x2 = ScaleX(edge.Nodes[1].Position.Lon);
+            double y2 = ScaleY(edge.Nodes[1].Position.Lat);
 
             string color =
                 edge.IsRunwayCenterline ? "#ff6666"
@@ -195,8 +195,8 @@ public class FilletVisualizerTests
                 continue;
             }
 
-            double x = ScaleX(node.Longitude);
-            double y = ScaleY(node.Latitude);
+            double x = ScaleX(node.Position.Lon);
+            double y = ScaleY(node.Position.Lat);
 
             string fill = node.Type switch
             {

@@ -260,7 +260,7 @@ public class FilletPathfindingTests
         var centerlineNode = layout.FindNearestCenterlineNode(37.7213, -122.2208, rwy30Heading, "30");
         Assert.NotNull(centerlineNode);
 
-        var exit = layout.FindExitFromCenterline(centerlineNode.Latitude, centerlineNode.Longitude, rwy30Heading, "30", null);
+        var exit = layout.FindExitFromCenterline(centerlineNode.Position.Lat, centerlineNode.Position.Lon, rwy30Heading, "30", null);
 
         Assert.NotNull(exit);
         _output.WriteLine($"Exit found: taxiway={exit.Value.Taxiway}, holdShort={exit.Value.HoldShort.Id}, path length={exit.Value.Path.Count}");

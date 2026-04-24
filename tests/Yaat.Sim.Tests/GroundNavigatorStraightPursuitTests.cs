@@ -17,14 +17,13 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
 {
-    private static (AircraftState Aircraft, PhaseContext Ctx) MakeFixture(double acLat, double acLon, double acHeadingDeg, double startSpeedKts = 0)
+    private static (AircraftState Aircraft, PhaseContext Ctx) MakeFixture(LatLon position, double acHeadingDeg, double startSpeedKts = 0)
     {
         var aircraft = new AircraftState
         {
             Callsign = "NAVPP",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = position,
             TrueHeading = new TrueHeading(acHeadingDeg),
             IndicatedAirspeed = startSpeedKts,
             IsOnGround = true,
@@ -54,23 +53,23 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
 
     private static TaxiRouteSegment MakeStraightSegment(GroundNode from, GroundNode to, string name = "A")
     {
-        double distNm = GeoMath.DistanceNm(from.Latitude, from.Longitude, to.Latitude, to.Longitude);
+        double distNm = GeoMath.DistanceNm(from.Position, to.Position);
         var edge = new GroundEdge
         {
             Nodes = [from, to],
             TaxiwayName = name,
             DistanceNm = distNm,
         };
-        var directed = new DirectionalEdge { Edge = edge, FromNode = from, ToNode = to };
+        var directed = new DirectionalEdge
+        {
+            Edge = edge,
+            FromNode = from,
+            ToNode = to,
+        };
         return new TaxiRouteSegment { Edge = directed, TaxiwayName = name };
     }
 
-    private static TaxiRoute MakeRoute(params TaxiRouteSegment[] segs) =>
-        new()
-        {
-            Segments = [.. segs],
-            HoldShortPoints = [],
-        };
+    private static TaxiRoute MakeRoute(params TaxiRouteSegment[] segs) => new() { Segments = [.. segs], HoldShortPoints = [] };
 
     // ---- On-segment tracking: pure-pursuit must not introduce deviation ----
 
@@ -81,11 +80,11 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // segment 100 ft from the start, aligned with segment bearing.
         var from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
+        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
         var to = MakeNode(2, endLat, endLon);
 
-        var (startLat, startLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(segBearing), 100.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(startLat, startLon, segBearing, startSpeedKts: 10);
+        var (startLat, startLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 100.0 / GeoMath.FeetPerNm);
+        var (aircraft, ctx) = MakeFixture(new LatLon(startLat, startLon), segBearing, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -96,8 +95,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
             var result = nav.Tick(ctx, isLastSegment: true, _ => true);
             double crossFt =
-                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Latitude, aircraft.Longitude, from.Latitude, from.Longitude, new TrueHeading(segBearing)))
-                * GeoMath.FeetPerNm;
+                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, from.Position, new TrueHeading(segBearing))) * GeoMath.FeetPerNm;
             maxCrossTrackFt = Math.Max(maxCrossTrackFt, crossFt);
             if (result == NavigatorResult.ArrivedAtNode)
             {
@@ -121,12 +119,12 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // and arrived 35 ft off-line.)
         var from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
+        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
         var to = MakeNode(2, endLat, endLon);
 
         // Place aircraft 35 ft south (bearing 180° = due south).
-        var (acLat, acLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(acLat, acLon, segBearing, startSpeedKts: 10);
+        var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -139,7 +137,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
             var result = nav.Tick(ctx, isLastSegment: true, _ => true);
             if (result == NavigatorResult.ArrivedAtNode)
             {
-                double crossNm = GeoMath.SignedCrossTrackDistanceNm(aircraft.Latitude, aircraft.Longitude, from.Latitude, from.Longitude, new TrueHeading(segBearing));
+                double crossNm = GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, from.Position, new TrueHeading(segBearing));
                 finalCrossFt = Math.Abs(crossNm) * GeoMath.FeetPerNm;
                 completeTick = i;
                 break;
@@ -158,11 +156,11 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // the off-segment aircraft should have closed most of the 35 ft gap.
         var from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
+        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
         var to = MakeNode(2, endLat, endLon);
 
-        var (acLat, acLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(acLat, acLon, segBearing, startSpeedKts: 10);
+        var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -175,13 +173,15 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
             nav.Tick(ctx, isLastSegment: true, _ => true);
             double crossFt =
-                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Latitude, aircraft.Longitude, from.Latitude, from.Longitude, new TrueHeading(segBearing)))
-                * GeoMath.FeetPerNm;
+                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, from.Position, new TrueHeading(segBearing))) * GeoMath.FeetPerNm;
             minCrossFt = Math.Min(minCrossFt, crossFt);
         }
 
         output.WriteLine($"5-second convergence: initial={initialCrossFt:F2}ft min={minCrossFt:F2}ft");
-        Assert.True(minCrossFt < initialCrossFt * 0.5, $"aircraft should close at least half the cross-track gap in 5 s (initial {initialCrossFt:F2}ft, min {minCrossFt:F2}ft)");
+        Assert.True(
+            minCrossFt < initialCrossFt * 0.5,
+            $"aircraft should close at least half the cross-track gap in 5 s (initial {initialCrossFt:F2}ft, min {minCrossFt:F2}ft)"
+        );
     }
 
     // ---- Short-segment fallback ----
@@ -194,10 +194,10 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // target steering.
         var from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(segBearing), 20.0 / GeoMath.FeetPerNm);
+        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 20.0 / GeoMath.FeetPerNm);
         var to = MakeNode(2, endLat, endLon);
 
-        var (aircraft, ctx) = MakeFixture(from.Latitude, from.Longitude, segBearing, startSpeedKts: 5);
+        var (aircraft, ctx) = MakeFixture(from.Position, segBearing, startSpeedKts: 5);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -213,7 +213,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
             }
         }
 
-        double distToTargetFt = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, to.Latitude, to.Longitude) * GeoMath.FeetPerNm;
+        double distToTargetFt = GeoMath.DistanceNm(aircraft.Position, to.Position) * GeoMath.FeetPerNm;
         output.WriteLine($"short-segment: arrived={arrived} distToTarget={distToTargetFt:F2}ft");
         Assert.True(arrived, "navigator must still arrive at the target for a 20 ft short segment");
         Assert.True(distToTargetFt < 3.0, $"short-segment arrival should be within 3 ft of target, got {distToTargetFt:F2}ft");
@@ -230,11 +230,11 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // segment bearing (90°) by segment end.
         var from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
+        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
         var to = MakeNode(2, endLat, endLon);
 
-        var (acLat, acLon) = GeoMath.ProjectPoint(from.Latitude, from.Longitude, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(acLat, acLon, 60.0, startSpeedKts: 10);
+        var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), 60.0, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);

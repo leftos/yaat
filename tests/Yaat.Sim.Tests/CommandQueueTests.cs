@@ -9,14 +9,14 @@ public class CommandQueueTests
     // Helpers
     // -------------------------------------------------------------------------
 
-    private static AircraftState MakeAircraft(double lat = 37.7, double lon = -122.2, double heading = 090, double altitude = 10_000)
+    private static AircraftState MakeAircraft(LatLon? position = null, double heading = 090, double altitude = 10_000)
     {
+        var pos = position ?? new LatLon(37.7, -122.2);
         return new AircraftState
         {
             Callsign = "TST01",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = pos,
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 250,
@@ -77,7 +77,7 @@ public class CommandQueueTests
     public void ReachFix_NotMet_WhenFar()
     {
         // Aircraft at 37.7/-122.2; fix at 38.5/-122.2 — roughly 48nm apart
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
         ac.Queue.Blocks.Add(
             TriggeredBlock(
                 new BlockTrigger
@@ -98,8 +98,8 @@ public class CommandQueueTests
     public void ReachFix_Met_WhenWithinHalfNm()
     {
         // NavArrivalNm = 0.5 — place fix 0.4nm north of aircraft (0.4/60 ≈ 0.00667°)
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
-        double fixLat = ac.Latitude + (0.4 / 60.0);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
+        double fixLat = ac.Position.Lat + (0.4 / 60.0);
         ac.Queue.Blocks.Add(
             TriggeredBlock(
                 new BlockTrigger
@@ -121,7 +121,7 @@ public class CommandQueueTests
     {
         // Fix at 37.5/-122.2. Aircraft due north of fix at 37.7/-122.2.
         // Bearing from fix to aircraft ≈ 000°. Radial 001° → diff = 1° < 3°.
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
         ac.Queue.Blocks.Add(
             TriggeredBlock(
                 new BlockTrigger
@@ -143,7 +143,7 @@ public class CommandQueueTests
     public void InterceptRadial_NotMet_WhenFarFromRadial()
     {
         // Fix at 37.5/-122.2. Aircraft due north → bearing ≈ 000°. Radial 090° → diff = 90° >> 3°.
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
         ac.Queue.Blocks.Add(
             TriggeredBlock(
                 new BlockTrigger
@@ -177,10 +177,10 @@ public class CommandQueueTests
     [Fact]
     public void GiveWay_Met_WhenTargetAirborne()
     {
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
         ac.IsOnGround = true;
 
-        var target = MakeAircraft(lat: 37.7001, lon: -122.2);
+        var target = MakeAircraft(new LatLon(37.7001, -122.2));
         target.Callsign = "OTHER";
         target.IsOnGround = false; // airborne — no ground conflict
 
@@ -197,11 +197,11 @@ public class CommandQueueTests
     public void GiveWay_Met_WhenTargetFar()
     {
         // Distance > 0.1nm → conflict resolved
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
         ac.IsOnGround = true;
 
         // 0.5nm north: 0.5/60 ≈ 0.00833° lat
-        var target = MakeAircraft(lat: 37.7083, lon: -122.2);
+        var target = MakeAircraft(new LatLon(37.7083, -122.2));
         target.Callsign = "OTHER";
         target.IsOnGround = true;
 
@@ -219,14 +219,14 @@ public class CommandQueueTests
     {
         // Both heading 090. Target is due west (behind us) → bearingDiff = 270° → diffToTarget = 180° > 90° → NOT met.
         // GS=0 so aircraft does not move during the update, keeping the target within 0.1nm.
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
         ac.TrueHeading = new TrueHeading(090);
         ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
 
         // Place target 0.05nm west: lon diff = 0.05 / (60 * cos(37.7°))
         double lonOffset = 0.05 / (60.0 * Math.Cos(37.7 * Math.PI / 180.0));
-        var target = MakeAircraft(lat: 37.7, lon: -122.2 - lonOffset);
+        var target = MakeAircraft(new LatLon(37.7, -122.2 - lonOffset));
         target.Callsign = "OTHER";
         target.TrueHeading = new TrueHeading(090);
         target.IsOnGround = true;
@@ -245,14 +245,14 @@ public class CommandQueueTests
     {
         // Both heading 090. Target is due east (ahead of us) → bearingDiff = 090° → diffToTarget = 0° < 90° → met.
         // GS=0 so aircraft does not move during the update, keeping the target within 0.1nm.
-        var ac = MakeAircraft(lat: 37.7, lon: -122.2);
+        var ac = MakeAircraft(new LatLon(37.7, -122.2));
         ac.TrueHeading = new TrueHeading(090);
         ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
 
         // Place target 0.05nm east
         double lonOffset = 0.05 / (60.0 * Math.Cos(37.7 * Math.PI / 180.0));
-        var target = MakeAircraft(lat: 37.7, lon: -122.2 + lonOffset);
+        var target = MakeAircraft(new LatLon(37.7, -122.2 + lonOffset));
         target.Callsign = "OTHER";
         target.TrueHeading = new TrueHeading(090);
         target.IsOnGround = true;

@@ -49,8 +49,8 @@ public class FilletAngleSweepTests
             var (p0Lat, p0Lon) = bezier.Evaluate(0);
             var (p3Lat, p3Lon) = bezier.Evaluate(1);
 
-            double startDist = GeoMath.DistanceNm(p0Lat, p0Lon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
-            double endDist = GeoMath.DistanceNm(p3Lat, p3Lon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
+            double startDist = GeoMath.DistanceNm(new LatLon(p0Lat, p0Lon), arc.Nodes[0].Position);
+            double endDist = GeoMath.DistanceNm(new LatLon(p3Lat, p3Lon), arc.Nodes[1].Position);
 
             Assert.True(startDist < 0.0001, $"Bezier P0 should match Nodes[0] at {exitAngle}°, dist={startDist:E2}nm");
             Assert.True(endDist < 0.0001, $"Bezier P3 should match Nodes[1] at {exitAngle}°, dist={endDist:E2}nm");
@@ -85,8 +85,8 @@ public class FilletAngleSweepTests
         {
             var bezier = arc.ToBezier();
             var (midLat, midLon) = bezier.Evaluate(0.5);
-            double chordMidLat = (arc.Nodes[0].Latitude + arc.Nodes[1].Latitude) / 2;
-            double chordMidLon = (arc.Nodes[0].Longitude + arc.Nodes[1].Longitude) / 2;
+            double chordMidLat = (arc.Nodes[0].Position.Lat + arc.Nodes[1].Position.Lat) / 2;
+            double chordMidLon = (arc.Nodes[0].Position.Lon + arc.Nodes[1].Position.Lon) / 2;
 
             double arcMidToCenter = GeoMath.DistanceNm(midLat, midLon, CenterLat, CenterLon);
             double chordMidToCenter = GeoMath.DistanceNm(chordMidLat, chordMidLon, CenterLat, CenterLon);

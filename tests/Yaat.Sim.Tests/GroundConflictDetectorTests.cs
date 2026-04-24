@@ -16,8 +16,7 @@ public class GroundConflictDetectorTests
 
     private static AircraftState MakeAircraft(
         string callsign,
-        double lat,
-        double lon,
+        LatLon position,
         double heading = 0,
         double gs = 0,
         double? pushbackHeading = null,
@@ -29,8 +28,7 @@ public class GroundConflictDetectorTests
         {
             Callsign = callsign,
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = position,
             TrueHeading = new TrueHeading(heading),
             IsOnGround = true,
             IndicatedAirspeed = gs,
@@ -202,8 +200,15 @@ public class GroundConflictDetectorTests
         var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
         // A at node 0, B 150ft ahead
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 10, taxiRoute: routeB, phase: new TaxiingPhase());
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft(
+            "B",
+            new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 10,
+            taxiRoute: routeB,
+            phase: new TaxiingPhase()
+        );
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
@@ -222,8 +227,8 @@ public class GroundConflictDetectorTests
         var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
 
         // A is further from N2 than B
-        var a = MakeAircraft("A", n0.Latitude, n0.Longitude, heading: 45, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", n1.Latitude, n1.Longitude, heading: 315, gs: 15, taxiRoute: routeB, phase: new TaxiingPhase());
+        var a = MakeAircraft("A", n0.Position, heading: 45, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft("B", n1.Position, heading: 315, gs: 15, taxiRoute: routeB, phase: new TaxiingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
@@ -237,8 +242,8 @@ public class GroundConflictDetectorTests
     public void MovingAircraft_ClosingOnStationary_MovingOneStops()
     {
         // B is stationary at parking, A is taxiing toward B at 150ft
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
-        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 90, gs: 0, phase: new AtParkingPhase());
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 90, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -253,8 +258,8 @@ public class GroundConflictDetectorTests
     public void StationaryNearMoving_NotInPath_NoLimit()
     {
         // A is moving east, B is stationary to the north (not in A's path)
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 90, gs: 15);
-        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 0, phase: new AtParkingPhase());
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 90, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -268,12 +273,12 @@ public class GroundConflictDetectorTests
     public void PushingTowardOther_PushbackYields()
     {
         // A is pushing back south (pushbackHeading=180), B is south of A (in pushback path, 150ft)
-        var a = MakeAircraft("A", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 3, pushbackHeading: 180);
+        var a = MakeAircraft("A", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
         a.Phases.Add(new PushbackPhase());
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        var b = MakeAircraft("B", BaseLat, BaseLon, heading: 0, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -287,12 +292,12 @@ public class GroundConflictDetectorTests
     public void PushingAwayFromOther_NoYield()
     {
         // A is pushing back south (pushbackHeading=180), B is north of A (not in pushback path)
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 3, pushbackHeading: 180);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
         a.Phases.Add(new PushbackPhase());
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 0, phase: new AtParkingPhase());
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -305,8 +310,8 @@ public class GroundConflictDetectorTests
     public void TwoMoving_HeadOn_NoLayout_BothStop()
     {
         // A heading north, B heading south, 250ft apart, both moving
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
-        var b = MakeAircraft("B", BaseLat + 2.5 * OffsetLatPer100Ft, BaseLon, heading: 180, gs: 15);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 2.5 * OffsetLatPer100Ft, BaseLon), heading: 180, gs: 15);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -323,8 +328,8 @@ public class GroundConflictDetectorTests
     {
         // A is following B, both close together
         var followPhase = new FollowingPhase("B");
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15, phase: followPhase);
-        var b = MakeAircraft("B", BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 10);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, phase: followPhase);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 10);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -337,8 +342,8 @@ public class GroundConflictDetectorTests
     public void AircraftFarApart_NoInteraction()
     {
         // A and B are 1nm apart (well beyond SearchRangeNm=0.1)
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
-        var b = MakeAircraft("B", BaseLat + 1.0 / 60.0, BaseLon, heading: 180, gs: 15);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.0 / 60.0, BaseLon), heading: 180, gs: 15);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -350,8 +355,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void BothStationary_NoLimitsSet()
     {
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 0, phase: new AtParkingPhase());
-        var b = MakeAircraft("B", BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon, heading: 180, gs: 0, phase: new AtParkingPhase());
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        var b = MakeAircraft("B", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 180, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -363,7 +368,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void SingleAircraftOnGround_NoLimitsSet()
     {
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
 
         var aircraft = new List<AircraftState> { a };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -374,8 +379,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void IsClearOf_PushingReference_OutsideBuffer_ReturnsTrue()
     {
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
-        var b = MakeAircraft("B", BaseLat + 5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 3, pushbackHeading: 180);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
 
         Assert.True(GroundConflictDetector.IsClearOf(a, b, null));
     }
@@ -383,8 +388,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void IsClearOf_PushingReference_InsideBuffer_ReturnsFalse()
     {
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
-        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 3, pushbackHeading: 180);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
 
         Assert.False(GroundConflictDetector.IsClearOf(a, b, null));
     }
@@ -404,8 +409,15 @@ public class GroundConflictDetectorTests
         var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
         var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 10, taxiRoute: routeB, phase: new TaxiingPhase());
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft(
+            "B",
+            new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 10,
+            taxiRoute: routeB,
+            phase: new TaxiingPhase()
+        );
 
         // Give A an active BREAK timer
         a.ConflictBreakRemainingSeconds = 15.0;
@@ -420,7 +432,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Break_TimerDecrements_EachTick()
     {
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
         a.ConflictBreakRemainingSeconds = 15.0;
 
         var aircraft = new List<AircraftState> { a };
@@ -439,8 +451,15 @@ public class GroundConflictDetectorTests
         var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
         var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 10, taxiRoute: routeB, phase: new TaxiingPhase());
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft(
+            "B",
+            new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 10,
+            taxiRoute: routeB,
+            phase: new TaxiingPhase()
+        );
 
         // BREAK has expired
         a.ConflictBreakRemainingSeconds = 0;

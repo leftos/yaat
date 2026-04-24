@@ -247,8 +247,7 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // Simulate arriving at node 1 (hold-short) by placing aircraft there
-        aircraft.Latitude = layout.Nodes[1].Latitude;
-        aircraft.Longitude = layout.Nodes[1].Longitude;
+        aircraft.Position = layout.Nodes[1].Position;
 
         // Tick until the phase completes (arrives at hold-short)
         bool completed = false;
@@ -305,8 +304,7 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // Place at hold-short node
-        aircraft.Latitude = layout.Nodes[1].Latitude;
-        aircraft.Longitude = layout.Nodes[1].Longitude;
+        aircraft.Position = layout.Nodes[1].Position;
 
         bool completed = false;
         for (int i = 0; i < 300; i++)
@@ -360,8 +358,7 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // Place at hold-short node
-        aircraft.Latitude = layout.Nodes[1].Latitude;
-        aircraft.Longitude = layout.Nodes[1].Longitude;
+        aircraft.Position = layout.Nodes[1].Position;
 
         bool completed = false;
         for (int i = 0; i < 300; i++)
@@ -729,8 +726,7 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // Place at hold-short node
-        aircraft.Latitude = layout.Nodes[1].Latitude;
-        aircraft.Longitude = layout.Nodes[1].Longitude;
+        aircraft.Position = layout.Nodes[1].Position;
 
         // Tick: should NOT insert HoldingShortPhase since it's pre-cleared
         for (int i = 0; i < 300; i++)
@@ -789,8 +785,7 @@ public class GroundPhaseTests
         Assert.Equal(0, ctx.Targets.TargetSpeed);
 
         // Tick a few times — heading should change, position should not
-        double startLat = aircraft.Latitude;
-        double startLon = aircraft.Longitude;
+        var startPos = aircraft.Position;
         double startHeading = aircraft.TrueHeading.Degrees;
 
         for (int i = 0; i < 5; i++)
@@ -800,8 +795,8 @@ public class GroundPhaseTests
         }
 
         Assert.NotEqual(startHeading, aircraft.TrueHeading.Degrees);
-        Assert.Equal(startLat, aircraft.Latitude, 6);
-        Assert.Equal(startLon, aircraft.Longitude, 6);
+        Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
+        Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
 
         // Eventually transitions to push stage
         for (int i = 0; i < 100; i++)
@@ -833,8 +828,7 @@ public class GroundPhaseTests
         Assert.Equal(0, ctx.Targets.TargetSpeed);
 
         // Position unchanged during alignment
-        double startLat = aircraft.Latitude;
-        double startLon = aircraft.Longitude;
+        var startPos = aircraft.Position;
 
         for (int i = 0; i < 5; i++)
         {
@@ -842,8 +836,8 @@ public class GroundPhaseTests
             phase.OnTick(ctx);
         }
 
-        Assert.Equal(startLat, aircraft.Latitude, 6);
-        Assert.Equal(startLon, aircraft.Longitude, 6);
+        Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
+        Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
         Assert.Null(aircraft.PushbackTrueHeading);
     }
 
@@ -874,8 +868,7 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        double startLat = aircraft.Latitude;
-        double startLon = aircraft.Longitude;
+        var startPos = aircraft.Position;
 
         // Tick 10 times during alignment
         for (int i = 0; i < 10; i++)
@@ -885,7 +878,7 @@ public class GroundPhaseTests
         }
 
         // Position must not change during alignment
-        Assert.Equal(startLat, aircraft.Latitude, 6);
-        Assert.Equal(startLon, aircraft.Longitude, 6);
+        Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
+        Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
     }
 }

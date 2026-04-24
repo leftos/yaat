@@ -1,6 +1,7 @@
 using System.Collections;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
+using Yaat.Sim;
 
 namespace Yaat.Client.Models;
 
@@ -21,10 +22,7 @@ public partial class AircraftModel : ObservableObject
     private string _aircraftType = "";
 
     [ObservableProperty]
-    private double _latitude;
-
-    [ObservableProperty]
-    private double _longitude;
+    private LatLon _position;
 
     [ObservableProperty]
     private double _heading;
@@ -551,8 +549,7 @@ public partial class AircraftModel : ObservableObject
         {
             Callsign = dto.Callsign,
             AircraftType = dto.AircraftType,
-            Latitude = dto.Latitude,
-            Longitude = dto.Longitude,
+            Position = new LatLon(dto.Latitude, dto.Longitude),
             Heading = dto.Heading,
             Altitude = dto.Altitude,
             GroundSpeed = dto.GroundSpeed,
@@ -617,8 +614,7 @@ public partial class AircraftModel : ObservableObject
 
     public void UpdateFromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
-        Latitude = dto.Latitude;
-        Longitude = dto.Longitude;
+        Position = new LatLon(dto.Latitude, dto.Longitude);
         Heading = dto.Heading;
         Altitude = dto.Altitude;
         GroundSpeed = dto.GroundSpeed;

@@ -101,7 +101,7 @@ public sealed class TargetRenderer : IDisposable
 
         foreach (var ac in aircraft)
         {
-            var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
+            var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
             bool isSelected = ac == selectedAircraft;
             bool isOnGround = showTopDown && (int)(ac.Altitude / 100) < 1;
@@ -148,7 +148,7 @@ public sealed class TargetRenderer : IDisposable
         }
 
         var distNm = ac.GroundSpeed * minutes / 60.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Latitude, ac.Longitude, new TrueHeading(ac.Heading), distNm);
+        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(ac.Heading), distNm);
         var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
 
         _ptlPaint.Color = SKColors.White;

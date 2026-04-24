@@ -110,10 +110,8 @@ public class LineUpPhaseTests(ITestOutputHelper output)
                 var cross =
                     Math.Abs(
                         GeoMath.SignedCrossTrackDistanceNm(
-                            aircraft.Latitude,
-                            aircraft.Longitude,
-                            ctx.Runway!.ThresholdLatitude,
-                            ctx.Runway.ThresholdLongitude,
+                            aircraft.Position,
+                            new LatLon(ctx.Runway!.ThresholdLatitude, ctx.Runway.ThresholdLongitude),
                             ctx.Runway.TrueHeading
                         )
                     ) * GeoMath.FeetPerNm;

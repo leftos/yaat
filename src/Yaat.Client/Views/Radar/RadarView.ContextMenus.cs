@@ -689,7 +689,7 @@ public partial class RadarView
             var callsign = vm.SelectedAircraft.Callsign;
             var initials = GetInitials();
 
-            var heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Latitude, vm.SelectedAircraft.Longitude, lat, lon) / 5.0) * 5);
+            var heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Position, new LatLon(lat, lon)) / 5.0) * 5);
             if (heading <= 0)
             {
                 heading = 360;

@@ -561,7 +561,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             if (SelectedAircraft is { } ac)
             {
-                drawRouteOrigin = (ac.Latitude, ac.Longitude);
+                drawRouteOrigin = (ac.Position.Lat, ac.Position.Lon);
             }
 
             if (DrawnWaypoints is { Count: > 0 })
@@ -924,7 +924,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     private SKRect ComputeDataBlockRect(AircraftModel ac)
     {
-        var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
+        var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
         SKPoint offset = DefaultDataBlockOffset;
         if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
@@ -993,7 +993,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         foreach (var ac in FilterAircraft(Aircraft, ShowTopDown))
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var dx = (float)screenPos.X - sx;
             var dy = (float)screenPos.Y - sy;
             var dist = MathF.Sqrt(dx * dx + dy * dy);

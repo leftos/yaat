@@ -13,7 +13,7 @@ public static class NearestNodeHelper
     public static string Describe(AircraftState aircraft, AirportGroundLayout layout, int count = 3)
     {
         var ranked = layout
-            .Nodes.Values.Select(n => (Node: n, Dist: GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, n.Latitude, n.Longitude)))
+            .Nodes.Values.Select(n => (Node: n, Dist: GeoMath.DistanceNm(aircraft.Position, n.Position)))
             .OrderBy(x => x.Dist)
             .Take(count);
 

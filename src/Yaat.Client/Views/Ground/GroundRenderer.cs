@@ -763,11 +763,11 @@ public sealed class GroundRenderer : IDisposable
     )
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
-        var nodeLatLon = new Dictionary<int, (double Lat, double Lon)>(layout.Nodes.Count);
+        var nodeLatLon = new Dictionary<int, LatLon>(layout.Nodes.Count);
         foreach (var node in layout.Nodes)
         {
             nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
-            nodeLatLon[node.Id] = (node.Latitude, node.Longitude);
+            nodeLatLon[node.Id] = new LatLon(node.Latitude, node.Longitude);
         }
 
         // Track placed taxiway label positions for deduplication
@@ -864,6 +864,7 @@ public sealed class GroundRenderer : IDisposable
                 }
 
                 var bezier = new CubicBezier(fromLL.Lat, fromLL.Lon, arcDto.P1Lat, arcDto.P1Lon, arcDto.P2Lat, arcDto.P2Lon, toLL.Lat, toLL.Lon);
+
                 const int steps = 16;
                 using var path = new SKPath();
                 path.MoveTo(from.X, from.Y);
@@ -1378,7 +1379,7 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
+            var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             bool isSelected = ac == selectedAircraft;
             bool isAirborne = !ac.IsOnGround;
 
@@ -1670,7 +1671,7 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
+            var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
             SKPoint offset = DataBlockLayout.DefaultOffset;
             if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
@@ -1716,7 +1717,7 @@ public sealed class GroundRenderer : IDisposable
             return false;
         }
 
-        double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, airportCenterLat, airportCenterLon);
+        double dist = GeoMath.DistanceNm(ac.Position, new LatLon(airportCenterLat, airportCenterLon));
         return dist <= AirborneMaxRangeNm;
     }
 

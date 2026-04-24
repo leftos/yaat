@@ -73,8 +73,7 @@ public partial class RadarViewModel : ObservableObject
     /// </summary>
     private List<int?>? _positionMapGroupMapIds;
 
-    private double _primaryAirportLat;
-    private double _primaryAirportLon;
+    private LatLon _primaryAirportPosition;
 
     [ObservableProperty]
     private double _rangeNm = 40;
@@ -357,8 +356,7 @@ public partial class RadarViewModel : ObservableObject
 
     public void SetPrimaryAirportPosition(double lat, double lon)
     {
-        _primaryAirportLat = lat;
-        _primaryAirportLon = lon;
+        _primaryAirportPosition = new LatLon(lat, lon);
     }
 
     public double GetFieldElevation(string? destination)
@@ -430,12 +428,12 @@ public partial class RadarViewModel : ObservableObject
         }
 
         // Set center: prefer primary airport, fall back to ARTCC area center
-        if (_primaryAirportLat != 0 || _primaryAirportLon != 0)
+        if ((_primaryAirportPosition.Lat != 0) || (_primaryAirportPosition.Lon != 0))
         {
-            CenterLat = _primaryAirportLat;
-            CenterLon = _primaryAirportLon;
-            RangeRingCenterLat = _primaryAirportLat;
-            RangeRingCenterLon = _primaryAirportLon;
+            CenterLat = _primaryAirportPosition.Lat;
+            CenterLon = _primaryAirportPosition.Lon;
+            RangeRingCenterLat = _primaryAirportPosition.Lat;
+            RangeRingCenterLon = _primaryAirportPosition.Lon;
         }
         else if (dto.Areas.Count > 0)
         {
@@ -1538,7 +1536,9 @@ public partial class RadarViewModel : ObservableObject
             var fingerprint = string.Join(">", ac.NavigationRoute);
             if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
             {
-                entries.Add(new ShownPathEntry(callsign, cached.Waypoints, PathColors[_pathColorIndices[callsign]], ac.Latitude, ac.Longitude));
+                entries.Add(
+                    new ShownPathEntry(callsign, cached.Waypoints, PathColors[_pathColorIndices[callsign]], ac.Position.Lat, ac.Position.Lon)
+                );
                 continue;
             }
 
@@ -1549,7 +1549,7 @@ public partial class RadarViewModel : ObservableObject
             }
 
             _pathCache[callsign] = (waypoints, fingerprint);
-            entries.Add(new ShownPathEntry(callsign, waypoints, PathColors[_pathColorIndices[callsign]], ac.Latitude, ac.Longitude));
+            entries.Add(new ShownPathEntry(callsign, waypoints, PathColors[_pathColorIndices[callsign]], ac.Position.Lat, ac.Position.Lon));
         }
 
         ShownPaths = entries.Count > 0 ? entries : null;

@@ -93,7 +93,7 @@ public class FinalApproachDescentTests
         bool goAroundTriggered = false;
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, rwy.ThresholdLatitude, rwy.ThresholdLongitude);
+            double dist = GeoMath.DistanceNm(ac.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude));
             double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(dist, thresholdElevation);
 
             _output.WriteLine($"{tick},{ac.Altitude:F0},{gsAlt:F0},{dist:F2},{ac.Targets.DesiredVerticalRate:F0},{ac.GroundSpeed:F0}");
@@ -119,7 +119,7 @@ public class FinalApproachDescentTests
             }
         }
 
-        double finalDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, rwy.ThresholdLatitude, rwy.ThresholdLongitude);
+        double finalDist = GeoMath.DistanceNm(ac.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude));
 
         _output.WriteLine($"# {label}: alt={ac.Altitude:F0}ft, dist={finalDist:F2}nm, tick={completeTick}");
         _output.WriteLine("");

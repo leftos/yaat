@@ -37,14 +37,13 @@ public class FinalApproachLateralTests
         var alongPoint = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, alongTrackNm);
         double perpSign = patternDir == PatternDirection.Left ? -90.0 : 90.0;
         var perpHeading = rwy.TrueHeading + perpSign;
-        var startPos = GeoMath.ProjectPoint(alongPoint.Lat, alongPoint.Lon, perpHeading, offsetNm);
+        var startPos = GeoMath.ProjectPoint(new LatLon(alongPoint.Lat, alongPoint.Lon), perpHeading, offsetNm);
 
         var ac = new AircraftState
         {
             Callsign = "TEST",
             AircraftType = category == AircraftCategory.Piston ? "C172" : "B738",
-            Latitude = startPos.Lat,
-            Longitude = startPos.Lon,
+            Position = startPos,
             TrueHeading = new TrueHeading(startHeading),
             Altitude = startAltitude,
             IndicatedAirspeed = startSpeed,
@@ -84,17 +83,11 @@ public class FinalApproachLateralTests
         int completeTick = maxTicks;
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            double xte = GeoMath.SignedCrossTrackDistanceNm(
-                ac.Latitude,
-                ac.Longitude,
-                rwy.ThresholdLatitude,
-                rwy.ThresholdLongitude,
-                rwy.TrueHeading
-            );
-            double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, rwy.ThresholdLatitude, rwy.ThresholdLongitude);
+            double xte = GeoMath.SignedCrossTrackDistanceNm(ac.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading);
+            double dist = GeoMath.DistanceNm(ac.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude));
 
             _output.WriteLine(
-                $"{tick},{ac.Latitude:F6},{ac.Longitude:F6},{ac.TrueHeading.Degrees:F1},{ac.Targets.TargetTrueHeading?.Degrees:F1},{xte:F4},{dist:F3},{ac.GroundSpeed:F1}"
+                $"{tick},{ac.Position.Lat:F6},{ac.Position.Lon:F6},{ac.TrueHeading.Degrees:F1},{ac.Targets.TargetTrueHeading?.Degrees:F1},{xte:F4},{dist:F3},{ac.GroundSpeed:F1}"
             );
 
             bool done = phase.OnTick(ctx);
@@ -108,7 +101,7 @@ public class FinalApproachLateralTests
         }
 
         double finalXte = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading)
+            GeoMath.SignedCrossTrackDistanceNm(ac.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading)
         );
         double finalHdgDiff = Math.Abs(ac.TrueHeading.SignedAngleTo(rwy.TrueHeading));
 

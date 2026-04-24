@@ -33,14 +33,14 @@ public class AirportE2ETests
         return GroundData.GetLayout(airportId);
     }
 
-    private static AircraftState MakeGroundAircraft(string departure = "OAK", double lat = 37.728, double lon = -122.218)
+    private static AircraftState MakeGroundAircraft(string departure = "OAK", LatLon? position = null)
     {
+        var pos = position ?? new LatLon(37.728, -122.218);
         var ac = new AircraftState
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = pos,
             TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,
@@ -88,7 +88,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D — walks south along D from NEW7 parking (via RAMP edge)
         var taxi = new TaxiCommand(["D"], []);
@@ -114,7 +114,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D C — D south to C junction
         var taxi = new TaxiCommand(["D", "C"], []);
@@ -138,7 +138,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D C B W to runway 30 — full route from NEW7 to runway 30
         var taxi = new TaxiCommand(["D", "C", "B", "W"], [], DestinationRunway: "30");
@@ -170,7 +170,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
@@ -187,7 +187,7 @@ public class AirportE2ETests
             .Select(s =>
             {
                 var n = layout.Nodes[s.ToNodeId];
-                return $"seg→{s.ToNodeId}(rwy={n.RunwayId},lat={n.Latitude:F6},lon={n.Longitude:F6})";
+                return $"seg→{s.ToNodeId}(rwy={n.RunwayId},lat={n.Position.Lat:F6},lon={n.Position.Lon:F6})";
             })
             .ToList();
         var hsNodeInfo = string.Join("; ", hsNodesInRoute);
@@ -219,7 +219,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
@@ -293,7 +293,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         var push = new PushbackCommand(null, null, "D", null, null);
         var result = GroundCommandHandler.TryPushback(ac, push, layout);
@@ -319,7 +319,7 @@ public class AirportE2ETests
         foreach (var edge in dEdges)
         {
             var node = edge.Nodes[0];
-            if (node.Latitude > 37.735)
+            if (node.Position.Lat > 37.735)
             {
                 startNode = node;
                 break;
@@ -331,7 +331,7 @@ public class AirportE2ETests
             return;
         }
 
-        var ac = MakeGroundAircraft(lat: startNode.Latitude, lon: startNode.Longitude);
+        var ac = MakeGroundAircraft(position: startNode.Position);
 
         // D → K → F: D connects to K, K connects to F. Both D and F cross 15/33.
         var taxi = new TaxiCommand(["D", "K", "F"], []);
@@ -359,7 +359,7 @@ public class AirportE2ETests
         foreach (var edge in dEdges)
         {
             var node = edge.Nodes[0];
-            if (node.Latitude > 37.735)
+            if (node.Position.Lat > 37.735)
             {
                 startNode = node;
                 break;
@@ -371,7 +371,7 @@ public class AirportE2ETests
             return;
         }
 
-        var ac = MakeGroundAircraft(lat: startNode.Latitude, lon: startNode.Longitude);
+        var ac = MakeGroundAircraft(position: startNode.Position);
 
         // Taxi with auto-cross-runway flag
         var taxi = new TaxiCommand(["D", "K", "F"], []);
@@ -397,7 +397,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         // Step 1: Taxi from parking to runway 30 via D C B W
         var taxi = new TaxiCommand(["D", "C", "B", "W"], [], DestinationRunway: "30");
@@ -434,7 +434,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         // Step 1: Pushback facing D
         var push = new PushbackCommand(null, null, "D", null, null);
@@ -474,7 +474,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D to runway 30 — D doesn't reach runway 30 (it's in the 28/15-33 area).
         // Should fail because D alone can't reach the 30 threshold.
@@ -805,7 +805,7 @@ public class AirportE2ETests
         // Find the T7A node closest to that coordinate
         var pushback = layout
             .Nodes.Values.Where(n => t7aNodeIds.Contains(n.Id))
-            .OrderBy(n => GeoMath.DistanceNm(n.Latitude, n.Longitude, 37.620251, -122.385900))
+            .OrderBy(n => GeoMath.DistanceNm(n.Position, new LatLon(37.620251, -122.385900)))
             .FirstOrDefault();
 
         return (pushback, junction, spot7A);
@@ -826,7 +826,7 @@ public class AirportE2ETests
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+        var ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI T7A — bare taxiway, no destination. This is what the buggy "TAXI HERE" sent.
         var taxi = new TaxiCommand(["T7A"], []);
@@ -840,13 +840,13 @@ public class AirportE2ETests
 
         // The dead-end node should be further south (lower latitude) than the pushback node
         Assert.True(
-            lastNode.Latitude < pushback.Latitude,
-            $"TAXI T7A from pushback should go south (bug): last node lat={lastNode.Latitude:F6} should be < pushback lat={pushback.Latitude:F6}"
+            lastNode.Position.Lat < pushback.Position.Lat,
+            $"TAXI T7A from pushback should go south (bug): last node lat={lastNode.Position.Lat:F6} should be < pushback lat={pushback.Position.Lat:F6}"
         );
 
         // The dead-end node is further from gate 7A than the pushback node is
-        double pushbackToSpot = GeoMath.DistanceNm(pushback.Latitude, pushback.Longitude, spot7A.Latitude, spot7A.Longitude);
-        double deadEndToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
+        double pushbackToSpot = GeoMath.DistanceNm(pushback.Position, spot7A.Position);
+        double deadEndToSpot = GeoMath.DistanceNm(lastNode.Position, spot7A.Position);
         Assert.True(
             deadEndToSpot > pushbackToSpot,
             $"Bug: taxi went away from gate 7A (deadEnd→7A={deadEndToSpot:F4}nm > pushback→7A={pushbackToSpot:F4}nm)"
@@ -868,7 +868,7 @@ public class AirportE2ETests
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+        var ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI $7A — no explicit path, A* to spot
         var taxi = new TaxiCommand([], [], DestinationSpot: "7A");
@@ -878,13 +878,13 @@ public class AirportE2ETests
         // Route should end at or very near gate 7A
         var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
-        double distToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
+        double distToSpot = GeoMath.DistanceNm(lastNode.Position, spot7A.Position);
         Assert.True(distToSpot < 0.02, $"TAXI $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
 
         // Route should go north (toward gate 7A), not south
         Assert.True(
-            lastNode.Latitude > pushback.Latitude,
-            $"Route should go north: last lat={lastNode.Latitude:F6} > pushback lat={pushback.Latitude:F6}"
+            lastNode.Position.Lat > pushback.Position.Lat,
+            $"Route should go north: last lat={lastNode.Position.Lat:F6} > pushback lat={pushback.Position.Lat:F6}"
         );
     }
 
@@ -903,7 +903,7 @@ public class AirportE2ETests
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+        var ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI T7A $7A — explicit path + spot destination
         var taxi = new TaxiCommand(["T7A"], [], DestinationSpot: "7A");
@@ -914,7 +914,7 @@ public class AirportE2ETests
             // If it succeeds, verify route ends near gate 7A
             var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
             var lastNode = layout.Nodes[lastSeg.ToNodeId];
-            double distToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
+            double distToSpot = GeoMath.DistanceNm(lastNode.Position, spot7A.Position);
             Assert.True(distToSpot < 0.02, $"TAXI T7A $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
         }
         else
@@ -940,7 +940,7 @@ public class AirportE2ETests
         var (pushback, _, _) = FindSfoT7ANodes(layout);
         Assert.NotNull(pushback);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+        var ac = MakeGroundAircraft("SFO", pushback.Position);
 
         var taxi = new TaxiCommand(["T7A"], []);
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
@@ -998,7 +998,7 @@ public class AirportE2ETests
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+        var ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // Step 1: TAXI $7A
         var taxi1 = new TaxiCommand([], [], DestinationSpot: "7A");
@@ -1008,8 +1008,7 @@ public class AirportE2ETests
         // Simulate route completion: place aircraft at destination and mark route done.
         var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
-        ac.Latitude = lastNode.Latitude;
-        ac.Longitude = lastNode.Longitude;
+        ac.Position = lastNode.Position;
         ac.AssignedTaxiRoute.CurrentSegmentIndex = ac.AssignedTaxiRoute.Segments.Count;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingInPositionPhase());
@@ -1048,7 +1047,7 @@ public class AirportE2ETests
         );
         Assert.NotNull(cOnlyNode);
 
-        var ac = MakeGroundAircraft("SFO", cOnlyNode.Latitude, cOnlyNode.Longitude);
+        var ac = MakeGroundAircraft("SFO", cOnlyNode.Position);
 
         // TAXI C E 28R — should find a route from C via E to runway 28R
         var taxi = new TaxiCommand(["C", "E"], [], DestinationRunway: "28R");
@@ -1110,7 +1109,7 @@ public class AirportE2ETests
         );
         Assert.NotNull(m1Node);
 
-        var ac = MakeGroundAircraft("SFO", m1Node.Latitude, m1Node.Longitude);
+        var ac = MakeGroundAircraft("SFO", m1Node.Position);
 
         // TAXI M1 to runway 1L — M1 connects to 1L holds-short
         var taxi = new TaxiCommand(["M1"], [], DestinationRunway: "1L");
@@ -1173,8 +1172,9 @@ public class AirportE2ETests
 
         double distNm = ac.GroundSpeed / 3600.0 * deltaSeconds;
         double hdgRad = ac.TrueHeading.Degrees * Math.PI / 180.0;
-        ac.Latitude += distNm / 60.0 * Math.Cos(hdgRad);
-        ac.Longitude += distNm / 60.0 * Math.Sin(hdgRad) / Math.Cos(ac.Latitude * Math.PI / 180.0);
+        double newLat = ac.Position.Lat + distNm / 60.0 * Math.Cos(hdgRad);
+        double newLon = ac.Position.Lon + distNm / 60.0 * Math.Sin(hdgRad) / Math.Cos(ac.Position.Lat * Math.PI / 180.0);
+        ac.Position = new LatLon(newLat, newLon);
     }
 
     [Fact]
@@ -1189,7 +1189,7 @@ public class AirportE2ETests
         var parking = FindParking(layout, "PCM1");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+        var ac = MakeGroundAircraft(position: parking.Position);
 
         var taxi = new TaxiCommand(["B"], [], DestinationRunway: "28L");
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
@@ -1234,7 +1234,7 @@ public class AirportE2ETests
         Assert.NotNull(a4);
         Assert.NotNull(a9);
 
-        var ac = MakeGroundAircraft("SFO", a4.Latitude, a4.Longitude);
+        var ac = MakeGroundAircraft("SFO", a4.Position);
         ac.TrueHeading = new TrueHeading(a4.TrueHeading?.Degrees ?? 104);
 
         var cmd = new PushbackCommand(null, null, null, "A9", null);
@@ -1252,7 +1252,7 @@ public class AirportE2ETests
         // Final node should be near A9
         var lastSeg = ac.AssignedTaxiRoute.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
-        double distToA9 = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, a9.Latitude, a9.Longitude);
+        double distToA9 = GeoMath.DistanceNm(lastNode.Position, a9.Position);
         Assert.True(distToA9 < 0.02, $"Route should end near A9: dist={distToA9:F4}nm");
     }
 
@@ -1286,7 +1286,7 @@ public class AirportE2ETests
             }
 
             // Pick the one closer to SIG1 (north side)
-            double dist = GeoMath.DistanceNm(hs.Latitude, hs.Longitude, sig1.Latitude, sig1.Longitude);
+            double dist = GeoMath.DistanceNm(hs.Position, sig1.Position);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -1296,7 +1296,7 @@ public class AirportE2ETests
 
         Assert.NotNull(exitHoldShort);
 
-        var ac = MakeGroundAircraft(lat: exitHoldShort.Latitude, lon: exitHoldShort.Longitude);
+        var ac = MakeGroundAircraft(position: exitHoldShort.Position);
 
         var taxi = new TaxiCommand(["G"], [], DestinationParking: "SIG1");
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);

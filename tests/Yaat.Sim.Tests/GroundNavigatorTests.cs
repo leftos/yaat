@@ -22,14 +22,13 @@ public class GroundNavigatorTests
         _out = output;
     }
 
-    private static (AircraftState Aircraft, PhaseContext Ctx) MakeFixture(double acLat, double acLon, double acHeadingDeg, double startSpeedKts = 0)
+    private static (AircraftState Aircraft, PhaseContext Ctx) MakeFixture(LatLon position, double acHeadingDeg, double startSpeedKts = 0)
     {
         var aircraft = new AircraftState
         {
             Callsign = "NAV",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = position,
             TrueHeading = new TrueHeading(acHeadingDeg),
             IndicatedAirspeed = startSpeedKts,
             IsOnGround = true,
@@ -59,7 +58,7 @@ public class GroundNavigatorTests
 
     private static TaxiRouteSegment MakeStraightSegment(GroundNode from, GroundNode to, string name = "A")
     {
-        double distNm = GeoMath.DistanceNm(from.Latitude, from.Longitude, to.Latitude, to.Longitude);
+        double distNm = GeoMath.DistanceNm(from.Position, to.Position);
         var edge = new GroundEdge
         {
             Nodes = [from, to],
@@ -104,12 +103,12 @@ public class GroundNavigatorTests
     {
         // 200 ft straight east; aircraft starts at From heading east with 0 speed.
         var fromNode = MakeNode(1, 37.0, -122.0);
-        var (toLat, toLon) = GeoMath.ProjectPoint(fromNode.Latitude, fromNode.Longitude, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        var (toLat, toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
         var toNode = MakeNode(2, toLat, toLon);
 
         var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
 
-        var (aircraft, ctx) = MakeFixture(fromNode.Latitude, fromNode.Longitude, 90.0);
+        var (aircraft, ctx) = MakeFixture(fromNode.Position, 90.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -127,7 +126,7 @@ public class GroundNavigatorTests
             }
         }
 
-        double distToTargetFt = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, toNode.Latitude, toNode.Longitude) * GeoMath.FeetPerNm;
+        double distToTargetFt = GeoMath.DistanceNm(aircraft.Position, toNode.Position) * GeoMath.FeetPerNm;
         _out.WriteLine($"Straight drive: arrived={arrived}, distToTarget={distToTargetFt:F2}ft, gs={aircraft.IndicatedAirspeed:F2}kt");
 
         Assert.True(arrived, "navigator did not reach ArrivedAtNode within 200 ticks");
@@ -177,7 +176,7 @@ public class GroundNavigatorTests
         var route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
 
         // Start with some forward speed so the arc integrator advances from tick 0.
-        var (aircraft, ctx) = MakeFixture(p0Lat, p0Lon, 0.0, startSpeedKts: 10.0);
+        var (aircraft, ctx) = MakeFixture(new LatLon(p0Lat, p0Lon), 0.0, startSpeedKts: 10.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -194,7 +193,7 @@ public class GroundNavigatorTests
         }
 
         double finalHdg = aircraft.TrueHeading.Degrees;
-        double finalDistToNode1Ft = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, node1.Latitude, node1.Longitude) * GeoMath.FeetPerNm;
+        double finalDistToNode1Ft = GeoMath.DistanceNm(aircraft.Position, node1.Position) * GeoMath.FeetPerNm;
         _out.WriteLine($"Arc drive: arrived={arrived}, finalHdg={finalHdg:F1}°, distToExit={finalDistToNode1Ft:F2}ft");
 
         Assert.True(arrived, "navigator did not reach ArrivedAtNode within 200 ticks");

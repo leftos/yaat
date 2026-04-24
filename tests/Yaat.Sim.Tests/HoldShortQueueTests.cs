@@ -90,14 +90,13 @@ public class HoldShortQueueTests
         };
     }
 
-    private static AircraftState MakeAircraft(string callsign, string type, double lat, double lon)
+    private static AircraftState MakeAircraft(string callsign, string type, LatLon position)
     {
         return new AircraftState
         {
             Callsign = callsign,
             AircraftType = type,
-            Latitude = lat,
-            Longitude = lon,
+            Position = position,
             TrueHeading = new TrueHeading(180), // heading south toward hold-short
             IsOnGround = true,
             Departure = "KOAK",
@@ -125,7 +124,7 @@ public class HoldShortQueueTests
         var hsNode = layout.Nodes[hsNodeId];
 
         // Aircraft A: holding short at node 4
-        var acA = MakeAircraft("HOLD01", "C172", hsNode.Latitude, hsNode.Longitude);
+        var acA = MakeAircraft("HOLD01", "C172", hsNode.Position);
         acA.Phases = new PhaseList();
         var holdPhase = new HoldingShortPhase(
             new HoldShortPoint
@@ -140,7 +139,7 @@ public class HoldShortQueueTests
 
         // Aircraft B: taxiing toward hold-short, starting at node 2 (2 segments away)
         var startNode = layout.Nodes[2];
-        var acB = MakeAircraft("TAXI01", "C172", startNode.Latitude, startNode.Longitude);
+        var acB = MakeAircraft("TAXI01", "C172", startNode.Position);
         var route = MakeRouteToHoldShort(layout, 2, hsNodeId);
         acB.AssignedTaxiRoute = route;
         acB.Phases = new PhaseList();
@@ -168,11 +167,11 @@ public class HoldShortQueueTests
 
             // If the taxiing phase completed unexpectedly, the aircraft arrived at the hold-short
             // Check separation
-            double distFt = GeoMath.DistanceNm(acA.Latitude, acA.Longitude, acB.Latitude, acB.Longitude) * FtPerNm;
+            double distFt = GeoMath.DistanceNm(acA.Position, acB.Position) * FtPerNm;
             Assert.True(
                 distFt > 25.0,
                 $"Tick {tick}: Aircraft B is only {distFt:F0}ft from aircraft A — they are stacking! "
-                    + $"B pos=({acB.Latitude:F6}, {acB.Longitude:F6}), A pos=({acA.Latitude:F6}, {acA.Longitude:F6})"
+                    + $"B pos=({acB.Position.Lat:F6}, {acB.Position.Lon:F6}), A pos=({acA.Position.Lat:F6}, {acA.Position.Lon:F6})"
             );
 
             if (done)
@@ -189,7 +188,7 @@ public class HoldShortQueueTests
         var hsNode = layout.Nodes[hsNodeId];
 
         // Aircraft A: at the hold-short node
-        var acA = MakeAircraft("HOLD01", "C172", hsNode.Latitude, hsNode.Longitude);
+        var acA = MakeAircraft("HOLD01", "C172", hsNode.Position);
         acA.Phases = new PhaseList();
         acA.Phases.Add(
             new HoldingShortPhase(
@@ -206,7 +205,7 @@ public class HoldShortQueueTests
         // Aircraft B: just barely before the hold-short node (within arrival threshold)
         // Place it ~80ft from the hold-short node (within NodeArrivalThresholdNm = 0.015nm ≈ 91ft)
         double offsetNm = 80.0 / FtPerNm;
-        var acB = MakeAircraft("TAXI01", "C172", hsNode.Latitude + offsetNm / 60.0, hsNode.Longitude);
+        var acB = MakeAircraft("TAXI01", "C172", new LatLon(hsNode.Position.Lat + offsetNm / 60.0, hsNode.Position.Lon));
 
         // Route: single segment to the hold-short node, starting from "just before"
         var lastEdge = layout.Edges.Last(); // node 3 → node 4
@@ -239,7 +238,7 @@ public class HoldShortQueueTests
         taxiPhase.OnTick(ctx);
 
         // Aircraft B should NOT have snapped to the hold-short node
-        double distFt = GeoMath.DistanceNm(acA.Latitude, acA.Longitude, acB.Latitude, acB.Longitude) * FtPerNm;
+        double distFt = GeoMath.DistanceNm(acA.Position, acB.Position) * FtPerNm;
         Assert.True(distFt > 25.0, $"Aircraft B snapped to occupied hold-short node! Distance: {distFt:F0}ft");
     }
 

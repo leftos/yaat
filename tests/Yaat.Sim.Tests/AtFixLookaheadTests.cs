@@ -82,7 +82,7 @@ public class AtFixLookaheadTests(ITestOutputHelper output)
             if (tick % 30 == 0)
             {
                 output.WriteLine(
-                    $"t={tick, 4}: lat={ac.Latitude:F4} alt={ac.Altitude:F0} "
+                    $"t={tick, 4}: lat={ac.Position.Lat:F4} alt={ac.Altitude:F0} "
                         + $"tgtAlt={ac.Targets.TargetAltitude?.ToString() ?? "null"} "
                         + $"route=[{string.Join(", ", ac.Targets.NavigationRoute.Select(r => r.Name))}] "
                         + $"queueIdx={ac.Queue.CurrentBlockIndex} blk1Applied={ac.Queue.Blocks[1].IsApplied}"

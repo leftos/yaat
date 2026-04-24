@@ -903,7 +903,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         foreach (var ac in sorted)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
             SKPoint offset = DataBlockLayout.DefaultOffset;
             if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
@@ -934,7 +934,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         foreach (var ac in FilterActiveAircraft(Aircraft))
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var dx = (float)screenPos.X - sx;
             var dy = (float)screenPos.Y - sy;
             var dist = MathF.Sqrt(dx * dx + dy * dy);

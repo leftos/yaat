@@ -250,7 +250,7 @@ public sealed class LiveWeatherService
         };
     }
 
-    private static (double Lat, double Lon) GetArtccCenter(string artccId)
+    private static LatLon GetArtccCenter(string artccId)
     {
         // Try to resolve the primary airport as a proxy for ARTCC center
         var primaryAirport = artccId.ToUpperInvariant() switch
@@ -285,12 +285,12 @@ public sealed class LiveWeatherService
             var pos = NavigationDatabase.Instance.GetFixPosition(primaryAirport);
             if (pos is not null)
             {
-                return (pos.Value.Lat, pos.Value.Lon);
+                return new LatLon(pos.Value.Lat, pos.Value.Lon);
             }
         }
 
         // Fallback: middle of CONUS
-        return (39.0, -98.0);
+        return new LatLon(39.0, -98.0);
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };

@@ -90,8 +90,7 @@ public class InterceptCoursePhaseTests
 
         // Move aircraft across the course line (southbound, so move south)
         // This puts it on the other side of the FAC
-        aircraft.Latitude -= 0.05; // ~3nm south — crosses the FAC line
-        aircraft.Longitude += 0.02;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.05, aircraft.Position.Lon + 0.02); // ~3nm south — crosses the FAC line
 
         // Second tick — cross-track sign should flip, heading diff ~100° → bust-through
         complete = phase.OnTick(ctx);
@@ -123,8 +122,7 @@ public class InterceptCoursePhaseTests
 
         // Tick — aircraft is close to course and heading is close
         // Move aircraft to be within cross-track and heading thresholds
-        aircraft.Latitude = 37.72;
-        aircraft.Longitude = -122.24;
+        aircraft.Position = new LatLon(37.72, -122.24);
         aircraft.TrueHeading = new TrueHeading(278);
 
         bool complete = phase.OnTick(ctx);
@@ -214,8 +212,7 @@ public class InterceptCoursePhaseTests
         Assert.False(complete);
 
         // Move aircraft across the course line
-        aircraft.Latitude -= 0.02;
-        aircraft.Longitude -= 0.03;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
 
         // Second tick — cross-track sign flips, 20° ≤ 30° → capture
         complete = phase.OnTick(ctx);
@@ -255,8 +252,7 @@ public class InterceptCoursePhaseTests
 
         phase.OnTick(ctx);
 
-        aircraft.Latitude -= 0.02;
-        aircraft.Longitude -= 0.03;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
@@ -293,8 +289,7 @@ public class InterceptCoursePhaseTests
 
         phase.OnTick(ctx);
 
-        aircraft.Latitude -= 0.02;
-        aircraft.Longitude -= 0.03;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
@@ -332,8 +327,7 @@ public class InterceptCoursePhaseTests
 
         phase.OnTick(ctx);
 
-        aircraft.Latitude -= 0.02;
-        aircraft.Longitude -= 0.03;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
@@ -415,8 +409,7 @@ public class InterceptCoursePhaseTests
         phase.OnTick(ctx);
 
         // Cross the course
-        aircraft.Latitude -= 0.05;
-        aircraft.Longitude += 0.02;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.05, aircraft.Position.Lon + 0.02);
 
         phase.OnTick(ctx);
 
@@ -459,8 +452,7 @@ public class InterceptCoursePhaseTests
         phase.OnTick(ctx);
 
         // Move aircraft across the course line
-        aircraft.Latitude -= 0.02;
-        aircraft.Longitude -= 0.03;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
@@ -500,8 +492,7 @@ public class InterceptCoursePhaseTests
 
         phase.OnTick(ctx);
 
-        aircraft.Latitude -= 0.02;
-        aircraft.Longitude -= 0.03;
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);

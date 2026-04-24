@@ -426,8 +426,7 @@ public partial class MainViewModel : ObservableObject
 
     public bool HasScenario => ActiveScenarioId is not null;
 
-    private double? _distanceRefLat;
-    private double? _distanceRefLon;
+    private LatLon? _distanceRef;
 
     public ObservableCollection<AircraftModel> Aircraft { get; } = [];
 
@@ -1688,8 +1687,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(fixOrFrd))
         {
-            _distanceRefLat = null;
-            _distanceRefLon = null;
+            _distanceRef = null;
             DistanceReferenceFix = "";
             ClearAllDistances();
             return;
@@ -1709,8 +1707,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        _distanceRefLat = resolved.Value.Lat;
-        _distanceRefLon = resolved.Value.Lon;
+        _distanceRef = resolved.Value;
         DistanceReferenceFix = FrdResolver.ParseFrd(fixOrFrd)?.Fix ?? fixOrFrd.Trim().ToUpperInvariant();
         RecalculateAllDistances();
     }
@@ -1733,7 +1730,7 @@ public partial class MainViewModel : ObservableObject
 
     private double? ComputeDistance(AircraftModel model)
     {
-        if (_distanceRefLat is null || _distanceRefLon is null)
+        if (_distanceRef is null)
         {
             return null;
         }
@@ -1743,7 +1740,7 @@ public partial class MainViewModel : ObservableObject
             return null;
         }
 
-        return GeoMath.DistanceNm(model.Latitude, model.Longitude, _distanceRefLat.Value, _distanceRefLon.Value);
+        return GeoMath.DistanceNm(model.Position, _distanceRef.Value);
     }
 
     [RelayCommand]

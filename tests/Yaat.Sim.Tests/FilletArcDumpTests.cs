@@ -241,10 +241,8 @@ internal static class FilletArcGeneratorTraced
                     double halfAngleRad = (turnAngle / 2.0) * (Math.PI / 180.0);
                     double tanHalf = Math.Tan(halfAngleRad);
 
-                    double edgeALenFt =
-                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude) * GeoMath.FeetPerNm;
-                    double edgeBLenFt =
-                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude) * GeoMath.FeetPerNm;
+                    double edgeALenFt = GeoMath.DistanceNm(intersection.Position, otherA.Position) * GeoMath.FeetPerNm;
+                    double edgeBLenFt = GeoMath.DistanceNm(intersection.Position, otherB.Position) * GeoMath.FeetPerNm;
 
                     double maxFitRadiusFt = Math.Min(edgeALenFt, edgeBLenFt) / tanHalf;
                     double maxRadiusFt = SelectRadius(edgeA, edgeB, turnAngle);
@@ -307,11 +305,20 @@ internal static class FilletArcGeneratorTraced
             double depthB = kappa * edgeTangentSpecs[edgeB].TangentDistNm;
 
             double bearingAToInt = (bearingA + 180.0) % 360.0;
-            var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanA.Latitude, tanA.Longitude, bearingAToInt, depthA);
+            LatLon cp1 = GeoMath.ProjectPointRaw(tanA.Position, bearingAToInt, depthA);
             double bearingBToInt = (bearingB + 180.0) % 360.0;
-            var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanB.Latitude, tanB.Longitude, bearingBToInt, depthB);
+            LatLon cp2 = GeoMath.ProjectPointRaw(tanB.Position, bearingBToInt, depthB);
 
-            var bezier = new CubicBezier(tanA.Latitude, tanA.Longitude, p1Lat, p1Lon, p2Lat, p2Lon, tanB.Latitude, tanB.Longitude);
+            var bezier = new CubicBezier(
+                tanA.Position.Lat,
+                tanA.Position.Lon,
+                cp1.Lat,
+                cp1.Lon,
+                cp2.Lat,
+                cp2.Lon,
+                tanB.Position.Lat,
+                tanB.Position.Lon
+            );
 
             bool sameTaxiway = edgeA.SharesTaxiway(edgeB);
 
@@ -320,11 +327,11 @@ internal static class FilletArcGeneratorTraced
                 {
                     Nodes = [tanA, tanB],
                     TaxiwayNames = sameTaxiway ? [edgeA.TaxiwayName] : [edgeA.TaxiwayName, edgeB.TaxiwayName],
-                    P1Lat = p1Lat,
-                    P1Lon = p1Lon,
-                    P2Lat = p2Lat,
-                    P2Lon = p2Lon,
-                    MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(tanA.Latitude, 10),
+                    P1Lat = cp1.Lat,
+                    P1Lon = cp1.Lon,
+                    P2Lat = cp2.Lat,
+                    P2Lon = cp2.Lon,
+                    MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(tanA.Position.Lat, 10),
                     DistanceNm = bezier.ArcLengthNm(20),
                 }
             );
@@ -339,7 +346,7 @@ internal static class FilletArcGeneratorTraced
         foreach (var (edge, tangentNode) in edgeTangentNodes)
         {
             var otherNode = edge.OtherNode(intersection);
-            double newDist = GeoMath.DistanceNm(otherNode.Latitude, otherNode.Longitude, tangentNode.Latitude, tangentNode.Longitude);
+            double newDist = GeoMath.DistanceNm(otherNode.Position, tangentNode.Position);
             var shortened = new GroundEdge
             {
                 Nodes = [otherNode, tangentNode],
@@ -399,7 +406,7 @@ internal static class FilletArcGeneratorTraced
             GroundNode? bestTarget = FindNearest(otherNode, reconnectCandidates);
             if (bestTarget is not null)
             {
-                double newDist = GeoMath.DistanceNm(otherNode.Latitude, otherNode.Longitude, bestTarget.Latitude, bestTarget.Longitude);
+                double newDist = GeoMath.DistanceNm(otherNode.Position, bestTarget.Position);
                 layout.Edges.Add(
                     new GroundEdge
                     {
@@ -438,8 +445,8 @@ internal static class FilletArcGeneratorTraced
             return;
         }
 
-        var (lat, lon) = GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bearing, tangentDistNm);
-        specs[edge] = (lat, lon, tangentDistNm);
+        var projected = GeoMath.ProjectPointRaw(intersection.Position, bearing, tangentDistNm);
+        specs[edge] = (projected.Lat, projected.Lon, tangentDistNm);
     }
 
     private static GroundNode? FindNearest(GroundNode target, List<GroundNode> candidates)
@@ -448,7 +455,7 @@ internal static class FilletArcGeneratorTraced
         double bestDist = double.MaxValue;
         foreach (var c in candidates)
         {
-            double d = GeoMath.DistanceNm(target.Latitude, target.Longitude, c.Latitude, c.Longitude);
+            double d = GeoMath.DistanceNm(target.Position, c.Position);
             if (d < bestDist)
             {
                 bestDist = d;
@@ -465,15 +472,15 @@ internal static class FilletArcGeneratorTraced
             if (edge.Nodes[0].Id == intersection.Id)
             {
                 var pt = edge.IntermediatePoints[0];
-                return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, pt.Lat, pt.Lon);
+                return GeoMath.BearingTo(intersection.Position, new LatLon(pt.Lat, pt.Lon));
             }
             else
             {
                 var pt = edge.IntermediatePoints[^1];
-                return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, pt.Lat, pt.Lon);
+                return GeoMath.BearingTo(intersection.Position, new LatLon(pt.Lat, pt.Lon));
             }
         }
-        return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, other.Latitude, other.Longitude);
+        return GeoMath.BearingTo(intersection.Position, other.Position);
     }
 
     private static double SelectRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)

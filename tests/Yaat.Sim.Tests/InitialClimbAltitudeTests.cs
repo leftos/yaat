@@ -211,7 +211,7 @@ public class InitialClimbAltitudeTests
 
         Assert.Equal(2, targets.NavigationRoute.Count);
         Assert.Equal("SUNOL", targets.NavigationRoute[0].Name);
-        Assert.Equal(37.5, targets.NavigationRoute[0].Latitude, 1);
+        Assert.Equal(37.5, targets.NavigationRoute[0].Position.Lat, 1);
         Assert.Equal("TRACY", targets.NavigationRoute[1].Name);
     }
 

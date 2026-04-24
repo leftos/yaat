@@ -47,8 +47,8 @@ public class LayoutSerializationTests
         {
             Assert.True(restored.Nodes.ContainsKey(id), $"Node {id} missing after round-trip");
             var restNode = restored.Nodes[id];
-            Assert.Equal(origNode.Latitude, restNode.Latitude);
-            Assert.Equal(origNode.Longitude, restNode.Longitude);
+            Assert.Equal(origNode.Position.Lat, restNode.Position.Lat);
+            Assert.Equal(origNode.Position.Lon, restNode.Position.Lon);
             Assert.Equal(origNode.Type, restNode.Type);
             Assert.Equal(origNode.Name, restNode.Name);
             Assert.Equal(origNode.RunwayId?.ToString(), restNode.RunwayId?.ToString());
