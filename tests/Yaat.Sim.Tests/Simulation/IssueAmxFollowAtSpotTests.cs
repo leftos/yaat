@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
@@ -56,14 +57,23 @@ public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
     [Fact]
     public void AMX669_AcceptsFollowGroundAfterTaxiToSpot()
     {
+        var swTotal = Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var recording = LoadRecording();
+        output.WriteLine($"[TIMING] LoadRecording: {sw.Elapsed.TotalMilliseconds:F0}ms");
+
+        sw.Restart();
         var engine = BuildEngine();
+        output.WriteLine($"[TIMING] BuildEngine: {sw.Elapsed.TotalMilliseconds:F0}ms");
         if (recording is null || engine is null)
         {
             return;
         }
 
+        sw.Restart();
         engine.Replay(recording, ReplayTime);
+        output.WriteLine($"[TIMING] Replay({ReplayTime}s): {sw.Elapsed.TotalMilliseconds:F0}ms");
+        output.WriteLine(engine.DumpTickTimings());
 
         var amx = engine.FindAircraft("AMX669");
         Assert.NotNull(amx);
@@ -86,6 +96,7 @@ public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
         amx = engine.FindAircraft("AMX669");
         Assert.NotNull(amx);
         Assert.IsType<FollowingPhase>(amx.Phases?.CurrentPhase);
+        output.WriteLine($"[TIMING] Test total: {swTotal.Elapsed.TotalMilliseconds:F0}ms");
     }
 
     /// <summary>

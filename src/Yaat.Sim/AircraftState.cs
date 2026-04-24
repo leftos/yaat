@@ -40,6 +40,19 @@ public class AircraftState
     /// <summary>Cached magnetic declination at this aircraft's position. Updated each tick by FlightPhysics.</summary>
     public double Declination { get; set; }
 
+    /// <summary>
+    /// Position (lat/lon) at which <see cref="Declination"/> was last recomputed. Used by
+    /// <c>FlightPhysics.Update</c> to skip the expensive WMM evaluation when the aircraft
+    /// has moved less than ~1 nm. NaN sentinel forces a recompute on first tick and after
+    /// DTO round-trips (these fields are intentionally not serialized — JSON does not
+    /// represent NaN, and the cache is purely runtime state).
+    /// </summary>
+    [JsonIgnore]
+    public double DeclinationCacheLat { get; set; } = double.NaN;
+
+    [JsonIgnore]
+    public double DeclinationCacheLon { get; set; } = double.NaN;
+
     /// <summary>Magnetic heading derived from TrueHeading and Declination.</summary>
     public MagneticHeading MagneticHeading => TrueHeading.ToMagnetic(Declination);
 

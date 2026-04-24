@@ -1,9 +1,34 @@
+using System.Diagnostics;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Yaat.Sim.Tests;
 
-public class MagneticDeclinationTests
+public class MagneticDeclinationTests(ITestOutputHelper output)
 {
+    [Fact]
+    public void Diagnostic_MicroBenchmark()
+    {
+        // Warm up — JIT + first-call epoch resolve + any static init.
+        for (int i = 0; i < 100; i++)
+        {
+            MagneticDeclination.GetDeclination(37.6, -122.4);
+        }
+
+        const int n = 35000;
+        var sw = Stopwatch.StartNew();
+        double acc = 0;
+        for (int i = 0; i < n; i++)
+        {
+            // Vary position slightly so the Coordinate allocation and evaluation can't be trivially CSE'd.
+            acc += MagneticDeclination.GetDeclination(37.6 + (i * 1e-7), -122.4 - (i * 1e-7));
+        }
+        sw.Stop();
+        output.WriteLine(
+            $"{n} GetDeclination calls: {sw.Elapsed.TotalMilliseconds:F0}ms total, avg={sw.Elapsed.TotalMilliseconds / n:F4}ms/call (accumulator={acc:F2})"
+        );
+    }
+
     [Fact]
     public void GetDeclination_WestCoast_PositiveEast()
     {

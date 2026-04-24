@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -70,10 +71,22 @@ public sealed class SimulationWorld
 
     public void Tick(double deltaSeconds)
     {
-        Tick(deltaSeconds, preTick: null);
+        Tick(deltaSeconds, preTick: null, timingCallback: null);
     }
 
     public void Tick(double deltaSeconds, Action<AircraftState, double>? preTick)
+    {
+        Tick(deltaSeconds, preTick, timingCallback: null);
+    }
+
+    /// <summary>
+    /// Tick with optional timing instrumentation. <paramref name="timingCallback"/>
+    /// is invoked with (bucketName, elapsedMs) for each timed section. Used by
+    /// <see cref="Yaat.Sim.Simulation.SimulationEngine"/> test diagnostics to
+    /// break down per-tick cost. Overhead is ~1µs per bucket when the callback
+    /// is null-checked (the Stopwatch allocations are skipped in that path).
+    /// </summary>
+    public void Tick(double deltaSeconds, Action<AircraftState, double>? preTick, Action<string, double>? timingCallback)
     {
         lock (_lock)
         {
@@ -90,7 +103,15 @@ public sealed class SimulationWorld
                 return null;
             }
 
+            Stopwatch? sw = timingCallback is not null ? new Stopwatch() : null;
+
+            sw?.Restart();
             GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds);
+            if (sw is not null)
+            {
+                sw.Stop();
+                timingCallback!("World.GroundConflict", sw.Elapsed.TotalMilliseconds);
+            }
 
             var weather = Weather;
             var studentTcp = StudentTcp;
@@ -103,7 +124,19 @@ public sealed class SimulationWorld
                 }
 
                 preTick?.Invoke(ac, deltaSeconds);
-                FlightPhysics.Update(ac, deltaSeconds, Lookup, weather);
+
+                if (timingCallback is not null)
+                {
+                    var acSw = Stopwatch.StartNew();
+                    bool onGround = ac.IsOnGround;
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather);
+                    acSw.Stop();
+                    timingCallback(onGround ? "World.Physics.Ground" : "World.Physics.Air", acSw.Elapsed.TotalMilliseconds);
+                }
+                else
+                {
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather);
+                }
             }
         }
     }

@@ -33,8 +33,22 @@ public static class FlightPhysics
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
-        // Cache magnetic declination at current position for this tick.
-        aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Latitude, aircraft.Longitude);
+        // Recompute magnetic declination only when the aircraft has moved materially.
+        // WMM is a degree-12 spherical-harmonic evaluation (~0.06 ms/call) — at 4 Hz per
+        // aircraft this dominates per-tick physics. Declination changes ~0.01°/km IRL,
+        // so reusing a cached value for sub-nm motion is invisible for heading/wind use.
+        // Box threshold in degrees: 0.02° ≈ 1.2 nm of latitude, conservative at all lats.
+        const double DeclinationCacheThresholdDeg = 0.02;
+        if (
+            double.IsNaN(aircraft.DeclinationCacheLat)
+            || (Math.Abs(aircraft.Latitude - aircraft.DeclinationCacheLat) > DeclinationCacheThresholdDeg)
+            || (Math.Abs(aircraft.Longitude - aircraft.DeclinationCacheLon) > DeclinationCacheThresholdDeg)
+        )
+        {
+            aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Latitude, aircraft.Longitude);
+            aircraft.DeclinationCacheLat = aircraft.Latitude;
+            aircraft.DeclinationCacheLon = aircraft.Longitude;
+        }
 
         // Backward compat: airborne aircraft without IAS initialized derive it from GS.
         if (!aircraft.IsOnGround && aircraft.IndicatedAirspeed <= 0 && aircraft.GroundSpeed > 0)

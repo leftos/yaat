@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -141,15 +142,24 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void N70CS_ExitsAtProperTaxiway()
     {
+        var swTotal = Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var recording = LoadRecording();
+        output.WriteLine($"[TIMING] LoadRecording: {sw.Elapsed.TotalMilliseconds:F0}ms");
+
+        sw.Restart();
         var engine = BuildEngine();
+        output.WriteLine($"[TIMING] BuildEngine: {sw.Elapsed.TotalMilliseconds:F0}ms");
         if (recording is null || engine is null)
         {
             return;
         }
 
+        sw.Restart();
         // Replay to just after CLAND at t=895
         engine.Replay(recording, 900);
+        output.WriteLine($"[TIMING] Replay(900s): {sw.Elapsed.TotalMilliseconds:F0}ms");
+        output.WriteLine(engine.DumpTickTimings());
 
         var ac = engine.FindAircraft("N70CS");
         Assert.NotNull(ac);
@@ -159,9 +169,12 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         // Tick until RunwayExitPhase completes (transitions to HoldingAfterExitPhase)
         bool exitedRunway = false;
 
+        sw.Restart();
+        int loopTicks = 0;
         for (int t = 1; t <= 600; t++)
         {
             engine.ReplayOneSecond();
+            loopTicks = t;
             ac = engine.FindAircraft("N70CS");
             if (ac is null)
             {
@@ -203,6 +216,8 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             }
         }
 
+        output.WriteLine($"[TIMING] Post-replay tick loop ({loopTicks} ticks): {sw.Elapsed.TotalMilliseconds:F0}ms");
+        output.WriteLine($"[TIMING] Test total: {swTotal.Elapsed.TotalMilliseconds:F0}ms");
         Assert.True(exitedRunway, "N70CS never completed runway exit within 600 seconds");
     }
 

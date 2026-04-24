@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
@@ -47,6 +49,15 @@ public sealed class SimulationEngine
     public BeaconCodePool BeaconCodePool { get; } = new();
     public TowerListTracker TowerListTracker { get; } = new();
     public ConflictAlertState ConflictAlerts { get; } = new();
+
+    /// <summary>
+    /// Diagnostic per-tick timing buckets. Keyed by bucket name (e.g. "PrePhysics",
+    /// "Physics.Ground", "Physics.World", "PostPhysics"). Populated by
+    /// <see cref="ReplayRange"/>. Reset at the start of each <see cref="Replay"/> /
+    /// <see cref="ReplayRange"/> call. Intended for test instrumentation only —
+    /// call <see cref="DumpTickTimings"/> to format.
+    /// </summary>
+    public Dictionary<string, (int Count, double Ms)> TickTimings { get; } = new();
 
     public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)
     {
@@ -393,10 +404,31 @@ public sealed class SimulationEngine
     /// </summary>
     public void TickPhysics(double delta)
     {
+        var sw = Stopwatch.StartNew();
         _occupiedHoldShortNodes = BuildOccupiedHoldShortNodes();
-        World.Tick(delta, PreTick);
+        AccumulateTiming("Physics.BuildHoldShort", sw);
+
+        sw.Restart();
+        World.Tick(delta, PreTick, RecordWorldTiming);
+        AccumulateTiming("Physics.WorldTick", sw);
+
         _occupiedHoldShortNodes = null;
+
+        sw.Restart();
         ProcessDeferredDispatches(delta);
+        AccumulateTiming("Physics.Deferred", sw);
+    }
+
+    private void RecordWorldTiming(string bucket, double ms)
+    {
+        if (TickTimings.TryGetValue(bucket, out var entry))
+        {
+            TickTimings[bucket] = (entry.Count + 1, entry.Ms + ms);
+        }
+        else
+        {
+            TickTimings[bucket] = (1, ms);
+        }
     }
 
     /// <summary>
@@ -496,18 +528,25 @@ public sealed class SimulationEngine
         }
 
         double subDelta = 1.0 / PhysicsSubTickRate;
+        var sw = new Stopwatch();
         for (int t = startSeconds + 1; t <= targetSeconds; t++)
         {
             Scenario!.ElapsedSeconds = t;
 
+            sw.Restart();
             TickPrePhysics();
+            AccumulateTiming("PrePhysics", sw);
 
             for (int sub = 0; sub < PhysicsSubTickRate; sub++)
             {
+                sw.Restart();
                 TickPhysics(subDelta);
+                AccumulateTiming("Physics", sw);
             }
 
+            sw.Restart();
             TickPostPhysics();
+            AccumulateTiming("PostPhysics", sw);
             _terminalEntries.Clear();
 
             // Advance weather timeline if active
@@ -523,6 +562,39 @@ public sealed class SimulationEngine
                 actionCursor++;
             }
         }
+    }
+
+    private void AccumulateTiming(string bucket, Stopwatch sw)
+    {
+        sw.Stop();
+        double ms = sw.Elapsed.TotalMilliseconds;
+        if (TickTimings.TryGetValue(bucket, out var entry))
+        {
+            TickTimings[bucket] = (entry.Count + 1, entry.Ms + ms);
+        }
+        else
+        {
+            TickTimings[bucket] = (1, ms);
+        }
+    }
+
+    /// <summary>
+    /// Formats <see cref="TickTimings"/> for diagnostic output. Sorted by total time desc.
+    /// </summary>
+    public string DumpTickTimings()
+    {
+        if (TickTimings.Count == 0)
+        {
+            return "(no tick timings recorded)";
+        }
+        var sb = new StringBuilder();
+        sb.AppendLine("Tick timings (bucket: count, totalMs, avgMs):");
+        foreach (var kvp in TickTimings.OrderByDescending(k => k.Value.Ms))
+        {
+            double avg = kvp.Value.Ms / Math.Max(1, kvp.Value.Count);
+            sb.AppendLine($"  {kvp.Key}: n={kvp.Value.Count}, total={kvp.Value.Ms:F1}ms, avg={avg:F3}ms");
+        }
+        return sb.ToString();
     }
 
     public const int SnapshotIntervalSeconds = 5;
@@ -609,6 +681,7 @@ public sealed class SimulationEngine
 
     public void Replay(SessionRecording recording, double targetSeconds)
     {
+        TickTimings.Clear();
         LoadScenario(recording.ScenarioJson, recording.RngSeed);
 
         // Apply weather if present
@@ -645,15 +718,23 @@ public sealed class SimulationEngine
         scenario.ElapsedSeconds += 1;
         int t = (int)scenario.ElapsedSeconds;
 
+        var sw = new Stopwatch();
+
+        sw.Restart();
         TickPrePhysics();
+        AccumulateTiming("PrePhysics", sw);
 
         double subDelta = 1.0 / PhysicsSubTickRate;
         for (int sub = 0; sub < PhysicsSubTickRate; sub++)
         {
+            sw.Restart();
             TickPhysics(subDelta);
+            AccumulateTiming("Physics", sw);
         }
 
+        sw.Restart();
         TickPostPhysics();
+        AccumulateTiming("PostPhysics", sw);
         _terminalEntries.Clear();
 
         if (scenario.WeatherTimeline is { } timeline)
