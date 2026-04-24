@@ -422,7 +422,21 @@ public static class TaxiPathfinder
                 _ => (edge, _) => CostShortest(edge),
             };
 
-            var strategyRoutes = YenKShortest(layout, fromNodeId, toNodeId, costFn, maxRoutes);
+            // Heuristic must lower-bound the cost-to-goal in the same units as costFn.
+            // Shortest costs distance-nm, so straight-line distance-nm is admissible.
+            // FewestTurns costs distance × 0.001 + transition penalties (which only
+            // add to cost), so distance × 0.001 lower-bounds the distance term and
+            // ignores penalties. Fastest costs time = distance / speed, so distance /
+            // taxiSpeed (the supremum speed) lower-bounds true time.
+            Func<double, double> heuristicFn = strategy switch
+            {
+                RoutePreference.Shortest => distNm => distNm,
+                RoutePreference.FewestTurns => distNm => distNm * FewestTurnsDistanceWeight,
+                RoutePreference.Fastest => distNm => distNm / Math.Max(taxiSpeedKts, 1.0),
+                _ => distNm => distNm,
+            };
+
+            var strategyRoutes = YenKShortest(layout, fromNodeId, toNodeId, costFn, heuristicFn, maxRoutes);
             foreach (var route in strategyRoutes)
             {
                 var key = BuildTaxiwayKey(route);
@@ -510,7 +524,7 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Yen's K-shortest paths using a pluggable A* cost function.
+    /// Yen's K-shortest paths using a pluggable A* cost function and heuristic.
     /// Returns up to <paramref name="maxRoutes"/> routes, deduplicated by taxiway sequence.
     /// </summary>
     private static List<TaxiRoute> YenKShortest(
@@ -518,10 +532,11 @@ public static class TaxiPathfinder
         int fromNodeId,
         int toNodeId,
         Func<IGroundEdge, IGroundEdge?, double> costFn,
+        Func<double, double> heuristicFn,
         int maxRoutes
     )
     {
-        var first = FindRouteInternal(layout, fromNodeId, toNodeId, null, null, costFn);
+        var first = FindRouteInternal(layout, fromNodeId, toNodeId, null, null, costFn, heuristicFn);
         if (first is null)
         {
             return [];
@@ -572,7 +587,7 @@ public static class TaxiPathfinder
                     blockedNodes.Add(prevSegments[j].FromNodeId);
                 }
 
-                var spurPath = FindRouteInternal(layout, spurNodeId, toNodeId, blockedEdges, blockedNodes, costFn);
+                var spurPath = FindRouteInternal(layout, spurNodeId, toNodeId, blockedEdges, blockedNodes, costFn, heuristicFn);
                 if (spurPath is null)
                 {
                     continue;
@@ -1710,9 +1725,16 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// A* pathfinding with a pluggable cost function.
+    /// A* pathfinding with a pluggable cost function and heuristic.
     /// <paramref name="costFn"/> receives (currentEdge, previousEdge) and returns the cost.
     /// previousEdge is null for the first edge from the start node.
+    /// <paramref name="heuristicFn"/> takes straight-line distance (nm) between two
+    /// nodes and returns an admissible (never-overestimate) lower bound on remaining
+    /// cost in the same units as <paramref name="costFn"/>. Pass distance-as-nm for
+    /// the Shortest strategy; scale down for FewestTurns / Fastest whose costs are
+    /// in different units. An inadmissible heuristic breaks A*'s optimality
+    /// guarantee — it terminates on the first goal pop, which can be a longer
+    /// detour than the actual minimum-cost path.
     /// </summary>
     private static TaxiRoute? FindRouteInternal(
         AirportGroundLayout layout,
@@ -1720,7 +1742,8 @@ public static class TaxiPathfinder
         int toNodeId,
         HashSet<(int, int)>? blockedEdges,
         HashSet<int>? blockedNodes,
-        Func<IGroundEdge, IGroundEdge?, double> costFn
+        Func<IGroundEdge, IGroundEdge?, double> costFn,
+        Func<double, double> heuristicFn
     )
     {
         if (!layout.Nodes.TryGetValue(fromNodeId, out var startNode) || !layout.Nodes.TryGetValue(toNodeId, out var endNode))
@@ -1733,7 +1756,7 @@ public static class TaxiPathfinder
         var gScore = new Dictionary<int, double> { [fromNodeId] = 0 };
         var closedSet = new HashSet<int>();
 
-        double heuristic = GeoMath.DistanceNm(startNode.Position, endNode.Position);
+        double heuristic = heuristicFn(GeoMath.DistanceNm(startNode.Position, endNode.Position));
         openSet.Enqueue(fromNodeId, heuristic);
 
         while (openSet.Count > 0)
@@ -1787,7 +1810,7 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                double h = GeoMath.DistanceNm(neighborNode.Position, endNode.Position);
+                double h = heuristicFn(GeoMath.DistanceNm(neighborNode.Position, endNode.Position));
                 openSet.Enqueue(neighbor, tentativeG + h);
             }
         }

@@ -2320,4 +2320,28 @@ public class TaxiPathfinderTests
         Assert.DoesNotContain(combined, s => s.FromNodeId == 1203 || s.ToNodeId == 1203);
         Assert.Contains(combined, s => (s.FromNodeId == 1198 && s.ToNodeId == 1199) || (s.FromNodeId == 1199 && s.ToNodeId == 1198));
     }
+
+    // --- FewestTurns heuristic admissibility regression ---
+    // FindRoute uses RoutePreference.FewestTurns by default. Its cost is
+    // distance × 0.001 + 10 per transition, but the A* heuristic in
+    // FindRouteInternal is straight-line distance × 1.0 — overestimating actual
+    // cost-to-goal by ~1000× for non-transitioning paths. A* loses admissibility
+    // and terminates on the first goal pop, which can be a longer single-taxiway
+    // detour rather than the actual minimum-cost path. This test pins the canonical
+    // OAK example: from 1198 to JSX1 (604), the 4-segment direct path via the
+    // 1198↔1199 C/RAMP arc is shorter than the 6-segment loop via 339→1207→1205.
+
+    [Fact]
+    public void OAK_FindRoute_1198_To_JSX1_UsesDirectArc()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var route = TaxiPathfinder.FindRoute(layout, 1198, 604);
+        Assert.NotNull(route);
+        Assert.Contains(route.Segments, s => (s.FromNodeId == 1198 && s.ToNodeId == 1199) || (s.FromNodeId == 1199 && s.ToNodeId == 1198));
+    }
 }
