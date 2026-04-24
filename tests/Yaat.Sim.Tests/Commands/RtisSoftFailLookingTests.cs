@@ -69,6 +69,58 @@ public class RtisSoftFailLookingTests
     }
 
     // -------------------------------------------------------------------------
+    // RPO diagnostic hint — CommandResult.Message names the specific failure
+    // reason so the RPO can decide whether to relay it to the student. Pilot
+    // phraseology in PendingNotifications stays diagnostic-free.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Rtis_SoftFail_Behind_CommandMessageHintsHemisphere()
+    {
+        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+
+        Assert.True(result.Success);
+        Assert.Contains("Looking for traffic", result.Message);
+        Assert.Contains("behind ownship", result.Message, StringComparison.OrdinalIgnoreCase);
+        // Pilot readback stays diagnostic-free.
+        Assert.DoesNotContain("hemisphere", ownship.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Rtis_SoftFail_OutOfRange_CommandMessageHintsDistanceAndType()
+    {
+        var ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
+        var lead = MakeAircraft(37.60, AptLon, heading: 180, altitude: 3000, callsign: "LEAD", aircraftType: "C172");
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+
+        Assert.True(result.Success);
+        Assert.Contains("Looking for traffic", result.Message);
+        Assert.Contains("nm", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("C172", result.Message);
+    }
+
+    [Fact]
+    public void Rtis_SoftFail_MixedCeiling_CommandMessageNamesLayer()
+    {
+        var ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 2000, callsign: "OWN1");
+        var lead = MakeAircraft(37.73, AptLon, heading: 180, altitude: 5000, callsign: "LEAD");
+        var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC030 20/12 A2992"] };
+        var ctx = TestDispatch.Context(Random.Shared, weather: weather, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+
+        Assert.True(result.Success);
+        Assert.Contains("Looking for traffic", result.Message);
+        Assert.Contains("OVC030", result.Message);
+    }
+
+    // -------------------------------------------------------------------------
     // Hard failures stay hard: no callsign, target not on frequency.
     // -------------------------------------------------------------------------
 
@@ -125,7 +177,8 @@ public class RtisSoftFailLookingTests
         Assert.True(ownship.HasReportedTrafficInSight);
         Assert.Equal("LEAD", ownship.LastReportedTrafficCallsign);
         Assert.Empty(ownship.PendingObservations);
-        Assert.Contains("in sight", ownship.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        // Acquisition readback routes through PendingWarnings (WRN/Orange) for visibility.
+        Assert.Contains("in sight", ownship.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -241,8 +241,9 @@ public class VisualApproachCommandTests : IDisposable
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("traffic in sight", aircraft.PendingNotifications[0]);
+        // Traffic acquisition routes through PendingWarnings (WRN/Orange) for attention.
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("traffic in sight", aircraft.PendingWarnings[0]);
     }
 
     [Fact]

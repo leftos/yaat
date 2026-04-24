@@ -6,9 +6,10 @@ namespace Yaat.Sim;
 ///
 /// <para>Observations are re-evaluated each tick by
 /// <see cref="PilotObservationUpdater"/>. When the condition becomes
-/// satisfied, the observation emits a pilot readback (via
-/// <see cref="AircraftState.PendingNotifications"/>) and the tick processor
-/// removes it from <see cref="AircraftState.PendingObservations"/>.</para>
+/// satisfied, the observation emits a pilot readback (routed through
+/// <see cref="AircraftState.PendingWarnings"/> for traffic acquisition so the
+/// event catches the RPO's attention) and the tick processor removes it from
+/// <see cref="AircraftState.PendingObservations"/>.</para>
 ///
 /// <para>Currently only <see cref="TrafficAcquisitionObservation"/> exists —
 /// it models RTIS soft-fail / "looking for traffic" behavior. Siblings for

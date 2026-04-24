@@ -252,6 +252,7 @@ PilotObservation.cs            # Abstract record PilotObservation + TrafficAcqui
                                # Extension points for future "report leaving altitude", "report passing fix", etc.
 PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhysics.Update after UpdateCommandQueue
                                # Re-runs VisualAcquisition.TryAcquireTraffic; on success sets HasReportedTrafficInSight + pilot readback
+                               # Acquisition readback routes through PendingWarnings (WRN/Orange) so the event catches RPO attention
                                # Silently drops observations whose target has left the sim
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
 

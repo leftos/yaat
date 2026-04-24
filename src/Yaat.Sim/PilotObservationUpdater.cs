@@ -4,9 +4,9 @@ namespace Yaat.Sim;
 /// Per-tick evaluator for <see cref="PilotObservation"/>s. Called from the
 /// simulation tick alongside <c>FlightPhysics.UpdateCommandQueue</c>; each
 /// observation re-checks its condition and either resolves (pilot reports the
-/// outcome via <see cref="AircraftState.PendingNotifications"/>) or stays
-/// pending. Observations referencing aircraft that have left the sim are
-/// silently dropped.
+/// outcome via <see cref="AircraftState.PendingWarnings"/> for attention-
+/// grabbing events like traffic acquisition) or stays pending. Observations
+/// referencing aircraft that have left the sim are silently dropped.
 /// </summary>
 public static class PilotObservationUpdater
 {
@@ -66,7 +66,7 @@ public static class PilotObservationUpdater
 
         aircraft.HasReportedTrafficInSight = true;
         aircraft.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
-        aircraft.PendingNotifications.Add(Commands.NavigationCommandHandler.FormatTrafficInSightNotification(aircraft, obs.TargetCallsign));
+        aircraft.PendingWarnings.Add(Commands.NavigationCommandHandler.FormatTrafficInSightNotification(aircraft, obs.TargetCallsign));
         return true;
     }
 }

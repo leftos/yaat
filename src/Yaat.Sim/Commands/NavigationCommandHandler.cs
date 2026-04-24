@@ -1030,7 +1030,7 @@ internal static class NavigationCommandHandler
             {
                 aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
             }
-            aircraft.PendingNotifications.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
+            aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
             return CommandDispatcher.Ok("Traffic in sight");
         }
 
@@ -1051,7 +1051,7 @@ internal static class NavigationCommandHandler
         {
             aircraft.HasReportedTrafficInSight = true;
             aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
-            aircraft.PendingNotifications.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
+            aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
             // First-check acquisition supersedes any in-flight "looking" state.
             aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
             return CommandDispatcher.Ok("Traffic in sight");
@@ -1065,7 +1065,7 @@ internal static class NavigationCommandHandler
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
         aircraft.PendingObservations.Add(new TrafficAcquisitionObservation(targetCallsignUpper));
         aircraft.PendingNotifications.Add(FormatTrafficLookingNotification(result, target));
-        return CommandDispatcher.Ok("Looking for traffic");
+        return CommandDispatcher.Ok($"Looking for traffic — {FormatTrafficFailureHint(result, target)}");
     }
 
     /// <summary>
@@ -1095,6 +1095,23 @@ internal static class NavigationCommandHandler
             VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {target.Callsign}, clouds between us, looking",
             VisualAcquisitionFailure.OccludedByBank => $"Negative contact, {target.Callsign}, in the turn, looking",
             _ => $"Negative contact, {target.Callsign}, looking",
+        };
+
+    /// <summary>
+    /// RPO-facing diagnostic naming the specific reason the pilot could not
+    /// visually acquire the target. Surfaced through the command result so the
+    /// instructor/RPO can decide whether to relay it to the student. Distinct
+    /// from <see cref="FormatTrafficLookingNotification"/>, which stays in
+    /// pilot phraseology and must avoid sim-internal diagnostics.
+    /// </summary>
+    private static string FormatTrafficFailureHint(VisualAcquisitionResult r, AircraftState target) =>
+        r.Reason switch
+        {
+            VisualAcquisitionFailure.MixedCeiling => $"cloud layer {FormatLayer(r.BindingLayer)} between aircraft",
+            VisualAcquisitionFailure.OccludedByBank => "target on high-wing side during bank (occluded)",
+            VisualAcquisitionFailure.BehindOwnship => "target behind ownship (outside forward hemisphere)",
+            VisualAcquisitionFailure.OutOfRange => $"target {r.DistanceNm:F1} nm away, max visual {r.MaxRangeNm:F1} nm ({target.AircraftType})",
+            _ => $"not acquired ({r.Reason})",
         };
 
     // Phraseology borrowed from AIM §4-1-15 and §5-5-8 (traffic advisories use
@@ -1164,7 +1181,7 @@ internal static class NavigationCommandHandler
         {
             aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
         }
-        aircraft.PendingNotifications.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
+        aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
         return CommandDispatcher.Ok("Traffic in sight (forced)");
     }
 }

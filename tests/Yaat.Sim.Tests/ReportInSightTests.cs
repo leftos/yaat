@@ -191,7 +191,10 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.True(ownship.HasReportedTrafficInSight);
-        Assert.Contains("traffic in sight", ownship.PendingNotifications[0]);
+        // Traffic acquisition is a key event — announced via PendingWarnings
+        // (WRN/Orange) so it catches the RPO's eye, not PendingNotifications (RSP/gray).
+        Assert.Contains("traffic in sight", ownship.PendingWarnings[0]);
+        Assert.Empty(ownship.PendingNotifications);
     }
 
     // When the pilot can't acquire traffic on the first check, RTIS now soft-fails:
@@ -283,7 +286,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.Contains("traffic in sight", ac.PendingNotifications[0]);
+        Assert.Contains("traffic in sight", ac.PendingWarnings[0]);
     }
 
     // -------------------------------------------------------------------------
