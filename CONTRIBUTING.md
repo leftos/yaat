@@ -1,5 +1,7 @@
 # Contributing to YAAT
 
+If you just want to run YAAT, grab a prebuilt installer from the [Releases page](https://github.com/leftos/yaat/releases/latest) — the contributor path below is only for people modifying the code. The [Installation Guide](INSTALL.md#building-from-source) has the full source-build walkthrough including the .NET SDK install.
+
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)

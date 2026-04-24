@@ -13,7 +13,21 @@ YAAT is a tool for ATC (air traffic control) training instructors and RPOs (Remo
 - **RPO** — a YAAT user who controls simulated aircraft by issuing commands. Multiple RPOs can work the same room.
 - **Student** — a trainee using CRC to practice radar/tower operations. Students see the simulated traffic but don't use YAAT directly.
 
-## Step 1: Launch
+## Step 1: Launch YAAT
+
+How you launch depends on how you installed YAAT. Pick the section that matches.
+
+### If you installed a release (most users)
+
+Launch YAAT the same way you launch any other application:
+
+- **Windows:** open the Start menu → type **YAAT** → click the YAAT Client shortcut. Or double-click `Yaat.Client-win-x64.exe` if you grabbed the portable.
+- **macOS:** open the Applications folder → YAAT Client. Or double-click the portable `Yaat.Client-osx-arm64` binary.
+- **Linux:** run the AppImage or the portable binary (`./Yaat.Client-linux-x64`).
+
+YAAT opens to an empty main window — no server connection yet. That happens in Step 3.
+
+### If you built from source
 
 Start the server and client together using the start script:
 
@@ -33,9 +47,7 @@ dotnet run --project src/Yaat.Client
 
 The client connects to `http://localhost:5000` by default.
 
-### Joining a remote server
-
-If an instructor is already hosting a YAAT server (e.g., `https://yaat1.leftos.dev`), you don't need to run your own. The `--sync` flag automatically checks out the compatible client version, builds, and connects:
+If an instructor is already hosting a YAAT server and you want to pin your source build to the exact commit they're running, the `--sync` flag checks out that commit, builds, and connects in one step:
 
 ```powershell
 .\start.ps1 -Sync https://yaat1.leftos.dev    # Windows
@@ -45,7 +57,7 @@ If an instructor is already hosting a YAAT server (e.g., `https://yaat1.leftos.d
 ./start.sh --sync https://yaat1.leftos.dev     # macOS / Linux
 ```
 
-Your git working tree must be clean (no uncommitted changes). After you're done, return to the latest code with `git checkout main`.
+Your git working tree must be clean. Return to the latest code with `git checkout main` afterwards. If you don't need a specific commit, the prebuilt installer is a simpler way to connect to a hosted server.
 
 ## Step 2: Configure Your Identity
 
@@ -61,11 +73,15 @@ All three fields are required — you cannot connect without them.
 
 ## Step 3: Connect and Create a Room
 
-1. **File > Connect** — connects to the server
-2. The **room list** appears. Either:
+1. **File > Connect** opens the connect dialog
+2. Enter the **server URL**:
+   - `http://localhost:5000` if you're running `start.ps1`/`start.sh` on your own machine
+   - The URL your instructor gave you (e.g., `https://yaat1.leftos.dev`) for a hosted server
+3. Click **Connect**. YAAT remembers the URL so you don't retype it next time.
+4. The **room list** appears. Either:
    - **Create** a new room (give it a name), or
    - **Join** an existing room that another instructor created
-3. You're now in a room, ready to load traffic
+5. You're now in a room, ready to load traffic
 
 ## Step 4: Load a Scenario
 

@@ -17,11 +17,29 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 - **CRC integration** — CRC clients connect to the same server and see all simulated traffic
 - **Rewind** — scrub back through a session and replay from any point
 
+## Download
+
+Pre-built installers and portable binaries are published on the [Releases page](https://github.com/leftos/yaat/releases/latest). No terminal, Git, or .NET SDK required.
+
+| Platform | Installer (recommended) | Portable (single file) |
+|----------|-------------------------|------------------------|
+| Windows  | `YaatClient-Setup.exe` — auto-updates in the background | `Yaat.Client-win-x64.exe` |
+| Linux    | `YaatClient-linux-x64.AppImage` | `Yaat.Client-linux-x64` |
+| macOS    | `YaatClient-osx-arm64.pkg` | `Yaat.Client-osx-arm64` |
+
+A second installer, **YAAT Flight Strips** (`YaatVStrips-*`), ships the flight-strips UI on its own for students who want to replace vStrips but don't need the full trainer.
+
+Installers keep themselves up to date automatically. Portable binaries don't auto-update — download the next release when you want it. Either launcher can connect to a hosted YAAT server (ask your instructor for the URL) or a local server you run yourself.
+
+**NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings → Speech → Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.
+
+See the [Installation Guide](INSTALL.md) for step-by-step instructions. If you want to run a server yourself, build from source, or contribute changes, the same guide covers [Building from source](INSTALL.md#building-from-source).
+
 ## Documentation
 
 | Document | Audience | Content |
 |----------|----------|---------|
-| **[Installation Guide](INSTALL.md)** | New users | System prerequisites, downloading the code, building and running |
+| **[Installation Guide](INSTALL.md)** | New users | Download the installer, or build from source if you want to host a server or develop locally |
 | **[Getting Started](GETTING_STARTED.md)** | First-time users | First connection, identity setup, loading your first scenario |
 | **[User Guide](USER_GUIDE.md)** | Active users | Interface, views, scenarios, weather, settings, and workflows |
 | **[Command Reference](COMMANDS.md)** | Active users | Complete command reference — every verb, alias, and example |
