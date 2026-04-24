@@ -279,6 +279,28 @@ public class AircraftState
     public bool HoldAnnotationLegLengthInNm { get; set; }
     public int HoldAnnotationEfc { get; set; }
 
+    // ERAM per-track state (CRC display)
+    public bool IsDwellLocked { get; set; }
+    public bool IsVci { get; set; }
+
+    /// <summary>Leader direction override (1=SW .. 9=NE per CRC enum; 5=Default). Null = sector default.</summary>
+    public int? EramLeaderDirection { get; set; }
+
+    /// <summary>Leader length override (0-8 lines). Null = sector default.</summary>
+    public int? EramLeaderLength { get; set; }
+
+    /// <summary>Temp altitude issued via ERAM QZ (distinct from STARS TemporaryAltitude).</summary>
+    public int? EramInterimAltitude { get; set; }
+
+    /// <summary>Controller-entered interim altitude (QQ L&lt;alt&gt;).</summary>
+    public int? LocalInterimAltitude { get; set; }
+
+    /// <summary>Procedure altitude from QQ P&lt;alt&gt;.</summary>
+    public int? ProcedureAltitude { get; set; }
+
+    /// <summary>Altitude manually entered by controller via ERAM commands.</summary>
+    public int? ControllerEnteredAltitude { get; set; }
+
     // Clearance (departure clearance from CRC)
     public string? ClearanceExpect { get; set; }
     public string? ClearanceSid { get; set; }
