@@ -721,4 +721,70 @@ public class SmartStatusTests
         Assert.Equal("No landing clnc", ac.SmartStatus);
         Assert.Equal(SmartStatusSeverity.Critical, ac.SmartStatusSeverity);
     }
+
+    [Fact]
+    public void VfrFollow_Phase_ShowsFollowingCallsign()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "VFR Follow";
+        ac.FollowingCallsign = "N436MS";
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Following N436MS", ac.SmartStatus);
+        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+    }
+
+    [Fact]
+    public void Downwind_WithFollowingCallsign_PrefixesFollowState()
+    {
+        // Once the follower has joined the pattern the server keeps
+        // FollowingCallsign set but the phase text alone hides the follow
+        // fact. The Info column must prefix it so the controller still sees
+        // the sequencing relationship at a glance.
+        var ac = CreateModel();
+        ac.CurrentPhase = "Downwind";
+        ac.PatternDirection = "right";
+        ac.AssignedRunway = "28R";
+        ac.FollowingCallsign = "N436MS";
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Following N436MS → right downwind 28R", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void FinalApproach_WithFollowingCallsign_PrefixesFollowState()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "FinalApproach";
+        ac.LandingClearance = "ClearedToLand";
+        ac.ActiveApproachId = "ILS28R";
+        ac.FollowingCallsign = "N436MS";
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Following N436MS → ILS28R final", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void Landing_WithFollowingCallsign_PrefixesFollowState()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "Landing";
+        ac.LandingClearance = "ClearedToLand";
+        ac.ClearedRunway = "28R";
+        ac.FollowingCallsign = "N436MS";
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Following N436MS → landing 28R", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void VfrFollow_NullFollowingCallsign_FallsBackToGenericLabel()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "VFR Follow";
+        ac.FollowingCallsign = null;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("VFR follow", ac.SmartStatus);
+    }
 }

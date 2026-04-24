@@ -788,6 +788,16 @@ public partial class AircraftModel : ObservableObject
             _ => FormatFallbackPhase(),
         };
 
+        // When the follower has joined the pattern / is on final / etc., the server
+        // still keeps FollowingCallsign set but the phase text alone hides the follow
+        // relationship. Prefix "following X → " so the Info column keeps reflecting
+        // the sequencing state until the server clears it. The "VFR Follow" branch
+        // already embeds the callsign, so skip the prefix there to avoid duplicates.
+        if (!string.IsNullOrEmpty(FollowingCallsign) && CurrentPhase != "VFR Follow")
+        {
+            text = $"following {FollowingCallsign} → {text}";
+        }
+
         return (text, SmartStatusSeverity.Normal);
     }
 
