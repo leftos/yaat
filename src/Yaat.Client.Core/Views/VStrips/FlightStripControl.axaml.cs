@@ -313,7 +313,7 @@ public partial class FlightStripControl : UserControl
             9 => strip.Annotation18,
             _ => "",
         };
-        editor.Open(cell, current, text => _ = vm.AnnotateAsync(strip, box, text));
+        editor.Open(cell, current, text => _ = vm.AnnotateAsync(strip, box, text), substituteCheckmark: true);
         e.Handled = true;
     }
 

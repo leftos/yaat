@@ -866,6 +866,7 @@ Changing your active position also updates the radar display:
 | `GHOST N12345 37.7 -122.2` | Create ghost track at exact position |
 | `AN 3 RV` / `BOX 3 RV` | Write "RV" in strip annotation box 3 (boxes 1-9) |
 | `AN 3` | Clear strip annotation box 3 |
+| `AN 3 ?` | Writes a checkmark (✓) in strip annotation box 3. Typing `?` in the inline annotation editor substitutes live; the server also normalizes any `?` on incoming AN commands (per CRC docs/crc/vstrips.md:130). |
 | `STRIP Ground` | Push flight strip to "Ground" bay (first-available slot in rack 1) |
 | `STRIP Ground/2/3` | Push flight strip to Ground bay rack 2, slot 3 (1-based) |
 | `HSC Ground Hello\World` | Create half-strip in Ground bay (rack defaults to 1) with two lines (`\` separates lines, max 6) |

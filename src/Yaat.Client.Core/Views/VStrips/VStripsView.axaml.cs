@@ -1596,7 +1596,7 @@ public partial class VStripsView : UserControl
             9 => strip.Annotation18,
             _ => "",
         };
-        editor.Open(anchor, current, text => _ = vm.AnnotateAsync(strip, box, text));
+        editor.Open(anchor, current, text => _ = vm.AnnotateAsync(strip, box, text), substituteCheckmark: true);
     }
 
     /// <summary>

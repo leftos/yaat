@@ -18,10 +18,12 @@ namespace Yaat.Client.Views.VStrips;
 public partial class InlineTextEditPopup : UserControl
 {
     private Action<string>? _onCommit;
+    private bool _substituteCheckmark;
 
     public InlineTextEditPopup()
     {
         InitializeComponent();
+        EditTextBox.TextChanged += OnTextChanged;
     }
 
     /// <summary>
@@ -29,11 +31,18 @@ public partial class InlineTextEditPopup : UserControl
     /// box, selects its contents so users can overwrite without clearing, and
     /// invokes <paramref name="onCommit"/> with the final text when the user
     /// presses Enter.
+    ///
+    /// <paramref name="substituteCheckmark"/> enables CRC's annotation-cell
+    /// shortcut (<see href="docs/crc/vstrips.md">docs/crc/vstrips.md:130</see>):
+    /// every <c>?</c> typed is replaced live with a checkmark <c>✓</c> (U+2713).
+    /// Pass <c>true</c> only when editing a strip annotation box — label /
+    /// half-strip editors keep <c>?</c> literal.
     /// </summary>
-    public void Open(Control anchor, string initial, Action<string> onCommit)
+    public void Open(Control anchor, string initial, Action<string> onCommit, bool substituteCheckmark = false)
     {
         _onCommit = onCommit;
-        EditTextBox.Text = initial;
+        _substituteCheckmark = substituteCheckmark;
+        EditTextBox.Text = substituteCheckmark ? ApplyCheckmarkSubstitution(initial) : initial;
         EditPopup.PlacementTarget = anchor;
         EditPopup.IsOpen = true;
         Dispatcher.UIThread.Post(
@@ -45,6 +54,23 @@ public partial class InlineTextEditPopup : UserControl
             DispatcherPriority.Loaded
         );
     }
+
+    private void OnTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!_substituteCheckmark || EditTextBox.Text is not { } text || text.IndexOf('?') < 0)
+        {
+            return;
+        }
+        var replaced = text.Replace('?', '✓');
+        // Preserve caret position across the replacement so the user keeps
+        // typing at the same logical spot. '?' and '✓' are both single UTF-16
+        // code units, so offsets are stable.
+        var caret = EditTextBox.CaretIndex;
+        EditTextBox.Text = replaced;
+        EditTextBox.CaretIndex = Math.Min(caret, replaced.Length);
+    }
+
+    private static string ApplyCheckmarkSubstitution(string text) => text.Replace('?', '✓');
 
     private void OnEditKeyDown(object? sender, KeyEventArgs e)
     {
