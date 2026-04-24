@@ -27,13 +27,34 @@
             <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-        <Style Selector="TextBox.annotation:focus /template/ Border">
-            <!-- Kill Avalonia's default focus-ring border inside the template
-                 so the cell stays visually flat when the caret is active. -->
+        <!-- Avalonia's Fluent theme re-applies a solid dark Background /
+             BorderBrush on the template's PART_BorderElement in :pointerover,
+             :focus, and :focus-within states. Override all three so the
+             annotation cell stays visually flat (transparent background,
+             zero border) — the caret is the only edit-state cue. -->
+        <Style Selector="TextBox.annotation /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
-        <Style Selector="TextBox.annotation:pointerover /template/ Border">
+        <Style Selector="TextBox.annotation:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.annotation:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.annotation:focus-within /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <!-- Text stays the CRC printed color in every state; the Fluent theme's
+             focus-state Foreground override would otherwise swap it to white. -->
+        <Style Selector="TextBox.annotation:focus">
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
+        </Style>
+        <Style Selector="TextBox.annotation:pointerover">
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
         </Style>
         <!-- 3×3 grid cells center their text per CRC. -->
         <Style Selector="TextBox.annotation.grid">
