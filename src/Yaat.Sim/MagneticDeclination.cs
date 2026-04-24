@@ -1,31 +1,48 @@
+using Geo;
+using Geo.Geomagnetism;
+
 namespace Yaat.Sim;
 
 /// <summary>
-/// Approximate magnetic declination for CONUS. Uses a simple linear model based on
-/// longitude that's accurate to ~2-3 degrees — sufficient for ATC training purposes.
-/// FD winds are reported in true degrees; YAAT WindLayers use magnetic.
+/// Magnetic declination from the NOAA World Magnetic Model (WMM), via the <c>Geo</c> library.
+/// Globally accurate; no CONUS-only approximation. Declination is positive east of true north,
+/// negative west — matching the geodetic convention used throughout Yaat.Sim.
 /// </summary>
 public static class MagneticDeclination
 {
-    // Linear model: declination ≈ slope * longitude + intercept
-    // Derived from NOAA WMM 2025 data points across CONUS:
-    //   lon -125 → decl ~+14° (east), lon -70 → decl ~-14° (west)
-    // Slope ≈ (14 - (-14)) / (-125 - (-70)) = 28 / -55 ≈ -0.509
-    // Intercept ≈ -49.6°
-    private const double Slope = -0.509;
-    private const double Intercept = -49.6;
+    // WmmGeomagnetismCalculator performs stateless spherical-harmonic evaluation over its
+    // embedded coefficient tables; safe to share across threads.
+    private static readonly WmmGeomagnetismCalculator Calculator = new();
+
+    // WMM epochs last 5 years, so the model covering "now" is stable for the lifetime of the
+    // process. Resolve once at startup, then reuse — avoids a per-call LINQ scan of the 9
+    // embedded models on every tick, per aircraft.
+    private static readonly DateTime EpochDate = ResolveEpochDate();
+
+    private static DateTime ResolveEpochDate()
+    {
+        DateTime now = DateTime.UtcNow;
+        if (Calculator.Models.Any(m => m.ValidFrom <= now && m.ValidTo >= now))
+        {
+            return now;
+        }
+        // No embedded epoch covers the current date — clamp to the most recent epoch's last
+        // valid day so TryCalculate still returns a best-effort result. Triggers only if YAAT
+        // runs past the newest bundled WMM epoch (i.e. a stale package).
+        IGeomagneticModel newest = Calculator.Models.OrderBy(m => m.ValidTo).Last();
+        return newest.ValidTo.AddDays(-1.0);
+    }
 
     /// <summary>
-    /// Returns approximate magnetic declination in degrees.
+    /// Returns magnetic declination in degrees at the given location.
     /// Positive = east declination (magnetic north is east of true north).
     /// Negative = west declination (magnetic north is west of true north).
     /// To convert true→magnetic: magnetic = true - declination.
     /// </summary>
     public static double GetDeclination(double lat, double lon)
     {
-        // Simple linear model — lat has minor effect across CONUS, ignored
-        _ = lat;
-        return Slope * lon + Intercept;
+        GeomagnetismResult? result = Calculator.TryCalculate(new Coordinate(lat, lon), EpochDate);
+        return result?.Declination ?? 0.0;
     }
 
     /// <summary>
