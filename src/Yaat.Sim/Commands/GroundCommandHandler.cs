@@ -359,29 +359,57 @@ internal static class GroundCommandHandler
             return null;
         }
 
-        // Find where the explicit path ends
+        // Find where the explicit path ends. ResolveExplicitPath may have appended a
+        // Shortest-A* extension to the parking destination (when SelectBestStopNode
+        // cached one), so endNodeId may already be destNode.
         int endNodeId = explicitRoute.Segments.Count > 0 ? explicitRoute.Segments[^1].ToNodeId : startNode.Id;
 
+        List<TaxiRouteSegment> combined;
+        List<HoldShortPoint> holdShorts;
         if (endNodeId == destNode.Id)
         {
-            return SetDestination(explicitRoute, taxi);
+            combined = [.. explicitRoute.Segments];
+            holdShorts = [.. explicitRoute.HoldShortPoints];
         }
-
-        // Extend from end of explicit path to destination node via A*
-        var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, destNode.Id);
-        if (extension is null)
+        else
         {
-            Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
-            failReason = $"Cannot reach {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}' from end of taxi route";
-            return null;
+            // Extend from end of explicit path to destination node via A*
+            var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, destNode.Id);
+            if (extension is null)
+            {
+                Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
+                failReason = $"Cannot reach {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}' from end of taxi route";
+                return null;
+            }
+
+            combined = new List<TaxiRouteSegment>(explicitRoute.Segments);
+            combined.AddRange(extension.Segments);
+
+            holdShorts = [.. explicitRoute.HoldShortPoints];
+            HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
         }
 
-        // Combine: explicit segments + extension segments
-        var combined = new List<TaxiRouteSegment>(explicitRoute.Segments);
-        combined.AddRange(extension.Segments);
-
-        var holdShorts = new List<HoldShortPoint>(explicitRoute.HoldShortPoints);
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
+        // Safety net: the fix in TaxiPathfinder.SelectBestStopNode + ResolveExplicitPath
+        // should eliminate reversals (a→b immediately followed by b→a), but warn if one
+        // slips through so we notice regressions rather than quietly producing U-turns.
+        for (int i = 0; i + 1 < combined.Count; i++)
+        {
+            var a = combined[i];
+            var b = combined[i + 1];
+            if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
+            {
+                Log.LogWarning(
+                    "[TryTaxi] Resolved taxi route to {DestLabel} has a reversal at index {Index}: ({FromA}→{ToA}) then ({FromB}→{ToB})",
+                    destLabel,
+                    i,
+                    a.FromNodeId,
+                    a.ToNodeId,
+                    b.FromNodeId,
+                    b.ToNodeId
+                );
+                break;
+            }
+        }
 
         return SetDestination(new TaxiRoute { Segments = combined, HoldShortPoints = holdShorts }, taxi);
     }

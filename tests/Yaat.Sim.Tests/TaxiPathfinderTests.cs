@@ -2132,4 +2132,192 @@ public class TaxiPathfinderTests
         bool visitsApex = route.Segments.Any(s => (s.FromNodeId == 507) || (s.ToNodeId == 507));
         Assert.False(visitsApex, "route should NOT visit A1 apex node 507 — the arc skips it");
     }
+
+    // --- Regression tests: TAXI <tw> @<parking> must not produce reversed segments ---
+    // From S2-OAK-3 "VFR Sequencing": N9225L was given "TAXI D @NEW1" and N436MS was
+    // given "TAXI C @JSX1". Both produced routes whose segment list contained a U-turn:
+    // an (a,b) pair immediately followed by (b,a). The walk overshot the ramp branch-off
+    // on the last taxiway, and the A* extension back to parking retraced the overshoot.
+
+    private static int CountReversals(IReadOnlyList<TaxiRouteSegment> segments)
+    {
+        int count = 0;
+        for (int i = 0; i + 1 < segments.Count; i++)
+        {
+            var a = segments[i];
+            var b = segments[i + 1];
+            if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static List<TaxiRouteSegment> ResolveParkingRouteSegments(
+        AirportGroundLayout layout,
+        int startNodeId,
+        List<string> taxiwayPath,
+        int destNodeId
+    )
+    {
+        var destNode = layout.Nodes[destNodeId];
+        var explicitRoute = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            startNodeId,
+            taxiwayPath,
+            out string? failReason,
+            new ExplicitPathOptions { DestinationHintNode = destNode, AirportId = layout.AirportId }
+        );
+
+        Assert.Null(failReason);
+        Assert.NotNull(explicitRoute);
+
+        var combined = new List<TaxiRouteSegment>(explicitRoute.Segments);
+        int endNodeId = combined.Count > 0 ? combined[^1].ToNodeId : startNodeId;
+        if (endNodeId != destNodeId)
+        {
+            var extension = TaxiPathfinder.FindRoute(layout, endNodeId, destNodeId);
+            Assert.NotNull(extension);
+            combined.AddRange(extension.Segments);
+        }
+
+        return combined;
+    }
+
+    [Fact]
+    public void OAK_TaxiD_ToNEW1_FromG_HasNoReversals()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // N9225L exits 28R onto G (hold-short node 1269), then `TAXI D @NEW1`.
+        var parking = layout.FindParkingByName("NEW1");
+        Assert.NotNull(parking);
+
+        var combined = ResolveParkingRouteSegments(layout, startNodeId: 1269, taxiwayPath: ["G", "D"], destNodeId: parking.Id);
+
+        int reversals = CountReversals(combined);
+        Assert.True(reversals == 0, $"TAXI G D @NEW1 from node 1269 produced {reversals} reversal(s) in {combined.Count} segments");
+    }
+
+    [Fact]
+    public void OAK_TaxiC_ToJSX1_FromG_HasNoReversals()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // N436MS exits 28R onto G (hold-short node 361), then `TAXI C @JSX1`.
+        var parking = layout.FindParkingByName("JSX1");
+        Assert.NotNull(parking);
+
+        var combined = ResolveParkingRouteSegments(layout, startNodeId: 361, taxiwayPath: ["G", "C"], destNodeId: parking.Id);
+
+        int reversals = CountReversals(combined);
+        Assert.True(reversals == 0, $"TAXI G C @JSX1 from node 361 produced {reversals} reversal(s) in {combined.Count} segments");
+    }
+
+    // --- Look-ahead regression: at inter-taxiway and branch-off transitions, pick the
+    // geometrically-best arc rather than the first one encountered. Both routes here
+    // parse and produce no reversal, but naïve "first-match" transition picks a
+    // wrong-way arc that creates a visibly-poor physical path.
+
+    [Fact]
+    public void OAK_TaxiD_ToNEW1_FromG_UsesNorthwardArc()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // N9225L should transition G→D at node 350 via the NW-pointing D/G arc
+        // 350↔1318, not at node 1311 via the NE-pointing D/G arc 1311↔1310. Both
+        // "doesn't visit 1310" and "does visit the 350→1318 arc" must hold —
+        // positive and negative assertions together catch both the wrong-way entry
+        // and any new arc the walker might invent.
+        var parking = layout.FindParkingByName("NEW1");
+        Assert.NotNull(parking);
+
+        var combined = ResolveParkingRouteSegments(layout, startNodeId: 1269, taxiwayPath: ["G", "D"], destNodeId: parking.Id);
+
+        Assert.DoesNotContain(combined, s => s.FromNodeId == 1310 || s.ToNodeId == 1310);
+        Assert.Contains(combined, s => (s.FromNodeId == 350 && s.ToNodeId == 1318) || (s.FromNodeId == 1318 && s.ToNodeId == 350));
+    }
+
+    [Fact]
+    public void OAK_TaxiD_ToNEW1_From1271_HasNoReversals()
+    {
+        // Reproduces the replay-test scenario exactly: N9225L's nearest node at t=424
+        // is 1271 (a G/C junction), not the 28R hold-short 1269. Confirms the look-ahead
+        // works from a non-exit-runway start as well.
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = layout.FindParkingByName("NEW1");
+        Assert.NotNull(parking);
+
+        var combined = ResolveParkingRouteSegments(layout, startNodeId: 1271, taxiwayPath: ["D"], destNodeId: parking.Id);
+        int reversals = CountReversals(combined);
+        Assert.True(
+            reversals == 0,
+            $"TAXI D @NEW1 from 1271 produced {reversals} reversal(s) in {combined.Count} segments: first={combined[0].FromNodeId}→{combined[0].ToNodeId}"
+        );
+        Assert.DoesNotContain(combined, s => s.FromNodeId == 1310 || s.ToNodeId == 1310);
+        Assert.Contains(combined, s => (s.FromNodeId == 350 && s.ToNodeId == 1318) || (s.FromNodeId == 1318 && s.ToNodeId == 350));
+    }
+
+    [Fact]
+    public void OAK_TaxiC_ToJSX1_FromG_UsesDirectArc()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // N436MS should leave C at node 1198 via the C/RAMP arc 1198↔1199 (short path
+        // to JSX1). A first-match branch-off picks node 339 instead, which forces
+        // the extension through node 1203 (near HELI1) and back via a RAMP arc —
+        // a visible detour. Positive check on the 1198↔1199 arc catches the case
+        // where the extension takes the long way but happens not to visit 1203.
+        var parking = layout.FindParkingByName("JSX1");
+        Assert.NotNull(parking);
+
+        var combined = ResolveParkingRouteSegments(layout, startNodeId: 361, taxiwayPath: ["G", "C"], destNodeId: parking.Id);
+
+        Assert.DoesNotContain(combined, s => s.FromNodeId == 1203 || s.ToNodeId == 1203);
+        Assert.Contains(combined, s => (s.FromNodeId == 1198 && s.ToNodeId == 1199) || (s.FromNodeId == 1199 && s.ToNodeId == 1198));
+    }
+
+    [Fact]
+    public void OAK_TaxiC_ToJSX1_From1271_UsesDirectArc()
+    {
+        // Reproduces the replay-test scenario for N436MS: path=[C] from 1271 (no
+        // explicit G). The cached-extension Shortest route must traverse the 1198↔1199
+        // C/RAMP arc directly to JSX1, not the long loop via 339→1207→1205→arc→1204.
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = layout.FindParkingByName("JSX1");
+        Assert.NotNull(parking);
+
+        var combined = ResolveParkingRouteSegments(layout, startNodeId: 1271, taxiwayPath: ["C"], destNodeId: parking.Id);
+
+        Assert.DoesNotContain(combined, s => s.FromNodeId == 1203 || s.ToNodeId == 1203);
+        Assert.Contains(combined, s => (s.FromNodeId == 1198 && s.ToNodeId == 1199) || (s.FromNodeId == 1199 && s.ToNodeId == 1198));
+    }
 }
