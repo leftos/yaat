@@ -285,23 +285,23 @@ internal static class HoldShortAnnotator
             if ((hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway) || (hsNode.Type == GroundNodeType.RunwayHoldShort))
             {
                 var vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm);
-                hs.Latitude = vn.Latitude;
-                hs.Longitude = vn.Longitude;
+                hs.Latitude = vn.Position.Lat;
+                hs.Longitude = vn.Position.Lon;
                 continue;
             }
 
             // Taxiway hold-short: offset back from intersection along approach edge.
             var twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, taxiwayOffsetNm);
-            hs.Latitude = twyVn.Latitude;
-            hs.Longitude = twyVn.Longitude;
+            hs.Latitude = twyVn.Position.Lat;
+            hs.Longitude = twyVn.Position.Lon;
 
             Log.LogDebug(
                 "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft back from intersection ({Lat:F6}, {Lon:F6})",
                 hs.NodeId,
                 hs.TargetName,
                 taxiwayOffsetNm * GeoMath.FeetPerNm,
-                twyVn.Latitude,
-                twyVn.Longitude
+                twyVn.Position.Lat,
+                twyVn.Position.Lon
             );
         }
     }

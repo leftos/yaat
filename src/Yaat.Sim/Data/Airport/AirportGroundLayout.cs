@@ -303,7 +303,8 @@ public sealed class GroundArc : IGroundEdge
     /// <summary>
     /// Construct a <see cref="CubicBezier"/> from this arc's control points and node positions.
     /// </summary>
-    public CubicBezier ToBezier() => new(Nodes[0].Latitude, Nodes[0].Longitude, P1Lat, P1Lon, P2Lat, P2Lon, Nodes[1].Latitude, Nodes[1].Longitude);
+    public CubicBezier ToBezier() =>
+        new(Nodes[0].Position.Lat, Nodes[0].Position.Lon, P1Lat, P1Lon, P2Lat, P2Lon, Nodes[1].Position.Lat, Nodes[1].Position.Lon);
 
     public double MaxSafeSpeedKts(double turnRateDegPerSec)
     {
@@ -479,9 +480,7 @@ public sealed class DirectionalEdge
     /// For straight edges: bearing from FromNode to ToNode.
     /// </summary>
     public double DepartureBearing =>
-        Edge is GroundArc arc
-            ? arc.TangentBearingAt(FromNode, FromNode, ToNode)
-            : GeoMath.BearingTo(FromNode.Latitude, FromNode.Longitude, ToNode.Latitude, ToNode.Longitude);
+        Edge is GroundArc arc ? arc.TangentBearingAt(FromNode, FromNode, ToNode) : GeoMath.BearingTo(FromNode.Position, ToNode.Position);
 
     /// <summary>
     /// Bearing at the end of traversal (arriving at ToNode).
@@ -489,9 +488,7 @@ public sealed class DirectionalEdge
     /// For straight edges: bearing from FromNode to ToNode (same as departure).
     /// </summary>
     public double ArrivalBearing =>
-        Edge is GroundArc arc
-            ? arc.TangentBearingAt(ToNode, FromNode, ToNode)
-            : GeoMath.BearingTo(FromNode.Latitude, FromNode.Longitude, ToNode.Latitude, ToNode.Longitude);
+        Edge is GroundArc arc ? arc.TangentBearingAt(ToNode, FromNode, ToNode) : GeoMath.BearingTo(FromNode.Position, ToNode.Position);
 }
 
 public sealed class GroundRunway
@@ -631,7 +628,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -691,10 +688,10 @@ public sealed class AirportGroundLayout
                 var (footLat, footLon, alongNm, _) = GeoMath.FootOfPerpendicular(
                     lat,
                     lon,
-                    straight.Nodes[0].Latitude,
-                    straight.Nodes[0].Longitude,
-                    straight.Nodes[1].Latitude,
-                    straight.Nodes[1].Longitude
+                    straight.Nodes[0].Position.Lat,
+                    straight.Nodes[0].Position.Lon,
+                    straight.Nodes[1].Position.Lat,
+                    straight.Nodes[1].Position.Lon
                 );
                 double distNm = GeoMath.DistanceNm(lat, lon, footLat, footLon);
                 if (distNm < bestDistNm)
@@ -737,7 +734,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
 
             if (dist < bestAnyDist)
             {
@@ -745,7 +742,7 @@ public sealed class AirportGroundLayout
                 bestAny = node;
             }
 
-            double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+            double bearing = GeoMath.BearingTo(new LatLon(lat, lon), node.Position);
             double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
             if (diff <= 90 && dist < bestAheadDist)
             {
@@ -798,7 +795,7 @@ public sealed class AirportGroundLayout
 
             var neighbor = edge.OtherNode(currentNode);
 
-            double bearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, neighbor.Latitude, neighbor.Longitude);
+            double bearing = GeoMath.BearingTo(currentNode.Position, neighbor.Position);
             double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
             if (diff < 90 && diff < bestDiff)
             {
@@ -843,7 +840,7 @@ public sealed class AirportGroundLayout
         (GroundNode Node, string Taxiway, List<GroundNode> Path, double ExitAngle)? deferredBackExit = null;
         for (int hop = 0; hop < maxCenterlineHops && current is not null; hop++)
         {
-            double alongTrack = GeoMath.AlongTrackDistanceNm(current.Latitude, current.Longitude, lat, lon, runwayHeading);
+            double alongTrack = GeoMath.AlongTrackDistanceNm(current.Position, new LatLon(lat, lon), runwayHeading);
             if (alongTrack < -0.005)
             {
                 // Node is behind the aircraft — skip
@@ -861,8 +858,8 @@ public sealed class AirportGroundLayout
             Log.LogDebug(
                 "[ExitCL] Checking centerline node #{Id} at ({Lat:F6}, {Lon:F6}), pref={PrefTwy}/{PrefSide}",
                 current.Id,
-                current.Latitude,
-                current.Longitude,
+                current.Position.Lat,
+                current.Position.Lon,
                 preference?.Taxiway ?? "any",
                 preference?.Side?.ToString() ?? "any"
             );
@@ -1000,7 +997,7 @@ public sealed class AirportGroundLayout
                 bool onRequestedSide = true;
                 if (preference?.Side is { } side)
                 {
-                    double bearing = GeoMath.BearingTo(centerlineNode.Latitude, centerlineNode.Longitude, current.Latitude, current.Longitude);
+                    double bearing = GeoMath.BearingTo(centerlineNode.Position, current.Position);
                     double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
                     onRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
                 }
@@ -1295,7 +1292,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in GetRunwayHoldShortNodes(runwayDesignator))
         {
-            double alongTrack = GeoMath.AlongTrackDistanceNm(node.Latitude, node.Longitude, lat, lon, runwayHeading);
+            double alongTrack = GeoMath.AlongTrackDistanceNm(node.Position, new LatLon(lat, lon), runwayHeading);
             if (alongTrack <= 0)
             {
                 continue;
@@ -1303,7 +1300,7 @@ public sealed class AirportGroundLayout
 
             if (preference?.Side is { } side)
             {
-                double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+                double bearing = GeoMath.BearingTo(new LatLon(lat, lon), node.Position);
                 double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
                 bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
                 if (!isOnRequestedSide)
@@ -1380,13 +1377,13 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
             if (dist > maxSearchNm)
             {
                 continue;
             }
 
-            double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+            double bearing = GeoMath.BearingTo(new LatLon(lat, lon), node.Position);
             double turnAngle = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
             double parkingBias = AverageNearestParkingDistanceNm(node, ParkingSampleCount) * ParkingProximityWeight;
             double score = dist + (turnAngle > 90 ? 10.0 : 0.0) + parkingBias;
@@ -1425,13 +1422,13 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
             if (dist > maxSearchNm)
             {
                 continue;
             }
 
-            double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+            double bearing = GeoMath.BearingTo(new LatLon(lat, lon), node.Position);
             double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
 
             // Left = negative relative angle, Right = positive
@@ -1478,7 +1475,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
             if (dist > maxSearchNm)
             {
                 continue;
@@ -1533,7 +1530,7 @@ public sealed class AirportGroundLayout
 
             var otherNode = edge.OtherNode(node);
 
-            double bearing = GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double bearing = GeoMath.BearingTo(node.Position, otherNode.Position);
             double diff = GeoMath.AbsBearingDifference(bearing, preferredBearing);
 
             if (diff < bestDiff)
@@ -1604,7 +1601,7 @@ public sealed class AirportGroundLayout
             var otherNode = edge.OtherNode(exitNode);
 
             // Prefer the direction that doesn't require turning back toward the runway
-            double bearing = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double bearing = GeoMath.BearingTo(exitNode.Position, otherNode.Position);
             double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
 
             if (diff < bestDiff)
@@ -1650,7 +1647,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double bearing = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double bearing = GeoMath.BearingTo(exitNode.Position, otherNode.Position);
             double angle = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
 
             if (bestAngle is null || angle < bestAngle.Value)
@@ -1761,7 +1758,7 @@ public sealed class AirportGroundLayout
                     // FindAdjacentHoldShort falls back to off-side when no on-side match
                     // exists. For enumeration we need strict side matching — verify the
                     // returned hold-short is actually on the requested side.
-                    double hsBearing = GeoMath.BearingTo(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                    double hsBearing = GeoMath.BearingTo(node.Position, result.Value.Node.Position);
                     double relativeBearing = rwyHeading.SignedAngleTo(new TrueHeading(hsBearing));
                     bool actualLeft = relativeBearing < 0;
                     bool requestedLeft = side == ExitSide.Left;
@@ -1899,14 +1896,14 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
             if (dist > maxSearchNm)
             {
                 continue;
             }
 
             // Only consider exits ahead of the aircraft along the runway
-            double alongTrack = GeoMath.AlongTrackDistanceNm(node.Latitude, node.Longitude, lat, lon, runwayHeading);
+            double alongTrack = GeoMath.AlongTrackDistanceNm(node.Position, new LatLon(lat, lon), runwayHeading);
             if (alongTrack <= 0)
             {
                 continue;
@@ -1935,7 +1932,7 @@ public sealed class AirportGroundLayout
 
             if (preference?.Side is { } side)
             {
-                double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+                double bearing = GeoMath.BearingTo(new LatLon(lat, lon), node.Position);
                 double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
                 bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
                 if (!isOnRequestedSide)
@@ -2005,7 +2002,7 @@ public sealed class AirportGroundLayout
             }
 
             anyParking = true;
-            double dist = GeoMath.DistanceNm(exitNode.Latitude, exitNode.Longitude, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(exitNode.Position, node.Position);
 
             // Insert into sorted top-N if smaller than the current largest
             if (dist < nearest[count - 1])
@@ -2082,7 +2079,14 @@ public sealed class AirportGroundLayout
 
         for (int i = 0; i < coords.Count - 1; i++)
         {
-            double dist = PointToSegmentDistanceNm(node.Latitude, node.Longitude, coords[i].Lat, coords[i].Lon, coords[i + 1].Lat, coords[i + 1].Lon);
+            double dist = PointToSegmentDistanceNm(
+                node.Position.Lat,
+                node.Position.Lon,
+                coords[i].Lat,
+                coords[i].Lon,
+                coords[i + 1].Lat,
+                coords[i + 1].Lon
+            );
             if (dist < minDist)
             {
                 minDist = dist;
@@ -2092,7 +2096,7 @@ public sealed class AirportGroundLayout
         // Fallback: if runway has only one coordinate, use point-to-point distance
         if (coords.Count == 1)
         {
-            minDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, coords[0].Lat, coords[0].Lon);
+            minDist = GeoMath.DistanceNm(node.Position, new LatLon(coords[0].Lat, coords[0].Lon));
         }
 
         return minDist;

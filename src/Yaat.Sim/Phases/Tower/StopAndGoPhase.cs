@@ -72,8 +72,8 @@ public sealed class StopAndGoPhase : Phase
     {
         _fieldElevation = ctx.FieldElevation;
         _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
-        _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
-        _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
+        _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Position.Lat;
+        _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Position.Lon;
         _pauseDuration = CategoryPerformance.StopAndGoPauseSeconds(ctx.Category);
 
         ctx.Aircraft.IsOnGround = true;
@@ -99,13 +99,7 @@ public sealed class StopAndGoPhase : Phase
         // Steer toward runway centerline while on the ground
         if (!_airborne)
         {
-            double signedXte = GeoMath.SignedCrossTrackDistanceNm(
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
-                _thresholdLat,
-                _thresholdLon,
-                _runwayHeading
-            );
+            double signedXte = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _runwayHeading);
             double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
             ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeading.Degrees - correction);
         }

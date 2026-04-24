@@ -171,7 +171,7 @@ public sealed class HoldingPatternPhase : Phase
         }
         else
         {
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, FixLat, FixLon);
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon));
             if (dist >= LegLength)
             {
                 StartTurnToInbound(ctx);
@@ -376,7 +376,7 @@ public sealed class HoldingPatternPhase : Phase
 
     private bool AtFix(PhaseContext ctx)
     {
-        return GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, FixLat, FixLon) < ArrivalNm;
+        return GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon)) < ArrivalNm;
     }
 
     private static void DecelerateToHoldingSpeed(PhaseContext ctx)

@@ -43,13 +43,13 @@ public sealed class CrossingRunwayPhase : Phase
             if (ctx.GroundLayout.Nodes.TryGetValue(_approachNodeId, out var approachNode))
             {
                 var vn = VirtualNode.OffsetPast(ctx.GroundLayout, node, approachNode, halfLengthNm);
-                _targetLat = vn.Latitude;
-                _targetLon = vn.Longitude;
+                _targetLat = vn.Position.Lat;
+                _targetLon = vn.Position.Lon;
             }
             else
             {
-                _targetLat = node.Latitude;
-                _targetLon = node.Longitude;
+                _targetLat = node.Position.Lat;
+                _targetLon = node.Position.Lon;
             }
 
             _initialized = true;
@@ -90,13 +90,13 @@ public sealed class CrossingRunwayPhase : Phase
         }
 
         // Turn toward target
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
 
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
         // Check arrival
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
 
         if (dist <= ArrivalThresholdNm)
         {

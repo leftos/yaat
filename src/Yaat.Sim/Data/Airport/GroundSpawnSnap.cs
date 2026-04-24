@@ -52,14 +52,14 @@ public static class GroundSpawnSnap
             return;
         }
 
-        var nearest = layout.FindNearestTaxiEdge(aircraft.Latitude, aircraft.Longitude);
+        var nearest = layout.FindNearestTaxiEdge(aircraft.Position);
         if (nearest is null)
         {
             Log.LogWarning(
                 "{Callsign}: no taxi edge found near spawn ({Lat:F6}, {Lon:F6}) — leaving pose unchanged",
                 aircraft.Callsign,
-                aircraft.Latitude,
-                aircraft.Longitude
+                aircraft.Position.Lat,
+                aircraft.Position.Lon
             );
             return;
         }
@@ -71,8 +71,8 @@ public static class GroundSpawnSnap
             Log.LogWarning(
                 "{Callsign}: spawn at ({Lat:F6}, {Lon:F6}) is {DistFt:F0} ft from nearest taxi edge ({Taxiway}) — beyond {Max:F0} ft threshold; leaving pose unchanged",
                 aircraft.Callsign,
-                aircraft.Latitude,
-                aircraft.Longitude,
+                aircraft.Position.Lat,
+                aircraft.Position.Lon,
                 distFt,
                 result.Edge.TaxiwayName,
                 MaxSnapDistanceFt
@@ -84,12 +84,7 @@ public static class GroundSpawnSnap
         // original heading. Nodes[0] and Nodes[1] are not directionally
         // meaningful, so we compute both bearings and rotate the aircraft
         // to whichever is a smaller turn from its current heading.
-        double bearing01 = GeoMath.BearingTo(
-            result.Edge.Nodes[0].Latitude,
-            result.Edge.Nodes[0].Longitude,
-            result.Edge.Nodes[1].Latitude,
-            result.Edge.Nodes[1].Longitude
-        );
+        double bearing01 = GeoMath.BearingTo(result.Edge.Nodes[0].Position, result.Edge.Nodes[1].Position);
         double bearing10 = (bearing01 + 180.0) % 360.0;
         double origHdg = aircraft.TrueHeading.Degrees;
         double diff01 = GeoMath.AbsBearingDifference(origHdg, bearing01);
@@ -99,8 +94,8 @@ public static class GroundSpawnSnap
         Log.LogInformation(
             "{Callsign}: snapping spawn ({OrigLat:F6}, {OrigLon:F6}) hdg {OrigHdg:F0}° → edge {Taxiway} at ({FootLat:F6}, {FootLon:F6}) hdg {NewHdg:F0}° (snap {DistFt:F0} ft, rotate {RotDeg:F0}°)",
             aircraft.Callsign,
-            aircraft.Latitude,
-            aircraft.Longitude,
+            aircraft.Position.Lat,
+            aircraft.Position.Lon,
             origHdg,
             result.Edge.TaxiwayName,
             result.FootLat,
@@ -110,8 +105,7 @@ public static class GroundSpawnSnap
             Math.Min(diff01, diff10)
         );
 
-        aircraft.Latitude = result.FootLat;
-        aircraft.Longitude = result.FootLon;
+        aircraft.Position = new LatLon(result.FootLat, result.FootLon);
         aircraft.TrueHeading = new TrueHeading(chosenBearing);
         aircraft.TrueTrack = aircraft.TrueHeading;
     }

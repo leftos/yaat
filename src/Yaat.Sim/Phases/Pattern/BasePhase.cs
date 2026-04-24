@@ -106,7 +106,7 @@ public sealed class BasePhase : Phase
         }
 
         double crossTrack = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _finalHeading)
+            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _finalHeading)
         );
 
         // Turn initiation: begin turn when cross-track from extended centerline

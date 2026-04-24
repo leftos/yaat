@@ -93,13 +93,7 @@ public sealed class DownwindPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
-            _thresholdLat,
-            _thresholdLon,
-            _downwindHeading
-        );
+        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
 
         // Midfield downwind broadcast: remind controller if no landing clearance
         if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)

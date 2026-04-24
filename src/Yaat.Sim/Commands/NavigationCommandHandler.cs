@@ -462,7 +462,7 @@ internal static class NavigationCommandHandler
 
         for (int i = 0; i < targets.Count; i++)
         {
-            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, targets[i].Latitude, targets[i].Longitude);
+            double bearing = GeoMath.BearingTo(aircraft.Position, targets[i].Position);
             double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
             if (angleDiff > 180)
             {
@@ -474,7 +474,7 @@ internal static class NavigationCommandHandler
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, targets[i].Latitude, targets[i].Longitude);
+            double dist = GeoMath.DistanceNm(aircraft.Position, targets[i].Position);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -508,7 +508,7 @@ internal static class NavigationCommandHandler
                 continue;
             }
 
-            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(pos.Value.Lat, pos.Value.Lon));
             double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
             if (angleDiff > 180)
             {
@@ -520,7 +520,7 @@ internal static class NavigationCommandHandler
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(pos.Value.Lat, pos.Value.Lon));
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -574,7 +574,7 @@ internal static class NavigationCommandHandler
         else
         {
             // No fix behind — aircraft is before the first fix. Direct to first fix.
-            segmentCourse = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, aheadPos.Lat, aheadPos.Lon);
+            segmentCourse = GeoMath.BearingTo(aircraft.Position, new LatLon(aheadPos.Lat, aheadPos.Lon));
             interceptFixLat = aheadPos.Lat;
             interceptFixLon = aheadPos.Lon;
             interceptFixName = airwayFixes[aheadIdx];
@@ -692,14 +692,14 @@ internal static class NavigationCommandHandler
                 continue;
             }
 
-            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, positions[i]!.Value.Lat, positions[i]!.Value.Lon);
+            double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(positions[i]!.Value.Lat, positions[i]!.Value.Lon));
             double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
             if (angleDiff > 180)
             {
                 angleDiff = 360 - angleDiff;
             }
 
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, positions[i]!.Value.Lat, positions[i]!.Value.Lon);
+            double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(positions[i]!.Value.Lat, positions[i]!.Value.Lon));
 
             if (angleDiff <= 90)
             {
@@ -740,10 +740,8 @@ internal static class NavigationCommandHandler
                 if (candidateBefore >= 0 && positions[candidateBefore] is not null)
                 {
                     double bearing = GeoMath.BearingTo(
-                        aircraft.Latitude,
-                        aircraft.Longitude,
-                        positions[candidateBefore]!.Value.Lat,
-                        positions[candidateBefore]!.Value.Lon
+                        aircraft.Position,
+                        new LatLon(positions[candidateBefore]!.Value.Lat, positions[candidateBefore]!.Value.Lon)
                     );
                     double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
                     if (angleDiff > 180)
@@ -760,10 +758,8 @@ internal static class NavigationCommandHandler
                 if (bestBehindIdx < 0 && candidateAfter < airwayFixes.Count && positions[candidateAfter] is not null)
                 {
                     double bearing = GeoMath.BearingTo(
-                        aircraft.Latitude,
-                        aircraft.Longitude,
-                        positions[candidateAfter]!.Value.Lat,
-                        positions[candidateAfter]!.Value.Lon
+                        aircraft.Position,
+                        new LatLon(positions[candidateAfter]!.Value.Lat, positions[candidateAfter]!.Value.Lon)
                     );
                     double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
                     if (angleDiff > 180)

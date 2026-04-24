@@ -60,8 +60,8 @@ public sealed class HoldingAfterExitPhase : Phase
         Log.LogDebug(
             "[Exit] {Callsign}: holding after exit at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
             ctx.Aircraft.TrueHeading.Degrees
         );
     }

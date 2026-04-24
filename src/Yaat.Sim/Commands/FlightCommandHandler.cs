@@ -143,7 +143,7 @@ internal static class FlightCommandHandler
         // Reject speed commands inside 5nm final per §5-7-1.a.2.d
         if (!aircraft.IsOnGround && aircraft.Phases?.AssignedRunway is { } spdRwy)
         {
-            double spdDist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, spdRwy.ThresholdLatitude, spdRwy.ThresholdLongitude);
+            double spdDist = GeoMath.DistanceNm(aircraft.Position, new LatLon(spdRwy.ThresholdLatitude, spdRwy.ThresholdLongitude));
             if (spdDist <= 5.0)
             {
                 return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.a.2.d]");
@@ -671,8 +671,7 @@ internal static class FlightCommandHandler
         aircraft.AssignedTaxiRoute = null;
         aircraft.Targets.TurnRateOverride = null;
         aircraft.Targets.HasExplicitTurnRate = false;
-        aircraft.Latitude = cmd.Latitude;
-        aircraft.Longitude = cmd.Longitude;
+        aircraft.Position = new LatLon(cmd.Latitude, cmd.Longitude);
         aircraft.TrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.TrueTrack = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Altitude = cmd.Altitude;
@@ -745,8 +744,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.HasExplicitTurnRate = false;
 
         // Place on ground at the target node with best heading alignment
-        aircraft.Latitude = node.Latitude;
-        aircraft.Longitude = node.Longitude;
+        aircraft.Position = node.Position;
         aircraft.IndicatedAirspeed = 0;
         aircraft.IsOnGround = true;
         aircraft.Targets.TargetSpeed = 0;
@@ -886,17 +884,17 @@ internal static class FlightCommandHandler
             if ((straight.Nodes[0] == node) && straight.IntermediatePoints.Count > 0)
             {
                 var pt = straight.IntermediatePoints[0];
-                return GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
+                return GeoMath.BearingTo(node.Position, new LatLon(pt.Lat, pt.Lon));
             }
 
             if ((straight.Nodes[1] == node) && straight.IntermediatePoints.Count > 0)
             {
                 var pt = straight.IntermediatePoints[^1];
-                return GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
+                return GeoMath.BearingTo(node.Position, new LatLon(pt.Lat, pt.Lon));
             }
         }
 
         var otherNode = edge.OtherNode(node);
-        return GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
+        return GeoMath.BearingTo(node.Position, otherNode.Position);
     }
 }

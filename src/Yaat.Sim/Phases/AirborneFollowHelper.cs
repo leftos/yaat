@@ -139,7 +139,7 @@ public static class AirborneFollowHelper
         ILogger logger
     )
     {
-        double distance = GeoMath.DistanceNm(follower.Latitude, follower.Longitude, lead.Latitude, lead.Longitude);
+        double distance = GeoMath.DistanceNm(follower.Position, lead.Position);
         double error = distance - desired;
         double speedAdjust = Math.Clamp(error * SpeedGainPerNm, -MaxSpeedAdjustKts, MaxSpeedAdjustKts);
         double adjusted = normalSpeed + speedAdjust;
@@ -182,7 +182,7 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        double distance = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
+        double distance = GeoMath.DistanceNm(ctx.Aircraft.Position, target.Position);
 
         var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
         double desired = DesiredDistanceForLeader(leaderCategory);

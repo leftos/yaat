@@ -253,10 +253,10 @@ public sealed class GroundNavigator
         var from = seg.Edge.FromNode;
         var to = seg.Edge.ToNode;
         TargetNodeId = seg.ToNodeId;
-        TargetLat = to.Latitude;
-        TargetLon = to.Longitude;
-        _segmentFromLat = from.Latitude;
-        _segmentFromLon = from.Longitude;
+        TargetLat = to.Position.Lat;
+        TargetLon = to.Position.Lon;
+        _segmentFromLat = from.Position.Lat;
+        _segmentFromLon = from.Position.Lon;
         PrevDistToTarget = double.MaxValue;
 
         // Slow-turn synthesis lookahead: when the pathfinder emits two
@@ -306,7 +306,14 @@ public sealed class GroundNavigator
     /// for their own speed policy (which for <see cref="PathPrimitiveSlowTurn"/>
     /// is the primitive's own <see cref="PathPrimitiveSlowTurn.MaxSpeedKts"/>).
     /// </summary>
-    public void SetupPrimitive(PathPrimitive primitive, double fromLat, double fromLon, double targetLat, double targetLon, double? nextSegmentBearingDeg)
+    public void SetupPrimitive(
+        PathPrimitive primitive,
+        double fromLat,
+        double fromLon,
+        double targetLat,
+        double targetLon,
+        double? nextSegmentBearingDeg
+    )
     {
         _plannedSynthesis = null;
         _currentPrimitive = primitive;
@@ -524,8 +531,7 @@ public sealed class GroundNavigator
             var cornerNode = prevK.Edge.ToNode;
             double tangentInsetNm = tangentInsetFt / GeoMath.FeetPerNm;
             var (tangentEntryLat, tangentEntryLon) = GeoMath.ProjectPoint(
-                cornerNode.Latitude,
-                cornerNode.Longitude,
+                cornerNode.Position,
                 new TrueHeading(((inbound + 180.0) % 360.0 + 360.0) % 360.0),
                 tangentInsetNm
             );
@@ -582,8 +588,8 @@ public sealed class GroundNavigator
 
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
-        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
-        double edgeLengthNm = GeoMath.DistanceNm(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
+        double edgeLengthNm = GeoMath.DistanceNm(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
 
         // Planned-synthesis trigger: when the aircraft reaches the tangent-
         // entry point on the current segment (distance to target drops below
@@ -595,7 +601,7 @@ public sealed class GroundNavigator
         if (_plannedSynthesis is { } plan && (distNm <= plan.TangentInsetNm + 1e-9))
         {
             double distFromEntryFt =
-                GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.TangentEntryLat, plan.TangentEntryLon) * GeoMath.FeetPerNm;
+                GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.TangentEntryLat, plan.TangentEntryLon)) * GeoMath.FeetPerNm;
             // Scale strict-geometry tolerance with chosen radius so piston
             // aircraft with a 10 ft nose-wheel minimum don't constantly trip
             // the warning path from small pure-pursuit lag. 15% of radius
@@ -654,7 +660,9 @@ public sealed class GroundNavigator
         bool isStopTarget = _currentNodeRequiredSpeed == 0;
         bool synthPlanActive = _plannedSynthesis is not null;
         double arrivalThresholdNm =
-            (isLastSegment || shortEdge || isStopTarget || synthPlanActive || _nextSegmentIsArc) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+            (isLastSegment || shortEdge || isStopTarget || synthPlanActive || _nextSegmentIsArc)
+                ? FinalNodeArrivalThresholdNm
+                : NodeArrivalThresholdNm;
 
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
@@ -688,17 +696,14 @@ public sealed class GroundNavigator
         double bearingToSteerDeg;
         if (edgeLengthNm < 1e-9)
         {
-            bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+            bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         }
         else
         {
-            var (_, _, alongNm, _) = GeoMath.FootOfPerpendicular(
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
-                _segmentFromLat,
-                _segmentFromLon,
-                TargetLat,
-                TargetLon
+            var (_, alongNm, _) = GeoMath.FootOfPerpendicular(
+                ctx.Aircraft.Position,
+                new LatLon(_segmentFromLat, _segmentFromLon),
+                new LatLon(TargetLat, TargetLon)
             );
 
             double speedFtPerSec = ctx.Aircraft.IndicatedAirspeed * GeoMath.FeetPerNm / 3600.0;
@@ -711,15 +716,15 @@ public sealed class GroundNavigator
             // target when we'd run past preserves arrival detection semantics
             // and keeps bearingToSteerDeg identical to bearing-to-target in
             // the last look-ahead window.
-            double segBearingDeg = GeoMath.BearingTo(_segmentFromLat, _segmentFromLon, TargetLat, TargetLon);
+            double segBearingDeg = GeoMath.BearingTo(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
             if (lookAheadAlongNm >= edgeLengthNm - 1e-9)
             {
-                bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+                bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
             }
             else
             {
-                var (lookLat, lookLon) = GeoMath.ProjectPointRaw(_segmentFromLat, _segmentFromLon, segBearingDeg, lookAheadAlongNm);
-                bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, lookLat, lookLon);
+                var (lookLat, lookLon) = GeoMath.ProjectPointRaw(new LatLon(_segmentFromLat, _segmentFromLon), segBearingDeg, lookAheadAlongNm);
+                bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(lookLat, lookLon));
             }
         }
 
@@ -789,10 +794,9 @@ public sealed class GroundNavigator
         _arcRemainingSweepDeg = Math.Max(0.0, _arcRemainingSweepDeg - dAngleDeg);
 
         // Write position + heading directly from the playback state (invariant I2).
-        var (lat, lon) = GeoMath.ProjectPoint(prim.CenterLat, prim.CenterLon, new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
+        var (lat, lon) = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
         double tangentDeg = CurrentArcTangentDeg(prim);
-        ctx.Aircraft.Latitude = lat;
-        ctx.Aircraft.Longitude = lon;
+        ctx.Aircraft.Position = new LatLon(lat, lon);
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
 
         // Mirror into targets so physics does not fight the closed-form state.
@@ -801,7 +805,7 @@ public sealed class GroundNavigator
         ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, arcTargetSpeed);
         AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? arcTargetSpeed);
 
-        double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         PrevDistToTarget = distToNode;
         UpdateDiag(ctx, distToNode, tangentDeg, arcTargetSpeed, onArc: true);
 
@@ -858,10 +862,9 @@ public sealed class GroundNavigator
         _arcRemainingSweepDeg = Math.Max(0.0, _arcRemainingSweepDeg - dAngleDeg);
 
         // Write position + heading directly from playback state (invariant I2).
-        var (lat, lon) = GeoMath.ProjectPoint(prim.CenterLat, prim.CenterLon, new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
+        var (lat, lon) = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
         double tangentDeg = CurrentSlowTurnTangentDeg(prim);
-        ctx.Aircraft.Latitude = lat;
-        ctx.Aircraft.Longitude = lon;
+        ctx.Aircraft.Position = new LatLon(lat, lon);
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
 
         // Speed policy: cap to the primitive's own MaxSpeedKts — no
@@ -871,7 +874,7 @@ public sealed class GroundNavigator
         ctx.Targets.TargetSpeed = cappedTarget;
         AdjustSpeed(ctx, cappedTarget);
 
-        double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         PrevDistToTarget = distToNode;
         UpdateDiag(ctx, distToNode, tangentDeg, cappedTarget, onArc: true);
 
@@ -933,7 +936,7 @@ public sealed class GroundNavigator
         // tangent heading each tick) so it is a no-op.
         double bearingDeg = _currentPrimitive is PathPrimitiveArc arcPrim
             ? CurrentArcTangentDeg(arcPrim)
-            : GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+            : GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearingDeg));
         double normalized = Math.Clamp(angleDiff / 90.0, 0.0, 1.0);
         double speedFraction = Math.Max(0.03, 1.0 - normalized * normalized);

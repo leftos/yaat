@@ -396,6 +396,14 @@ public static class GeoMath
     public static double AlongTrackDistanceNm(LatLon point, LatLon reference, TrueHeading heading) =>
         AlongTrackDistanceNm(point.Lat, point.Lon, reference.Lat, reference.Lon, heading);
 
+    /// <summary>Along-track distance using a raw bearing angle. Internal use only.</summary>
+    internal static double AlongTrackDistanceNmRaw(LatLon point, LatLon reference, double headingDeg) =>
+        AlongTrackDistanceNmRaw(point.Lat, point.Lon, reference.Lat, reference.Lon, headingDeg);
+
+    /// <summary>Signed cross-track distance using a raw bearing angle. Internal use only.</summary>
+    internal static double SignedCrossTrackDistanceNmRaw(LatLon point, LatLon reference, double headingDeg) =>
+        SignedCrossTrackDistanceNmRaw(point.Lat, point.Lon, reference.Lat, reference.Lon, headingDeg);
+
     /// <summary>Perpendicular distance in feet from <paramref name="point"/> to the segment between <paramref name="segA"/> and <paramref name="segB"/>, clamped to endpoints.</summary>
     public static double DistanceToSegmentFt(LatLon point, LatLon segA, LatLon segB) =>
         DistanceToSegmentFt(point.Lat, point.Lon, segA.Lat, segA.Lon, segB.Lat, segB.Lon);

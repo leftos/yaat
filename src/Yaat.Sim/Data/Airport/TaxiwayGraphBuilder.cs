@@ -96,7 +96,7 @@ internal static class TaxiwayGraphBuilder
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
+            double dist = GeoMath.DistanceNm(fromNode.Position, toNode.Position);
 
             var edge = new GroundEdge
             {
@@ -187,7 +187,7 @@ internal static class TaxiwayGraphBuilder
 
         if (layout.Nodes.TryGetValue(nodeId, out var node))
         {
-            tw.Coords.Insert(insertAt, (node.Latitude, node.Longitude));
+            tw.Coords.Insert(insertAt, (node.Position.Lat, node.Position.Lon));
         }
     }
 
@@ -201,7 +201,6 @@ internal static class TaxiwayGraphBuilder
 
         tw.NodeIds.Insert(insertAt, nodeId);
     }
-
 }
 
 /// <summary>

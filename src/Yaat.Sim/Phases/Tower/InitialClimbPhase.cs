@@ -199,8 +199,7 @@ public sealed class InitialClimbPhase : Phase
         if (!_vfrTurnApplied)
         {
             bool pastDer =
-                GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayDerLat, _runwayDerLon, _runwayHeading)
-                >= VfrDerMinDistanceNm;
+                GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_runwayDerLat, _runwayDerLon), _runwayHeading) >= VfrDerMinDistanceNm;
             bool altReached = ctx.Aircraft.Altitude >= _vfrTurnAltitude;
             if (pastDer && altReached)
             {
@@ -279,7 +278,7 @@ public sealed class InitialClimbPhase : Phase
             if (Departure is DirectFixDeparture { Direction: not null } dfd)
             {
                 var first = DepartureRoute[0];
-                double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, first.Latitude, first.Longitude);
+                double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, first.Position);
                 ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
                 ctx.Targets.PreferredTurnDirection = dfd.Direction;
             }

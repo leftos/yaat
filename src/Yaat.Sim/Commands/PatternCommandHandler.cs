@@ -60,10 +60,8 @@ internal static class PatternCommandHandler
 
             // Positive = pattern side, negative = wrong side
             double patternSideOffset = GeoMath.AlongTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                runway.ThresholdLatitude,
-                runway.ThresholdLongitude,
+                aircraft.Position,
+                new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
                 crosswindHdg
             );
 
@@ -102,7 +100,7 @@ internal static class PatternCommandHandler
             );
             var (eLat, eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
 
-            double bearingToEntry = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, eLat, eLon);
+            double bearingToEntry = GeoMath.BearingTo(aircraft.Position, new LatLon(eLat, eLon));
             double turnToEntry = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearingToEntry));
             double turnAtEntry = new TrueHeading(bearingToEntry).AbsAngleTo(runway.TrueHeading);
 
@@ -114,7 +112,7 @@ internal static class PatternCommandHandler
             // Simplification: use the distance to the entry point vs the arc
             // distance required. If the straight-line distance is less than
             // the arc needed, the maneuver is infeasible (loop).
-            double distToEntry = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, eLat, eLon);
+            double distToEntry = GeoMath.DistanceNm(aircraft.Position, new LatLon(eLat, eLon));
 
             // Turn radius model depends on flight rules. IFR keeps the
             // conservative standard-rate envelope (3°/s on IAS); VFR uses a
@@ -185,13 +183,8 @@ internal static class PatternCommandHandler
         if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Downwind && waypoints is not null)
         {
             double hdgDiff = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading);
-            double distToDepEnd = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.EndLatitude, runway.EndLongitude);
-            double distToDownwindEntry = GeoMath.DistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                waypoints.DownwindAbeamLat,
-                waypoints.DownwindAbeamLon
-            );
+            double distToDepEnd = GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.EndLatitude, runway.EndLongitude));
+            double distToDownwindEntry = GeoMath.DistanceNm(aircraft.Position, new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon));
             if (hdgDiff < 30 && distToDepEnd < 3.0 && distToDownwindEntry > 1.0)
             {
                 effectiveEntryLeg = PatternEntryLeg.Upwind;
@@ -224,10 +217,8 @@ internal static class PatternCommandHandler
         {
             TrueHeading reciprocal = waypoints.FinalHeading.ToReciprocal();
             double alongTrackOutbound = GeoMath.AlongTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                waypoints.ThresholdLat,
-                waypoints.ThresholdLon,
+                aircraft.Position,
+                new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
                 reciprocal
             );
             if (alongTrackOutbound < MinimumPerpendicularBaseFinalDistanceNm(category))
@@ -242,10 +233,8 @@ internal static class PatternCommandHandler
             // (AIM 4-3-3: pattern entry at TPA). Rejecting here prompts a DM.
             double crossTrackAbsNm = Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
-                    aircraft.Latitude,
-                    aircraft.Longitude,
-                    waypoints.ThresholdLat,
-                    waypoints.ThresholdLon,
+                    aircraft.Position,
+                    new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
                     waypoints.FinalHeading
                 )
             );
@@ -288,9 +277,9 @@ internal static class PatternCommandHandler
         if (!aircraft.IsOnGround && !isOnWrongSide)
         {
             var (entryLat, entryLon) = useAircraftPositionAsEntry
-                ? (aircraft.Latitude, aircraft.Longitude)
+                ? (aircraft.Position.Lat, aircraft.Position.Lon)
                 : GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm, category);
-            double distToEntry = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, entryLat, entryLon);
+            double distToEntry = GeoMath.DistanceNm(aircraft.Position, new LatLon(entryLat, entryLon));
 
             if (distToEntry > 1.0)
             {
@@ -929,7 +918,7 @@ internal static class PatternCommandHandler
         double uTurnThresholdDeg
     )
     {
-        double bearingToLeadIn = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, leadInLat, leadInLon);
+        double bearingToLeadIn = GeoMath.BearingTo(aircraft.Position, new LatLon(leadInLat, leadInLon));
         double turnInit = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, bearingToLeadIn);
         double turnMid = GeoMath.AbsBearingDifference(bearingToLeadIn, entryHeadingDeg);
         double turnAbeam = GeoMath.AbsBearingDifference(entryHeadingDeg, downwindHeadingDeg);

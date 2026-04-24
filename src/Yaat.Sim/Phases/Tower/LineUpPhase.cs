@@ -166,7 +166,7 @@ public sealed class LineUpPhase : Phase
             return;
         }
 
-        var plan = LineUpGeometry.Compute(ctx.Runway, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ctx.Aircraft.TrueHeading, ctx.Category);
+        var plan = LineUpGeometry.Compute(ctx.Runway, ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, ctx.Aircraft.TrueHeading, ctx.Category);
         PathPlan = plan;
 
         if (plan.Kind == LineUpPathKind.Fault)
@@ -226,7 +226,15 @@ public sealed class LineUpPhase : Phase
 
         return CurrentState switch
         {
-            State.NoseOut => TickStraight(ctx, PathPlan, PathPlan.NoseOutBearingDeg, PathPlan.NoseOutToLat, PathPlan.NoseOutToLon, PathPlan.ArcSpeedKts, onArrive: PathPlan.InitialArcState is null ? State.Rollout : State.Arc),
+            State.NoseOut => TickStraight(
+                ctx,
+                PathPlan,
+                PathPlan.NoseOutBearingDeg,
+                PathPlan.NoseOutToLat,
+                PathPlan.NoseOutToLon,
+                PathPlan.ArcSpeedKts,
+                onArrive: PathPlan.InitialArcState is null ? State.Rollout : State.Arc
+            ),
             State.Arc => TickArcPlayback(ctx, PathPlan, onComplete: State.Rollout),
             State.PivotTurn1 => TickArcPlayback(ctx, PathPlan, onComplete: State.PivotStraight),
             State.PivotStraight => TickStraight(
@@ -284,12 +292,20 @@ public sealed class LineUpPhase : Phase
             RightTurn = turn.RightTurn,
         };
 
-    private bool TickStraight(PhaseContext ctx, LineUpPathPlan plan, double bearingDeg, double toLat, double toLon, double targetSpeedKts, State onArrive)
+    private bool TickStraight(
+        PhaseContext ctx,
+        LineUpPathPlan plan,
+        double bearingDeg,
+        double toLat,
+        double toLon,
+        double targetSpeedKts,
+        State onArrive
+    )
     {
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearingDeg);
         ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeedKts);
 
-        double distFt = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, toLat, toLon) * GeoMath.FeetPerNm;
+        double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(toLat, toLon)) * GeoMath.FeetPerNm;
 
         if (distFt < StraightArrivalFt)
         {
@@ -331,8 +347,7 @@ public sealed class LineUpPhase : Phase
 
         // Write pose directly from the closed-form state (invariant I2).
         var (lat, lon) = _arcState.CurrentPosition();
-        ctx.Aircraft.Latitude = lat;
-        ctx.Aircraft.Longitude = lon;
+        ctx.Aircraft.Position = new LatLon(lat, lon);
         ctx.Aircraft.TrueHeading = new TrueHeading(_arcState.TangentHeadingDeg);
 
         ctx.Targets.TargetTrueHeading = new TrueHeading(_arcState.TangentHeadingDeg);
@@ -363,7 +378,7 @@ public sealed class LineUpPhase : Phase
         // Rollout steers unconditionally on runway heading — no feedback loop.
         ctx.Targets.TargetTrueHeading = new TrueHeading(plan.RunwayHeadingDeg);
 
-        double distToStopNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.RolloutToLat, plan.RolloutToLon);
+        double distToStopNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutToLat, plan.RolloutToLon));
         double distToStopFt = distToStopNm * GeoMath.FeetPerNm;
 
         if (RollingMode)
@@ -373,7 +388,7 @@ public sealed class LineUpPhase : Phase
             // distance-to-stop increases past the stop point under rolling.
             ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, plan.ArcSpeedKts);
             double distFromStartFt =
-                GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.RolloutFromLat, plan.RolloutFromLon) * GeoMath.FeetPerNm;
+                GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutFromLat, plan.RolloutFromLon)) * GeoMath.FeetPerNm;
             if (distFromStartFt >= plan.RolloutLengthFt - RolloutArrivalFt)
             {
                 Log.LogDebug(
@@ -536,7 +551,7 @@ public sealed class LineUpPhase : Phase
         if (CurrentState == State.Rollout && PathPlan is { } plan)
         {
             double distFromStartFt =
-                GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.RolloutFromLat, plan.RolloutFromLon) * GeoMath.FeetPerNm;
+                GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutFromLat, plan.RolloutFromLon)) * GeoMath.FeetPerNm;
             if (distFromStartFt > RollingUpgradeMaxRolloutFraction * plan.RolloutLengthFt)
             {
                 Log.LogDebug(

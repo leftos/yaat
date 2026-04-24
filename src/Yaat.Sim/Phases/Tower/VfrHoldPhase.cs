@@ -137,7 +137,7 @@ public sealed class VfrHoldPhase : Phase
         // Navigate-to-fix phase: wait until arrival
         if (FixName is not null && !_atFix)
         {
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, FixLat!.Value, FixLon!.Value);
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(FixLat!.Value, FixLon!.Value));
 
             if (dist < ArrivalNm)
             {

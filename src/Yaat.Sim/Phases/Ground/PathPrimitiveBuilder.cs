@@ -58,10 +58,10 @@ public static class PathPrimitiveBuilder
             Kind = PathPrimitiveKind.Straight,
             LengthFt = lengthFt,
             ToNodeId = edge.ToNodeId,
-            FromLat = from.Latitude,
-            FromLon = from.Longitude,
-            ToLat = to.Latitude,
-            ToLon = to.Longitude,
+            FromLat = from.Position.Lat,
+            FromLon = from.Position.Lon,
+            ToLat = to.Position.Lat,
+            ToLon = to.Position.Lon,
             BearingDeg = edge.DepartureBearing,
         };
     }
@@ -93,7 +93,7 @@ public static class PathPrimitiveBuilder
         double radiusNm = radiusFt / GeoMath.FeetPerNm;
         double perpHdgDeg = ((entryBearingDeg + (rightTurn ? 90.0 : -90.0)) + 360.0) % 360.0;
 
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(edge.FromNode.Latitude, edge.FromNode.Longitude, new TrueHeading(perpHdgDeg), radiusNm);
+        var (centerLat, centerLon) = GeoMath.ProjectPoint(edge.FromNode.Position, new TrueHeading(perpHdgDeg), radiusNm);
 
         // The aircraft's position at arc entry is the from-node, which in
         // polar coordinates around the centre sits on the radial opposite to

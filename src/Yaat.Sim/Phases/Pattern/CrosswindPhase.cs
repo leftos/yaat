@@ -71,12 +71,12 @@ public sealed class CrosswindPhase : Phase
             return false;
         }
 
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
 
         // Check if the aircraft has already passed the downwind start point.
         // Detect by checking if the bearing to the target is behind us
         // (more than 90° off our crosswind heading).
-        double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         double bearingDiff = Math.Abs(GeoMath.SignedBearingDifference(bearingToTarget, _crosswindHeading.Degrees));
         bool targetIsBehind = bearingDiff > 90.0;
 

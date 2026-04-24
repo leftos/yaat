@@ -259,8 +259,8 @@ public sealed class RunwayExitPhase : Phase
         {
             var tiebreakerPref = new ExitPreference { Taxiway = _lastResolvedPreference.Taxiway, Side = _inferredSide.Value };
             var tiebreakerResult = ctx.GroundLayout.FindExitFromCenterline(
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
                 _runwayHeading,
                 _runwayId,
                 tiebreakerPref,
@@ -281,8 +281,8 @@ public sealed class RunwayExitPhase : Phase
         for (int attempt = 0; attempt < 3; attempt++)
         {
             var result = ctx.GroundLayout.FindExitFromCenterline(
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
                 _runwayHeading,
                 _runwayId,
                 preference,
@@ -360,8 +360,8 @@ public sealed class RunwayExitPhase : Phase
         // Always added — gives the navigator inbound bearing context for turn
         // anticipation at the branch node, whether the aircraft is far away
         // (analog search) or right at the branch (committed exit from LandingPhase).
-        var virtualFromNode = VirtualNode.Create(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
-        double distToBranch = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, branchNode.Latitude, branchNode.Longitude);
+        var virtualFromNode = VirtualNode.Create(ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon);
+        double distToBranch = GeoMath.DistanceNm(ctx.Aircraft.Position, branchNode.Position);
         var approachEdge = new GroundEdge
         {
             Nodes = [virtualFromNode, branchNode],
@@ -397,7 +397,13 @@ public sealed class RunwayExitPhase : Phase
         }
         else
         {
-            virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout!, holdShortNode, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, halfLengthNm);
+            virtualTarget = VirtualNode.OffsetPast(
+                ctx.GroundLayout!,
+                holdShortNode,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                halfLengthNm
+            );
         }
 
         segments.Add(VirtualNode.CreateSegment(holdShortNode, virtualTarget, _exitTaxiway));
@@ -479,8 +485,8 @@ public sealed class RunwayExitPhase : Phase
             "[Exit] {Callsign}: exit complete on {Twy}, holding at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             _exitTaxiway,
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
             ctx.Aircraft.TrueHeading.Degrees
         );
 

@@ -31,11 +31,16 @@ internal static class GroundCommandHandler
         }
 
         // Find starting node: nearest to aircraft's current position
-        var startNode = groundLayout.FindNearestNode(aircraft.Latitude, aircraft.Longitude);
+        var startNode = groundLayout.FindNearestNode(aircraft.Position);
 
         if (startNode is null)
         {
-            Log.LogWarning("[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})", aircraft.Callsign, aircraft.Latitude, aircraft.Longitude);
+            Log.LogWarning(
+                "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
+                aircraft.Callsign,
+                aircraft.Position.Lat,
+                aircraft.Position.Lon
+            );
             return new CommandResult(false, "Cannot find position on taxiway graph");
         }
 
@@ -43,9 +48,9 @@ internal static class GroundCommandHandler
             "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
             aircraft.Callsign,
             startNode.Id,
-            startNode.Latitude,
-            startNode.Longitude,
-            GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, startNode.Latitude, startNode.Longitude),
+            startNode.Position.Lat,
+            startNode.Position.Lon,
+            GeoMath.DistanceNm(aircraft.Position, startNode.Position),
             string.Join(" ", taxi.Path),
             taxi.DestinationRunway ?? "(none)",
             taxi.DestinationParking ?? "(none)",
@@ -169,9 +174,7 @@ internal static class GroundCommandHandler
                 : (groundLayout.FindHelipadByName(taxi.DestinationParking!) ?? groundLayout.FindParkingByName(taxi.DestinationParking!));
 
             const double atParkingThresholdNm = 50.0 / GeoMath.FeetPerNm;
-            double distToDest = destNode is not null
-                ? GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, destNode.Latitude, destNode.Longitude)
-                : 0;
+            double distToDest = destNode is not null ? GeoMath.DistanceNm(aircraft.Position, destNode.Position) : 0;
 
             bool rerouted = false;
             if (destNode is not null && distToDest > atParkingThresholdNm)
@@ -183,7 +186,7 @@ internal static class GroundCommandHandler
                 foreach (var edge in destNode.Edges)
                 {
                     var neighbor = edge.OtherNode(destNode);
-                    double d = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, neighbor.Latitude, neighbor.Longitude);
+                    double d = GeoMath.DistanceNm(aircraft.Position, neighbor.Position);
                     if (d < bestNeighborDist)
                     {
                         bestNeighborDist = d;
@@ -277,7 +280,7 @@ internal static class GroundCommandHandler
         double bestDist = double.MaxValue;
         foreach (var node in holdShortNodes)
         {
-            double dist = GeoMath.DistanceNm(startNode.Latitude, startNode.Longitude, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(startNode.Position, node.Position);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -419,14 +422,14 @@ internal static class GroundCommandHandler
                 return new CommandResult(false, "No airport ground layout available");
             }
 
-            var targetNode = groundLayout.FindExitByTaxiway(aircraft.Latitude, aircraft.Longitude, push.Taxiway);
+            var targetNode = groundLayout.FindExitByTaxiway(aircraft.Position, push.Taxiway);
             if (targetNode is null)
             {
                 return new CommandResult(false, $"Cannot find taxiway '{push.Taxiway}' near aircraft");
             }
 
-            targetLat = targetNode.Latitude;
-            targetLon = targetNode.Longitude;
+            targetLat = targetNode.Position.Lat;
+            targetLon = targetNode.Position.Lon;
 
             Log.LogDebug(
                 "[Pushback] {Callsign}: target taxiway {Twy} at node {NodeId} ({Lat:F6}, {Lon:F6})",
@@ -443,10 +446,10 @@ internal static class GroundCommandHandler
             if (push.FacingTaxiway is not null && resolvedHeading is null)
             {
                 // Find bearing from target node toward the facing taxiway
-                var facingNode = groundLayout.FindExitByTaxiway(targetNode.Latitude, targetNode.Longitude, push.FacingTaxiway);
+                var facingNode = groundLayout.FindExitByTaxiway(targetNode.Position, push.FacingTaxiway);
                 if (facingNode is not null)
                 {
-                    double bearingToFacing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, facingNode.Latitude, facingNode.Longitude);
+                    double bearingToFacing = GeoMath.BearingTo(targetNode.Position, facingNode.Position);
 
                     // Pick the push-taxiway edge direction closest to the facing taxiway
                     double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(targetNode, push.Taxiway!, bearingToFacing);
@@ -569,7 +572,7 @@ internal static class GroundCommandHandler
             }
         }
 
-        var startNode = groundLayout.FindNearestNode(aircraft.Latitude, aircraft.Longitude);
+        var startNode = groundLayout.FindNearestNode(aircraft.Position);
         if (startNode is null)
         {
             return new CommandResult(false, "Cannot find position on taxiway graph");
@@ -585,10 +588,10 @@ internal static class GroundCommandHandler
         int? resolvedHeading = push.MagneticHeading?.ToDisplayInt();
         if (resolvedHeading is null && push.FacingTaxiway is not null)
         {
-            var facingNode = groundLayout.FindExitByTaxiway(destNode.Latitude, destNode.Longitude, push.FacingTaxiway);
+            var facingNode = groundLayout.FindExitByTaxiway(destNode.Position, push.FacingTaxiway);
             if (facingNode is not null)
             {
-                double bearingToFacing = GeoMath.BearingTo(destNode.Latitude, destNode.Longitude, facingNode.Latitude, facingNode.Longitude);
+                double bearingToFacing = GeoMath.BearingTo(destNode.Position, facingNode.Position);
                 double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(destNode, push.FacingTaxiway, bearingToFacing);
                 resolvedHeading = edgeBearing is not null
                     ? FlightPhysics.BearingToDisplayInt(edgeBearing.Value)
@@ -859,14 +862,14 @@ internal static class GroundCommandHandler
         if (land.IsTaxiway)
         {
             // Resolve nearest node on the named taxiway
-            var node = groundLayout.FindExitByTaxiway(aircraft.Latitude, aircraft.Longitude, land.SpotName);
+            var node = groundLayout.FindExitByTaxiway(aircraft.Position, land.SpotName);
             if (node is null)
             {
                 return new CommandResult(false, $"Cannot find taxiway '{land.SpotName}' near aircraft");
             }
 
-            destLat = node.Latitude;
-            destLon = node.Longitude;
+            destLat = node.Position.Lat;
+            destLon = node.Position.Lon;
             resolvedName = land.SpotName.ToUpperInvariant();
         }
         else
@@ -941,7 +944,7 @@ internal static class GroundCommandHandler
             return null;
         }
 
-        var runway = ResolveClosestRunwayEnd(rwyId.Value, node.Latitude, node.Longitude, aircraft);
+        var runway = ResolveClosestRunwayEnd(rwyId.Value, node.Position.Lat, node.Position.Lon, aircraft);
         if (runway is not null)
         {
             Log.LogDebug(

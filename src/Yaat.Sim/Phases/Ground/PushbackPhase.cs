@@ -39,8 +39,8 @@ public sealed class PushbackPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        _startLat = ctx.Aircraft.Latitude;
-        _startLon = ctx.Aircraft.Longitude;
+        _startLat = ctx.Aircraft.Position.Lat;
+        _startLon = ctx.Aircraft.Position.Lon;
 
         ctx.Targets.TargetTrueHeading = null;
         ctx.Aircraft.IsOnGround = true;
@@ -123,8 +123,8 @@ public sealed class PushbackPhase : Phase
                     _isAligned = true;
                     ctx.Aircraft.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
                     ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
-                    _startLat = ctx.Aircraft.Latitude;
-                    _startLon = ctx.Aircraft.Longitude;
+                    _startLat = ctx.Aircraft.Position.Lat;
+                    _startLon = ctx.Aircraft.Position.Lon;
                     Log.LogDebug("[Push] {Callsign}: alignment complete, starting push", ctx.Aircraft.Callsign);
                 }
             }
@@ -159,7 +159,7 @@ public sealed class PushbackPhase : Phase
         if (!result && _timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+            double distPushed = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
             Log.LogTrace(
                 "[Push] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}, pos=({Lat:F6},{Lon:F6})",
                 ctx.Aircraft.Callsign,
@@ -167,8 +167,8 @@ public sealed class PushbackPhase : Phase
                 ctx.Aircraft.GroundSpeed,
                 ctx.Aircraft.PushbackTrueHeading?.Degrees ?? 0,
                 ctx.Aircraft.TrueHeading.Degrees,
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon
             );
         }
 
@@ -179,7 +179,7 @@ public sealed class PushbackPhase : Phase
     {
         if (!_reachedTarget)
         {
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLatitude!.Value, TargetLongitude!.Value);
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLatitude!.Value, TargetLongitude!.Value));
 
             if (dist <= TargetReachedThresholdNm)
             {
@@ -192,12 +192,7 @@ public sealed class PushbackPhase : Phase
             {
                 // Gradually steer PushbackHeading toward the target in an arc
                 // (tug curving the tail toward the taxiway, not a straight-line slide).
-                double bearingToTarget = GeoMath.BearingTo(
-                    ctx.Aircraft.Latitude,
-                    ctx.Aircraft.Longitude,
-                    TargetLatitude!.Value,
-                    TargetLongitude!.Value
-                );
+                double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLatitude!.Value, TargetLongitude!.Value));
                 double maxArcTurn = turnRate * ctx.DeltaSeconds;
                 ctx.Aircraft.PushbackTrueHeading = GeoMath.TurnHeadingToward(
                     ctx.Aircraft.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal(),
@@ -209,7 +204,7 @@ public sealed class PushbackPhase : Phase
             // Delay nose rotation until most of the push is complete
             if (TargetHeading is { } tgt && !_reachedTarget)
             {
-                double distFromStart = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+                double distFromStart = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
                 double progress = _totalDistToTarget > 0.001 ? distFromStart / _totalDistToTarget : 1.0;
                 if (progress >= NoseRotationProgressThreshold)
                 {
@@ -240,11 +235,11 @@ public sealed class PushbackPhase : Phase
             // Couple pushback direction to nose after rotation: as the nose rotates, the arc curves.
             ctx.Aircraft.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
 
-            double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+            double distPushed = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
             return headingReached && distPushed >= DefaultPushbackDistanceNm;
         }
 
-        double dist = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+        double dist = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
         return dist >= DefaultPushbackDistanceNm;
     }
 
@@ -264,7 +259,7 @@ public sealed class PushbackPhase : Phase
         if (TargetLatitude is not null && TargetLongitude is not null)
         {
             // Nose faces away from target so tail points at it
-            double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLatitude.Value, TargetLongitude.Value);
+            double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLatitude.Value, TargetLongitude.Value));
             return new TrueHeading(bearingToTarget).ToReciprocal();
         }
 
@@ -279,7 +274,7 @@ public sealed class PushbackPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+        double distPushed = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
         Log.LogDebug(
             "[Push] {Callsign}: OnEnd ({Status}), total dist={Dist:F4}nm, hdg={Hdg:F0}",
             ctx.Aircraft.Callsign,

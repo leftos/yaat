@@ -53,7 +53,7 @@ internal static class RunwayCrossingDetector
         var onRunwayNodes = new HashSet<int>();
         foreach (var (nodeId, node) in layout.Nodes)
         {
-            if (IsOnRunway(node.Latitude, node.Longitude, rect))
+            if (IsOnRunway(node.Position, rect))
             {
                 onRunwayNodes.Add(nodeId);
             }
@@ -164,10 +164,8 @@ internal static class RunwayCrossingDetector
         ref int nextNodeId
     )
     {
-        double crossOff = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(offNode.Latitude, offNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
-        );
-        double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Latitude, onNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading));
+        double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
+        double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
 
         double distOffToIdeal = Math.Abs(crossOff - rect.HoldShortNm) * GeoMath.FeetPerNm;
 
@@ -207,8 +205,8 @@ internal static class RunwayCrossingDetector
         double fraction = (rect.HoldShortNm - crossOn) / denom;
         fraction = Math.Clamp(fraction, 0.01, 0.99);
 
-        double hsLat = onNode.Latitude + fraction * (offNode.Latitude - onNode.Latitude);
-        double hsLon = onNode.Longitude + fraction * (offNode.Longitude - onNode.Longitude);
+        double hsLat = onNode.Position.Lat + fraction * (offNode.Position.Lat - onNode.Position.Lat);
+        double hsLon = onNode.Position.Lon + fraction * (offNode.Position.Lon - onNode.Position.Lon);
 
         int hsId = nextNodeId++;
         var hsNode = new GroundNode
@@ -249,7 +247,7 @@ internal static class RunwayCrossingDetector
         var onRunwaySet = new HashSet<int>();
         foreach (var (nid, n) in layout.Nodes)
         {
-            if (IsOnRunway(n.Latitude, n.Longitude, rect))
+            if (IsOnRunway(n.Position, rect))
             {
                 onRunwaySet.Add(nid);
             }
@@ -285,8 +283,8 @@ internal static class RunwayCrossingDetector
             }
 
             var bestNode = layout.Nodes[bestId];
-            double alongTrack = GeoMath.AlongTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading);
-            double crossTrack = GeoMath.SignedCrossTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading);
+            double alongTrack = GeoMath.AlongTrackDistanceNm(bestNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading);
+            double crossTrack = GeoMath.SignedCrossTrackDistanceNm(bestNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading);
             double crossTrackFt = Math.Abs(crossTrack) * GeoMath.FeetPerNm;
 
             if (crossTrackFt < 5.0)
@@ -311,7 +309,7 @@ internal static class RunwayCrossingDetector
                 layout.Nodes[clId] = clNode;
                 coordIndex.Add(clLat, clLon, clId);
 
-                double perpDist = GeoMath.DistanceNm(bestNode.Latitude, bestNode.Longitude, clLat, clLon);
+                double perpDist = GeoMath.DistanceNm(bestNode.Position, new LatLon(clLat, clLon));
                 layout.Edges.Add(
                     new GroundEdge
                     {
@@ -348,7 +346,7 @@ internal static class RunwayCrossingDetector
 
             var from = layout.Nodes[fromId];
             var to = layout.Nodes[toId];
-            double dist = GeoMath.DistanceNm(from.Latitude, from.Longitude, to.Latitude, to.Longitude);
+            double dist = GeoMath.DistanceNm(from.Position, to.Position);
 
             layout.Edges.Add(
                 new GroundEdge
@@ -465,9 +463,7 @@ internal static class RunwayCrossingDetector
                     continue;
                 }
 
-                double ct = Math.Abs(
-                    GeoMath.SignedCrossTrackDistanceNm(nextNode.Latitude, nextNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
-                );
+                double ct = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(nextNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
 
                 Log.LogDebug(
                     "  FindCenterline(HS#{Hs}): walked to #{Next} via {Tw} crossTrack={Ct:F0}ft onRunway={On} (best: #{Best} at {BestCt:F0}ft)",
@@ -528,7 +524,7 @@ internal static class RunwayCrossingDetector
         for (int hop = 0; hop < HoldShortWalkMaxHops; hop++)
         {
             double currentCrossNm = Math.Abs(
-                GeoMath.SignedCrossTrackDistanceNm(currentNode.Latitude, currentNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
+                GeoMath.SignedCrossTrackDistanceNm(currentNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)
             );
 
             if (currentCrossNm >= rect.HoldShortNm)
@@ -539,7 +535,7 @@ internal static class RunwayCrossingDetector
             }
 
             // Pick the next edge: same taxiway, non-RWY, not visited, prefer straight continuation.
-            double incomingBearing = GeoMath.BearingTo(prevNode.Latitude, prevNode.Longitude, currentNode.Latitude, currentNode.Longitude);
+            double incomingBearing = GeoMath.BearingTo(prevNode.Position, currentNode.Position);
 
             GroundEdge? bestEdge = null;
             GroundNode? bestFar = null;
@@ -574,10 +570,10 @@ internal static class RunwayCrossingDetector
                     continue;
                 }
 
-                double outBearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, farNode.Latitude, farNode.Longitude);
+                double outBearing = GeoMath.BearingTo(currentNode.Position, farNode.Position);
                 double turnDelta = Math.Abs(NormalizeBearingDelta(outBearing - incomingBearing));
                 double farCross = Math.Abs(
-                    GeoMath.SignedCrossTrackDistanceNm(farNode.Latitude, farNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
+                    GeoMath.SignedCrossTrackDistanceNm(farNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)
                 );
 
                 // Prefer straightest continuation; break ties by larger cross-track (more outward).
@@ -625,10 +621,10 @@ internal static class RunwayCrossingDetector
     )
     {
         double crossNearFt =
-            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(nearNode.Latitude, nearNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading))
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(nearNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
         double crossFarFt =
-            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(farNode.Latitude, farNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading))
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(farNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
         double idealFt = rect.HoldShortNm * GeoMath.FeetPerNm;
 
@@ -656,8 +652,8 @@ internal static class RunwayCrossingDetector
         }
 
         double fraction = Math.Clamp((idealFt - crossNearFt) / denom, 0.01, 0.99);
-        double hsLat = nearNode.Latitude + fraction * (farNode.Latitude - nearNode.Latitude);
-        double hsLon = nearNode.Longitude + fraction * (farNode.Longitude - nearNode.Longitude);
+        double hsLat = nearNode.Position.Lat + fraction * (farNode.Position.Lat - nearNode.Position.Lat);
+        double hsLon = nearNode.Position.Lon + fraction * (farNode.Position.Lon - nearNode.Position.Lon);
 
         int hsId = nextNodeId++;
         var hsNode = new GroundNode
@@ -726,7 +722,7 @@ internal static class RunwayCrossingDetector
     {
         double idealFt = rect.HoldShortNm * GeoMath.FeetPerNm;
         double currentCrossFt =
-            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(currentNode.Latitude, currentNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading))
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(currentNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
 
         // Best outcome: upgrade the farthest reached node (it's closest to ideal)
@@ -745,7 +741,7 @@ internal static class RunwayCrossingDetector
 
         // Second choice: upgrade prevNode if it's within reuse tolerance of ideal
         double prevCrossFt =
-            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(prevNode.Latitude, prevNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading))
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(prevNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
         if (Math.Abs(prevCrossFt - idealFt) <= HoldShortReuseFt && TryUpgradeToHoldShort(prevNode, rect, layout))
         {
@@ -765,8 +761,7 @@ internal static class RunwayCrossingDetector
         // edge creates near-coincident nodes that get collapsed by fillet merge.
         bool nearIsJunction = HasMultipleTaxiwayConnections(prevNode.Id, layout);
         bool farIsJunction = HasMultipleTaxiwayConnections(currentNode.Id, layout);
-        double edgeLengthFt =
-            GeoMath.DistanceNm(prevNode.Latitude, prevNode.Longitude, currentNode.Latitude, currentNode.Longitude) * GeoMath.FeetPerNm;
+        double edgeLengthFt = GeoMath.DistanceNm(prevNode.Position, currentNode.Position) * GeoMath.FeetPerNm;
         if (nearIsJunction && farIsJunction)
         {
             Log.LogWarning(
@@ -779,8 +774,8 @@ internal static class RunwayCrossingDetector
         }
 
         double backoffFraction = Math.Clamp(1.0 - (HoldShortFallbackBufferFt / edgeLengthFt), 0.01, 0.99);
-        double hsLat = prevNode.Latitude + backoffFraction * (currentNode.Latitude - prevNode.Latitude);
-        double hsLon = prevNode.Longitude + backoffFraction * (currentNode.Longitude - prevNode.Longitude);
+        double hsLat = prevNode.Position.Lat + backoffFraction * (currentNode.Position.Lat - prevNode.Position.Lat);
+        double hsLon = prevNode.Position.Lon + backoffFraction * (currentNode.Position.Lon - prevNode.Position.Lon);
 
         int hsId = nextNodeId++;
         var hsNode = new GroundNode
@@ -871,7 +866,7 @@ internal static class RunwayCrossingDetector
         {
             Nodes = [nodeA, midNode],
             TaxiwayName = edge.TaxiwayName,
-            DistanceNm = GeoMath.DistanceNm(nodeA.Latitude, nodeA.Longitude, midNode.Latitude, midNode.Longitude),
+            DistanceNm = GeoMath.DistanceNm(nodeA.Position, midNode.Position),
             Origin = $"RunwayCrossing:split-edge({edge.Origin ?? edge.TaxiwayName})",
         };
 
@@ -879,7 +874,7 @@ internal static class RunwayCrossingDetector
         {
             Nodes = [midNode, nodeB],
             TaxiwayName = edge.TaxiwayName,
-            DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, nodeB.Latitude, nodeB.Longitude),
+            DistanceNm = GeoMath.DistanceNm(midNode.Position, nodeB.Position),
             Origin = $"RunwayCrossing:split-edge({edge.Origin ?? edge.TaxiwayName})",
         };
 

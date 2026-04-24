@@ -57,8 +57,8 @@ public sealed class LinedUpAndWaitingPhase : Phase
             "[LineUp] {Callsign}: lined up and waiting, rwy={Rwy}, pos=({Lat:F6},{Lon:F6})",
             ctx.Aircraft.Callsign,
             ctx.Runway?.Designator ?? "?",
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon
         );
     }
 

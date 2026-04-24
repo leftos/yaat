@@ -113,7 +113,7 @@ public sealed class PushbackToSpotPhase : Phase
             return false;
         }
 
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         bool isLastSegment = _route.CurrentSegmentIndex + 1 >= _route.Segments.Count;
         double threshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
 
@@ -123,7 +123,7 @@ public sealed class PushbackToSpotPhase : Phase
         }
 
         // Steer PushbackHeading toward current target (tail moves toward target)
-        double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         double maxArcTurn = turnRate * ctx.DeltaSeconds;
         ctx.Aircraft.PushbackTrueHeading = GeoMath.TurnHeadingToward(
             ctx.Aircraft.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal(),
@@ -251,8 +251,8 @@ public sealed class PushbackToSpotPhase : Phase
         _targetNodeId = seg.ToNodeId;
         if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
         {
-            _targetLat = targetNode.Latitude;
-            _targetLon = targetNode.Longitude;
+            _targetLat = targetNode.Position.Lat;
+            _targetLon = targetNode.Position.Lon;
         }
 
         _initialized = true;
@@ -289,7 +289,7 @@ public sealed class PushbackToSpotPhase : Phase
         SetupCurrentSegment(ctx);
 
         // Check if the next segment requires a large heading change — pivot in place
-        double nextBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double nextBearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         TrueHeading currentPush = ctx.Aircraft.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal();
         double headingChange = Math.Abs(GeoMath.SignedBearingDifference(nextBearing, currentPush.Degrees));
 

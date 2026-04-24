@@ -40,14 +40,13 @@ public static class FlightPhysics
         // Box threshold in degrees: 0.02° ≈ 1.2 nm of latitude, conservative at all lats.
         const double DeclinationCacheThresholdDeg = 0.02;
         if (
-            double.IsNaN(aircraft.DeclinationCacheLat)
-            || (Math.Abs(aircraft.Latitude - aircraft.DeclinationCacheLat) > DeclinationCacheThresholdDeg)
-            || (Math.Abs(aircraft.Longitude - aircraft.DeclinationCacheLon) > DeclinationCacheThresholdDeg)
+            aircraft.DeclinationCachePosition is not { } cached
+            || (Math.Abs(aircraft.Position.Lat - cached.Lat) > DeclinationCacheThresholdDeg)
+            || (Math.Abs(aircraft.Position.Lon - cached.Lon) > DeclinationCacheThresholdDeg)
         )
         {
-            aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Latitude, aircraft.Longitude);
-            aircraft.DeclinationCacheLat = aircraft.Latitude;
-            aircraft.DeclinationCacheLon = aircraft.Longitude;
+            aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Position);
+            aircraft.DeclinationCachePosition = aircraft.Position;
         }
 
         // Backward compat: airborne aircraft without IAS initialized derive it from GS.
@@ -84,7 +83,7 @@ public static class FlightPhysics
         }
 
         var nav = route[0];
-        double distNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+        double distNm = GeoMath.DistanceNm(aircraft.Position, nav.Position);
 
         // Determine sequencing threshold: fly-by waypoints with a following waypoint
         // use turn anticipation; fly-over and terminal waypoints use NavArrivalNm.
@@ -94,8 +93,8 @@ public static class FlightPhysics
 
         if (route.Count >= 2 && !nav.IsFlyOver)
         {
-            double currentLegBearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
-            double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
+            double currentLegBearing = GeoMath.BearingTo(aircraft.Position, nav.Position);
+            double nextLegBearing = GeoMath.BearingTo(nav.Position, route[1].Position);
             double turnRate =
                 aircraft.Targets.TurnRateOverride
                 ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
@@ -111,8 +110,8 @@ public static class FlightPhysics
         bool shouldSequence;
         if (inAnticipationZone && route.Count >= 2)
         {
-            double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
-            double alongTrack = GeoMath.AlongTrackDistanceNmRaw(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude, nextLegBearing);
+            double nextLegBearing = GeoMath.BearingTo(nav.Position, route[1].Position);
+            double alongTrack = GeoMath.AlongTrackDistanceNmRaw(aircraft.Position, nav.Position, nextLegBearing);
             shouldSequence = alongTrack >= 0;
         }
         else
@@ -165,25 +164,16 @@ public static class FlightPhysics
         if (inAnticipationZone && !shouldSequence && route.Count >= 2)
         {
             // Arc-blended steering: compute tangent heading along inscribed turn circle
-            double currentLegBearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
-            double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
+            double currentLegBearing = GeoMath.BearingTo(aircraft.Position, nav.Position);
+            double nextLegBearing = GeoMath.BearingTo(nav.Position, route[1].Position);
             double turnRate =
                 aircraft.Targets.TurnRateOverride
                 ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
-            bearing = ComputeArcBlendedHeading(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                aircraft.GroundSpeed,
-                turnRate,
-                nav.Latitude,
-                nav.Longitude,
-                currentLegBearing,
-                nextLegBearing
-            );
+            bearing = ComputeArcBlendedHeading(aircraft.Position, aircraft.GroundSpeed, turnRate, nav.Position, currentLegBearing, nextLegBearing);
         }
         else
         {
-            bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+            bearing = GeoMath.BearingTo(aircraft.Position, nav.Position);
         }
 
         // Apply wind correction angle so the aircraft flies a straight ground track, not a pursuit curve.
@@ -244,13 +234,13 @@ public static class FlightPhysics
         }
 
         // Find the NEXT constrained fix (step descent: one constraint at a time)
-        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, route[0].Latitude, route[0].Longitude);
+        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
 
         for (int i = 0; i < route.Count; i++)
         {
             if (i > 0)
             {
-                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Latitude, route[i - 1].Longitude, route[i].Latitude, route[i].Longitude);
+                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
             }
 
             if (route[i].AltitudeRestriction is not { } restriction)
@@ -349,13 +339,13 @@ public static class FlightPhysics
             return;
         }
 
-        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, route[0].Latitude, route[0].Longitude);
+        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
 
         for (int i = 0; i < route.Count; i++)
         {
             if (i > 0)
             {
-                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Latitude, route[i - 1].Longitude, route[i].Latitude, route[i].Longitude);
+                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
             }
 
             if (route[i].AltitudeRestriction is not { } restriction)
@@ -440,13 +430,13 @@ public static class FlightPhysics
         }
 
         bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
-        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, route[0].Latitude, route[0].Longitude);
+        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
 
         for (int i = 0; i < route.Count; i++)
         {
             if (i > 0)
             {
-                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Latitude, route[i - 1].Longitude, route[i].Latitude, route[i].Longitude);
+                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
             }
 
             if (route[i].SpeedRestriction is not { } restriction)
@@ -537,12 +527,10 @@ public static class FlightPhysics
     /// Finds the inscribed turn circle tangent to both legs and returns the tangent heading.
     /// </summary>
     internal static double ComputeArcBlendedHeading(
-        double aircraftLat,
-        double aircraftLon,
+        LatLon aircraftPos,
         double groundSpeedKts,
         double turnRateDegPerSec,
-        double waypointLat,
-        double waypointLon,
+        LatLon waypointPos,
         double currentLegBearing,
         double nextLegBearing
     )
@@ -550,7 +538,7 @@ public static class FlightPhysics
         double courseChange = NormalizeAngle(nextLegBearing - currentLegBearing);
         if (Math.Abs(courseChange) < 1.0)
         {
-            return GeoMath.BearingTo(aircraftLat, aircraftLon, waypointLat, waypointLon);
+            return GeoMath.BearingTo(aircraftPos, waypointPos);
         }
 
         // Turn radius
@@ -569,10 +557,10 @@ public static class FlightPhysics
         double cosHalf = Math.Cos(halfAngleRad);
         double offsetNm = cosHalf > 0.01 ? radiusNm / cosHalf : radiusNm;
 
-        var (centerLat, centerLon) = GeoMath.ProjectPointRaw(waypointLat, waypointLon, perpBearing, offsetNm);
+        var center = GeoMath.ProjectPointRaw(waypointPos, perpBearing, offsetNm);
 
         // Aircraft's bearing from turn center
-        double radialFromCenter = GeoMath.BearingTo(centerLat, centerLon, aircraftLat, aircraftLon);
+        double radialFromCenter = GeoMath.BearingTo(center, aircraftPos);
 
         // Tangent heading = perpendicular to radial, in turn direction
         double tangent = turnRight ? radialFromCenter + 90.0 : radialFromCenter - 90.0;
@@ -937,7 +925,8 @@ public static class FlightPhysics
 
     private static void UpdatePosition(AircraftState aircraft, double deltaSeconds, WeatherProfile? weather)
     {
-        double latRad = aircraft.Latitude * DegToRad;
+        var pos = aircraft.Position;
+        double latRad = pos.Lat * DegToRad;
 
         if (aircraft.IsOnGround)
         {
@@ -951,8 +940,9 @@ public static class FlightPhysics
             double moveDir = aircraft.PushbackTrueHeading?.Degrees ?? aircraft.TrueHeading.Degrees;
             double headingRad = moveDir * DegToRad;
 
-            aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
-            aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
+            double dLat = speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
+            double dLon = speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
+            aircraft.Position = new LatLon(pos.Lat + dLat, pos.Lon + dLon);
 
             // On the ground: Track follows Heading directly (GS is derived from IAS).
             aircraft.TrueTrack = aircraft.TrueHeading;
@@ -980,8 +970,9 @@ public static class FlightPhysics
             aircraft.TrueTrack = new TrueHeading(trackDeg);
 
             // Displace using the full ground speed vector.
-            aircraft.Latitude += (gsNKts / 3600.0) * deltaSeconds / NmPerDegLat;
-            aircraft.Longitude += (gsEKts / 3600.0) * deltaSeconds / (NmPerDegLat * Math.Cos(latRad));
+            double dLat = (gsNKts / 3600.0) * deltaSeconds / NmPerDegLat;
+            double dLon = (gsEKts / 3600.0) * deltaSeconds / (NmPerDegLat * Math.Cos(latRad));
+            aircraft.Position = new LatLon(pos.Lat + dLat, pos.Lon + dLon);
         }
     }
 
@@ -1179,14 +1170,14 @@ public static class FlightPhysics
             BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
             BlockTriggerType.ReachFix => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
-                && GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
+                && GeoMath.DistanceNm(aircraft.Position, new LatLon(trigger.FixLat.Value, trigger.FixLon.Value)) < NavArrivalNm,
             BlockTriggerType.InterceptRadial => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
                 && trigger.Radial.HasValue
                 && IsRadialIntercepted(aircraft, trigger),
             BlockTriggerType.ReachFrdPoint => trigger.TargetLat.HasValue
                 && trigger.TargetLon.HasValue
-                && GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
+                && GeoMath.DistanceNm(aircraft.Position, new LatLon(trigger.TargetLat.Value, trigger.TargetLon.Value)) < FrdArrivalNm,
             BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
             BlockTriggerType.DistanceFinal => IsDistanceFinalMet(aircraft, trigger),
             BlockTriggerType.OnHandoff => aircraft.HandoffAccepted,
@@ -1208,7 +1199,7 @@ public static class FlightPhysics
             return true;
         }
 
-        double distNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, target.Latitude, target.Longitude);
+        double distNm = GeoMath.DistanceNm(aircraft.Position, target.Position);
 
         // If the target is far enough away, the conflict is resolved
         if (distNm > 0.1)
@@ -1223,7 +1214,7 @@ public static class FlightPhysics
             headingDiff = 360 - headingDiff;
         }
 
-        double bearingToTarget = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, target.Latitude, target.Longitude);
+        double bearingToTarget = GeoMath.BearingTo(aircraft.Position, target.Position);
         double diffToTarget = Math.Abs(aircraft.TrueHeading.Degrees - bearingToTarget);
         if (diffToTarget > 180)
         {
@@ -1259,7 +1250,7 @@ public static class FlightPhysics
             return false;
         }
 
-        double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
         return dist <= distNm;
     }
 
@@ -1288,7 +1279,7 @@ public static class FlightPhysics
             return;
         }
 
-        double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
         if (dist <= 5.0)
         {
             aircraft.Targets.TargetSpeed = null;
@@ -1300,7 +1291,7 @@ public static class FlightPhysics
 
     private static bool IsRadialIntercepted(AircraftState aircraft, BlockTrigger trigger)
     {
-        double bearing = GeoMath.BearingTo(trigger.FixLat!.Value, trigger.FixLon!.Value, aircraft.Latitude, aircraft.Longitude);
+        double bearing = GeoMath.BearingTo(new LatLon(trigger.FixLat!.Value, trigger.FixLon!.Value), aircraft.Position);
         double diff = Math.Abs(NormalizeAngle(bearing - trigger.Radial!.Value));
         return diff < RadialInterceptDeg;
     }
@@ -1317,7 +1308,7 @@ public static class FlightPhysics
             return;
         }
 
-        double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, block.Trigger.TargetLat.Value, block.Trigger.TargetLon.Value);
+        double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(block.Trigger.TargetLat.Value, block.Trigger.TargetLon.Value));
 
         if (dist < block.TriggerClosestApproach)
         {

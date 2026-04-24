@@ -402,7 +402,7 @@ public static class GeoJsonParser
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, candidate.Latitude, candidate.Longitude);
+            double dist = GeoMath.DistanceNm(node.Position, candidate.Position);
 
             if (dist < nearestDist)
             {

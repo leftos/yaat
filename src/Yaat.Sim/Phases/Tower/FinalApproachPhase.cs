@@ -157,7 +157,7 @@ public sealed class FinalApproachPhase : Phase
 
         double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
 
-        double startDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+        double startDist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
 
         // Only set FAS immediately when already within transition distance.
         // Further out, keep the current speed (InterceptCoursePhase sets 1.3×FAS)
@@ -168,13 +168,7 @@ public sealed class FinalApproachPhase : Phase
             _fasSet = true;
         }
 
-        double startXte = GeoMath.SignedCrossTrackDistanceNm(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
-            _anchorLat,
-            _anchorLon,
-            _finalApproachCourse
-        );
+        double startXte = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_anchorLat, _anchorLon), _finalApproachCourse);
         Log.LogDebug(
             "[FinalApproach] {Callsign}: started, fac={Fac:F0} (rwy {Rwy:F0}), dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, fasSet={FasSet}, xte={Xte:F3}nm",
             ctx.Aircraft.Callsign,
@@ -195,7 +189,7 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
-        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
 
         // Decelerate to FAS when within transition distance
         if (!_fasSet && (distNm <= FasTransitionDistanceNm) && !ctx.Targets.HasExplicitSpeedCommand)
@@ -223,13 +217,7 @@ public sealed class FinalApproachPhase : Phase
         // The cross-track / along-track reference is the lateral anchor (runway threshold for
         // ordinary approaches, the published MAP fix for parallel-offset approaches like LDA).
         // Lead distance based on turn radius — the kinematically natural look-ahead.
-        double signedXte = GeoMath.SignedCrossTrackDistanceNm(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
-            _anchorLat,
-            _anchorLon,
-            _finalApproachCourse
-        );
+        double signedXte = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_anchorLat, _anchorLon), _finalApproachCourse);
         double absXte = Math.Abs(signedXte);
 
         // Turn radius in nm: R = V_kts / (ω_deg/s × 20π)
@@ -245,12 +233,12 @@ public sealed class FinalApproachPhase : Phase
         double minLead = Math.Max(turnRadiusNm * 0.3, AimPointMinNm);
         double leadNm = Math.Max(turnRadiusNm * xteRatio + absXte * (1.0 - xteRatio), minLead);
 
-        double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _anchorLat, _anchorLon, _finalApproachCourse);
+        double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_anchorLat, _anchorLon), _finalApproachCourse);
         double aimAlongTrack = Math.Min(alongTrack + leadNm, 0.0);
 
         TrueHeading reciprocal = _finalApproachCourse.ToReciprocal();
-        var aimPoint = GeoMath.ProjectPoint(_anchorLat, _anchorLon, reciprocal, Math.Abs(aimAlongTrack));
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, aimPoint.Lat, aimPoint.Lon);
+        var aimPoint = GeoMath.ProjectPoint(new LatLon(_anchorLat, _anchorLon), reciprocal, Math.Abs(aimAlongTrack));
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, aimPoint);
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
 
         // Target: glideslope altitude at current distance (true 3°/6° path)
@@ -371,7 +359,7 @@ public sealed class FinalApproachPhase : Phase
         }
 
         double crossTrack = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _anchorLat, _anchorLon, _finalApproachCourse)
+            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_anchorLat, _anchorLon), _finalApproachCourse)
         );
 
         // Establishment check: aircraft must be aligned with the published final approach course.
@@ -453,8 +441,8 @@ public sealed class FinalApproachPhase : Phase
             IsInterceptAngleLegal = isAngleLegal,
             IsInterceptDistanceLegal = isDistanceLegal,
             EstablishedAtSeconds = ctx.ScenarioElapsedSeconds,
-            EstablishedLat = ctx.Aircraft.Latitude,
-            EstablishedLon = ctx.Aircraft.Longitude,
+            EstablishedLat = ctx.Aircraft.Position.Lat,
+            EstablishedLon = ctx.Aircraft.Position.Lon,
         };
 
         ctx.Aircraft.ActiveApproachScore = score;

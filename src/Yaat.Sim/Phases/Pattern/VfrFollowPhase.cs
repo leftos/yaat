@@ -85,7 +85,7 @@ public sealed class VfrFollowPhase : Phase
             return true;
         }
 
-        double gapNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, lead.Latitude, lead.Longitude);
+        double gapNm = GeoMath.DistanceNm(ctx.Aircraft.Position, lead.Position);
 
         // Runaway-distance cancel: if the gap has been strictly increasing for
         // more than RunawayGraceSeconds, the follower can't catch up — give up.
@@ -121,7 +121,7 @@ public sealed class VfrFollowPhase : Phase
 
         // Free pursuit: steer toward the lead and match speed with spacing correction.
         // Altitude is deliberately not touched — the controller's last assignment stands.
-        double targetBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, lead.Latitude, lead.Longitude);
+        double targetBearing = GeoMath.BearingTo(ctx.Aircraft.Position, lead.Position);
         ctx.Targets.TargetTrueHeading = new TrueHeading(targetBearing);
 
         double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
@@ -151,12 +151,7 @@ public sealed class VfrFollowPhase : Phase
         }
 
         // Gate 1: follower must be close to the lead's downwind abeam point.
-        double distToEntry = GeoMath.DistanceNm(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
-            leadWaypoints.DownwindAbeamLat,
-            leadWaypoints.DownwindAbeamLon
-        );
+        double distToEntry = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon));
         if (distToEntry > JoinRangeNm)
         {
             return false;
@@ -292,10 +287,8 @@ public sealed class VfrFollowPhase : Phase
         // Signed cross-track distance from the runway centerline: positive = right
         // of runway heading, negative = left.
         double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
-            follower.Latitude,
-            follower.Longitude,
-            runway.ThresholdLatitude,
-            runway.ThresholdLongitude,
+            follower.Position,
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             runway.TrueHeading
         );
         return direction == PatternDirection.Left ? crossTrack <= 0 : crossTrack >= 0;

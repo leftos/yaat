@@ -410,10 +410,8 @@ public static class ApproachCommandHandler
             // correctly when the aircraft is near the track. If NOT on the downwind,
             // insert a PatternEntryPhase to navigate there first.
             double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                waypoints.DownwindAbeamLat,
-                waypoints.DownwindAbeamLon,
+                aircraft.Position,
+                new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon),
                 waypoints.DownwindHeading
             );
             double headingDiff = aircraft.TrueHeading.AbsAngleTo(waypoints.DownwindHeading);
@@ -421,12 +419,7 @@ public static class ApproachCommandHandler
 
             if (!aircraft.IsOnGround && !isOnDownwind)
             {
-                double distToEntry = GeoMath.DistanceNm(
-                    aircraft.Latitude,
-                    aircraft.Longitude,
-                    waypoints.DownwindAbeamLat,
-                    waypoints.DownwindAbeamLon
-                );
+                double distToEntry = GeoMath.DistanceNm(aircraft.Position, new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon));
 
                 if (distToEntry > 1.0)
                 {
@@ -474,10 +467,8 @@ public static class ApproachCommandHandler
     {
         // Determine which side of the runway the aircraft is on
         double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
-            aircraft.Latitude,
-            aircraft.Longitude,
-            runway.ThresholdLatitude,
-            runway.ThresholdLongitude,
+            aircraft.Position,
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             runway.TrueHeading
         );
 
@@ -1093,14 +1084,14 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(pos.Value.Lat, pos.Value.Lon));
             double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
             if (angleDiff > 90)
             {
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(pos.Value.Lat, pos.Value.Lon));
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -1399,7 +1390,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, fix.Latitude, fix.Longitude);
+            double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
             double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
 
             // Only consider fixes within ±90° of current heading
@@ -1408,7 +1399,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, fix.Latitude, fix.Longitude);
+            double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
             if (dist < bestDist)
             {
                 bestDist = dist;

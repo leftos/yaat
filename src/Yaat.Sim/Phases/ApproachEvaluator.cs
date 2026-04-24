@@ -183,8 +183,8 @@ public sealed class ApproachEvaluator
             var live = snapshot.FirstOrDefault(a => a.Callsign.Equals(stored.Score.Callsign, StringComparison.OrdinalIgnoreCase));
             if (live is not null)
             {
-                precedingLat = live.Latitude;
-                precedingLon = live.Longitude;
+                precedingLat = live.Position.Lat;
+                precedingLon = live.Position.Lon;
             }
 
             double sep = GeoMath.DistanceNm(score.EstablishedLat, score.EstablishedLon, precedingLat, precedingLon);

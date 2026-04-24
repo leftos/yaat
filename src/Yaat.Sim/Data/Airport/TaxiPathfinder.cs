@@ -139,9 +139,9 @@ public static class TaxiPathfinder
                 double bestDist = double.MaxValue;
                 foreach (var hsn in holdShortNodes)
                 {
-                    double dist = GeoMath.DistanceNm(hsn.Latitude, hsn.Longitude, startNode.Latitude, startNode.Longitude);
+                    double dist = GeoMath.DistanceNm(hsn.Position, startNode.Position);
                     diagnosticLog?.Invoke(
-                        $"[Pathfinder]   holdShort candidate id={hsn.Id} lat={hsn.Latitude:F6} lon={hsn.Longitude:F6} dist={dist:F4}nm edges=[{string.Join(",", hsn.Edges.Select(e => e.TaxiwayName))}]"
+                        $"[Pathfinder]   holdShort candidate id={hsn.Id} lat={hsn.Position.Lat:F6} lon={hsn.Position.Lon:F6} dist={dist:F4}nm edges=[{string.Join(",", hsn.Edges.Select(e => e.TaxiwayName))}]"
                     );
                     if (dist < bestDist)
                     {
@@ -152,7 +152,7 @@ public static class TaxiPathfinder
             }
 
             diagnosticLog?.Invoke(
-                $"[Pathfinder] destinationHint={destinationHint?.Id.ToString() ?? "null"} lat={destinationHint?.Latitude:F6} lon={destinationHint?.Longitude:F6} edges=[{string.Join(",", destinationHint?.Edges.Select(e => e.TaxiwayName) ?? [])}]"
+                $"[Pathfinder] destinationHint={destinationHint?.Id.ToString() ?? "null"} lat={destinationHint?.Position.Lat:F6} lon={destinationHint?.Position.Lon:F6} edges=[{string.Join(",", destinationHint?.Edges.Select(e => e.TaxiwayName) ?? [])}]"
             );
         }
 
@@ -204,7 +204,7 @@ public static class TaxiPathfinder
             if (layout.Nodes.TryGetValue(currentNodeId, out var curNode))
             {
                 diagnosticLog?.Invoke(
-                    $"[Pathfinder] Walk[{twIdx}] taxiway={twName} nextTw={nextTwName ?? "null"} from node={currentNodeId} lat={curNode.Latitude:F6} lon={curNode.Longitude:F6} "
+                    $"[Pathfinder] Walk[{twIdx}] taxiway={twName} nextTw={nextTwName ?? "null"} from node={currentNodeId} lat={curNode.Position.Lat:F6} lon={curNode.Position.Lon:F6} "
                         + $"edges=[{string.Join(",", curNode.Edges.Select(e => e.TaxiwayName))}] "
                         + $"hint={(passedHint is null ? "null" : passedHint.Id.ToString())} stopAtRunwayId={passedStopId ?? "null"}"
                 );
@@ -780,7 +780,7 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, startHintRef.Latitude, startHintRef.Longitude);
+                double dist = GeoMath.DistanceNm(node.Position, startHintRef.Position);
                 if (dist < nearestDist)
                 {
                     nearestDist = dist;
@@ -791,7 +791,7 @@ public static class TaxiPathfinder
             if (effectiveHint is not null)
             {
                 diagnosticLog?.Invoke(
-                    $"[WalkTaxiway] {taxiwayName}: computed effectiveHint from hold-short node={effectiveHint.Id} lat={effectiveHint.Latitude:F6} RunwayId={effectiveHint.RunwayId}"
+                    $"[WalkTaxiway] {taxiwayName}: computed effectiveHint from hold-short node={effectiveHint.Id} lat={effectiveHint.Position.Lat:F6} RunwayId={effectiveHint.RunwayId}"
                 );
             }
             else if (destinationHint is not null)
@@ -916,7 +916,7 @@ public static class TaxiPathfinder
             string nextNodeType =
                 nextNodeInfo.Type == GroundNodeType.RunwayHoldShort ? $"RunwayHoldShort({nextNodeInfo.RunwayId})" : nextNodeInfo.Type.ToString();
             diagnosticLog?.Invoke(
-                $"[WalkTaxiway] {taxiwayName}: step {currentId}→{nextNodeId} ({nextNodeType}) lat={nextNodeInfo.Latitude:F6} edges=[{string.Join(",", nextNodeInfo.Edges.Select(e => e.TaxiwayName))}]"
+                $"[WalkTaxiway] {taxiwayName}: step {currentId}→{nextNodeId} ({nextNodeType}) lat={nextNodeInfo.Position.Lat:F6} edges=[{string.Join(",", nextNodeInfo.Edges.Select(e => e.TaxiwayName))}]"
             );
 
             segments.Add(new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = nextEdge.Directed(node, nextNodeInfo) });
@@ -1058,10 +1058,7 @@ public static class TaxiPathfinder
                 );
 
                 segments.RemoveRange(segFromIdx, spanCount);
-                segments.Insert(
-                    segFromIdx,
-                    new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = arc.Directed(fromNode, toNode) }
-                );
+                segments.Insert(segFromIdx, new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = arc.Directed(fromNode, toNode) });
 
                 changed = true;
                 break; // Restart scan with updated segment list.
@@ -1193,7 +1190,7 @@ public static class TaxiPathfinder
                 int destId = edge.OtherNodeId(startNodeId);
                 if (layout.Nodes.TryGetValue(destId, out var destNode))
                 {
-                    double dist = GeoMath.DistanceNm(destNode.Latitude, destNode.Longitude, destinationHint.Latitude, destinationHint.Longitude);
+                    double dist = GeoMath.DistanceNm(destNode.Position, destinationHint.Position);
                     if (dist < bestHintDist)
                     {
                         bestHintDist = dist;
@@ -1224,7 +1221,7 @@ public static class TaxiPathfinder
             int destId = edge.OtherNodeId(startNodeId);
             if (layout.Nodes.TryGetValue(destId, out var destNode))
             {
-                double dist = GeoMath.DistanceNm(destNode.Latitude, destNode.Longitude, goal.Latitude, goal.Longitude);
+                double dist = GeoMath.DistanceNm(destNode.Position, goal.Position);
                 if (dist < bestDist)
                 {
                     bestDist = dist;
@@ -1261,7 +1258,7 @@ public static class TaxiPathfinder
             {
                 if (layout.Nodes.TryGetValue(nodeId, out var node))
                 {
-                    double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, destinationHint.Latitude, destinationHint.Longitude);
+                    double dist = GeoMath.DistanceNm(node.Position, destinationHint.Position);
                     if (dist < bestHintDist)
                     {
                         bestHintDist = dist;
@@ -1317,7 +1314,7 @@ public static class TaxiPathfinder
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(fromNode.Position, node.Position);
             if (dist < minDist)
             {
                 minDist = dist;
@@ -1351,7 +1348,7 @@ public static class TaxiPathfinder
         var gScore = new Dictionary<int, double> { [fromNodeId] = 0 };
         var closedSet = new HashSet<int>();
 
-        double heuristic = GeoMath.DistanceNm(startNode.Latitude, startNode.Longitude, endNode.Latitude, endNode.Longitude);
+        double heuristic = GeoMath.DistanceNm(startNode.Position, endNode.Position);
         openSet.Enqueue(fromNodeId, heuristic);
 
         while (openSet.Count > 0)
@@ -1405,7 +1402,7 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                double h = GeoMath.DistanceNm(neighborNode.Latitude, neighborNode.Longitude, endNode.Latitude, endNode.Longitude);
+                double h = GeoMath.DistanceNm(neighborNode.Position, endNode.Position);
                 openSet.Enqueue(neighbor, tentativeG + h);
             }
         }
@@ -1828,7 +1825,7 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, node.Latitude, node.Longitude);
+                double dist = GeoMath.DistanceNm(fromNode.Position, node.Position);
 
                 if (dist < nearestDist)
                 {
@@ -1866,8 +1863,8 @@ public static class TaxiPathfinder
         for (int step = 1; step <= 9; step++)
         {
             double frac = step / 10.0;
-            double lat = fromNode.Latitude + ((toNode.Latitude - fromNode.Latitude) * frac);
-            double lon = fromNode.Longitude + ((toNode.Longitude - fromNode.Longitude) * frac);
+            double lat = fromNode.Position.Lat + ((toNode.Position.Lat - fromNode.Position.Lat) * frac);
+            double lon = fromNode.Position.Lon + ((toNode.Position.Lon - fromNode.Position.Lon) * frac);
 
             foreach (ref readonly var rect in rects.AsSpan())
             {

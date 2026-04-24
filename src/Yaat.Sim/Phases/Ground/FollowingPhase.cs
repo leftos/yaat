@@ -72,10 +72,10 @@ public sealed class FollowingPhase : Phase
             return true;
         }
 
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, target.Position);
 
         // Turn toward the target
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, target.Position);
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
@@ -180,14 +180,14 @@ public sealed class FollowingPhase : Phase
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, node.Position);
             if (dist > HoldShortDetectionNm)
             {
                 continue;
             }
 
             // Check approach angle: aircraft heading should point toward the node
-            double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, node.Latitude, node.Longitude);
+            double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, node.Position);
             double angleDiff = Math.Abs(GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearing));
             if (angleDiff > HoldShortAngleThreshold)
             {

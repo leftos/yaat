@@ -312,8 +312,8 @@ public sealed class LandingPhase : Phase
         {
             FieldElevation = ctx.FieldElevation,
             RunwayHeading = rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading,
-            ThresholdLat = rwy?.ThresholdLatitude ?? ctx.Aircraft.Latitude,
-            ThresholdLon = rwy?.ThresholdLongitude ?? ctx.Aircraft.Longitude,
+            ThresholdLat = rwy?.ThresholdLatitude ?? ctx.Aircraft.Position.Lat,
+            ThresholdLon = rwy?.ThresholdLongitude ?? ctx.Aircraft.Position.Lon,
             RunwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator,
             FlareEntryAgl = CategoryPerformance.FlareAltitude(ctx.Category),
             FlareFpm = CategoryPerformance.FlareDescentRate(ctx.Category),
@@ -434,8 +434,8 @@ public sealed class LandingPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = plan.Vtd;
         }
 
-        _touchdownLat = ctx.Aircraft.Latitude;
-        _touchdownLon = ctx.Aircraft.Longitude;
+        _touchdownLat = ctx.Aircraft.Position.Lat;
+        _touchdownLon = ctx.Aircraft.Position.Lon;
 
         Log.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
 
@@ -451,10 +451,8 @@ public sealed class LandingPhase : Phase
         // Safe from the FlightPhysics.StationaryGroundSpeedKts guard because
         // rollout hands off at coastSpeed ≥ 15 kt, never approaching 0.1 kt.
         double signedXte = GeoMath.SignedCrossTrackDistanceNm(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
-            plan.ThresholdLat,
-            plan.ThresholdLon,
+            ctx.Aircraft.Position,
+            new LatLon(plan.ThresholdLat, plan.ThresholdLon),
             plan.RunwayHeading
         );
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
@@ -479,7 +477,7 @@ public sealed class LandingPhase : Phase
         // LAHSO: enforce stop at the hold-short distance
         if (_hasLahso)
         {
-            double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, plan.ThresholdLat, plan.ThresholdLon);
+            double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.ThresholdLat, plan.ThresholdLon));
             double distToHoldShort = _lahsoHoldShortDistNm - distFromThreshold;
 
             if ((distToHoldShort > 0) && (ctx.Aircraft.IndicatedAirspeed > 1.0))
@@ -518,10 +516,8 @@ public sealed class LandingPhase : Phase
         if (_candidateExit is not null)
         {
             double distToBranchPoint = GeoMath.AlongTrackDistanceNm(
-                _candidateExit.BranchPointNode.Latitude,
-                _candidateExit.BranchPointNode.Longitude,
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
+                _candidateExit.BranchPointNode.Position,
+                ctx.Aircraft.Position,
                 plan.RunwayHeading
             );
 
@@ -550,13 +546,7 @@ public sealed class LandingPhase : Phase
         double decelRateOverride = plan.DefaultDecel;
         if (_candidateExit is not null)
         {
-            double distToBranch = GeoMath.AlongTrackDistanceNm(
-                _candidateExit.BranchPointNode.Latitude,
-                _candidateExit.BranchPointNode.Longitude,
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
-                plan.RunwayHeading
-            );
+            double distToBranch = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
 
             if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
             {
@@ -620,13 +610,7 @@ public sealed class LandingPhase : Phase
         bool handoffBlocked = false;
         if ((_candidateExit is not null) && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
         {
-            double distToBranch = GeoMath.AlongTrackDistanceNm(
-                _candidateExit.BranchPointNode.Latitude,
-                _candidateExit.BranchPointNode.Longitude,
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
-                plan.RunwayHeading
-            );
+            double distToBranch = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
 
             double hsExitSpeed = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
             bool isStandardExit = _candidateExit.TurnOffSpeed < hsExitSpeed;
@@ -677,8 +661,8 @@ public sealed class LandingPhase : Phase
         Log.LogDebug(
             "[Landing] {Callsign}: handoff at ({Lat:F6},{Lon:F6}) gs={Gs:F1}kts pref={Pref} candidate={Cand}",
             ctx.Aircraft.Callsign,
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
             ctx.Aircraft.GroundSpeed,
             _activePreference is null ? "(none)" : $"{_activePreference.Taxiway ?? "?"}/{_activePreference.Side?.ToString() ?? "?"}",
             _candidateExit is null ? "(none)" : $"{_candidateExit.TaxiwayName} branchId={_candidateExit.BranchPointNode.Id}"
@@ -744,10 +728,8 @@ public sealed class LandingPhase : Phase
     private void CheckStabilizationGate(PhaseContext ctx, LandingPlan plan)
     {
         double signedXte = GeoMath.SignedCrossTrackDistanceNm(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
-            plan.ThresholdLat,
-            plan.ThresholdLon,
+            ctx.Aircraft.Position,
+            new LatLon(plan.ThresholdLat, plan.ThresholdLon),
             plan.RunwayHeading
         );
         bool unstabilized =
@@ -821,8 +803,8 @@ public sealed class LandingPhase : Phase
             // the pilot brakes for K regardless and relaxes only if K becomes
             // physically unreachable or still blocked when we arrive.
             var exit = ctx.GroundLayout.FindExitFromCenterline(
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
                 plan.RunwayHeading,
                 rwyDesignator,
                 searchPref,
@@ -833,8 +815,8 @@ public sealed class LandingPhase : Phase
             if ((exit is null) && (searchPref != _activePreference))
             {
                 exit = ctx.GroundLayout.FindExitFromCenterline(
-                    ctx.Aircraft.Latitude,
-                    ctx.Aircraft.Longitude,
+                    ctx.Aircraft.Position.Lat,
+                    ctx.Aircraft.Position.Lon,
                     plan.RunwayHeading,
                     rwyDesignator,
                     _activePreference,
@@ -867,8 +849,8 @@ public sealed class LandingPhase : Phase
 
         // Fallback: straight-line search (airports without hold-short data)
         var result = ctx.GroundLayout.FindExitAheadOnRunway(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
             plan.RunwayHeading,
             _activePreference,
             rwyDesignator

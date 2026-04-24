@@ -89,7 +89,7 @@ public sealed class LowApproachPhase : Phase
         if (!_climbingOut)
         {
             // Descend toward go-around altitude using proportional rate
-            double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+            double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
 
             double goAroundAlt = _fieldElevation + _goAroundAgl;
             ctx.Targets.TargetAltitude = goAroundAlt;

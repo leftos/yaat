@@ -93,9 +93,7 @@ public static class FilletArcGenerator
             var rwyEdgesBefore = layout.Edges.Where(e => e.IsRunwayCenterline).Select(e => (e.Nodes[0].Id, e.Nodes[1].Id, e.TaxiwayName)).ToHashSet();
             var rwyBearingsBefore = layout
                 .Edges.Where(e => e.IsRunwayCenterline)
-                .Select(e =>
-                    (e.TaxiwayName, Brg: GeoMath.BearingTo(e.Nodes[0].Latitude, e.Nodes[0].Longitude, e.Nodes[1].Latitude, e.Nodes[1].Longitude))
-                )
+                .Select(e => (e.TaxiwayName, Brg: GeoMath.BearingTo(e.Nodes[0].Position, e.Nodes[1].Position)))
                 .ToList();
 
             var result = FilletNode(layout, node, preserveNode, manualArcNodes, ref nextNodeId);
@@ -109,12 +107,7 @@ public static class FilletArcGenerator
             // Validate: check all runway edges still follow their original bearing
             foreach (var rwyEdge in layout.Edges.Where(e => e.IsRunwayCenterline))
             {
-                double brg = GeoMath.BearingTo(
-                    rwyEdge.Nodes[0].Latitude,
-                    rwyEdge.Nodes[0].Longitude,
-                    rwyEdge.Nodes[1].Latitude,
-                    rwyEdge.Nodes[1].Longitude
-                );
+                double brg = GeoMath.BearingTo(rwyEdge.Nodes[0].Position, rwyEdge.Nodes[1].Position);
 
                 // Check if this exact edge (by node IDs + taxiway name) existed before
                 bool isNew = !rwyEdgesBefore.Contains((rwyEdge.Nodes[0].Id, rwyEdge.Nodes[1].Id, rwyEdge.TaxiwayName));
@@ -526,12 +519,21 @@ public static class FilletArcGenerator
             double depthA = kappa * radiusNm;
             double depthB = kappa * radiusNm;
 
-            var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanNodeA.Latitude, tanNodeA.Longitude, bearingAToIntersection, depthA);
-            var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanNodeB.Latitude, tanNodeB.Longitude, bearingBToIntersection, depthB);
+            var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanNodeA.Position.Lat, tanNodeA.Position.Lon, bearingAToIntersection, depthA);
+            var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanNodeB.Position.Lat, tanNodeB.Position.Lon, bearingBToIntersection, depthB);
 
-            var bezier = new CubicBezier(tanNodeA.Latitude, tanNodeA.Longitude, p1Lat, p1Lon, p2Lat, p2Lon, tanNodeB.Latitude, tanNodeB.Longitude);
+            var bezier = new CubicBezier(
+                tanNodeA.Position.Lat,
+                tanNodeA.Position.Lon,
+                p1Lat,
+                p1Lon,
+                p2Lat,
+                p2Lon,
+                tanNodeB.Position.Lat,
+                tanNodeB.Position.Lon
+            );
 
-            double minRadiusFt = bezier.MinRadiusOfCurvatureFt(tanNodeA.Latitude, 10);
+            double minRadiusFt = bezier.MinRadiusOfCurvatureFt(tanNodeA.Position.Lat, 10);
             double arcLengthNm = bezier.ArcLengthNm(20);
             bool sameTaxiway = edgeA.SharesTaxiway(edgeB);
 
@@ -583,7 +585,7 @@ public static class FilletArcGenerator
                     var splitNodeB = splitEdge.Nodes[1];
                     ctx.ConsumedEdges.Add(splitEdge);
 
-                    double distA = GeoMath.DistanceNm(splitNodeA.Latitude, splitNodeA.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    double distA = GeoMath.DistanceNm(splitNodeA.Position, farthest.Node.Position);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -593,7 +595,7 @@ public static class FilletArcGenerator
                             Origin = $"Fillet:phase-d-arc-split@{ctx.Intersection.Id} {edge.TaxiwayName} #{splitNodeA.Id}↔#{farthest.Node.Id}",
                         }
                     );
-                    double distB = GeoMath.DistanceNm(farthest.Node.Latitude, farthest.Node.Longitude, splitNodeB.Latitude, splitNodeB.Longitude);
+                    double distB = GeoMath.DistanceNm(farthest.Node.Position, splitNodeB.Position);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -612,7 +614,7 @@ public static class FilletArcGenerator
                 ctx.DeferredShapeNodes.AddRange(farthest.Placement.WalkedShapeNodes);
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
                 {
-                    double ptToTanDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    double ptToTanDist = GeoMath.DistanceNm(ptNode.Position, farthest.Node.Position);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -632,12 +634,7 @@ public static class FilletArcGenerator
                     var nearest = sorted[^1];
                     if (!nearest.Placement.LandsInManualArc)
                     {
-                        double shortenDist = GeoMath.DistanceNm(
-                            otherNode.Latitude,
-                            otherNode.Longitude,
-                            nearest.Node.Latitude,
-                            nearest.Node.Longitude
-                        );
+                        double shortenDist = GeoMath.DistanceNm(otherNode.Position, nearest.Node.Position);
                         ctx.Layout.Edges.Add(
                             new GroundEdge
                             {
@@ -662,7 +659,7 @@ public static class FilletArcGenerator
                 var farNode = farthest.Placement.WalkFarNode ?? otherNode;
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
                 {
-                    double ptToTanDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    double ptToTanDist = GeoMath.DistanceNm(ptNode.Position, farthest.Node.Position);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -672,7 +669,7 @@ public static class FilletArcGenerator
                             Origin = $"Fillet:phase-d-passthrough@{ctx.Intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farthest.Node.Id}",
                         }
                     );
-                    double ptToFarDist = GeoMath.DistanceNm(ptNode.Latitude, ptNode.Longitude, farNode.Latitude, farNode.Longitude);
+                    double ptToFarDist = GeoMath.DistanceNm(ptNode.Position, farNode.Position);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -687,7 +684,7 @@ public static class FilletArcGenerator
                 // Shortened edge: farNode ↔ farthest tangent
                 if (farNode.Id != farthest.Node.Id)
                 {
-                    double shortenDist = GeoMath.DistanceNm(farNode.Latitude, farNode.Longitude, farthest.Node.Latitude, farthest.Node.Longitude);
+                    double shortenDist = GeoMath.DistanceNm(farNode.Position, farthest.Node.Position);
                     Log.LogDebug(
                         "[Int#{IntId}] Phase D shorten: {Twy} #{Far}↔#{Tan} ({Dist:F0}ft)",
                         ctx.Intersection.Id,
@@ -728,7 +725,7 @@ public static class FilletArcGenerator
                 {
                     continue;
                 }
-                double segDist = GeoMath.DistanceNm(fromTan.Node.Latitude, fromTan.Node.Longitude, toTan.Node.Latitude, toTan.Node.Longitude);
+                double segDist = GeoMath.DistanceNm(fromTan.Node.Position, toTan.Node.Position);
                 Log.LogDebug(
                     "[Int#{IntId}] Phase D tangent-link: {Twy} #{From}↔#{To} ({Dist:F0}ft)",
                     ctx.Intersection.Id,
@@ -786,7 +783,7 @@ public static class FilletArcGenerator
                 GroundNode endB = bHasTangent ? tanListB!.MaxBy(t => t.Placement.TangentDistNm).Node : otherB;
 
                 // Create the merged edge between the effective endpoints
-                double mergedDist = GeoMath.DistanceNm(endA.Latitude, endA.Longitude, endB.Latitude, endB.Longitude);
+                double mergedDist = GeoMath.DistanceNm(endA.Position, endB.Position);
 
                 Log.LogDebug(
                     "[Int#{IntId}] Phase D collinear merge: {Tw} #{EndA}↔#{EndB} ({DistFt:F0}ft) [tangentA={HasA}, tangentB={HasB}]",
@@ -850,7 +847,7 @@ public static class FilletArcGenerator
             GroundNode? bestTarget = FindNearestNode(otherNode, reconnectCandidates);
             if (bestTarget is not null)
             {
-                double newDist = GeoMath.DistanceNm(otherNode.Latitude, otherNode.Longitude, bestTarget.Latitude, bestTarget.Longitude);
+                double newDist = GeoMath.DistanceNm(otherNode.Position, bestTarget.Position);
                 ctx.Layout.Edges.Add(
                     new GroundEdge
                     {
@@ -927,20 +924,13 @@ public static class FilletArcGenerator
             {
                 var nearest = tangentEntries.MinBy(t => t.Placement.TangentDistNm);
                 var otherNode = edge.OtherNode(ctx.Intersection);
-                double firstEdgeFt =
-                    GeoMath.DistanceNm(ctx.Intersection.Latitude, ctx.Intersection.Longitude, otherNode.Latitude, otherNode.Longitude)
-                    * GeoMath.FeetPerNm;
+                double firstEdgeFt = GeoMath.DistanceNm(ctx.Intersection.Position, otherNode.Position) * GeoMath.FeetPerNm;
                 double tangentFt = nearest.Placement.TangentDistNm * GeoMath.FeetPerNm;
 
                 if (tangentFt <= firstEdgeFt)
                 {
                     // Tangent fits on the first edge — connect directly to it
-                    double stubDist = GeoMath.DistanceNm(
-                        ctx.Intersection.Latitude,
-                        ctx.Intersection.Longitude,
-                        nearest.Node.Latitude,
-                        nearest.Node.Longitude
-                    );
+                    double stubDist = GeoMath.DistanceNm(ctx.Intersection.Position, nearest.Node.Position);
                     Log.LogDebug(
                         "[Int#{IntId}] Phase D preserve: {Twy} #{Int}→#{Target} (tangent on first edge at {Dist:F0}ft)",
                         ctx.Intersection.Id,
@@ -963,12 +953,7 @@ public static class FilletArcGenerator
                 {
                     // Tangent is past shape-point nodes — connect to the first neighbor.
                     // The shape-point chain provides connectivity to the tangent node.
-                    double neighborDist = GeoMath.DistanceNm(
-                        ctx.Intersection.Latitude,
-                        ctx.Intersection.Longitude,
-                        otherNode.Latitude,
-                        otherNode.Longitude
-                    );
+                    double neighborDist = GeoMath.DistanceNm(ctx.Intersection.Position, otherNode.Position);
                     Log.LogDebug(
                         "[Int#{IntId}] Phase D preserve: {Twy} #{Int}→#{Neighbor} (neighbor, tangent=#{Tan} at {Dist:F0}ft past firstEdge={EdgeFt:F0}ft)",
                         ctx.Intersection.Id,
@@ -1010,7 +995,7 @@ public static class FilletArcGenerator
                 );
                 if (!aHasTangent && collinearStubsCreated.Add(otherA.Id))
                 {
-                    double dist = GeoMath.DistanceNm(ctx.Intersection.Latitude, ctx.Intersection.Longitude, otherA.Latitude, otherA.Longitude);
+                    double dist = GeoMath.DistanceNm(ctx.Intersection.Position, otherA.Position);
                     Log.LogDebug(
                         "[Int#{IntId}] Phase D collinear stub: {Twy} #{Int}→#{Other} ({Dist:F0}ft)",
                         ctx.Intersection.Id,
@@ -1032,7 +1017,7 @@ public static class FilletArcGenerator
 
                 if (!bHasTangent && collinearStubsCreated.Add(otherB.Id))
                 {
-                    double dist = GeoMath.DistanceNm(ctx.Intersection.Latitude, ctx.Intersection.Longitude, otherB.Latitude, otherB.Longitude);
+                    double dist = GeoMath.DistanceNm(ctx.Intersection.Position, otherB.Position);
                     Log.LogDebug(
                         "[Int#{IntId}] Phase D collinear stub: {Twy} #{Int}→#{Other} ({Dist:F0}ft)",
                         ctx.Intersection.Id,
@@ -1113,9 +1098,7 @@ public static class FilletArcGenerator
 
             foreach (var (victimId, survivor) in mergeMap)
             {
-                double distFt =
-                    GeoMath.DistanceNm(layout.Nodes[victimId].Latitude, layout.Nodes[victimId].Longitude, survivor.Latitude, survivor.Longitude)
-                    * GeoMath.FeetPerNm;
+                double distFt = GeoMath.DistanceNm(layout.Nodes[victimId].Position, survivor.Position) * GeoMath.FeetPerNm;
                 Log.LogDebug(
                     "  GlobalMerge: #{Victim}→#{Survivor} ({DistFt:F1}ft apart) survivor-origin={Origin}",
                     victimId,
@@ -1145,8 +1128,8 @@ public static class FilletArcGenerator
                     if (mergeMap.TryGetValue(arc.Nodes[k].Id, out var survivor))
                     {
                         var victim = arc.Nodes[k];
-                        double dLat = survivor.Latitude - victim.Latitude;
-                        double dLon = survivor.Longitude - victim.Longitude;
+                        double dLat = survivor.Position.Lat - victim.Position.Lat;
+                        double dLon = survivor.Position.Lon - victim.Position.Lon;
 
                         // Translate the corresponding control point to preserve the
                         // tangent handle vector (P1-P0 or P2-P3) exactly.
@@ -1225,13 +1208,13 @@ public static class FilletArcGenerator
     {
         foreach (var edge in layout.Edges)
         {
-            edge.DistanceNm = GeoMath.DistanceNm(edge.Nodes[0].Latitude, edge.Nodes[0].Longitude, edge.Nodes[1].Latitude, edge.Nodes[1].Longitude);
+            edge.DistanceNm = GeoMath.DistanceNm(edge.Nodes[0].Position, edge.Nodes[1].Position);
         }
 
         foreach (var arc in layout.Arcs)
         {
             var bezier = arc.ToBezier();
-            arc.MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(arc.Nodes[0].Latitude, 10);
+            arc.MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(arc.Nodes[0].Position.Lat, 10);
             arc.DistanceNm = bezier.ArcLengthNm(20);
         }
     }
@@ -1255,12 +1238,7 @@ public static class FilletArcGenerator
             // Check if there's another edge from the same node on the same taxiway
             // to a closer node in the same direction
             double preserveDist = preserve.DistanceNm;
-            double preserveBearing = GeoMath.BearingTo(
-                preserve.Nodes[0].Latitude,
-                preserve.Nodes[0].Longitude,
-                preserve.Nodes[1].Latitude,
-                preserve.Nodes[1].Longitude
-            );
+            double preserveBearing = GeoMath.BearingTo(preserve.Nodes[0].Position, preserve.Nodes[1].Position);
 
             bool hasCloserEdge = layout.Edges.Any(e =>
             {
@@ -1286,7 +1264,7 @@ public static class FilletArcGenerator
 
                 // Check same direction (within 30°)
                 var other = e.Nodes[0].Id == fromId ? e.Nodes[1] : e.Nodes[0];
-                double otherBearing = GeoMath.BearingTo(preserve.Nodes[0].Latitude, preserve.Nodes[0].Longitude, other.Latitude, other.Longitude);
+                double otherBearing = GeoMath.BearingTo(preserve.Nodes[0].Position, other.Position);
                 return GeoMath.AbsBearingDifference(preserveBearing, otherBearing) < 30.0;
             });
 
@@ -1371,7 +1349,7 @@ public static class FilletArcGenerator
                     continue;
                 }
 
-                double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, candidate.Latitude, candidate.Longitude);
+                double dist = GeoMath.DistanceNm(node.Position, candidate.Position);
                 if (dist < bestDist)
                 {
                     bestDist = dist;
@@ -1430,7 +1408,7 @@ public static class FilletArcGenerator
                     continue;
                 }
 
-                double dist = GeoMath.DistanceNm(candidates[i].Latitude, candidates[i].Longitude, candidates[j].Latitude, candidates[j].Longitude);
+                double dist = GeoMath.DistanceNm(candidates[i].Position, candidates[j].Position);
 
                 if (dist <= thresholdNm)
                 {
@@ -1566,7 +1544,7 @@ public static class FilletArcGenerator
 
         if (tangentDistFt <= firstEdgeFt)
         {
-            (lat, lon) = GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bearing, tangentDistNm);
+            (lat, lon) = GeoMath.ProjectPointRaw(intersection.Position.Lat, intersection.Position.Lon, bearing, tangentDistNm);
             bearingAtTangent = null;
             walkedEdges = [];
             walkedShapeNodes = [];
@@ -1671,7 +1649,7 @@ public static class FilletArcGenerator
         double bestDist = double.MaxValue;
         foreach (var candidate in candidates)
         {
-            double dist = GeoMath.DistanceNm(target.Latitude, target.Longitude, candidate.Latitude, candidate.Longitude);
+            double dist = GeoMath.DistanceNm(target.Position, candidate.Position);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -1708,16 +1686,16 @@ public static class FilletArcGenerator
             if (edge.Nodes[0].Id == intersection.Id)
             {
                 var pt = edge.IntermediatePoints[0];
-                return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, pt.Lat, pt.Lon);
+                return GeoMath.BearingTo(intersection.Position, new LatLon(pt.Lat, pt.Lon));
             }
             else
             {
                 var pt = edge.IntermediatePoints[^1];
-                return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, pt.Lat, pt.Lon);
+                return GeoMath.BearingTo(intersection.Position, new LatLon(pt.Lat, pt.Lon));
             }
         }
 
-        return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude);
+        return GeoMath.BearingTo(intersection.Position, otherNode.Position);
     }
 
     private static double SelectMaxRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)
@@ -1763,7 +1741,7 @@ public static class FilletArcGenerator
         {
             foreach (var (node, _) in existing)
             {
-                double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, placement.Lat, placement.Lon);
+                double dist = GeoMath.DistanceNm(node.Position, new LatLon(placement.Lat, placement.Lon));
                 if (dist <= dedupeThresholdNm)
                 {
                     return node;
@@ -1848,8 +1826,7 @@ public static class FilletArcGenerator
     private static TaxiwayWalkResult WalkTaxiway(GroundEdge startEdge, GroundNode intersection, HashSet<int> manualArcNodes)
     {
         var otherNode = startEdge.OtherNode(intersection);
-        double firstEdgeFt =
-            GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude) * GeoMath.FeetPerNm;
+        double firstEdgeFt = GeoMath.DistanceNm(intersection.Position, otherNode.Position) * GeoMath.FeetPerNm;
 
         bool hasOtherTw = otherNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
         bool isProtected = manualArcNodes.Contains(otherNode.Id) || startEdge.IsRunwayCenterline;
@@ -1878,8 +1855,7 @@ public static class FilletArcGenerator
             }
 
             var nextNode = continuation!.OtherNode(currentNode);
-            double edgeFt =
-                GeoMath.DistanceNm(currentNode.Latitude, currentNode.Longitude, nextNode.Latitude, nextNode.Longitude) * GeoMath.FeetPerNm;
+            double edgeFt = GeoMath.DistanceNm(currentNode.Position, nextNode.Position) * GeoMath.FeetPerNm;
             cumDist += edgeFt;
 
             bool nextHasOtherTw = nextNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
@@ -1975,10 +1951,10 @@ public static class FilletArcGenerator
                 var fromNode = i > 0 ? walk.Steps[i - 1].FarNode : intersection;
                 var toNode = step.FarNode;
 
-                double lat = fromNode.Latitude + (fraction * (toNode.Latitude - fromNode.Latitude));
-                double lon = fromNode.Longitude + (fraction * (toNode.Longitude - fromNode.Longitude));
+                double lat = fromNode.Position.Lat + (fraction * (toNode.Position.Lat - fromNode.Position.Lat));
+                double lon = fromNode.Position.Lon + (fraction * (toNode.Position.Lon - fromNode.Position.Lon));
 
-                double bearingToward = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, fromNode.Latitude, fromNode.Longitude);
+                double bearingToward = GeoMath.BearingTo(toNode.Position, fromNode.Position);
 
                 // If the tangent lands inside a manual arc, record the edge being split
                 // so Phase D can split it instead of creating spanning edges.
@@ -2039,7 +2015,7 @@ public static class FilletArcGenerator
 
         var terminal = walk.Steps[^1].FarNode;
         var prevNode = walk.Steps.Count > 1 ? walk.Steps[^2].FarNode : intersection;
-        double termBearing = GeoMath.BearingTo(terminal.Latitude, terminal.Longitude, prevNode.Latitude, prevNode.Longitude);
-        return (terminal.Latitude, terminal.Longitude, termBearing, consumed, shapeNodes, passthrough, terminal, enteredManualArc, splitEdge);
+        double termBearing = GeoMath.BearingTo(terminal.Position, prevNode.Position);
+        return (terminal.Position.Lat, terminal.Position.Lon, termBearing, consumed, shapeNodes, passthrough, terminal, enteredManualArc, splitEdge);
     }
 }

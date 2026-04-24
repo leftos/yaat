@@ -82,7 +82,7 @@ public sealed class AirTaxiPhase : Phase
             }
         }
 
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
 
         // Phase 1: lifting off
         if (_liftingOff)
@@ -95,7 +95,7 @@ public sealed class AirTaxiPhase : Phase
             else
             {
                 // Still climbing — don't navigate yet, just point toward destination
-                double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+                double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
                 double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
                 return false;
@@ -122,7 +122,7 @@ public sealed class AirTaxiPhase : Phase
         }
 
         // Phase 2: navigate toward destination
-        double brg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double brg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         double turnRate = AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
         double maxTurnAmount = turnRate * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, brg, maxTurnAmount);

@@ -105,7 +105,7 @@ public sealed class PatternEntryPhase : Phase
         // Decelerate toward pattern speed
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, EntryLat, EntryLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(EntryLat, EntryLon));
         Log.LogDebug(
             "[PatternEntry] {Callsign}: navigating to entry, dist={Dist:F1}nm, alt={Alt:F0}ft, tgtAlt={TgtAlt:F0}ft",
             ctx.Aircraft.Callsign,

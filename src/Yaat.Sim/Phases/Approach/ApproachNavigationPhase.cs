@@ -45,7 +45,7 @@ public sealed class ApproachNavigationPhase : Phase
         }
 
         var fix = Fixes[_currentFixIndex];
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, fix.Latitude, fix.Longitude);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
 
         // Determine sequencing threshold: fly-by fixes with a following fix use anticipation
         double threshold = FixArrivalThresholdNm;
@@ -55,8 +55,8 @@ public sealed class ApproachNavigationPhase : Phase
         if (hasNextFix && !fix.IsFlyOver)
         {
             var nextFix = Fixes[_currentFixIndex + 1];
-            double currentBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, fix.Latitude, fix.Longitude);
-            double nextBearing = GeoMath.BearingTo(fix.Latitude, fix.Longitude, nextFix.Latitude, nextFix.Longitude);
+            double currentBearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
+            double nextBearing = GeoMath.BearingTo(new LatLon(fix.Latitude, fix.Longitude), new LatLon(nextFix.Latitude, nextFix.Longitude));
             double turnRate =
                 ctx.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, AircraftCategorization.Categorize(ctx.AircraftType));
             anticipationNm = FlightPhysics.ComputeAnticipationDistanceNm(ctx.Aircraft.GroundSpeed, turnRate, currentBearing, nextBearing);
@@ -70,14 +70,8 @@ public sealed class ApproachNavigationPhase : Phase
         if (inAnticipationZone)
         {
             var nextFix = Fixes[_currentFixIndex + 1];
-            double nextBearing = GeoMath.BearingTo(fix.Latitude, fix.Longitude, nextFix.Latitude, nextFix.Longitude);
-            double alongTrack = GeoMath.AlongTrackDistanceNmRaw(
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude,
-                fix.Latitude,
-                fix.Longitude,
-                nextBearing
-            );
+            double nextBearing = GeoMath.BearingTo(new LatLon(fix.Latitude, fix.Longitude), new LatLon(nextFix.Latitude, nextFix.Longitude));
+            double alongTrack = GeoMath.AlongTrackDistanceNmRaw(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude), nextBearing);
             shouldSequence = alongTrack >= 0;
         }
         else

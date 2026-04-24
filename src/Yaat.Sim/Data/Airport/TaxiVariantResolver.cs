@@ -289,7 +289,7 @@ internal static class TaxiVariantResolver
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, hsNode.Latitude, hsNode.Longitude);
+            double dist = GeoMath.DistanceNm(fromNode.Position, hsNode.Position);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -359,7 +359,7 @@ internal static class TaxiVariantResolver
 
         foreach (var (hsNode, name) in variants)
         {
-            double dist = GeoMath.DistanceNm(hsNode.Latitude, hsNode.Longitude, rwyInfo.ThresholdLatitude, rwyInfo.ThresholdLongitude);
+            double dist = GeoMath.DistanceNm(hsNode.Position, new LatLon(rwyInfo.ThresholdLatitude, rwyInfo.ThresholdLongitude));
 
             if (dist < bestDist)
             {

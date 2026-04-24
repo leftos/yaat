@@ -33,7 +33,7 @@ public static class VirtualNode
     /// </summary>
     public static GroundEdge CreateEdge(GroundNode nodeA, GroundNode nodeB, string taxiwayName)
     {
-        double dist = GeoMath.DistanceNm(nodeA.Latitude, nodeA.Longitude, nodeB.Latitude, nodeB.Longitude);
+        double dist = GeoMath.DistanceNm(nodeA.Position, nodeB.Position);
         return new GroundEdge
         {
             Nodes = [nodeA, nodeB],
@@ -79,8 +79,8 @@ public static class VirtualNode
                 break;
             }
 
-            double edgeLen = GeoMath.DistanceNm(approachNode.Latitude, approachNode.Longitude, currentNode.Latitude, currentNode.Longitude);
-            lastBearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, approachNode.Latitude, approachNode.Longitude);
+            double edgeLen = GeoMath.DistanceNm(approachNode.Position, currentNode.Position);
+            lastBearing = GeoMath.BearingTo(currentNode.Position, approachNode.Position);
 
             if (edgeLen < 1e-9)
             {
@@ -91,7 +91,7 @@ public static class VirtualNode
 
             if (remaining <= edgeLen)
             {
-                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Latitude, currentNode.Longitude, lastBearing, remaining);
+                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
                 return Create(lat, lon);
             }
 
@@ -104,12 +104,12 @@ public static class VirtualNode
         // or fall back to the current node position.
         if (remaining > 0 && !double.IsNaN(lastBearing))
         {
-            var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Latitude, currentNode.Longitude, lastBearing, remaining);
+            var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
             return Create(lat, lon);
         }
 
         Log.LogDebug("[VirtualNode] OffsetBefore: no approach edge for node {NodeId}", nodeId);
-        return Create(currentNode.Latitude, currentNode.Longitude);
+        return Create(currentNode.Position.Lat, currentNode.Position.Lon);
     }
 
     /// <summary>
@@ -119,7 +119,7 @@ public static class VirtualNode
     /// </summary>
     public static GroundNode OffsetPast(AirportGroundLayout layout, GroundNode node, GroundNode approachFrom, double offsetNm)
     {
-        return OffsetPastCore(layout, node, approachFrom.Latitude, approachFrom.Longitude, offsetNm);
+        return OffsetPastCore(layout, node, approachFrom.Position.Lat, approachFrom.Position.Lon, offsetNm);
     }
 
     /// <summary>
@@ -143,34 +143,34 @@ public static class VirtualNode
             GroundNode? nextNode = FindContinuationNode(currentNode, prevLat, prevLon);
             if (nextNode is null)
             {
-                double forwardBearing = GeoMath.BearingTo(prevLat, prevLon, currentNode.Latitude, currentNode.Longitude);
-                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Latitude, currentNode.Longitude, forwardBearing, remaining);
+                double forwardBearing = GeoMath.BearingTo(prevLat, prevLon, currentNode.Position.Lat, currentNode.Position.Lon);
+                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, forwardBearing, remaining);
                 return Create(lat, lon);
             }
 
-            double edgeLen = GeoMath.DistanceNm(currentNode.Latitude, currentNode.Longitude, nextNode.Latitude, nextNode.Longitude);
+            double edgeLen = GeoMath.DistanceNm(currentNode.Position, nextNode.Position);
             if (edgeLen < 1e-9)
             {
-                prevLat = currentNode.Latitude;
-                prevLon = currentNode.Longitude;
+                prevLat = currentNode.Position.Lat;
+                prevLon = currentNode.Position.Lon;
                 currentNode = nextNode;
                 continue;
             }
 
             if (remaining <= edgeLen)
             {
-                double bearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, nextNode.Latitude, nextNode.Longitude);
-                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Latitude, currentNode.Longitude, bearing, remaining);
+                double bearing = GeoMath.BearingTo(currentNode.Position, nextNode.Position);
+                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, bearing, remaining);
                 return Create(lat, lon);
             }
 
             remaining -= edgeLen;
-            prevLat = currentNode.Latitude;
-            prevLon = currentNode.Longitude;
+            prevLat = currentNode.Position.Lat;
+            prevLon = currentNode.Position.Lon;
             currentNode = nextNode;
         }
 
-        return Create(currentNode.Latitude, currentNode.Longitude);
+        return Create(currentNode.Position.Lat, currentNode.Position.Lon);
     }
 
     /// <summary>
@@ -180,12 +180,12 @@ public static class VirtualNode
     /// </summary>
     private static GroundNode? FindContinuationNode(GroundNode currentNode, double prevLat, double prevLon)
     {
-        double forwardBearing = GeoMath.BearingTo(prevLat, prevLon, currentNode.Latitude, currentNode.Longitude);
+        double forwardBearing = GeoMath.BearingTo(prevLat, prevLon, currentNode.Position.Lat, currentNode.Position.Lon);
 
         // Find the approach edge's taxiway name
         string? approachTaxiway = null;
         double bestApproachAlignment = double.MaxValue;
-        double approachBearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, prevLat, prevLon);
+        double approachBearing = GeoMath.BearingTo(currentNode.Position.Lat, currentNode.Position.Lon, prevLat, prevLon);
 
         foreach (var edge in currentNode.Edges)
         {
@@ -195,7 +195,7 @@ public static class VirtualNode
                 continue;
             }
 
-            double edgeBearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, other.Latitude, other.Longitude);
+            double edgeBearing = GeoMath.BearingTo(currentNode.Position, other.Position);
             double alignment = GeoMath.AbsBearingDifference(approachBearing, edgeBearing);
             if (alignment < bestApproachAlignment)
             {
@@ -217,7 +217,7 @@ public static class VirtualNode
                 continue;
             }
 
-            double edgeBearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double edgeBearing = GeoMath.BearingTo(currentNode.Position, otherNode.Position);
             double alignment = GeoMath.AbsBearingDifference(forwardBearing, edgeBearing);
 
             // Skip edges that point back toward where we came from (>90° off forward)

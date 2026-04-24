@@ -390,7 +390,7 @@ public sealed class TaxiingPhase : Phase
         {
             _timeSinceLastLog = 0;
             var seg = route.CurrentSegment;
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _nav.TargetLat, _nav.TargetLon);
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_nav.TargetLat, _nav.TargetLon));
             Log.LogTrace(
                 "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
                 ctx.Aircraft.Callsign,

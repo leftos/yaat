@@ -633,7 +633,7 @@ internal static class DepartureClearanceHandler
                 {
                     while (targets.Count > 0)
                     {
-                        double dist = GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, targets[0].Latitude, targets[0].Longitude);
+                        double dist = GeoMath.DistanceNm(new LatLon(airportPos.Value.Lat, airportPos.Value.Lon), targets[0].Position);
                         if (dist > 1.0)
                         {
                             break;
@@ -891,7 +891,7 @@ internal static class DepartureClearanceHandler
         {
             while (targets.Count > 0)
             {
-                double dist = GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, targets[0].Latitude, targets[0].Longitude);
+                double dist = GeoMath.DistanceNm(new LatLon(airportPos.Value.Lat, airportPos.Value.Lon), targets[0].Position);
                 if (dist > 1.0)
                 {
                     break;

@@ -94,13 +94,7 @@ public sealed partial class InterceptCoursePhase : Phase
         double anchorLat = clearance?.FinalApproachAnchorLat ?? ThresholdLat;
         double anchorLon = clearance?.FinalApproachAnchorLon ?? ThresholdLon;
 
-        double signedCrossTrack = GeoMath.SignedCrossTrackDistanceNm(
-            ctx.Aircraft.Latitude,
-            ctx.Aircraft.Longitude,
-            anchorLat,
-            anchorLon,
-            FinalApproachCourse
-        );
+        double signedCrossTrack = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(anchorLat, anchorLon), FinalApproachCourse);
 
         double crossTrack = Math.Abs(signedCrossTrack);
         TrueHeading aircraftHeading = ctx.Aircraft.TrueHeading;
@@ -268,7 +262,7 @@ public sealed partial class InterceptCoursePhase : Phase
         // at the actual capture point (not at FinalApproachPhase's stricter establishment).
         if (ctx.Aircraft.Phases?.ActiveApproach is { } clearance)
         {
-            double captureDistNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ThresholdLat, ThresholdLon);
+            double captureDistNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(ThresholdLat, ThresholdLon));
             clearance.InterceptCaptureDistanceNm = captureDistNm;
             clearance.InterceptCaptureAngleDeg = aircraftHeading.AbsAngleTo(FinalApproachCourse);
 
