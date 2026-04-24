@@ -23,9 +23,9 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 - [x] `ActivateSession()` → sends `ReceiveOpenPositions` + `SetSessionActive(true)` + ack
 - [x] `DeactivateSession()` → sends `ReceiveOpenPositions` + `SetSessionActive(false)` + ack
 - [x] `EndSession()` — unregisters position, clears active flag, broadcasts updated positions
-- [~] `GetSessions()` — nil-ack stub
-- [~] `JoinSession(JoinSessionDto)` — nil-ack stub
-- [~] `LeaveSession()` — nil-ack stub
+- [x] `GetSessions()` — nil-ack; confirmed unused by CRC (only referenced from source-generated SignalR proxy; vNAS multi-session API not invoked by the public CRC build)
+- [x] `JoinSession(JoinSessionDto)` — nil-ack; confirmed unused by CRC (same)
+- [x] `LeaveSession()` — nil-ack; confirmed unused by CRC (`ClientSession.Disconnect()` uses `EndSession`, never `LeaveSession`)
 
 ### Position Management
 
@@ -123,14 +123,14 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 ### Session Lifecycle
 
 - [x] `SetSessionActive(bool)` — sent on activate/deactivate
-- [ ] `HandleSessionStarted(SessionInfoDto)` — sent after StartSession completes
-- [ ] `HandleSessionEnded(reason, isForcible)` — sent on session teardown
-- [ ] `HandleFsdConnectionStateChanged(bool)` — FSD connection state
+- [x] `HandleSessionStarted(SessionInfoDto)` — pushed after StartSession response (`CrcClientState.Session.cs:84,602-613`)
+- [x] `HandleSessionEnded(reason, isForcible)` — pushed on EndSession (`CrcClientState.Session.cs:563,615-626`); `isForcible=true` path awaits KillClient (Bucket B)
+- [x] `HandleFsdConnectionStateChanged(bool)` — pushed on StartSession as `true` (`CrcClientState.Session.cs:83,590-600`); yaat-server has no FSD bridge, so never flips
 
 ### Open Positions
 
 - [x] `ReceiveOpenPositions(Topic, List<OpenPositionDto>)` — initial data on subscribe + activate/deactivate
-- [ ] `DeleteOpenPositions(Topic, List<string>)` — position removal
+- [~] `DeleteOpenPositions(Topic, List<string>)` — helper exists (`CrcClientState.Session.cs:628-637`) wired into `EndSession`; still missing on WebSocket disconnect, `CloseSecondaryPosition`, and primary-position change
 
 ### Flight Plans
 
@@ -141,11 +141,11 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 - [x] `ReceiveStarsTracks(Topic, List<StarsTrackDto>)` — per-tick broadcast + initial data; VoiceType from AircraftState
 - [x] `DeleteStarsTracks(Topic, List<string>)` — aircraft removal / coast-out
-- [ ] `ReceiveStarsLineNumbers(Topic, List<StarsLineNumberDto>)` — subscribed but not streamed
-- [ ] `DeleteStarsLineNumbers(Topic, List<string>)`
-- [ ] `ReceiveStarsShortTermConflicts(Topic, List<StarsShortTermConflictDto>)`
-- [ ] `DeleteStarsShortTermConflicts(Topic, List<string>)`
-- [ ] `ReceiveStarsReadoutArea(StarsReadoutAreaDto)`
+- [x] `ReceiveStarsLineNumbers(Topic, List<StarsLineNumberDto>)` — per-tick broadcast (`CrcBroadcastService.cs` + `StarsLineNumberAssigner.cs`)
+- [x] `DeleteStarsLineNumbers(Topic, List<string>)` — aircraft removal
+- [x] `ReceiveStarsShortTermConflicts(Topic, List<StarsShortTermConflictDto>)` — event-driven; detector is `ConflictAlertDetector` in Yaat.Sim, fan-out at `CrcBroadcastService.BroadcastConflictAlertsAsync`
+- [x] `DeleteStarsShortTermConflicts(Topic, List<string>)` — paired with detector
+- [ ] `ReceiveStarsReadoutArea(StarsReadoutAreaDto)` — direct push (not topic-scoped); send helper missing
 - [x] `ReceiveStarsCoordinationLists(Topic, List<StarsCoordinationListDto>)` — coordination channel broadcasts with status/expiry
 - [x] `ReceiveStarsConsolidationItems(Topic, List<StarsConsolidationItemDto>)` — consolidation hierarchy broadcasts
 
@@ -172,14 +172,14 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 - [x] `DeleteAsdexTargets(Topic, List<string>)` — aircraft removal
 - [x] `ReceiveAsdexTracks(Topic, List<AsdexTrackDto>)` — per-tick broadcast + initial data; VoiceType from AircraftState
 - [x] `DeleteAsdexTracks(Topic, List<string>)` — aircraft removal
-- [ ] `ReceiveAsdexSafetyLogicConfiguration(Topic, AsdexSafetyLogicConfigurationDto)`
-- [ ] `ReceiveAsdexHoldBars(Topic, List<AsdexHoldBarDto>)`
-- [ ] `ReceiveAsdexAlerts(Topic, List<AsdexAlertDto>)`
-- [ ] `DeleteAsdexAlerts(Topic, List<string>)`
-- [ ] `ReceiveAsdexTempDatas(Topic, List<AsdexTempDataDto>)`
-- [ ] `DeleteAsdexTempDatas(Topic, List<string>)`
-- [ ] `ReceiveAsdexTempDataPresets(Topic, List<AsdexTempDataPresetDto>)`
-- [ ] `DeleteAsdexTempDataPresets(Topic, List<string>)`
+- [x] `ReceiveAsdexSafetyLogicConfiguration(Topic, AsdexSafetyLogicConfigurationDto)` — initial data + event-driven (`CrcBroadcastService.cs` + `CrcClientState.Asdex.cs`)
+- [ ] `ReceiveAsdexHoldBars(Topic, List<AsdexHoldBarDto>)` — Bucket C MVP (geometry-only, Status=Suppressed)
+- [ ] `ReceiveAsdexAlerts(Topic, List<AsdexAlertDto>)` — requires safety-logic detector (deferred)
+- [ ] `DeleteAsdexAlerts(Topic, List<string>)` — paired with detector
+- [x] `ReceiveAsdexTempDatas(Topic, List<AsdexTempDataDto>)` — initial + event-driven (`CrcClientState.Asdex.cs`)
+- [x] `DeleteAsdexTempDatas(Topic, List<string>)`
+- [x] `ReceiveAsdexTempDataPresets(Topic, List<AsdexTempDataPresetDto>)` — initial + event-driven
+- [x] `DeleteAsdexTempDataPresets(Topic, List<string>)`
 
 ### Tower Cab
 
@@ -188,13 +188,13 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 ### Ground Targets
 
-- [ ] `ReceiveGroundTargets(Topic, List<GroundTargetDto>)`
-- [ ] `DeleteGroundTargets(Topic, List<string>)`
+- [x] `ReceiveGroundTargets(Topic, List<GroundTargetDto>)` — per-tick broadcast (`CrcBroadcastService.cs` + `DtoConverter.ToGroundTarget`)
+- [x] `DeleteGroundTargets(Topic, List<string>)`
 
 ### Flight Strips
 
-- [ ] `ReceiveStripItems(Topic, List<StripItemDto>)`
-- [ ] `ReceiveFlightStripsState(Topic, FlightStripsStateDto)`
+- [x] `ReceiveStripItems(Topic, List<StripItemDto>)` — `StripBroadcaster.cs` fan-out on every strip mutation
+- [x] `ReceiveFlightStripsState(Topic, FlightStripsStateDto)` — initial state on subscribe + full broadcasts on change
 
 ### Messaging
 
@@ -218,31 +218,65 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 ### Completed
 
 - [x] Session lifecycle (EndSession, nil-ack stubs for JoinSession/LeaveSession/GetSessions)
+- [x] Session lifecycle pushes (HandleSessionStarted, HandleSessionEnded, HandleFsdConnectionStateChanged)
 - [x] Nil-ack stubs (SetFrequencies, SetControllerInfo, RequestControllerInfo, etc.)
 - [x] Simple data handlers (GetRealName, GetVfrFlightPlanRemarks, SetVoiceType, TdlsDump, GenerateFrd)
 - [x] Flight plan mutations (Create/Amend, RequestNewBeaconCode, SendClearance, HoldAnnotations)
 - [x] Messaging pipeline (6 send handlers + CRC-to-CRC routing)
-- [x] ASDEX management (13 handlers + room state)
-- [x] Flight strips (7 handlers + room state)
+- [x] ASDEX management (13 handlers + room state + temp data/preset/safety-config broadcasts)
+- [x] Flight strips (7 handlers + room state + ReceiveStripItems/FlightStripsState broadcasts)
+- [x] Ground targets broadcast (per-tick)
 - [x] Auto-track airports + secondary positions (6 handlers)
 - [x] AircraftState fields (VoiceType, TdlsDumped, HoldAnnotation*, Clearance*)
 - [x] BeaconCodePool (room-scoped octal code assignment)
 - [x] DtoConverter updates (VoiceType, TdlsDumped, Clearance, HoldAnnotations)
+- [x] STARS line numbers broadcast (per-tick)
+- [x] STARS short-term conflict detection + broadcast
 
-### ERAM Milestone
+### Bucket B — Session/Info quick wins (next)
 
-- [ ] `ProcessEramMessage` — QN, QF, QL, RD, QU commands
-- [ ] `SetEramSectorConfiguration`
-- [ ] `ReceiveEramSectorConfiguration` broadcast
+- [ ] Capture missing `StartSession` fields (`ClientName`, `ClientVersion`, `SysUid`, `ControllerInfo`, `NetworkRating`, `ConnectedAt`) in `ParseStartSessionArgs` (all currently `reader.Skip()`'d)
+- [ ] `CrcClientManager.FindByPositionCallsign` helper (shared by info requests + KillClient)
+- [ ] `SetControllerInfo` — real storage handler (unblocks `.atis` dot-command)
+- [ ] `RequestControllerInfo` / `RequestClientInfo` / `RequestClientVersion` — reply via `ReceivePrivateMessage`
+- [ ] `SetFrequencies` — storage-only handler (no rebroadcast; CRC fire-and-forget)
+- [ ] `ChangeActiveEramPosition` — clone of STARS analogue; share common body
+- [ ] `KillClient` — supervisor-rating check + forcible session end
+- [ ] `DeleteOpenPositions` — wire into WebSocket disconnect, `CloseSecondaryPosition`, position-change; drop `_roomEngine is null` gate
 
-### Future
+### Bucket C — Easy broadcast stubs
 
-- [ ] STARS line numbers broadcast
-- [ ] Short-term conflict detection (STARS + ERAM)
-- [ ] ASDEX broadcast integration (temp data, presets, safety config)
-- [ ] Flight strips broadcast integration
-- [ ] Session lifecycle pushes (HandleSessionStarted, HandleSessionEnded, HandleFsdConnectionStateChanged)
-- [ ] DeleteOpenPositions broadcast on disconnect
+- [ ] `ReceiveNexradData` — empty-sentinel broadcast on subscribe
+- [ ] `ReceiveStarsReadoutArea` — direct-push send helper (no consumers yet)
+- [ ] `ReceiveAsdexHoldBars` — geometry-only MVP (Status=Suppressed) from `AsdexConfig`
+
+### Bucket D — ERAM milestone MVP
+
+- [ ] `Hubs/CrcClientState.Eram.cs` scaffolding + dispatch entries
+- [ ] `AircraftState` ERAM fields: `EramPointouts: List<EramPointout>`, `IsDwellLocked: bool`, ERAM altitude fields
+- [ ] `TrainingRoom` ERAM state dicts (sector config, route lines, quicklook/RD toggles)
+- [ ] `CrcVisibilityTracker.IsVisibleOnEram` predicate (distinct from `IsVisibleOnStars`)
+- [ ] `ProcessEramMessage` MVP verbs: QN, QF, QL, RD, QU (mirror `vatsim-server-rs/crates/server/src/clientstate/eram.rs`)
+- [ ] `SetEramSectorConfiguration` handler + per-sector broadcast
+- [ ] `ToggleEramDwellLock` handler
+- [ ] `ChangeActiveEramPosition` broadcast integration
+- [ ] `ReceiveEramTracks` / `DeleteEramTracks` per-tick stream
+- [ ] `ReceiveEramSectorConfiguration` event-driven broadcast
+- [ ] `ReceiveEramRouteLines` / `DeleteEramRouteLines` (driven by QU/RD)
+
+### Bucket E — ERAM expansion
+
+- [ ] Mutation verbs: QP, QT, QZ, QQ, QS, QR
+- [ ] `ClearEramPointout` handler + `EramPointout` lifecycle
+- [ ] `ReceiveEramCrrGroups` / `DeleteEramCrrGroups` + `SetEramCrrGroupColor` + `ClearOrDeleteEramCrrGroup`
+  - CRR group creation path unresolved — prototype test-only hook until live CRC wire trace captured
+
+### Bucket F — Deferred (upstream-blocked)
+
+- [ ] `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` — needs `AsdexSafetyLogicDetector` in Yaat.Sim
+- [ ] ERAM short-term conflict detection + broadcast (clone STARS STCA once validated)
+- [ ] NEXRAD real fetch (NOAA WMS integration; replaces empty-sentinel)
+- [ ] ERAM target history UDP stream (+ `DeleteEramTargetHistoryEntries`) — vNAS sends over UDP, not SignalR
 
 ---
 
@@ -250,7 +284,7 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 | Category | Implemented | Stubbed | Missing |
 |----------|:-----------:|:-------:|:-------:|
-| Session management | 5 | 3 | 0 |
+| Session management | 8 | 0 | 0 |
 | Position management | 5 | 2 | 1 |
 | Subscriptions | 2 | 0 | 0 |
 | STARS commands | 1 (rich) | 0 | 0 |
@@ -261,7 +295,11 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 | Flight strips | 7 | 0 | 0 |
 | Info requests | 1 | 4 | 0 |
 | Navigation | 1 | 0 | 0 |
-| **Client→Server total** | **50** | **9** | **7** |
-| Server→Client broadcasts | 24 | 0 | 30+ |
+| **Client→Server total** | **53** | **6** | **7** |
+| Server→Client broadcasts | 35 | 1 (DeleteOpenPositions partial) | 18 |
+
+**Client→Server stub → implemented flip (Bucket A housekeeping):** `GetSessions`, `JoinSession`, `LeaveSession` are nil-acks but *confirmed unused by CRC* (zero invocations in the decompiled client outside the source-generated SignalR proxy). Counted as implemented rather than stubbed.
+
+**Server→Client broadcasts remaining (18):** 3 STARS (readout area + deferred ERAM-analogue STCA items counted under ERAM), 3 ASDEX (hold bars + alerts Receive/Delete), 10 ERAM (Tracks, RouteLines, CrrGroups, SectorConfig, ShortTermConflicts, TargetHistoryEntries delete), NEXRAD (1), `DeleteOpenPositions` on disconnect (1, currently partial).
 
 **ProcessStarsCommand detail:** IC, TC, Handoff, Implied (9 sub-ops), MultiFunc (CON/DECON), Coordination (stub)
