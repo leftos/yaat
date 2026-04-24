@@ -38,7 +38,10 @@ public sealed class LayoutAnalyzer
             return;
         }
 
-        double rwBearing = GeoMath.BearingTo(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon, rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
+        double rwBearing = GeoMath.BearingTo(
+            new LatLon(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon),
+            new LatLon(rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon)
+        );
         var id = RunwayIdentifier.Parse(rwy.Name);
         if (string.Equals(runwayDesignator, id.End2, StringComparison.OrdinalIgnoreCase))
         {
@@ -54,7 +57,7 @@ public sealed class LayoutAnalyzer
                 continue;
             }
 
-            Console.WriteLine($"\n--- Centerline #{node.Id} ({node.Latitude:F6},{node.Longitude:F6}) ---");
+            Console.WriteLine($"\n--- Centerline #{node.Id} ({node.Position.Lat:F6},{node.Position.Lon:F6}) ---");
             var result = Layout.FindAdjacentHoldShort(node, runwayDesignator, rwyHeading, preference);
             if (result is not null)
             {
@@ -120,7 +123,7 @@ public sealed class LayoutAnalyzer
             int neighborId = edge.OtherNodeId(node.Id);
             Layout.Nodes.TryGetValue(neighborId, out var neighbor);
 
-            double bearing = (neighbor is not null) ? GeoMath.BearingTo(node.Latitude, node.Longitude, neighbor.Latitude, neighbor.Longitude) : 0;
+            double bearing = (neighbor is not null) ? GeoMath.BearingTo(node.Position, neighbor.Position) : 0;
 
             ArcDetail? arcDetail = null;
             if (edge is GroundArc arc)
@@ -166,8 +169,8 @@ public sealed class LayoutAnalyzer
 
         return new NodeInfo(
             node.Id,
-            node.Latitude,
-            node.Longitude,
+            node.Position.Lat,
+            node.Position.Lon,
             node.Type.ToString(),
             node.Name,
             node.RunwayId?.ToString(),
@@ -192,16 +195,16 @@ public sealed class LayoutAnalyzer
         if (atNode0)
         {
             // Tangent at start: P0 → P1
-            fromLat = arc.Nodes[0].Latitude;
-            fromLon = arc.Nodes[0].Longitude;
+            fromLat = arc.Nodes[0].Position.Lat;
+            fromLon = arc.Nodes[0].Position.Lon;
             toLat = arc.P1Lat;
             toLon = arc.P1Lon;
         }
         else
         {
             // Tangent at end: P3 → P2 (reversed to show departure direction from this node)
-            fromLat = arc.Nodes[1].Latitude;
-            fromLon = arc.Nodes[1].Longitude;
+            fromLat = arc.Nodes[1].Position.Lat;
+            fromLon = arc.Nodes[1].Position.Lon;
             toLat = arc.P2Lat;
             toLon = arc.P2Lon;
         }
@@ -377,7 +380,10 @@ public sealed class LayoutAnalyzer
 
         if (rwy is not null)
         {
-            double rwBearing = GeoMath.BearingTo(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon, rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
+            double rwBearing = GeoMath.BearingTo(
+                new LatLon(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon),
+                new LatLon(rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon)
+            );
             var id = RunwayIdentifier.Parse(rwy.Name);
             if (string.Equals(designator, id.End2, StringComparison.OrdinalIgnoreCase))
             {
@@ -431,7 +437,7 @@ public sealed class LayoutAnalyzer
                         }
 
                         double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-                        double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                        double totalDist = GeoMath.DistanceNm(node.Position, result.Value.Node.Position);
                         bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
                         string sideName = side == ExitSide.Left ? "Left" : "Right";
 
@@ -595,7 +601,10 @@ public sealed class LayoutAnalyzer
             }
 
             // Check if either end is parallel to our designator
-            double rwBearing = GeoMath.BearingTo(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon, rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
+            double rwBearing = GeoMath.BearingTo(
+                new LatLon(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon),
+                new LatLon(rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon)
+            );
             double end1Heading = rwBearing;
             double end2Heading = (rwBearing + 180) % 360;
 
@@ -679,7 +688,7 @@ public sealed class LayoutAnalyzer
                         }
 
                         double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-                        double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                        double totalDist = GeoMath.DistanceNm(node.Position, result.Value.Node.Position);
                         bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
                         string sideName = side == ExitSide.Left ? "Left" : "Right";
 
@@ -732,11 +741,7 @@ public sealed class LayoutAnalyzer
             }
 
             // Find the 3 nearest parking nodes
-            var nearest = parkingNodes
-                .Select(p => GeoMath.DistanceNm(hsNode.Latitude, hsNode.Longitude, p.Latitude, p.Longitude))
-                .OrderBy(d => d)
-                .Take(sampleCount)
-                .ToList();
+            var nearest = parkingNodes.Select(p => GeoMath.DistanceNm(hsNode.Position, p.Position)).OrderBy(d => d).Take(sampleCount).ToList();
 
             if (nearest.Count > 0)
             {
@@ -757,7 +762,7 @@ public sealed class LayoutAnalyzer
                 int neighborId = edge.OtherNodeId(node.Id);
                 if (Layout.Nodes.TryGetValue(neighborId, out var neighbor))
                 {
-                    return new TrueHeading(GeoMath.BearingTo(node.Latitude, node.Longitude, neighbor.Latitude, neighbor.Longitude));
+                    return new TrueHeading(GeoMath.BearingTo(node.Position, neighbor.Position));
                 }
             }
         }

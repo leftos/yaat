@@ -51,17 +51,16 @@ public sealed class LayoutValidator
                     continue;
                 }
 
-                double dLat = Math.Abs(arcNode.Latitude - layoutNode.Latitude);
-                double dLon = Math.Abs(arcNode.Longitude - layoutNode.Longitude);
+                double dLat = Math.Abs(arcNode.Position.Lat - layoutNode.Position.Lat);
+                double dLon = Math.Abs(arcNode.Position.Lon - layoutNode.Position.Lon);
                 if ((dLat > 1e-9) || (dLon > 1e-9))
                 {
-                    double dFt =
-                        GeoMath.DistanceNm(arcNode.Latitude, arcNode.Longitude, layoutNode.Latitude, layoutNode.Longitude) * GeoMath.FeetPerNm;
+                    double dFt = GeoMath.DistanceNm(arcNode.Position, layoutNode.Position) * GeoMath.FeetPerNm;
                     Warn(
                         "arc-stale-node-ref",
                         $"Arc {arc.TaxiwayName} ({arc.Nodes[0].Id}->{arc.Nodes[1].Id}): "
-                            + $"Nodes[{k}] (#{arcNode.Id}) at ({arcNode.Latitude:F6},{arcNode.Longitude:F6}) "
-                            + $"but layout.Nodes[{arcNode.Id}] at ({layoutNode.Latitude:F6},{layoutNode.Longitude:F6}) — "
+                            + $"Nodes[{k}] (#{arcNode.Id}) at ({arcNode.Position.Lat:F6},{arcNode.Position.Lon:F6}) "
+                            + $"but layout.Nodes[{arcNode.Id}] at ({layoutNode.Position.Lat:F6},{layoutNode.Position.Lon:F6}) — "
                             + $"{dFt:F1}ft apart. Stale object reference after node reposition?",
                         arc
                     );
@@ -86,12 +85,11 @@ public sealed class LayoutValidator
                     continue;
                 }
 
-                double dLat = Math.Abs(edgeNode.Latitude - layoutNode.Latitude);
-                double dLon = Math.Abs(edgeNode.Longitude - layoutNode.Longitude);
+                double dLat = Math.Abs(edgeNode.Position.Lat - layoutNode.Position.Lat);
+                double dLon = Math.Abs(edgeNode.Position.Lon - layoutNode.Position.Lon);
                 if ((dLat > 1e-9) || (dLon > 1e-9))
                 {
-                    double dFt =
-                        GeoMath.DistanceNm(edgeNode.Latitude, edgeNode.Longitude, layoutNode.Latitude, layoutNode.Longitude) * GeoMath.FeetPerNm;
+                    double dFt = GeoMath.DistanceNm(edgeNode.Position, layoutNode.Position) * GeoMath.FeetPerNm;
                     Warn(
                         "edge-stale-node-ref",
                         $"Edge {edge.TaxiwayName} ({edge.Nodes[0].Id}->{edge.Nodes[1].Id}): "
@@ -133,7 +131,7 @@ public sealed class LayoutValidator
                 double t = k == 0 ? 0.0 : 1.0;
 
                 var (dLat, dLon) = bezier.Derivative(t);
-                double cosLat = Math.Cos(node.Latitude * (Math.PI / 180.0));
+                double cosLat = Math.Cos(node.Position.Lat * (Math.PI / 180.0));
                 double tangentBearing = Math.Atan2(dLon * cosLat, dLat) * (180.0 / Math.PI);
                 tangentBearing = ((tangentBearing % 360) + 360) % 360;
 
@@ -213,7 +211,7 @@ public sealed class LayoutValidator
             {
                 Warn(
                     "orphan-node",
-                    $"Node #{node.Id} ({node.Type}) at ({node.Latitude:F6},{node.Longitude:F6}) " + $"has no edges. Origin: {node.Origin}",
+                    $"Node #{node.Id} ({node.Type}) at ({node.Position.Lat:F6},{node.Position.Lon:F6}) " + $"has no edges. Origin: {node.Origin}",
                     null
                 );
             }

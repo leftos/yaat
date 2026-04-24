@@ -69,8 +69,8 @@ public sealed class HtmlRenderer
         {
             writer.WriteStartObject();
             writer.WriteNumber("id", node.Id);
-            writer.WriteNumber("lat", node.Latitude);
-            writer.WriteNumber("lon", node.Longitude);
+            writer.WriteNumber("lat", node.Position.Lat);
+            writer.WriteNumber("lon", node.Position.Lon);
             writer.WriteString("type", node.Type.ToString());
             if (node.Name is not null)
             {

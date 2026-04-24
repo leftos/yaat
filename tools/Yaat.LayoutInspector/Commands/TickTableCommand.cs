@@ -58,7 +58,7 @@ public sealed class TickTableCommand : ICommand
 
                 foreach (var n in nodes)
                 {
-                    Console.Error.WriteLine($"# exit {twy}: node #{n.Id} at ({n.Latitude:F6},{n.Longitude:F6})");
+                    Console.Error.WriteLine($"# exit {twy}: node #{n.Id} at ({n.Position.Lat:F6},{n.Position.Lon:F6})");
                 }
 
                 exitRefs.Add(new ExitRef(twy, nodes));

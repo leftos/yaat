@@ -66,8 +66,8 @@ public static class HoldShortResolver
         bool anyAhead = false;
         foreach (var n in er.HoldShortNodes)
         {
-            double alongNm = GeoMath.AlongTrackDistanceNm(n.Latitude, n.Longitude, lat, lon, refLine.Heading);
-            double straightNm = GeoMath.DistanceNm(lat, lon, n.Latitude, n.Longitude);
+            double alongNm = GeoMath.AlongTrackDistanceNm(n.Position, new LatLon(lat, lon), refLine.Heading);
+            double straightNm = GeoMath.DistanceNm(new LatLon(lat, lon), n.Position);
             if (alongNm >= 0 && alongNm < bestAheadAlongNm)
             {
                 bestAheadAlongNm = alongNm;
