@@ -3,6 +3,24 @@ Copyright (c) 2026 Leftos Aslanoglou
 Source code licensed under the MIT License (see LICENSE).
 
 ================================================================================
+Third-party libraries bundled with this project
+================================================================================
+
+## Geo (LGPL-3.0-or-later)
+
+YAAT dynamically links the `Geo` library for NOAA World Magnetic Model (WMM)
+computations. The library is consumed as an unmodified NuGet package reference,
+and end users may replace `Geo.dll` in the installed directory with a compatible
+build to satisfy LGPL §4(d)(1).
+
+  Upstream: https://github.com/sibartlett/Geo
+  Package:  https://www.nuget.org/packages/Geo/
+  License:  GNU Lesser General Public License v3.0 or later (LGPL-3.0-or-later)
+  Full text: https://www.gnu.org/licenses/lgpl-3.0.txt
+
+Copyright (c) Simon Bartlett and contributors.
+
+================================================================================
 Third-party data files bundled with this project
 ================================================================================
 
