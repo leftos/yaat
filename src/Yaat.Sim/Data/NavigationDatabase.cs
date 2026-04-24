@@ -313,7 +313,24 @@ public sealed class NavigationDatabase
 
     public double? GetAirportElevation(string code)
     {
-        return _elevations.TryGetValue(code, out var elev) ? elev : null;
+        if (_elevations.TryGetValue(code, out var elev))
+        {
+            return elev;
+        }
+
+        // US ICAO (4-letter, K-prefix) → FAA (3-letter) fallback.
+        if (code.Length == 4 && code.StartsWith('K') && _elevations.TryGetValue(code[1..], out var byFaa))
+        {
+            return byFaa;
+        }
+
+        // FAA (3-letter) → US ICAO (K-prefix) fallback.
+        if (code.Length == 3 && _elevations.TryGetValue("K" + code, out var byIcao))
+        {
+            return byIcao;
+        }
+
+        return null;
     }
 
     public RunwayInfo? GetRunway(string airportCode, string runwayId)

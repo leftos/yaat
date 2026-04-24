@@ -319,6 +319,12 @@ public class AircraftState
     public bool IsUnsupported { get; set; }
 
     /// <summary>
+    /// Ground vehicle (tug, service truck, follow-me). Excluded from STARS
+    /// regardless of altitude; mirrors vatsim-server-rs asdex_track.is_vehicle.
+    /// </summary>
+    public bool IsVehicle { get; set; }
+
+    /// <summary>
     /// Override display position for ghost tracks overlaying real aircraft.
     /// When non-null, STARS shows the ghost at this position while the real
     /// aircraft continues physics at its true lat/lon. Null for pure ghosts
@@ -472,6 +478,7 @@ public class AircraftState
             UnsupportedLongitude = dto.UnsupportedLongitude,
             GhostAirportId = dto.GhostAirportId,
             GhostRunwayId = dto.GhostRunwayId,
+            IsVehicle = dto.IsVehicle,
             IsCaInhibited = dto.IsCaInhibited,
             IsModeCInhibited = dto.IsModeCInhibited,
             IsMsawInhibited = dto.IsMsawInhibited,
@@ -642,6 +649,7 @@ public class AircraftState
             UnsupportedLongitude = UnsupportedLongitude,
             GhostAirportId = GhostAirportId,
             GhostRunwayId = GhostRunwayId,
+            IsVehicle = IsVehicle,
             IsCaInhibited = IsCaInhibited,
             IsModeCInhibited = IsModeCInhibited,
             IsMsawInhibited = IsMsawInhibited,

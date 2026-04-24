@@ -138,6 +138,9 @@ public sealed class AircraftSnapshotDto
     public string? GhostAirportId { get; init; }
     public string? GhostRunwayId { get; init; }
 
+    // Ground vehicle classification (excluded from STARS)
+    public required bool IsVehicle { get; init; }
+
     // Conflict alert / display inhibitions
     public required bool IsCaInhibited { get; init; }
     public required bool IsModeCInhibited { get; init; }

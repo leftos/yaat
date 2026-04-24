@@ -216,6 +216,7 @@ public class SnapshotRoundTripTests
                     HoldAnnotationLegLengthInNm = false,
                     HoldAnnotationEfc = 0,
                     IsUnsupported = false,
+                    IsVehicle = false,
                     IsCaInhibited = false,
                     IsModeCInhibited = false,
                     IsMsawInhibited = false,
