@@ -359,21 +359,27 @@ jobs:
 
       - name: Build release body
         id: body
+        env:
+          # Values arrive through the environment so bash never re-parses
+          # literal backticks (or other shell metacharacters) in the highlight
+          # and changelog text as command substitutions. Inlining via ${{ }}
+          # directly into the script source treats the text as code.
+          HIGHLIGHTS: ${{ needs.changelog.outputs.highlights }}
+          CHANGELOG: ${{ needs.changelog.outputs.changelog }}
         run: |
-          {
-            echo "body<<BODY_EOF"
+          body_file=$(mktemp)
 
-            highlights="${{ needs.changelog.outputs.highlights }}"
-            if [[ -n "$highlights" ]]; then
+          {
+            if [[ -n "$HIGHLIGHTS" ]]; then
               echo "## Highlights"
               echo ""
-              echo "$highlights"
+              printf '%s\n' "$HIGHLIGHTS"
               echo ""
             fi
 
             echo "## Changelog"
             echo ""
-            echo "${{ needs.changelog.outputs.changelog }}"
+            printf '%s\n' "$CHANGELOG"
             echo ""
 
             echo "---"
@@ -394,7 +400,11 @@ jobs:
             echo "| macOS | .pkg (in release assets) | \`Yaat.VStrips-osx-arm64\` |"
             echo ""
             echo "Installers include auto-update support. Portable binaries are standalone single-file executables."
+          } > "$body_file"
 
+          {
+            echo "body<<BODY_EOF"
+            cat "$body_file"
             echo "BODY_EOF"
           } >> "$GITHUB_OUTPUT"
 
