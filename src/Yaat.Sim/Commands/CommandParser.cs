@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -2011,24 +2012,40 @@ public static class CommandParser
     private static PR ParseStripAnnotate(string arg)
     {
         var parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0 || !int.TryParse(parts[0], out var box))
+        if (parts.Length == 0)
         {
             return PR.Fail($"invalid strip annotation box '{arg}'");
         }
 
-        // Accept 1-9 directly, or 10-18 as aliases for 1-9
-        if (box >= 10 && box <= 18)
-        {
-            box -= 9;
-        }
+        var boxToken = parts[0].ToLowerInvariant();
 
-        if (box < 1 || box > 9)
+        // Canonicalize the three accepted forms into the three-character set
+        // {"1".."9", "8a", "8b"}. "1".."9" pass through; "10".."18" alias to
+        // "1".."9"; "8a" / "8b" normalize case.
+        string canonical;
+        if (boxToken is "8a" or "8b")
         {
-            return PR.Fail($"invalid strip annotation box {box} (expected 1-9)");
+            canonical = boxToken;
+        }
+        else if (int.TryParse(boxToken, out var box))
+        {
+            if (box >= 10 && box <= 18)
+            {
+                box -= 9;
+            }
+            if (box < 1 || box > 9)
+            {
+                return PR.Fail($"invalid strip annotation box {box} (expected 1-9, 10-18, 8a, or 8b)");
+            }
+            canonical = box.ToString(CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            return PR.Fail($"invalid strip annotation box '{parts[0]}' (expected 1-9, 10-18, 8a, or 8b)");
         }
 
         var text = parts.Length > 1 ? parts[1].Trim() : null;
-        return PR.Ok(new StripAnnotateCommand(box, text));
+        return PR.Ok(new StripAnnotateCommand(canonical, text));
     }
 
     private const int HalfStripMaxLines = 6;

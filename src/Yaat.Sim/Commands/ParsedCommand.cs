@@ -421,7 +421,19 @@ public record ConeCommand(bool Enable) : ParsedCommand;
 
 public record GhostTrackCommand(string Callsign, string? AirportCode, string? RunwayId, double? Latitude, double? Longitude) : ParsedCommand;
 
-public record StripAnnotateCommand(int Box, string? Text) : ParsedCommand;
+/// <summary>
+/// AN (strip annotate) parsed command. <see cref="Box"/> is the canonical
+/// annotation slot identifier:
+/// <list type="bullet">
+/// <item><c>"1"</c>..<c>"9"</c> — 3×3 annotation grid (FieldValues[10..18]).</item>
+/// <item><c>"8a"</c> / <c>"8b"</c> — col-3 freeform slots below field 8
+///   (FieldValues[19..20]). Left-aligned unlike the grid.</item>
+/// </list>
+/// The parser normalizes the wire tokens (e.g. <c>AN 10 RV</c>, <c>AN 1 RV</c>,
+/// and <c>AN 8A RV</c>) to this canonical form so handlers only need to
+/// dispatch on the canonical string.
+/// </summary>
+public record StripAnnotateCommand(string Box, string? Text) : ParsedCommand;
 
 // Tokens = space-separated args after STRIP; server-side handler greedy-matches a bay
 // prefix against accessible bays, then parses the remaining 0..2 tokens as rack/index.

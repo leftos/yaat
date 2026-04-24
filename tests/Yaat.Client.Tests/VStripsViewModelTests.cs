@@ -447,9 +447,21 @@ public class VStripsViewModelTests
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
 
-        await vm.AnnotateAsync(vm.ItemsByIdForTests["S1"], 3, "RV");
+        await vm.AnnotateAsync(vm.ItemsByIdForTests["S1"], "3", "RV");
 
         Assert.Equal(("UAL100", "AN 3 RV"), captured[0]);
+    }
+
+    [Fact]
+    public async Task AnnotateAsync_Box8a_EmitsVerbatim()
+    {
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100")]);
+
+        await vm.AnnotateAsync(vm.ItemsByIdForTests["S1"], "8a", "ENR");
+
+        Assert.Equal(("UAL100", "AN 8a ENR"), captured[0]);
     }
 
     [Fact]

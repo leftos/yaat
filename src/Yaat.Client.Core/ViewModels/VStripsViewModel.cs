@@ -704,7 +704,12 @@ public partial class VStripsViewModel : ObservableObject
         await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
     }
 
-    public async Task AnnotateAsync(StripItemViewModel strip, int box, string? text)
+    /// <summary>
+    /// Edits an annotation slot on a full strip. <paramref name="box"/> is the
+    /// canonical slot id — <c>"1"</c>..<c>"9"</c> for the 3×3 grid, or
+    /// <c>"8a"</c>/<c>"8b"</c> for the col-3 freeform slots below field 8.
+    /// </summary>
+    public async Task AnnotateAsync(StripItemViewModel strip, string box, string? text)
     {
         if (!strip.IsFullStrip || strip.AircraftId is null)
         {

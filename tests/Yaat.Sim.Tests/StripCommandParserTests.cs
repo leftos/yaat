@@ -66,7 +66,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("AN 3 RV");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(3, cmd.Box);
+        Assert.Equal("3", cmd.Box);
         Assert.Equal("RV", cmd.Text);
     }
 
@@ -75,7 +75,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("BOX 5 ATIS");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(5, cmd.Box);
+        Assert.Equal("5", cmd.Box);
         Assert.Equal("ATIS", cmd.Text);
     }
 
@@ -84,7 +84,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("ANNOTATE 1 CLR");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(1, cmd.Box);
+        Assert.Equal("1", cmd.Box);
         Assert.Equal("CLR", cmd.Text);
     }
 
@@ -93,7 +93,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("AN 3");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(3, cmd.Box);
+        Assert.Equal("3", cmd.Box);
         Assert.Null(cmd.Text);
     }
 
@@ -109,7 +109,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("AN 10 X");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(1, cmd.Box);
+        Assert.Equal("1", cmd.Box);
         Assert.Equal("X", cmd.Text);
     }
 
@@ -125,7 +125,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("AN 9 GATE");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(9, cmd.Box);
+        Assert.Equal("9", cmd.Box);
         Assert.Equal("GATE", cmd.Text);
     }
 
@@ -134,7 +134,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("AN 2 TWR HOLD");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(2, cmd.Box);
+        Assert.Equal("2", cmd.Box);
         Assert.Equal("TWR HOLD", cmd.Text);
     }
 
@@ -143,7 +143,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("AN 10 CLR");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(1, cmd.Box);
+        Assert.Equal("1", cmd.Box);
         Assert.Equal("CLR", cmd.Text);
     }
 
@@ -152,7 +152,7 @@ public class StripCommandParserTests
     {
         var result = CommandParser.Parse("AN 18 GATE");
         var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal(9, cmd.Box);
+        Assert.Equal("9", cmd.Box);
         Assert.Equal("GATE", cmd.Text);
     }
 
@@ -160,6 +160,34 @@ public class StripCommandParserTests
     public void An_Box19_ReturnsNull()
     {
         var result = CommandParser.Parse("AN 19 X");
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void An_Box8a_ParsesAsLiteral()
+    {
+        // 8a and 8b are freeform annotation placeholders below field 8 in the
+        // middle column (col 3 rows 2/3). They map to FieldValues[19]/[20]
+        // on the server, outside the 1-9 / 10-18 grid range.
+        var result = CommandParser.Parse("AN 8a ENR");
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
+        Assert.Equal("8a", cmd.Box);
+        Assert.Equal("ENR", cmd.Text);
+    }
+
+    [Fact]
+    public void An_Box8B_UpperCase_NormalizesToLower()
+    {
+        var result = CommandParser.Parse("AN 8B DLY");
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
+        Assert.Equal("8b", cmd.Box);
+        Assert.Equal("DLY", cmd.Text);
+    }
+
+    [Fact]
+    public void An_InvalidBoxToken_ReturnsNull()
+    {
+        var result = CommandParser.Parse("AN 9c X");
         Assert.Null(result.Value);
     }
 }

@@ -43,13 +43,17 @@ public static class VStripsCanonicalBuilder
     /// <summary>Toggle offset on the full strip owned by the currently-selected aircraft.</summary>
     public static string BuildStripOffset() => "STRIPO";
 
-    /// <summary>Edit a single annotation box (1-9, maps to FieldValues[10..18]).</summary>
-    public static string BuildAnnotate(int box, string? text)
+    /// <summary>
+    /// Edit a single annotation slot. <paramref name="box"/> is the canonical
+    /// slot id — <c>"1"</c>..<c>"9"</c> for the 3×3 grid (maps to
+    /// FieldValues[10..18] server-side), or <c>"8a"</c>/<c>"8b"</c> for the
+    /// col-3 freeform slots below field 8 (FieldValues[19..20]). Empty or
+    /// whitespace-only <paramref name="text"/> clears the slot.
+    /// </summary>
+    public static string BuildAnnotate(string box, string? text)
     {
         var trimmed = text?.Trim();
-        return string.IsNullOrEmpty(trimmed)
-            ? $"AN {box.ToString(CultureInfo.InvariantCulture)}"
-            : $"AN {box.ToString(CultureInfo.InvariantCulture)} {trimmed}";
+        return string.IsNullOrEmpty(trimmed) ? $"AN {box}" : $"AN {box} {trimmed}";
     }
 
     /// <summary>Create a new half-strip in a bay/rack with the given lines (max 6).</summary>

@@ -275,7 +275,7 @@ public partial class FlightStripControl : UserControl
     /// </summary>
     private void OnAnnotationCellPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Border cell || cell.Tag is not string tagStr || !int.TryParse(tagStr, out var box))
+        if (sender is not Border cell || cell.Tag is not string tagStr)
         {
             return;
         }
@@ -300,20 +300,26 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        var current = box switch
+        var current = tagStr switch
         {
-            1 => strip.Annotation10,
-            2 => strip.Annotation11,
-            3 => strip.Annotation12,
-            4 => strip.Annotation13,
-            5 => strip.Annotation14,
-            6 => strip.Annotation15,
-            7 => strip.Annotation16,
-            8 => strip.Annotation17,
-            9 => strip.Annotation18,
-            _ => "",
+            "1" => strip.Annotation10,
+            "2" => strip.Annotation11,
+            "3" => strip.Annotation12,
+            "4" => strip.Annotation13,
+            "5" => strip.Annotation14,
+            "6" => strip.Annotation15,
+            "7" => strip.Annotation16,
+            "8" => strip.Annotation17,
+            "9" => strip.Annotation18,
+            "8a" => strip.Annotation8A,
+            "8b" => strip.Annotation8B,
+            _ => null,
         };
-        editor.Open(cell, current, text => _ = vm.AnnotateAsync(strip, box, text), substituteCheckmark: true);
+        if (current is null)
+        {
+            return;
+        }
+        editor.Open(cell, current, text => _ = vm.AnnotateAsync(strip, tagStr, text), substituteCheckmark: true);
         e.Handled = true;
     }
 

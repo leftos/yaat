@@ -905,7 +905,7 @@ public partial class VStripsView : UserControl
         Visual? v = hit;
         while (v is not null && v is not FlightStripControl)
         {
-            if (v is Border b && b.Tag is string tag && tag.Length == 1 && tag[0] >= '1' && tag[0] <= '9')
+            if (v is Border b && b.Tag is string tag && IsAnnotationTag(tag))
             {
                 return true;
             }
@@ -913,6 +913,12 @@ public partial class VStripsView : UserControl
         }
         return false;
     }
+
+    /// <summary>
+    /// True for the annotation-cell tags: <c>"1"</c>..<c>"9"</c> (3×3 grid)
+    /// plus <c>"8a"</c> and <c>"8b"</c> (col-3 freeform slots below field 8).
+    /// </summary>
+    private static bool IsAnnotationTag(string tag) => (tag.Length == 1 && tag[0] >= '1' && tag[0] <= '9') || tag is "8a" or "8b";
 
     /// <summary>
     /// Walks up the visual tree from a hit target to the enclosing rack Border
@@ -1596,7 +1602,8 @@ public partial class VStripsView : UserControl
             9 => strip.Annotation18,
             _ => "",
         };
-        editor.Open(anchor, current, text => _ = vm.AnnotateAsync(strip, box, text), substituteCheckmark: true);
+        var boxId = box.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        editor.Open(anchor, current, text => _ = vm.AnnotateAsync(strip, boxId, text), substituteCheckmark: true);
     }
 
     /// <summary>

@@ -116,6 +116,12 @@ public partial class StripItemViewModel : ObservableObject
     public string Annotation17 => Field(17);
     public string Annotation18 => Field(18);
 
+    // Col-3 freeform annotation slots: 8a (FieldValues[19]) and 8b ([20]) live
+    // below field 8's dep/dest display. Unlike the 3×3 grid they're
+    // left-aligned on the strip and written via AN 8a / AN 8b commands.
+    public string Annotation8A => Field(19);
+    public string Annotation8B => Field(20);
+
     /// <summary>
     /// Replaces the underlying DTO with a new server snapshot and raises property
     /// changes for every field-derived accessor. Preserves the wrapping instance
@@ -162,6 +168,8 @@ public partial class StripItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Annotation16));
         OnPropertyChanged(nameof(Annotation17));
         OnPropertyChanged(nameof(Annotation18));
+        OnPropertyChanged(nameof(Annotation8A));
+        OnPropertyChanged(nameof(Annotation8B));
     }
 
     /// <summary>

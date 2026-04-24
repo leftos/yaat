@@ -39,21 +39,31 @@ public class VStripsCanonicalBuilderTests
     [Fact]
     public void BuildAnnotate_WithText_EmitsAnWithText()
     {
-        Assert.Equal("AN 3 RV", VStripsCanonicalBuilder.BuildAnnotate(3, "RV"));
+        Assert.Equal("AN 3 RV", VStripsCanonicalBuilder.BuildAnnotate("3", "RV"));
     }
 
     [Fact]
     public void BuildAnnotate_EmptyOrNullText_EmitsBareAn()
     {
-        Assert.Equal("AN 5", VStripsCanonicalBuilder.BuildAnnotate(5, null));
-        Assert.Equal("AN 5", VStripsCanonicalBuilder.BuildAnnotate(5, ""));
-        Assert.Equal("AN 5", VStripsCanonicalBuilder.BuildAnnotate(5, "  "));
+        Assert.Equal("AN 5", VStripsCanonicalBuilder.BuildAnnotate("5", null));
+        Assert.Equal("AN 5", VStripsCanonicalBuilder.BuildAnnotate("5", ""));
+        Assert.Equal("AN 5", VStripsCanonicalBuilder.BuildAnnotate("5", "  "));
     }
 
     [Fact]
     public void BuildAnnotate_TrimsText()
     {
-        Assert.Equal("AN 1 GATE", VStripsCanonicalBuilder.BuildAnnotate(1, "  GATE  "));
+        Assert.Equal("AN 1 GATE", VStripsCanonicalBuilder.BuildAnnotate("1", "  GATE  "));
+    }
+
+    [Fact]
+    public void BuildAnnotate_8aAnd8b_PassThroughVerbatim()
+    {
+        // 8a and 8b are the col-3 freeform slots — the builder emits them
+        // verbatim on the wire; the server maps to FieldValues[19]/[20].
+        Assert.Equal("AN 8a ENR", VStripsCanonicalBuilder.BuildAnnotate("8a", "ENR"));
+        Assert.Equal("AN 8b DLY", VStripsCanonicalBuilder.BuildAnnotate("8b", "DLY"));
+        Assert.Equal("AN 8a", VStripsCanonicalBuilder.BuildAnnotate("8a", null));
     }
 
     [Fact]

@@ -118,9 +118,11 @@
                 <!-- Column 3 row 1: field 8 packs "KOAK KSTS" (dep + optional
                      destination, space-separated) per
                      StripMutations.BuildDepartureStripFields. A strip without a
-                     destination shows just the departure. Rows 2-3 are
-                     reserved for future annotation placeholders; blank today
-                     so the separator borders still render. -->
+                     destination shows just the departure.
+                     Rows 2-3 host the 8a / 8b freeform annotation slots —
+                     editable like the 3×3 grid but left-aligned per CRC
+                     vstrips convention. Tag "8a"/"8b" drives the click-to-edit
+                     dispatch in VStripsView / FlightStripControl. -->
                 <Border Grid.Row="0" Grid.Column="2"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="4,0">
@@ -130,12 +132,26 @@
                                VerticalAlignment="Center"
                                Foreground="{StaticResource StripPrintedBrush}"/>
                 </Border>
-                <Border Grid.Row="1" Grid.Column="2"
+                <Border Grid.Row="1" Grid.Column="2" Tag="8a"
+                        PointerPressed="OnAnnotationCellPressed"
                         BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0"/>
-                <Border Grid.Row="2" Grid.Column="2"
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding Annotation8A}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="2" Tag="8b"
+                        PointerPressed="OnAnnotationCellPressed"
                         BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0"/>
+                        BorderThickness="0,0,1,0" Padding="4,0">
+                    <TextBlock Text="{Binding Annotation8B}"
+                               FontFamily="{StaticResource StripScriptFont}"
+                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
+                               Foreground="{StaticResource StripPrintedBrush}"
+                               HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                </Border>
 
                 <!-- Column 4 path A: no remarks — route wraps across all 3 rows
                      with MaxLines=3. Single TextBlock; code-behind
