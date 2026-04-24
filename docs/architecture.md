@@ -189,13 +189,17 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 
 ```
 # Core
-AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops, visual approach state, pattern overrides, ghost track fields (GhostAirportId/GhostRunwayId)
+AircraftState.cs               # Mutable entity: Position (LatLon), flight plan, identity, control, track ops, visual approach state, pattern overrides, ghost track fields (GhostAirportId/GhostRunwayId)
+                               # DeclinationCachePosition (LatLon?): null = "not cached", replaces the old NaN-sentinel pair
                                # GroundLayout is [JsonIgnore]; GroundLayoutAirportId preserves reference for archive restore
                                # PendingObservations: ephemeral pilot-side "watch for condition" state (not persisted in snapshots)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
-                               # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
+                               # NavigationTarget: Position (LatLon) + optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
+LatLon.cs                      # Readonly record struct: public LatLon(double Lat, double Lon). The canonical coordinate type
+                               # across Yaat.Sim / Yaat.Client / yaat-server. Field names match CRC Point DTO. No implicit tuple conversion
+                               # (forces explicit `new LatLon(lat, lon)` at external-JSON boundaries so argument swaps don't slip through)
 FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)
@@ -205,6 +209,8 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
                                # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
                                # Expedite: IsExpediting → 1.5x climb/descent rate; Mach hold: TargetMach → recompute IAS each tick
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
+                               # Each primary function has scalar (double, double, double, double) and LatLon (LatLon, LatLon) overloads
+                               # FootOfPerpendicular returns (LatLon Foot, double AlongNm, bool Clamped)
 SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(ILoggerFactory) at startup
 SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngState record); drop-in Random replacement
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings

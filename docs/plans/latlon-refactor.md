@@ -2,17 +2,17 @@
 
 ## Status
 
-In progress — five commits on yaat, one sibling on yaat-server. Spin off from
-the perf-investigation session that landed `adcfc74 perf: cache magnetic
+Done — five commits on yaat, one sibling on yaat-server. Spin off from the
+perf-investigation session that landed `adcfc74 perf: cache magnetic
 declination per aircraft`, where it became obvious we had no typed coord in
 Yaat.Sim and the WMM cache ended up carrying two raw `double` fields instead.
 
-- [x] Commit 1 (yaat): add `LatLon` type
-- [x] Commit 2a (yaat): foundation — new API surface on Yaat.Sim types, no caller migrations
-- [x] Commit 2b (yaat): migrate ~70 Yaat.Sim internal files to the new API
-- [x] Commit 3 (yaat): migrate Yaat.Client, tools, tests
-- [x] Commit 4 (yaat): remove old API, break wire format
-- [ ] Commit 5 (yaat-server, sibling to commit 4): migrate 35 sites
+- [x] Commit 1 (yaat `b58fabd`): add `LatLon` type
+- [x] Commit 2a (yaat `fe904c2`): foundation — new API surface on Yaat.Sim types
+- [x] Commit 2b (yaat `6be3253`): migrate ~70 Yaat.Sim internal files to the new API
+- [x] Commit 3 (yaat `5246ffa`+`6a80773`+`82bf3c2`+`d450212`): migrate Yaat.Client, tools, tests
+- [x] Commit 4 (yaat `06b7a7e`): remove old API, break wire format
+- [x] Commit 5 (yaat-server `644c99b`): migrate 12 sites
 
 ## Decisions (locked)
 
