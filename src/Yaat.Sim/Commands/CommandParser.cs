@@ -2033,6 +2033,13 @@ public static class CommandParser
 
     private const int HalfStripMaxLines = 6;
 
+    /// <summary>
+    /// Parses a bay-with-optional-rack token of the form <c>bay[/rack]</c>. The
+    /// rack token is <b>1-based</b> on the wire (users type "rack 1") and
+    /// converted to the 0-based internal index returned in <paramref name="rack"/>.
+    /// A missing slash leaves <paramref name="rack"/> null. Used for HSC bay/rack
+    /// and the optional source-bay peel in HSA/HSD/HSM/HSO/HSS.
+    /// </summary>
     private static bool TryParseBaySpec(string token, out string bayName, out int? rack, out string? error)
     {
         bayName = "";
@@ -2048,13 +2055,13 @@ public static class CommandParser
 
         bayName = token[..slashIdx].ToUpperInvariant();
         var rackPart = token[(slashIdx + 1)..];
-        if (!int.TryParse(rackPart, out var rackVal) || rackVal < 0)
+        if (!int.TryParse(rackPart, out var rackWire) || rackWire < 1)
         {
-            error = $"invalid rack index '{rackPart}' (expected non-negative integer)";
+            error = $"invalid rack index '{rackPart}' (expected 1-based positive integer)";
             return false;
         }
 
-        rack = rackVal;
+        rack = rackWire - 1;
         return true;
     }
 
@@ -2364,10 +2371,14 @@ public static class CommandParser
     // ── Shared helpers ────────────────────────────────────────────
 
     /// <summary>
-    /// Parses the slash-compound destination spec used by HSM: <c>bay[/rack[/index]]</c>.
-    /// The bay portion is normalized to upper case; rack and index are non-negative ints.
+    /// Parses the slash-compound destination spec used by every vStrips verb
+    /// (STRIP, HSC, HSM, SEP, SEPE, SEPD, BLANK, BLANKD): <c>bay[/rack[/index]]</c>.
+    /// Bay is upper-cased. Rack and index are <b>1-based</b> on the wire and
+    /// converted to the 0-based internal representation returned in
+    /// <paramref name="rack"/> / <paramref name="index"/>. Tokens &lt; 1 are
+    /// rejected so off-by-one bugs surface loudly.
     /// </summary>
-    private static bool TryParseDestSpec(string token, out string bayName, out int? rack, out int? index, out string? error)
+    public static bool TryParseStripDest(string token, out string bayName, out int? rack, out int? index, out string? error)
     {
         bayName = "";
         rack = null;
@@ -2385,24 +2396,24 @@ public static class CommandParser
 
         if (parts.Length >= 2)
         {
-            if (!int.TryParse(parts[1], out var r) || r < 0)
+            if (!int.TryParse(parts[1], out var r) || r < 1)
             {
-                error = $"invalid destination rack '{parts[1]}' (expected non-negative integer)";
+                error = $"invalid destination rack '{parts[1]}' (expected 1-based positive integer)";
                 return false;
             }
 
-            rack = r;
+            rack = r - 1;
         }
 
         if (parts.Length >= 3)
         {
-            if (!int.TryParse(parts[2], out var i) || i < 0)
+            if (!int.TryParse(parts[2], out var i) || i < 1)
             {
-                error = $"invalid destination index '{parts[2]}' (expected non-negative integer)";
+                error = $"invalid destination index '{parts[2]}' (expected 1-based positive integer)";
                 return false;
             }
 
-            index = i;
+            index = i - 1;
         }
 
         if (parts.Length > 3)
@@ -2413,6 +2424,12 @@ public static class CommandParser
 
         return true;
     }
+
+    // Legacy alias retained during Phase 1 of the slash-compound migration —
+    // internal callers still reference the old name. Will be inlined away
+    // when HSM's own ParseHalfStripMove is converted to the public helper.
+    private static bool TryParseDestSpec(string token, out string bayName, out int? rack, out int? index, out string? error) =>
+        TryParseStripDest(token, out bayName, out rack, out index, out error);
 
     private static List<string> SplitWhitespace(string arg)
     {

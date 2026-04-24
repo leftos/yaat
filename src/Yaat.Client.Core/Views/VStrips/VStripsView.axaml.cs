@@ -731,7 +731,11 @@ public partial class VStripsView : UserControl
     private void ShowStripContextMenu(Control anchor, StripItemViewModel strip, VStripsViewModel vm)
     {
         var menu = BuildStripContextMenu(strip, vm, anchor);
-        menu.ShowAt(anchor);
+        // showAtPointer: true anchors the flyout at the current cursor
+        // position rather than the anchor control's top-left, which for
+        // a full-width rack Border would land far from where the user
+        // right-clicked.
+        menu.ShowAt(anchor, showAtPointer: true);
     }
 
     /// <summary>
@@ -834,7 +838,10 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        menu.ShowAt(anchor);
+        // The anchor is the rack Border, which is 547 px wide — ShowAt without
+        // showAtPointer lands the menu at the Border's top-left, often at the
+        // opposite end of the window from where the user right-clicked.
+        menu.ShowAt(anchor, showAtPointer: true);
     }
 
     /// <summary>

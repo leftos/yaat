@@ -240,20 +240,21 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Scratchpad | `SCRATCHPAD`/`SP` | `SP1`, `SP2` | YAAT has separate SP1/SP2 fields; bare `SP1`/`SP2` clears; undo/toggle on repeat |
-| Strip move | `STRIP {bay}` | `STRIP {bay} [{rack}] [{index}]` | YAAT extends to rack/index positioning within bay |
+| Strip move | `STRIP {bay}` | `STRIP {bay}[/{rack}[/{index}]]` | YAAT extends to rack/slot positioning; slash-compound 1-based |
 | Strip delete | — | `STRIPD` | YAAT-only |
 | Strip offset toggle | — | `STRIPO` | YAAT-only |
 | Annotate box | — | `AN {box} [text]` | YAAT-only; annotate strip box 1-9 |
-| Half-strip create | — | `HSC {bay} {l1\l2\...}` | YAAT-only; freeform half-strip with up to 6 lines (callsign auto-prepended if aircraft selected) |
-| Half-strip amend | — | `HSA [{bay}] {key\new1\...}` | YAAT-only; amend half-strip by first-line key, auto-search across bays |
-| Half-strip delete | — | `HSD [{bay}] {key}` | YAAT-only; delete half-strip by first-line key |
-| Half-strip move | — | `HSM [{bay}] {key} {new-bay}` | YAAT-only; move half-strip to different bay |
-| Half-strip offset | — | `HSO [{bay}] {key}` | YAAT-only; toggle half-strip offset |
-| Half-strip slide | — | `HSS [{bay}] {key} {LEFT\|RIGHT}` | YAAT-only; slide half-strip left/right within bay |
-| Separator create | — | `SEP {style} {bay} [{rack}] [{index}] [label]` | YAAT-only; create separator line |
-| Separator delete | — | `SEPD {bay} [{index}]` | YAAT-only; delete separator |
-| Blank create | — | `BLANK {bay} [{rack}] [{index}]` | YAAT-only; create blank strip space |
-| Blank delete | — | `BLANKD {bay} [{index}]` | YAAT-only; delete blank space |
+| Half-strip create | — | `HSC {bay}[/{rack}] {l1\l2\...}` | YAAT-only; freeform half-strip with up to 6 lines (callsign auto-prepended if aircraft selected) |
+| Half-strip amend | — | `HSA [{bay}[/{rack}]] {key\new1\...}` | YAAT-only; amend half-strip by first-line key, auto-search across bays |
+| Half-strip delete | — | `HSD [{bay}[/{rack}]] {key}` | YAAT-only; delete half-strip by first-line key |
+| Half-strip move | — | `HSM [{src-bay}[/{src-rack}]] {key} {dest-bay}[/{rack}[/{index}]]` | YAAT-only; slash-compound dest-spec |
+| Half-strip offset | — | `HSO [{bay}[/{rack}]] {key}` | YAAT-only; toggle half-strip offset |
+| Half-strip slide | — | `HSS [{bay}[/{rack}]] {key}` | YAAT-only; toggle half-strip left ↔ right |
+| Separator create | — | `SEP {style} {bay}[/{rack}[/{index}]] [label]` | YAAT-only; slash-compound position, optional label |
+| Separator edit | — | `SEPE {bay}/{rack}/{index} {new-label}` | YAAT-only; atomic label rewrite at explicit slot |
+| Separator delete | — | `SEPD {bay}[/{rack}] {label-or-position}` | YAAT-only; label or 1-based position locator |
+| Blank create | — | `BLANK [{bay}[/{rack}[/{index}]]]` | YAAT-only; bare verb adds to printer queue |
+| Blank delete | — | `BLANKD {bay}[/{rack}]` | YAAT-only; blanks are fungible |
 | Act As | — | `AS` + per-command prefix | YAAT-only, allows user to act as any TCP for one command, or switch to that TCP as their primary for commands, independent of CRC |
 | Reject pointout | — | `PORJ` | YAAT-only; rejects pending inbound pointout |
 | Retract pointout | — | `PORT` | YAAT-only; retracts your outbound pending pointout |

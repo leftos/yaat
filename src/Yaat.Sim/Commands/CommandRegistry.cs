@@ -796,9 +796,9 @@ public static class CommandRegistry
                 false,
                 ["STRIP"],
                 [
-                    O(null, [R("bay", "bay name")], "Move flight strip to top of bay's first rack"),
-                    O(null, [R("bay", "bay name"), R("rack", "rack index")], "Move flight strip to top of specific rack"),
-                    O(null, [R("bay", "bay name"), R("rack", "rack index"), R("index", "row in rack")], "Move flight strip to specific position"),
+                    O(null, [R("dest", "bay")], "Move flight strip to top of bay's first rack"),
+                    O(null, [R("dest", "bay/rack")], "Move flight strip to first-available slot in rack"),
+                    O(null, [R("dest", "bay/rack/index")], "Move flight strip to specific 1-based position"),
                 ]
             ),
             Cmd(StripDelete, "Delete Flight Strip", "Strip Operations", false, ["STRIPD"], [O(null, [], "Delete the aircraft's flight strip")]),
@@ -861,18 +861,12 @@ public static class CommandRegistry
                 false,
                 ["SEP", "SEPARATOR"],
                 [
-                    O(null, [R("style", "H|W|R|G"), R("bay", "bay name")], "Create separator at bay's first rack, top"),
-                    O(null, [R("style", "H|W|R|G"), R("bay", "bay name"), R("rack", "rack index")], "Create separator at rack"),
+                    O(null, [R("style", "H|W|R|G"), R("dest", "bay")], "Create separator at bay's first rack, top"),
+                    O(null, [R("style", "H|W|R|G"), R("dest", "bay/rack")], "Create separator at top of rack"),
                     O(
                         null,
-                        [
-                            R("style", "H|W|R|G"),
-                            R("bay", "bay name"),
-                            R("rack", "rack index"),
-                            R("index", "row in rack"),
-                            R("label", "optional label"),
-                        ],
-                        "Create separator at position with optional label"
+                        [R("style", "H|W|R|G"), R("dest", "bay/rack/index"), R("label", "optional label")],
+                        "Create separator at 1-based slot with optional label"
                     ),
                 ]
             ),
@@ -883,12 +877,8 @@ public static class CommandRegistry
                 false,
                 ["SEPD", "SEPARATORDEL"],
                 [
-                    O("By label", [R("bay", "bay name"), R("label", "separator label")], "Delete separator by label (preferred)"),
-                    O(
-                        "By position",
-                        [R("bay", "bay name"), R("rack", "rack index"), R("index", "row in rack")],
-                        "Delete separator at position (fallback)"
-                    ),
+                    O("By label", [R("dest", "bay/rack"), R("label", "separator label")], "Delete separator by label (preferred)"),
+                    O("By position", [R("dest", "bay/rack"), R("index", "1-based slot")], "Delete separator at position (fallback)"),
                 ]
             ),
             Cmd(
@@ -897,13 +887,7 @@ public static class CommandRegistry
                 "Strip Operations",
                 false,
                 ["SEPE"],
-                [
-                    O(
-                        null,
-                        [R("bay", "bay name"), R("rack", "rack index"), R("locator", "old label or 1-based slot"), R("label", "new label text")],
-                        "Atomic separator label edit (replaces delete+create)"
-                    ),
-                ]
+                [O(null, [R("dest", "bay/rack/index"), R("label", "new label text")], "Atomic separator label edit (replaces delete+create)")]
             ),
             Cmd(
                 BlankCreate,
@@ -913,9 +897,9 @@ public static class CommandRegistry
                 ["BLANK", "BLANKSTRIP"],
                 [
                     O(null, [], "Create blank in the printer queue"),
-                    O(null, [R("bay", "bay name")], "Create blank at bay's first rack, top"),
-                    O(null, [R("bay", "bay name"), R("rack", "rack index")], "Create blank at rack, top"),
-                    O(null, [R("bay", "bay name"), R("rack", "rack index"), R("index", "row in rack")], "Create blank at specific position"),
+                    O(null, [R("dest", "bay")], "Create blank at bay's first rack, top"),
+                    O(null, [R("dest", "bay/rack")], "Create blank at top of rack"),
+                    O(null, [R("dest", "bay/rack/index")], "Create blank at 1-based slot"),
                 ]
             ),
             Cmd(
@@ -925,8 +909,8 @@ public static class CommandRegistry
                 false,
                 ["BLANKD", "BLANKSTRIPDEL"],
                 [
-                    O(null, [R("bay", "bay name")], "Delete any one blank from the bay (blanks are fungible)"),
-                    O(null, [R("bay", "bay name"), R("rack", "rack index")], "Delete any one blank from the specific rack"),
+                    O(null, [R("dest", "bay")], "Delete any one blank from the bay (blanks are fungible)"),
+                    O(null, [R("dest", "bay/rack")], "Delete any one blank from the specific rack"),
                 ]
             ),
             Cmd(

@@ -20,7 +20,8 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_MultipleLines_WithRack()
     {
-        var result = CommandParser.Parse(@"HSC GROUND/1 a\b\c");
+        // Wire rack is 1-based; parser converts to 0-based internal index.
+        var result = CommandParser.Parse(@"HSC GROUND/2 a\b\c");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
@@ -129,10 +130,11 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsa_ExplicitBayWithRack()
     {
+        // Wire rack 2 → 0-based internal rack 1.
         var result = CommandParser.Parse(@"HSA GROUND/2 key\new1");
         var cmd = Assert.IsType<HalfStripAmendCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
-        Assert.Equal(2, cmd.Rack);
+        Assert.Equal(1, cmd.Rack);
         Assert.Equal(["key", "new1"], cmd.Tokens);
     }
 
@@ -196,7 +198,8 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsd_ExplicitBayWithRack_WithKey()
     {
-        var result = CommandParser.Parse("HSD GROUND/1 key");
+        // Wire rack 2 → 0-based internal rack 1.
+        var result = CommandParser.Parse("HSD GROUND/2 key");
         var cmd = Assert.IsType<HalfStripDeleteCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);

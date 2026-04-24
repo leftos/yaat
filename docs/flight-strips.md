@@ -196,11 +196,14 @@ aircraft phase gating and go straight to `HandleStripCmd`.
 
 All four are aircraft-scoped (require a selected or prefix callsign):
 
-- `STRIP {bay} [{rack}] [{index}]` pushes or reassigns a full flight
+- `STRIP {bay}[/{rack}[/{index}]]` pushes or reassigns a full flight
   strip keyed by `STRIP_{callsign}` to the named bay. Rack and index
-  default to 0. The record is type `DepartureStrip (0)`. Bay matching
-  uses greedy longest-prefix for multi-word bay names; arguments are
-  tokenized via `StripMoveCommand`.
+  are **1-based** on the wire and converted to 0-based internally —
+  `rack 1` in the spec means `Racks[0]` in the code. Both default to
+  the first rack / first slot when omitted. The record is type
+  `DepartureStrip (0)`. The slash-compound form removes the
+  greedy-bay-match ambiguity that applied to the older space-separated
+  syntax.
 - `AN {box} [text]` writes (or clears) annotation text into one of
   boxes 1–9 on the aircraft's strip. Field index is `box + 9`. Accepts
   `AN 10`–`AN 18` as aliases for `AN 1`–`AN 9`.
@@ -248,9 +251,11 @@ Bay is **required** for `HSC` — you have to tell the server where to
 put the new strip. It's **optional** for `HSA` / `HSD`: without a bay
 they auto-search across every accessible strip bay for the position.
 
-Rack is always optional; it defaults to 0. Syntax is `{bay}[/{rack}]`,
-so `HSC Ground1/2 foo` means "bay Ground 1, rack 2, line 1 = foo".
-The handler validates `rack < bayConfig.NumberOfRacks`.
+Rack is always optional; it defaults to the first rack. Syntax is
+`{bay}[/{rack}]` with rack as a **1-based** integer, so
+`HSC Ground1/2 foo` means "bay Ground 1, rack 2 (internal index 1),
+line 1 = foo". The handler validates the converted 0-based rack
+against `bayConfig.NumberOfRacks`.
 
 #### Bay vs. key disambiguation rule (HSA / HSD only)
 
@@ -344,43 +349,50 @@ that contain half-strip commands replay correctly.
 Moves a half-strip to a new bay/rack/index. Works in global and
 aircraft-scoped modes:
 
-- **Global**: `HSM bay [rack] [index] dest-bay/rack/index` where the
-  source half-strip is identified by its first line (lookup key).
-- **Aircraft-scoped**: `HSM dest-bay [rack] [index]` moves the half-strip
-  keyed by the aircraft callsign.
+- **Global**: `HSM [src-bay[/src-rack]] key dest-bay[/rack[/index]]`
+  where the source half-strip is identified by its first line (lookup
+  key). The dest-spec is slash-compound 1-based like every other
+  vStrips verb.
+- **Aircraft-scoped**: `HSM dest-bay[/rack[/index]]` moves the
+  half-strip keyed by the aircraft callsign.
 
 #### `HSO` (half-strip offset)
 
 Toggles the `IsOffset` flag on a half-strip. Dual-mode:
 
-- **Global**: `HSO [bay [rack]] key` identifies the half-strip by key.
-- **Aircraft-scoped**: `HSO [bay [rack]]` toggles the callsign's strip.
+- **Global**: `HSO [bay[/rack]] key` identifies the half-strip by key.
+- **Aircraft-scoped**: `HSO [bay[/rack]]` toggles the callsign's strip.
 
 #### `HSS` (half-strip slide)
 
 Toggles a half-strip between `HalfStripLeft` and `HalfStripRight`.
 Dual-mode:
 
-- **Global**: `HSS [bay [rack]] key` identifies the half-strip by key.
-- **Aircraft-scoped**: `HSS [bay [rack]]` toggles the callsign's strip.
+- **Global**: `HSS [bay[/rack]] key` identifies the half-strip by key.
+- **Aircraft-scoped**: `HSS [bay[/rack]]` toggles the callsign's strip.
 
-#### `SEP` / `SEPD` (separators)
+#### `SEP` / `SEPE` / `SEPD` (separators)
 
-Create and delete rack separators:
+Create, edit, and delete rack separators. All use the same
+slash-compound 1-based dest-spec as the rest of the vStrips verbs:
 
-- `SEP H|W|R|G bay [rack] [index] [label]` creates a separator of type
+- `SEP H|W|R|G bay[/rack[/index]] [label]` creates a separator of type
   Handwritten (H), White (W), Red (R), or Green (G). Label is optional
-  freeform text. Defaults to rack 0, index 0.
-- `SEPD bay [rack] label-or-position` deletes a separator by its label
-  (exact match) or numeric position.
+  freeform text (may contain spaces). Defaults to the first rack and
+  first slot.
+- `SEPE bay/rack/index new-label…` rewrites the separator at the given
+  1-based slot in place — atomic, preserves the strip id. `new-label`
+  may span multiple space-separated tokens.
+- `SEPD bay[/rack] label-or-position` deletes a separator by its label
+  (case-insensitive) or by a 1-based numeric position.
 
 #### `BLANK` / `BLANKD` (blanks)
 
 Create and delete blank strips:
 
-- `BLANK [bay [rack] [index]]` creates a blank full-size strip. Without
+- `BLANK [bay[/rack[/index]]]` creates a blank full-size strip. Without
   arguments, adds the blank to the printer queue (not a specific bay).
-- `BLANKD bay [rack]` deletes one blank from the specified bay/rack
+- `BLANKD bay[/rack]` deletes one blank from the specified bay/rack
   (blanks are fungible).
 
 ## CRC protocol integration

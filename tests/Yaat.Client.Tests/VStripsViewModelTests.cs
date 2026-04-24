@@ -247,8 +247,8 @@ public class VStripsViewModelTests
 
         var entry = Assert.Single(captured);
         Assert.Equal("UAL100", entry.Callsign);
-        // Wire format is 1-based per VStripsCanonicalBuilder.OneBased: rack 1 → "2", index 2 → "3".
-        Assert.Equal("STRIP LOCAL 2 3", entry.Command);
+        // Wire is slash-compound 1-based: rack 1 → "2", index 2 → "3".
+        Assert.Equal("STRIP LOCAL/2/3", entry.Command);
     }
 
     [Fact]
@@ -339,7 +339,7 @@ public class VStripsViewModelTests
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S2"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: 2);
 
         var entry = Assert.Single(captured);
-        Assert.Equal("STRIP GROUND 1 3", entry.Command);
+        Assert.Equal("STRIP GROUND/1/3", entry.Command);
     }
 
     [Fact]
@@ -395,8 +395,8 @@ public class VStripsViewModelTests
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: null);
 
         var entry = Assert.Single(captured);
-        // Wire without index token.
-        Assert.Equal("STRIP GROUND 1", entry.Command);
+        // Wire drops the trailing /index token.
+        Assert.Equal("STRIP GROUND/1", entry.Command);
     }
 
     [Fact]

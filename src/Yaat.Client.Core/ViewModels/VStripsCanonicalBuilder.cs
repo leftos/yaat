@@ -11,16 +11,21 @@ namespace Yaat.Client.ViewModels;
 /// creation — funnels through one of these builders so the wire format stays
 /// replay-safe and the command pipeline mirrors every other yaat-client surface.
 ///
-/// <para>The canonical wire format uses <b>1-based</b> rack/index values — users
-/// think in "rack 1" and "slot 1", not "rack 0" / "slot 0". Callers pass
-/// 0-based integers (matching the internal view-model representation) and the
-/// builders add +1 on the wire. The server's
-/// <c>StripMutations.ResolveStripTokens</c> performs the reverse mapping.</para>
+/// <para>The canonical wire format uses <b>1-based</b> rack/index values and
+/// <b>slash-compound destination specs</b> (<c>bay/rack/index</c>) across every
+/// vStrips verb — STRIP, HSC, HSM, SEP, SEPE, SEPD, BLANK, BLANKD. Users think
+/// in "rack 1" and "slot 1", not "rack 0" / "slot 0"; callers pass 0-based
+/// integers (matching the view-model representation) and the builders add +1 on
+/// the wire. The server's canonical parser performs the reverse mapping inside
+/// a single <c>TryParseStripDestSpec</c> helper, eliminating the greedy bay
+/// matching the older space-separated form required.</para>
 ///
-/// <para>Omitting the index argument on STRIP is valid: <c>STRIP bay rack</c>
-/// (no trailing index) means "append to the end of the rack" (CRC bottom-up
-/// first-available semantics). Pass <c>index = null</c> to <see cref="BuildStripMove"/>
-/// to emit that form.</para>
+/// <para>Omitting trailing parts of the dest-spec is valid: <c>bay</c> alone
+/// appends to the first rack, <c>bay/rack</c> appends to that rack (first
+/// free slot bottom-up), <c>bay/rack/index</c> targets a specific slot. On
+/// STRIP specifically, a null index also emits the shorter form so the server
+/// gets the "append to tail" signal — pass <c>index = null</c> to
+/// <see cref="BuildStripMove"/> for that.</para>
 /// </summary>
 public static class VStripsCanonicalBuilder
 {
@@ -30,7 +35,7 @@ public static class VStripsCanonicalBuilder
     /// rack (the first-available bottom slot).
     /// </summary>
     public static string BuildStripMove(string bayName, int rack, int? index) =>
-        index is int i ? $"STRIP {bayName} {OneBased(rack)} {OneBased(i)}" : $"STRIP {bayName} {OneBased(rack)}";
+        index is int i ? $"STRIP {bayName}/{OneBased(rack)}/{OneBased(i)}" : $"STRIP {bayName}/{OneBased(rack)}";
 
     /// <summary>Delete the full strip owned by the currently-selected aircraft.</summary>
     public static string BuildStripDelete() => "STRIPD";
@@ -90,16 +95,20 @@ public static class VStripsCanonicalBuilder
     /// <summary>Slide a half-strip (toggle Left ↔ Right) by lookup key.</summary>
     public static string BuildHalfStripSlide(string lookupKey) => $"HSS {lookupKey}";
 
-    /// <summary>Create a separator of the given style at a bay position with an optional label.</summary>
+    /// <summary>
+    /// Create a separator of the given style at a bay position with an optional
+    /// label. Emits <c>SEP style bay/rack/index [label]</c>; label may contain
+    /// spaces and is captured as the remainder of the line.
+    /// </summary>
     public static string BuildSeparatorCreate(SeparatorStyle style, string bayName, int rack, int index, string? label)
     {
         var sb = new StringBuilder("SEP ")
             .Append(StyleChar(style))
             .Append(' ')
             .Append(bayName)
-            .Append(' ')
+            .Append('/')
             .Append(OneBased(rack))
-            .Append(' ')
+            .Append('/')
             .Append(OneBased(index));
         var trimmed = label?.Trim();
         if (!string.IsNullOrEmpty(trimmed))
@@ -109,16 +118,21 @@ public static class VStripsCanonicalBuilder
         return sb.ToString();
     }
 
-    /// <summary>Delete a separator by bay + label (preferred) or bay + position fallback.</summary>
+    /// <summary>
+    /// Delete a separator by bay + label (preferred) or bay + position fallback.
+    /// Label form: <c>SEPD bay/rack label-text</c>. Position form:
+    /// <c>SEPD bay/rack 1-based-index</c>. Either trailing token is interpreted
+    /// first as a label; if it's purely numeric it falls through to position.
+    /// </summary>
     public static string BuildSeparatorDelete(string bayName, int rack, string? label, int? index)
     {
         var trimmed = label?.Trim();
         var tail = !string.IsNullOrEmpty(trimmed) ? trimmed : OneBased(index ?? 0);
-        return $"SEPD {bayName} {OneBased(rack)} {tail}";
+        return $"SEPD {bayName}/{OneBased(rack)} {tail}";
     }
 
     /// <summary>
-    /// Atomic separator label edit. Emits <c>SEPE bay rack index newLabel</c>
+    /// Atomic separator label edit. Emits <c>SEPE bay/rack/index newLabel</c>
     /// where <paramref name="rack"/> / <paramref name="index"/> are 0-based
     /// internally and converted to 1-based on the wire. Replaces the prior
     /// delete+create pattern which was racy under reconnect. New label may
@@ -127,7 +141,7 @@ public static class VStripsCanonicalBuilder
     public static string BuildSeparatorEdit(string bayName, int rack, int index, string newLabel)
     {
         var trimmed = newLabel.Trim();
-        return $"SEPE {bayName} {OneBased(rack)} {OneBased(index)} {trimmed}";
+        return $"SEPE {bayName}/{OneBased(rack)}/{OneBased(index)} {trimmed}";
     }
 
     /// <summary>Create a blank strip. Null bay = printer queue; otherwise bay/rack/index.</summary>
@@ -139,7 +153,7 @@ public static class VStripsCanonicalBuilder
         }
         var rackVal = OneBased(rack ?? 0);
         var indexVal = OneBased(index ?? 0);
-        return $"BLANK {bayName} {rackVal} {indexVal}";
+        return $"BLANK {bayName}/{rackVal}/{indexVal}";
     }
 
     /// <summary>Delete one blank strip from a bay (blanks are fungible — server picks first match).</summary>
@@ -149,7 +163,7 @@ public static class VStripsCanonicalBuilder
         {
             return $"BLANKD {bayName}";
         }
-        return $"BLANKD {bayName} {OneBased(rack.Value)}";
+        return $"BLANKD {bayName}/{OneBased(rack.Value)}";
     }
 
     /// <summary>Converts a 0-based view-model index into its 1-based wire form.</summary>

@@ -31,21 +31,23 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hsm_DestBayWithRack()
     {
+        // Wire rack 2 → 0-based internal rack 1.
         var result = CommandParser.Parse("HSM Local/2");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal("LOCAL", cmd.DestBayName);
-        Assert.Equal(2, cmd.DestRack);
+        Assert.Equal(1, cmd.DestRack);
         Assert.Null(cmd.DestIndex);
     }
 
     [Fact]
     public void Hsm_DestBayWithRackAndIndex()
     {
+        // Wire rack 2 / index 3 → 0-based rack 1 / index 2.
         var result = CommandParser.Parse("HSM Local/2/3");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal("LOCAL", cmd.DestBayName);
-        Assert.Equal(2, cmd.DestRack);
-        Assert.Equal(3, cmd.DestIndex);
+        Assert.Equal(1, cmd.DestRack);
+        Assert.Equal(2, cmd.DestIndex);
     }
 
     [Fact]
@@ -62,8 +64,9 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hsm_ExplicitSourceBay_Key_Dest()
     {
-        // Three tokens: src-bay, key, dest.
-        var result = CommandParser.Parse("HSM Ground/1 KEY1 Local/2/0");
+        // Three tokens: src-bay, key, dest. Wire values are 1-based; parser
+        // returns 0-based internal indices.
+        var result = CommandParser.Parse("HSM Ground/2 KEY1 Local/3/1");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal("GROUND", cmd.SourceBayName);
         Assert.Equal(1, cmd.SourceRack);
@@ -120,7 +123,8 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hso_BayAndKey()
     {
-        var result = CommandParser.Parse("HSO Ground/1 KEY1");
+        // Wire rack 2 → 0-based internal rack 1.
+        var result = CommandParser.Parse("HSO Ground/2 KEY1");
         var cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);

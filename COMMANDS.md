@@ -347,8 +347,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Annotate strip box | `AN 3 RV` | `ANNOTATE`, `BOX` | — |
-| Push strip to bay | `STRIP Ground` | — | — |
-| Create half-strip | `HSC Ground Hello\World` | `HALFSTRIPCREATE` | — |
+| Push strip to bay | `STRIP Ground/1/1` | — | Slash-compound `bay[/rack[/index]]`, 1-based |
+| Create half-strip | `HSC Ground/1 Hello\World` | `HALFSTRIPCREATE` | — |
 | Amend half-strip | `HSA Hello\Updated\Body` | `HALFSTRIPAMEND` | — |
 | Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | — |
 | Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | — |
@@ -866,9 +866,10 @@ Changing your active position also updates the radar display:
 | `GHOST N12345 37.7 -122.2` | Create ghost track at exact position |
 | `AN 3 RV` / `BOX 3 RV` | Write "RV" in strip annotation box 3 (boxes 1-9) |
 | `AN 3` | Clear strip annotation box 3 |
-| `STRIP Ground` | Push flight strip to "Ground" bay in vStrips |
-| `HSC Ground Hello\World` | Create half-strip in Ground bay with two lines (`\` separates lines, max 6) |
-| `HSC Ground1 line2` | (with aircraft selected) Create half-strip with callsign as line 1, "line2" as line 2 |
+| `STRIP Ground` | Push flight strip to "Ground" bay (first-available slot in rack 1) |
+| `STRIP Ground/2/3` | Push flight strip to Ground bay rack 2, slot 3 (1-based) |
+| `HSC Ground Hello\World` | Create half-strip in Ground bay (rack defaults to 1) with two lines (`\` separates lines, max 6) |
+| `HSC Ground/2 line2` | (with aircraft selected) Create half-strip in Ground rack 2 with callsign as line 1, "line2" as line 2 |
 | `HSA Hello\Updated\Body` | Amend half-strip whose first line is "Hello" — replaces all lines with `Updated`, `Body` |
 | `HSA Ground Hello\New` | Same, scoped to "Ground" bay (use to disambiguate when key matches in multiple bays) |
 | `HSD Hello` | Delete half-strip whose first line is "Hello" (auto-search across bays) |
@@ -887,7 +888,7 @@ Scratchpads support **undo/toggle**: entering the same value again restores the 
 - **Global** (no aircraft selected) — the user types every line of the half-strip.
 - **Aircraft-scoped** (an aircraft is selected) — the callsign is automatically used as line 1 and as the lookup key for amend/delete.
 
-Lines are separated by a literal backslash `\` and capped at 6 lines total. The bay name is matched case- and whitespace-insensitively, so `Ground 1` can be referenced as `Ground1`. An optional rack index is appended with `/`, e.g. `Ground1/2`. Without a rack, the half-strip lands on rack 0.
+Lines are separated by a literal backslash `\` and capped at 6 lines total. The bay name is matched case- and whitespace-insensitively, so `Ground 1` can be referenced as `Ground1`. An optional rack is appended with `/` as a 1-based integer, e.g. `Ground1/2` targets the second rack of `Ground 1`. Without a rack, the half-strip lands on the first rack. Every vStrips wire format uses this same `bay[/rack[/index]]` slash-compound form — STRIP, HSC, HSM, SEP, SEPE, SEPD, BLANK, and BLANKD are all 1-based on the wire.
 
 `HSA` and `HSD` do **not** require a bay name. They search every accessible strip bay for a half-strip whose first line matches the lookup key (case-insensitive). If exactly one half-strip matches, it is amended or deleted; if more than one matches across bays, the command fails and lists the bay/rack pairs so the user can disambiguate by adding the bay explicitly.
 
