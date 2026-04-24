@@ -481,7 +481,7 @@ Separate repo. References Yaat.Sim via sibling project ref. Provides: SignalR co
 ```
 src/Yaat.Server/
   Program.cs                   # DI setup, VNAS/CIFP init, route mapping, AdminPassword validation
-  YaatOptions.cs               # IOptions: AdminPassword
+  YaatOptions.cs               # IOptions: AdminPassword (Yaat section); NexradOptions (Nexrad section: Enabled, RefreshMinutes)
 
   Hubs/
     TrainingHub.cs             # /hubs/training (JSON); room lifecycle + delegates to RoomEngine
@@ -510,13 +510,17 @@ src/Yaat.Server/
     ScenarioState.cs           # Per-room active scenario state: queues, positions, generators, channels
     TrainingBroadcastService.cs # SignalR hub context wrapper for training clients
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch; BroadcastToTopicSubscribersAsync
-    CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules
+    CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules; STARS hysteresis (add at elev+100, remove at elev); AircraftState.IsVehicle excluded from STARS
     StarsLineNumberAssigner.cs # Per-room sequential line number assignment (1-99 wrap)
     StripCommandHandler.cs     # Flight strip command dispatch (all 14 canonical verbs)
     StripBroadcaster.cs        # Flight strip broadcast coordination: SignalR + CRC topic paths
     StripMutations.cs          # Stateless strip mutation helper: create/delete/amend logic
     StripCommandTranslator.cs  # Translate CRC MessagePack invocations → canonical command strings
     DtoConverter.cs            # AircraftState → CRC + training DTOs + ASDEX/strip converters
+    INexradProvider.cs         # NEXRAD imagery provider contract (INexradProvider); gated on room.Weather == null (preset-weather short-circuit)
+    EmptyNexradProvider.cs     # Default: returns NexradDataDto.Empty() regardless of inputs
+    WmsNexradProvider.cs       # Opt-in (Nexrad:Enabled=true): fetches NOAA opengeo conus_cref_qcd PNG, 5-min TTL cache, cos(mid_lat) width
+    NexradRefreshHostedService.cs # PeriodicTimer (Nexrad:RefreshMinutes, default 5); refreshes cache + broadcasts ReceiveNexradData per room with live weather
 
   Commands/
     CommandParser.cs           # Server-side canonical parsing; IsTrackCommand(), IsCoordinationCommand()
@@ -544,6 +548,7 @@ src/Yaat.Server/
     ArtccConfigService.Consolidation.cs  # Partial: STARS consolidation hierarchy + manual override integration
     ArtccConfigService.VideoMaps.cs      # Partial: video map extraction + position display config resolution
     PositionRegistry.cs        # Thread-safe CRC + RPO position tracking
+    NexradBoundsLoader.cs      # Parses Data/Nexrad/NexradBoundingBoxes.geojson (24 ARTCCs) → per-ARTCC NexradBounds (N/S/E/W)
   Udp/UdpStubServer.cs        # UDP port 6809 stub (CRC keepalive/registration)
   Logging/FileLoggerProvider.cs
 ```

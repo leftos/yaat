@@ -50,10 +50,10 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 ### ERAM Commands
 
-- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN (leader/VCI), QF (FP readout), QL (quick look), RD (route display), QU (projected route), QT (track init/drop), QZ (interim alt), QQ (assigned / local-interim / procedure alt), QS (scratchpad), QR (aliased to RD). Unknown verbs return `FORMAT`.
+- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN (leader/VCI), QF (FP readout), QL (quick look), RD (route display), QU (projected route), QT (track init/drop), QZ (interim alt), QQ (assigned / local-interim / procedure alt), QS (scratchpad), QP (pointout initiate / accept), QR (aliased to RD). Unknown verbs return `FORMAT`.
 - [x] `SetEramSectorConfiguration(EramSectorConfigurationDto)` — per-sector storage + broadcast
 - [x] `ToggleEramDwellLock(aircraftId)` — toggles `AircraftState.IsDwellLocked`
-- [~] `ClearEramPointout(aircraftId, pointoutId)` — nil-ack stub; pointout lifecycle (QP) pending a sim-side `EramPointoutState` type
+- [x] `ClearEramPointout(aircraftId, pointoutId)` — ownership-checked (receiving sector only) clear of both R-side and D-side flags on the matching `EramPointoutState`
 - [~] `ClearOrDeleteEramCrrGroup(groupLabel)` — nil-ack stub; creation path unresolved (no dedicated hub method; live CRC trace needed)
 - [~] `SetEramCrrGroupColor(groupLabel, CrrColor)` — nil-ack stub; blocked on creation path
 
@@ -209,7 +209,7 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 ### NEXRAD
 
-- [x] `ReceiveNexradData(Topic, NexradDataDto)` — `NexradDataDto.Empty()` sentinel on subscribe (clears CRC's precipitation cache); real WMS fetch deferred
+- [x] `ReceiveNexradData(Topic, NexradDataDto)` — opt-in WMS fetch (`Nexrad:Enabled=true`) from NOAA opengeo `conus_cref_qcd`, 5 min cache, 5 min background refresh broadcast; empty-sentinel by default or when the room carries a preset `WeatherProfile`
 
 ---
 
@@ -266,13 +266,14 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 ### Bucket E — ERAM expansion (partial)
 
 - [x] Mutation verbs: QT, QZ, QQ, QS (QR aliased to RD)
-- [ ] QP (pointout initiate/accept) — blocked on sim-side `EramPointoutState`
-- [ ] `ClearEramPointout` — nil-ack stub; same blocker as QP
+- [x] QP (pointout initiate/accept) — wired via `DispatchQp`; initiate form creates a new `EramPointoutState`, accept form flips `IsAcknowledged`
+- [x] `ClearEramPointout` — real handler in `CrcClientState.cs` (receiver-sector ownership check + flip both cleared flags)
 - [ ] `ReceiveEramCrrGroups` / `DeleteEramCrrGroups` + `SetEramCrrGroupColor` + `ClearOrDeleteEramCrrGroup`
   - CRR group creation path unresolved — dispatched as nil-ack stubs; prototype test-only hook requires a live CRC wire trace
 
 ### Bucket F — Deferred (upstream-blocked)
 
+- [x] Real NEXRAD fetch — opt-in `Nexrad:Enabled=true` wires `WmsNexradProvider` + `NexradRefreshHostedService` (5 min cadence, NOAA opengeo WMS, preset-weather gate)
 - [ ] `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` — needs `AsdexSafetyLogicDetector` in Yaat.Sim
 - [ ] ERAM short-term conflict detection + broadcast (clone STARS STCA once validated)
 - [ ] NEXRAD real fetch (NOAA WMS integration; replaces empty-sentinel)
@@ -290,18 +291,18 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 | Position management | 9 | 0 | 0 |
 | Subscriptions | 2 | 0 | 0 |
 | STARS commands | 1 (rich) | 0 | 0 |
-| ERAM commands | 3 | 3 | 0 |
+| ERAM commands | 4 | 2 | 0 |
 | Flight plan ops | 9 | 0 | 0 |
 | Messaging | 6 | 0 | 0 |
 | ASDEX management | 13 | 0 | 0 |
 | Flight strips | 7 | 0 | 0 |
 | Info requests | 5 | 0 | 0 |
 | Navigation | 1 | 0 | 0 |
-| **Client→Server total** | **64** | **3** | **0** |
+| **Client→Server total** | **65** | **2** | **0** |
 | Server→Client broadcasts | 42 | 0 | 11 |
 
-**Client→Server:** 3 remaining stubs are all ERAM CRR/pointout, blocked on the unresolved CRR creation path + sim-side `EramPointoutState` design.
+**Client→Server:** 2 remaining stubs are ERAM CRR group-color + CRR delete, blocked on the unresolved CRR creation path (no creation hub method; requires a live CRC wire trace).
 
-**Server→Client broadcasts remaining (11):** ERAM CRR groups Receive/Delete (2), ERAM STCA Receive/Delete (2), ERAM target history UDP Delete (1), ASDEX alerts Receive/Delete (2), plus detector work to populate existing empty broadcasts — AsdexAlerts, ASDEX safety-logic dynamic hold-bar status, ERAM STCA — and real NEXRAD fetch. All are upstream-blocked.
+**Server→Client broadcasts remaining (11):** ERAM CRR groups Receive/Delete (2), ERAM STCA Receive/Delete (2), ERAM target history UDP Delete (1), ASDEX alerts Receive/Delete (2), plus detector work to populate existing empty broadcasts — AsdexAlerts, ASDEX safety-logic dynamic hold-bar status, ERAM STCA. All are upstream-blocked.
 
 **ProcessStarsCommand detail:** IC, TC, Handoff, Implied (9 sub-ops), MultiFunc (CON/DECON), Coordination (stub)
