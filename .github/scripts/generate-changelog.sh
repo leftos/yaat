@@ -14,9 +14,10 @@ else
     RANGE="${PREVIOUS_TAG}..${CURRENT_REF}"
 fi
 
-# Collect commits grouped by prefix
-declare -A GROUPS
-GROUPS=(
+# Collect commits grouped by prefix. Note: the array name "GROUPS" collides with
+# a readonly bash variable (current user's supplementary group IDs) — use BY_TYPE.
+declare -A BY_TYPE
+BY_TYPE=(
     [features]=""
     [fixes]=""
     [refactoring]=""
@@ -32,45 +33,45 @@ while IFS= read -r line; do
 
     case "$subject" in
         feat:*|feat\(*|add:*|add\(*)
-            GROUPS[features]+="- ${subject}"$'\n'
+            BY_TYPE[features]+="- ${subject}"$'\n'
             ;;
         fix:*|fix\(*)
-            GROUPS[fixes]+="- ${subject}"$'\n'
+            BY_TYPE[fixes]+="- ${subject}"$'\n'
             ;;
         ref:*|ref\(*)
-            GROUPS[refactoring]+="- ${subject}"$'\n'
+            BY_TYPE[refactoring]+="- ${subject}"$'\n'
             ;;
         docs:*|docs\(*)
-            GROUPS[docs]+="- ${subject}"$'\n'
+            BY_TYPE[docs]+="- ${subject}"$'\n'
             ;;
         test:*|test\(*)
-            GROUPS[tests]+="- ${subject}"$'\n'
+            BY_TYPE[tests]+="- ${subject}"$'\n'
             ;;
         *)
-            GROUPS[other]+="- ${subject}"$'\n'
+            BY_TYPE[other]+="- ${subject}"$'\n'
             ;;
     esac
 done < <(git log --format="%s (%h)" "$RANGE" --)
 
 output=""
 
-if [[ -n "${GROUPS[features]}" ]]; then
-    output+="### Features"$'\n'"${GROUPS[features]}"$'\n'
+if [[ -n "${BY_TYPE[features]}" ]]; then
+    output+="### Features"$'\n'"${BY_TYPE[features]}"$'\n'
 fi
-if [[ -n "${GROUPS[fixes]}" ]]; then
-    output+="### Bug Fixes"$'\n'"${GROUPS[fixes]}"$'\n'
+if [[ -n "${BY_TYPE[fixes]}" ]]; then
+    output+="### Bug Fixes"$'\n'"${BY_TYPE[fixes]}"$'\n'
 fi
-if [[ -n "${GROUPS[refactoring]}" ]]; then
-    output+="### Refactoring"$'\n'"${GROUPS[refactoring]}"$'\n'
+if [[ -n "${BY_TYPE[refactoring]}" ]]; then
+    output+="### Refactoring"$'\n'"${BY_TYPE[refactoring]}"$'\n'
 fi
-if [[ -n "${GROUPS[docs]}" ]]; then
-    output+="### Documentation"$'\n'"${GROUPS[docs]}"$'\n'
+if [[ -n "${BY_TYPE[docs]}" ]]; then
+    output+="### Documentation"$'\n'"${BY_TYPE[docs]}"$'\n'
 fi
-if [[ -n "${GROUPS[tests]}" ]]; then
-    output+="### Tests"$'\n'"${GROUPS[tests]}"$'\n'
+if [[ -n "${BY_TYPE[tests]}" ]]; then
+    output+="### Tests"$'\n'"${BY_TYPE[tests]}"$'\n'
 fi
-if [[ -n "${GROUPS[other]}" ]]; then
-    output+="### Other"$'\n'"${GROUPS[other]}"$'\n'
+if [[ -n "${BY_TYPE[other]}" ]]; then
+    output+="### Other"$'\n'"${BY_TYPE[other]}"$'\n'
 fi
 
 if [[ -z "$output" ]]; then

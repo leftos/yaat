@@ -17,6 +17,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
     <!-- DataGrid needed for the room-picker dialog -->
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
 
   <!-- References Core only — no transitive LM-Kit, SharpHook, PortAudio, or SkiaSharp.

@@ -276,6 +276,22 @@ jobs:
       - name: Install Velopack CLI
         run: dotnet tool install -g vpk
 
+      - name: Generate .icns from icon.png
+        run: |
+          # Velopack's macOS packer requires .icns, so build one from the PNG
+          # using Apple's built-in sips + iconutil. Only the multiple-of-two
+          # sizes commonly recognized by iconutil are emitted.
+          src=src/Yaat.Client/Resources/icon.png
+          iconset=$RUNNER_TEMP/icon.iconset
+          mkdir -p "$iconset"
+          for size in 16 32 64 128 256 512; do
+            sips -z "$size" "$size" "$src" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+            double=$((size * 2))
+            sips -z "$double" "$double" "$src" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+          done
+          iconutil -c icns "$iconset" -o "$RUNNER_TEMP/icon.icns"
+          echo "ICNS_PATH=$RUNNER_TEMP/icon.icns" >> "$GITHUB_ENV"
+
       - name: Pack macOS bundle
         run: |
           vpk pack \
@@ -284,7 +300,7 @@ jobs:
             --packDir publish/osx-arm64 \
             --mainExe Yaat.Client \
             --packTitle "YAAT Client" \
-            --icon src/Yaat.Client/Resources/icon.png \
+            --icon "$ICNS_PATH" \
             --outputDir releases
 
           vpk pack \
@@ -293,7 +309,7 @@ jobs:
             --packDir publish-vstrips/osx-arm64 \
             --mainExe Yaat.VStrips \
             --packTitle "YAAT Flight Strips" \
-            --icon src/Yaat.Client/Resources/icon.png \
+            --icon "$ICNS_PATH" \
             --outputDir releases-vstrips
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
