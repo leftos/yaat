@@ -36,6 +36,26 @@ public sealed record CliOptions
     /// </summary>
     public List<string> PathfinderHoldShorts { get; init; } = [];
 
+    /// <summary>
+    /// Destination parking/helipad name for <c>ExplicitPathOptions.DestinationHintNode</c>.
+    /// Resolved via <c>FindHelipadByName</c> ?? <c>FindParkingByName</c>. Mirrors the
+    /// runtime <c>TAXI &lt;tw...&gt; @&lt;parking&gt;</c> command. Set via <c>--pf-dest-parking</c>.
+    /// </summary>
+    public string? PathfinderDestParking { get; init; }
+
+    /// <summary>
+    /// Destination spot name for <c>ExplicitPathOptions.DestinationHintNode</c>.
+    /// Resolved via <c>FindSpotNodeByName</c>. Mirrors the runtime
+    /// <c>TAXI &lt;tw...&gt; $&lt;spot&gt;</c> command. Set via <c>--pf-dest-spot</c>.
+    /// </summary>
+    public string? PathfinderDestSpot { get; init; }
+
+    /// <summary>
+    /// Raw destination node id for <c>ExplicitPathOptions.DestinationHintNode</c>.
+    /// Escape hatch when the destination has no parking/spot name. Set via <c>--pf-dest-node</c>.
+    /// </summary>
+    public int? PathfinderDestNodeId { get; init; }
+
     public bool ShowParking { get; init; }
     public bool ShowSpots { get; init; }
     public bool Validate { get; init; }
@@ -113,6 +133,9 @@ public sealed record CliOptions
         var pfTaxiways = new List<string>();
         string? pfDestRwy = null;
         var pfHoldShorts = new List<string>();
+        string? pfDestParking = null;
+        string? pfDestSpot = null;
+        int? pfDestNodeId = null;
         bool showParking = false;
         bool showSpots = false;
         bool validate = false;
@@ -253,6 +276,21 @@ public sealed record CliOptions
                     }
 
                     break;
+                case "--pf-dest-parking" when i + 1 < args.Length:
+                    pfDestParking = args[++i];
+                    break;
+                case "--pf-dest-spot" when i + 1 < args.Length:
+                    pfDestSpot = args[++i];
+                    break;
+                case "--pf-dest-node" when i + 1 < args.Length:
+                    if (!int.TryParse(args[++i], out int pfDestNode))
+                    {
+                        error = "--pf-dest-node expects an integer node id";
+                        return false;
+                    }
+
+                    pfDestNodeId = pfDestNode;
+                    break;
                 case "--tick-table":
                     tickTable = true;
                     break;
@@ -318,6 +356,9 @@ public sealed record CliOptions
             PathfinderTaxiways = pfTaxiways,
             PathfinderDestinationRunway = pfDestRwy,
             PathfinderHoldShorts = pfHoldShorts,
+            PathfinderDestParking = pfDestParking,
+            PathfinderDestSpot = pfDestSpot,
+            PathfinderDestNodeId = pfDestNodeId,
             ShowParking = showParking,
             ShowSpots = showSpots,
             Validate = validate,
