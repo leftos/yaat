@@ -212,8 +212,7 @@ internal static class RunwayCrossingDetector
         var hsNode = new GroundNode
         {
             Id = hsId,
-            Latitude = hsLat,
-            Longitude = hsLon,
+            Position = new LatLon(hsLat, hsLon),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rect.CombinedId,
             Origin = $"RunwayCrossing:hold-short@{rect.CombinedId}",
@@ -301,8 +300,7 @@ internal static class RunwayCrossingDetector
                 var clNode = new GroundNode
                 {
                     Id = clId,
-                    Latitude = clLat,
-                    Longitude = clLon,
+                    Position = new LatLon(clLat, clLon),
                     Type = GroundNodeType.TaxiwayIntersection,
                     Origin = $"RunwayCrossing:centerline-projection@{rect.CombinedId} from #{bestId}",
                 };
@@ -659,8 +657,7 @@ internal static class RunwayCrossingDetector
         var hsNode = new GroundNode
         {
             Id = hsId,
-            Latitude = hsLat,
-            Longitude = hsLon,
+            Position = new LatLon(hsLat, hsLon),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rect.CombinedId,
             Origin = $"RunwayCrossing:hold-short@{rect.CombinedId}",
@@ -781,8 +778,7 @@ internal static class RunwayCrossingDetector
         var hsNode = new GroundNode
         {
             Id = hsId,
-            Latitude = hsLat,
-            Longitude = hsLon,
+            Position = new LatLon(hsLat, hsLon),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rect.CombinedId,
             Origin = $"RunwayCrossing:hold-short@{rect.CombinedId}",

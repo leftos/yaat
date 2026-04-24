@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -23,8 +23,7 @@ public class InterceptCoursePhaseTests
             AircraftType = "B738",
             TrueHeading = new TrueHeading(heading),
             Altitude = 3000,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Destination = "OAK",
         };
     }

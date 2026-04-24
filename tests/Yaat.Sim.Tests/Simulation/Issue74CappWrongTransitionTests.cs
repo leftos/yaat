@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -116,7 +116,7 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"Before CAPP: lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} hdg={aircraft.TrueHeading.Degrees:F1}");
+        output.WriteLine($"Before CAPP: lat={aircraft.Position.Lat:F4} lon={aircraft.Position.Lon:F4} hdg={aircraft.TrueHeading.Degrees:F1}");
 
         var result = engine.SendCommand("UAL238", "CAPP");
         output.WriteLine($"CAPP result: Success={result.Success} Message={result.Message}");

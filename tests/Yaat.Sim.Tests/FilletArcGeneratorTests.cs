@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -26,8 +26,7 @@ public class FilletArcGeneratorTests
         var intersection = new GroundNode
         {
             Id = 0,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         layout.Nodes[0] = intersection;
@@ -38,8 +37,7 @@ public class FilletArcGeneratorTests
             var node = new GroundNode
             {
                 Id = id,
-                Latitude = endpoints[i].Lat,
-                Longitude = endpoints[i].Lon,
+                Position = new LatLon(endpoints[i].Lat, endpoints[i].Lon),
                 Type = GroundNodeType.TaxiwayIntersection,
             };
             layout.Nodes[id] = node;
@@ -127,8 +125,7 @@ public class FilletArcGeneratorTests
         var holdShort = new GroundNode
         {
             Id = 0,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = RunwayIdentifier.Parse("28L"),
         };
@@ -137,15 +134,13 @@ public class FilletArcGeneratorTests
         var nodeA = new GroundNode
         {
             Id = 1,
-            Latitude = 0.01,
-            Longitude = 0,
+            Position = new LatLon(0.01, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeB = new GroundNode
         {
             Id = 2,
-            Latitude = 0,
-            Longitude = 0.01,
+            Position = new LatLon(0, 0.01),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         layout.Nodes[1] = nodeA;
@@ -184,8 +179,7 @@ public class FilletArcGeneratorTests
         var parking = new GroundNode
         {
             Id = 0,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.Parking,
             Name = "A1",
             TrueHeading = new TrueHeading(90),
@@ -195,15 +189,13 @@ public class FilletArcGeneratorTests
         var nodeA = new GroundNode
         {
             Id = 1,
-            Latitude = 0.01,
-            Longitude = 0,
+            Position = new LatLon(0.01, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeB = new GroundNode
         {
             Id = 2,
-            Latitude = 0,
-            Longitude = 0.01,
+            Position = new LatLon(0, 0.01),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         layout.Nodes[1] = nodeA;

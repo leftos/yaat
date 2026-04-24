@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -30,8 +30,7 @@ public class VfrCommandGatingTests : IDisposable
         {
             Callsign = "UAL123",
             AircraftType = "B738",
-            Latitude = 37.72,
-            Longitude = -122.22,
+            Position = new LatLon(37.72, -122.22),
             TrueHeading = new TrueHeading(090),
             Altitude = 3000,
             IndicatedAirspeed = 200,

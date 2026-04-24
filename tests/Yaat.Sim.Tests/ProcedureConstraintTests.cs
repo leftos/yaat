@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests;
@@ -24,8 +24,7 @@ public class ProcedureConstraintTests
         return new NavigationTarget
         {
             Name = "TESTFIX",
-            Latitude = 37.5,
-            Longitude = -122.0,
+            Position = new LatLon(37.5, -122.0),
             AltitudeRestriction = alt,
             SpeedRestriction = spd,
         };
@@ -290,14 +289,7 @@ public class ProcedureConstraintTests
         // Place aircraft near the last fix so it will be reached
         aircraft.Position = new LatLon(37.5, -122.0);
 
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "LASTFIX",
-                Latitude = 37.5,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "LASTFIX", Position = new LatLon(37.5, -122.0) });
 
         // Run a physics tick — aircraft is at the fix, route will empty
         FlightPhysics.Update(aircraft, 1.0);
@@ -320,20 +312,12 @@ public class ProcedureConstraintTests
         // Place aircraft near the first fix
         aircraft.Position = new LatLon(37.1, -122.0);
 
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "FIX1",
-                Latitude = 37.1,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.1, -122.0) });
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
                 Name = "FIX2",
-                Latitude = 38.0,
-                Longitude = -122.0,
+                Position = new LatLon(38.0, -122.0),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 7000),
                 SpeedRestriction = new CifpSpeedRestriction(230, IsMaximum: true),
             }

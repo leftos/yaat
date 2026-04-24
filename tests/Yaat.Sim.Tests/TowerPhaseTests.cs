@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -29,8 +29,7 @@ public class TowerPhaseTests
         {
             Callsign = "TEST1",
             AircraftType = type,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,

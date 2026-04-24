@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Data.Airport;
@@ -426,16 +426,14 @@ public class RecordingArchiveTests
         var node1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.72,
-            Longitude = -122.22,
+            Position = new LatLon(37.72, -122.22),
             Type = GroundNodeType.TaxiwayIntersection,
             Name = "J",
         };
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.73,
-            Longitude = -122.23,
+            Position = new LatLon(37.73, -122.23),
             Type = GroundNodeType.RunwayHoldShort,
             Name = "HS-28L",
             RunwayId = RunwayIdentifier.Parse("10R/28L"),

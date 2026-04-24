@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
@@ -30,8 +30,7 @@ public class ApproachClearanceTests
             AircraftType = "B738",
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Destination = destination,
         };
     }

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -27,15 +27,13 @@ public class PathPrimitiveBuilderTests
         var fromNode = new GroundNode
         {
             Id = 1,
-            Latitude = fromLat,
-            Longitude = fromLon,
+            Position = new LatLon(fromLat, fromLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var toNode = new GroundNode
         {
             Id = 2,
-            Latitude = toLat,
-            Longitude = toLon,
+            Position = new LatLon(toLat, toLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var edge = new GroundEdge
@@ -78,15 +76,13 @@ public class PathPrimitiveBuilderTests
         var aNode = new GroundNode
         {
             Id = 1,
-            Latitude = aLat,
-            Longitude = aLon,
+            Position = new LatLon(aLat, aLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var bNode = new GroundNode
         {
             Id = 2,
-            Latitude = bLat,
-            Longitude = bLon,
+            Position = new LatLon(bLat, bLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var edge = new GroundEdge
@@ -140,15 +136,13 @@ public class PathPrimitiveBuilderTests
         var node0 = new GroundNode
         {
             Id = 10,
-            Latitude = p0Lat,
-            Longitude = p0Lon,
+            Position = new LatLon(p0Lat, p0Lon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node1 = new GroundNode
         {
             Id = 11,
-            Latitude = p3Lat,
-            Longitude = p3Lon,
+            Position = new LatLon(p3Lat, p3Lon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         // Arc length for a 90° sweep at r=70 ft is (π/2)·r ≈ 110 ft.
@@ -214,15 +208,13 @@ public class PathPrimitiveBuilderTests
         var node0 = new GroundNode
         {
             Id = 20,
-            Latitude = p0Lat,
-            Longitude = p0Lon,
+            Position = new LatLon(p0Lat, p0Lon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node1 = new GroundNode
         {
             Id = 21,
-            Latitude = p3Lat,
-            Longitude = p3Lon,
+            Position = new LatLon(p3Lat, p3Lon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         double arcLenFt = (Math.PI / 2.0) * radiusFt;

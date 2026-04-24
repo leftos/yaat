@@ -1759,10 +1759,9 @@ public static class FilletArcGenerator
         var newNode = new GroundNode
         {
             Id = id,
-            Latitude = placement.Lat,
-            Longitude = placement.Lon,
+            Position = new LatLon(placement.Lat, placement.Lon),
             Type = GroundNodeType.TaxiwayIntersection,
-            SourceIntersectionPosition = (intersection.Latitude, intersection.Longitude),
+            SourceIntersectionPosition = (intersection.Position.Lat, intersection.Position.Lon),
             Origin = $"Fillet:tangent-node@{intersection.Id} on-{edge.TaxiwayName}(→{otherNode.Id})",
         };
         layout.Nodes[id] = newNode;

@@ -30,24 +30,9 @@ public class AircraftState
 
     public string? ScenarioId { get; set; }
     public string Cid { get; set; } = "";
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
 
-    /// <summary>
-    /// Geographic position as a typed <see cref="LatLon"/>. Read-through over
-    /// <see cref="Latitude"/>/<see cref="Longitude"/>. JSON-ignored so the on-wire shape is
-    /// unchanged while callers migrate.
-    /// </summary>
-    [JsonIgnore]
-    public LatLon Position
-    {
-        get => new(Latitude, Longitude);
-        set
-        {
-            Latitude = value.Lat;
-            Longitude = value.Lon;
-        }
-    }
+    /// <summary>Geographic position in degrees.</summary>
+    public LatLon Position { get; set; }
 
     public TrueHeading TrueHeading { get; set; }
 
@@ -58,22 +43,10 @@ public class AircraftState
     public double Declination { get; set; }
 
     /// <summary>
-    /// Position (lat/lon) at which <see cref="Declination"/> was last recomputed. Used by
+    /// Position at which <see cref="Declination"/> was last recomputed. Used by
     /// <c>FlightPhysics.Update</c> to skip the expensive WMM evaluation when the aircraft
-    /// has moved less than ~1 nm. NaN sentinel forces a recompute on first tick and after
-    /// DTO round-trips (these fields are intentionally not serialized — JSON does not
-    /// represent NaN, and the cache is purely runtime state).
-    /// </summary>
-    [JsonIgnore]
-    public double DeclinationCacheLat { get; set; } = double.NaN;
-
-    [JsonIgnore]
-    public double DeclinationCacheLon { get; set; } = double.NaN;
-
-    /// <summary>
-    /// Typed replacement for the <see cref="DeclinationCacheLat"/>/<see cref="DeclinationCacheLon"/>
-    /// NaN-sentinel pair. <c>null</c> means "not cached yet". Runtime-only, intentionally not
-    /// serialized. The old scalar fields are retired in the final cleanup commit.
+    /// has moved less than ~1 nm. <c>null</c> means "not cached yet". Runtime-only —
+    /// intentionally not serialized (cache warms up on first tick after a DTO round-trip).
     /// </summary>
     [JsonIgnore]
     public LatLon? DeclinationCachePosition { get; set; }
@@ -358,8 +331,7 @@ public class AircraftState
             AircraftType = dto.AircraftType,
             ScenarioId = dto.ScenarioId,
             Cid = dto.Cid,
-            Latitude = dto.Latitude,
-            Longitude = dto.Longitude,
+            Position = dto.Position,
             TrueHeading = new TrueHeading(dto.TrueHeadingDeg),
             TrueTrack = new TrueHeading(dto.TrueTrackDeg),
             Declination = dto.Declination,
@@ -506,8 +478,7 @@ public class AircraftState
             AircraftType = AircraftType,
             ScenarioId = ScenarioId,
             Cid = Cid,
-            Latitude = Latitude,
-            Longitude = Longitude,
+            Position = Position,
             TrueHeadingDeg = TrueHeading.Degrees,
             TrueTrackDeg = TrueTrack.Degrees,
             Declination = Declination,

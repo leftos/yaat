@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -39,8 +39,7 @@ public class AirborneFollowTests : IDisposable
         {
             Callsign = callsign,
             AircraftType = type,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,

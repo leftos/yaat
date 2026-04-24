@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -51,8 +51,7 @@ public class GroundNavigatorTests
         new()
         {
             Id = id,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 

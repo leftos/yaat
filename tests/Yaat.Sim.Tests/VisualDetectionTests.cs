@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 
 namespace Yaat.Sim.Tests;
 
@@ -402,8 +402,7 @@ public class VisualDetectionTests
         {
             Callsign = "TST100",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,

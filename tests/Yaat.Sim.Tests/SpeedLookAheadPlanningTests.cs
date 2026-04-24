@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Vnas;
 
@@ -21,7 +21,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         );
         foreach (var nav in ac.Targets.NavigationRoute)
         {
-            double dist = GeoMath.DistanceNm(ac.Position, new LatLon(nav.Latitude, nav.Longitude));
+            double dist = GeoMath.DistanceNm(ac.Position, new LatLon(nav.Position.Lat, nav.Position.Lon));
             output?.WriteLine($"  Fix {nav.Name}: dist={dist:F2}nm spdConstraint={nav.SpeedRestriction?.SpeedKts}");
         }
     }
@@ -63,8 +63,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         return new NavigationTarget
         {
             Name = name,
-            Latitude = baseLat + latOffset,
-            Longitude = baseLon,
+            Position = new LatLon(baseLat + latOffset, baseLon),
             SpeedRestriction = speed,
         };
     }
@@ -101,7 +100,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         double accelRate = AircraftPerformance.AccelRate("B738", cat);
         double decelRate = AircraftPerformance.DecelRate("B738", cat);
         double gs = aircraft.GroundSpeed;
-        double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
+        double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(fix.Position.Lat, fix.Position.Lon));
         double timeToFix = distNm / (gs / 3600.0);
         double speedDelta = Math.Abs(210 - 250);
         double changeTime = speedDelta / accelRate;

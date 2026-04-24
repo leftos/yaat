@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -205,7 +205,7 @@ public class ExitKOvershootTests(ITestOutputHelper output)
                 continue;
             }
 
-            kEdgeSegments.Add((from.Latitude, from.Longitude, to.Latitude, to.Longitude));
+            kEdgeSegments.Add((from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon));
         }
 
         output.WriteLine($"Taxiway K: {kEdgeSegments.Count} edge segments");
@@ -251,7 +251,7 @@ public class ExitKOvershootTests(ITestOutputHelper output)
             for (int s = 0; s < kEdgeSegments.Count; s++)
             {
                 var seg = kEdgeSegments[s];
-                double dist = PointToSegmentDistNm(ac.Latitude, ac.Longitude, seg.Lat1, seg.Lon1, seg.Lat2, seg.Lon2);
+                double dist = PointToSegmentDistNm(ac.Position.Lat, ac.Position.Lon, seg.Lat1, seg.Lon1, seg.Lat2, seg.Lon2);
                 if (dist < minDistNm)
                 {
                     minDistNm = dist;
@@ -261,7 +261,7 @@ public class ExitKOvershootTests(ITestOutputHelper output)
             double minDistFt = minDistNm * GeoMath.FeetPerNm;
 
             output.WriteLine(
-                $"t+{t, -3} | {ac.Latitude, 11:F6} | {ac.Longitude, 12:F6} | {ac.TrueHeading.Degrees, 5:F1} | {ac.GroundSpeed, 5:F1} | {phaseName, -18} | {minDistFt, 12:F1} | {ac.CurrentTaxiway ?? "(none)"}"
+                $"t+{t, -3} | {ac.Position.Lat, 11:F6} | {ac.Position.Lon, 12:F6} | {ac.TrueHeading.Degrees, 5:F1} | {ac.GroundSpeed, 5:F1} | {phaseName, -18} | {minDistFt, 12:F1} | {ac.CurrentTaxiway ?? "(none)"}"
             );
 
             if (ac.CurrentTaxiway is not null)

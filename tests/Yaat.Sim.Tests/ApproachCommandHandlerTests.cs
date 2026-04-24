@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -33,8 +33,7 @@ public class ApproachCommandHandlerTests
             AircraftType = "B738",
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Destination = destination,
         };
 

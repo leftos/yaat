@@ -91,14 +91,7 @@ public sealed class VfrHoldPhase : Phase
         {
             // Navigate to the fix first
             ctx.Targets.NavigationRoute.Clear();
-            ctx.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Name = FixName,
-                    Latitude = FixLat!.Value,
-                    Longitude = FixLon!.Value,
-                }
-            );
+            ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat!.Value, FixLon!.Value) });
 
             Log.LogDebug(
                 "[VfrHold] {Callsign}: started, fix={Fix}, orbit={Dir}",

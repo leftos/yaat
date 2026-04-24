@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Vnas;
@@ -17,8 +17,7 @@ public class SnapshotRoundTripTests
             Callsign = "AAL100",
             AircraftType = "B738/L",
             Cid = "123",
-            Latitude = 37.7213,
-            Longitude = -122.2208,
+            Position = new LatLon(37.7213, -122.2208),
             TrueHeading = new TrueHeading(270),
             TrueTrack = new TrueHeading(268),
             Altitude = 5000,
@@ -55,8 +54,8 @@ public class SnapshotRoundTripTests
 
         Assert.Equal(ac.Callsign, restored.Callsign);
         Assert.Equal(ac.AircraftType, restored.AircraftType);
-        Assert.Equal(ac.Latitude, restored.Latitude, 10);
-        Assert.Equal(ac.Longitude, restored.Longitude, 10);
+        Assert.Equal(ac.Position.Lat, restored.Position.Lat, 10);
+        Assert.Equal(ac.Position.Lon, restored.Position.Lon, 10);
         Assert.Equal(ac.TrueHeading.Degrees, restored.TrueHeading.Degrees, 10);
         Assert.Equal(ac.Altitude, restored.Altitude, 4);
         Assert.Equal(ac.IndicatedAirspeed, restored.IndicatedAirspeed, 4);
@@ -119,8 +118,7 @@ public class SnapshotRoundTripTests
             IndicatedAirspeed = 100.0,
             Altitude = 0,
             IsOnGround = true,
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(90),
         };
         ac.Targets.TargetSpeed = 50.0;
@@ -146,8 +144,7 @@ public class SnapshotRoundTripTests
             IndicatedAirspeed = 100.0,
             Altitude = 0,
             IsOnGround = true,
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(90),
         };
         ac.Targets.TargetSpeed = 50.0;
@@ -173,8 +170,7 @@ public class SnapshotRoundTripTests
                     Callsign = "AAL100",
                     AircraftType = "B738",
                     Cid = "1",
-                    Latitude = 37.0,
-                    Longitude = -122.0,
+                    Position = new LatLon(37.0, -122.0),
                     TrueHeadingDeg = 270,
                     TrueTrackDeg = 270,
                     Declination = 13,

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -332,8 +332,7 @@ public class SpeedPhysicsTests
         var target = new NavigationTarget
         {
             Name = "SUNOL",
-            Latitude = 37.5,
-            Longitude = -121.9,
+            Position = new LatLon(37.5, -121.9),
             SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(250, false),
         };
 
@@ -354,8 +353,7 @@ public class SpeedPhysicsTests
         var target = new NavigationTarget
         {
             Name = "SUNOL",
-            Latitude = 37.5,
-            Longitude = -121.9,
+            Position = new LatLon(37.5, -121.9),
             SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, false),
         };
 
@@ -376,8 +374,7 @@ public class SpeedPhysicsTests
         var target = new NavigationTarget
         {
             Name = "SUNOL",
-            Latitude = 37.5,
-            Longitude = -121.9,
+            Position = new LatLon(37.5, -121.9),
             SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(260, false),
         };
 
@@ -402,8 +399,7 @@ public class SpeedPhysicsTests
         var target = new NavigationTarget
         {
             Name = "SUNOL",
-            Latitude = 37.5,
-            Longitude = -121.9,
+            Position = new LatLon(37.5, -121.9),
             SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, false),
         };
 

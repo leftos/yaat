@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -37,8 +37,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(280),
             Altitude = 13,
             IndicatedAirspeed = 0,
@@ -128,9 +127,9 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             }
 
             // Pick a node on M2 that's north (higher lat) of spot 2
-            if (node.Latitude > spot2.Latitude)
+            if (node.Position.Lat > spot2.Position.Lat)
             {
-                double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, spot2.Latitude, spot2.Longitude);
+                double dist = GeoMath.DistanceNm(node.Position.Lat, node.Position.Lon, spot2.Position.Lat, spot2.Position.Lon);
                 if (dist < bestDist)
                 {
                     bestDist = dist;
@@ -140,10 +139,10 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(startNode);
-        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
-        output.WriteLine($"Spot 2 node: {spot2.Id} at ({spot2.Latitude:F6}, {spot2.Longitude:F6})");
+        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
+        output.WriteLine($"Spot 2 node: {spot2.Id} at ({spot2.Position.Lat:F6}, {spot2.Position.Lon:F6})");
 
-        var aircraft = MakeSfoGroundAircraft(startNode.Latitude, startNode.Longitude);
+        var aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
         var taxi = new TaxiCommand(Path: ["M2"], HoldShorts: [], DestinationSpot: "2");
 
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
@@ -202,7 +201,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, spot1.Latitude, spot1.Longitude);
+            double dist = GeoMath.DistanceNm(node.Position.Lat, node.Position.Lon, spot1.Position.Lat, spot1.Position.Lon);
             if (dist > bestStartDist)
             {
                 bestStartDist = dist;
@@ -211,10 +210,10 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(startNode);
-        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
-        output.WriteLine($"Spot 1 node: {spot1.Id} at ({spot1.Latitude:F6}, {spot1.Longitude:F6})");
+        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
+        output.WriteLine($"Spot 1 node: {spot1.Id} at ({spot1.Position.Lat:F6}, {spot1.Position.Lon:F6})");
 
-        var aircraft = MakeSfoGroundAircraft(startNode.Latitude, startNode.Longitude);
+        var aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
         var taxi = new TaxiCommand(Path: ["M4", "M1"], HoldShorts: [], DestinationSpot: "1");
 
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
@@ -277,7 +276,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             }
 
             // Pick a node on T9 that's further from spot 9 to simulate starting from parking
-            double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, spot9.Latitude, spot9.Longitude);
+            double dist = GeoMath.DistanceNm(node.Position.Lat, node.Position.Lon, spot9.Position.Lat, spot9.Position.Lon);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -286,10 +285,10 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(startNode);
-        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
-        output.WriteLine($"Spot 9 node: {spot9.Id} at ({spot9.Latitude:F6}, {spot9.Longitude:F6})");
+        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
+        output.WriteLine($"Spot 9 node: {spot9.Id} at ({spot9.Position.Lat:F6}, {spot9.Position.Lon:F6})");
 
-        var aircraft = MakeSfoGroundAircraft(startNode.Latitude, startNode.Longitude);
+        var aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
         var taxi = new TaxiCommand(Path: ["T9"], HoldShorts: [], DestinationSpot: "9");
 
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);

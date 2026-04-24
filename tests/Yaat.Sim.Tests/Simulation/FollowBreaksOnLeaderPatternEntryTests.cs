@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Pattern;
@@ -169,7 +169,7 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
             output.WriteLine($"{label}: follower or leader missing");
             return;
         }
-        double gap = GeoMath.DistanceNm(follower.Latitude, follower.Longitude, lead.Latitude, lead.Longitude);
+        double gap = GeoMath.DistanceNm(follower.Position.Lat, follower.Position.Lon, lead.Position.Lat, lead.Position.Lon);
         output.WriteLine($"{label}:");
         output.WriteLine($"  leader   {Leader}  phase={lead.Phases?.CurrentPhase?.GetType().Name ?? "none"}  ias={lead.IndicatedAirspeed:F1}");
         output.WriteLine(

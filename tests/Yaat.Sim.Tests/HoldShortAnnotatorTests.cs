@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Tests;
@@ -15,8 +15,7 @@ public class HoldShortAnnotatorTests
         new()
         {
             Id = id,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -24,8 +23,7 @@ public class HoldShortAnnotatorTests
         new()
         {
             Id = id,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = new RunwayIdentifier(runwayDesignator),
         };
@@ -35,15 +33,13 @@ public class HoldShortAnnotatorTests
         var fromNode = new GroundNode
         {
             Id = from,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var toNode = new GroundNode
         {
             Id = to,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         return new GroundEdge
@@ -99,16 +95,14 @@ public class HoldShortAnnotatorTests
         var entryNode = new GroundNode
         {
             Id = 2,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rwy,
         };
         var exitNode = new GroundNode
         {
             Id = 3,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rwy,
         };
@@ -212,8 +206,7 @@ public class HoldShortAnnotatorTests
         var intersectionNode = new GroundNode
         {
             Id = 3,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         intersectionNode.Edges.Add(MakeEdge(3, 99, "A"));
@@ -236,16 +229,14 @@ public class HoldShortAnnotatorTests
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         node2.Edges.Add(MakeEdge(2, 99, "B"));
         var node3 = new GroundNode
         {
             Id = 3,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         node3.Edges.Add(MakeEdge(3, 99, "B"));

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
@@ -22,8 +22,7 @@ public class ExpectApproachTests
             AircraftType = "B738",
             TrueHeading = new TrueHeading(280),
             Altitude = 5000,
-            Latitude = 37.75,
-            Longitude = -122.35,
+            Position = new LatLon(37.75, -122.35),
             Destination = destination,
         };
     }

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
@@ -19,8 +19,7 @@ public class AtAltitudeConditionTests
         {
             Callsign = "TST01",
             AircraftType = "B738",
-            Latitude = 37.7,
-            Longitude = -122.2,
+            Position = new LatLon(37.7, -122.2),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
@@ -72,7 +72,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         var ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
         _output.WriteLine(
-            $"SWA1360 spawned: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F0}"
+            $"SWA1360 spawned: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0}"
         );
 
         // Get B13 parking position for distance checks
@@ -80,9 +80,9 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.NotNull(layout);
         var b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b13);
-        _output.WriteLine($"B13 target: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.TrueHeading?.Degrees}");
+        _output.WriteLine($"B13 target: ({b13.Position.Lat:F6},{b13.Position.Lon:F6}) hdg={b13.TrueHeading?.Degrees}");
 
-        double startDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
+        double startDist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
         _output.WriteLine($"Start distance to B13: {startDist:F0}ft");
 
         // Send PUSH @B13
@@ -102,7 +102,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
 
-            double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
+            double distFt = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
             double pushHdg = ac.PushbackTrueHeading?.Degrees ?? -1;
             _output.WriteLine(
@@ -126,7 +126,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.True(reachedParking, $"Pushback should complete to AtParkingPhase within {maxTicks}s, got: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
 
         // Aircraft should end up near B13
-        double finalDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
+        double finalDist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
         _output.WriteLine($"Final distance to B13: {finalDist:F0}ft");
         Assert.True(finalDist < 200, $"Aircraft should be near B13 after pushback: dist={finalDist:F0}ft");
     }
@@ -176,7 +176,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
 
-            double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
+            double distFt = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
             _output.WriteLine($"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {ac.TrueHeading.Degrees, 8:F0}  {phase, -24}");
 
@@ -200,7 +200,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.True(hdgDiff < 5.0, $"Aircraft should face ~180 after pushback, got {ac.TrueHeading.Degrees:F0} (diff={hdgDiff:F1})");
 
         // Verify near B13
-        double finalDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
+        double finalDist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
         _output.WriteLine($"Final distance to B13: {finalDist:F0}ft");
         Assert.True(finalDist < 200, $"Aircraft should be near B13: dist={finalDist:F0}ft");
     }
@@ -255,16 +255,16 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.NotNull(b12);
         Assert.NotNull(b13);
 
-        _output.WriteLine($"B12: ({b12.Latitude:F6},{b12.Longitude:F6}) hdg={b12.TrueHeading?.Degrees}");
-        _output.WriteLine($"B13: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.TrueHeading?.Degrees}");
+        _output.WriteLine($"B12: ({b12.Position.Lat:F6},{b12.Position.Lon:F6}) hdg={b12.TrueHeading?.Degrees}");
+        _output.WriteLine($"B13: ({b13.Position.Lat:F6},{b13.Position.Lon:F6}) hdg={b13.TrueHeading?.Degrees}");
         _output.WriteLine(
-            $"Distance B12→B13: {GeoMath.DistanceNm(b12.Latitude, b12.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm:F0}ft"
+            $"Distance B12→B13: {GeoMath.DistanceNm(b12.Position.Lat, b12.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm:F0}ft"
         );
-        _output.WriteLine($"Bearing B12→B13: {GeoMath.BearingTo(b12.Latitude, b12.Longitude, b13.Latitude, b13.Longitude):F0}°");
+        _output.WriteLine($"Bearing B12→B13: {GeoMath.BearingTo(b12.Position.Lat, b12.Position.Lon, b13.Position.Lat, b13.Position.Lon):F0}°");
         _output.WriteLine("");
 
         _output.WriteLine(
-            $"Aircraft before command: pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F0} gs={ac.GroundSpeed:F1} phase={ac.Phases?.CurrentPhase?.Name ?? "null"}"
+            $"Aircraft before command: pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0} gs={ac.GroundSpeed:F1} phase={ac.Phases?.CurrentPhase?.Name ?? "null"}"
         );
 
         var result = engine.SendCommand("SWA1360", "PUSH @B13");
@@ -283,10 +283,11 @@ public class SfoPushbackTests(ITestOutputHelper output)
                 var toNode = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
                 double segDist =
                     fromNode is not null && toNode is not null
-                        ? GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude) * GeoMath.FeetPerNm
+                        ? GeoMath.DistanceNm(fromNode.Position.Lat, fromNode.Position.Lon, toNode.Position.Lat, toNode.Position.Lon)
+                            * GeoMath.FeetPerNm
                         : 0;
                 _output.WriteLine(
-                    $"  [{i}] {seg.TaxiwayName}: ({fromNode?.Latitude:F6},{fromNode?.Longitude:F6}) -> ({toNode?.Latitude:F6},{toNode?.Longitude:F6}) dist={segDist:F0}ft"
+                    $"  [{i}] {seg.TaxiwayName}: ({fromNode?.Position.Lat:F6},{fromNode?.Position.Lon:F6}) -> ({toNode?.Position.Lat:F6},{toNode?.Position.Lon:F6}) dist={segDist:F0}ft"
                 );
             }
         }
@@ -300,13 +301,13 @@ public class SfoPushbackTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
 
-            double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
+            double distFt = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
             double pushHdg = ac.PushbackTrueHeading?.Degrees ?? -1;
             int segIdx = ac.AssignedTaxiRoute?.CurrentSegmentIndex ?? -1;
 
             _output.WriteLine(
-                $"{tick + 13, 5}  {ac.Latitude, 12:F6}  {ac.Longitude, 13:F6}  {ac.GroundSpeed, 8:F2}  {ac.IndicatedAirspeed, 5:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {distFt, 12:F1}  {segIdx, 6}  {phase, -24}"
+                $"{tick + 13, 5}  {ac.Position.Lat, 12:F6}  {ac.Position.Lon, 13:F6}  {ac.GroundSpeed, 8:F2}  {ac.IndicatedAirspeed, 5:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {distFt, 12:F1}  {segIdx, 6}  {phase, -24}"
             );
 
             if (ac.Phases?.CurrentPhase is AtParkingPhase or null)

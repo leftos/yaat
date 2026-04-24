@@ -12,8 +12,7 @@ namespace Yaat.Sim.Scenarios;
 public sealed class PhaseInitResult
 {
     public required PhaseList Phases { get; init; }
-    public double Latitude { get; init; }
-    public double Longitude { get; init; }
+    public LatLon Position { get; init; }
     public TrueHeading TrueHeading { get; init; }
     public double Altitude { get; init; }
     public double Speed { get; init; }
@@ -37,8 +36,7 @@ public static class AircraftInitializer
         return new PhaseInitResult
         {
             Phases = phases,
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = runway.TrueHeading,
             Altitude = runway.ElevationFt,
             Speed = 0,
@@ -58,8 +56,7 @@ public static class AircraftInitializer
         return new PhaseInitResult
         {
             Phases = phases,
-            Latitude = parkingNode.Latitude,
-            Longitude = parkingNode.Longitude,
+            Position = parkingNode.Position,
             TrueHeading = parkingNode.TrueHeading ?? new TrueHeading(0),
             Altitude = fieldElevation,
             Speed = 0,
@@ -130,8 +127,7 @@ public static class AircraftInitializer
         return new PhaseInitResult
         {
             Phases = phases,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = runway.TrueHeading,
             Altitude = alt,
             Speed = speed,

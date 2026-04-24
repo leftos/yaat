@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
@@ -304,8 +304,7 @@ public class ReportInSightTests
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using static Yaat.Sim.Data.Airport.AirportGroundLayout;
@@ -109,22 +109,19 @@ public class FilletAngleSweepTests
         var nodeL = new GroundNode
         {
             Id = 0,
-            Latitude = lLat,
-            Longitude = lLon,
+            Position = new LatLon(lLat, lLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeC = new GroundNode
         {
             Id = 1,
-            Latitude = CenterLat,
-            Longitude = CenterLon,
+            Position = new LatLon(CenterLat, CenterLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeR = new GroundNode
         {
             Id = 2,
-            Latitude = rLat,
-            Longitude = rLon,
+            Position = new LatLon(rLat, rLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -155,8 +152,7 @@ public class FilletAngleSweepTests
         var nodeB = new GroundNode
         {
             Id = 3,
-            Latitude = bLat,
-            Longitude = bLon,
+            Position = new LatLon(bLat, bLon),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = RunwayIdentifier.Parse("10/28"),
         };

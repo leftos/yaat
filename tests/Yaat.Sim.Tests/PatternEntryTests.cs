@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -1333,8 +1333,8 @@ public class PatternEntryTests : IDisposable
         double bearingAbeamToOutbound = GeoMath.BearingTo(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
-            outbound.Latitude,
-            outbound.Longitude
+            outbound.Position.Lat,
+            outbound.Position.Lon
         );
         double expected = teardrop.Waypoints.CrosswindHeading.Degrees; // 22° for right pattern 28R
 
@@ -1360,8 +1360,8 @@ public class PatternEntryTests : IDisposable
         double bearing = GeoMath.BearingTo(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
-            outbound.Latitude,
-            outbound.Longitude
+            outbound.Position.Lat,
+            outbound.Position.Lon
         );
         double expected = teardrop.Waypoints.CrosswindHeading.Degrees; // 202° for left pattern
 
@@ -1393,14 +1393,14 @@ public class PatternEntryTests : IDisposable
         double bearingLeadIn = GeoMath.BearingTo(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
-            route[1].Latitude,
-            route[1].Longitude
+            route[1].Position.Lat,
+            route[1].Position.Lon
         );
         Assert.InRange(GeoMath.AbsBearingDifference(bearingLeadIn, expected45Reverse), 0, 2.0);
 
         // Abeam (route[2]): should match the abeam point itself.
-        Assert.Equal(teardrop.Waypoints.DownwindAbeamLat, route[2].Latitude, precision: 5);
-        Assert.Equal(teardrop.Waypoints.DownwindAbeamLon, route[2].Longitude, precision: 5);
+        Assert.Equal(teardrop.Waypoints.DownwindAbeamLat, route[2].Position.Lat, precision: 5);
+        Assert.Equal(teardrop.Waypoints.DownwindAbeamLon, route[2].Position.Lon, precision: 5);
     }
 
     [Fact]
@@ -1445,8 +1445,8 @@ public class PatternEntryTests : IDisposable
         double dist = GeoMath.DistanceNm(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
-            outbound.Latitude,
-            outbound.Longitude
+            outbound.Position.Lat,
+            outbound.Position.Lon
         );
         _output.WriteLine($"Jet outbound distance from abeam: {dist:F2}nm (expected 3.0nm)");
         Assert.InRange(dist, 2.95, 3.05);
@@ -1469,8 +1469,8 @@ public class PatternEntryTests : IDisposable
         double dist = GeoMath.DistanceNm(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
-            outbound.Latitude,
-            outbound.Longitude
+            outbound.Position.Lat,
+            outbound.Position.Lon
         );
         _output.WriteLine($"Turboprop outbound distance from abeam: {dist:F2}nm (expected 2.5nm)");
         Assert.InRange(dist, 2.45, 2.55);

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -276,8 +276,7 @@ internal static class FilletArcGeneratorTraced
             var node = new GroundNode
             {
                 Id = id,
-                Latitude = lat,
-                Longitude = lon,
+                Position = new LatLon(lat, lon),
                 Type = GroundNodeType.TaxiwayIntersection,
             };
             layout.Nodes[id] = node;

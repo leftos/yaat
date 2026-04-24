@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -54,8 +54,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         {
             Callsign = "N172SP",
             AircraftType = "C172",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
             Altitude = runway28R.ElevationFt + 900, // ~3° glide slope at 3nm
             IndicatedAirspeed = 90,
@@ -99,7 +98,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
         TickUntil(engine, aircraft, 300, "landed", ac => ac.IsOnGround && ac.GroundSpeed < 40);
         Assert.True(aircraft.IsOnGround, "Aircraft never landed");
-        output.WriteLine($"Landed: gs={aircraft.GroundSpeed:F1}kts, pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6})");
+        output.WriteLine($"Landed: gs={aircraft.GroundSpeed:F1}kts, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})");
 
         // --- Phase 2: Exit right H ---
         var exitResult = engine.SendCommand("N172SP", "ER H");
@@ -111,7 +110,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         // Verify tail past hold-short node 509
         Assert.True(layout.Nodes.TryGetValue(509, out var hsNode509));
         AssertTailPastLine(aircraft, hsNode509, "exit H hold-short 509");
-        output.WriteLine($"Exited on H: pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6}), hdg={aircraft.TrueHeading.Degrees:F0}");
+        output.WriteLine($"Exited on H: pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}), hdg={aircraft.TrueHeading.Degrees:F0}");
 
         // --- Phase 3: Taxi C B, hold short 28R ---
         var taxiResult = engine.SendCommand("N172SP", "RWY 28L TAXI C B HS 28R");
@@ -129,7 +128,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
         Assert.True(layout.Nodes.TryGetValue(holdShort28R.NodeId, out var hsNode28R));
         AssertStoppedAtHoldShort(aircraft, holdShort28R, hsNode28R, "hold short 28R on B");
-        output.WriteLine($"Holding short 28R: node={holdShort28R.NodeId}, pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6})");
+        output.WriteLine($"Holding short 28R: node={holdShort28R.NodeId}, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})");
 
         // --- Phase 4: Cross 28R ---
         var crossResult = engine.SendCommand("N172SP", "CROSS 28R");
@@ -151,7 +150,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
         Assert.True(layout.Nodes.TryGetValue(holdShort28L.NodeId, out var hsNode28L));
         AssertStoppedAtHoldShort(aircraft, holdShort28L, hsNode28L, "hold short 28L");
-        output.WriteLine($"Holding short 28L: node={holdShort28L.NodeId}, pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6})");
+        output.WriteLine($"Holding short 28L: node={holdShort28L.NodeId}, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})");
 
         // --- Phase 6: Cleared for takeoff ---
         var ctoResult = engine.SendCommand("N172SP", "CTO 060");
@@ -187,8 +186,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         {
             Callsign = "N172SP",
             AircraftType = "C172",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
             Altitude = runway28R.ElevationFt + 900,
             IndicatedAirspeed = 90,
@@ -253,7 +251,9 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             t++;
             recorder.Record(t);
         }
-        output.WriteLine($"[diag] holding short 28R at t+{t}s pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6}) gs={aircraft.GroundSpeed:F2}");
+        output.WriteLine(
+            $"[diag] holding short 28R at t+{t}s pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) gs={aircraft.GroundSpeed:F2}"
+        );
 
         // CROSS 28R
         engine.SendCommand("N172SP", "CROSS 28R");
@@ -271,7 +271,9 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             t++;
             recorder.Record(t);
         }
-        output.WriteLine($"[diag] holding short 28L at t+{t}s pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6}) gs={aircraft.GroundSpeed:F2}");
+        output.WriteLine(
+            $"[diag] holding short 28L at t+{t}s pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) gs={aircraft.GroundSpeed:F2}"
+        );
 
         string csvPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-lifecycle-ticks.csv");
         recorder.WriteCsv(csvPath);
@@ -292,13 +294,13 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             if (t % 30 == 0)
             {
                 output.WriteLine(
-                    $"  [{description}] t+{t}s: gs={aircraft.GroundSpeed:F1}, hdg={aircraft.TrueHeading.Degrees:F0}, phase={aircraft.Phases?.CurrentPhase?.Name}, pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6})"
+                    $"  [{description}] t+{t}s: gs={aircraft.GroundSpeed:F1}, hdg={aircraft.TrueHeading.Degrees:F0}, phase={aircraft.Phases?.CurrentPhase?.Name}, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})"
                 );
             }
         }
 
         Assert.Fail(
-            $"[{description}] not achieved within {maxSeconds}s. Last phase={aircraft.Phases?.CurrentPhase?.Name}, gs={aircraft.GroundSpeed:F1}, pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6})"
+            $"[{description}] not achieved within {maxSeconds}s. Last phase={aircraft.Phases?.CurrentPhase?.Name}, gs={aircraft.GroundSpeed:F1}, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})"
         );
     }
 
@@ -333,9 +335,10 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         double virtualLat = hs.Latitude.Value;
         double virtualLon = hs.Longitude.Value;
 
-        double centerToVirtualFt = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, virtualLat, virtualLon) * GeoMath.FeetPerNm;
+        double centerToVirtualFt = GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, virtualLat, virtualLon) * GeoMath.FeetPerNm;
         double centerToNodeFt =
-            GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, holdShortNode.Latitude, holdShortNode.Longitude) * GeoMath.FeetPerNm;
+            GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, holdShortNode.Position.Lat, holdShortNode.Position.Lon)
+            * GeoMath.FeetPerNm;
 
         output.WriteLine(
             $"  [{label}] center→virtual HS: {centerToVirtualFt:F0}ft, center→node: {centerToNodeFt:F0}ft, acft length: {lengthFt:F0}ft, gs: {aircraft.GroundSpeed:F1}kt"
@@ -359,13 +362,13 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
         // Project the aircraft's tail position (center - halfLength backward)
         double tailBearing = (aircraft.TrueHeading.Degrees + 180) % 360;
-        var (tailLat, tailLon) = GeoMath.ProjectPointRaw(aircraft.Latitude, aircraft.Longitude, tailBearing, halfLengthNm);
+        var (tailLat, tailLon) = GeoMath.ProjectPointRaw(aircraft.Position.Lat, aircraft.Position.Lon, tailBearing, halfLengthNm);
 
         // The tail should be past (farther from runway than) the hold-short node.
         // Use along-track distance: tail should be on the same side as the aircraft center,
         // and the hold-short node should be between the tail and the runway.
-        double centerDist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, holdShortNode.Latitude, holdShortNode.Longitude);
-        double tailDist = GeoMath.DistanceNm(tailLat, tailLon, holdShortNode.Latitude, holdShortNode.Longitude);
+        double centerDist = GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, holdShortNode.Position.Lat, holdShortNode.Position.Lon);
+        double tailDist = GeoMath.DistanceNm(tailLat, tailLon, holdShortNode.Position.Lat, holdShortNode.Position.Lon);
 
         output.WriteLine(
             $"  [{label}] tail dist from HS node: {tailDist * 6076.12:F0}ft, center dist: {centerDist * 6076.12:F0}ft, acft length: {lengthFt:F0}ft"

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
@@ -18,8 +18,7 @@ public class AppendDirectToTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Latitude = 37.62,
-            Longitude = -122.38,
+            Position = new LatLon(37.62, -122.38),
             TrueHeading = new TrueHeading(280),
             Altitude = 10000,
             Route = route,
@@ -46,22 +45,8 @@ public class AppendDirectToTests
     public void Adct_WithExistingRoute_AppendsToEnd()
     {
         var aircraft = CreateAircraft();
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "MOVDD",
-                Latitude = 37.6,
-                Longitude = -122.0,
-            }
-        );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "BRIXX",
-                Latitude = 37.7,
-                Longitude = -121.9,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BRIXX", Position = new LatLon(37.7, -121.9) });
 
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
         using var _ = NavigationDatabase.ScopedOverride(navDb);
@@ -81,14 +66,7 @@ public class AppendDirectToTests
     public void Adct_WithExistingRoute_PreservesOriginalFixes()
     {
         var aircraft = CreateAircraft();
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "MOVDD",
-                Latitude = 37.6,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
 
         var navDb = TestNavDbFactory.WithFixes(("FIX1", 37.5, -121.8), ("FIX2", 37.4, -121.7));
         using var _ = NavigationDatabase.ScopedOverride(navDb);
@@ -125,14 +103,7 @@ public class AppendDirectToTests
     public void Adct_WithExistingRoute_ChainsFiledRoute()
     {
         var aircraft = CreateAircraft("MOVDD SUNOL MODESTO");
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "MOVDD",
-                Latitude = 37.6,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
 
         var navDb = TestNavDbFactory.WithFixes(("MOVDD", 37.6, -122.0), ("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
         using var _ = NavigationDatabase.ScopedOverride(navDb);
@@ -152,14 +123,7 @@ public class AppendDirectToTests
     public void Dct_ClearsExistingRoute_UnlikeAdct()
     {
         var aircraft = CreateAircraft();
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "MOVDD",
-                Latitude = 37.6,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
 
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
         using var _ = NavigationDatabase.ScopedOverride(navDb);

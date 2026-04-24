@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -17,8 +17,7 @@ public class WaitCommandDispatchTests
         {
             Callsign = "SWA1391",
             AircraftType = "B738",
-            Latitude = 37.620,
-            Longitude = -122.380,
+            Position = new LatLon(37.620, -122.380),
             TrueHeading = new TrueHeading(180),
             Altitude = 13,
             IndicatedAirspeed = 0,
@@ -33,8 +32,7 @@ public class WaitCommandDispatchTests
         {
             Callsign = "UAL123",
             AircraftType = "B738",
-            Latitude = 37.7,
-            Longitude = -122.2,
+            Position = new LatLon(37.7, -122.2),
             TrueHeading = new TrueHeading(090),
             Altitude = 3000,
             IndicatedAirspeed = 200,

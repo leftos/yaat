@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
@@ -36,8 +36,7 @@ public class FollowImpliedCallsignTests : IDisposable
             Callsign = callsign,
             AircraftType = "C172",
             FlightRules = "VFR",
-            Latitude = 37.75,
-            Longitude = AptLon,
+            Position = new LatLon(37.75, AptLon),
             TrueHeading = new TrueHeading(180),
             TrueTrack = new TrueHeading(180),
             Altitude = 3000,
@@ -55,8 +54,7 @@ public class FollowImpliedCallsignTests : IDisposable
             Callsign = callsign,
             AircraftType = "C172",
             FlightRules = "VFR",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(180),
             TrueTrack = new TrueHeading(180),
             Altitude = 3000,

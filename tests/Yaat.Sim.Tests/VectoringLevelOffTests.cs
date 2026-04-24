@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Tests;
@@ -11,8 +11,7 @@ public class VectoringLevelOffTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(360),
             TrueTrack = new TrueHeading(360),
             Altitude = altitude,
@@ -29,20 +28,12 @@ public class VectoringLevelOffTests
         ac.Targets.TargetAltitude = 5000;
         ac.Targets.AssignedAltitude = 5000;
         // Build a procedure route: fixes A, B, C
-        ac.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "FIXAA",
-                Latitude = 37.5,
-                Longitude = -122.5,
-            }
-        );
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIXAA", Position = new LatLon(37.5, -122.5) });
         ac.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
                 Name = "FIXBB",
-                Latitude = 37.6,
-                Longitude = -122.6,
+                Position = new LatLon(37.6, -122.6),
                 AltitudeRestriction = new Data.Vnas.CifpAltitudeRestriction(Data.Vnas.CifpAltitudeRestrictionType.AtOrAbove, 8000),
             }
         );
@@ -50,8 +41,7 @@ public class VectoringLevelOffTests
             new NavigationTarget
             {
                 Name = "FIXCC",
-                Latitude = 37.7,
-                Longitude = -122.7,
+                Position = new LatLon(37.7, -122.7),
                 AltitudeRestriction = new Data.Vnas.CifpAltitudeRestriction(Data.Vnas.CifpAltitudeRestrictionType.At, 5000),
             }
         );
@@ -65,30 +55,9 @@ public class VectoringLevelOffTests
         ac.SidViaMode = true;
         ac.Targets.TargetAltitude = 10000;
         ac.Targets.AssignedAltitude = 10000;
-        ac.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "SIDAA",
-                Latitude = 37.5,
-                Longitude = -122.5,
-            }
-        );
-        ac.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "SIDBB",
-                Latitude = 37.6,
-                Longitude = -122.6,
-            }
-        );
-        ac.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "SIDCC",
-                Latitude = 37.7,
-                Longitude = -122.7,
-            }
-        );
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SIDAA", Position = new LatLon(37.5, -122.5) });
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SIDBB", Position = new LatLon(37.6, -122.6) });
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SIDCC", Position = new LatLon(37.7, -122.7) });
         return ac;
     }
 

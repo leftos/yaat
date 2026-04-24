@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -207,7 +207,7 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
                     output.WriteLine(
                         $"t={t} {cs}: phase={phaseName}, gs={ac.GroundSpeed:F1}kts, "
                             + $"hdg={ac.TrueHeading.Degrees:F1}, "
-                            + $"pos=({ac.Latitude:F6},{ac.Longitude:F6}), "
+                            + $"pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}), "
                             + $"onGround={ac.IsOnGround}, "
                             + $"reqExit=[{reqExit}], resolved=[{resolvedExit}], "
                             + $"twy={ac.CurrentTaxiway ?? "none"}"

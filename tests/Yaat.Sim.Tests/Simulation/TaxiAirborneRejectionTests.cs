@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -52,7 +52,7 @@ public class TaxiAirborneRejectionTests(ITestOutputHelper output)
 
         output.WriteLine(
             $"N805FM at t=952: alt={aircraft.Altitude:F0}, IsOnGround={aircraft.IsOnGround}, "
-                + $"lat={aircraft.Latitude:F6}, lon={aircraft.Longitude:F6}"
+                + $"lat={aircraft.Position.Lat:F6}, lon={aircraft.Position.Lon:F6}"
         );
 
         // Aircraft should still be airborne

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
@@ -25,8 +25,7 @@ public class ProgrammedFixesTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Latitude = 37.62,
-            Longitude = -122.38,
+            Position = new LatLon(37.62, -122.38),
             TrueHeading = new TrueHeading(280),
             Altitude = 10000,
             Route = route,

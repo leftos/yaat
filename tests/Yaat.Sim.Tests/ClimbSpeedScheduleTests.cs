@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -201,8 +201,7 @@ public sealed class ClimbSpeedScheduleTests
             TrueHeading = new TrueHeading(280),
             TrueTrack = new TrueHeading(280),
             Departure = "KTEST",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
         };
         ac.Targets.TargetAltitude = 1000;
         ac.Targets.TargetTrueHeading = new TrueHeading(280);

@@ -364,14 +364,7 @@ internal static class FlightCommandHandler
         RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
         foreach (var fix in resolved)
         {
-            aircraft.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Name = fix.Name,
-                    Latitude = fix.Lat,
-                    Longitude = fix.Lon,
-                }
-            );
+            aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
         bool routeRejoined = resolved.Count > originalCount;
         return routeRejoined
@@ -420,14 +413,7 @@ internal static class FlightCommandHandler
         RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
         foreach (var fix in resolved)
         {
-            aircraft.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Name = fix.Name,
-                    Latitude = fix.Lat,
-                    Longitude = fix.Lon,
-                }
-            );
+            aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
         bool routeRejoined = resolved.Count > originalCount;
         return routeRejoined ? CommandDispatcher.Ok($"{dirLabel} {fixNames}, then filed route") : CommandDispatcher.Ok($"{dirLabel} {fixNames}");
@@ -451,14 +437,7 @@ internal static class FlightCommandHandler
         RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
         foreach (var fix in resolved)
         {
-            aircraft.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Name = fix.Name,
-                    Latitude = fix.Lat,
-                    Longitude = fix.Lon,
-                }
-            );
+            aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
         bool routeRejoined = resolved.Count > originalCount;
         return routeRejoined
@@ -528,8 +507,7 @@ internal static class FlightCommandHandler
                 new NavigationTarget
                 {
                     Name = fix.Name,
-                    Latitude = fix.Lat,
-                    Longitude = fix.Lon,
+                    Position = new LatLon(fix.Lat, fix.Lon),
                     AltitudeRestriction = altRestriction,
                     SpeedRestriction = speedRestriction,
                     RevertAltitude = revertAlt,
@@ -567,14 +545,7 @@ internal static class FlightCommandHandler
         {
             foreach (var fix in resolved)
             {
-                aircraft.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = fix.Name,
-                        Latitude = fix.Lat,
-                        Longitude = fix.Lon,
-                    }
-                );
+                aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             var names = string.Join(" ", cmd.Fixes.Select(f => f.Name));
             return resolved.Count > originalCount
@@ -585,14 +556,7 @@ internal static class FlightCommandHandler
         {
             foreach (var fix in resolved)
             {
-                aircraft.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = fix.Name,
-                        Latitude = fix.Lat,
-                        Longitude = fix.Lon,
-                    }
-                );
+                aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             var appended = string.Join(" ", cmd.Fixes.Select(f => f.Name));
             return resolved.Count > originalCount
@@ -610,14 +574,7 @@ internal static class FlightCommandHandler
         {
             foreach (var fix in resolved)
             {
-                aircraft.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = fix.Name,
-                        Latitude = fix.Lat,
-                        Longitude = fix.Lon,
-                    }
-                );
+                aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             var names = string.Join(" ", cmd.Fixes.Select(f => f.Name));
             return resolved.Count > originalCount
@@ -628,14 +585,7 @@ internal static class FlightCommandHandler
         {
             foreach (var fix in resolved)
             {
-                aircraft.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = fix.Name,
-                        Latitude = fix.Lat,
-                        Longitude = fix.Lon,
-                    }
-                );
+                aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             var appended = string.Join(" ", cmd.Fixes.Select(f => f.Name));
             return resolved.Count > originalCount

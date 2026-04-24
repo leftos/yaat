@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
@@ -45,8 +45,7 @@ public class FinalApproachDescentTests
         {
             Callsign = "UAL123",
             AircraftType = "B738",
-            Latitude = startPos.Lat,
-            Longitude = startPos.Lon,
+            Position = new LatLon(startPos.Lat, startPos.Lon),
             TrueHeading = rwy.TrueHeading,
             Altitude = startAltitude,
             IndicatedAirspeed = startSpeed,
@@ -169,8 +168,7 @@ public class FinalApproachDescentTests
         {
             Callsign = "UAL123",
             AircraftType = "B738",
-            Latitude = startPos.Lat,
-            Longitude = startPos.Lon,
+            Position = new LatLon(startPos.Lat, startPos.Lon),
             TrueHeading = rwy.TrueHeading,
             Altitude = gsAt5,
             IndicatedAirspeed = 140,
@@ -227,8 +225,7 @@ public class FinalApproachDescentTests
         {
             Callsign = "UAL123",
             AircraftType = "B738",
-            Latitude = startPos.Lat,
-            Longitude = startPos.Lon,
+            Position = new LatLon(startPos.Lat, startPos.Lon),
             TrueHeading = rwy.TrueHeading,
             Altitude = gsAt5 - 300,
             IndicatedAirspeed = 140,

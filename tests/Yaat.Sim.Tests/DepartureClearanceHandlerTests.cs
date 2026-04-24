@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -32,8 +32,7 @@ public class DepartureClearanceHandlerTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = 37.728,
-            Longitude = -122.218,
+            Position = new LatLon(37.728, -122.218),
             TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,
@@ -174,8 +173,7 @@ public class DepartureClearanceHandlerTests
         {
             Callsign = "HEAVY1",
             AircraftType = "B744", // isHeavy: true in AircraftProfiles.json
-            Latitude = 37.728,
-            Longitude = -122.218,
+            Position = new LatLon(37.728, -122.218),
             TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,

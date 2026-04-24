@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
@@ -144,7 +144,7 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
         TrueHeading fac = interceptPhase.FinalApproachCourse;
 
         output.WriteLine(
-            $"Aircraft: ({aircraft.Latitude:F6}, {aircraft.Longitude:F6}) hdg={aircraft.TrueHeading.Degrees:F1} alt={aircraft.Altitude:F0}"
+            $"Aircraft: ({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6}) hdg={aircraft.TrueHeading.Degrees:F1} alt={aircraft.Altitude:F0}"
         );
         output.WriteLine($"FAC: {fac.Degrees:F1}  Threshold: ({threshLat:F6}, {threshLon:F6})");
         output.WriteLine(
@@ -169,8 +169,8 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
                 break;
             }
 
-            double signedXT = GeoMath.SignedCrossTrackDistanceNm(aircraft.Latitude, aircraft.Longitude, threshLat, threshLon, fac);
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, threshLat, threshLon);
+            double signedXT = GeoMath.SignedCrossTrackDistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, threshLat, threshLon, fac);
+            double dist = GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, threshLat, threshLon);
             double hdgDiff = aircraft.TrueHeading.AbsAngleTo(fac);
             string currentPhase = aircraft.Phases?.CurrentPhase?.Name ?? "none";
 

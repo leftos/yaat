@@ -146,12 +146,9 @@ public class ControlTargets
 public class NavigationTarget
 {
     public required string Name { get; init; }
-    public required double Latitude { get; init; }
-    public required double Longitude { get; init; }
 
-    /// <summary>Typed read-through over <see cref="Latitude"/>/<see cref="Longitude"/>.</summary>
-    [JsonIgnore]
-    public LatLon Position => new(Latitude, Longitude);
+    /// <summary>Geographic position of the navigation fix.</summary>
+    public required LatLon Position { get; init; }
 
     public CifpAltitudeRestriction? AltitudeRestriction { get; set; }
     public CifpSpeedRestriction? SpeedRestriction { get; set; }
@@ -173,8 +170,7 @@ public class NavigationTarget
         new()
         {
             Name = Name,
-            Latitude = Latitude,
-            Longitude = Longitude,
+            Position = Position,
             AltitudeRestriction = AltitudeRestriction is not null
                 ? new AltitudeRestrictionDto
                 {
@@ -197,8 +193,7 @@ public class NavigationTarget
         new()
         {
             Name = dto.Name,
-            Latitude = dto.Latitude,
-            Longitude = dto.Longitude,
+            Position = dto.Position,
             AltitudeRestriction = dto.AltitudeRestriction is not null
                 ? new CifpAltitudeRestriction(
                     (CifpAltitudeRestrictionType)dto.AltitudeRestriction.Type,

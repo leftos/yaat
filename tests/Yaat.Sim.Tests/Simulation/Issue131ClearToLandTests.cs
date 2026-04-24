@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -168,13 +168,15 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"=== {callsign} {context} (t={replayTo}) ===");
-        output.WriteLine($"  pos=({ac.Latitude:F4},{ac.Longitude:F4}) hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0}");
+        output.WriteLine(
+            $"  pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0}"
+        );
         output.WriteLine($"  phase={ac.Phases?.CurrentPhase?.GetType().Name}");
 
         var navRoute = ac.Targets.NavigationRoute;
         for (int i = 0; i < navRoute.Count; i++)
         {
-            output.WriteLine($"  nav[{i}]: {navRoute[i].Name} ({navRoute[i].Latitude:F4},{navRoute[i].Longitude:F4})");
+            output.WriteLine($"  nav[{i}]: {navRoute[i].Name} ({navRoute[i].Position.Lat:F4},{navRoute[i].Position.Lon:F4})");
         }
 
         output.WriteLine("");
@@ -196,7 +198,7 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
             string clearance = ac.Phases?.LandingClearance?.ToString() ?? "none";
 
             output.WriteLine(
-                $"t+{t, 3}: pos=({ac.Latitude:F4},{ac.Longitude:F4}) "
+                $"t+{t, 3}: pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) "
                     + $"hdg={ac.TrueHeading.Degrees:F0} tgtHdg={tgtHdg} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0} "
                     + $"phase={phaseName} clearance={clearance} nav=[{navInfo}]"
             );

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -163,18 +163,8 @@ public class InitialClimbAltitudeTests
     {
         var route = new List<NavigationTarget>
         {
-            new()
-            {
-                Name = "SUNOL",
-                Latitude = 37.5,
-                Longitude = -121.8,
-            },
-            new()
-            {
-                Name = "TRACY",
-                Latitude = 37.7,
-                Longitude = -121.4,
-            },
+            new() { Name = "SUNOL", Position = new LatLon(37.5, -121.8) },
+            new() { Name = "TRACY", Position = new LatLon(37.7, -121.4) },
         };
 
         var phase = new InitialClimbPhase

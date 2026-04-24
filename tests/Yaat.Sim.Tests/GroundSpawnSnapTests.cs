@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 
@@ -25,16 +25,14 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
         var n1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var (n2Lat, n2Lon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
         var n2 = new GroundNode
         {
             Id = 2,
-            Latitude = n2Lat,
-            Longitude = n2Lon,
+            Position = new LatLon(n2Lat, n2Lon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -86,15 +84,13 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
             var r1 = new GroundNode
             {
                 Id = 10,
-                Latitude = r1Lat,
-                Longitude = r1Lon,
+                Position = new LatLon(r1Lat, r1Lon),
                 Type = GroundNodeType.TaxiwayIntersection,
             };
             var r2 = new GroundNode
             {
                 Id = 11,
-                Latitude = r2Lat,
-                Longitude = r2Lon,
+                Position = new LatLon(r2Lat, r2Lon),
                 Type = GroundNodeType.TaxiwayIntersection,
             };
             l.Nodes[10] = r1;
@@ -131,8 +127,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
             var rampNode = new GroundNode
             {
                 Id = 20,
-                Latitude = rampLat,
-                Longitude = rampLon,
+                Position = new LatLon(rampLat, rampLon),
                 Type = GroundNodeType.Parking,
             };
             l.Nodes[20] = rampNode;
@@ -166,8 +161,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = new TrueHeading(80.0),
             IsOnGround = true,
         };
@@ -198,8 +192,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
         {
             Callsign = "TEST2",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = new TrueHeading(260.0),
             IsOnGround = true,
         };
@@ -224,8 +217,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
         {
             Callsign = "TEST3",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = new TrueHeading(80.0),
             IsOnGround = false,
         };
@@ -254,8 +246,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
         {
             Callsign = "TEST4",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = new TrueHeading(45.0),
             IsOnGround = true,
         };

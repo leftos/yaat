@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
@@ -119,12 +119,12 @@ public class HoldShortPositionTests(ITestOutputHelper output)
 
         // The aircraft center must be at least halfLength from the hold-short node
         // (so the nose doesn't cross). Allow 10% tolerance for floating-point drift.
-        double distToNodeNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, hsNode.Latitude, hsNode.Longitude);
+        double distToNodeNm = GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, hsNode.Position.Lat, hsNode.Position.Lon);
         double distToNodeFt = distToNodeNm * GeoMath.FeetPerNm;
 
         output.WriteLine(
-            $"UAL300 at ({aircraft.Latitude:F6}, {aircraft.Longitude:F6}), "
-                + $"hold-short node {holdShortPoint.NodeId} at ({hsNode.Latitude:F6}, {hsNode.Longitude:F6}), "
+            $"UAL300 at ({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6}), "
+                + $"hold-short node {holdShortPoint.NodeId} at ({hsNode.Position.Lat:F6}, {hsNode.Position.Lon:F6}), "
                 + $"dist={distToNodeFt:F1}ft, halfLength={lengthFt / 2.0:F1}ft, "
                 + $"aircraft type={aircraft.AircraftType}, heading={aircraft.TrueHeading}"
         );
@@ -172,7 +172,7 @@ public class HoldShortPositionTests(ITestOutputHelper output)
             {
                 output.WriteLine(
                     $"t={t} gs={ac.GroundSpeed:F1}kts hdg={ac.TrueHeading} "
-                        + $"pos=({ac.Latitude:F6},{ac.Longitude:F6}) "
+                        + $"pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) "
                         + $"phase={phase} twy={ac.CurrentTaxiway ?? "?"} "
                         + $"holdShorts=[{holdShorts}]"
                 );
@@ -188,7 +188,7 @@ public class HoldShortPositionTests(ITestOutputHelper output)
                         {
                             if (layout.Nodes.TryGetValue(hs.NodeId, out var node))
                             {
-                                double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, node.Latitude, node.Longitude);
+                                double dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon);
                                 output.WriteLine($"  -> HS node {hs.NodeId} ({hs.TargetName}): dist={dist * GeoMath.FeetPerNm:F1}ft");
                             }
                         }

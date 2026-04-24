@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -34,8 +34,7 @@ public class HoldShortQueueTests
             nodes[i] = new GroundNode
             {
                 Id = i,
-                Latitude = BaseLat - i * 1.5 * OffsetLatPer100Ft, // heading south
-                Longitude = BaseLon,
+                Position = new LatLon(BaseLat - i * 1.5 * OffsetLatPer100Ft, BaseLon),
                 Type = i == 4 ? GroundNodeType.RunwayHoldShort : GroundNodeType.TaxiwayIntersection,
                 RunwayId = i == 4 ? rwyId : null,
             };
@@ -253,8 +252,7 @@ public class HoldShortQueueTests
         {
             Callsign = "LEAD",
             AircraftType = "B738",
-            Latitude = BaseLat,
-            Longitude = BaseLon,
+            Position = new LatLon(BaseLat, BaseLon),
             TrueHeading = new TrueHeading(0),
             IsOnGround = true,
             IndicatedAirspeed = 0,
@@ -278,8 +276,7 @@ public class HoldShortQueueTests
         {
             Callsign = "TRAIL",
             AircraftType = "C172",
-            Latitude = BaseLat - trailOffsetNm / 60.0,
-            Longitude = BaseLon,
+            Position = new LatLon(BaseLat - trailOffsetNm / 60.0, BaseLon),
             TrueHeading = new TrueHeading(0),
             IsOnGround = true,
             IndicatedAirspeed = 15,

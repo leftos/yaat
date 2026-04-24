@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
@@ -65,7 +65,7 @@ public class Issue134DiagnosticTest(ITestOutputHelper output)
 
                     output.WriteLine(
                         $"[{cs}] t={600 + t} phase={phase} "
-                            + $"pos=({ac.Latitude:F6},{ac.Longitude:F6}) "
+                            + $"pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) "
                             + $"hdg={ac.TrueHeading.Degrees:F0} "
                             + $"gs={ac.GroundSpeed:F1} ias={ac.IndicatedAirspeed:F1} "
                             + $"alt={ac.Altitude:F0} "

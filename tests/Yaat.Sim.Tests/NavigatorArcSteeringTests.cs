@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data.Airport;
 using static Yaat.Sim.Data.Airport.AirportGroundLayout;
 
@@ -15,15 +15,13 @@ public class NavigatorArcSteeringTests
         var nodeA = new GroundNode
         {
             Id = 1,
-            Latitude = 37.72,
-            Longitude = -122.2197,
+            Position = new LatLon(37.72, -122.2197),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeB = new GroundNode
         {
             Id = 2,
-            Latitude = 37.7198,
-            Longitude = -122.22,
+            Position = new LatLon(37.7198, -122.22),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 

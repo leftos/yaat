@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 
 namespace Yaat.Sim.Tests;
 
@@ -89,8 +89,7 @@ public class BankAngleTests
         {
             Callsign = "TST100",
             AircraftType = "B738",
-            Latitude = 37.721,
-            Longitude = -122.221,
+            Position = new LatLon(37.721, -122.221),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,

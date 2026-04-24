@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
@@ -61,8 +61,8 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         double node508Lon = 0;
         if (n436.GroundLayout is not null && n436.GroundLayout.Nodes.TryGetValue(508, out var node508))
         {
-            node508Lat = node508.Latitude;
-            node508Lon = node508.Longitude;
+            node508Lat = node508.Position.Lat;
+            node508Lon = node508.Position.Lon;
         }
 
         // Find SIG1 parking node for distance reference
@@ -73,8 +73,8 @@ public class OakGroundE2ETests(ITestOutputHelper output)
             var sig1Node = n436.GroundLayout.FindHelipadByName("SIG1") ?? n436.GroundLayout.FindParkingByName("SIG1");
             if (sig1Node is not null)
             {
-                sig1Lat = sig1Node.Latitude;
-                sig1Lon = sig1Node.Longitude;
+                sig1Lat = sig1Node.Position.Lat;
+                sig1Lon = sig1Node.Position.Lon;
             }
         }
 
@@ -108,7 +108,7 @@ public class OakGroundE2ETests(ITestOutputHelper output)
             {
                 n569ExitedRunway = true;
                 exitTime = t;
-                output.WriteLine($"t={t}: N569SX exited runway at ({n569.Latitude:F6}, {n569.Longitude:F6}) on {n569.CurrentTaxiway}");
+                output.WriteLine($"t={t}: N569SX exited runway at ({n569.Position.Lat:F6}, {n569.Position.Lon:F6}) on {n569.CurrentTaxiway}");
 
                 // Send TAXI G @SIG1
                 var taxiResult = engine.SendCommand("N569SX", "TAXI G @SIG1");
@@ -119,16 +119,16 @@ public class OakGroundE2ETests(ITestOutputHelper output)
             // Log N569SX progress toward SIG1 after taxi command
             if (n569ExitedRunway && t % 10 == 0)
             {
-                double distSig1Ft = GeoMath.DistanceNm(n569.Latitude, n569.Longitude, sig1Lat, sig1Lon) * GeoMath.FeetPerNm;
+                double distSig1Ft = GeoMath.DistanceNm(n569.Position.Lat, n569.Position.Lon, sig1Lat, sig1Lon) * GeoMath.FeetPerNm;
                 output.WriteLine(
-                    $"t={t}: N569SX {phaseName, -24} gs={n569.GroundSpeed:F1} distSIG1={distSig1Ft:F0}ft pos=({n569.Latitude:F6}, {n569.Longitude:F6})"
+                    $"t={t}: N569SX {phaseName, -24} gs={n569.GroundSpeed:F1} distSIG1={distSig1Ft:F0}ft pos=({n569.Position.Lat:F6}, {n569.Position.Lon:F6})"
                 );
             }
 
             // Check if N569SX route completed
             if (n569ExitedRunway && (phaseName == "Holding In Position" || phaseName == "At Parking"))
             {
-                double distSig1Ft = GeoMath.DistanceNm(n569.Latitude, n569.Longitude, sig1Lat, sig1Lon) * GeoMath.FeetPerNm;
+                double distSig1Ft = GeoMath.DistanceNm(n569.Position.Lat, n569.Position.Lon, sig1Lat, sig1Lon) * GeoMath.FeetPerNm;
                 output.WriteLine($"t={t}: N569SX stopped — {phaseName} at distSIG1={distSig1Ft:F0}ft");
                 break;
             }
@@ -150,9 +150,9 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         // Assert 1: N569SX should be close to SIG1
         n569 = engine.FindAircraft("N569SX");
         Assert.NotNull(n569);
-        double n569DistSig1Ft = GeoMath.DistanceNm(n569.Latitude, n569.Longitude, sig1Lat, sig1Lon) * GeoMath.FeetPerNm;
+        double n569DistSig1Ft = GeoMath.DistanceNm(n569.Position.Lat, n569.Position.Lon, sig1Lat, sig1Lon) * GeoMath.FeetPerNm;
         output.WriteLine(
-            $"N569SX: distSIG1={n569DistSig1Ft:F0}ft pos=({n569.Latitude:F6}, {n569.Longitude:F6}) phase={n569.Phases?.CurrentPhase?.Name}"
+            $"N569SX: distSIG1={n569DistSig1Ft:F0}ft pos=({n569.Position.Lat:F6}, {n569.Position.Lon:F6}) phase={n569.Phases?.CurrentPhase?.Name}"
         );
         Assert.True(n569DistSig1Ft < 30, $"N569SX stopped {n569DistSig1Ft:F0}ft from SIG1 — should be within 30ft");
 
@@ -162,12 +162,12 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         Assert.NotNull(n172);
         Assert.NotNull(n346);
 
-        double n172Dist508Ft = GeoMath.DistanceNm(n172.Latitude, n172.Longitude, node508Lat, node508Lon) * GeoMath.FeetPerNm;
-        double n346Dist508Ft = GeoMath.DistanceNm(n346.Latitude, n346.Longitude, node508Lat, node508Lon) * GeoMath.FeetPerNm;
-        double separationFt = GeoMath.DistanceNm(n172.Latitude, n172.Longitude, n346.Latitude, n346.Longitude) * GeoMath.FeetPerNm;
+        double n172Dist508Ft = GeoMath.DistanceNm(n172.Position.Lat, n172.Position.Lon, node508Lat, node508Lon) * GeoMath.FeetPerNm;
+        double n346Dist508Ft = GeoMath.DistanceNm(n346.Position.Lat, n346.Position.Lon, node508Lat, node508Lon) * GeoMath.FeetPerNm;
+        double separationFt = GeoMath.DistanceNm(n172.Position.Lat, n172.Position.Lon, n346.Position.Lat, n346.Position.Lon) * GeoMath.FeetPerNm;
 
         output.WriteLine(
-            $"N436MS: dist508={GeoMath.DistanceNm(engine.FindAircraft("N436MS")!.Latitude, engine.FindAircraft("N436MS")!.Longitude, node508Lat, node508Lon) * GeoMath.FeetPerNm:F0}ft phase={engine.FindAircraft("N436MS")!.Phases?.CurrentPhase?.Name}"
+            $"N436MS: dist508={GeoMath.DistanceNm(engine.FindAircraft("N436MS")!.Position.Lat, engine.FindAircraft("N436MS")!.Position.Lon, node508Lat, node508Lon) * GeoMath.FeetPerNm:F0}ft phase={engine.FindAircraft("N436MS")!.Phases?.CurrentPhase?.Name}"
         );
         output.WriteLine($"N346G:  dist508={n346Dist508Ft:F0}ft phase={n346.Phases?.CurrentPhase?.Name}");
         output.WriteLine($"N172SP: dist508={n172Dist508Ft:F0}ft phase={n172.Phases?.CurrentPhase?.Name}");

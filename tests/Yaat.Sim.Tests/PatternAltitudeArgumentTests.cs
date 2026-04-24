@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
@@ -159,8 +159,7 @@ public class PatternAltitudeArgumentTests
         {
             Callsign = "N123AB",
             AircraftType = "C172",
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(100),
             Altitude = 1100,
             IndicatedAirspeed = 90,

@@ -822,8 +822,8 @@ internal static class GroundCommandHandler
             return new CommandResult(false, $"Cannot find spot '{destination}' in airport layout");
         }
 
-        double destLat = spot.Latitude;
-        double destLon = spot.Longitude;
+        double destLat = spot.Position.Lat;
+        double destLon = spot.Position.Lon;
         string resolvedName = destination.ToUpperInvariant();
 
         // Clear current phases and start air taxi
@@ -880,8 +880,8 @@ internal static class GroundCommandHandler
                 return new CommandResult(false, $"Cannot find spot '{land.SpotName}' in airport layout");
             }
 
-            destLat = spot.Latitude;
-            destLon = spot.Longitude;
+            destLat = spot.Position.Lat;
+            destLon = spot.Position.Lon;
             resolvedName = land.SpotName.ToUpperInvariant();
         }
 

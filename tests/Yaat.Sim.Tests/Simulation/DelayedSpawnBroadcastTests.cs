@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Scenarios;
@@ -31,8 +31,7 @@ public class DelayedSpawnBroadcastTests
                 {
                     Callsign = $"TST{seconds}",
                     AircraftType = "B738",
-                    Latitude = 37.72,
-                    Longitude = -122.22,
+                    Position = new LatLon(37.72, -122.22),
                     TrueHeading = new TrueHeading(090),
                     Altitude = 5000,
                     IndicatedAirspeed = 250,

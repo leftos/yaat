@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Tower;
@@ -121,7 +121,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
                 exitSubTick = sub;
                 finalPhase = phase?.Name ?? "(null)";
 
-                double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, rwyThreshLat, rwyThreshLon, rwyHdg);
+                double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(ac.Position.Lat, ac.Position.Lon, rwyThreshLat, rwyThreshLon, rwyHdg);
                 finalCrossFt = Math.Abs(signedCrossNm) * GeoMath.FeetPerNm;
                 finalHdgDiffDeg = Math.Abs(rwyHdg.SignedAngleTo(ac.TrueHeading));
                 finalGsKts = ac.GroundSpeed;

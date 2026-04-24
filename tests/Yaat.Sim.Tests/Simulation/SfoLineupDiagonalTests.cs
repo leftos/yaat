@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -138,7 +138,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
                 exitTick = sub;
                 finalPhase = phase?.Name ?? "(null)";
 
-                double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, rwyThreshLat, rwyThreshLon, rwyHdg);
+                double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(ac.Position.Lat, ac.Position.Lon, rwyThreshLat, rwyThreshLon, rwyHdg);
                 finalCrossFt = Math.Abs(signedCrossNm) * GeoMath.FeetPerNm;
                 finalHdgDiffDeg = Math.Abs(rwyHdg.SignedAngleTo(ac.TrueHeading));
                 finalGsKts = ac.GroundSpeed;

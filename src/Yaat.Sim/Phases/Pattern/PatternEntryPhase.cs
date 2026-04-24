@@ -68,21 +68,13 @@ public sealed class PatternEntryPhase : Phase
 
         if (LeadInLat is not null && LeadInLon is not null)
         {
-            ctx.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Latitude = LeadInLat.Value,
-                    Longitude = LeadInLon.Value,
-                    Name = "PTN-LEADIN",
-                }
-            );
+            ctx.Targets.NavigationRoute.Add(new NavigationTarget { Position = new LatLon(LeadInLat.Value, LeadInLon.Value), Name = "PTN-LEADIN" });
         }
 
         ctx.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
-                Latitude = EntryLat,
-                Longitude = EntryLon,
+                Position = new LatLon(EntryLat, EntryLon),
                 Name = "PTN-ENTRY",
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, (int)PatternAltitude),
             }

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
@@ -52,8 +52,7 @@ public class VisualApproachCommandTests : IDisposable
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 180,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Destination = destination,
         };
     }

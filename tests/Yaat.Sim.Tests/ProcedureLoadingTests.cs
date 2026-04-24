@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -390,16 +390,10 @@ public class ProcedureLoadingTests
             new()
             {
                 Name = "MOLEN",
-                Latitude = 37.63,
-                Longitude = -122.35,
+                Position = new LatLon(37.63, -122.35),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 800),
             },
-            new()
-            {
-                Name = "PORTE",
-                Latitude = 37.65,
-                Longitude = -122.30,
-            },
+            new() { Name = "PORTE", Position = new LatLon(37.65, -122.30) },
         };
 
         var phase = new InitialClimbPhase
@@ -442,12 +436,7 @@ public class ProcedureLoadingTests
 
         var targets = new List<NavigationTarget>
         {
-            new()
-            {
-                Name = "SUNOL",
-                Latitude = 37.58,
-                Longitude = -121.88,
-            },
+            new() { Name = "SUNOL", Position = new LatLon(37.58, -121.88) },
         };
 
         var phase = new InitialClimbPhase { Departure = new DefaultDeparture(), DepartureRoute = targets };

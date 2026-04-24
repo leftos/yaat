@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Tests.Helpers;
 
@@ -12,8 +12,7 @@ public class ExpediteCommandTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(360),
             TrueTrack = new TrueHeading(360),
             Altitude = altitude,

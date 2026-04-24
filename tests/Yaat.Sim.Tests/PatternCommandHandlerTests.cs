@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -33,8 +33,7 @@ public class PatternCommandHandlerTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(280),
             Altitude = altitude,
             IndicatedAirspeed = groundSpeed,

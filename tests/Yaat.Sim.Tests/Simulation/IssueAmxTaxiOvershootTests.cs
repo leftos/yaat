@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
@@ -77,7 +77,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
                 // M1 at SFO near 1L runs roughly SE (bearing ~120-160°).
                 // The heading should be within 30° of a reasonable M1 bearing.
                 double hdg = amx.TrueHeading.Degrees;
-                output.WriteLine($"Hold-short heading: {hdg:F0}° at ({amx.Latitude:F6}, {amx.Longitude:F6})");
+                output.WriteLine($"Hold-short heading: {hdg:F0}° at ({amx.Position.Lat:F6}, {amx.Position.Lon:F6})");
 
                 // Verify heading is roughly along M1 (not perpendicular or reversed)
                 // M1 near 1L has a SE bearing of approximately 120-160°
@@ -96,12 +96,12 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
                             && rid.Equals(rwy1L)
                             && n.Edges.Any(e => e.MatchesTaxiway("M1"))
                         )
-                        .OrderBy(n => GeoMath.DistanceNm(amx.Latitude, amx.Longitude, n.Latitude, n.Longitude))
+                        .OrderBy(n => GeoMath.DistanceNm(amx.Position.Lat, amx.Position.Lon, n.Position.Lat, n.Position.Lon))
                         .FirstOrDefault();
 
                     if (hsNode is not null)
                     {
-                        double dist = GeoMath.DistanceNm(amx.Latitude, amx.Longitude, hsNode.Latitude, hsNode.Longitude);
+                        double dist = GeoMath.DistanceNm(amx.Position.Lat, amx.Position.Lon, hsNode.Position.Lat, hsNode.Position.Lon);
                         double distFt = dist * GeoMath.FeetPerNm;
                         output.WriteLine($"Distance to hold-short node #{hsNode.Id}: {distFt:F0}ft");
                         Assert.True(distFt < 150, $"Aircraft is {distFt:F0}ft from hold-short node, expected < 150ft");

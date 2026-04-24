@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
@@ -59,7 +59,7 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
 
         var clearance = aircraft.Phases?.ActiveApproach;
         output.WriteLine($"=== {Callsign} state at t={CappTime + 5} (CAPP+5s) ===");
-        output.WriteLine($"  Position:    ({aircraft.Latitude:F5}, {aircraft.Longitude:F5})");
+        output.WriteLine($"  Position:    ({aircraft.Position.Lat:F5}, {aircraft.Position.Lon:F5})");
         output.WriteLine($"  Altitude:    {aircraft.Altitude:F0} ft");
         output.WriteLine($"  Heading:     {aircraft.TrueHeading.Degrees:F1}°");
         output.WriteLine($"  TgtHdg:      {aircraft.Targets.TargetTrueHeading?.Degrees.ToString("F1") ?? "null"}");
@@ -165,7 +165,9 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
             double anchorLat = clearance.FinalApproachAnchorLat ?? GetThreshold(ac).Lat;
             double anchorLon = clearance.FinalApproachAnchorLon ?? GetThreshold(ac).Lon;
 
-            double xte = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, anchorLat, anchorLon, clearance.FinalApproachCourse));
+            double xte = Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(ac.Position.Lat, ac.Position.Lon, anchorLat, anchorLon, clearance.FinalApproachCourse)
+            );
             double trackDiff = ac.TrueTrack.AbsAngleTo(clearance.FinalApproachCourse);
 
             if (xte >= 0.05 || trackDiff >= 3.0)

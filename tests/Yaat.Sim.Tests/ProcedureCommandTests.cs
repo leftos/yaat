@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
@@ -12,8 +12,7 @@ public class ProcedureCommandTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(360),
             TrueTrack = new TrueHeading(360),
             Altitude = altitude,
@@ -100,14 +99,7 @@ public class ProcedureCommandTests
         aircraft.SidViaCeiling = 10000;
 
         // Set up a navigation route to verify it's preserved
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "FIX1",
-                Latitude = 37.5,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.5, -122.0) });
 
         var result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(35000), aircraft, TestDispatch.Context(Random.Shared));
 
@@ -131,14 +123,7 @@ public class ProcedureCommandTests
         aircraft.StarViaMode = true;
         aircraft.StarViaFloor = 10000;
 
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "FIX1",
-                Latitude = 37.5,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.5, -122.0) });
 
         var result = CommandDispatcher.Dispatch(new DescendMaintainCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
 

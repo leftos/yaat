@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -262,12 +262,7 @@ public class TakeoffDepartureTests
         var departure = new DirectFixDeparture("OAK30NUM", fixLat, fixLon, TurnDirection.Right);
         var departureRoute = new List<NavigationTarget>
         {
-            new()
-            {
-                Name = "OAK30NUM",
-                Latitude = fixLat,
-                Longitude = fixLon,
-            },
+            new() { Name = "OAK30NUM", Position = new LatLon(fixLat, fixLon) },
         };
 
         var phaseList = new PhaseList { AssignedRunway = runway };
@@ -672,12 +667,7 @@ public class TakeoffDepartureTests
         var departure = new DirectFixDeparture("OAK30NUM", fixLat, fixLon, null);
         var departureRoute = new List<NavigationTarget>
         {
-            new()
-            {
-                Name = "OAK30NUM",
-                Latitude = fixLat,
-                Longitude = fixLon,
-            },
+            new() { Name = "OAK30NUM", Position = new LatLon(fixLat, fixLon) },
         };
 
         var phaseList = new PhaseList { AssignedRunway = runway };
@@ -747,12 +737,7 @@ public class TakeoffDepartureTests
         var departure = new OnCourseDeparture();
         var departureRoute = new List<NavigationTarget>
         {
-            new()
-            {
-                Name = "SNS",
-                Latitude = 36.66,
-                Longitude = -121.6,
-            },
+            new() { Name = "SNS", Position = new LatLon(36.66, -121.6) },
         };
 
         var phaseList = new PhaseList { AssignedRunway = runway };
@@ -811,12 +796,7 @@ public class TakeoffDepartureTests
         var departure = new DirectFixDeparture("SUNOL", 37.5, -121.8, null);
         var departureRoute = new List<NavigationTarget>
         {
-            new()
-            {
-                Name = "SUNOL",
-                Latitude = 37.5,
-                Longitude = -121.8,
-            },
+            new() { Name = "SUNOL", Position = new LatLon(37.5, -121.8) },
         };
         var phaseList = new PhaseList();
         var aircraft = new AircraftState

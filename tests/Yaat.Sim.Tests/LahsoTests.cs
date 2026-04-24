@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -75,8 +75,7 @@ public class LahsoTests
         {
             Callsign = "OAK1",
             AircraftType = "B738",
-            Latitude = 37.0,
-            Longitude = -121.98,
+            Position = new LatLon(37.0, -121.98),
             TrueHeading = new TrueHeading(280),
             Altitude = 1000,
             IndicatedAirspeed = 140,
@@ -131,8 +130,7 @@ public class LahsoTests
         {
             Callsign = "OAK1",
             AircraftType = "B738",
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(280),
             Altitude = 1000,
             IndicatedAirspeed = 140,

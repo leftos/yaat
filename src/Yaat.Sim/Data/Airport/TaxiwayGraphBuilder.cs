@@ -30,8 +30,7 @@ internal static class TaxiwayGraphBuilder
                 var node = new GroundNode
                 {
                     Id = id,
-                    Latitude = lat,
-                    Longitude = lon,
+                    Position = new LatLon(lat, lon),
                     Type = GroundNodeType.TaxiwayIntersection,
                     Origin = "TaxiwayGraphBuilder:intermediate",
                 };
@@ -156,8 +155,7 @@ internal static class TaxiwayGraphBuilder
                 var node = new GroundNode
                 {
                     Id = id,
-                    Latitude = lat,
-                    Longitude = lon,
+                    Position = new LatLon(lat, lon),
                     Type = GroundNodeType.TaxiwayIntersection,
                     Origin = $"TaxiwayGraphBuilder:intersection({tw1.Name}/{tw2.Name})",
                 };

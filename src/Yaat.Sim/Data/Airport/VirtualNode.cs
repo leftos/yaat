@@ -21,8 +21,7 @@ public static class VirtualNode
         return new GroundNode
         {
             Id = Interlocked.Decrement(ref _nextId),
-            Latitude = latitude,
-            Longitude = longitude,
+            Position = new LatLon(latitude, longitude),
             Type = GroundNodeType.TaxiwayIntersection,
             Origin = "VirtualNode:created",
         };

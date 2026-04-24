@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
@@ -84,7 +84,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
         {
             string alt = fix.AltitudeRestriction is not null ? $" [{fix.AltitudeRestriction}]" : "";
             string spd = fix.SpeedRestriction is not null ? $" [{fix.SpeedRestriction}]" : "";
-            output.WriteLine($"  {fix.Name} ({fix.Latitude:F4}, {fix.Longitude:F4}){alt}{spd}");
+            output.WriteLine($"  {fix.Name} ({fix.Position.Lat:F4}, {fix.Position.Lon:F4}){alt}{spd}");
         }
 
         // Create aircraft at OAK runway 30 departure end, airborne at 1000ft, 180kts
@@ -92,8 +92,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = route[0].Latitude,
-            Longitude = route[0].Longitude,
+            Position = new LatLon(route[0].Position.Lat, route[0].Position.Lon),
             TrueHeading = new TrueHeading(300), // RW30 heading
             TrueTrack = new TrueHeading(300),
             Altitude = 1000,

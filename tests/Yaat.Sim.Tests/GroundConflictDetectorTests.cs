@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -58,22 +58,19 @@ public class GroundConflictDetectorTests
         var n0 = new GroundNode
         {
             Id = 0,
-            Latitude = BaseLat,
-            Longitude = BaseLon,
+            Position = new LatLon(BaseLat, BaseLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n1 = new GroundNode
         {
             Id = 1,
-            Latitude = BaseLat + 2 * OffsetLatPer100Ft,
-            Longitude = BaseLon,
+            Position = new LatLon(BaseLat + 2 * OffsetLatPer100Ft, BaseLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n2 = new GroundNode
         {
             Id = 2,
-            Latitude = BaseLat + 4 * OffsetLatPer100Ft,
-            Longitude = BaseLon,
+            Position = new LatLon(BaseLat + 4 * OffsetLatPer100Ft, BaseLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -115,22 +112,19 @@ public class GroundConflictDetectorTests
         var n0 = new GroundNode
         {
             Id = 0,
-            Latitude = BaseLat,
-            Longitude = BaseLon - 2 * OffsetLatPer100Ft,
+            Position = new LatLon(BaseLat, BaseLon - 2 * OffsetLatPer100Ft),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n1 = new GroundNode
         {
             Id = 1,
-            Latitude = BaseLat,
-            Longitude = BaseLon + 2 * OffsetLatPer100Ft,
+            Position = new LatLon(BaseLat, BaseLon + 2 * OffsetLatPer100Ft),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n2 = new GroundNode
         {
             Id = 2,
-            Latitude = BaseLat + 2 * OffsetLatPer100Ft,
-            Longitude = BaseLon,
+            Position = new LatLon(BaseLat + 2 * OffsetLatPer100Ft, BaseLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -175,15 +169,13 @@ public class GroundConflictDetectorTests
         var fromNode = new GroundNode
         {
             Id = from,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var toNode = new GroundNode
         {
             Id = to,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         return new TaxiRouteSegment { TaxiwayName = taxiway, Edge = edge.Directed(fromNode, toNode) };

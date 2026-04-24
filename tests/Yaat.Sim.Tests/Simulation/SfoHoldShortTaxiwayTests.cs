@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
@@ -60,7 +60,9 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        output.WriteLine($"N346G: type={aircraft.AircraftType} pos=({aircraft.Latitude:F6}, {aircraft.Longitude:F6}), gs={aircraft.GroundSpeed:F1}");
+        output.WriteLine(
+            $"N346G: type={aircraft.AircraftType} pos=({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6}), gs={aircraft.GroundSpeed:F1}"
+        );
         if (aircraft.AssignedTaxiRoute is { } route)
         {
             output.WriteLine($"Route: {route.ToSummary()}, segIdx={route.CurrentSegmentIndex}/{route.Segments.Count}");
@@ -100,7 +102,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
             if (t % 30 == 0 || aircraft.Phases?.CurrentPhase is HoldingShortPhase)
             {
                 output.WriteLine(
-                    $"  t={t} pos=({aircraft.Latitude:F6}, {aircraft.Longitude:F6}) gs={aircraft.GroundSpeed:F1} phase={aircraft.Phases?.CurrentPhase?.Name ?? "null"}"
+                    $"  t={t} pos=({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6}) gs={aircraft.GroundSpeed:F1} phase={aircraft.Phases?.CurrentPhase?.Name ?? "null"}"
                 );
             }
 
@@ -165,13 +167,13 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         double distFromIntersection = GeoMath.DistanceNm(
             hsE.Latitude.Value,
             hsE.Longitude.Value,
-            intersectionNode.Latitude,
-            intersectionNode.Longitude
+            intersectionNode.Position.Lat,
+            intersectionNode.Position.Lon
         );
         double distFt = distFromIntersection * 6076.12;
 
         output.WriteLine($"Hold-short node: {hsE.NodeId}");
-        output.WriteLine($"Intersection pos: ({intersectionNode.Latitude:F6}, {intersectionNode.Longitude:F6})");
+        output.WriteLine($"Intersection pos: ({intersectionNode.Position.Lat:F6}, {intersectionNode.Position.Lon:F6})");
         output.WriteLine($"Hold-short pos: ({hsE.Latitude:F6}, {hsE.Longitude:F6})");
         output.WriteLine($"Offset from intersection: {distFt:F1} ft");
 

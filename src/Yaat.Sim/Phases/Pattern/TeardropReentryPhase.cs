@@ -74,8 +74,7 @@ public sealed class TeardropReentryPhase : Phase
         ctx.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
-                Latitude = _outboundLat,
-                Longitude = _outboundLon,
+                Position = new LatLon(_outboundLat, _outboundLon),
                 Name = "TDROP-OUT",
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, anchorAlt),
             }
@@ -83,8 +82,7 @@ public sealed class TeardropReentryPhase : Phase
         ctx.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
-                Latitude = _leadInLat,
-                Longitude = _leadInLon,
+                Position = new LatLon(_leadInLat, _leadInLon),
                 Name = "TDROP-LI",
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, leadInAlt),
             }
@@ -92,8 +90,7 @@ public sealed class TeardropReentryPhase : Phase
         ctx.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
-                Latitude = Waypoints.DownwindAbeamLat,
-                Longitude = Waypoints.DownwindAbeamLon,
+                Position = new LatLon(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon),
                 Name = "TDROP-ABM",
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, abeamAlt),
             }

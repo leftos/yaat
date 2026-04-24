@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -30,8 +30,7 @@ public class GroundCommandHandlerTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,
@@ -67,22 +66,19 @@ public class GroundCommandHandlerTests
         var node1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.728,
-            Longitude = -122.218,
+            Position = new LatLon(37.728, -122.218),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.729,
-            Longitude = -122.218,
+            Position = new LatLon(37.729, -122.218),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node3 = new GroundNode
         {
             Id = 3,
-            Latitude = 37.730,
-            Longitude = -122.218,
+            Position = new LatLon(37.730, -122.218),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = new RunwayIdentifier("28R"),
         };
@@ -141,15 +137,13 @@ public class GroundCommandHandlerTests
         var fromNode = new GroundNode
         {
             Id = fromId,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var toNode = new GroundNode
         {
             Id = toId,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var edge = new GroundEdge
@@ -730,15 +724,13 @@ public class GroundCommandHandlerTests
         var n1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.728,
-            Longitude = -122.218,
+            Position = new LatLon(37.728, -122.218),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.729,
-            Longitude = -122.218,
+            Position = new LatLon(37.729, -122.218),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         minLayout.Nodes[1] = n1;

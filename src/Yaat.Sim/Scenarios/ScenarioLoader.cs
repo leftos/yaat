@@ -334,7 +334,7 @@ public static class ScenarioLoader
         var init = AircraftInitializer.InitializeOnRunway(rwy, rwyCategory);
 
         var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
-        state.Position = new LatLon(init.Latitude, init.Longitude);
+        state.Position = init.Position;
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
@@ -391,7 +391,7 @@ public static class ScenarioLoader
         );
 
         var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
-        state.Position = new LatLon(init.Latitude, init.Longitude);
+        state.Position = init.Position;
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
@@ -465,7 +465,7 @@ public static class ScenarioLoader
         var init = AircraftInitializer.InitializeAtParking(node, elevation);
 
         var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
-        state.Position = new LatLon(init.Latitude, init.Longitude);
+        state.Position = init.Position;
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
@@ -535,14 +535,7 @@ public static class ScenarioLoader
 
         foreach (var fix in resolved)
         {
-            state.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Name = fix.Name,
-                    Latitude = fix.Lat,
-                    Longitude = fix.Lon,
-                }
-            );
+            state.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
     }
 
@@ -1099,8 +1092,7 @@ public static class ScenarioLoader
                 route[i] = new NavigationTarget
                 {
                     Name = route[i].Name,
-                    Latitude = route[i].Latitude,
-                    Longitude = route[i].Longitude,
+                    Position = route[i].Position,
                     AltitudeRestriction = constrained.AltitudeRestriction,
                     SpeedRestriction = constrained.SpeedRestriction,
                     IsFlyOver = constrained.IsFlyOver,

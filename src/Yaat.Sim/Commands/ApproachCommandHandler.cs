@@ -1337,8 +1337,7 @@ public static class ApproachCommandHandler
                 new NavigationTarget
                 {
                     Name = fix.Name,
-                    Latitude = fix.Latitude,
-                    Longitude = fix.Longitude,
+                    Position = new LatLon(fix.Latitude, fix.Longitude),
                     AltitudeRestriction = fix.Altitude,
                     SpeedRestriction = fix.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, IsMaximum: true) : null,
                     IsFlyOver = fix.IsFlyOver,

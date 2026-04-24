@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 
 namespace Yaat.Sim.Tests;
 
@@ -203,8 +203,7 @@ public class WindPhysicsTests
             new NavigationTarget
             {
                 Name = "FIX",
-                Latitude = ac.Position.Lat,
-                Longitude = ac.Position.Lon + 2, // due east
+                Position = new LatLon(ac.Position.Lat, ac.Position.Lon + 2), // due east
             }
         );
 

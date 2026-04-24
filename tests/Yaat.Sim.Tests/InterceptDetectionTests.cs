@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -197,8 +197,7 @@ public class InterceptDetectionTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             Altitude = 2000,
             Phases = phaseList,

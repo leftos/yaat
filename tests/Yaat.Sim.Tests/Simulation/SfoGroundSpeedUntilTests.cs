@@ -1,4 +1,4 @@
-namespace Yaat.Sim.Tests.Simulation;
+﻿namespace Yaat.Sim.Tests.Simulation;
 
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -210,7 +210,7 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
 
             if (t % 5 == 0)
             {
-                double dist = GeoMath.DistanceNm(wja.Latitude, wja.Longitude, skw?.Latitude ?? 0, skw?.Longitude ?? 0) * 6076.12;
+                double dist = GeoMath.DistanceNm(wja.Position.Lat, wja.Position.Lon, skw?.Position.Lat ?? 0, skw?.Position.Lon ?? 0) * 6076.12;
                 string spdLimit = wja.GroundSpeedLimit?.ToString("F1") ?? "null";
                 string skwPhase = skw?.Phases?.CurrentPhase?.Name ?? "gone";
                 string skwGs = skw?.GroundSpeed.ToString("F1") ?? "?";

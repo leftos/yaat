@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
@@ -97,7 +97,7 @@ public class NavigationCommandTests : IDisposable
 
         Assert.Single(aircraft.Targets.NavigationRoute);
         Assert.Equal("OAK", aircraft.Targets.NavigationRoute[0].Name);
-        Assert.Equal(37.72, aircraft.Targets.NavigationRoute[0].Latitude);
+        Assert.Equal(37.72, aircraft.Targets.NavigationRoute[0].Position.Lat);
     }
 
     // --- DEPART ---
@@ -273,20 +273,12 @@ public class NavigationCommandTests : IDisposable
     {
         var aircraft = MakeAircraft(altitude: 20000);
         aircraft.ActiveStarId = "TEST1";
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "FIX1",
-                Latitude = 37.8,
-                Longitude = -122.3,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.8, -122.3) });
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
                 Name = "FIX2",
-                Latitude = 37.9,
-                Longitude = -122.4,
+                Position = new LatLon(37.9, -122.4),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000, null),
             }
         );
@@ -864,14 +856,7 @@ public class NavigationCommandTests : IDisposable
         var fixes = MakeAirwayNavDb();
         using var _ = NavigationDatabase.ScopedOverride(fixes);
         var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "OLDFIX",
-                Latitude = 37.0,
-                Longitude = -122.0,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "OLDFIX", Position = new LatLon(37.0, -122.0) });
         var cmd = new JoinAirwayCommand("V25");
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -1203,8 +1188,7 @@ public class NavigationCommandTests : IDisposable
             new NavigationTarget
             {
                 Name = "FIX1",
-                Latitude = 37.7,
-                Longitude = -122.0,
+                Position = new LatLon(37.7, -122.0),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000, null),
             }
         );
@@ -1228,8 +1212,7 @@ public class NavigationCommandTests : IDisposable
             new NavigationTarget
             {
                 Name = "FIX1",
-                Latitude = 37.7,
-                Longitude = -122.0,
+                Position = new LatLon(37.7, -122.0),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 10000, null),
             }
         );
@@ -1257,14 +1240,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // Add a downstream fix
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "TRACY",
-                Latitude = 37.7,
-                Longitude = -121.6,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "TRACY", Position = new LatLon(37.7, -121.6) });
 
         // Tick to sequence past SUNOL
         FlightPhysics.Update(aircraft, 1.0);
@@ -1306,8 +1282,7 @@ public class NavigationCommandTests : IDisposable
         var target = new NavigationTarget
         {
             Name = "FIX1",
-            Latitude = 37.7,
-            Longitude = -122.0,
+            Position = new LatLon(37.7, -122.0),
             AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 6000, null),
         };
 
@@ -1333,8 +1308,7 @@ public class NavigationCommandTests : IDisposable
         var target = new NavigationTarget
         {
             Name = "FIX1",
-            Latitude = 37.7,
-            Longitude = -122.0,
+            Position = new LatLon(37.7, -122.0),
             AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 5000, null),
         };
 

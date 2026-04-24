@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -62,7 +62,7 @@ public class ExitOverlapTests(ITestOutputHelper output)
                 continue;
             }
 
-            double distNm = GeoMath.DistanceNm(wja.Latitude, wja.Longitude, skw.Latitude, skw.Longitude);
+            double distNm = GeoMath.DistanceNm(wja.Position.Lat, wja.Position.Lon, skw.Position.Lat, skw.Position.Lon);
             double distFt = distNm * 6076.12;
             Assert.True(distFt > 60, $"SKW5899 and WJA1508 overlap at t={660 + t}: distance={distFt:F0}ft");
         }
@@ -103,7 +103,7 @@ public class ExitOverlapTests(ITestOutputHelper output)
                 continue;
             }
 
-            double distNm = GeoMath.DistanceNm(skw3398.Latitude, skw3398.Longitude, skw5899.Latitude, skw5899.Longitude);
+            double distNm = GeoMath.DistanceNm(skw3398.Position.Lat, skw3398.Position.Lon, skw5899.Position.Lat, skw5899.Position.Lon);
             double distFt = distNm * 6076.12;
 
             if (distFt < minDistFt)

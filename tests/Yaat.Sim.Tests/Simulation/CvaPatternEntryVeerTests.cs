@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -62,7 +62,9 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"=== N3212L before CVA 28R (t=2390) ===");
-        output.WriteLine($"  pos=({ac.Latitude:F4},{ac.Longitude:F4}) hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0}");
+        output.WriteLine(
+            $"  pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0}"
+        );
         output.WriteLine($"  phase={ac.Phases?.CurrentPhase?.GetType().Name}");
 
         for (int t = 1; t <= 120; t++)
@@ -79,7 +81,7 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
             string tgtHdg = ac.Targets.TargetTrueHeading is { } th ? $"{th.Degrees:F0}" : "nav";
 
             output.WriteLine(
-                $"t+{t, 3}: pos=({ac.Latitude:F4},{ac.Longitude:F4}) "
+                $"t+{t, 3}: pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) "
                     + $"hdg={ac.TrueHeading.Degrees:F0} tgtHdg={tgtHdg} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0} "
                     + $"phase={phaseName}"
             );
@@ -111,7 +113,7 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
         double rwyLat = 37.7213;
         double rwyLon = -122.2207;
 
-        double initialDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, rwyLat, rwyLon);
+        double initialDist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, rwyLat, rwyLon);
         output.WriteLine($"t=2405: dist to rwy={initialDist:F2}nm hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0}");
         output.WriteLine($"  phase={ac.Phases?.CurrentPhase?.GetType().Name}");
 
@@ -128,7 +130,7 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(ac);
-        double finalDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, rwyLat, rwyLon);
+        double finalDist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, rwyLat, rwyLon);
         output.WriteLine($"t=2465: dist to rwy={finalDist:F2}nm hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0}");
 
         // The aircraft should be getting closer to the runway, not further away.
@@ -140,7 +142,7 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
         );
 
         // The heading should not be pointing away from the airport (northeastish = ~20-60°)
-        double bearingToRwy = GeoMath.BearingTo(ac.Latitude, ac.Longitude, rwyLat, rwyLon);
+        double bearingToRwy = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, rwyLat, rwyLon);
         double headingDiffFromRwy = Math.Abs(GeoMath.SignedBearingDifference(ac.TrueHeading.Degrees, bearingToRwy));
         output.WriteLine($"  bearing to rwy={bearingToRwy:F0} heading diff={headingDiffFromRwy:F0}");
 

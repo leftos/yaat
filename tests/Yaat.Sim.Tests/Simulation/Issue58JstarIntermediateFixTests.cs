@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
@@ -114,18 +114,23 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         var navRoute = aircraft.Targets.NavigationRoute;
         var log = new StringBuilder();
         log.AppendLine($"=== {header} ===");
-        log.AppendLine($"Position: {aircraft.Latitude:F4}, {aircraft.Longitude:F4}");
+        log.AppendLine($"Position: {aircraft.Position.Lat:F4}, {aircraft.Position.Lon:F4}");
         log.AppendLine($"Heading: {aircraft.TrueHeading.Degrees:F1}");
         log.AppendLine($"Altitude: {aircraft.Altitude:F0}");
         log.AppendLine($"Nav route ({navRoute.Count} fixes):");
         foreach (var fix in navRoute)
         {
-            log.AppendLine($"  {fix.Name} ({fix.Latitude:F4}, {fix.Longitude:F4})");
+            log.AppendLine($"  {fix.Name} ({fix.Position.Lat:F4}, {fix.Position.Lon:F4})");
         }
 
         if (navRoute.Count > 0)
         {
-            double bearingToFirst = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, navRoute[0].Latitude, navRoute[0].Longitude);
+            double bearingToFirst = GeoMath.BearingTo(
+                aircraft.Position.Lat,
+                aircraft.Position.Lon,
+                navRoute[0].Position.Lat,
+                navRoute[0].Position.Lon
+            );
             double angleDiff = NormalizeAngleDiff(bearingToFirst - aircraft.TrueHeading.Degrees);
             log.AppendLine($"Bearing to first fix ({navRoute[0].Name}): {bearingToFirst:F1}°, {angleDiff:F1}° off nose");
         }
@@ -141,7 +146,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
             return;
         }
 
-        double bearingToFirst = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, navRoute[0].Latitude, navRoute[0].Longitude);
+        double bearingToFirst = GeoMath.BearingTo(aircraft.Position.Lat, aircraft.Position.Lon, navRoute[0].Position.Lat, navRoute[0].Position.Lon);
         double angleDiff = NormalizeAngleDiff(bearingToFirst - aircraft.TrueHeading.Degrees);
         Assert.True(angleDiff < 90, $"First nav fix {navRoute[0].Name} is {angleDiff:F0}° off nose — behind the aircraft, will cause 180° reversal.");
     }
@@ -161,7 +166,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
             Assert.NotNull(ac);
 
             string nextFix = ac.Targets.NavigationRoute.Count > 0 ? ac.Targets.NavigationRoute[0].Name : "(none)";
-            log.AppendLine($"  {t, 3} | {ac.TrueHeading.Degrees, 7:F1} | {ac.Latitude:F4} | {ac.Longitude:F4} | {nextFix}");
+            log.AppendLine($"  {t, 3} | {ac.TrueHeading.Degrees, 7:F1} | {ac.Position.Lat:F4} | {ac.Position.Lon:F4} | {nextFix}");
 
             double delta = NormalizeAngleDiff(ac.TrueHeading.Degrees - prevHeading);
             if (delta > maxDelta)

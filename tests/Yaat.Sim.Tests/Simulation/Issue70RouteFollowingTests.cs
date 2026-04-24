@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data;
@@ -76,7 +76,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         output.WriteLine($"  Route ({route.Count} fixes):");
         foreach (var fix in route)
         {
-            output.WriteLine($"    {fix.Name} ({fix.Latitude:F4}, {fix.Longitude:F4})");
+            output.WriteLine($"    {fix.Name} ({fix.Position.Lat:F4}, {fix.Position.Lon:F4})");
         }
 
         // Route should have at least SAU in it (PIRAT may have already been sequenced if aircraft spawned near it)
@@ -124,7 +124,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
             {
                 var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
                 output.WriteLine(
-                    $"  t={t}: hdg={aircraft.TrueHeading.Degrees:F1} lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} next={nextFix}"
+                    $"  t={t}: hdg={aircraft.TrueHeading.Degrees:F1} lat={aircraft.Position.Lat:F4} lon={aircraft.Position.Lon:F4} next={nextFix}"
                 );
             }
         }

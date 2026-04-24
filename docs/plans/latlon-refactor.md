@@ -11,7 +11,7 @@ Yaat.Sim and the WMM cache ended up carrying two raw `double` fields instead.
 - [x] Commit 2a (yaat): foundation — new API surface on Yaat.Sim types, no caller migrations
 - [x] Commit 2b (yaat): migrate ~70 Yaat.Sim internal files to the new API
 - [x] Commit 3 (yaat): migrate Yaat.Client, tools, tests
-- [ ] Commit 4 (yaat): remove old API, break wire format
+- [x] Commit 4 (yaat): remove old API, break wire format
 - [ ] Commit 5 (yaat-server, sibling to commit 4): migrate 35 sites
 
 ## Decisions (locked)

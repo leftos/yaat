@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -43,8 +43,7 @@ public class ConflictAlertDetectorTests
         {
             Callsign = callsign,
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Altitude = altitude,
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),

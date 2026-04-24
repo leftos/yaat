@@ -1,4 +1,4 @@
-using Xunit.Abstractions;
+﻿using Xunit.Abstractions;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -16,7 +16,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// 3. Load via LoadRecording helper, build engine via BuildEngine
 /// 4. engine.Replay(recording, targetSeconds) to replay up to a point
 /// 5. engine.FindAircraft("CALLSIGN") to inspect resulting state
-/// 6. Assert on .AssignedTaxiRoute, .Phases, .Latitude/.Longitude, etc.
+/// 6. Assert on .AssignedTaxiRoute, .Phases, .Position.Lat/.Position.Lon, etc.
 ///
 /// See docs/e2e-tdd-issue-debugging.md for full guide.
 /// </summary>

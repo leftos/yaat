@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -36,8 +36,7 @@ public class LandingExitDecelTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             Altitude = 9.0,
             IndicatedAirspeed = ias,

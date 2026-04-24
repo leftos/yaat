@@ -562,17 +562,7 @@ internal static class DepartureClearanceHandler
         switch (departure)
         {
             case DirectFixDeparture dfd:
-                return new DepartureRouteResult(
-                    [
-                        new NavigationTarget
-                        {
-                            Name = dfd.FixName,
-                            Latitude = dfd.Lat,
-                            Longitude = dfd.Lon,
-                        },
-                    ],
-                    null
-                );
+                return new DepartureRouteResult([new NavigationTarget { Name = dfd.FixName, Position = new LatLon(dfd.Lat, dfd.Lon) }], null);
 
             case OnCourseDeparture when aircraft.Destination is not null:
             {
@@ -582,14 +572,7 @@ internal static class DepartureClearanceHandler
                     return null;
                 }
                 return new DepartureRouteResult(
-                    [
-                        new NavigationTarget
-                        {
-                            Name = aircraft.Destination,
-                            Latitude = pos.Value.Lat,
-                            Longitude = pos.Value.Lon,
-                        },
-                    ],
+                    [new NavigationTarget { Name = aircraft.Destination, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) }],
                     null
                 );
             }
@@ -618,14 +601,7 @@ internal static class DepartureClearanceHandler
                         continue;
                     }
 
-                    targets.Add(
-                        new NavigationTarget
-                        {
-                            Name = name,
-                            Latitude = pos.Value.Lat,
-                            Longitude = pos.Value.Lon,
-                        }
-                    );
+                    targets.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
                 }
 
                 // Safety net: strip leading targets within 1nm of departure
@@ -863,14 +839,7 @@ internal static class DepartureClearanceHandler
             var pos = navDb.GetFixPosition(expandedFixes[i]);
             if (pos is not null)
             {
-                targets.Add(
-                    new NavigationTarget
-                    {
-                        Name = expandedFixes[i].ToUpperInvariant(),
-                        Latitude = pos.Value.Lat,
-                        Longitude = pos.Value.Lon,
-                    }
-                );
+                targets.Add(new NavigationTarget { Name = expandedFixes[i].ToUpperInvariant(), Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
             }
         }
     }
@@ -987,8 +956,7 @@ internal static class DepartureClearanceHandler
                 new NavigationTarget
                 {
                     Name = leg.FixIdentifier,
-                    Latitude = pos.Value.Lat,
-                    Longitude = pos.Value.Lon,
+                    Position = new LatLon(pos.Value.Lat, pos.Value.Lon),
                     AltitudeRestriction = leg.Altitude,
                     SpeedRestriction = leg.Speed,
                     IsFlyOver =
@@ -1025,14 +993,7 @@ internal static class DepartureClearanceHandler
         // Insert intermediate points (skip the last one — that's the terminator fix itself)
         for (int i = 0; i < arcPoints.Count - 1; i++)
         {
-            targets.Add(
-                new NavigationTarget
-                {
-                    Name = $"ARC{i + 1:D2}",
-                    Latitude = arcPoints[i].Lat,
-                    Longitude = arcPoints[i].Lon,
-                }
-            );
+            targets.Add(new NavigationTarget { Name = $"ARC{i + 1:D2}", Position = new LatLon(arcPoints[i].Lat, arcPoints[i].Lon) });
         }
     }
 

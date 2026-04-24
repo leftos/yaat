@@ -14,8 +14,7 @@ public sealed class AircraftSnapshotDto
     public required string Cid { get; init; }
 
     // Position & Physics
-    public required double Latitude { get; init; }
-    public required double Longitude { get; init; }
+    public required LatLon Position { get; init; }
     public required double TrueHeadingDeg { get; init; }
     public required double TrueTrackDeg { get; init; }
     public required double Declination { get; init; }

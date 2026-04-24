@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using Xunit;
 using Yaat.Sim.Data;
@@ -27,48 +27,42 @@ public class TaxiPathfinderTests
         var nodeA = new GroundNode
         {
             Id = 0,
-            Latitude = 37.7,
-            Longitude = -122.2,
+            Position = new LatLon(37.7, -122.2),
             Type = GroundNodeType.TaxiwayIntersection,
             Name = "A",
         };
         var nodeB = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.2,
+            Position = new LatLon(37.701, -122.2),
             Type = GroundNodeType.TaxiwayIntersection,
             Name = "B",
         };
         var nodeC = new GroundNode
         {
             Id = 2,
-            Latitude = 37.702,
-            Longitude = -122.2,
+            Position = new LatLon(37.702, -122.2),
             Type = GroundNodeType.TaxiwayIntersection,
             Name = "C",
         };
         var nodeD = new GroundNode
         {
             Id = 3,
-            Latitude = 37.703,
-            Longitude = -122.2,
+            Position = new LatLon(37.703, -122.2),
             Type = GroundNodeType.TaxiwayIntersection,
             Name = "D",
         };
         var nodeE = new GroundNode
         {
             Id = 4,
-            Latitude = 37.701,
-            Longitude = -122.201,
+            Position = new LatLon(37.701, -122.201),
             Type = GroundNodeType.TaxiwayIntersection,
             Name = "E",
         };
         var parking = new GroundNode
         {
             Id = 5,
-            Latitude = 37.7005,
-            Longitude = -122.201,
+            Position = new LatLon(37.7005, -122.201),
             Type = GroundNodeType.Parking,
             Name = "P1",
             TrueHeading = new TrueHeading(90),
@@ -143,37 +137,32 @@ public class TaxiPathfinderTests
         var node0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.200,
+            Position = new LatLon(37.701, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.702,
-            Longitude = -122.200,
+            Position = new LatLon(37.702, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node3 = new GroundNode
         {
             Id = 3,
-            Latitude = 37.703,
-            Longitude = -122.200,
+            Position = new LatLon(37.703, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         // HS1 near runway 30 threshold (further north)
         var hs1 = new GroundNode
         {
             Id = 10,
-            Latitude = 37.704,
-            Longitude = -122.200,
+            Position = new LatLon(37.704, -122.200),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = new RunwayIdentifier("12", "30"),
         };
@@ -181,8 +170,7 @@ public class TaxiPathfinderTests
         var hs2 = new GroundNode
         {
             Id = 11,
-            Latitude = 37.700,
-            Longitude = -122.201,
+            Position = new LatLon(37.700, -122.201),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = new RunwayIdentifier("12", "30"),
         };
@@ -253,29 +241,25 @@ public class TaxiPathfinderTests
         var node0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.200,
+            Position = new LatLon(37.701, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.702,
-            Longitude = -122.200,
+            Position = new LatLon(37.702, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var hs = new GroundNode
         {
             Id = 10,
-            Latitude = 37.703,
-            Longitude = -122.200,
+            Position = new LatLon(37.703, -122.200),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = new RunwayIdentifier("12", "30"),
         };
@@ -320,15 +304,13 @@ public class TaxiPathfinderTests
         var fromNode = new GroundNode
         {
             Id = fromId,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var toNode = new GroundNode
         {
             Id = toId,
-            Latitude = 0,
-            Longitude = 0,
+            Position = new LatLon(0, 0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var edge = new GroundEdge
@@ -375,15 +357,13 @@ public class TaxiPathfinderTests
         layout.Nodes[0] = new GroundNode
         {
             Id = 0,
-            Latitude = 37.7,
-            Longitude = -122.2,
+            Position = new LatLon(37.7, -122.2),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         layout.Nodes[1] = new GroundNode
         {
             Id = 1,
-            Latitude = 37.8,
-            Longitude = -122.3,
+            Position = new LatLon(37.8, -122.3),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         // No edges connecting them
@@ -477,29 +457,25 @@ public class TaxiPathfinderTests
         var node0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.200,
+            Position = new LatLon(37.701, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.702,
-            Longitude = -122.200,
+            Position = new LatLon(37.702, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var hs = new GroundNode
         {
             Id = 10,
-            Latitude = 37.703,
-            Longitude = -122.200,
+            Position = new LatLon(37.703, -122.200),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = new RunwayIdentifier("12", "30"),
         };
@@ -656,22 +632,19 @@ public class TaxiPathfinderTests
         var node0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.200,
+            Position = new LatLon(37.701, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.702,
-            Longitude = -122.200,
+            Position = new LatLon(37.702, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -734,29 +707,25 @@ public class TaxiPathfinderTests
         var n0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.201,
+            Position = new LatLon(37.701, -122.201),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.701,
-            Longitude = -122.199,
+            Position = new LatLon(37.701, -122.199),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n3 = new GroundNode
         {
             Id = 3,
-            Latitude = 37.702,
-            Longitude = -122.200,
+            Position = new LatLon(37.702, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -813,15 +782,13 @@ public class TaxiPathfinderTests
         layout.Nodes[0] = new GroundNode
         {
             Id = 0,
-            Latitude = 37.7,
-            Longitude = -122.2,
+            Position = new LatLon(37.7, -122.2),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         layout.Nodes[1] = new GroundNode
         {
             Id = 1,
-            Latitude = 37.8,
-            Longitude = -122.3,
+            Position = new LatLon(37.8, -122.3),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -842,29 +809,25 @@ public class TaxiPathfinderTests
         var n0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.201,
+            Position = new LatLon(37.701, -122.201),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.701,
-            Longitude = -122.199,
+            Position = new LatLon(37.701, -122.199),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n3 = new GroundNode
         {
             Id = 3,
-            Latitude = 37.702,
-            Longitude = -122.200,
+            Position = new LatLon(37.702, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -921,36 +884,31 @@ public class TaxiPathfinderTests
         var n0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.701,
-            Longitude = -122.202,
+            Position = new LatLon(37.701, -122.202),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.701,
-            Longitude = -122.200,
+            Position = new LatLon(37.701, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n3 = new GroundNode
         {
             Id = 3,
-            Latitude = 37.701,
-            Longitude = -122.198,
+            Position = new LatLon(37.701, -122.198),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var n4 = new GroundNode
         {
             Id = 4,
-            Latitude = 37.702,
-            Longitude = -122.200,
+            Position = new LatLon(37.702, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -2047,22 +2005,19 @@ public class TaxiPathfinderTests
         var nodeA = new GroundNode
         {
             Id = 0,
-            Latitude = 37.700,
-            Longitude = -122.200,
+            Position = new LatLon(37.700, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeB = new GroundNode
         {
             Id = 1,
-            Latitude = 37.7007,
-            Longitude = -122.200,
+            Position = new LatLon(37.7007, -122.200),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeC = new GroundNode
         {
             Id = 2,
-            Latitude = 37.7007,
-            Longitude = -122.2007,
+            Position = new LatLon(37.7007, -122.2007),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         layout.Nodes[0] = nodeA;

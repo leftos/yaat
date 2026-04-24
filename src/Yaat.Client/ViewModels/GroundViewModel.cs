@@ -1387,8 +1387,7 @@ public partial class GroundViewModel : ObservableObject
             var node = new GroundNode
             {
                 Id = nodeDto.Id,
-                Latitude = nodeDto.Latitude,
-                Longitude = nodeDto.Longitude,
+                Position = new LatLon(nodeDto.Latitude, nodeDto.Longitude),
                 Type = type,
                 Name = nodeDto.Name,
                 TrueHeading = nodeDto.Heading.HasValue ? new TrueHeading(nodeDto.Heading.Value) : null,

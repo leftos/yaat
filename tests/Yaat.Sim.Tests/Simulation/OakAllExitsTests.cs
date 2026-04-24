@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -136,8 +136,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         {
             Callsign = "TSTAC",
             AircraftType = aircraftType,
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway.TrueHeading,
             Altitude = runway.ElevationFt + altAboveField,
             IndicatedAirspeed = speed,
@@ -263,8 +262,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         {
             Callsign = "TSTAC",
             AircraftType = aircraftType,
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway.TrueHeading,
             Altitude = runway.ElevationFt + altAboveField,
             IndicatedAirspeed = touchdownSpeed,

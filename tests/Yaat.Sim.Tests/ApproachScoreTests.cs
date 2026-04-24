@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -41,8 +41,7 @@ public class ApproachScoreTests
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Destination = "OAK",
         };
     }
@@ -483,8 +482,7 @@ public class ApproachScoreTests
             AircraftType = "B738",
             TrueHeading = new TrueHeading(280),
             Altitude = 3000,
-            Latitude = 37.75,
-            Longitude = -122.35,
+            Position = new LatLon(37.75, -122.35),
         };
         var ac2 = new AircraftState
         {
@@ -492,8 +490,7 @@ public class ApproachScoreTests
             AircraftType = "A320",
             TrueHeading = new TrueHeading(280),
             Altitude = 3000,
-            Latitude = 37.76,
-            Longitude = -122.36,
+            Position = new LatLon(37.76, -122.36),
         };
 
         var score1 = new ApproachScore
@@ -537,8 +534,7 @@ public class ApproachScoreTests
             AircraftType = "B738",
             TrueHeading = new TrueHeading(280),
             Altitude = 3000,
-            Latitude = 37.75,
-            Longitude = -122.35,
+            Position = new LatLon(37.75, -122.35),
         };
 
         world.AddAircraft(ac);

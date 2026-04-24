@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
@@ -92,8 +92,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
         {
             Callsign = callsign,
             AircraftType = "B738",
-            Latitude = 37.7 + index * 0.01,
-            Longitude = -122.2 + index * 0.01,
+            Position = new LatLon(37.7 + index * 0.01, -122.2 + index * 0.01),
             TrueHeading = new TrueHeading(280),
             Altitude = 5000 + index * 100,
             IndicatedAirspeed = 250,

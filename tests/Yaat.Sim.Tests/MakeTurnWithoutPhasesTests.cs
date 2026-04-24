@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -23,8 +23,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         {
             Callsign = "N805FM",
             AircraftType = "C172",
-            Latitude = 37.72,
-            Longitude = -122.22,
+            Position = new LatLon(37.72, -122.22),
             TrueHeading = new TrueHeading(090),
             Altitude = 2000,
             IndicatedAirspeed = 120,

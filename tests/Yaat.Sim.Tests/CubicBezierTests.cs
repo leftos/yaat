@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using static Yaat.Sim.Data.Airport.AirportGroundLayout;
@@ -232,15 +232,13 @@ public class CubicBezierTests
         var nodeA = new GroundNode
         {
             Id = 1,
-            Latitude = NodeALat,
-            Longitude = NodeALon,
+            Position = new LatLon(NodeALat, NodeALon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var nodeB = new GroundNode
         {
             Id = 2,
-            Latitude = NodeBLat,
-            Longitude = NodeBLon,
+            Position = new LatLon(NodeBLat, NodeBLon),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         return new GroundArc

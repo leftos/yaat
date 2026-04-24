@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
 
@@ -90,22 +90,8 @@ public class TurnAnticipationTests
         var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, new TrueHeading(90), 5.0); // then 5nm east
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250);
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "WP1",
-                Latitude = wp1.Lat,
-                Longitude = wp1.Lon,
-            }
-        );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "WP2",
-                Latitude = wp2.Lat,
-                Longitude = wp2.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP1", Position = new LatLon(wp1.Lat, wp1.Lon) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP2", Position = new LatLon(wp2.Lat, wp2.Lon) });
 
         // Move aircraft close to WP1 but beyond NavArrivalNm (0.5nm)
         // Anticipation for 250kts/2.5deg is ~1.59nm, so place at ~1.0nm
@@ -135,19 +121,11 @@ public class TurnAnticipationTests
             new NavigationTarget
             {
                 Name = "WP1",
-                Latitude = wp1.Lat,
-                Longitude = wp1.Lon,
+                Position = new LatLon(wp1.Lat, wp1.Lon),
                 IsFlyOver = true,
             }
         );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "WP2",
-                Latitude = wp2.Lat,
-                Longitude = wp2.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP2", Position = new LatLon(wp2.Lat, wp2.Lon) });
 
         FlightPhysics.Update(aircraft, 1.0);
 
@@ -162,14 +140,7 @@ public class TurnAnticipationTests
         var wp1 = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 0.4); // 0.4nm north
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250);
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "WP1",
-                Latitude = wp1.Lat,
-                Longitude = wp1.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP1", Position = new LatLon(wp1.Lat, wp1.Lon) });
 
         FlightPhysics.Update(aircraft, 1.0);
 
@@ -186,22 +157,8 @@ public class TurnAnticipationTests
         var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, new TrueHeading(0), 5.0);
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250);
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "WP1",
-                Latitude = wp1.Lat,
-                Longitude = wp1.Lon,
-            }
-        );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "WP2",
-                Latitude = wp2.Lat,
-                Longitude = wp2.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP1", Position = new LatLon(wp1.Lat, wp1.Lon) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP2", Position = new LatLon(wp2.Lat, wp2.Lon) });
 
         // Place aircraft 0.8nm from WP1 — beyond NavArrivalNm but within potential anticipation range
         var pos = GeoMath.ProjectPoint(new LatLon(37.0, -122.0), new TrueHeading(0), 1.2);
@@ -224,20 +181,12 @@ public class TurnAnticipationTests
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250, altitude: 5000);
         aircraft.SidViaMode = true;
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "WP1",
-                Latitude = wp1.Lat,
-                Longitude = wp1.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP1", Position = new LatLon(wp1.Lat, wp1.Lon) });
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
                 Name = "WP2",
-                Latitude = wp2.Lat,
-                Longitude = wp2.Lon,
+                Position = new LatLon(wp2.Lat, wp2.Lon),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 8000),
             }
         );
@@ -504,12 +453,7 @@ public class TurnAnticipationTests
     [Fact]
     public void NavigationTarget_IsFlyOver_DefaultsFalse()
     {
-        var target = new NavigationTarget
-        {
-            Name = "TEST",
-            Latitude = 37,
-            Longitude = -122,
-        };
+        var target = new NavigationTarget { Name = "TEST", Position = new LatLon(37, -122) };
         Assert.False(target.IsFlyOver);
     }
 
@@ -536,8 +480,7 @@ public class TurnAnticipationTests
         var target = new NavigationTarget
         {
             Name = "TESTFAF",
-            Latitude = 37,
-            Longitude = -122,
+            Position = new LatLon(37, -122),
             IsFlyOver = true, // simulating what DepartureClearanceHandler would set
         };
         Assert.True(target.IsFlyOver);
@@ -546,12 +489,7 @@ public class TurnAnticipationTests
     [Fact]
     public void ResolveLegsToTargets_NormalTF_IsNotFlyOver()
     {
-        var target = new NavigationTarget
-        {
-            Name = "NORMAL",
-            Latitude = 37,
-            Longitude = -122,
-        };
+        var target = new NavigationTarget { Name = "NORMAL", Position = new LatLon(37, -122) };
         Assert.False(target.IsFlyOver);
     }
 

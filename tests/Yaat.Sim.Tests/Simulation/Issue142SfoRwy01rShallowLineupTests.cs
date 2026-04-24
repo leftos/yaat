@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -72,8 +72,7 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
         {
             Callsign = "UAL859",
             AircraftType = "B738",
-            Latitude = 37.60687,
-            Longitude = -122.38195,
+            Position = new LatLon(37.60687, -122.38195),
             TrueHeading = new TrueHeading(37.69),
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -96,9 +95,7 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
 
         // LUAW mode (no next phase) — phase brakes to 0 at stop point.
         Assert.False(phase.RollingMode);
-        output.WriteLine(
-            $"[OnStart] CurrentState={phase.CurrentState} turn={runway.TrueHeading.SignedAngleTo(aircraft.TrueHeading):F2}°"
-        );
+        output.WriteLine($"[OnStart] CurrentState={phase.CurrentState} turn={runway.TrueHeading.SignedAngleTo(aircraft.TrueHeading):F2}°");
 
         const int budgetTicks = 60 * 4; // 60 s @ 0.25 s/tick
         bool completed = false;
@@ -115,8 +112,8 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
         }
 
         double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(
-            aircraft.Latitude,
-            aircraft.Longitude,
+            aircraft.Position.Lat,
+            aircraft.Position.Lon,
             runway.ThresholdLatitude,
             runway.ThresholdLongitude,
             runway.TrueHeading
@@ -181,8 +178,7 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
         {
             Callsign = "UAL859",
             AircraftType = "B738",
-            Latitude = 37.60687,
-            Longitude = -122.38195,
+            Position = new LatLon(37.60687, -122.38195),
             TrueHeading = new TrueHeading(37.69),
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -306,7 +302,7 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
             {
                 output.WriteLine(
                     $"[t={t}] phase={ac.Phases?.CurrentPhase?.Name ?? "(none)"} "
-                        + $"lat={ac.Latitude:F6} lon={ac.Longitude:F6} hdg={ac.TrueHeading.Degrees:F2}° "
+                        + $"lat={ac.Position.Lat:F6} lon={ac.Position.Lon:F6} hdg={ac.TrueHeading.Degrees:F2}° "
                         + $"ias={ac.IndicatedAirspeed:F2}kt alt={ac.Altitude:F0}ft twy={ac.CurrentTaxiway ?? "-"}"
                 );
             }

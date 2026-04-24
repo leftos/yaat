@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -74,7 +74,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
                 continue;
             }
 
-            double distNm = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+            double distNm = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude);
 
             // Check at 7nm: aircraft should still be well above FAS
             if ((distNm <= 7.5) && (distNm >= 6.5))
@@ -137,7 +137,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
                 continue;
             }
 
-            double distNm = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+            double distNm = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude);
 
             // At 2nm the aircraft should have reached FAS
             if ((distNm <= 2.2) && (distNm >= 1.8))

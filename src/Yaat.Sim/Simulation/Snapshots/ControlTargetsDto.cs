@@ -23,8 +23,7 @@ public sealed class ControlTargetsDto
 public sealed class NavigationTargetDto
 {
     public required string Name { get; init; }
-    public required double Latitude { get; init; }
-    public required double Longitude { get; init; }
+    public required LatLon Position { get; init; }
     public AltitudeRestrictionDto? AltitudeRestriction { get; init; }
     public SpeedRestrictionDto? SpeedRestriction { get; init; }
     public required bool IsFlyOver { get; init; }

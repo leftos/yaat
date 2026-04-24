@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
@@ -147,8 +147,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
             Callsign = "N1VFR",
             AircraftType = "C172",
             FlightRules = "VFR",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = rwy28R.TrueHeading,
             Altitude = rwy28R.ElevationFt + 300,
             IndicatedAirspeed = 80,
@@ -193,8 +192,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
             Callsign = "UAL1",
             AircraftType = "B738",
             FlightRules = "IFR",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = rwy28L.TrueHeading,
             Altitude = rwy28L.ElevationFt + 200,
             IndicatedAirspeed = 140,

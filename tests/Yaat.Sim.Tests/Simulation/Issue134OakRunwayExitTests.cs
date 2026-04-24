@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -72,7 +72,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             .ToList();
 
         output.WriteLine(
-            $"Exit node {exitNode.Id} at ({exitNode.Latitude:F6},{exitNode.Longitude:F6}): "
+            $"Exit node {exitNode.Id} at ({exitNode.Position.Lat:F6},{exitNode.Position.Lon:F6}): "
                 + $"taxiways=[{string.Join(", ", distinctTaxiways)}], "
                 + $"type={exitNode.Type}, edges={exitNode.Edges.Count}"
         );
@@ -119,7 +119,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             .ToList();
 
         output.WriteLine(
-            $"Exit ahead node {exitNode.Id} at ({exitNode.Latitude:F6},{exitNode.Longitude:F6}): "
+            $"Exit ahead node {exitNode.Id} at ({exitNode.Position.Lat:F6},{exitNode.Position.Lon:F6}): "
                 + $"taxiway={result.Value.Taxiway}, "
                 + $"all taxiways=[{string.Join(", ", distinctTaxiways)}], "
                 + $"type={exitNode.Type}"
@@ -192,15 +192,15 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             if (phaseName == "HoldingAfterExitPhase")
             {
                 exitedRunway = true;
-                output.WriteLine($"t+{t}: runway exit complete at ({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F0}");
+                output.WriteLine($"t+{t}: runway exit complete at ({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0}");
 
                 var layout = LoadOakLayout();
                 Assert.NotNull(layout);
 
                 // Aircraft should be snapped to a graph node
-                var nearestNode = layout.FindNearestNode(ac.Latitude, ac.Longitude);
+                var nearestNode = layout.FindNearestNode(ac.Position.Lat, ac.Position.Lon);
                 Assert.NotNull(nearestNode);
-                double distToNode = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nearestNode.Latitude, nearestNode.Longitude);
+                double distToNode = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, nearestNode.Position.Lat, nearestNode.Position.Lon);
                 output.WriteLine($"Nearest node: {nearestNode.Id} type={nearestNode.Type} dist={distToNode:F4}nm");
                 Assert.True(distToNode < 0.02, $"Aircraft is {distToNode:F4}nm from nearest node — should be snapped");
 
@@ -252,7 +252,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             if (exit is not null)
             {
                 var tws = exit.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
-                double dist = GeoMath.DistanceNm(lat, lon, exit.Latitude, exit.Longitude);
+                double dist = GeoMath.DistanceNm(lat, lon, exit.Position.Lat, exit.Position.Lon);
                 nearestInfo = $"node={exit.Id} dist={dist:F3}nm tws=[{string.Join(",", tws)}] type={exit.Type}";
             }
 
@@ -261,7 +261,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             {
                 var n = exitAhead.Value.Node;
                 var tws = n.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
-                double dist = GeoMath.DistanceNm(lat, lon, n.Latitude, n.Longitude);
+                double dist = GeoMath.DistanceNm(lat, lon, n.Position.Lat, n.Position.Lon);
                 aheadInfo = $"node={n.Id} dist={dist:F3}nm tw={exitAhead.Value.Taxiway} tws=[{string.Join(",", tws)}]";
             }
 

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
@@ -80,7 +80,7 @@ public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
 
         output.WriteLine(
             $"AMX669 at t={ReplayTime}: phase={amx.Phases?.CurrentPhase?.Name ?? "null"} "
-                + $"pos=({amx.Latitude:F6},{amx.Longitude:F6}) gs={amx.GroundSpeed:F1} parkingSpot={amx.ParkingSpot ?? "null"}"
+                + $"pos=({amx.Position.Lat:F6},{amx.Position.Lon:F6}) gs={amx.GroundSpeed:F1} parkingSpot={amx.ParkingSpot ?? "null"}"
         );
 
         // Aircraft is at a taxi spot awaiting further instructions — not parked.

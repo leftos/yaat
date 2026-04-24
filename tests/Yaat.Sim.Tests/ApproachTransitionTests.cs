@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -37,8 +37,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             AircraftType = aircraftType,
             TrueHeading = new TrueHeading(heading),
             Altitude = 5000,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Destination = destination,
             DestinationRunway = destinationRunway,
             Route = route,
@@ -103,14 +102,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.NotNull(berksPos);
 
         var aircraft = MakeAircraft(route: "COORZ6 VOAXA Q136 RUMPS OAL INYOE ALWYS3", heading: 261, lat: 37.64, lon: -120.94);
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "BERKS",
-                Latitude = berksPos.Value.Lat,
-                Longitude = berksPos.Value.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BERKS", Position = new LatLon(berksPos.Value.Lat, berksPos.Value.Lon) });
 
         var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
@@ -157,12 +149,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // Aircraft on EMZOH4 STAR with HIRMO in nav route
         var aircraft = MakeAircraft(route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK", destination: "KOAK", heading: 320, lat: 37.5, lon: -121.8);
         aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = transitionName,
-                Latitude = hirmoPos.Value.Lat,
-                Longitude = hirmoPos.Value.Lon,
-            }
+            new NavigationTarget { Name = transitionName, Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) }
         );
 
         var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
@@ -203,22 +190,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             lat: 37.5,
             lon: -121.8
         );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "EMZOH",
-                Latitude = emzohPos.Value.Lat,
-                Longitude = emzohPos.Value.Lon,
-            }
-        );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "HIRMO",
-                Latitude = hirmoPos.Value.Lat,
-                Longitude = hirmoPos.Value.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "EMZOH", Position = new LatLon(emzohPos.Value.Lat, emzohPos.Value.Lon) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
         aircraft.ExpectedApproach = "H12-Z";
 
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
@@ -280,14 +253,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             lon: -121.8
         );
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(320);
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "HIRMO",
-                Latitude = hirmoPos.Value.Lat,
-                Longitude = hirmoPos.Value.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
 
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
         var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
@@ -325,14 +291,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             lat: 37.5,
             lon: -121.8
         );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "HIRMO",
-                Latitude = hirmoPos.Value.Lat,
-                Longitude = hirmoPos.Value.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
 
         // AT HIRMO CAPP H12-Z — AT fix matches the connecting fix in the nav route,
         // so it defers just like a bare CAPP (the AT is redundant).
@@ -373,14 +332,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             lat: 37.5,
             lon: -121.8
         );
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "HIRMO",
-                Latitude = hirmoPos.Value.Lat,
-                Longitude = hirmoPos.Value.Lon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
 
         // DCT HIRMO CAPP → immediate (DCT implies leaving the STAR route)
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, "HIRMO", hirmoPos.Value.Lat, hirmoPos.Value.Lon, null, null);

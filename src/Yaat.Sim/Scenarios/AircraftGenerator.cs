@@ -95,8 +95,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = trueHeading,
             TrueTrack = trueHeading,
             Altitude = request.Altitude,
@@ -145,8 +144,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Latitude = resolved.Value.Lat,
-            Longitude = resolved.Value.Lon,
+            Position = resolved.Value,
             TrueHeading = trueHeading,
             TrueTrack = trueHeading,
             Altitude = request.Altitude,
@@ -189,8 +187,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Latitude = init.Latitude,
-            Longitude = init.Longitude,
+            Position = init.Position,
             TrueHeading = init.TrueHeading,
             TrueTrack = init.TrueHeading,
             Altitude = init.Altitude,
@@ -238,8 +235,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Latitude = init.Latitude,
-            Longitude = init.Longitude,
+            Position = init.Position,
             TrueHeading = init.TrueHeading,
             TrueTrack = init.TrueHeading,
             Altitude = init.Altitude,
@@ -285,8 +281,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Latitude = init.Latitude,
-            Longitude = init.Longitude,
+            Position = init.Position,
             TrueHeading = init.TrueHeading,
             TrueTrack = init.TrueHeading,
             Altitude = init.Altitude,

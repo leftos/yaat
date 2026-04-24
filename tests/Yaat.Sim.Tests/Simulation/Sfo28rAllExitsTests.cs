@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -87,7 +87,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         {
             if (layout.Nodes.TryGetValue(nodeId, out var node))
             {
-                branchPositions.Add((twy, node.Latitude, node.Longitude, angle));
+                branchPositions.Add((twy, node.Position.Lat, node.Position.Lon, angle));
             }
         }
 
@@ -99,8 +99,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         {
             Callsign = "TST738",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
             Altitude = runway28R.ElevationFt + 318,
             IndicatedAirspeed = 145,
@@ -147,7 +146,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
             if (t >= 25 && t <= 100 && t % 1 == 0)
             {
                 output.WriteLine(
-                    $"{t, 4} | {phase, -12} | {aircraft.GroundSpeed, 7:F1} | onGround={aircraft.IsOnGround} | pos=({aircraft.Latitude:F5},{aircraft.Longitude:F5})"
+                    $"{t, 4} | {phase, -12} | {aircraft.GroundSpeed, 7:F1} | onGround={aircraft.IsOnGround} | pos=({aircraft.Position.Lat:F5},{aircraft.Position.Lon:F5})"
                 );
             }
 
@@ -167,7 +166,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
             var distances = new List<string>();
             foreach (var (twy, lat, lon, angle) in branchPositions)
             {
-                double alongTrack = GeoMath.AlongTrackDistanceNm(lat, lon, aircraft.Latitude, aircraft.Longitude, runway28R.TrueHeading);
+                double alongTrack = GeoMath.AlongTrackDistanceNm(lat, lon, aircraft.Position.Lat, aircraft.Position.Lon, runway28R.TrueHeading);
                 string marker = alongTrack > 0 ? $"{alongTrack:F2}" : "PAST";
                 distances.Add($"{marker, 4}");
             }
@@ -281,8 +280,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         {
             Callsign = "TST738",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
             Altitude = runway28R.ElevationFt + 318, // ~3° glide slope at 1nm
             IndicatedAirspeed = 145,
@@ -497,8 +495,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         {
             Callsign = "TST738",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
             Altitude = runway28R.ElevationFt + 318,
             IndicatedAirspeed = 145,

@@ -68,14 +68,7 @@ internal static class NavigationCommandHandler
             {
                 ac.Targets.AssignedMagneticHeading = null;
                 ac.Targets.NavigationRoute.Clear();
-                ac.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = cmd.FixName,
-                        Latitude = cmd.FixLat,
-                        Longitude = cmd.FixLon,
-                    }
-                );
+                ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) });
                 return new CommandResult(true);
             },
             Description = $"at {cmd.FixName} R{cmd.Radial:D3}: DCT {cmd.FixName}",
@@ -92,14 +85,7 @@ internal static class NavigationCommandHandler
         // Block 0 (immediate): navigate to fix (navigation phase — clear assigned heading)
         aircraft.Targets.AssignedMagneticHeading = null;
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = cmd.FixName,
-                Latitude = cmd.FixLat,
-                Longitude = cmd.FixLon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) });
 
         // Block 1: on reaching fix, fly heading (controller heading)
         var departBlock = new CommandBlock
@@ -163,8 +149,7 @@ internal static class NavigationCommandHandler
         var cfixTarget = new NavigationTarget
         {
             Name = cmd.FixName,
-            Latitude = cmd.FixLat,
-            Longitude = cmd.FixLon,
+            Position = new LatLon(cmd.FixLat, cmd.FixLon),
             AltitudeRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude),
             SpeedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, true) : null,
             RevertAltitude = previousAlt,
@@ -335,14 +320,7 @@ internal static class NavigationCommandHandler
             var pos = navDb.GetFixPosition(fixName);
             if (pos is not null)
             {
-                aircraft.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = fixName,
-                        Latitude = pos.Value.Lat,
-                        Longitude = pos.Value.Lon,
-                    }
-                );
+                aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fixName, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
             }
         }
 
@@ -609,14 +587,7 @@ internal static class NavigationCommandHandler
             var pos = navDb.GetFixPosition(fixName);
             if (pos is not null)
             {
-                navTargets.Add(
-                    new NavigationTarget
-                    {
-                        Name = fixName,
-                        Latitude = pos.Value.Lat,
-                        Longitude = pos.Value.Lon,
-                    }
-                );
+                navTargets.Add(new NavigationTarget { Name = fixName, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
             }
         }
 
@@ -955,8 +926,7 @@ internal static class NavigationCommandHandler
                     route[i] = new NavigationTarget
                     {
                         Name = route[i].Name,
-                        Latitude = route[i].Latitude,
-                        Longitude = route[i].Longitude,
+                        Position = route[i].Position,
                         AltitudeRestriction = route[i].AltitudeRestriction,
                         SpeedRestriction = new CifpSpeedRestriction(speed, true),
                         IsFlyOver = route[i].IsFlyOver,

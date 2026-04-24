@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Testing;
 
@@ -34,8 +34,7 @@ public class RunwayCrossingDetectorTests
         return new GroundNode
         {
             Id = id,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Type = type,
         };
     }

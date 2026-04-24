@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -20,31 +20,27 @@ public class GroundPhaseTests
         var node0 = new GroundNode
         {
             Id = 0,
-            Latitude = 37.620,
-            Longitude = -122.380,
+            Position = new LatLon(37.620, -122.380),
             Type = GroundNodeType.TaxiwayIntersection,
         };
         var node1 = new GroundNode
         {
             Id = 1,
-            Latitude = 37.621,
-            Longitude = -122.380,
+            Position = new LatLon(37.621, -122.380),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rwyId,
         };
         var node2 = new GroundNode
         {
             Id = 2,
-            Latitude = 37.622,
-            Longitude = -122.380,
+            Position = new LatLon(37.622, -122.380),
             Type = GroundNodeType.RunwayHoldShort,
             RunwayId = rwyId,
         };
         var node3 = new GroundNode
         {
             Id = 3,
-            Latitude = 37.623,
-            Longitude = -122.380,
+            Position = new LatLon(37.623, -122.380),
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
@@ -88,8 +84,7 @@ public class GroundPhaseTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             IsOnGround = true,
             Departure = "KSFO",

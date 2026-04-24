@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
@@ -42,8 +42,7 @@ public class CompoundTowerCommandTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = runway.TrueHeading,
             Altitude = runway.ElevationFt,
             IndicatedAirspeed = 0,
@@ -198,8 +197,7 @@ public class CompoundTowerCommandTests
         {
             Callsign = "TEST1",
             AircraftType = "C172",
-            Latitude = 37.72,
-            Longitude = -122.22,
+            Position = new LatLon(37.72, -122.22),
             TrueHeading = new TrueHeading(280),
             Altitude = 1500,
             IndicatedAirspeed = 100,

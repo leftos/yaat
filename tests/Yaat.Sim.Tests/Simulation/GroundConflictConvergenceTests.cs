@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -71,7 +71,7 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
                 continue;
             }
 
-            double distNm = GeoMath.DistanceNm(ual.Latitude, ual.Longitude, thy.Latitude, thy.Longitude);
+            double distNm = GeoMath.DistanceNm(ual.Position.Lat, ual.Position.Lon, thy.Position.Lat, thy.Position.Lon);
             double distFt = distNm * 6076.12;
 
             if (distFt < minDistFt)

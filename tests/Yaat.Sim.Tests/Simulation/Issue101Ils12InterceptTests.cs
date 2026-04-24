@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Approach;
@@ -104,7 +104,7 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
         output.WriteLine($"  AssignedHeading:  {aircraft.Targets.AssignedMagneticHeading}");
         output.WriteLine($"  TargetHeading:    {aircraft.Targets.TargetTrueHeading}");
         output.WriteLine($"  Altitude:         {aircraft.Altitude:F0}");
-        output.WriteLine($"  Position:         ({aircraft.Latitude:F6}, {aircraft.Longitude:F6})");
+        output.WriteLine($"  Position:         ({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6})");
         output.WriteLine($"  ActiveApproach:   {approach?.ApproachId ?? "null"}");
         output.WriteLine($"  FAC:              {approach?.FinalApproachCourse.Degrees.ToString("F1") ?? "null"}");
         output.WriteLine($"  Phases:           {FormatPhases(aircraft)}");
@@ -117,8 +117,8 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
         }
 
         double signedXT = GeoMath.SignedCrossTrackDistanceNm(
-            aircraft.Latitude,
-            aircraft.Longitude,
+            aircraft.Position.Lat,
+            aircraft.Position.Lon,
             interceptPhase.ThresholdLat,
             interceptPhase.ThresholdLon,
             interceptPhase.FinalApproachCourse
@@ -148,8 +148,8 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
             }
 
             double currentSignedXT = GeoMath.SignedCrossTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
+                aircraft.Position.Lat,
+                aircraft.Position.Lon,
                 interceptPhase.ThresholdLat,
                 interceptPhase.ThresholdLon,
                 interceptPhase.FinalApproachCourse
@@ -196,7 +196,7 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
 
         output.WriteLine("=== SWA1850 overview from t=1280 through all three CAPP attempts ===");
         output.WriteLine($"  Initial heading: {aircraft.TrueHeading.Degrees:F1}");
-        output.WriteLine($"  Initial position: ({aircraft.Latitude:F6}, {aircraft.Longitude:F6})");
+        output.WriteLine($"  Initial position: ({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6})");
         output.WriteLine($"  Initial altitude: {aircraft.Altitude:F0}");
         output.WriteLine("");
 

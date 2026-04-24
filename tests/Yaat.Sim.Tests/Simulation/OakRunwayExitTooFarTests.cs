@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -95,7 +95,7 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
             output.WriteLine(
                 $"t={t} gs={aircraft.GroundSpeed:F1} ias={aircraft.IndicatedAirspeed:F1} "
                     + $"twy={aircraft.CurrentTaxiway ?? "(runway)"} "
-                    + $"pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6}) hdg={aircraft.TrueHeading.Degrees:F0}"
+                    + $"pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) hdg={aircraft.TrueHeading.Degrees:F0}"
             );
             if (layout is not null)
             {

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -58,8 +58,7 @@ public class ErbElbNoDistanceTests : IDisposable
         {
             Callsign = "N775JW",
             AircraftType = "C182",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Altitude = alt,
             TrueHeading = new TrueHeading(heading),
             IndicatedAirspeed = 120,
@@ -287,8 +286,7 @@ public class ErbElbNoDistanceTests : IDisposable
         {
             Callsign = "DAL123",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Altitude = 2500,
             TrueHeading = new TrueHeading(90),
             IndicatedAirspeed = 200,

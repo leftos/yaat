@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -88,7 +88,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
             output.WriteLine(
                 $"SKW3398: phase={aircraft.Phases?.CurrentPhase?.Name ?? "none"}, "
                     + $"twy={aircraft.CurrentTaxiway ?? "none"}, "
-                    + $"pos=({aircraft.Latitude:F6},{aircraft.Longitude:F6}), "
+                    + $"pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}), "
                     + $"hdg={aircraft.TrueHeading.Degrees:F0}"
             );
 
@@ -165,7 +165,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
                 output.WriteLine(
                     $"t={spawnTime + t}: phase={phaseName}, gs={ac.GroundSpeed:F1}kts, "
                         + $"hdg={ac.TrueHeading.Degrees:F0}, "
-                        + $"pos=({ac.Latitude:F6},{ac.Longitude:F6}), "
+                        + $"pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}), "
                         + $"reqExit=[{reqExit}], twy={currentTwy}"
                 );
             }

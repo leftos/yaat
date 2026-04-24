@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
@@ -63,7 +63,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
             return;
         }
 
-        output.WriteLine($"N172SP at t=824: ({ac.Latitude:F6},{ac.Longitude:F6}) phase={ac.Phases?.CurrentPhase?.GetType().Name}");
+        output.WriteLine($"N172SP at t=824: ({ac.Position.Lat:F6},{ac.Position.Lon:F6}) phase={ac.Phases?.CurrentPhase?.GetType().Name}");
 
         var route = ac.AssignedTaxiRoute;
         if (route is null)
@@ -139,7 +139,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
             return;
         }
 
-        output.WriteLine($"t=824 (after TAXI): phase={ac.Phases?.CurrentPhase?.GetType().Name} pos=({ac.Latitude:F6},{ac.Longitude:F6})");
+        output.WriteLine($"t=824 (after TAXI): phase={ac.Phases?.CurrentPhase?.GetType().Name} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6})");
 
         // Replay second by second from 824 to 900
         for (int t = 825; t <= 900; t++)
@@ -260,7 +260,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
         if (ac is not null)
         {
             output.WriteLine(
-                $"[diag] final at t=1000 phase={ac.Phases?.CurrentPhase?.Name} gs={ac.GroundSpeed:F2} pos=({ac.Latitude:F6},{ac.Longitude:F6})"
+                $"[diag] final at t=1000 phase={ac.Phases?.CurrentPhase?.Name} gs={ac.GroundSpeed:F2} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6})"
             );
         }
 

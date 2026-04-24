@@ -53,14 +53,7 @@ public sealed class HoldingPatternPhase : Phase
         _outboundHeading = new TrueHeading(InboundCourse + 180);
 
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = FixName,
-                Latitude = FixLat,
-                Longitude = FixLon,
-            }
-        );
+        ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat, FixLon) });
 
         _entry = Entry ?? HoldingEntryCalculator.ComputeEntry(ctx.Aircraft.TrueHeading, InboundCourse, Direction);
 
@@ -236,14 +229,7 @@ public sealed class HoldingPatternPhase : Phase
         _state = HoldState.EntryReturn;
 
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = FixName,
-                Latitude = FixLat,
-                Longitude = FixLon,
-            }
-        );
+        ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat, FixLon) });
 
         if (_entry == HoldingEntry.Parallel)
         {
@@ -279,14 +265,7 @@ public sealed class HoldingPatternPhase : Phase
         _state = HoldState.Inbound;
 
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = FixName,
-                Latitude = FixLat,
-                Longitude = FixLon,
-            }
-        );
+        ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat, FixLon) });
     }
 
     /// <summary>Entry leg timer (teardrop / parallel): nominal leg length, no wind adjustment.</summary>

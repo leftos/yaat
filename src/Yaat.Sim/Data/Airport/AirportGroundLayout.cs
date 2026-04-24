@@ -16,12 +16,9 @@ public enum GroundNodeType
 public sealed class GroundNode
 {
     public required int Id { get; init; }
-    public required double Latitude { get; init; }
-    public required double Longitude { get; init; }
 
-    /// <summary>Typed read-through over <see cref="Latitude"/>/<see cref="Longitude"/>.</summary>
-    [JsonIgnore]
-    public LatLon Position => new(Latitude, Longitude);
+    /// <summary>Geographic position of the node.</summary>
+    public required LatLon Position { get; init; }
 
     public required GroundNodeType Type { get; set; }
     public string? Name { get; init; }

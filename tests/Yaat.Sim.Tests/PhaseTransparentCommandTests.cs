@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
@@ -25,8 +25,7 @@ public class PhaseTransparentCommandTests
         {
             Callsign = "N569SX",
             AircraftType = "C172",
-            Latitude = rwy.ThresholdLatitude,
-            Longitude = rwy.ThresholdLongitude,
+            Position = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
             TrueHeading = rwy.TrueHeading,
             Altitude = 800,
             IndicatedAirspeed = 90,

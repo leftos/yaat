@@ -112,14 +112,7 @@ public sealed class ApproachNavigationPhase : Phase
         var fix = Fixes[_currentFixIndex];
 
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = fix.Name,
-                Latitude = fix.Latitude,
-                Longitude = fix.Longitude,
-            }
-        );
+        ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Latitude, fix.Longitude) });
 
         // Add remaining fixes so UpdateSpeedPlanning can scan ahead for speed constraints.
         // Only SpeedRestriction is set — the phase handles altitude constraints itself.
@@ -130,8 +123,7 @@ public sealed class ApproachNavigationPhase : Phase
                 new NavigationTarget
                 {
                     Name = future.Name,
-                    Latitude = future.Latitude,
-                    Longitude = future.Longitude,
+                    Position = new LatLon(future.Latitude, future.Longitude),
                     SpeedRestriction = future.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, IsMaximum: true) : null,
                     IsFlyOver = future.IsFlyOver,
                 }

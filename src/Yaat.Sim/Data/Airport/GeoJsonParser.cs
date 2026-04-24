@@ -178,8 +178,7 @@ public static class GeoJsonParser
             var node = new GroundNode
             {
                 Id = id,
-                Latitude = spot.Lat,
-                Longitude = spot.Lon,
+                Position = new LatLon(spot.Lat, spot.Lon),
                 Type = GroundNodeType.Spot,
                 Name = spot.Name,
                 Origin = "GeoJson:spot",
@@ -233,8 +232,7 @@ public static class GeoJsonParser
             var node = new GroundNode
             {
                 Id = id,
-                Latitude = pkg.Lat,
-                Longitude = pkg.Lon,
+                Position = new LatLon(pkg.Lat, pkg.Lon),
                 Type = GroundNodeType.Parking,
                 Name = pkg.Name,
                 TrueHeading = new TrueHeading(pkg.Heading),
@@ -252,8 +250,7 @@ public static class GeoJsonParser
             var node = new GroundNode
             {
                 Id = id,
-                Latitude = hp.Lat,
-                Longitude = hp.Lon,
+                Position = new LatLon(hp.Lat, hp.Lon),
                 Type = GroundNodeType.Helipad,
                 Name = hp.Name,
                 TrueHeading = new TrueHeading(hp.Heading),

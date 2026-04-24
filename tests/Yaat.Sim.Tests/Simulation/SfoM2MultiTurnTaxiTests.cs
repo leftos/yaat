@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
@@ -156,10 +156,12 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
         // (westbound ~297° true).
         var layout = ac.GroundLayout;
         Assert.NotNull(layout);
-        var nearest = layout.FindNearestTaxiEdge(ac.Latitude, ac.Longitude);
+        var nearest = layout.FindNearestTaxiEdge(ac.Position.Lat, ac.Position.Lon);
         Assert.NotNull(nearest);
         double distToEdgeFt = nearest.Value.DistNm * GeoMath.FeetPerNm;
-        output.WriteLine($"[t=0] spawn pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F1}° dist-to-edge={distToEdgeFt:F2}ft twy={nearest.Value.Edge.TaxiwayName}");
+        output.WriteLine(
+            $"[t=0] spawn pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F1}° dist-to-edge={distToEdgeFt:F2}ft twy={nearest.Value.Edge.TaxiwayName}"
+        );
         Assert.True(distToEdgeFt < 1.0, $"spawn snap should place aircraft on a taxi edge (got {distToEdgeFt:F2}ft off)");
         Assert.Equal("M2", nearest.Value.Edge.TaxiwayName);
         // Westbound M2 bearing at 1529 is ~297° true — allow ±3° for declination/projection noise.
@@ -188,7 +190,9 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
             string phase = ac.Phases?.CurrentPhase?.Name ?? "(null)";
             if (phase != prevPhase)
             {
-                output.WriteLine($"[t={t}] phase {prevPhase} -> {phase} pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F1}° ias={ac.IndicatedAirspeed:F1}kt");
+                output.WriteLine(
+                    $"[t={t}] phase {prevPhase} -> {phase} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F1}° ias={ac.IndicatedAirspeed:F1}kt"
+                );
                 prevPhase = phase;
 
                 if (phase == "Taxiing" && taxiStartedAt < 0)
@@ -212,21 +216,25 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
             if (!ac.IsOnGround)
             {
                 airborneAt = t;
-                output.WriteLine($"[t={t}] airborne at pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F1}° ias={ac.IndicatedAirspeed:F1}kt alt={ac.Altitude:F0}ft");
+                output.WriteLine(
+                    $"[t={t}] airborne at pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F1}° ias={ac.IndicatedAirspeed:F1}kt alt={ac.Altitude:F0}ft"
+                );
                 break;
             }
         }
 
         output.WriteLine("");
-        output.WriteLine($"summary: taxiStarted={taxiStartedAt}s holdShort={reachedHoldShortAt}s lineUp={lineUpAt}s takeoff={takeoffAt}s airborne={airborneAt}s");
+        output.WriteLine(
+            $"summary: taxiStarted={taxiStartedAt}s holdShort={reachedHoldShortAt}s lineUp={lineUpAt}s takeoff={takeoffAt}s airborne={airborneAt}s"
+        );
 
         Assert.True(taxiStartedAt > 0, "aircraft should enter Taxiing phase after preset TAXI fires");
-        Assert.True(lineUpAt > 0, "aircraft should enter LiningUp phase after traversing M2 → A → A1 (CTO was pre-cleared, so HoldingShort is skipped)");
-        Assert.True(takeoffAt > 0, "aircraft should enter Takeoff phase after LineUp");
         Assert.True(
-            airborneAt > 0,
-            $"aircraft should be airborne within {maxSeconds}s (taxi+LineUp+roll) — last phase was '{prevPhase}'"
+            lineUpAt > 0,
+            "aircraft should enter LiningUp phase after traversing M2 → A → A1 (CTO was pre-cleared, so HoldingShort is skipped)"
         );
+        Assert.True(takeoffAt > 0, "aircraft should enter Takeoff phase after LineUp");
+        Assert.True(airborneAt > 0, $"aircraft should be airborne within {maxSeconds}s (taxi+LineUp+roll) — last phase was '{prevPhase}'");
 
         // Sanity-check the timeline with BOTH bounds so the test catches
         // two classes of regression:

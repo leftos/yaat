@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -86,8 +86,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         {
             Callsign = "TSTAC",
             AircraftType = aircraftType,
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = runway.TrueHeading,
             Altitude = runway.ElevationFt + altAboveField,
             IndicatedAirspeed = touchdownSpeed,
@@ -133,10 +132,10 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
             string phase = aircraft.Phases?.CurrentPhase?.Name ?? "?";
 
             double distToBranch = GeoMath.AlongTrackDistanceNm(
-                branchNode.Latitude,
-                branchNode.Longitude,
-                aircraft.Latitude,
-                aircraft.Longitude,
+                branchNode.Position.Lat,
+                branchNode.Position.Lon,
+                aircraft.Position.Lat,
+                aircraft.Position.Lon,
                 runway.TrueHeading
             );
 
