@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Helpers;
 
@@ -43,6 +44,69 @@ public sealed class TickRecorder
     }
 
     /// <summary>
+    /// Attach a recorder to <paramref name="engine"/>'s <see cref="SimulationEngine.TickCompleted"/>
+    /// event, following <paramref name="callsign"/> (resolved at attach time and each tick so
+    /// the recorder keeps working even if the aircraft is rehydrated). Writes the CSV to
+    /// <paramref name="csvPath"/> on <see cref="IDisposable.Dispose"/>.
+    ///
+    /// Usage:
+    ///   using var _ = TickRecorder.Attach(engine, "N9225L", ".tmp/n9225l.csv");
+    ///
+    /// The <c>using</c> guarantees the CSV is written even if the test asserts fail.
+    /// </summary>
+    public static IDisposable Attach(SimulationEngine engine, string callsign, string csvPath)
+    {
+        return new AttachedRecorder(engine, callsign, csvPath);
+    }
+
+    private sealed class AttachedRecorder : IDisposable
+    {
+        private readonly SimulationEngine _engine;
+        private readonly string _callsign;
+        private readonly string _csvPath;
+        private readonly List<TickRow> _rows = [];
+        private readonly Action<int> _handler;
+
+        public AttachedRecorder(SimulationEngine engine, string callsign, string csvPath)
+        {
+            _engine = engine;
+            _callsign = callsign;
+            _csvPath = csvPath;
+            _handler = OnTick;
+            _engine.TickCompleted += _handler;
+        }
+
+        private void OnTick(int elapsedSeconds)
+        {
+            var ac = _engine.FindAircraft(_callsign);
+            if (ac is null)
+            {
+                return;
+            }
+
+            _rows.Add(
+                new TickRow
+                {
+                    Time = elapsedSeconds,
+                    Lat = ac.Position.Lat,
+                    Lon = ac.Position.Lon,
+                    Hdg = ac.TrueHeading.Degrees,
+                    Gs = ac.GroundSpeed,
+                    Phase = ac.Phases?.CurrentPhase?.Name ?? "none",
+                    Twy = ac.CurrentTaxiway ?? "",
+                    Nav = ac.LastNavDiag,
+                }
+            );
+        }
+
+        public void Dispose()
+        {
+            _engine.TickCompleted -= _handler;
+            WriteRowsCsv(_csvPath, _rows);
+        }
+    }
+
+    /// <summary>
     /// Record the current aircraft state at the given time. Call once per tick
     /// after <c>engine.TickOneSecond()</c>.
     /// </summary>
@@ -75,7 +139,9 @@ public sealed class TickRecorder
     /// <summary>
     /// Write all recorded ticks to a CSV file. Creates parent directories if needed.
     /// </summary>
-    public void WriteCsv(string path)
+    public void WriteCsv(string path) => WriteRowsCsv(path, _rows);
+
+    private static void WriteRowsCsv(string path, IReadOnlyList<TickRow> rows)
     {
         string? dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
@@ -87,7 +153,7 @@ public sealed class TickRecorder
         sb.AppendLine(
             "t,lat,lon,hdg,gs,phase,twy,navTarget,navDist,navBrg,navAngleDiff,navTargetSpd,navBrakeLimit,navArcLimit,navOnArc,navNodeReqSpd,navPathDevFt,navSegFromLat,navSegFromLon"
         );
-        foreach (var row in _rows)
+        foreach (var row in rows)
         {
             sb.Append(CultureInfo.InvariantCulture, $"{row.Time},");
             sb.Append(CultureInfo.InvariantCulture, $"{row.Lat:F8},");

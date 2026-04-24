@@ -59,6 +59,20 @@ public sealed class SimulationEngine
     /// </summary>
     public Dictionary<string, (int Count, double Ms)> TickTimings { get; } = new();
 
+    /// <summary>
+    /// Fires at the end of each integer-second tick, after physics and post-physics
+    /// complete. The int argument is <c>Scenario.ElapsedSeconds</c> at tick end.
+    /// Fires from <see cref="TickOneSecond"/>, <see cref="ReplayOneSecond"/>,
+    /// <see cref="ReplayRange"/>, and <see cref="ReplayOneSubTick"/> (at second-end only).
+    /// Intended for test instrumentation (see <c>TickRecorder.Attach</c>).
+    /// </summary>
+    public event Action<int>? TickCompleted;
+
+    private void FireTickCompleted(int elapsedSeconds)
+    {
+        TickCompleted?.Invoke(elapsedSeconds);
+    }
+
     public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)
     {
         _groundData = groundData;
@@ -474,6 +488,8 @@ public sealed class SimulationEngine
 
         // Discard terminal entries (client doesn't use them yet)
         _terminalEntries.Clear();
+
+        FireTickCompleted((int)scenario.ElapsedSeconds);
     }
 
     /// <summary>
@@ -561,6 +577,8 @@ public sealed class SimulationEngine
                 actionApplier(actions[actionCursor]);
                 actionCursor++;
             }
+
+            FireTickCompleted(t);
         }
     }
 
@@ -747,6 +765,8 @@ public sealed class SimulationEngine
             ApplyRecordedAction(_replayActions[_replayActionCursor]);
             _replayActionCursor++;
         }
+
+        FireTickCompleted(t);
     }
 
     /// <summary>
@@ -806,6 +826,8 @@ public sealed class SimulationEngine
                 ApplyRecordedAction(_replayActions[_replayActionCursor]);
                 _replayActionCursor++;
             }
+
+            FireTickCompleted(t);
         }
     }
 
@@ -967,12 +989,8 @@ public sealed class SimulationEngine
         var depNode = depLayout.FindNearestNode(aircraft.Position);
         var destNode = destLayout.FindNearestNode(aircraft.Position);
 
-        double depDist = depNode is not null
-            ? GeoMath.DistanceNm(aircraft.Position, depNode.Position)
-            : double.MaxValue;
-        double destDist = destNode is not null
-            ? GeoMath.DistanceNm(aircraft.Position, destNode.Position)
-            : double.MaxValue;
+        double depDist = depNode is not null ? GeoMath.DistanceNm(aircraft.Position, depNode.Position) : double.MaxValue;
+        double destDist = destNode is not null ? GeoMath.DistanceNm(aircraft.Position, destNode.Position) : double.MaxValue;
 
         return destDist < depDist ? destLayout : depLayout;
     }
