@@ -209,7 +209,7 @@ internal static class DepartureCommandParser
             {
                 return new ClearedForTakeoffCommand(new DefaultDeparture());
             }
-            pos = (frd.Latitude, frd.Longitude);
+            pos = (frd.Value.Lat, frd.Value.Lon);
         }
 
         int? alt = tokens.Length > 2 ? AltitudeResolver.Resolve(tokens[2]) : null;

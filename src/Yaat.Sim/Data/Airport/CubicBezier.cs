@@ -215,4 +215,7 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     }
 
     private static double Sq(double x) => x * x;
+
+    /// <summary>LatLon-shaped overload of <see cref="ClosestT(double, double, int)"/>.</summary>
+    public double ClosestT(LatLon point, int iterations) => ClosestT(point.Lat, point.Lon, iterations);
 }

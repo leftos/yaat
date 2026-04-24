@@ -1024,7 +1024,7 @@ public static class CommandParser
             var frd = FrdResolver.Resolve(name, navDb);
             if (frd is not null)
             {
-                resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Latitude, frd.Longitude));
+                resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Value.Lat, frd.Value.Lon));
                 continue;
             }
 
@@ -1174,7 +1174,7 @@ public static class CommandParser
             if (frd is not null)
             {
                 int fixIndex = resolved.Count;
-                resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Latitude, frd.Longitude));
+                resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Value.Lat, frd.Value.Lon));
 
                 if (altToken is not null)
                 {
@@ -1458,7 +1458,7 @@ public static class CommandParser
             {
                 return PR.Fail($"fix '{fixName}' not found");
             }
-            return PR.Ok(new HoldAtFixOrbitCommand(fixName, frd.Latitude, frd.Longitude, direction));
+            return PR.Ok(new HoldAtFixOrbitCommand(fixName, frd.Value.Lat, frd.Value.Lon, direction));
         }
 
         return PR.Ok(new HoldAtFixOrbitCommand(fixName, pos.Value.Lat, pos.Value.Lon, direction));
@@ -1481,7 +1481,7 @@ public static class CommandParser
             {
                 return PR.Fail($"fix '{fixName}' not found");
             }
-            return PR.Ok(new HoldAtFixHoverCommand(fixName, frd.Latitude, frd.Longitude));
+            return PR.Ok(new HoldAtFixHoverCommand(fixName, frd.Value.Lat, frd.Value.Lon));
         }
 
         return PR.Ok(new HoldAtFixHoverCommand(fixName, pos.Value.Lat, pos.Value.Lon));
@@ -1637,8 +1637,8 @@ public static class CommandParser
                 return PR.Fail($"fix '{posToken}' not found");
             }
 
-            lat = frd.Latitude;
-            lon = frd.Longitude;
+            lat = frd.Value.Lat;
+            lon = frd.Value.Lon;
         }
 
         if (!int.TryParse(parts[1], out var heading) || heading < 1 || heading > 360)

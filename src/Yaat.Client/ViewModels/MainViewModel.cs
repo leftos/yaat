@@ -1709,8 +1709,8 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        _distanceRefLat = resolved.Latitude;
-        _distanceRefLon = resolved.Longitude;
+        _distanceRefLat = resolved.Value.Lat;
+        _distanceRefLon = resolved.Value.Lon;
         DistanceReferenceFix = FrdResolver.ParseFrd(fixOrFrd)?.Fix ?? fixOrFrd.Trim().ToUpperInvariant();
         RecalculateAllDistances();
     }

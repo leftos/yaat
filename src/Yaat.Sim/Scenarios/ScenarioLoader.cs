@@ -202,8 +202,8 @@ public static class ScenarioLoader
                     warnings.Add($"{ac.AircraftId}: Could not " + $"resolve fix '{cond.Fix}'");
                     return null;
                 }
-                lat = resolved.Latitude;
-                lon = resolved.Longitude;
+                lat = resolved.Value.Lat;
+                lon = resolved.Value.Lon;
                 alt = cond.Altitude ?? fieldElevation;
                 speed = cond.Altitude is null && cond.Speed is null ? 0 : cond.Speed ?? -1;
                 break;
@@ -873,7 +873,7 @@ public static class ScenarioLoader
         var frd = FrdResolver.Resolve(rawName, navDb);
         if (frd is not null)
         {
-            return (frd.Latitude, frd.Longitude);
+            return (frd.Value.Lat, frd.Value.Lon);
         }
 
         // 3. Lat/lon coordinate (e.g., "3904N/10916W")

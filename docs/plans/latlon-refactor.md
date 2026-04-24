@@ -2,13 +2,14 @@
 
 ## Status
 
-In progress — four commits on yaat, one sibling on yaat-server. Spin off from the
-perf-investigation session that landed `adcfc74 perf: cache magnetic declination
-per aircraft`, where it became obvious we had no typed coord in Yaat.Sim and the
-WMM cache ended up carrying two raw `double` fields instead.
+In progress — five commits on yaat, one sibling on yaat-server. Spin off from
+the perf-investigation session that landed `adcfc74 perf: cache magnetic
+declination per aircraft`, where it became obvious we had no typed coord in
+Yaat.Sim and the WMM cache ended up carrying two raw `double` fields instead.
 
 - [x] Commit 1 (yaat): add `LatLon` type
-- [ ] Commit 2 (yaat): migrate Yaat.Sim internals, keep dual API
+- [x] Commit 2a (yaat): foundation — new API surface on Yaat.Sim types, no caller migrations
+- [ ] Commit 2b (yaat): migrate ~70 Yaat.Sim internal files to the new API
 - [ ] Commit 3 (yaat): migrate Yaat.Client, tools, tests
 - [ ] Commit 4 (yaat): remove old API, break wire format
 - [ ] Commit 5 (yaat-server, sibling to commit 4): migrate 35 sites
@@ -264,23 +265,39 @@ yaat-server will not build. Solo committer, unreleased software — acceptable.
 - New file `src/Yaat.Sim/LatLon.cs`. Zero call-site changes.
 - Build green on both repos, all tests pass, wire format unchanged.
 
-### Commit 2 (yaat): migrate Yaat.Sim internals, keep dual API
+### Commit 2a (yaat): foundation — new API surface
 
 - Add `Position` property alongside `Latitude`/`Longitude` on `AircraftState`,
-  `ControlTargets`, `GroundNode`, and DTOs. `Position` is a read-through
-  (`new LatLon(Latitude, Longitude)`); writes still flow through the legacy
-  scalar fields for now.
-- Add `DeclinationCachePosition : LatLon?` alongside the existing
-  `DeclinationCacheLat`/`Lon` NaN-sentinel fields. Writer uses the new one; old
-  fields become dead weight until commit 4.
+  `ControlTargets`, and `GroundNode`. `Position` is a read-through
+  (`new LatLon(Latitude, Longitude)`); writes flow back through the legacy
+  scalar fields. Marked `[JsonIgnore]` so the wire format is unchanged.
+- Add `DeclinationCachePosition : LatLon?` on `AircraftState`. The old
+  `DeclinationCacheLat`/`Lon` NaN sentinels remain but go unused once the
+  single writer/reader (`FlightPhysics`) migrates in 2b. Removed in commit 4.
 - Add new `LatLon`-shaped overloads on `GeoMath` (`DistanceNm`, `BearingTo`,
-  `ProjectPoint`, etc.). Keep the old `(double, double, double, double)` shapes
-  as thin wrappers marked `[Obsolete]` so warnings flag un-migrated callers.
-- Migrate every Yaat.Sim internal call site to the new API: command records,
-  airport/ground layout types, `FrdResolver` (delete `ResolvedPosition`, return
-  `LatLon?`), `MagneticDeclination`, scenario code.
-- Build green on yaat (old API still exists, so Yaat.Client and tests compile
-  unchanged). yaat-server still green (public surface hasn't lost anything).
+  `ProjectPoint`, etc.) and `MagneticDeclination`. Old `(double, double, ...)`
+  overloads stay side-by-side (NOT `[Obsolete]` — the zero-warnings policy
+  would turn every un-migrated caller into an error while 2b is in flight).
+- Refactor `FrdResolver`: delete `ResolvedPosition`, return `LatLon?` directly.
+  Update its handful of callers in place (part of 2a because deleting the
+  type forces these edits).
+- Add overloads on `CoordinateIndex`, `CubicBezier.ClosestT`,
+  `RunwayCrossingDetector.IsOnRunway`, `AirportGroundLayout` find methods.
+- Zero changes to caller sites outside `FrdResolver` consumers.
+- Build green, tests pass.
+
+### Commit 2b (yaat): migrate Yaat.Sim internal callers
+
+- Migrate ~70 files in `src/Yaat.Sim/` from `ac.Latitude`/`ac.Longitude` reads
+  to `ac.Position`, and from 4-arg `GeoMath` calls to 2-arg `LatLon` shapes.
+  Clusters: Commands, Phases, Data/Airport, Data/Vnas, Scenarios, Simulation,
+  flight-physics/conflict detectors.
+- `FlightPhysics` migrates `DeclinationCacheLat`/`Lon` read-and-write to
+  `DeclinationCachePosition` (null now means "not cached" — no more NaN).
+- Writes to `ac.Latitude`/`ac.Longitude` migrate to `ac.Position = new LatLon(...)`.
+- DTOs and their callers stay untouched — wire format unchanged until commit 4.
+- Build green on yaat. Yaat.Client and tests compile unchanged because old
+  API still exists on the types. yaat-server still green.
 
 ### Commit 3 (yaat): migrate Yaat.Client, tools, tests
 

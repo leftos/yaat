@@ -344,4 +344,78 @@ public static class GeoMath
         double lon = ay1 + t * dy1;
         return (lat, lon, t, u);
     }
+
+    // LatLon-shaped overloads — thin wrappers around the scalar forms above. The math
+    // lives in one place; these just deconstruct and re-pack. Introduced as part of
+    // the LatLon refactor; the scalar forms are retired once all callers are migrated.
+
+    /// <summary>Haversine distance between two points, nautical miles.</summary>
+    public static double DistanceNm(LatLon a, LatLon b) => DistanceNm(a.Lat, a.Lon, b.Lat, b.Lon);
+
+    /// <summary>Initial bearing (0-360 true) from <paramref name="from"/> to <paramref name="to"/>.</summary>
+    public static double BearingTo(LatLon from, LatLon to) => BearingTo(from.Lat, from.Lon, to.Lat, to.Lon);
+
+    /// <summary>Project a point along a heading for a given distance.</summary>
+    public static LatLon ProjectPoint(LatLon from, TrueHeading heading, double distanceNm)
+    {
+        var (lat, lon) = ProjectPoint(from.Lat, from.Lon, heading, distanceNm);
+        return new LatLon(lat, lon);
+    }
+
+    /// <summary>Project a point along a raw bearing angle. Internal use only.</summary>
+    internal static LatLon ProjectPointRaw(LatLon from, double bearingDeg, double distanceNm)
+    {
+        var (lat, lon) = ProjectPointRaw(from.Lat, from.Lon, bearingDeg, distanceNm);
+        return new LatLon(lat, lon);
+    }
+
+    /// <summary>Arc waypoints from <paramref name="startBearingDeg"/> to <paramref name="endBearingDeg"/> around <paramref name="center"/>.</summary>
+    public static List<LatLon> GenerateArcPoints(
+        LatLon center,
+        double radiusNm,
+        double startBearingDeg,
+        double endBearingDeg,
+        bool turnRight,
+        double stepDeg = 5.0
+    )
+    {
+        var raw = GenerateArcPoints(center.Lat, center.Lon, radiusNm, startBearingDeg, endBearingDeg, turnRight, stepDeg);
+        var result = new List<LatLon>(raw.Count);
+        foreach (var (lat, lon) in raw)
+        {
+            result.Add(new LatLon(lat, lon));
+        }
+        return result;
+    }
+
+    /// <summary>Signed perpendicular distance (NM) from <paramref name="point"/> to the line through <paramref name="reference"/> with <paramref name="heading"/>. Positive = right.</summary>
+    public static double SignedCrossTrackDistanceNm(LatLon point, LatLon reference, TrueHeading heading) =>
+        SignedCrossTrackDistanceNm(point.Lat, point.Lon, reference.Lat, reference.Lon, heading);
+
+    /// <summary>Signed along-track distance (NM) from <paramref name="reference"/> in the heading direction toward <paramref name="point"/>.</summary>
+    public static double AlongTrackDistanceNm(LatLon point, LatLon reference, TrueHeading heading) =>
+        AlongTrackDistanceNm(point.Lat, point.Lon, reference.Lat, reference.Lon, heading);
+
+    /// <summary>Perpendicular distance in feet from <paramref name="point"/> to the segment between <paramref name="segA"/> and <paramref name="segB"/>, clamped to endpoints.</summary>
+    public static double DistanceToSegmentFt(LatLon point, LatLon segA, LatLon segB) =>
+        DistanceToSegmentFt(point.Lat, point.Lon, segA.Lat, segA.Lon, segB.Lat, segB.Lon);
+
+    /// <summary>Foot of perpendicular from <paramref name="point"/> onto the segment, clamped to endpoints.</summary>
+    public static (LatLon Foot, double AlongNm, bool Clamped) FootOfPerpendicular(LatLon point, LatLon segA, LatLon segB)
+    {
+        var (footLat, footLon, alongNm, clamped) = FootOfPerpendicular(point.Lat, point.Lon, segA.Lat, segA.Lon, segB.Lat, segB.Lon);
+        return (new LatLon(footLat, footLon), alongNm, clamped);
+    }
+
+    /// <summary>Parametric line-segment intersection. See the scalar form for contract details.</summary>
+    public static (LatLon Point, double T, double U)? SegmentsIntersect(LatLon a1, LatLon a2, LatLon b1, LatLon b2, bool excludeEndpoints = false)
+    {
+        var result = SegmentsIntersect(a1.Lat, a1.Lon, a2.Lat, a2.Lon, b1.Lat, b1.Lon, b2.Lat, b2.Lon, excludeEndpoints);
+        if (result is null)
+        {
+            return null;
+        }
+        var (lat, lon, t, u) = result.Value;
+        return (new LatLon(lat, lon), t, u);
+    }
 }

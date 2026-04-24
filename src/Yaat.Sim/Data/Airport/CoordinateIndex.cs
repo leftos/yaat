@@ -58,4 +58,8 @@ internal sealed class CoordinateIndex
     {
         return ((int)Math.Floor(lat / _tolerance), (int)Math.Floor(lon / _tolerance));
     }
+
+    public void Add(LatLon position, int nodeId) => Add(position.Lat, position.Lon, nodeId);
+
+    public int? FindNearest(LatLon position) => FindNearest(position.Lat, position.Lon);
 }

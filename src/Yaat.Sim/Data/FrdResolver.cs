@@ -1,12 +1,10 @@
 namespace Yaat.Sim.Data;
 
-public record ResolvedPosition(double Latitude, double Longitude);
-
 public static class FrdResolver
 {
     private const double NmToRadians = Math.PI / (180.0 * 60.0);
 
-    public static ResolvedPosition? Resolve(string frdString, NavigationDatabase navDb)
+    public static LatLon? Resolve(string frdString, NavigationDatabase navDb)
     {
         var parsed = ParseFrd(frdString);
         if (parsed is null)
@@ -24,7 +22,7 @@ public static class FrdResolver
 
         if (radial is null || distance is null)
         {
-            return new ResolvedPosition(fixPos.Value.Lat, fixPos.Value.Lon);
+            return new LatLon(fixPos.Value.Lat, fixPos.Value.Lon);
         }
 
         return ProjectPosition(fixPos.Value.Lat, fixPos.Value.Lon, radial.Value, distance.Value);
@@ -132,7 +130,7 @@ public static class FrdResolver
         return $"{bestName}{radial:D3}{distance:D3}";
     }
 
-    private static ResolvedPosition ProjectPosition(double latDeg, double lonDeg, int radialDeg, int distanceNm)
+    private static LatLon ProjectPosition(double latDeg, double lonDeg, int radialDeg, int distanceNm)
     {
         double lat1 = latDeg * Math.PI / 180.0;
         double lon1 = lonDeg * Math.PI / 180.0;
@@ -144,6 +142,6 @@ public static class FrdResolver
         double lon2 =
             lon1 + Math.Atan2(Math.Sin(bearing) * Math.Sin(angularDist) * Math.Cos(lat1), Math.Cos(angularDist) - Math.Sin(lat1) * Math.Sin(lat2));
 
-        return new ResolvedPosition(lat2 * 180.0 / Math.PI, lon2 * 180.0 / Math.PI);
+        return new LatLon(lat2 * 180.0 / Math.PI, lon2 * 180.0 / Math.PI);
     }
 }

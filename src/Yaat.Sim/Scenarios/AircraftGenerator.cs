@@ -135,7 +135,7 @@ public static class AircraftGenerator
             var airportPos = navDb.GetFixPosition(primaryAirportId);
             if (airportPos is not null)
             {
-                trueHeading = new TrueHeading(ComputeBearing(resolved.Latitude, resolved.Longitude, airportPos.Value.Lat, airportPos.Value.Lon));
+                trueHeading = new TrueHeading(ComputeBearing(resolved.Value.Lat, resolved.Value.Lon, airportPos.Value.Lat, airportPos.Value.Lon));
             }
         }
 
@@ -145,8 +145,8 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Latitude = resolved.Latitude,
-            Longitude = resolved.Longitude,
+            Latitude = resolved.Value.Lat,
+            Longitude = resolved.Value.Lon,
             TrueHeading = trueHeading,
             TrueTrack = trueHeading,
             Altitude = request.Altitude,

@@ -18,6 +18,11 @@ public sealed class GroundNode
     public required int Id { get; init; }
     public required double Latitude { get; init; }
     public required double Longitude { get; init; }
+
+    /// <summary>Typed read-through over <see cref="Latitude"/>/<see cref="Longitude"/>.</summary>
+    [JsonIgnore]
+    public LatLon Position => new(Latitude, Longitude);
+
     public required GroundNodeType Type { get; set; }
     public string? Name { get; init; }
 
@@ -2191,4 +2196,19 @@ public sealed class AirportGroundLayout
 
         return false;
     }
+
+    // LatLon-shaped overloads of the find methods. Thin wrappers around the scalar forms above.
+
+    public GroundNode? FindNearestNode(LatLon position) => FindNearestNode(position.Lat, position.Lon);
+
+    public NearestTaxiEdge? FindNearestTaxiEdge(LatLon position) => FindNearestTaxiEdge(position.Lat, position.Lon);
+
+    public GroundNode? FindNearestCenterlineNode(LatLon position, TrueHeading runwayHeading, string? runwayDesignator = null) =>
+        FindNearestCenterlineNode(position.Lat, position.Lon, runwayHeading, runwayDesignator);
+
+    public GroundNode? FindNearestExit(LatLon position, TrueHeading runwayHeading, string? runwayDesignator, double maxSearchNm = 0.5) =>
+        FindNearestExit(position.Lat, position.Lon, runwayHeading, runwayDesignator, maxSearchNm);
+
+    public GroundNode? FindExitByTaxiway(LatLon position, string taxiwayName, double maxSearchNm = 1.0) =>
+        FindExitByTaxiway(position.Lat, position.Lon, taxiwayName, maxSearchNm);
 }

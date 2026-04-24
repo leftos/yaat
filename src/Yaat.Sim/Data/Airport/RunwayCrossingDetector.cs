@@ -152,6 +152,8 @@ internal static class RunwayCrossingDetector
         return crossTrack <= rect.HalfWidthNm + RunwayTolerance && alongTrack >= -RunwayTolerance && alongTrack <= rect.LengthNm + RunwayTolerance;
     }
 
+    internal static bool IsOnRunway(LatLon position, in RunwayRectangle rect) => IsOnRunway(position.Lat, position.Lon, rect);
+
     private static void ProcessBoundaryEdge(
         AirportGroundLayout layout,
         GroundEdge edge,

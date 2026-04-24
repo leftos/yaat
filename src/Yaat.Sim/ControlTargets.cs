@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -147,6 +148,11 @@ public class NavigationTarget
     public required string Name { get; init; }
     public required double Latitude { get; init; }
     public required double Longitude { get; init; }
+
+    /// <summary>Typed read-through over <see cref="Latitude"/>/<see cref="Longitude"/>.</summary>
+    [JsonIgnore]
+    public LatLon Position => new(Latitude, Longitude);
+
     public CifpAltitudeRestriction? AltitudeRestriction { get; set; }
     public CifpSpeedRestriction? SpeedRestriction { get; set; }
     public bool IsFlyOver { get; init; }

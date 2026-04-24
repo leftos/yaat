@@ -64,4 +64,13 @@ public static class MagneticDeclination
         double trueDeg = magneticDeg + declination;
         return ((trueDeg % 360.0) + 360.0) % 360.0;
     }
+
+    /// <summary>Declination at the given position.</summary>
+    public static double GetDeclination(LatLon position) => GetDeclination(position.Lat, position.Lon);
+
+    /// <summary>Convert a true direction to magnetic at the given position.</summary>
+    public static double TrueToMagnetic(double trueDeg, LatLon position) => TrueToMagnetic(trueDeg, position.Lat, position.Lon);
+
+    /// <summary>Convert a magnetic direction to true at the given position.</summary>
+    public static double MagneticToTrue(double magneticDeg, LatLon position) => MagneticToTrue(magneticDeg, position.Lat, position.Lon);
 }

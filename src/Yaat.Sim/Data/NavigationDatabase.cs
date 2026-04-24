@@ -1082,7 +1082,7 @@ public sealed class NavigationDatabase
                     continue;
                 }
 
-                pos = (resolved.Latitude, resolved.Longitude);
+                pos = (resolved.Value.Lat, resolved.Value.Lon);
             }
 
             if (pos is null)

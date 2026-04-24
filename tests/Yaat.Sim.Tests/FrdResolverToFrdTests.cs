@@ -73,7 +73,7 @@ public class FrdResolverToFrdTests
         Assert.NotNull(resolved);
 
         // Should be within 2nm of original (rounding of radial and distance)
-        var distNm = GeoMath.DistanceNm(lat, lon, resolved.Latitude, resolved.Longitude);
+        var distNm = GeoMath.DistanceNm(lat, lon, resolved.Value.Lat, resolved.Value.Lon);
         Assert.True(distNm < 2.0, $"Round-trip distance was {distNm:F2} nm, expected < 2.0");
     }
 

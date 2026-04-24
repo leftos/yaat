@@ -32,6 +32,23 @@ public class AircraftState
     public string Cid { get; set; } = "";
     public double Latitude { get; set; }
     public double Longitude { get; set; }
+
+    /// <summary>
+    /// Geographic position as a typed <see cref="LatLon"/>. Read-through over
+    /// <see cref="Latitude"/>/<see cref="Longitude"/>. JSON-ignored so the on-wire shape is
+    /// unchanged while callers migrate.
+    /// </summary>
+    [JsonIgnore]
+    public LatLon Position
+    {
+        get => new(Latitude, Longitude);
+        set
+        {
+            Latitude = value.Lat;
+            Longitude = value.Lon;
+        }
+    }
+
     public TrueHeading TrueHeading { get; set; }
 
     /// <summary>Ground track direction in degrees true. Equals TrueHeading when there is no wind.</summary>
@@ -52,6 +69,14 @@ public class AircraftState
 
     [JsonIgnore]
     public double DeclinationCacheLon { get; set; } = double.NaN;
+
+    /// <summary>
+    /// Typed replacement for the <see cref="DeclinationCacheLat"/>/<see cref="DeclinationCacheLon"/>
+    /// NaN-sentinel pair. <c>null</c> means "not cached yet". Runtime-only, intentionally not
+    /// serialized. The old scalar fields are retired in the final cleanup commit.
+    /// </summary>
+    [JsonIgnore]
+    public LatLon? DeclinationCachePosition { get; set; }
 
     /// <summary>Magnetic heading derived from TrueHeading and Declination.</summary>
     public MagneticHeading MagneticHeading => TrueHeading.ToMagnetic(Declination);
