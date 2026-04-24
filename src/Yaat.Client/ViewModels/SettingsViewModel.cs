@@ -335,6 +335,20 @@ public partial class SettingsViewModel : ObservableObject
     public LmKitGpuSnapshot LmKitGpuSnapshot { get; } = LmKitGpuDetector.Detect();
 
     /// <summary>
+    /// Runtime-installer for the LM-Kit CUDA 13 backend. The backend is no longer bundled into
+    /// the Windows installer (it weighed ~700 MB) so users who want NVIDIA GPU acceleration opt
+    /// in from the Acceleration panel here. Observable state drives the button label, progress
+    /// bar, and status text. Null on non-Windows platforms — the Acceleration panel binds a
+    /// separate <c>IsVisible</c> flag so the section hides entirely elsewhere.
+    /// </summary>
+    public CudaBackendInstaller? CudaBackend { get; } = CudaBackendInstaller.IsPlatformSupported ? new CudaBackendInstaller() : null;
+
+    /// <summary>True when the CUDA download path is available on this host (Windows x64 only).
+    /// Bound by the Acceleration panel to hide the whole section on Linux/macOS where LM-Kit
+    /// uses Vulkan/Metal automatically.</summary>
+    public bool IsCudaBackendSupported => CudaBackend is not null;
+
+    /// <summary>
     /// Available audio input device names. First entry is always the <see cref="DefaultAudioDeviceLabel"/>
     /// sentinel which maps to an empty <see cref="UserPreferences.AudioInputDevice"/> (meaning "use
     /// system default"). Enumerated once at Settings open via <see cref="AudioCaptureService.ListInputDevices"/>;
@@ -1188,4 +1202,46 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnDataGridFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnGroundHideDataBlocksByDefaultChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    // ---------- CUDA backend install ----------
+
+    // Cancellation for an in-flight install. Recreated each click so a cancelled task doesn't
+    // leak its token into the next run. Null when nothing is downloading.
+    private CancellationTokenSource? _cudaInstallCts;
+
+    [RelayCommand]
+    private async Task InstallCudaBackendAsync()
+    {
+        if (CudaBackend is null || CudaBackend.IsBusy)
+        {
+            return;
+        }
+        _cudaInstallCts?.Dispose();
+        _cudaInstallCts = new CancellationTokenSource();
+        try
+        {
+            await CudaBackend.InstallAsync(_cudaInstallCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // StatusMessage was already set by InstallAsync; no re-surface needed.
+        }
+        catch (Exception)
+        {
+            // InstallAsync logs + sets StatusMessage. Swallow here so the command doesn't crash
+            // the VM when the user clicks Download while offline.
+        }
+    }
+
+    [RelayCommand]
+    private void CancelCudaBackendInstall()
+    {
+        _cudaInstallCts?.Cancel();
+    }
+
+    [RelayCommand]
+    private void UninstallCudaBackend()
+    {
+        CudaBackend?.Uninstall();
+    }
 }

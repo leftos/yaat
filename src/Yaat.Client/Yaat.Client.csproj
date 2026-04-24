@@ -44,10 +44,13 @@
          (WhisperSttEngine). Replaced LLamaSharp + Whisper.net in 2026-04 after LLamaSharp 0.26.0's
          vendored llama.cpp couldn't load Gemma 4 architectures and Scratch probe confirmed LM-Kit's
          SpeechToText.Prompt provides the contextual biasing we need. Community Edition; attribution
-         required on the YAAT product page (see About dialog). The Cuda13.Windows backend is the
-         GPU runtime — LM-Kit owns backend selection at load time. -->
+         required on the YAAT product page (see About dialog).
+         The Cuda13.Windows backend used to live here but bundled ~700 MB of native CUDA libraries
+         directly into the single-file exe, which pushed the Velopack installer past 2 GB. It's now
+         downloaded on demand via CudaBackendInstaller (Settings → Speech → Acceleration) and
+         installed under %LOCALAPPDATA%/yaat/backends/cuda13/. LM-Kit auto-falls-back to Vulkan
+         (included in the base package) on machines without it. -->
     <PackageReference Include="LM-Kit.NET" Version="2026.4.2" />
-    <PackageReference Include="LM-Kit.NET.Backend.Cuda13.Windows" Version="2026.4.2" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
     <PackageReference Include="PortAudioSharp2" Version="1.0.6" />

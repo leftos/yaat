@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Avalonia;
+using LMKit.Global;
 using Microsoft.Extensions.Logging;
 using Velopack;
 using Yaat.Client.Logging;
@@ -36,12 +37,23 @@ public static class Program
             e.SetObserved();
         };
 
+        // If the user opted into CUDA acceleration via Settings → Speech, CudaBackendInstaller
+        // has dropped ~700 MB of CUDA 13 DLLs under %LOCALAPPDATA%/yaat/backends/cuda13/.
+        // BackendDirectory must be set before Runtime.Initialize() runs — which happens lazily
+        // on first LM-Kit touch, including LmKitLicense.Initialize() below on some paths — so
+        // wire it here. Without a CUDA install, we leave BackendDirectory unset and LM-Kit
+        // auto-selects Vulkan (included in the base package) or CPU.
+        if (CudaBackendInstaller.IsInstalledOnDisk())
+        {
+            Runtime.BackendDirectory = CudaBackendInstaller.InstallRoot;
+            log.LogInformation("CUDA backend directory set to {Path}", CudaBackendInstaller.InstallRoot);
+        }
+
         // LM-Kit licensing must run before any LM construction so the licensing layer is
         // initialized. The helper resolves the key from LMKIT_LICENSE_KEY or the solution-root
-        // .env file, falling back to empty string (Community Edition). LM-Kit owns
-        // CUDA / Vulkan / Metal backend selection at model load time via the
-        // LM-Kit.NET.Backend.Cuda13.Windows package; no manual NativeLibraryConfig dance needed
-        // (that was the LLamaSharp 0.26 + Whisper.net dual-stack story this replaces).
+        // .env file, falling back to empty string (Community Edition). LM-Kit picks the backend
+        // (CUDA / Vulkan / CPU) at model load time based on the NuGet packages present plus the
+        // BackendDirectory override set above.
         var licenseResult = LmKitLicense.Initialize();
         if (licenseResult.Error is { } licenseError)
         {
