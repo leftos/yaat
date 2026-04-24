@@ -97,8 +97,15 @@ public partial class VStripsView : UserControl
         }
 
         // Drag-source wiring at the UserControl level (Tunnel) so pointer
-        // presses on any strip — rack or printer — can initiate a drag.
+        // presses on any strip — rack or printer — can participate in the
+        // click-vs-drag dispatch. Pressed records state; Moved promotes to a
+        // drag past the threshold; Released clears state if no drag ran.
+        // Tunnel-phase so the handler fires before the TextBox's own bubble
+        // handler that would grab focus — we still DON'T set Handled=true,
+        // so TextBox focus on short clicks continues to work.
         AddHandler(PointerPressedEvent, OnStripPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(PointerMovedEvent, OnStripPointerMoved, RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnStripPointerReleased, RoutingStrategies.Tunnel);
 
         // DragOver + Drop at the root level. DragOver paints the drop-effects
         // cursor + drives the ghost. Drop hit-tests the pointer position to
@@ -478,7 +485,19 @@ public partial class VStripsView : UserControl
         return posY < stackTop ? bands.Count : 0;
     }
 
-    // ── Drag source ─────────────────────────────────────────────
+    // ── Drag source (click-vs-drag dispatch) ────────────────────
+    //
+    // Pressing on a strip records the press position + pending drag target but
+    // doesn't start the OS drag loop yet. PointerMoved checks distance against
+    // DragThresholdSq and triggers DoDragDropAsync past that point. Until the
+    // threshold is crossed, the event bubbles normally: clicking on an
+    // annotation TextBox focuses it in place (caret appears), clicking on the
+    // strip body just selects the strip. Matches CRC's "short click edits,
+    // hold-and-drag moves" model.
+    private const double DragThresholdSq = 5.0 * 5.0;
+    private Point _pressPos;
+    private FlightStripControl? _pressedStripView;
+    private bool _dragInitiated;
 
     private async void OnStripPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -524,14 +543,6 @@ public partial class VStripsView : UserControl
 
         vm.SelectedStrip = strip;
 
-        // Annotation cells handle their own click via the Bubble-phase handler
-        // inside FlightStripControl to open the inline editor. Skip drag
-        // initiation here so the cell handler can run.
-        if (IsAnnotationCellHit(hit))
-        {
-            return;
-        }
-
         if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
             await vm.ToggleOffsetAsync(strip);
@@ -546,11 +557,52 @@ public partial class VStripsView : UserControl
             return;
         }
 
+        // Record press state so PointerMoved can decide when to promote the
+        // gesture to a drag. Do NOT call DoDragDropAsync here — a pure short
+        // click should reach the underlying TextBox (if any) and focus it.
+        _pressPos = e.GetPosition(this);
+        _pressedStripView = stripView;
+        _dragInitiated = false;
+        _draggingStrip = strip;
+    }
+
+    private async void OnStripPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_pressedStripView is null || _dragInitiated || _draggingStrip is not { } strip)
+        {
+            return;
+        }
+        var props = e.GetCurrentPoint(this).Properties;
+        if (!props.IsLeftButtonPressed)
+        {
+            // Button released without our PointerReleased firing (rare, e.g.
+            // capture lost to another window). Treat as click-end: clear state.
+            _pressedStripView = null;
+            _draggingStrip = null;
+            return;
+        }
+
+        var pos = e.GetPosition(this);
+        var dx = pos.X - _pressPos.X;
+        var dy = pos.Y - _pressPos.Y;
+        if (dx * dx + dy * dy < DragThresholdSq)
+        {
+            return;
+        }
+
+        _dragInitiated = true;
+        var stripView = _pressedStripView;
+        _pressedStripView = null;
+
+        if (DataContext is not VStripsViewModel vm)
+        {
+            return;
+        }
+
         // Record the origin rack so MoveStripAsync can skip the no-op when the
         // user drops on the exact same position. Walk the visual tree to find
         // the StripRackViewModel from the source strip's Border ancestor.
         (_draggingFromRack, _draggingFromIndex) = FindStripOrigin(stripView, strip);
-        _draggingStrip = strip;
 
         // Hide the source ContentPresenter (only for rack drags — printer-queue
         // drags keep the strip visible in the carousel) so the rack's DockPanel
@@ -558,22 +610,17 @@ public partial class VStripsView : UserControl
         // the cursor ghost, matching the user's "picked up" mental model. Also
         // means ComputeDropIndex won't treat the source's own position as a
         // valid drop target, so dropping the topmost strip back on itself
-        // resolves to the source's current idx (caught by IsNoOpMove)
-        // instead of count + 1 (which would slip past the no-op guard).
+        // resolves to the source's current idx (caught by IsNoOpMove) instead
+        // of count + 1 (which would slip past the no-op guard).
         if (_draggingFromRack is not null)
         {
             _draggingSourcePresenter = stripView.FindAncestorOfType<ContentPresenter>();
             if (_draggingSourcePresenter is not null)
             {
                 _draggingSourcePresenter.IsVisible = false;
-                // Synchronously apply the initial preview at the source's own
-                // slot (visual idx == fromIdx because bottom-up rendering
-                // makes visual and model idx coincide). Without this, the
-                // user sees the rack collapse under the hide for one layout
-                // pass before the first DragOver restores a gap. Applying
-                // here queues both changes into the same layout pass so the
-                // strip visually "lifts out" into the cursor ghost without
-                // the rest of the rack shifting underneath.
+                // Apply the initial preview synchronously so the rack lifts
+                // the source out into the ghost without the other strips
+                // flickering into the collapsed-source layout first.
                 ApplyInitialDropPreview(_draggingFromRack, _draggingFromIndex);
             }
         }
@@ -601,6 +648,20 @@ public partial class VStripsView : UserControl
             _draggingFromIndex = -1;
         }
         Log.LogInformation("Strip drag end: strip={StripId} effect={Effect}", strip.Id, effect);
+    }
+
+    private void OnStripPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        // If we never crossed the drag threshold, the press is treated as a
+        // short click. The TextBox (if any) under the press already gained
+        // focus via its own bubble-phase handler, so nothing to do here
+        // beyond clearing state. A drag-in-progress path clears state in
+        // OnStripPointerMoved's finally block.
+        if (!_dragInitiated)
+        {
+            _pressedStripView = null;
+            _draggingStrip = null;
+        }
     }
 
     /// <summary>

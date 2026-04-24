@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -273,20 +274,47 @@ public partial class FlightStripControl : UserControl
     /// it with the current annotation value, and dispatches
     /// <see cref="VStripsViewModel.AnnotateAsync"/> on commit.
     /// </summary>
-    private void OnAnnotationCellPressed(object? sender, PointerPressedEventArgs e)
+    // Tracks whether the user pressed Escape during the current focus session
+    // — the LostFocus handler reads this to skip the AN dispatch so the user's
+    // in-progress edit is discarded rather than committed.
+    private bool _annotationCancelPending;
+
+    /// <summary>
+    /// Live <c>?</c> → <c>✓</c> substitution inside an annotation TextBox.
+    /// Mirrors the <see cref="InlineTextEditPopup"/> checkmark path so in-place
+    /// annotation editing matches CRC (docs/crc/vstrips.md:130). Caret offset
+    /// is preserved because both characters are single UTF-16 code units.
+    /// </summary>
+    private void OnAnnotationTextChanged(object? sender, TextChangedEventArgs e)
     {
-        if (sender is not Border cell || cell.Tag is not string tagStr)
+        if (sender is not TextBox tb || tb.Text is not { } text || text.IndexOf('?') < 0)
         {
+            return;
+        }
+        var caret = tb.CaretIndex;
+        tb.Text = text.Replace('?', '✓');
+        tb.CaretIndex = Math.Min(caret, tb.Text?.Length ?? 0);
+    }
+
+    /// <summary>
+    /// Commits whatever the annotation TextBox currently holds by dispatching
+    /// <c>AN {tag} {text}</c> through <see cref="VStripsViewModel.AnnotateAsync"/>
+    /// — unless the user pressed Escape, in which case we skip the dispatch
+    /// and rely on the TextBox's OneWay binding to snap back to the VM value
+    /// on the next render.
+    /// </summary>
+    private void OnAnnotationLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.Tag is not string box)
+        {
+            return;
+        }
+        if (_annotationCancelPending)
+        {
+            _annotationCancelPending = false;
             return;
         }
         if (DataContext is not StripItemViewModel strip || !strip.IsFullStrip || strip.AircraftId is null)
-        {
-            return;
-        }
-        // Only left-click opens the editor — right-click is handled by the
-        // VStripsView strip context menu handler.
-        var props = e.GetCurrentPoint(cell).Properties;
-        if (!props.IsLeftButtonPressed)
         {
             return;
         }
@@ -295,32 +323,50 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        var editor = host.FindControl<InlineTextEditPopup>("InlineEditor");
-        if (editor is null)
+        _ = vm.AnnotateAsync(strip, box, tb.Text);
+    }
+
+    /// <summary>
+    /// Enter commits (moves focus to the strip root so LostFocus fires).
+    /// Escape cancels (restores the TextBox.Text from the VM's current value
+    /// before blurring, with <see cref="_annotationCancelPending"/> telling
+    /// the LostFocus handler to skip the AN dispatch).
+    /// </summary>
+    private void OnAnnotationKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.Tag is not string box)
         {
             return;
         }
-        var current = tagStr switch
+        if (e.Key == Key.Enter)
         {
-            "1" => strip.Annotation10,
-            "2" => strip.Annotation11,
-            "3" => strip.Annotation12,
-            "4" => strip.Annotation13,
-            "5" => strip.Annotation14,
-            "6" => strip.Annotation15,
-            "7" => strip.Annotation16,
-            "8" => strip.Annotation17,
-            "9" => strip.Annotation18,
-            "8a" => strip.Annotation8A,
-            "8b" => strip.Annotation8B,
-            _ => null,
-        };
-        if (current is null)
-        {
-            return;
+            e.Handled = true;
+            this.Focus();
         }
-        editor.Open(cell, current, text => _ = vm.AnnotateAsync(strip, tagStr, text), substituteCheckmark: true);
-        e.Handled = true;
+        else if (e.Key == Key.Escape)
+        {
+            _annotationCancelPending = true;
+            if (DataContext is StripItemViewModel strip)
+            {
+                tb.Text = box switch
+                {
+                    "1" => strip.Annotation10,
+                    "2" => strip.Annotation11,
+                    "3" => strip.Annotation12,
+                    "4" => strip.Annotation13,
+                    "5" => strip.Annotation14,
+                    "6" => strip.Annotation15,
+                    "7" => strip.Annotation16,
+                    "8" => strip.Annotation17,
+                    "9" => strip.Annotation18,
+                    "8a" => strip.Annotation8A,
+                    "8b" => strip.Annotation8B,
+                    _ => tb.Text,
+                };
+            }
+            e.Handled = true;
+            this.Focus();
+        }
     }
 
     private void DrawDisconnected(StripItemViewModel vm)

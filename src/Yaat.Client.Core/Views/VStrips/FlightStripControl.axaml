@@ -6,6 +6,47 @@
              Focusable="False"
              Background="Transparent">
 
+    <UserControl.Styles>
+        <!-- Flat-styled annotation TextBox. Looks like a TextBlock until the
+             user clicks it (then the caret appears). No border / padding /
+             background so the strip cell border provides the only chrome.
+             Tag carries the canonical annotation slot id which the commit
+             handler (OnAnnotationTextLostFocus / KeyDown) passes to
+             VStripsViewModel.AnnotateAsync. -->
+        <Style Selector="TextBox.annotation">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBox.annotation:focus /template/ Border">
+            <!-- Kill Avalonia's default focus-ring border inside the template
+                 so the cell stays visually flat when the caret is active. -->
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.annotation:pointerover /template/ Border">
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <!-- 3×3 grid cells center their text per CRC. -->
+        <Style Selector="TextBox.annotation.grid">
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+        </Style>
+        <!-- 8a / 8b col-3 slots left-align their text. -->
+        <Style Selector="TextBox.annotation.col3">
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+        </Style>
+    </UserControl.Styles>
+
     <!-- CRC vStrips visual parity:
          Reference is docs/crc/img/printer.png (DAL713 strip — the red number
          labels in docs/crc/img/departure-strip.png and arrival-strip.png are
@@ -132,25 +173,23 @@
                                VerticalAlignment="Center"
                                Foreground="{StaticResource StripPrintedBrush}"/>
                 </Border>
-                <Border Grid.Row="1" Grid.Column="2" Tag="8a"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="1" Grid.Column="2"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding Annotation8A}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation col3" Tag="8a"
+                             Text="{Binding Annotation8A, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="2" Grid.Column="2" Tag="8b"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="2" Grid.Column="2"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding Annotation8B}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation col3" Tag="8b"
+                             Text="{Binding Annotation8B, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
 
                 <!-- Column 4 path A: no remarks — route wraps across all 3 rows
@@ -204,97 +243,89 @@
                                Foreground="{StaticResource StripPrintedBrush}"/>
                 </Border>
 
-                <!-- Columns 5-7: 3×3 annotation grid. Each cell's Tag carries
-                     the canonical box number 1..9 that AN {box} writes to
-                     FieldValues[box+9] = 10..18 on the server. -->
-                <Border Grid.Row="0" Grid.Column="4" Tag="1"
-                        PointerPressed="OnAnnotationCellPressed"
+                <!-- Columns 5-7: 3×3 annotation grid. Each cell is a flat
+                     TextBox with the canonical box number 1..9 in Tag. The
+                     commit handlers (OnAnnotation*) on LostFocus / Enter
+                     dispatch AN {Tag} {text} via VStripsViewModel.AnnotateAsync. -->
+                <Border Grid.Row="0" Grid.Column="4"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation10}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="1"
+                             Text="{Binding Annotation10, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="0" Grid.Column="5" Tag="2"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="0" Grid.Column="5"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation11}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="2"
+                             Text="{Binding Annotation11, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="0" Grid.Column="6" Tag="3"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="0" Grid.Column="6"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,0,1" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation12}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="3"
+                             Text="{Binding Annotation12, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="1" Grid.Column="4" Tag="4"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="1" Grid.Column="4"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation13}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="4"
+                             Text="{Binding Annotation13, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="1" Grid.Column="5" Tag="5"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="1" Grid.Column="5"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation14}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="5"
+                             Text="{Binding Annotation14, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="1" Grid.Column="6" Tag="6"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="1" Grid.Column="6"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,0,1" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation15}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="6"
+                             Text="{Binding Annotation15, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="2" Grid.Column="4" Tag="7"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="2" Grid.Column="4"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation16}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="7"
+                             Text="{Binding Annotation16, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="2" Grid.Column="5" Tag="8"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="2" Grid.Column="5"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="0,0,1,0" Padding="2,0">
-                    <TextBlock Text="{Binding Annotation17}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="8"
+                             Text="{Binding Annotation17, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
-                <Border Grid.Row="2" Grid.Column="6" Tag="9"
-                        PointerPressed="OnAnnotationCellPressed"
+                <Border Grid.Row="2" Grid.Column="6"
                         Padding="2,0">
-                    <TextBlock Text="{Binding Annotation18}"
-                               FontFamily="{StaticResource StripScriptFont}"
-                               FontStyle="Italic" FontWeight="Bold" FontSize="11"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Classes="annotation grid" Tag="9"
+                             Text="{Binding Annotation18, Mode=OneWay}"
+                             TextChanged="OnAnnotationTextChanged"
+                             LostFocus="OnAnnotationLostFocus"
+                             KeyDown="OnAnnotationKeyDown"/>
                 </Border>
             </Grid>
 
