@@ -50,7 +50,12 @@ public sealed class HtmlRenderCommand : ICommand
                 options.PathfinderNodeId.Value,
                 options.PathfinderTaxiways,
                 out string? _,
-                new ExplicitPathOptions()
+                new ExplicitPathOptions
+                {
+                    DestinationRunway = options.PathfinderDestinationRunway,
+                    ExplicitHoldShorts = options.PathfinderHoldShorts.Count > 0 ? options.PathfinderHoldShorts : null,
+                    AirportId = analyzer.AirportId,
+                }
             );
             if (pfRoute is not null)
             {

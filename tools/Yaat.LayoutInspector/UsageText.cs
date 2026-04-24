@@ -17,6 +17,8 @@ public static class UsageText
         Console.WriteLine("  --exits <designator>     Show all exits for a runway (BFS, repeatable)");
         Console.WriteLine("  --bfs <node-id> <twy>    BFS trace from node through taxiway to hold-short");
         Console.WriteLine("  --pathfinder <node-id> <twy1> [twy2 ...]  Resolve taxi route with diagnostic trace");
+        Console.WriteLine("  --pf-dest-rwy <runway>   Destination runway for pathfinder (matches runtime ExplicitPathOptions.DestinationRunway)");
+        Console.WriteLine("  --pf-hold-shorts <list>  Comma-separated hold-short targets (e.g. 1L,B) for pathfinder");
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
         Console.WriteLine("  --intersection <T1> <T2> Show nodes where two taxiways meet");

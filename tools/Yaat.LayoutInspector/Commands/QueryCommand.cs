@@ -110,7 +110,13 @@ public sealed class QueryCommand : ICommand
                 options.PathfinderNodeId.Value,
                 options.PathfinderTaxiways,
                 out string? pfFailReason,
-                new ExplicitPathOptions { DiagnosticLog = msg => diagLog.Add(msg) }
+                new ExplicitPathOptions
+                {
+                    DestinationRunway = options.PathfinderDestinationRunway,
+                    ExplicitHoldShorts = options.PathfinderHoldShorts.Count > 0 ? options.PathfinderHoldShorts : null,
+                    AirportId = analyzer.AirportId,
+                    DiagnosticLog = msg => diagLog.Add(msg),
+                }
             );
 
             var pfResult = new PathfinderResult(

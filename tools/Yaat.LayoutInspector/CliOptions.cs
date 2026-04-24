@@ -22,6 +22,20 @@ public sealed record CliOptions
     public int? PathfinderNodeId { get; init; }
     public List<string> PathfinderTaxiways { get; init; } = [];
 
+    /// <summary>
+    /// Destination runway passed to <c>ExplicitPathOptions.DestinationRunway</c>.
+    /// Drives <c>WalkTaxiway</c>'s effective-hint steering at ambiguous junctions —
+    /// without it, LI can pick a different route than runtime. Set via <c>--pf-dest-rwy</c>.
+    /// </summary>
+    public string? PathfinderDestinationRunway { get; init; }
+
+    /// <summary>
+    /// Explicit hold-short targets passed to <c>ExplicitPathOptions.ExplicitHoldShorts</c>.
+    /// Each entry is a bare target string — runtime matches RHS nodes whose RunwayId
+    /// contains it, then falls back to first-taxiway-intersection. Set via <c>--pf-hold-shorts</c>.
+    /// </summary>
+    public List<string> PathfinderHoldShorts { get; init; } = [];
+
     public bool ShowParking { get; init; }
     public bool ShowSpots { get; init; }
     public bool Validate { get; init; }
@@ -97,6 +111,8 @@ public sealed record CliOptions
         string? pathTaxiway = null;
         int? pfNodeId = null;
         var pfTaxiways = new List<string>();
+        string? pfDestRwy = null;
+        var pfHoldShorts = new List<string>();
         bool showParking = false;
         bool showSpots = false;
         bool validate = false;
@@ -227,6 +243,16 @@ public sealed record CliOptions
                     }
 
                     break;
+                case "--pf-dest-rwy" when i + 1 < args.Length:
+                    pfDestRwy = args[++i].ToUpperInvariant();
+                    break;
+                case "--pf-hold-shorts" when i + 1 < args.Length:
+                    foreach (string hs in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        pfHoldShorts.Add(hs.ToUpperInvariant());
+                    }
+
+                    break;
                 case "--tick-table":
                     tickTable = true;
                     break;
@@ -290,6 +316,8 @@ public sealed record CliOptions
             BfsTaxiway = pathTaxiway,
             PathfinderNodeId = pfNodeId,
             PathfinderTaxiways = pfTaxiways,
+            PathfinderDestinationRunway = pfDestRwy,
+            PathfinderHoldShorts = pfHoldShorts,
             ShowParking = showParking,
             ShowSpots = showSpots,
             Validate = validate,
