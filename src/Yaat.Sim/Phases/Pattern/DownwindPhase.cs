@@ -139,11 +139,17 @@ public sealed class DownwindPhase : Phase
             }
         }
 
-        // Follow speed adjustment: modulate speed based on distance to leader
-        if (ctx.Targets.TargetSpeed is { } currentSpeed)
+        // Follow speed adjustment: modulate speed based on distance to leader.
+        // Feed the phase baseline (not the previous tick's adjusted target) into the
+        // helper — otherwise the +MaxSpeedAdjustKts clamp compounds each tick and
+        // lets IAS escape the stabilized-approach gate downstream.
+        if (ctx.Targets.TargetSpeed is not null)
         {
+            double baseline = _pastAbeam
+                ? AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category)
+                : AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, currentSpeed, minSpeed);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
                 ctx.Targets.TargetSpeed = adjusted.Value;

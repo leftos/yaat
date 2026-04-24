@@ -89,11 +89,13 @@ public sealed class BasePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // Follow speed adjustment
-        if (ctx.Targets.TargetSpeed is { } currentSpeed)
+        // Follow speed adjustment — pass the phase baseline, never the previous
+        // tick's adjusted target, so the +MaxSpeedAdjustKts clamp can't compound.
+        if (ctx.Targets.TargetSpeed is not null)
         {
+            double baseline = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, currentSpeed, minSpeed);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
                 ctx.Targets.TargetSpeed = adjusted.Value;

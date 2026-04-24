@@ -26,6 +26,16 @@ public sealed class FinalApproachPhase : Phase
     private const double FasTransitionDistanceNm = 5.0;
 
     /// <summary>
+    /// Time-to-threshold (seconds) inside which the follower stops chasing the
+    /// leader and just stabilizes for landing. Committed to the approach at this
+    /// point — either land or go around; chasing risks tripping the unstabilized
+    /// gate (IAS &gt; 1.3·Vref). At ~75 kt this is ≈1.25 nm ≈ 400 ft AGL on a 3° GS,
+    /// firmly inside the industry VMC 500-ft stabilized gate (FAA AC 120-71 /
+    /// InFO 11009) and well below the 1000-ft IMC gate.
+    /// </summary>
+    private const double StabilizationWindowSeconds = 60.0;
+
+    /// <summary>
     /// Maximum FAC-vs-runway-heading difference at which an approach is considered "aligned"
     /// for establishment-check fallback purposes. Below this, the runway-heading branch is
     /// allowed (Issue #101 mag-variation tolerance); above it, only the FAC counts as
@@ -200,14 +210,34 @@ public sealed class FinalApproachPhase : Phase
             Log.LogDebug("[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm", ctx.Aircraft.Callsign, fas, distNm);
         }
 
-        // Follow speed adjustment (Vref floor — never below final approach speed)
-        if (_fasSet && (ctx.Targets.TargetSpeed is { } currentFas))
+        // Follow speed adjustment on final has three rules:
+        // 1. Feed Vref (phase baseline) as normalSpeed — never the previous tick's
+        //    target — otherwise the +MaxSpeedAdjust clamp compounds each tick and
+        //    TargetSpeed runs away (how N346G hit 167 KIAS in S2-OAK-3).
+        // 2. Use the tighter MaxSpeedAdjustFinalKts ceiling so even a legitimate
+        //    chase stays clear of the unstabilized-GA gate (IAS > 1.3·Vref).
+        // 3. Inside the stabilization window (≤60s to threshold, or leader on
+        //    ground), stop adjusting altogether and anchor on Vref. The follower
+        //    is committed — land safely or go around, don't chase.
+        if (_fasSet && ctx.Aircraft.FollowingCallsign is not null)
         {
             double vref = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, currentFas, vref);
-            if (adjusted is not null)
+            double gs = ctx.Aircraft.GroundSpeed;
+            bool inStabilizationWindow = (gs > 0) && ((distNm / gs * 3600.0) <= StabilizationWindowSeconds);
+            var lead = ctx.AircraftLookup?.Invoke(ctx.Aircraft.FollowingCallsign);
+            bool leaderOnGround = lead?.IsOnGround ?? true;
+
+            if (inStabilizationWindow || leaderOnGround)
             {
-                ctx.Targets.TargetSpeed = adjusted.Value;
+                ctx.Targets.TargetSpeed = vref;
+            }
+            else
+            {
+                var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, vref, vref, AirborneFollowHelper.MaxSpeedAdjustFinalKts);
+                if (adjusted is not null)
+                {
+                    ctx.Targets.TargetSpeed = adjusted.Value;
+                }
             }
         }
 

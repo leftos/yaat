@@ -77,7 +77,7 @@ public class AirborneFollowTests : IDisposable
         var ac = MakeAircraft(followingCallsign: null);
         var ctx = Ctx(ac);
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0);
+        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.Null(result);
     }
@@ -88,26 +88,69 @@ public class AirborneFollowTests : IDisposable
         var ac = MakeAircraft(followingCallsign: "LEADER");
         var ctx = Ctx(ac, lookup: _ => null);
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0);
+        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.Null(result);
         Assert.Null(ac.FollowingCallsign);
     }
 
     [Fact]
-    public void GetAdjustedSpeed_IncreasesSpeed_WhenTooFarFromLeader()
+    public void GetAdjustedSpeed_CeilingDoesNotCompoundAcrossTicks()
     {
-        // Place follower and leader far apart (3nm for a piston leader with 1.0nm desired)
+        // The helper's output must ONLY depend on the phase baseline fed in — feeding
+        // the prior tick's adjusted value back in is what allowed IAS to escape the
+        // stabilized-approach gate. Repeated calls with the same baseline must yield
+        // the same upper bound (baseline + MaxSpeedAdjustKts).
+        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
+
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        double baseline = 90.0;
+
+        double? first = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
+        double? second = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(first.Value, second.Value, precision: 6);
+        Assert.True(first.Value <= baseline + AirborneFollowHelper.MaxSpeedAdjustKts + 1e-6, $"Expected <= {baseline + 20}, got {first}");
+    }
+
+    [Fact]
+    public void GetAdjustedSpeed_FinalCeilingTighter_KeepsUnderStabilizedGate()
+    {
+        // On final approach the unstabilized go-around gate fires at IAS > 1.3·Vref.
+        // For a C172 with Vref=75, that's 97.5 kt — and FAS+20 = 95 would leave only
+        // 2.5 kt of margin. MaxSpeedAdjustFinalKts caps catch-up closer to Vref so
+        // chasing the leader can't trip the gate.
+        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
+
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        double vref = 75.0;
+
+        double? result = AirborneFollowHelper.GetAdjustedSpeed(ctx, vref, vref, AirborneFollowHelper.MaxSpeedAdjustFinalKts);
+
+        Assert.NotNull(result);
+        Assert.True(result <= vref + AirborneFollowHelper.MaxSpeedAdjustFinalKts + 1e-6, $"Expected <= {vref + 10}, got {result}");
+        Assert.True(result < vref * 1.3, $"Expected below unstabilized gate {vref * 1.3}, got {result}");
+    }
+
+    [Fact]
+    public void GetAdjustedSpeedFreeFlight_IncreasesSpeed_WhenTooFarFromLeader()
+    {
+        // Outside the pattern (VfrFollow / PatternEntry) the follower still needs to
+        // chase the leader — preserve the +MaxSpeedAdjustKts ceiling for free-flight.
         var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
         var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
 
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double normalSpeed = 90.0;
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, normalSpeed, 65.0);
+        var result = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, 65.0);
 
         Assert.NotNull(result);
-        Assert.True(result > normalSpeed, $"Expected speed above {normalSpeed}, got {result}");
+        Assert.True(result > normalSpeed, $"Expected free-flight speed above {normalSpeed}, got {result}");
     }
 
     [Fact]
@@ -125,7 +168,7 @@ public class AirborneFollowTests : IDisposable
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double normalSpeed = 90.0;
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, normalSpeed, 65.0);
+        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, normalSpeed, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.NotNull(result);
         Assert.True(result < normalSpeed, $"Expected speed below {normalSpeed}, got {result}");
@@ -141,7 +184,7 @@ public class AirborneFollowTests : IDisposable
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double minSpeed = 65.0;
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, minSpeed);
+        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.NotNull(result);
         Assert.True(result >= minSpeed, $"Expected speed >= {minSpeed}, got {result}");
@@ -157,13 +200,13 @@ public class AirborneFollowTests : IDisposable
         var pistonLeader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (1.5 / 54.0));
 
         var ctxJet = Ctx(follower, lookup: cs => cs == "LEAD" ? jetLeader : null);
-        var resultJet = AirborneFollowHelper.GetAdjustedSpeed(ctxJet, 90.0, 65.0);
+        var resultJet = AirborneFollowHelper.GetAdjustedSpeed(ctxJet, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         // Reset follow state (cleared if leader disappears)
         follower.FollowingCallsign = "LEAD";
 
         var ctxPiston = Ctx(follower, lookup: cs => cs == "LEAD" ? pistonLeader : null);
-        var resultPiston = AirborneFollowHelper.GetAdjustedSpeed(ctxPiston, 90.0, 65.0);
+        var resultPiston = AirborneFollowHelper.GetAdjustedSpeed(ctxPiston, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.NotNull(resultJet);
         Assert.NotNull(resultPiston);

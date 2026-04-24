@@ -32,8 +32,22 @@ public static class AirborneFollowHelper
     /// <summary>Speed correction gain: kts per nm of distance error.</summary>
     private const double SpeedGainPerNm = 25.0;
 
-    /// <summary>Maximum speed adjustment above or below normal phase speed (kts).</summary>
-    private const double MaxSpeedAdjustKts = 20.0;
+    /// <summary>
+    /// Default ceiling above normal speed (kts). Used on downwind, base, pattern
+    /// entry, and free-flight pursuit, where the follower has time and altitude
+    /// to reshape the approach if it closes at a small speed advantage.
+    /// </summary>
+    public const double MaxSpeedAdjustKts = 20.0;
+
+    /// <summary>
+    /// Tighter ceiling above normal speed for final approach (kts). Once the
+    /// follower is established on final it's already converging toward Vref,
+    /// and any excess speed trips the unstabilized-go-around gate
+    /// (IAS &gt; 1.3·Vref). A 10-kt margin keeps the follower under that gate
+    /// while still allowing a modest chase. Beyond this, <see cref="FinalApproachPhase"/>
+    /// stops adjusting altogether inside its stabilization window.
+    /// </summary>
+    public const double MaxSpeedAdjustFinalKts = 10.0;
 
     /// <summary>
     /// Fraction of desired distance below which downwind should be extended
@@ -44,11 +58,22 @@ public static class AirborneFollowHelper
     /// <summary>
     /// Returns an adjusted target speed based on distance to the followed aircraft,
     /// or null if no follow is active (or the target has disappeared).
+    /// The <paramref name="normalSpeed"/> MUST be the phase's baseline speed
+    /// (e.g. <see cref="AircraftPerformance.DownwindSpeed"/>), not the previous
+    /// tick's target — feeding the previous tick's output back in compounds the
+    /// +<paramref name="maxSpeedAdjustKts"/> clamp over ticks and lets IAS escape
+    /// the stabilized-approach gate.
     /// </summary>
     /// <param name="ctx">Current phase context (must have AircraftLookup set).</param>
-    /// <param name="normalSpeed">The speed this phase would normally target.</param>
+    /// <param name="normalSpeed">The phase's baseline target speed.</param>
     /// <param name="minSpeed">Absolute floor — never returns below this (e.g. Vref on final).</param>
-    public static double? GetAdjustedSpeed(PhaseContext ctx, double normalSpeed, double minSpeed)
+    /// <param name="maxSpeedAdjustKts">
+    /// Symmetric clamp on the per-tick speed correction. Use
+    /// <see cref="MaxSpeedAdjustKts"/> for early-pattern and free-flight callers,
+    /// <see cref="MaxSpeedAdjustFinalKts"/> for final-approach callers so the
+    /// follower can't blow through the unstabilized-GA threshold while chasing.
+    /// </param>
+    public static double? GetAdjustedSpeed(PhaseContext ctx, double normalSpeed, double minSpeed, double maxSpeedAdjustKts)
     {
         string? targetCallsign = ctx.Aircraft.FollowingCallsign;
         if (targetCallsign is null)
@@ -65,7 +90,7 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        return ComputeAdjustedSpeed(ctx.Aircraft, target, normalSpeed, minSpeed, Log);
+        return ComputeAdjustedSpeed(ctx.Aircraft, target, normalSpeed, minSpeed, maxSpeedAdjustKts, Log);
     }
 
     /// <summary>
@@ -93,7 +118,7 @@ public static class AirborneFollowHelper
 
         var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
-        return ComputeAdjustedSpeedWithDesired(ctx.Aircraft, target, normalSpeed, minSpeed, desired, Log);
+        return ComputeAdjustedSpeedWithDesired(ctx.Aircraft, target, normalSpeed, minSpeed, desired, MaxSpeedAdjustKts, Log);
     }
 
     /// <summary>
@@ -113,7 +138,7 @@ public static class AirborneFollowHelper
         double normalSpeed = Math.Max(lead.IndicatedAirspeed, minSpeed);
         var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
-        var result = ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, logger);
+        var result = ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, MaxSpeedAdjustKts, logger);
         return result ?? normalSpeed;
     }
 
@@ -123,11 +148,18 @@ public static class AirborneFollowHelper
     /// (follower too close at min speed) — in that case the caller decides how to
     /// cancel follow.
     /// </summary>
-    private static double? ComputeAdjustedSpeed(AircraftState follower, AircraftState lead, double normalSpeed, double minSpeed, ILogger logger)
+    private static double? ComputeAdjustedSpeed(
+        AircraftState follower,
+        AircraftState lead,
+        double normalSpeed,
+        double minSpeed,
+        double maxSpeedAdjustKts,
+        ILogger logger
+    )
     {
         var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = DesiredDistanceForLeader(leaderCategory);
-        return ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, logger);
+        return ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, maxSpeedAdjustKts, logger);
     }
 
     private static double? ComputeAdjustedSpeedWithDesired(
@@ -136,14 +168,15 @@ public static class AirborneFollowHelper
         double normalSpeed,
         double minSpeed,
         double desired,
+        double maxSpeedAdjustKts,
         ILogger logger
     )
     {
         double distance = GeoMath.DistanceNm(follower.Position, lead.Position);
         double error = distance - desired;
-        double speedAdjust = Math.Clamp(error * SpeedGainPerNm, -MaxSpeedAdjustKts, MaxSpeedAdjustKts);
+        double speedAdjust = Math.Clamp(error * SpeedGainPerNm, -maxSpeedAdjustKts, maxSpeedAdjustKts);
         double adjusted = normalSpeed + speedAdjust;
-        double clamped = Math.Clamp(adjusted, minSpeed, normalSpeed + MaxSpeedAdjustKts);
+        double clamped = Math.Clamp(adjusted, minSpeed, normalSpeed + maxSpeedAdjustKts);
 
         // Speed clamped to minimum AND too close — the follower can't maintain
         // separation. Cancel follow and warn once so the controller can intervene.
