@@ -60,8 +60,7 @@ public class PatternEntryTests : IDisposable
         {
             Callsign = "N775JW",
             AircraftType = "C182",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             Altitude = alt,
             TrueHeading = new TrueHeading(heading),
             IndicatedAirspeed = 120,

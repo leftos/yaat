@@ -356,8 +356,7 @@ public class PathPrimitiveBuilderTests
         {
             Callsign = "SLOWTEST",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = new TrueHeading(acHdgDeg),
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -420,7 +419,7 @@ public class PathPrimitiveBuilderTests
 
             // Invariant: position must lie on the arc circle of radius
             // radiusFt around (CenterLat, CenterLon).
-            double distToCenterFt = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, slow.CenterLat, slow.CenterLon) * GeoMath.FeetPerNm;
+            double distToCenterFt = GeoMath.DistanceNm(aircraft.Position, new LatLon(slow.CenterLat, slow.CenterLon)) * GeoMath.FeetPerNm;
             Assert.InRange(distToCenterFt, radiusFt - 0.1, radiusFt + 0.1);
 
             // Target speed is capped at the primitive's MaxSpeedKts.
@@ -456,8 +455,8 @@ public class PathPrimitiveBuilderTests
         nav.Tick(ctx, isLastSegment: true, _ => true);
 
         // Position unchanged — the arc integrator did not advance this tick.
-        Assert.Equal(fromLat, aircraft.Latitude);
-        Assert.Equal(fromLon, aircraft.Longitude);
+        Assert.Equal(fromLat, aircraft.Position.Lat);
+        Assert.Equal(fromLon, aircraft.Position.Lon);
         // Target speed nonzero so physics (or AdjustSpeed) can re-accelerate.
         Assert.NotNull(ctx.Targets.TargetSpeed);
         Assert.True(ctx.Targets.TargetSpeed!.Value > 0);

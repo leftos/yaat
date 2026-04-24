@@ -21,7 +21,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         );
         foreach (var nav in ac.Targets.NavigationRoute)
         {
-            double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nav.Latitude, nav.Longitude);
+            double dist = GeoMath.DistanceNm(ac.Position, new LatLon(nav.Latitude, nav.Longitude));
             output?.WriteLine($"  Fix {nav.Name}: dist={dist:F2}nm spdConstraint={nav.SpeedRestriction?.SpeedKts}");
         }
     }
@@ -39,8 +39,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         {
             Callsign = "TEST1",
             AircraftType = type,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(360),
             TrueTrack = new TrueHeading(360),
             Altitude = altitude,
@@ -102,7 +101,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         double accelRate = AircraftPerformance.AccelRate("B738", cat);
         double decelRate = AircraftPerformance.DecelRate("B738", cat);
         double gs = aircraft.GroundSpeed;
-        double distNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, fix.Latitude, fix.Longitude);
+        double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
         double timeToFix = distNm / (gs / 3600.0);
         double speedDelta = Math.Abs(210 - 250);
         double changeTime = speedDelta / accelRate;

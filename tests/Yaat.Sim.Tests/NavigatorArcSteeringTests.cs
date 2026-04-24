@@ -28,12 +28,12 @@ public class NavigatorArcSteeringTests
         };
 
         const double kappa = 0.5523;
-        double p1Lat = nodeA.Latitude;
-        double p1Lon = nodeA.Longitude - (kappa * 0.000261);
-        double p2Lat = nodeB.Latitude + (kappa * 0.000206);
-        double p2Lon = nodeB.Longitude;
+        double p1Lat = nodeA.Position.Lat;
+        double p1Lon = nodeA.Position.Lon - (kappa * 0.000261);
+        double p2Lat = nodeB.Position.Lat + (kappa * 0.000206);
+        double p2Lon = nodeB.Position.Lon;
 
-        var bezier = new CubicBezier(nodeA.Latitude, nodeA.Longitude, p1Lat, p1Lon, p2Lat, p2Lon, nodeB.Latitude, nodeB.Longitude);
+        var bezier = new CubicBezier(nodeA.Position.Lat, nodeA.Position.Lon, p1Lat, p1Lon, p2Lat, p2Lon, nodeB.Position.Lat, nodeB.Position.Lon);
         var arc = new GroundArc
         {
             Nodes = [nodeA, nodeB],

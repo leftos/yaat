@@ -203,8 +203,8 @@ public class WindPhysicsTests
             new NavigationTarget
             {
                 Name = "FIX",
-                Latitude = ac.Latitude,
-                Longitude = ac.Longitude + 2, // due east
+                Latitude = ac.Position.Lat,
+                Longitude = ac.Position.Lon + 2, // due east
             }
         );
 

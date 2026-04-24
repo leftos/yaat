@@ -40,7 +40,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
 
         var bNodes = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("B")))
-            .OrderBy(n => Math.Abs(n.Latitude - StartLat) + Math.Abs(n.Longitude - StartLon))
+            .OrderBy(n => Math.Abs(n.Position.Lat - StartLat) + Math.Abs(n.Position.Lon - StartLon))
             .Take(5)
             .ToList();
 
@@ -50,7 +50,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
         foreach (var startNode in bNodes)
         {
             output.WriteLine(
-                $"--- Start node {startNode.Id}: lat={startNode.Latitude:F6} lon={startNode.Longitude:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}] ---"
+                $"--- Start node {startNode.Id}: lat={startNode.Position.Lat:F6} lon={startNode.Position.Lon:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}] ---"
             );
 
             var log = new List<string>();
@@ -80,7 +80,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
                 if (layout.Nodes.TryGetValue(route.Segments[^1].ToNodeId, out var endNode))
                 {
                     output.WriteLine(
-                        $"  End node: lat={endNode.Latitude:F6} lon={endNode.Longitude:F6} type={endNode.Type} runwayId={endNode.RunwayId}"
+                        $"  End node: lat={endNode.Position.Lat:F6} lon={endNode.Position.Lon:F6} type={endNode.Type} runwayId={endNode.RunwayId}"
                     );
                 }
             }
@@ -91,10 +91,10 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
         // Also dump all runway hold-short nodes for runway 1L so we can see what exists
         var hs1L = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } id && id.Contains("1L")).ToList();
         output.WriteLine($"=== Runway 1L hold-short nodes in SFO layout: {hs1L.Count} ===");
-        foreach (var hs in hs1L.OrderBy(n => n.Latitude))
+        foreach (var hs in hs1L.OrderBy(n => n.Position.Lat))
         {
             output.WriteLine(
-                $"  Node {hs.Id}: lat={hs.Latitude:F6} lon={hs.Longitude:F6} runwayId={hs.RunwayId} edges=[{string.Join(",", hs.Edges.Select(e => e.TaxiwayName))}]"
+                $"  Node {hs.Id}: lat={hs.Position.Lat:F6} lon={hs.Position.Lon:F6} runwayId={hs.RunwayId} edges=[{string.Join(",", hs.Edges.Select(e => e.TaxiwayName))}]"
             );
         }
     }
@@ -129,7 +129,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
             }
 
             output.WriteLine(
-                $"--- Start node {startId}: lat={startNode.Latitude:F6} lon={startNode.Longitude:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}] ---"
+                $"--- Start node {startId}: lat={startNode.Position.Lat:F6} lon={startNode.Position.Lon:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}] ---"
             );
 
             var log = new List<string>();
@@ -159,7 +159,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
                 if (layout.Nodes.TryGetValue(route.Segments[^1].ToNodeId, out var endNode))
                 {
                     output.WriteLine(
-                        $"  End node: lat={endNode.Latitude:F6} lon={endNode.Longitude:F6} type={endNode.Type} runwayId={endNode.RunwayId}"
+                        $"  End node: lat={endNode.Position.Lat:F6} lon={endNode.Position.Lon:F6} type={endNode.Type} runwayId={endNode.RunwayId}"
                     );
                 }
 
@@ -181,10 +181,10 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
             .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } id && TaxiPathfinder.RunwayIdMatches(id, "30"))
             .ToList();
         output.WriteLine($"=== Runway 30 hold-short nodes in OAK layout: {hs30.Count} ===");
-        foreach (var hs in hs30.OrderBy(n => n.Latitude))
+        foreach (var hs in hs30.OrderBy(n => n.Position.Lat))
         {
             output.WriteLine(
-                $"  Node {hs.Id}: lat={hs.Latitude:F6} lon={hs.Longitude:F6} runwayId={hs.RunwayId} edges=[{string.Join(",", hs.Edges.Select(e => e.TaxiwayName))}]"
+                $"  Node {hs.Id}: lat={hs.Position.Lat:F6} lon={hs.Position.Lon:F6} runwayId={hs.RunwayId} edges=[{string.Join(",", hs.Edges.Select(e => e.TaxiwayName))}]"
             );
         }
     }
@@ -215,16 +215,16 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
 
         var startNode = layout.Nodes[startId];
         output.WriteLine(
-            $"Start node {startId}: lat={startNode.Latitude:F6} lon={startNode.Longitude:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
+            $"Start node {startId}: lat={startNode.Position.Lat:F6} lon={startNode.Position.Lon:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
         );
 
         // Dump M1 nodes for reference
-        var m1Nodes = layout.Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("M1"))).OrderBy(n => n.Latitude).ToList();
+        var m1Nodes = layout.Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("M1"))).OrderBy(n => n.Position.Lat).ToList();
         output.WriteLine($"\n=== SFO M1 nodes ({m1Nodes.Count}): ===");
         foreach (var mn in m1Nodes)
         {
             output.WriteLine(
-                $"  node={mn.Id} lat={mn.Latitude:F6} lon={mn.Longitude:F6} type={mn.Type} runwayId={mn.RunwayId} edges=[{string.Join(",", mn.Edges.Select(e => e.TaxiwayName))}]"
+                $"  node={mn.Id} lat={mn.Position.Lat:F6} lon={mn.Position.Lon:F6} type={mn.Type} runwayId={mn.RunwayId} edges=[{string.Join(",", mn.Edges.Select(e => e.TaxiwayName))}]"
             );
         }
 
@@ -256,7 +256,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
                 var fromNode = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
                 var toNode = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
                 output.WriteLine(
-                    $"    {seg.TaxiwayName}: {seg.FromNodeId}({fromNode?.Latitude:F6},{fromNode?.Longitude:F6}) → {seg.ToNodeId}({toNode?.Latitude:F6},{toNode?.Longitude:F6})"
+                    $"    {seg.TaxiwayName}: {seg.FromNodeId}({fromNode?.Position.Lat:F6},{fromNode?.Position.Lon:F6}) → {seg.ToNodeId}({toNode?.Position.Lat:F6},{toNode?.Position.Lon:F6})"
                 );
             }
         }
@@ -294,7 +294,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
                 var fromNode = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
                 var toNode = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
                 output.WriteLine(
-                    $"    {seg.TaxiwayName}: {seg.FromNodeId}({fromNode?.Latitude:F6},{fromNode?.Longitude:F6}) → {seg.ToNodeId}({toNode?.Latitude:F6},{toNode?.Longitude:F6})"
+                    $"    {seg.TaxiwayName}: {seg.FromNodeId}({fromNode?.Position.Lat:F6},{fromNode?.Position.Lon:F6}) → {seg.ToNodeId}({toNode?.Position.Lat:F6},{toNode?.Position.Lon:F6})"
                 );
             }
         }
@@ -319,12 +319,12 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
         );
         Assert.NotNull(parking);
 
-        var startNode = layout.FindNearestNode(parking.Latitude, parking.Longitude);
+        var startNode = layout.FindNearestNode(parking.Position);
         Assert.NotNull(startNode);
 
         output.WriteLine($"=== OAK D/C from NEW7 — start node {startNode.Id} ===");
         output.WriteLine(
-            $"  lat={startNode.Latitude:F6} lon={startNode.Longitude:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
+            $"  lat={startNode.Position.Lat:F6} lon={startNode.Position.Lon:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
         );
         output.WriteLine("");
 

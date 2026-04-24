@@ -71,8 +71,7 @@ public class ProcedureLoadingTests
         {
             Callsign = "UAL123",
             AircraftType = "B738",
-            Latitude = 37.619,
-            Longitude = -122.375,
+            Position = new LatLon(37.619, -122.375),
             TrueHeading = new TrueHeading(280),
             TrueTrack = new TrueHeading(280),
             Altitude = 0,
@@ -240,8 +239,7 @@ public class ProcedureLoadingTests
     public void Jarr_WithCifp_LoadsConstrainedTargets()
     {
         var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
-        aircraft.Latitude = 38.5;
-        aircraft.Longitude = -123.5;
+        aircraft.Position = new LatLon(38.5, -123.5);
         aircraft.Altitude = 20000;
         aircraft.TrueHeading = new TrueHeading(150);
         aircraft.TrueTrack = new TrueHeading(150);
@@ -865,8 +863,7 @@ public class ProcedureLoadingTests
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
-        aircraft.Latitude = 38.5;
-        aircraft.Longitude = -123.5;
+        aircraft.Position = new LatLon(38.5, -123.5);
         aircraft.Altitude = 20000;
         aircraft.TrueHeading = new TrueHeading(150);
         aircraft.TrueTrack = new TrueHeading(150);

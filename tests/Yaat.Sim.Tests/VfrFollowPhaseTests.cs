@@ -53,8 +53,7 @@ public class VfrFollowPhaseTests : IDisposable
         {
             Callsign = callsign,
             AircraftType = type,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
@@ -489,7 +488,7 @@ public class VfrFollowPhaseTests : IDisposable
         bool cancelled = false;
         for (int i = 0; i < 10; i++)
         {
-            lead.Longitude += 0.1; // ~5 nm per tick at this latitude
+            lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon + 0.1); // ~5 nm per tick at this latitude
             if (phase.OnTick(ctx))
             {
                 cancelled = true;

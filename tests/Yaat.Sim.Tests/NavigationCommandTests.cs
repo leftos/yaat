@@ -27,8 +27,7 @@ public class NavigationCommandTests : IDisposable
             AircraftType = "B738",
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
         };
     }
 
@@ -1251,8 +1250,7 @@ public class NavigationCommandTests : IDisposable
         aircraft.IndicatedAirspeed = 250;
 
         // Place SUNOL very close so it sequences immediately
-        aircraft.Latitude = 37.6;
-        aircraft.Longitude = -121.9001;
+        aircraft.Position = new LatLon(37.6, -121.9001);
 
         // Add a following fix so the route doesn't end at SUNOL
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);

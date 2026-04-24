@@ -66,8 +66,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         {
             Callsign = "LUTEST",
             AircraftType = "B738",
-            Latitude = acLat,
-            Longitude = acLon,
+            Position = new LatLon(acLat, acLon),
             TrueHeading = new TrueHeading(acHeadingDeg),
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -123,10 +122,8 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         var crossX =
             Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
-                    aircraft.Latitude,
-                    aircraft.Longitude,
-                    ctx.Runway!.ThresholdLatitude,
-                    ctx.Runway.ThresholdLongitude,
+                    aircraft.Position,
+                    new LatLon(ctx.Runway!.ThresholdLatitude, ctx.Runway.ThresholdLongitude),
                     ctx.Runway.TrueHeading
                 )
             ) * GeoMath.FeetPerNm;

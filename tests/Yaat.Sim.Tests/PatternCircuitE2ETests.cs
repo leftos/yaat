@@ -32,8 +32,7 @@ public class PatternCircuitE2ETests : IDisposable
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = rwy.ThresholdLatitude,
-            Longitude = rwy.ThresholdLongitude,
+            Position = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
@@ -150,8 +149,7 @@ public class PatternCircuitE2ETests : IDisposable
         var rwy = DefaultRunway();
         var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null);
         var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
-        ac.Latitude = wp.DownwindAbeamLat;
-        ac.Longitude = wp.DownwindAbeamLon;
+        ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         var phases = PatternBuilder.BuildCircuit(
             rwy,
@@ -192,8 +190,7 @@ public class PatternCircuitE2ETests : IDisposable
         var rwy = DefaultRunway();
         var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null);
         var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
-        ac.Latitude = wp.DownwindAbeamLat;
-        ac.Longitude = wp.DownwindAbeamLon;
+        ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // Build a touch-and-go circuit from downwind
         var phases = PatternBuilder.BuildCircuit(
@@ -263,9 +260,8 @@ public class PatternCircuitE2ETests : IDisposable
         var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 800, heading: rwy.TrueHeading.Degrees, ias: 150);
 
         // Set up on final (close to runway)
-        var (approachLat, approachLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 3.0);
-        ac.Latitude = approachLat;
-        ac.Longitude = approachLon;
+        var approachPos = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), 3.0);
+        ac.Position = approachPos;
 
         // Build circuit from final entry
         var phases = PatternBuilder.BuildCircuit(

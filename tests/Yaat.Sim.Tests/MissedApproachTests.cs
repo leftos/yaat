@@ -97,8 +97,7 @@ public class MissedApproachTests
             AircraftType = "B738",
             TrueHeading = new TrueHeading(280),
             Altitude = 200,
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             Destination = "KTEST",
         };
 

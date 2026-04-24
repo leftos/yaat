@@ -37,8 +37,7 @@ public class TurnAnticipationTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = lat,
-            Longitude = lon,
+            Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
@@ -110,12 +109,11 @@ public class TurnAnticipationTests
 
         // Move aircraft close to WP1 but beyond NavArrivalNm (0.5nm)
         // Anticipation for 250kts/2.5deg is ~1.59nm, so place at ~1.0nm
-        var pos = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 4.0);
-        aircraft.Latitude = pos.Lat;
-        aircraft.Longitude = pos.Lon;
+        var pos = GeoMath.ProjectPoint(new LatLon(37.0, -122.0), new TrueHeading(0), 4.0);
+        aircraft.Position = pos;
 
         // Verify aircraft is close enough for anticipation but not 0.5nm
-        double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, wp1.Lat, wp1.Lon);
+        double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(wp1.Lat, wp1.Lon));
         Assert.InRange(dist, 0.8, 1.3);
 
         // Tick navigation — should enter anticipation zone
@@ -206,9 +204,8 @@ public class TurnAnticipationTests
         );
 
         // Place aircraft 0.8nm from WP1 — beyond NavArrivalNm but within potential anticipation range
-        var pos = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 1.2);
-        aircraft.Latitude = pos.Lat;
-        aircraft.Longitude = pos.Lon;
+        var pos = GeoMath.ProjectPoint(new LatLon(37.0, -122.0), new TrueHeading(0), 1.2);
+        aircraft.Position = pos;
 
         FlightPhysics.Update(aircraft, 1.0);
 

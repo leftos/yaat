@@ -11,8 +11,7 @@ public class ProcedureConstraintTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(360),
             TrueTrack = new TrueHeading(360),
             Altitude = altitude,
@@ -289,8 +288,7 @@ public class ProcedureConstraintTests
         aircraft.StarViaFloor = 5000;
 
         // Place aircraft near the last fix so it will be reached
-        aircraft.Latitude = 37.5;
-        aircraft.Longitude = -122.0;
+        aircraft.Position = new LatLon(37.5, -122.0);
 
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
@@ -320,8 +318,7 @@ public class ProcedureConstraintTests
         aircraft.ActiveSidId = "PORTE3";
 
         // Place aircraft near the first fix
-        aircraft.Latitude = 37.1;
-        aircraft.Longitude = -122.0;
+        aircraft.Position = new LatLon(37.1, -122.0);
 
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget

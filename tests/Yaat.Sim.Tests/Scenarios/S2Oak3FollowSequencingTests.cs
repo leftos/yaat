@@ -141,7 +141,7 @@ public class S2Oak3FollowSequencingTests
         var phase = (VfrFollowPhase)follower.Phases!.CurrentPhase!;
         phase.OnTick(tickCtx);
 
-        double expectedBearing = GeoMath.BearingTo(follower.Latitude, follower.Longitude, lead.Latitude, lead.Longitude);
+        double expectedBearing = GeoMath.BearingTo(follower.Position, lead.Position);
         Assert.NotNull(follower.Targets.TargetTrueHeading);
         double actualBearing = follower.Targets.TargetTrueHeading!.Value.Degrees;
         double diff = GeoMath.AbsBearingDifference(expectedBearing, actualBearing);

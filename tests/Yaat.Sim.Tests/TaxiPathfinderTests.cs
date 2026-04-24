@@ -1516,7 +1516,7 @@ public class TaxiPathfinderTests
         const double StartLon = -122.383669;
         var startNode = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("B")))
-            .OrderBy(n => Math.Abs(n.Latitude - StartLat) + Math.Abs(n.Longitude - StartLon))
+            .OrderBy(n => Math.Abs(n.Position.Lat - StartLat) + Math.Abs(n.Position.Lon - StartLon))
             .First();
 
         var route = TaxiPathfinder.ResolveExplicitPath(
@@ -1746,7 +1746,7 @@ public class TaxiPathfinderTests
         var exitNode = layout.FindNearestExit(acLat, acLon, new TrueHeading(rwyHeading), null);
         Assert.NotNull(exitNode);
 
-        double distToExit = GeoMath.DistanceNm(acLat, acLon, exitNode.Latitude, exitNode.Longitude);
+        double distToExit = GeoMath.DistanceNm(new LatLon(acLat, acLon), exitNode.Position);
         bool hasRunwayEdge = exitNode.Edges.Any(e => e.IsRunwayCenterline);
         string exitTaxiway = layout.GetExitTaxiwayName(exitNode) ?? "?";
         var edgeNames = string.Join(", ", exitNode.Edges.Select(e => e.TaxiwayName));
@@ -1754,7 +1754,7 @@ public class TaxiPathfinderTests
         // Diagnostic output
         var output =
             $"Exit node {exitNode.Id}: type={exitNode.Type}, taxiway={exitTaxiway}, "
-            + $"pos=({exitNode.Latitude:F6},{exitNode.Longitude:F6}), "
+            + $"pos=({exitNode.Position.Lat:F6},{exitNode.Position.Lon:F6}), "
             + $"dist={distToExit:F4}nm ({distToExit * 6076:F0}ft), "
             + $"hasRwyEdge={hasRunwayEdge}, edges=[{edgeNames}]";
 
@@ -1767,7 +1767,7 @@ public class TaxiPathfinderTests
         var rwyFeat = new GeoJsonParser.RunwayFeature(rwy28R.Name, rwy28R.Coordinates.ToList());
         var rwyId = RunwayIdentifier.Parse(rwy28R.Name);
         var rect = RunwayCrossingDetector.BuildRunwayRectangle(rwyFeat, rwy28R.WidthFt, rwyId);
-        bool isOnRunway = RunwayCrossingDetector.IsOnRunway(exitNode.Latitude, exitNode.Longitude, rect);
+        bool isOnRunway = RunwayCrossingDetector.IsOnRunway(exitNode.Position, rect);
         Assert.False(
             isOnRunway,
             $"Exit node is geometrically ON the runway rectangle. RunwayExitPhase would stop the aircraft ON the runway. {output}"

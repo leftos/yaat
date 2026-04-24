@@ -171,14 +171,14 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
 
-        var edge = MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude));
+        var edge = MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Position, offNode.Position));
         WireEdge(layout, edge);
         layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
-        coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
-        coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
+        coordIndex.Add(onNode.Position, 1);
+        coordIndex.Add(offNode.Position, 2);
 
         RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
@@ -207,13 +207,13 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Position, offNode.Position)));
         layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
-        coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
-        coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
+        coordIndex.Add(onNode.Position, 1);
+        coordIndex.Add(offNode.Position, 2);
 
         RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
@@ -244,13 +244,13 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Position, offNode.Position)));
         layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
-        coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
-        coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
+        coordIndex.Add(onNode.Position, 1);
+        coordIndex.Add(offNode.Position, 2);
 
         RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
@@ -275,13 +275,13 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Position, offNode.Position)));
         layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
-        coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
-        coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
+        coordIndex.Add(onNode.Position, 1);
+        coordIndex.Add(offNode.Position, 2);
 
         RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
@@ -312,20 +312,20 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Position, offNode.Position)));
         layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
-        coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
-        coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
+        coordIndex.Add(onNode.Position, 1);
+        coordIndex.Add(offNode.Position, 2);
 
         RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         var hsNode = layout.Nodes[100];
         // HS node should be between on-node and off-node (latitude should be same since E-W edge,
         // longitude should be between the two)
-        double hsDistFromCenter = GeoMath.DistanceNm(midLat, rwy.Coords[0].Lon, hsNode.Latitude, hsNode.Longitude) * FeetPerNm;
+        double hsDistFromCenter = GeoMath.DistanceNm(new LatLon(midLat, rwy.Coords[0].Lon), hsNode.Position) * FeetPerNm;
         // Should be near the hold-short distance (250ft for 150ft-wide runway per FAA Table 3-2)
         Assert.InRange(hsDistFromCenter, 200.0, 300.0);
     }
@@ -434,7 +434,7 @@ public class RunwayCrossingDetectorTests
         // E only crosses 28L once.
         var hs = eHsOnRunway28L.First();
         double crossTrackFt =
-            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(hs.Latitude, hs.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)) * FeetPerNm;
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(hs.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * FeetPerNm;
 
         // Real-world measurement: 260 ft from 28L centerline to E hold-short bar.
         // Tolerance 240-285 ft: FAA Table 3-2 gives 280 ft for 200 ft wide CAT III

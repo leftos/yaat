@@ -73,8 +73,7 @@ public class RngDeterminismTests
         {
             Callsign = "AAL100",
             AircraftType = "B738",
-            Latitude = 37.8,
-            Longitude = -122.3,
+            Position = new LatLon(37.8, -122.3),
             Altitude = 5000,
             TrueHeading = new TrueHeading(270),
             IndicatedAirspeed = 250,
@@ -91,8 +90,7 @@ public class RngDeterminismTests
         {
             Callsign = "AAL100",
             AircraftType = "B738",
-            Latitude = 37.8,
-            Longitude = -122.3,
+            Position = new LatLon(37.8, -122.3),
             Altitude = 5000,
             TrueHeading = new TrueHeading(270),
             IndicatedAirspeed = 250,
@@ -114,8 +112,8 @@ public class RngDeterminismTests
             world2.Tick(1.0, null);
         }
 
-        Assert.Equal(ac1.Latitude, ac2.Latitude, 10);
-        Assert.Equal(ac1.Longitude, ac2.Longitude, 10);
+        Assert.Equal(ac1.Position.Lat, ac2.Position.Lat, 10);
+        Assert.Equal(ac1.Position.Lon, ac2.Position.Lon, 10);
         Assert.Equal(ac1.Altitude, ac2.Altitude, 4);
         Assert.Equal(ac1.TrueHeading.Degrees, ac2.TrueHeading.Degrees, 4);
     }

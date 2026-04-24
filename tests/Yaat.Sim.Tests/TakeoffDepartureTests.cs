@@ -37,8 +37,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHeading),
             Altitude = FieldElevation,
             Phases = phaseList,
@@ -276,8 +275,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 500, // already airborne, past takeoff phase
             IndicatedAirspeed = 90,
@@ -379,8 +377,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(RunwayHeading),
             Altitude = FieldElevation,
             Phases = phaseList,
@@ -462,8 +459,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightRules = "VFR",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(RunwayHeading),
             Altitude = FieldElevation,
             Phases = phaseList,
@@ -538,8 +534,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightRules = "VFR",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400, // post-takeoff
             Phases = phaseList,
@@ -575,9 +570,8 @@ public class TakeoffDepartureTests
         // Move aircraft to 700ft AGL AND past the DER
         aircraft.Altitude = FieldElevation + 700;
         // Project aircraft just past the DER along runway heading
-        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.1);
-        aircraft.Latitude = pastDer.Lat;
-        aircraft.Longitude = pastDer.Lon;
+        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.1);
+        aircraft.Position = pastDer;
 
         climbPhase.OnTick(ctx);
 
@@ -611,8 +605,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightRules = "VFR",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400,
             Phases = phaseList,
@@ -647,9 +640,8 @@ public class TakeoffDepartureTests
 
         // Case 2: past DER but altitude too low
         aircraft.Altitude = FieldElevation + 400;
-        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.6);
-        aircraft.Latitude = pastDer.Lat;
-        aircraft.Longitude = pastDer.Lon;
+        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
+        aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
         Assert.True(
             (targets.TargetTrueHeading is null) || (targets.TargetTrueHeading.Value.Degrees == runwayHdg),
@@ -694,8 +686,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightRules = "VFR",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400,
             Phases = phaseList,
@@ -726,9 +717,8 @@ public class TakeoffDepartureTests
 
         // Move past DER + altitude
         aircraft.Altitude = FieldElevation + 700;
-        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.6);
-        aircraft.Latitude = pastDer.Lat;
-        aircraft.Longitude = pastDer.Lon;
+        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
+        aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
 
         // Nav route should now be loaded
@@ -771,8 +761,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightRules = "VFR",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400,
             Phases = phaseList,
@@ -803,9 +792,8 @@ public class TakeoffDepartureTests
 
         // Move past DER + altitude
         aircraft.Altitude = FieldElevation + 700;
-        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.6);
-        aircraft.Latitude = pastDer.Lat;
-        aircraft.Longitude = pastDer.Lon;
+        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
+        aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
 
         // Nav route should now be loaded
@@ -836,8 +824,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightRules = "VFR",
-            Latitude = 37.0,
-            Longitude = -122.0,
+            Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(280),
             Altitude = 400,
             Phases = phaseList,
@@ -883,7 +870,7 @@ public class TakeoffDepartureTests
         var runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
 
         // Create waypoints with the crosswind turn point at the DER
-        var crosswindTurn = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.3);
+        var crosswindTurn = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.3);
         var waypoints = new PatternWaypoints
         {
             DepartureEndLat = runway.EndLatitude,
@@ -915,8 +902,7 @@ public class TakeoffDepartureTests
             AircraftType = "C182",
             FlightRules = "VFR",
             // Position AT the crosswind turn point
-            Latitude = crosswindTurn.Lat,
-            Longitude = crosswindTurn.Lon,
+            Position = crosswindTurn,
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = 500, // 500ft MSL — below threshold of 700ft (1000 - 300)
             Phases = phaseList,
@@ -949,7 +935,7 @@ public class TakeoffDepartureTests
         double patternAlt = 1000;
         var runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
 
-        var crosswindTurn = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.3);
+        var crosswindTurn = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.3);
         var waypoints = new PatternWaypoints
         {
             DepartureEndLat = runway.EndLatitude,
@@ -980,8 +966,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightRules = "VFR",
-            Latitude = crosswindTurn.Lat,
-            Longitude = crosswindTurn.Lon,
+            Position = crosswindTurn,
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = 750, // 750ft MSL — above threshold of 700ft (1000 - 300)
             Phases = phaseList,
@@ -1014,8 +999,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            Latitude = runway.ThresholdLatitude,
-            Longitude = runway.ThresholdLongitude,
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(RunwayHeading),
             Altitude = FieldElevation + 400, // post-takeoff
             Phases = phaseList,
