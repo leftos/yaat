@@ -301,6 +301,9 @@ public class AircraftState
     /// <summary>Altitude manually entered by controller via ERAM commands.</summary>
     public int? ControllerEnteredAltitude { get; set; }
 
+    /// <summary>Active ERAM pointouts.</summary>
+    public List<EramPointoutState> EramPointouts { get; set; } = [];
+
     // Clearance (departure clearance from CRC)
     public string? ClearanceExpect { get; set; }
     public string? ClearanceSid { get; set; }
@@ -426,6 +429,29 @@ public class AircraftState
             FollowingCallsign = dto.FollowingCallsign,
             VoiceType = dto.VoiceType,
             TdlsDumped = dto.TdlsDumped,
+            IsDwellLocked = dto.IsDwellLocked,
+            IsVci = dto.IsVci,
+            EramLeaderDirection = dto.EramLeaderDirection,
+            EramLeaderLength = dto.EramLeaderLength,
+            EramInterimAltitude = dto.EramInterimAltitude,
+            LocalInterimAltitude = dto.LocalInterimAltitude,
+            ProcedureAltitude = dto.ProcedureAltitude,
+            ControllerEnteredAltitude = dto.ControllerEnteredAltitude,
+            EramPointouts = dto.EramPointouts is null
+                ? []
+                : dto
+                    .EramPointouts.Select(p => new EramPointoutState
+                    {
+                        OriginatingFacility = p.OriginatingFacility,
+                        OriginatingSector = p.OriginatingSector,
+                        ReceivingFacility = p.ReceivingFacility,
+                        ReceivingSector = p.ReceivingSector,
+                        IsAcknowledged = p.IsAcknowledged,
+                        IsRecipientSuppressed = p.IsRecipientSuppressed,
+                        IsRSideCleared = p.IsRSideCleared,
+                        IsDSideCleared = p.IsDSideCleared,
+                    })
+                    .ToList(),
             HoldAnnotationFix = dto.HoldAnnotationFix,
             HoldAnnotationDirection = dto.HoldAnnotationDirection,
             HoldAnnotationTurns = dto.HoldAnnotationTurns,
@@ -572,6 +598,30 @@ public class AircraftState
             FollowingCallsign = FollowingCallsign,
             VoiceType = VoiceType,
             TdlsDumped = TdlsDumped,
+            IsDwellLocked = IsDwellLocked,
+            IsVci = IsVci,
+            EramLeaderDirection = EramLeaderDirection,
+            EramLeaderLength = EramLeaderLength,
+            EramInterimAltitude = EramInterimAltitude,
+            LocalInterimAltitude = LocalInterimAltitude,
+            ProcedureAltitude = ProcedureAltitude,
+            ControllerEnteredAltitude = ControllerEnteredAltitude,
+            EramPointouts =
+                EramPointouts.Count > 0
+                    ? EramPointouts
+                        .Select(p => new EramPointoutStateDto
+                        {
+                            OriginatingFacility = p.OriginatingFacility,
+                            OriginatingSector = p.OriginatingSector,
+                            ReceivingFacility = p.ReceivingFacility,
+                            ReceivingSector = p.ReceivingSector,
+                            IsAcknowledged = p.IsAcknowledged,
+                            IsRecipientSuppressed = p.IsRecipientSuppressed,
+                            IsRSideCleared = p.IsRSideCleared,
+                            IsDSideCleared = p.IsDSideCleared,
+                        })
+                        .ToList()
+                    : null,
             HoldAnnotationFix = HoldAnnotationFix,
             HoldAnnotationDirection = HoldAnnotationDirection,
             HoldAnnotationTurns = HoldAnnotationTurns,

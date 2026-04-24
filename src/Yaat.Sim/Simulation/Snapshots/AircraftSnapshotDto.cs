@@ -101,6 +101,17 @@ public sealed class AircraftSnapshotDto
     public required int VoiceType { get; init; }
     public required bool TdlsDumped { get; init; }
 
+    // ERAM per-track state (CRC display)
+    public required bool IsDwellLocked { get; init; }
+    public required bool IsVci { get; init; }
+    public int? EramLeaderDirection { get; init; }
+    public int? EramLeaderLength { get; init; }
+    public int? EramInterimAltitude { get; init; }
+    public int? LocalInterimAltitude { get; init; }
+    public int? ProcedureAltitude { get; init; }
+    public int? ControllerEnteredAltitude { get; init; }
+    public List<EramPointoutStateDto>? EramPointouts { get; init; }
+
     // Hold annotations
     public string? HoldAnnotationFix { get; init; }
     public required int HoldAnnotationDirection { get; init; }
@@ -175,6 +186,18 @@ public sealed class PointoutDto
     public required TcpDto Recipient { get; init; }
     public required TcpDto Sender { get; init; }
     public required int Status { get; init; }
+}
+
+public sealed class EramPointoutStateDto
+{
+    public required string OriginatingFacility { get; init; }
+    public required string OriginatingSector { get; init; }
+    public required string ReceivingFacility { get; init; }
+    public required string ReceivingSector { get; init; }
+    public required bool IsAcknowledged { get; init; }
+    public required bool IsRecipientSuppressed { get; init; }
+    public required bool IsRSideCleared { get; init; }
+    public required bool IsDSideCleared { get; init; }
 }
 
 public sealed class SharedStateDto

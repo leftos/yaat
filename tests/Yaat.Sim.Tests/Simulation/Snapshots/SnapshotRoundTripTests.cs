@@ -209,6 +209,8 @@ public class SnapshotRoundTripTests
                     HasReportedTrafficInSight = false,
                     VoiceType = 1,
                     TdlsDumped = false,
+                    IsDwellLocked = false,
+                    IsVci = false,
                     HoldAnnotationDirection = 0,
                     HoldAnnotationTurns = 0,
                     HoldAnnotationLegLengthInNm = false,
