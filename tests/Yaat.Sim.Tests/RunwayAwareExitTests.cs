@@ -52,7 +52,7 @@ public class RunwayAwareExitTests
 
         Assert.True(
             distTo28L <= distTo28R,
-            $"Exit node {exitNode.Id} at ({exitNode.Latitude:F6},{exitNode.Longitude:F6}) is closer to 28R ({distTo28R:F4}nm) than 28L ({distTo28L:F4}nm)"
+            $"Exit node {exitNode.Id} at ({exitNode.Position.Lat:F6},{exitNode.Position.Lon:F6}) is closer to 28R ({distTo28R:F4}nm) than 28L ({distTo28L:F4}nm)"
         );
     }
 
@@ -86,7 +86,7 @@ public class RunwayAwareExitTests
 
         Assert.True(
             distTo28R <= distTo28L,
-            $"Exit node {exitNode.Id} at ({exitNode.Latitude:F6},{exitNode.Longitude:F6}) is closer to 28L ({distTo28L:F4}nm) than 28R ({distTo28R:F4}nm)"
+            $"Exit node {exitNode.Id} at ({exitNode.Position.Lat:F6},{exitNode.Position.Lon:F6}) is closer to 28L ({distTo28L:F4}nm) than 28R ({distTo28R:F4}nm)"
         );
     }
 
@@ -139,7 +139,7 @@ public class RunwayAwareExitTests
 
         // The exit should be to the right (north) of the runway heading.
         // Right of heading 280 = positive signed angle.
-        double bearing = GeoMath.BearingTo(midLat, midLon, exitNode.Latitude, exitNode.Longitude);
+        double bearing = GeoMath.BearingTo(new LatLon(midLat, midLon), exitNode.Position);
         double relative = new TrueHeading(heading).SignedAngleTo(new TrueHeading(bearing));
 
         Assert.True(relative > 0, $"Exit node {exitNode.Id} is to the LEFT of 28R heading (relative={relative:F1}°), expected RIGHT toward parking");
@@ -180,7 +180,7 @@ public class RunwayAwareExitTests
 
         for (int i = 0; i < coords.Count - 1; i++)
         {
-            double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, coords[i].Lat, coords[i].Lon);
+            double dist = GeoMath.DistanceNm(node.Position, new LatLon(coords[i].Lat, coords[i].Lon));
             if (dist < minDist)
             {
                 minDist = dist;
@@ -189,7 +189,7 @@ public class RunwayAwareExitTests
 
         if (coords.Count > 0)
         {
-            double lastDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, coords[^1].Lat, coords[^1].Lon);
+            double lastDist = GeoMath.DistanceNm(node.Position, new LatLon(coords[^1].Lat, coords[^1].Lon));
             if (lastDist < minDist)
             {
                 minDist = lastDist;
