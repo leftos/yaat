@@ -807,7 +807,10 @@ public partial class MainViewModel : ObservableObject
         try
         {
             IsDownloadingUpdate = true;
-            await _updateService.DownloadUpdateAsync(_pendingUpdate, progress => UpdateProgress = progress);
+            await _updateService.DownloadUpdateAsync(
+                _pendingUpdate,
+                progress => Avalonia.Threading.Dispatcher.UIThread.Post(() => UpdateProgress = progress)
+            );
             _updateService.ApplyUpdateAndRestart(_pendingUpdate);
         }
         catch (Exception ex)

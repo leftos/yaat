@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2-alpha
+
+### Fixed
+- "Update Now" no longer fails with a "Call from invalid thread" exception. The Velopack download-progress callback is now marshalled to the UI thread before updating the progress property.
+
 ## 0.1.1-alpha
 
 ### Added
