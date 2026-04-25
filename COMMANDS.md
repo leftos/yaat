@@ -571,7 +571,7 @@ The `GA` altitude argument uses the same format as CM/DM (see [Altitude Argument
 | `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
 | `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern) |
 | `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
-| `EXT` | Extend current pattern leg (upwind, crosswind, downwind, or base) |
+| `EXT` | Extend current pattern leg (upwind, crosswind, or downwind — not base) |
 | `ELC` / `ERC` | Enter left/right crosswind |
 | `ELC 28R` / `ERC 28R` | Enter left/right crosswind, assign runway |
 | `SA` / `MSA` | Make short approach (cut base turn short) |

@@ -284,19 +284,6 @@ public class PatternPhaseTests
     }
 
     [Fact]
-    public void Base_Extended_NeverCompletes()
-    {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: wp.ThresholdLat, lon: wp.ThresholdLon, altitude: wp.PatternAltitude);
-        var phase = new BasePhase { Waypoints = wp, IsExtended = true };
-        var ctx = Ctx(ac);
-
-        phase.OnStart(ctx);
-
-        Assert.False(phase.OnTick(ctx));
-    }
-
-    [Fact]
     public void Base_AcceptsClearedToLand()
     {
         var phase = new BasePhase();

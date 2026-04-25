@@ -45,7 +45,9 @@ internal static class GoAroundHelper
         }
         else if (isPattern)
         {
-            targetAlt = (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category));
+            // AIM 4-3-2: hand off to UpwindPhase 300ft below pattern altitude so the
+            // crosswind turn becomes available at the same threshold as a VFR departure.
+            targetAlt = (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - 300.0);
         }
         else
         {

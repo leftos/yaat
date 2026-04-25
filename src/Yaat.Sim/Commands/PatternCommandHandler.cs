@@ -478,13 +478,22 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryExtendPattern(AircraftState aircraft)
     {
-        if (aircraft.Phases?.CurrentPhase is not DownwindPhase dw)
+        switch (aircraft.Phases?.CurrentPhase)
         {
-            return new CommandResult(false, "Extend applies on downwind only");
+            case DownwindPhase dw:
+                dw.IsExtended = true;
+                return CommandDispatcher.Ok("Extend downwind");
+            case UpwindPhase uw:
+                uw.IsExtended = true;
+                return CommandDispatcher.Ok("Extend upwind");
+            case CrosswindPhase cw:
+                cw.IsExtended = true;
+                return CommandDispatcher.Ok("Extend crosswind");
+            case BasePhase:
+                return new CommandResult(false, "Extend not allowed on base leg");
+            default:
+                return new CommandResult(false, "Extend applies on upwind, crosswind, or downwind");
         }
-
-        dw.IsExtended = true;
-        return CommandDispatcher.Ok("Extend downwind");
     }
 
     internal static CommandResult TryMakeShortApproach(AircraftState aircraft)
@@ -1067,9 +1076,11 @@ internal static class PatternCommandHandler
         }
         else if (gaTargetAlt is null && isGaPattern)
         {
+            // AIM 4-3-2: hand off to UpwindPhase 300ft below pattern altitude so the
+            // crosswind turn becomes available at the same threshold as a VFR departure.
             double fieldElev = gaCtx.Runway?.ElevationFt ?? 0;
             double patAgl = CategoryPerformance.PatternAltitudeAgl(gaCtx.Category);
-            gaTargetAlt = (int)(fieldElev + patAgl);
+            gaTargetAlt = (int)(fieldElev + patAgl - 300.0);
         }
 
         var goAround = new GoAroundPhase

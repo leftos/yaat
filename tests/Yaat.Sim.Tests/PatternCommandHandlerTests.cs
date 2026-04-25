@@ -162,17 +162,63 @@ public class PatternCommandHandlerTests
     }
 
     [Fact]
-    public void TryExtendPattern_NotOnDownwind_Fails()
+    public void TryExtendPattern_OnUpwind_SetsExtended()
     {
         var ac = MakeAircraft();
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        var upwind = new UpwindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
-        ac.Phases.Add(new UpwindPhase());
+        ac.Phases.Add(upwind);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryExtendPattern(ac);
+
+        Assert.True(result.Success);
+        Assert.True(upwind.IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_OnCrosswind_SetsExtended()
+    {
+        var ac = MakeAircraft();
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        var crosswind = new CrosswindPhase { Waypoints = wp };
+        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
+        ac.Phases.Add(crosswind);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryExtendPattern(ac);
+
+        Assert.True(result.Success);
+        Assert.True(crosswind.IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_OnBase_Fails()
+    {
+        var ac = MakeAircraft();
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
+        ac.Phases.Add(new BasePhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
         var result = PatternCommandHandler.TryExtendPattern(ac);
 
         Assert.False(result.Success);
-        Assert.Contains("downwind only", result.Message!);
+        Assert.Contains("base", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_NotInPattern_Fails()
+    {
+        var ac = MakeAircraft();
+        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
+        ac.Phases.Add(new InitialClimbPhase());
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryExtendPattern(ac);
+
+        Assert.False(result.Success);
     }
 
     // -------------------------------------------------------------------------

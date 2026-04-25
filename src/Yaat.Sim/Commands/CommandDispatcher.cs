@@ -242,7 +242,7 @@ public static class CommandDispatcher
                 or TurnCrosswindCommand
                 or TurnDownwindCommand
                 or TurnBaseCommand
-                or ExtendDownwindCommand
+                or ExtendPatternCommand
                 or MakeShortApproachCommand
                 or MakeNormalApproachCommand
                 or MakeLeft360Command
@@ -942,7 +942,7 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryPatternTurnTo<CrosswindPhase>(aircraft, "downwind");
             case TurnBaseCommand:
                 return PatternCommandHandler.TryPatternTurnBase(aircraft);
-            case ExtendDownwindCommand:
+            case ExtendPatternCommand:
                 return PatternCommandHandler.TryExtendPattern(aircraft);
             case MakeShortApproachCommand:
                 return PatternCommandHandler.TryMakeShortApproach(aircraft);

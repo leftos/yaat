@@ -616,7 +616,6 @@ public sealed class BasePhaseDto : PhaseDto
 {
     public PatternWaypointsDto? Waypoints { get; init; }
     public double? FinalDistanceNm { get; init; }
-    public required bool IsExtended { get; init; }
     public required double ThresholdLat { get; init; }
     public required double ThresholdLon { get; init; }
     public required double FinalHeadingDeg { get; init; }

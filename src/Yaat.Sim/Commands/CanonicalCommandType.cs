@@ -53,7 +53,7 @@ public enum CanonicalCommandType
     TurnCrosswind,
     TurnDownwind,
     TurnBase,
-    ExtendDownwind,
+    ExtendPattern,
     MakeShortApproach,
     MakeLeft360,
     MakeRight360,

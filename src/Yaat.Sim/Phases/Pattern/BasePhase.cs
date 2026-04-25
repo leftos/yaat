@@ -27,12 +27,6 @@ public sealed class BasePhase : Phase
     /// </summary>
     public double? FinalDistanceNm { get; set; }
 
-    /// <summary>
-    /// When true, the aircraft continues on the current heading past the turn point
-    /// until a turn-final command or another EXT-clearing command is issued.
-    /// </summary>
-    public bool IsExtended { get; set; }
-
     public override string Name => "Base";
     public override bool ManagesSpeed => true;
 
@@ -79,11 +73,10 @@ public sealed class BasePhase : Phase
         ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
 
         Log.LogDebug(
-            "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft, extended={Ext}",
+            "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
             ctx.Aircraft.Callsign,
             Waypoints.BaseHeading.Degrees,
-            ctx.Aircraft.Altitude,
-            IsExtended
+            ctx.Aircraft.Altitude
         );
     }
 
@@ -100,11 +93,6 @@ public sealed class BasePhase : Phase
             {
                 ctx.Targets.TargetSpeed = adjusted.Value;
             }
-        }
-
-        if (IsExtended)
-        {
-            return false;
         }
 
         double crossTrack = Math.Abs(
@@ -155,7 +143,6 @@ public sealed class BasePhase : Phase
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
             Waypoints = Waypoints?.ToSnapshot(),
             FinalDistanceNm = FinalDistanceNm,
-            IsExtended = IsExtended,
             ThresholdLat = _thresholdLat,
             ThresholdLon = _thresholdLon,
             FinalHeadingDeg = _finalHeading.Degrees,
@@ -167,7 +154,6 @@ public sealed class BasePhase : Phase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             FinalDistanceNm = dto.FinalDistanceNm,
-            IsExtended = dto.IsExtended,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

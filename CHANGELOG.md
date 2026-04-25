@@ -14,8 +14,10 @@
 - RTIS soft-fail now surfaces the specific visual-acquisition reason (distance, cloud layer, hemisphere, bank) to the RPO while keeping the pilot readback diagnostic-free. Traffic-in-sight readbacks are promoted from gray notifications to orange warnings.
 - README, INSTALL, GETTING_STARTED, and CONTRIBUTING lead with the prebuilt installer path instead of a from-source build.
 - Wire format and recording bundles now use a single `Position {Lat, Lon}` field in place of separate `Latitude` / `Longitude` doubles. Existing v4 bundles can be migrated with `tools/upgrade_bundles_latlon.py`.
+- `EXT` now extends the current pattern leg — upwind, crosswind, or downwind. Base is rejected (use `MNA` to widen instead).
 
 ### Fixed
+- Pattern aircraft going around now turn crosswind 300 ft below pattern altitude (per AIM 4-3-3), matching the threshold for normal VFR departures, instead of holding runway heading until they reach pattern altitude.
 - Follow speed clamp no longer compounds each tick, so followers stay locked to the leader's speed instead of drifting slower.
 - Follow state is shown in the Info column during pattern legs (previously went blank once the leader entered a pattern).
 - Taxi pathfinder picks the best stop node by looking ahead with a Shortest-A\* pass, avoiding premature anchoring to a suboptimal node.

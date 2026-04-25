@@ -300,6 +300,26 @@ public class PatternCircuitE2ETests : IDisposable
         Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
     }
 
+    [Fact]
+    public void GoAround_PatternMode_TargetAltitudeIs300BelowPatternAltitude()
+    {
+        // AIM 4-3-2: VFR pattern traffic may turn crosswind once within 300ft of
+        // pattern altitude. Auto-triggered go-arounds should hand off to UpwindPhase
+        // 300ft below pattern altitude so the turn matches a normal departure.
+        var rwy = DefaultRunway();
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        ac.Phases!.TrafficDirection = PatternDirection.Left;
+        ac.Phases.Add(new FinalApproachPhase());
+        ac.Phases.Start(Ctx(ac));
+
+        GoAroundHelper.Trigger(Ctx(ac), "test");
+
+        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        Assert.True(ga.ReenterPattern);
+        Assert.Equal((int)(wp.PatternAltitude - 300), ga.TargetAltitude);
+    }
+
     // -------------------------------------------------------------------------
     // PatternBuilder unit tests
     // -------------------------------------------------------------------------

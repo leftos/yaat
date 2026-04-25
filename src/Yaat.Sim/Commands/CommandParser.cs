@@ -610,7 +610,7 @@ public static class CommandParser
             TurnCrosswind when arg is null => PR.Ok(new TurnCrosswindCommand()),
             TurnDownwind when arg is null => PR.Ok(new TurnDownwindCommand()),
             TurnBase when arg is null => PR.Ok(new TurnBaseCommand()),
-            ExtendDownwind when arg is null => PR.Ok(new ExtendDownwindCommand()),
+            ExtendPattern when arg is null => PR.Ok(new ExtendPatternCommand()),
             MakeShortApproach when arg is null => PR.Ok(new MakeShortApproachCommand()),
             MakeNormalApproach when arg is null => PR.Ok(new MakeNormalApproachCommand()),
             Cancel270 when arg is null => PR.Ok(new Cancel270Command()),

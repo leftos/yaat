@@ -66,7 +66,7 @@ public static class CommandDescriber
             TurnCrosswindCommand => CanonicalCommandType.TurnCrosswind,
             TurnDownwindCommand => CanonicalCommandType.TurnDownwind,
             TurnBaseCommand => CanonicalCommandType.TurnBase,
-            ExtendDownwindCommand => CanonicalCommandType.ExtendDownwind,
+            ExtendPatternCommand => CanonicalCommandType.ExtendPattern,
             MakeShortApproachCommand => CanonicalCommandType.MakeShortApproach,
             MakeLeft360Command => CanonicalCommandType.MakeLeft360,
             MakeRight360Command => CanonicalCommandType.MakeRight360,
@@ -420,7 +420,7 @@ public static class CommandDescriber
             TurnCrosswindCommand => "TC",
             TurnDownwindCommand => "TD",
             TurnBaseCommand => "TB",
-            ExtendDownwindCommand => "EXT",
+            ExtendPatternCommand => "EXT",
             MakeShortApproachCommand => "SA",
             MakeLeft360Command => "L360",
             MakeRight360Command => "R360",
@@ -674,7 +674,7 @@ public static class CommandDescriber
             TurnCrosswindCommand => "Turn crosswind",
             TurnDownwindCommand => "Turn downwind",
             TurnBaseCommand => "Turn base",
-            ExtendDownwindCommand => "Extend downwind",
+            ExtendPatternCommand => "Extend pattern leg",
             MakeShortApproachCommand => "Make short approach",
             MakeLeft360Command => "Make left 360",
             MakeRight360Command => "Make right 360",
@@ -821,7 +821,7 @@ public static class CommandDescriber
                 or TurnCrosswindCommand
                 or TurnDownwindCommand
                 or TurnBaseCommand
-                or ExtendDownwindCommand
+                or ExtendPatternCommand
                 or MakeShortApproachCommand
                 or MakeNormalApproachCommand
                 or Cancel270Command

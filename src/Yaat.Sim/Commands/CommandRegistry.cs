@@ -437,7 +437,7 @@ public static class CommandRegistry
             Bare(TurnCrosswind, "Turn Crosswind", "Pattern", false, ["TC"]),
             Bare(TurnDownwind, "Turn Downwind", "Pattern", false, ["TD"]),
             Bare(TurnBase, "Turn Base", "Pattern", false, ["TB"]),
-            Bare(ExtendDownwind, "Extend Downwind", "Pattern", false, ["EXT"]),
+            Bare(ExtendPattern, "Extend Pattern Leg", "Pattern", false, ["EXT"]),
             Bare(MakeShortApproach, "Make Short Approach", "Pattern", false, ["SA", "MSA"]),
             Bare(MakeNormalApproach, "Make Normal Approach", "Pattern", false, ["MNA"]),
             Bare(Cancel270, "Cancel 270", "Pattern", false, ["NO270"]),
