@@ -523,8 +523,8 @@ src/Yaat.Server/
     StripCommandTranslator.cs  # Translate CRC MessagePack invocations → canonical command strings
     DtoConverter.cs            # AircraftState → CRC + training DTOs + ASDEX/strip converters
     INexradProvider.cs         # NEXRAD imagery provider contract (INexradProvider); gated on room.Weather == null (preset-weather short-circuit)
-    EmptyNexradProvider.cs     # Default: returns NexradDataDto.Empty() regardless of inputs
-    WmsNexradProvider.cs       # Opt-in (Nexrad:Enabled=true): fetches NOAA opengeo conus_cref_qcd PNG, 5-min TTL cache, cos(mid_lat) width
+    EmptyNexradProvider.cs     # Kill-switch: returns NexradDataDto.Empty() regardless of inputs (Nexrad:Enabled=false)
+    WmsNexradProvider.cs       # Default: fetches NOAA opengeo conus_cref_qcd PNG, 5-min TTL cache, cos(mid_lat) width
     NexradRefreshHostedService.cs # PeriodicTimer (Nexrad:RefreshMinutes, default 5); refreshes cache + broadcasts ReceiveNexradData per room with live weather
 
   Commands/

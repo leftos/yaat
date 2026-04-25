@@ -3,11 +3,10 @@
 ## 0.1.1-alpha
 
 ### Added
-- ERAM MVP: `QN` / `QF` / `QL` / `QT` / `QZ` / `QQ` / `QS` / `RD` / `QU` / `QP` verbs, sector configuration, dwell lock, and pointouts. Per-track annotations (interim/procedure/controller altitudes, VCI, leader direction/length) serialize into snapshots.
-- STARS visibility hysteresis so tracks no longer flicker on the edge of coverage, with ground vehicles excluded from the display.
-- Real NEXRAD weather overlay via WMS (5-minute background refresh). Opt-in through `Nexrad:Enabled=true`.
+- ERAM WIP: `QN` / `QF` / `QL` / `QT` / `QZ` / `QQ` / `QS` / `RD` / `QU` / `QP` verbs, sector configuration, dwell lock, and pointouts. Per-track annotations (interim/procedure/controller altitudes, VCI, leader direction/length) serialize into snapshots.
+- STARS visibility hysteresis so tracks no longer flicker on the edge of coverage, with preparation for future RW ground vehicles being excluded from the display.
+- Real NEXRAD weather overlay via WMS (5-minute background refresh) when using "Load Live Weather".
 - CRC session/info protocol: client name, version, controller info, and transmit/receive frequency lists are captured from `StartSession` and available to peer info requests.
-- Surface-vehicle flag (`IsVehicle`) on aircraft state for tugs, service trucks, and follow-me cars.
 - Airport elevation lookup falls back between ICAO and FAA identifiers (e.g. `KSFO` ↔ `SFO`).
 - Build identification and in-app docs: the title bar, the new Help → About YAAT dialog, and the first line of `yaat-client.log` all show the version and whether the build is a Velopack-installed release or a dev build. The Help menu also links Getting Started, User Guide, Commands Reference, and Changelog on GitHub.
 

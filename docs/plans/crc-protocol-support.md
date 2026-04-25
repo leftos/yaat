@@ -209,7 +209,7 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 ### NEXRAD
 
-- [x] `ReceiveNexradData(Topic, NexradDataDto)` — opt-in WMS fetch (`Nexrad:Enabled=true`) from NOAA opengeo `conus_cref_qcd`, 5 min cache, 5 min background refresh broadcast; empty-sentinel by default or when the room carries a preset `WeatherProfile`
+- [x] `ReceiveNexradData(Topic, NexradDataDto)` — WMS fetch (default; `Nexrad:Enabled=false` is the offline kill-switch) from NOAA opengeo `conus_cref_qcd`, 5 min cache, 5 min background refresh broadcast; empty-sentinel when the room carries a preset `WeatherProfile`
 
 ---
 
@@ -273,10 +273,9 @@ Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 ### Bucket F — Deferred (upstream-blocked)
 
-- [x] Real NEXRAD fetch — opt-in `Nexrad:Enabled=true` wires `WmsNexradProvider` + `NexradRefreshHostedService` (5 min cadence, NOAA opengeo WMS, preset-weather gate)
+- [x] Real NEXRAD fetch — `WmsNexradProvider` + `NexradRefreshHostedService` wired by default (5 min cadence, NOAA opengeo WMS, preset-weather gate); `Nexrad:Enabled=false` is the offline kill-switch
 - [ ] `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` — needs `AsdexSafetyLogicDetector` in Yaat.Sim
 - [ ] ERAM short-term conflict detection + broadcast (clone STARS STCA once validated)
-- [ ] NEXRAD real fetch (NOAA WMS integration; replaces empty-sentinel)
 - [ ] ERAM target history UDP stream (+ `DeleteEramTargetHistoryEntries`) — vNAS sends over UDP, not SignalR
 - [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps)
 - [ ] Remaining Bucket E items (QP pointouts, CRR lifecycle)
