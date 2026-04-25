@@ -368,31 +368,52 @@ jobs:
           path: artifacts
 
       - name: Prepare release assets
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
+          set -euo pipefail
           mkdir -p release
 
-          # Velopack installers + update packages (all platforms)
-          cp artifacts/yaat-installer-win/* release/ 2>/dev/null || true
-          cp artifacts/yaat-installer-linux/* release/ 2>/dev/null || true
-          cp artifacts/yaat-installer-macos/* release/ 2>/dev/null || true
+          # ---- Velopack auto-update metadata (keep filenames intact) ----
+          # The auto-updater fetches RELEASES*, *.json, and *-full.nupkg by
+          # exact filename. Renaming would break updates from older clients.
+          # The Velopack-default *-Portable.zip files are deliberately omitted
+          # — they duplicate the loose single-file binaries below, which are
+          # the documented portable form.
+          for src in artifacts/yaat-installer-win artifacts/yaat-installer-linux artifacts/yaat-installer-macos \
+                     artifacts/yaat-vstrips-installer-win artifacts/yaat-vstrips-installer-linux artifacts/yaat-vstrips-installer-macos; do
+            [ -d "$src" ] || continue
+            find "$src" \( -name 'RELEASES*' -o -name '*.json' -o -name '*-full.nupkg' \) \
+              -exec cp -f {} release/ \;
+          done
 
-          # Standalone portable binaries
-          cp artifacts/yaat-client-win-x64/Yaat.Client.exe release/Yaat.Client-win-x64.exe
-          cp artifacts/yaat-client-linux-x64/Yaat.Client release/Yaat.Client-linux-x64
-          chmod +x release/Yaat.Client-linux-x64
-          cp artifacts/yaat-client-osx-arm64/Yaat.Client release/Yaat.Client-osx-arm64
-          chmod +x release/Yaat.Client-osx-arm64
+          # ---- Velopack installers (versioned filenames) ----
+          # Pattern: {App}-{Version}-{Platform}-Setup.{ext} for installers,
+          # {App}-{Version}-{Platform}.AppImage where AppImage is its own form.
+          cp artifacts/yaat-installer-win/YaatClient-win-Setup.exe   "release/YaatClient-${VERSION}-win-Setup.exe"
+          cp artifacts/yaat-installer-macos/YaatClient-osx-Setup.pkg "release/YaatClient-${VERSION}-osx-Setup.pkg"
+          cp artifacts/yaat-installer-linux/YaatClient.AppImage      "release/YaatClient-${VERSION}-linux.AppImage"
 
-          # Standalone vStrips installers + portable binaries. Students run
-          # this alongside CRC when they don't need the full YAAT trainer UI.
-          cp artifacts/yaat-vstrips-installer-win/* release/ 2>/dev/null || true
-          cp artifacts/yaat-vstrips-installer-linux/* release/ 2>/dev/null || true
-          cp artifacts/yaat-vstrips-installer-macos/* release/ 2>/dev/null || true
-          cp artifacts/yaat-vstrips-win-x64/Yaat.VStrips.exe release/Yaat.VStrips-win-x64.exe
-          cp artifacts/yaat-vstrips-linux-x64/Yaat.VStrips release/Yaat.VStrips-linux-x64
-          chmod +x release/Yaat.VStrips-linux-x64
-          cp artifacts/yaat-vstrips-osx-arm64/Yaat.VStrips release/Yaat.VStrips-osx-arm64
-          chmod +x release/Yaat.VStrips-osx-arm64
+          cp artifacts/yaat-vstrips-installer-win/YaatVStrips-win-Setup.exe   "release/YaatVStrips-${VERSION}-win-Setup.exe"
+          cp artifacts/yaat-vstrips-installer-macos/YaatVStrips-osx-Setup.pkg "release/YaatVStrips-${VERSION}-osx-Setup.pkg"
+          cp artifacts/yaat-vstrips-installer-linux/YaatVStrips.AppImage     "release/YaatVStrips-${VERSION}-linux.AppImage"
+
+          # ---- Loose single-file binaries (Portable form) ----
+          # These are the self-contained `dotnet publish` outputs, renamed to
+          # match the {App}-{Version}-{Platform}-Portable pattern. No install
+          # step, no auto-update — download and run.
+          cp artifacts/yaat-client-win-x64/Yaat.Client.exe   "release/YaatClient-${VERSION}-win-Portable.exe"
+          cp artifacts/yaat-client-linux-x64/Yaat.Client     "release/YaatClient-${VERSION}-linux-Portable"
+          cp artifacts/yaat-client-osx-arm64/Yaat.Client     "release/YaatClient-${VERSION}-osx-Portable"
+          chmod +x "release/YaatClient-${VERSION}-linux-Portable" "release/YaatClient-${VERSION}-osx-Portable"
+
+          cp artifacts/yaat-vstrips-win-x64/Yaat.VStrips.exe "release/YaatVStrips-${VERSION}-win-Portable.exe"
+          cp artifacts/yaat-vstrips-linux-x64/Yaat.VStrips   "release/YaatVStrips-${VERSION}-linux-Portable"
+          cp artifacts/yaat-vstrips-osx-arm64/Yaat.VStrips   "release/YaatVStrips-${VERSION}-osx-Portable"
+          chmod +x "release/YaatVStrips-${VERSION}-linux-Portable" "release/YaatVStrips-${VERSION}-osx-Portable"
+
+          echo "=== release/ contents ==="
+          find release -maxdepth 1 -type f -printf '%-50f %12s bytes\n' | sort
 
       - name: Build release body
         id: body
@@ -403,6 +424,7 @@ jobs:
           # directly into the script source treats the text as code.
           HIGHLIGHTS: ${{ needs.changelog.outputs.highlights }}
           CHANGELOG: ${{ needs.changelog.outputs.changelog }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           body_file=$(mktemp)
 
@@ -421,20 +443,20 @@ jobs:
 
             echo "---"
             echo ""
-            echo "### YAAT Client Downloads"
+            echo "### YAAT Client"
             echo "| Platform | Installer (recommended) | Portable |"
             echo "|----------|------------------------|----------|"
-            echo "| Windows | \`YaatClient-Setup.exe\` | \`Yaat.Client-win-x64.exe\` |"
-            echo "| Linux | AppImage (in release assets) | \`Yaat.Client-linux-x64\` |"
-            echo "| macOS | .pkg (in release assets) | \`Yaat.Client-osx-arm64\` |"
+            echo "| Windows | \`YaatClient-${VERSION}-win-Setup.exe\` | \`YaatClient-${VERSION}-win-Portable.exe\` |"
+            echo "| Linux   | \`YaatClient-${VERSION}-linux.AppImage\` | \`YaatClient-${VERSION}-linux-Portable\` |"
+            echo "| macOS   | \`YaatClient-${VERSION}-osx-Setup.pkg\` | \`YaatClient-${VERSION}-osx-Portable\` |"
             echo ""
             echo "### YAAT Flight Strips (standalone)"
             echo "Drop-in replacement for vStrips — run alongside CRC to see, modify, create, and move flight strips while YAAT awaits vNAS approval."
             echo "| Platform | Installer (recommended) | Portable |"
             echo "|----------|------------------------|----------|"
-            echo "| Windows | \`YaatVStrips-Setup.exe\` | \`Yaat.VStrips-win-x64.exe\` |"
-            echo "| Linux | AppImage (in release assets) | \`Yaat.VStrips-linux-x64\` |"
-            echo "| macOS | .pkg (in release assets) | \`Yaat.VStrips-osx-arm64\` |"
+            echo "| Windows | \`YaatVStrips-${VERSION}-win-Setup.exe\` | \`YaatVStrips-${VERSION}-win-Portable.exe\` |"
+            echo "| Linux   | \`YaatVStrips-${VERSION}-linux.AppImage\` | \`YaatVStrips-${VERSION}-linux-Portable\` |"
+            echo "| macOS   | \`YaatVStrips-${VERSION}-osx-Setup.pkg\` | \`YaatVStrips-${VERSION}-osx-Portable\` |"
             echo ""
             echo "Installers include auto-update support. Portable binaries are standalone single-file executables."
           } > "$body_file"
