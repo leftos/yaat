@@ -316,10 +316,16 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
     }
 
-    public async Task<byte[]?> ExportRecordingAsync()
+    public async Task<byte[]?> ExportRecordingAsync(CancellationToken cancellationToken = default)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<byte[]?>("ExportRecording");
+        var ms = new MemoryStream();
+        await foreach (var chunk in _connection!.StreamAsync<byte[]>("ExportRecording", cancellationToken).WithCancellation(cancellationToken))
+        {
+            await ms.WriteAsync(chunk, cancellationToken);
+        }
+
+        return ms.Length == 0 ? null : ms.ToArray();
     }
 
     public async Task<string?> GetServerLogPathAsync()
@@ -328,10 +334,27 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<string?>("GetServerLogPath");
     }
 
-    public async Task<RewindResultDto?> LoadRecordingAsync(byte[] recordingBytes)
+    public async Task<RewindResultDto?> LoadRecordingAsync(byte[] recordingBytes, CancellationToken cancellationToken = default)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", recordingBytes);
+        return await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", ChunkBytes(recordingBytes, cancellationToken), cancellationToken);
+    }
+
+    private static async IAsyncEnumerable<byte[]> ChunkBytes(
+        byte[] bytes,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken
+    )
+    {
+        const int chunkSize = 16 * 1024;
+        for (int offset = 0; offset < bytes.Length; offset += chunkSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int len = Math.Min(chunkSize, bytes.Length - offset);
+            var chunk = new byte[len];
+            Buffer.BlockCopy(bytes, offset, chunk, 0, len);
+            yield return chunk;
+            await Task.Yield();
+        }
     }
 
     public async Task<byte[]?> MigrateRecordingAsync(string recordingJson)
