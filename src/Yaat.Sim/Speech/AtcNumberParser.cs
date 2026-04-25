@@ -72,24 +72,25 @@ public static class AtcNumberParser
 
     private static readonly string[] DigitToWord = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
 
-    // Cardinal-direction → 3-digit magnetic heading. Used by PhraseologyMapper for phrases like
-    // "pushback approved facing north" (→ PUSH 360). Intercardinals (NE/SE/SW/NW) are out of
-    // scope because their spoken forms collide with compass-point fix names and callsign
-    // telephonies — the rule mapper falls through to the LLM for those cases.
-    private static readonly Dictionary<string, string> CardinalToHeading = new(StringComparer.OrdinalIgnoreCase)
+    // Cardinal-direction → letter form used by the canonical PUSH ... FACE C / TAIL C syntax.
+    // Used by PhraseologyMapper for phrases like "pushback approved facing north" (→ PUSH FACE N).
+    // Intercardinals (NE/SE/SW/NW) are out of scope because their spoken forms collide with
+    // compass-point fix names and callsign telephonies — the rule mapper falls through to the
+    // LLM for those cases.
+    private static readonly Dictionary<string, string> CardinalToLetter = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["north"] = "360",
-        ["south"] = "180",
-        ["east"] = "090",
-        ["west"] = "270",
+        ["north"] = "N",
+        ["south"] = "S",
+        ["east"] = "E",
+        ["west"] = "W",
     };
 
     /// <summary>
     /// Resolves a spoken cardinal direction ("north", "south", "east", "west") to its canonical
-    /// 3-digit magnetic heading string. Returns null for anything else so the caller can fail
+    /// single-letter form (N/S/E/W). Returns null for anything else so the caller can fail
     /// the rule match cleanly.
     /// </summary>
-    public static string? TryResolveCardinalHeading(string word) => CardinalToHeading.TryGetValue(word, out var heading) ? heading : null;
+    public static string? TryResolveCardinalLetter(string word) => CardinalToLetter.TryGetValue(word, out var letter) ? letter : null;
 
     /// <summary>
     /// Scan a transcript and replace spoken number phrases with digit-form substrings.

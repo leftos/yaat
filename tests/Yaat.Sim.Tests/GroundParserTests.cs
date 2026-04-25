@@ -223,4 +223,181 @@ public class GroundParserTests
         Assert.Equal(["#42", "#18"], taxi.Path);
         Assert.Equal(["28R"], taxi.CrossRunways);
     }
+
+    // --- PUSH cardinal direction syntax ---
+
+    [Fact]
+    public void Push_Bare()
+    {
+        var cmd = CommandParser.Parse("PUSH");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Null(push.MagneticHeading);
+        Assert.Null(push.Taxiway);
+        Assert.Null(push.FacingTaxiway);
+        Assert.Null(push.DestinationParking);
+        Assert.Null(push.DestinationSpot);
+    }
+
+    [Fact]
+    public void Push_TaxiwayOnly()
+    {
+        var cmd = CommandParser.Parse("PUSH TE");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("TE", push.Taxiway);
+        Assert.Null(push.MagneticHeading);
+        Assert.Null(push.FacingTaxiway);
+    }
+
+    [Fact]
+    public void Push_TaxiwayFacingTaxiway_KeepsLegacyForm()
+    {
+        var cmd = CommandParser.Parse("PUSH TE T");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("TE", push.Taxiway);
+        Assert.Equal("T", push.FacingTaxiway);
+        Assert.Null(push.MagneticHeading);
+    }
+
+    [Theory]
+    [InlineData("PUSH FACE N", 360)]
+    [InlineData("PUSH FACE NE", 45)]
+    [InlineData("PUSH FACE E", 90)]
+    [InlineData("PUSH FACE SE", 135)]
+    [InlineData("PUSH FACE S", 180)]
+    [InlineData("PUSH FACE SW", 225)]
+    [InlineData("PUSH FACE W", 270)]
+    [InlineData("PUSH FACE NW", 315)]
+    public void Push_FaceCardinal(string input, int expectedDeg)
+    {
+        var cmd = CommandParser.Parse(input);
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.NotNull(push.MagneticHeading);
+        Assert.Equal(expectedDeg, push.MagneticHeading!.Value.ToDisplayInt());
+        Assert.Null(push.Taxiway);
+    }
+
+    [Theory]
+    [InlineData("PUSH TAIL N", 180)]
+    [InlineData("PUSH TAIL E", 270)]
+    [InlineData("PUSH TAIL S", 360)]
+    [InlineData("PUSH TAIL W", 90)]
+    [InlineData("PUSH TAIL NE", 225)]
+    [InlineData("PUSH TAIL SW", 45)]
+    public void Push_TailCardinal_StoresReciprocalAsFacing(string input, int expectedDeg)
+    {
+        var cmd = CommandParser.Parse(input);
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.NotNull(push.MagneticHeading);
+        Assert.Equal(expectedDeg, push.MagneticHeading!.Value.ToDisplayInt());
+    }
+
+    [Theory]
+    [InlineData("PUSH >E", 90)]
+    [InlineData("PUSH >W", 270)]
+    [InlineData("PUSH >NE", 45)]
+    [InlineData("PUSH <E", 270)]
+    [InlineData("PUSH <W", 90)]
+    [InlineData("PUSH <N", 180)]
+    [InlineData("PUSH <NE", 225)]
+    public void Push_ArrowCardinal(string input, int expectedDeg)
+    {
+        var cmd = CommandParser.Parse(input);
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.NotNull(push.MagneticHeading);
+        Assert.Equal(expectedDeg, push.MagneticHeading!.Value.ToDisplayInt());
+    }
+
+    [Fact]
+    public void Push_TaxiwayPlusFaceCardinal()
+    {
+        var cmd = CommandParser.Parse("PUSH TE FACE E");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("TE", push.Taxiway);
+        Assert.Equal(90, push.MagneticHeading!.Value.ToDisplayInt());
+        Assert.Null(push.FacingTaxiway);
+    }
+
+    [Fact]
+    public void Push_TaxiwayPlusTailCardinal()
+    {
+        var cmd = CommandParser.Parse("PUSH TE TAIL W");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("TE", push.Taxiway);
+        Assert.Equal(90, push.MagneticHeading!.Value.ToDisplayInt());
+    }
+
+    [Fact]
+    public void Push_TaxiwayPlusArrow()
+    {
+        var cmd = CommandParser.Parse("PUSH TE <E");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("TE", push.Taxiway);
+        Assert.Equal(270, push.MagneticHeading!.Value.ToDisplayInt());
+    }
+
+    [Fact]
+    public void Push_ParkingPlusFace()
+    {
+        var cmd = CommandParser.Parse("PUSH @A10 FACE NE");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("A10", push.DestinationParking);
+        Assert.Equal(45, push.MagneticHeading!.Value.ToDisplayInt());
+        Assert.Null(push.Taxiway);
+    }
+
+    [Fact]
+    public void Push_ParkingPlusArrow()
+    {
+        var cmd = CommandParser.Parse("PUSH @A10 >W");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("A10", push.DestinationParking);
+        Assert.Equal(270, push.MagneticHeading!.Value.ToDisplayInt());
+    }
+
+    [Fact]
+    public void Push_SpotPlusTail()
+    {
+        var cmd = CommandParser.Parse("PUSH $7A TAIL W");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("7A", push.DestinationSpot);
+        Assert.Equal(90, push.MagneticHeading!.Value.ToDisplayInt());
+    }
+
+    [Fact]
+    public void Push_BareTaxiwayN_StillParsesAsTaxiway()
+    {
+        // 'N' without a marker is treated as a taxiway name (regression guard).
+        var cmd = CommandParser.Parse("PUSH N");
+        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal("N", push.Taxiway);
+        Assert.Null(push.MagneticHeading);
+    }
+
+    [Fact]
+    public void Push_NumericHeading_Rejected()
+    {
+        var cmd = CommandParser.Parse("PUSH 180");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Push_TaxiwayPlusNumeric_Rejected()
+    {
+        // After the cardinal rewrite, two-token form with numeric second token is not valid.
+        var cmd = CommandParser.Parse("PUSH TE 180");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Theory]
+    [InlineData("PUSH FACE")]
+    [InlineData("PUSH TAIL")]
+    [InlineData("PUSH FACE XY")]
+    [InlineData("PUSH <ZZ")]
+    [InlineData("PUSH TE FACE")]
+    [InlineData("PUSH TE FACE XY")]
+    public void Push_MalformedOrientation_Fails(string input)
+    {
+        var cmd = CommandParser.Parse(input);
+        Assert.False(cmd.IsSuccess);
+    }
 }

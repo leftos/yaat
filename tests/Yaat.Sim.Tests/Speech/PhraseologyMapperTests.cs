@@ -651,12 +651,20 @@ public class PhraseologyMapperTests
     [InlineData("push back onto tango approved", "PUSH T")]
     [InlineData("pushback onto tango facing taxiway uniform approved", "PUSH T U")]
     [InlineData("pushback onto tango facing taxiway uniform", "PUSH T U")]
-    [InlineData("pushback onto tango facing heading one eight zero approved", "PUSH T 180")]
-    [InlineData("pushback onto tango facing heading one eight zero", "PUSH T 180")]
-    [InlineData("pushback approved facing north", "PUSH 360")]
-    [InlineData("pushback facing south", "PUSH 180")]
-    [InlineData("pushback onto tango facing east", "PUSH T 090")]
-    [InlineData("pushback onto tango facing west approved", "PUSH T 270")]
+    [InlineData("pushback approved facing north", "PUSH FACE N")]
+    [InlineData("pushback facing south", "PUSH FACE S")]
+    [InlineData("pushback onto tango facing east", "PUSH T FACE E")]
+    [InlineData("pushback onto tango facing west approved", "PUSH T FACE W")]
+    // "face" synonym (no -ing).
+    [InlineData("pushback face north", "PUSH FACE N")]
+    [InlineData("pushback approved face south", "PUSH FACE S")]
+    [InlineData("pushback onto tango face east", "PUSH T FACE E")]
+    [InlineData("pushback onto tango face west approved", "PUSH T FACE W")]
+    // "tail" — instructs the tail direction; canonical emits TAIL.
+    [InlineData("pushback tail north", "PUSH TAIL N")]
+    [InlineData("pushback approved tail east", "PUSH TAIL E")]
+    [InlineData("pushback onto tango tail south", "PUSH T TAIL S")]
+    [InlineData("pushback onto tango tail west approved", "PUSH T TAIL W")]
     public void Ground_Rules(string transcript, string expected)
     {
         var result = PhraseologyMapper.Map(transcript, NoContext);
@@ -692,7 +700,7 @@ public class PhraseologyMapperTests
         var ctx = new MapContext([], []) { TaxiwayNames = new HashSet<string>(["T"], StringComparer.OrdinalIgnoreCase) };
         var result = PhraseologyMapper.Map("pushback onto tango facing north", ctx);
         Assert.NotNull(result);
-        Assert.Equal("PUSH T 360", result!.CanonicalCommand);
+        Assert.Equal("PUSH T FACE N", result!.CanonicalCommand);
     }
 
     [Fact]

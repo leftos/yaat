@@ -267,6 +267,95 @@ public class GroundCommandHandlerTests
         Assert.Contains("180", result.Message!);
     }
 
+    // Layout for cardinal-hint snap tests: aircraft sits at the central intersection of a
+    // straight north-south taxiway "A" with edges in both directions.
+    private static AirportGroundLayout MakeCardinalSnapLayout()
+    {
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        var node1 = new GroundNode
+        {
+            Id = 1,
+            Position = new LatLon(37.727, -122.218),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var node2 = new GroundNode
+        {
+            Id = 2,
+            Position = new LatLon(37.728, -122.218),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var node3 = new GroundNode
+        {
+            Id = 3,
+            Position = new LatLon(37.729, -122.218),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        layout.Nodes[1] = node1;
+        layout.Nodes[2] = node2;
+        layout.Nodes[3] = node3;
+        var edge12 = new GroundEdge
+        {
+            Nodes = [node1, node2],
+            TaxiwayName = "A",
+            DistanceNm = GeoMath.DistanceNm(node1.Position, node2.Position),
+        };
+        var edge23 = new GroundEdge
+        {
+            Nodes = [node2, node3],
+            TaxiwayName = "A",
+            DistanceNm = GeoMath.DistanceNm(node2.Position, node3.Position),
+        };
+        layout.Edges.Add(edge12);
+        layout.Edges.Add(edge23);
+        node1.Edges.Add(edge12);
+        node2.Edges.Add(edge12);
+        node2.Edges.Add(edge23);
+        node3.Edges.Add(edge23);
+        layout.RebuildAdjacencyLists();
+        return layout;
+    }
+
+    [Fact]
+    public void TryPushback_TaxiwayWithFaceN_SnapsNorthEdge()
+    {
+        var ac = MakeAircraftAtParking(); // sits at (37.728, -122.218) == node2
+        var layout = MakeCardinalSnapLayout();
+        // FACE N → cardinal hint = 360° magnetic; closer of (180, 360) is 360.
+        var cmd = new PushbackCommand(new MagneticHeading(360), "A", null, null, null);
+
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
+
+        Assert.True(result.Success);
+        Assert.Contains("face heading 360", result.Message!);
+    }
+
+    [Fact]
+    public void TryPushback_TaxiwayWithFaceS_SnapsSouthEdge()
+    {
+        var ac = MakeAircraftAtParking();
+        var layout = MakeCardinalSnapLayout();
+        // FACE S → cardinal hint = 180°; closer of (180, 360) is 180.
+        var cmd = new PushbackCommand(new MagneticHeading(180), "A", null, null, null);
+
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
+
+        Assert.True(result.Success);
+        Assert.Contains("face heading 180", result.Message!);
+    }
+
+    [Fact]
+    public void TryPushback_CardinalAlone_UsesAbsoluteFacing()
+    {
+        // Without a taxiway, the cardinal is the absolute target facing (no edge snap).
+        var ac = MakeAircraftAtParking();
+        var cmd = new PushbackCommand(new MagneticHeading(45), null, null, null, null);
+
+        var result = GroundCommandHandler.TryPushback(ac, cmd, null);
+
+        Assert.True(result.Success);
+        Assert.Contains("face heading 045", result.Message!);
+    }
+
     // -------------------------------------------------------------------------
     // TryCrossRunway
     // -------------------------------------------------------------------------

@@ -132,7 +132,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// PUSH @B13 180 — push to B13 with explicit heading 180. Verify aircraft
+    /// PUSH @B13 FACE S — push to B13 with explicit cardinal facing south (180°). Verify aircraft
     /// ends up near B13 facing heading ~180.
     /// </summary>
     [Fact]
@@ -163,9 +163,9 @@ public class SfoPushbackTests(ITestOutputHelper output)
         var b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b13);
 
-        // Send PUSH @B13 180
-        var result = engine.SendCommand("SWA1360", "PUSH @B13 180");
-        Assert.True(result.Success, $"PUSH @B13 180 failed: {result.Message}");
+        // Send PUSH @B13 FACE S — cardinal facing south (180°)
+        var result = engine.SendCommand("SWA1360", "PUSH @B13 FACE S");
+        Assert.True(result.Success, $"PUSH @B13 FACE S failed: {result.Message}");
         _output.WriteLine($"Command result: {result.Message}");
 
         // Tick until completion

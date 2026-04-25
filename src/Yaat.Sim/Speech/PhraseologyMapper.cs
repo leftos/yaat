@@ -64,9 +64,9 @@ public static class PhraseologyMapper
     private static readonly HashSet<string> RunwayLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "rwy" };
 
     // Capture names that hold a spoken cardinal direction ("north", "east", "south", "west").
-    // The post-pass in TryMatchRule rewrites the capture to its canonical 3-digit heading via
-    // AtcNumberParser.TryResolveCardinalHeading so ground rules like "pushback approved facing
-    // {cardinal}" emit "PUSH 360" without any template-side gymnastics. Non-cardinal captures
+    // The post-pass in TryMatchRule rewrites the capture to its canonical letter form via
+    // AtcNumberParser.TryResolveCardinalLetter so ground rules like "pushback approved facing
+    // {cardinal}" emit "PUSH FACE N" without any template-side gymnastics. Non-cardinal captures
     // fail the rule match cleanly so "facing south-east" falls through to the LLM fallback.
     private static readonly HashSet<string> CardinalCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "cardinal" };
 
@@ -432,22 +432,22 @@ public static class PhraseologyMapper
                 }
             }
 
-            // Post-pass: rewrite cardinal-direction captures to their 3-digit magnetic heading.
+            // Post-pass: rewrite cardinal-direction captures to their canonical letter form (N/S/E/W).
             // Failing the rule (instead of emitting the raw word) lets the greedy matcher skip
             // the nonsense combination and the LLM fallback get a shot at it.
             foreach (var name in CardinalCaptureNames)
             {
                 if (captures.TryGetValue(name, out var rawValue))
                 {
-                    var heading = AtcNumberParser.TryResolveCardinalHeading(rawValue);
-                    if (heading is null)
+                    var letter = AtcNumberParser.TryResolveCardinalLetter(rawValue);
+                    if (letter is null)
                     {
                         Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" failed — not a cardinal direction, rule rejected", rawValue);
                         output = "";
                         return false;
                     }
-                    Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" → {Heading}", rawValue, heading);
-                    captures[name] = heading;
+                    Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" → {Letter}", rawValue, letter);
+                    captures[name] = letter;
                 }
             }
 

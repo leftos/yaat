@@ -5,8 +5,11 @@ namespace Yaat.Sim.Commands;
 internal static class GroundCommandParser
 {
     /// <summary>
-    /// Parses PUSH [taxiway] [heading|facing_taxiway].
-    /// Examples: PUSH, PUSH 180, PUSH TE, PUSH TE 180, PUSH TE T (onto TE facing toward T).
+    /// Parses PUSH [@parking|$spot|taxiway] [orientation].
+    /// Orientation forms: <c>&lt;C</c> (tail toward cardinal C), <c>&gt;C</c> (face cardinal C),
+    /// <c>FACE C</c>, <c>TAIL C</c>, or a second taxiway name (face along push-taxiway toward it).
+    /// Cardinals: N, NE, E, SE, S, SW, W, NW.
+    /// Examples: PUSH, PUSH &lt;E, PUSH FACE NE, PUSH TE, PUSH TE TAIL W, PUSH TE T, PUSH @A10 &gt;W, PUSH $7A FACE E.
     /// </summary>
     internal static PR ParsePushback(string? arg)
     {
@@ -16,61 +19,178 @@ internal static class GroundCommandParser
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        // @parking or $spot syntax: PUSH @A10, PUSH $7A, PUSH @A10 180
-        if (tokens.Length >= 1 && (tokens[0].StartsWith('@') || tokens[0].StartsWith('$')) && tokens[0].Length > 1)
+        if (tokens.Length == 0)
         {
-            bool isSpot = tokens[0].StartsWith('$');
-            string name = tokens[0][1..].ToUpperInvariant();
-            if (tokens.Length == 1)
+            return PR.Ok(new PushbackCommand(null, null, null, null, null));
+        }
+
+        // Strip optional leading @parking or $spot token; remember which.
+        string? parking = null;
+        string? spot = null;
+        int idx = 0;
+        if (tokens[0].StartsWith('@') && tokens[0].Length > 1)
+        {
+            parking = tokens[0][1..].ToUpperInvariant();
+            idx = 1;
+        }
+        else if (tokens[0].StartsWith('$') && tokens[0].Length > 1)
+        {
+            spot = tokens[0][1..].ToUpperInvariant();
+            idx = 1;
+        }
+
+        // Remaining tokens describe taxiway and/or orientation.
+        var rest = tokens[idx..];
+        bool hasParkingOrSpot = parking is not null || spot is not null;
+
+        // Bare PUSH or just @parking/$spot — no taxiway, no orientation.
+        if (rest.Length == 0)
+        {
+            return PR.Ok(new PushbackCommand(null, null, null, parking, spot));
+        }
+
+        // Helper to assemble the result with a taxiway and an optional magnetic facing heading.
+        static PushbackCommand Build(MagneticHeading? hdg, string? taxiway, string? facingTwy, string? parking, string? spot) =>
+            new(hdg, taxiway, facingTwy, parking, spot);
+
+        // Try to consume an orientation prefix (<X, >X, FACE X, TAIL X) starting at `start`.
+        // Returns the resolved magnetic facing heading, or null if no orientation match.
+        // `consumed` reports how many tokens were used.
+        static (MagneticHeading? Hdg, int Consumed, string? Error) TryOrientation(string[] tokens, int start)
+        {
+            if (start >= tokens.Length)
             {
-                return PR.Ok(isSpot ? new PushbackCommand(null, null, null, null, name) : new PushbackCommand(null, null, null, name, null));
+                return (null, 0, null);
             }
 
-            if (tokens.Length == 2)
+            var t = tokens[start];
+
+            // <C / >C — single token, arrow + cardinal (no whitespace).
+            if (t.Length >= 2 && (t[0] == '<' || t[0] == '>'))
             {
-                MagneticHeading? hdg = null;
-                string? facingTwy = null;
-                if (int.TryParse(tokens[1], out var h) && h >= 1 && h <= 360)
+                bool tail = t[0] == '<';
+                var card = ParseCardinal(t[1..]);
+                if (card is null)
                 {
-                    hdg = new MagneticHeading(h);
+                    return (null, 0, $"invalid cardinal '{t[1..]}' after '{t[0]}'");
                 }
-                else
+
+                int facing = tail ? (card.Value + 180) % 360 : card.Value;
+                if (facing == 0)
                 {
-                    facingTwy = tokens[1].ToUpperInvariant();
+                    facing = 360;
                 }
 
-                return PR.Ok(isSpot ? new PushbackCommand(hdg, null, facingTwy, null, name) : new PushbackCommand(hdg, null, facingTwy, name, null));
+                return (new MagneticHeading(facing), 1, null);
             }
 
-            return PR.Ok(isSpot ? new PushbackCommand(null, null, null, null, name) : new PushbackCommand(null, null, null, name, null));
-        }
-
-        if (tokens.Length == 1)
-        {
-            if (int.TryParse(tokens[0], out var heading) && heading >= 1 && heading <= 360)
+            // FACE C / TAIL C — two tokens.
+            bool isFace = t.Equals("FACE", StringComparison.OrdinalIgnoreCase);
+            bool isTail = t.Equals("TAIL", StringComparison.OrdinalIgnoreCase);
+            if (isFace || isTail)
             {
-                return PR.Ok(new PushbackCommand(new MagneticHeading(heading), null, null, null, null));
+                if (start + 1 >= tokens.Length)
+                {
+                    return (null, 0, $"{t.ToUpperInvariant()} requires a cardinal direction (N/NE/E/SE/S/SW/W/NW)");
+                }
+
+                var card = ParseCardinal(tokens[start + 1]);
+                if (card is null)
+                {
+                    return (null, 0, $"invalid cardinal '{tokens[start + 1]}' after {t.ToUpperInvariant()}");
+                }
+
+                int facing = isTail ? (card.Value + 180) % 360 : card.Value;
+                if (facing == 0)
+                {
+                    facing = 360;
+                }
+
+                return (new MagneticHeading(facing), 2, null);
             }
 
-            return PR.Ok(new PushbackCommand(null, tokens[0].ToUpperInvariant(), null, null, null));
+            return (null, 0, null);
         }
 
-        if (tokens.Length == 2 && !int.TryParse(tokens[0], out _))
+        // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH @A10 <E, PUSH $7A TAIL W.
+        var orient = TryOrientation(rest, 0);
+        if (orient.Error is not null)
         {
-            string taxiway = tokens[0].ToUpperInvariant();
-            if (int.TryParse(tokens[1], out var hdg) && hdg >= 1 && hdg <= 360)
-            {
-                return PR.Ok(new PushbackCommand(new MagneticHeading(hdg), taxiway, null, null, null));
-            }
-
-            // Two non-numeric tokens: PUSH TE T → push onto TE facing toward T
-            return PR.Ok(new PushbackCommand(null, taxiway, tokens[1].ToUpperInvariant(), null, null));
+            return PR.Fail(orient.Error);
         }
 
-        // Fallback: treat whole arg as taxiway name
-        return PR.Ok(new PushbackCommand(null, arg.Trim().ToUpperInvariant(), null, null, null));
+        if (orient.Hdg is not null)
+        {
+            if (orient.Consumed != rest.Length)
+            {
+                return PR.Fail("unexpected tokens after PUSH orientation");
+            }
+
+            return PR.Ok(Build(orient.Hdg, null, null, parking, spot));
+        }
+
+        // Otherwise the first remaining token is a taxiway (or a destination name).
+        // Reject pure-numeric tokens — PUSH no longer accepts numeric headings.
+        if (int.TryParse(rest[0], out _))
+        {
+            return PR.Fail("PUSH no longer accepts numeric headings — use FACE/TAIL or </> with a cardinal (N, NE, E, SE, S, SW, W, NW)");
+        }
+
+        string taxiway = rest[0].ToUpperInvariant();
+
+        if (rest.Length == 1)
+        {
+            // PUSH TE / PUSH @A10 TE / PUSH $7A TE
+            // For parking/spot variants, a trailing token is a facing taxiway; for plain PUSH it's the push-onto taxiway.
+            return hasParkingOrSpot ? PR.Ok(Build(null, null, taxiway, parking, spot)) : PR.Ok(Build(null, taxiway, null, parking, spot));
+        }
+
+        // Look for an orientation starting at rest[1].
+        var orient2 = TryOrientation(rest, 1);
+        if (orient2.Error is not null)
+        {
+            return PR.Fail(orient2.Error);
+        }
+
+        if (orient2.Hdg is not null)
+        {
+            if (1 + orient2.Consumed != rest.Length)
+            {
+                return PR.Fail("unexpected tokens after PUSH orientation");
+            }
+
+            // PUSH TE <E / PUSH TE FACE E / PUSH @A10 FACE E
+            // For parking/spot, the taxiway slot is unused; orientation is absolute facing.
+            return hasParkingOrSpot ? PR.Ok(Build(orient2.Hdg, null, null, parking, spot)) : PR.Ok(Build(orient2.Hdg, taxiway, null, parking, spot));
+        }
+
+        if (rest.Length == 2 && !int.TryParse(rest[1], out _))
+        {
+            // PUSH TE T → onto TE facing toward T (kept form).
+            string facingTwy = rest[1].ToUpperInvariant();
+            return PR.Ok(Build(null, taxiway, facingTwy, parking, spot));
+        }
+
+        return PR.Fail("unrecognized PUSH arguments");
     }
+
+    /// <summary>
+    /// 8-point compass cardinal → magnetic heading degrees.
+    /// Returns null for invalid input. North maps to 360 to match display semantics.
+    /// </summary>
+    private static int? ParseCardinal(string s) =>
+        s.ToUpperInvariant() switch
+        {
+            "N" => 360,
+            "NE" => 45,
+            "E" => 90,
+            "SE" => 135,
+            "S" => 180,
+            "SW" => 225,
+            "W" => 270,
+            "NW" => 315,
+            _ => null,
+        };
 
     /// <summary>
     /// Parses TAXI path [RWY runway] [HS runway...].

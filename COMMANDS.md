@@ -416,13 +416,16 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Command | Effect |
 |---------|--------|
 | `PUSH` | Push back from parking (reverse at ~5 kts) |
-| `PUSH 270` | Push back facing heading 270 |
+| `PUSH FACE E` / `PUSH >E` | Push back facing east (cardinal direction) |
+| `PUSH TAIL W` / `PUSH <W` | Push back with the tail pointing west (equivalent to `FACE E`) |
 | `PUSH A` | Push back onto taxiway A |
-| `PUSH TE 180` | Push back onto taxiway TE, facing heading 180 |
+| `PUSH TE FACE E` | Push back onto TE, aligning with whichever direction of TE is closest to east |
+| `PUSH TE TAIL W` | Same — `TAIL W` and `FACE E` resolve to the same alignment |
 | `PUSH TE T` | Push back onto taxiway TE, facing toward taxiway T |
 | `PUSH @4A` | Push back to spot 4A (A* pathfinding, use parking heading) |
 | `PUSH @4A A` | Push back to spot 4A, face toward taxiway A |
-| `PUSH @4A 180` | Push back to spot 4A, face heading 180 |
+| `PUSH @4A FACE NE` | Push back to spot 4A, facing northeast |
+| `PUSH $7A TAIL W` | Push back to spot 7A with tail pointing west (= face east) |
 | `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
 | `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
@@ -442,6 +445,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | `GIVEWAY SWA123` | Wait for SWA123 to pass before executing the next command (see [Conditional Blocks](#conditional-blocks)) |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 via A* pathfinding (global command, no callsign needed) |
 | `BREAK` | Ignore ground conflicts for 15 seconds |
+
+Pushback orientation accepts the eight compass points: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`. Use `FACE C` (or shorthand `>C`) to specify the nose direction, or `TAIL C` (`<C`) to specify the tail direction. When pushed onto a taxiway, the cardinal acts as a hint — the aircraft aligns with whichever of the taxiway's two directions is closest. For parking/spot destinations, the cardinal is the absolute facing.
 
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
 

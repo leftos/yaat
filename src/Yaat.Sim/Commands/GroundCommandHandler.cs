@@ -469,17 +469,15 @@ internal static class GroundCommandHandler
             );
 
             // Resolve facing direction: face along the PUSH taxiway edge at the target node,
-            // picking the direction closest to the FACING taxiway.
-            // e.g., PUSH TE T → push onto TE, face along TE toward T.
+            // picking the direction closest to the hint.
+            //   PUSH TE T   → hint = bearing toward FacingTaxiway T.
+            //   PUSH TE <E  → hint = the cardinal magnetic heading (270 here, since '<E' = tail east → face west).
             if (push.FacingTaxiway is not null && resolvedHeading is null)
             {
-                // Find bearing from target node toward the facing taxiway
                 var facingNode = groundLayout.FindExitByTaxiway(targetNode.Position, push.FacingTaxiway);
                 if (facingNode is not null)
                 {
                     double bearingToFacing = GeoMath.BearingTo(targetNode.Position, facingNode.Position);
-
-                    // Pick the push-taxiway edge direction closest to the facing taxiway
                     double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(targetNode, push.Taxiway!, bearingToFacing);
 
                     if (edgeBearing is not null)
@@ -510,6 +508,33 @@ internal static class GroundCommandHandler
                         "[Pushback] {Callsign}: cannot find facing taxiway '{FTwy}' near exit node",
                         aircraft.Callsign,
                         push.FacingTaxiway
+                    );
+                }
+            }
+            else if (resolvedHeading is not null)
+            {
+                // Cardinal hint provided: snap to the closest of the push-taxiway's two edge directions
+                // at the target node so the aircraft ends up aligned with the taxiway.
+                double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(targetNode, push.Taxiway!, resolvedHeading.Value);
+                if (edgeBearing is not null)
+                {
+                    int snapped = FlightPhysics.BearingToDisplayInt(edgeBearing.Value);
+                    Log.LogDebug(
+                        "[Pushback] {Callsign}: cardinal hint {Hint:000} → snapped to {Hdg:000} along {PTwy}",
+                        aircraft.Callsign,
+                        resolvedHeading,
+                        snapped,
+                        push.Taxiway
+                    );
+                    resolvedHeading = snapped;
+                }
+                else
+                {
+                    Log.LogDebug(
+                        "[Pushback] {Callsign}: no {PTwy} edges at target node — using cardinal hint {Hdg:000} directly",
+                        aircraft.Callsign,
+                        push.Taxiway,
+                        resolvedHeading
                     );
                 }
             }

@@ -419,14 +419,17 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - `"taxi via bravo charlie hold short of? runway? {rwy}"` → `TAXI B C HS {rwy}`
 - `"taxi via bravo charlie cross runway {rwy}"` → `TAXI B C CROSS {rwy}`
 
-**Pushback (onto-taxiway + optional facing):**
+**Pushback (onto-taxiway + optional facing/tail):**
 
 - `"pushback approved"` / `"push back approved"` → `PUSH`
 - `"pushback onto tango approved"` / `"push back onto tango approved"` → `PUSH T`
 - `"pushback onto tango facing taxiway uniform approved?"` → `PUSH T U`
-- `"pushback onto tango facing heading 180 approved?"` → `PUSH T 180`
-- `"pushback onto tango facing north/south/east/west approved?"` → `PUSH T 360/180/090/270`
-- `"pushback approved? facing north"` → `PUSH 360`
+- `"pushback onto tango facing|face north/south/east/west approved?"` → `PUSH T FACE N/S/E/W`
+- `"pushback onto tango tail north/south/east/west approved?"` → `PUSH T TAIL N/S/E/W`
+- `"pushback approved? facing|face north"` → `PUSH FACE N`
+- `"pushback approved? tail east"` → `PUSH TAIL E`
+- Cardinals only resolve N/S/E/W today; intercardinals (NE/SE/SW/NW) fall through to the LLM
+  fallback because their spoken forms collide with compass-point fix names.
 
 **Other ground:**
 

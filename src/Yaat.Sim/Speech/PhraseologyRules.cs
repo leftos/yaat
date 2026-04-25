@@ -363,8 +363,8 @@ public static class PhraseologyRules
     //   1. NatoLetterNormalizer.Collapse — turns "bravo charlie" into single tokens "B" and "C",
     //      with multi-letter taxiway disambiguation driven by MapContext.TaxiwayNames. After
     //      collapse, plain {taxiway} / {path...} captures work unchanged.
-    //   2. AtcNumberParser.TryResolveCardinalHeading (via CardinalCaptureNames post-pass in
-    //      TryMatchRule) — turns {cardinal} captures like "north" into "360".
+    //   2. AtcNumberParser.TryResolveCardinalLetter (via CardinalCaptureNames post-pass in
+    //      TryMatchRule) — turns {cardinal} captures like "north" into "N".
     //
     // Accepted taxi phraseology (pilot-side):
     //   - "Taxi via delta hotel" — path only
@@ -423,10 +423,17 @@ public static class PhraseologyRules
             new(["push", "back", "onto", "{taxiway}", "approved"], "PUSH {taxiway}", Pushback),
             new(["pushback", "onto", "{taxiway}", "facing", "taxiway", "{facing}", "approved?"], "PUSH {taxiway} {facing}", Pushback),
             new(["push", "back", "onto", "{taxiway}", "facing", "taxiway", "{facing}", "approved?"], "PUSH {taxiway} {facing}", Pushback),
-            new(["pushback", "onto", "{taxiway}", "facing", "heading", "{hdg}", "approved?"], "PUSH {taxiway} {hdg}", Pushback),
-            new(["pushback", "onto", "{taxiway}", "facing", "{cardinal}", "approved?"], "PUSH {taxiway} {cardinal}", Pushback),
-            new(["pushback", "approved", "facing", "{cardinal}"], "PUSH {cardinal}", Pushback),
-            new(["pushback", "facing", "{cardinal}"], "PUSH {cardinal}", Pushback),
+            // FACE synonyms: "facing" / "face" both map to PUSH FACE {cardinal}.
+            new(["pushback", "onto", "{taxiway}", "facing", "{cardinal}", "approved?"], "PUSH {taxiway} FACE {cardinal}", Pushback),
+            new(["pushback", "onto", "{taxiway}", "face", "{cardinal}", "approved?"], "PUSH {taxiway} FACE {cardinal}", Pushback),
+            new(["pushback", "approved", "facing", "{cardinal}"], "PUSH FACE {cardinal}", Pushback),
+            new(["pushback", "approved", "face", "{cardinal}"], "PUSH FACE {cardinal}", Pushback),
+            new(["pushback", "facing", "{cardinal}"], "PUSH FACE {cardinal}", Pushback),
+            new(["pushback", "face", "{cardinal}"], "PUSH FACE {cardinal}", Pushback),
+            // TAIL: "tail east" = tail toward east; canonical form is PUSH TAIL {cardinal}.
+            new(["pushback", "onto", "{taxiway}", "tail", "{cardinal}", "approved?"], "PUSH {taxiway} TAIL {cardinal}", Pushback),
+            new(["pushback", "approved", "tail", "{cardinal}"], "PUSH TAIL {cardinal}", Pushback),
+            new(["pushback", "tail", "{cardinal}"], "PUSH TAIL {cardinal}", Pushback),
             new(["hold", "position"], "HOLD", HoldPosition),
             new(["resume", "taxi"], "RES", Resume),
             new(["continue", "taxi"], "RES", Resume),

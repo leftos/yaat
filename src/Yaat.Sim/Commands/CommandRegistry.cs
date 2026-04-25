@@ -513,7 +513,13 @@ public static class CommandRegistry
                 "Ground",
                 false,
                 ["PUSH"],
-                [O(null, [], "Pushback (auto heading)"), O("Heading", [R("heading", "0-360")], "Pushback facing heading")],
+                [
+                    O(null, [], "Pushback (auto heading)"),
+                    O("Cardinal", [R("orientation", "<C/>C or FACE C/TAIL C, C∈N/NE/E/SE/S/SW/W/NW")], "Pushback with cardinal facing"),
+                    O("Onto", [R("taxiway", "taxiway/exit")], "Pushback onto taxiway"),
+                    O("Onto+facing", [R("taxiway", "taxiway"), R("facing_taxiway", "taxiway")], "Onto taxiway facing toward another taxiway"),
+                    O("Onto+cardinal", [R("taxiway", "taxiway"), R("orientation", "<C/>C or FACE C/TAIL C")], "Onto taxiway with cardinal hint"),
+                ],
                 [Mod("@", "parking", false), Mod("$", "spot", false)]
             ),
             Cmd(
