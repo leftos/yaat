@@ -1,0 +1,119 @@
+name: Discord Release Announcement
+
+# Posts a release announcement to the Discord announcements channel.
+# Triggered automatically when release.yml publishes a GitHub Release;
+# can also be invoked manually to (re)announce a specific tag.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to announce (e.g. v0.1.2-alpha)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release and pull body
+        id: rel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -z "$TAG" ]; then
+            echo "::error::No release tag resolved from event or input"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "url=https://github.com/${REPO}/releases/tag/${TAG}" >> "$GITHUB_OUTPUT"
+
+          # Fetch the published release body so the Discord post mirrors what
+          # GitHub shows. release.yml may or may not have included a Highlights
+          # section depending on its ≤3-bullet threshold.
+          gh release view "$TAG" --repo "$REPO" --json body --jq '.body' > /tmp/body.md
+          echo "Release body: $(wc -c < /tmp/body.md) bytes"
+
+      - name: Build announcement
+        id: msg
+        env:
+          TAG: ${{ steps.rel.outputs.tag }}
+          URL: ${{ steps.rel.outputs.url }}
+        run: |
+          set -euo pipefail
+
+          # Extract a top-level "## Heading" section from the release body up
+          # to the next "## " heading or the "---" separator that release.yml
+          # places before the download tables. Strips surrounding blank lines.
+          extract_section() {
+            local heading="$1"
+            awk -v h="$heading" '
+              $0 == h { p = 1; next }
+              /^## / { p = 0 }
+              /^---$/ { p = 0 }
+              p { print }
+            ' /tmp/body.md \
+            | awk 'NF { p = 1 } p' \
+            | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}'
+          }
+
+          highlights=$(extract_section "## Highlights")
+          changelog=$(extract_section "## Changelog")
+
+          # Match the manually crafted format: "vX released (URL)" + the
+          # markdown highlights verbatim. For small releases that have no
+          # Highlights section, post the Changelog bullets directly with
+          # no heading — the changelog IS the announcement at that size.
+          {
+            echo "$TAG released ($URL)"
+            if [ -n "$highlights" ]; then
+              echo "## Highlights"
+              echo ""
+              echo "$highlights"
+            else
+              echo ""
+              echo "$changelog"
+            fi
+          } > /tmp/discord-msg.txt
+
+          msg_bytes=$(wc -c < /tmp/discord-msg.txt)
+          echo "Discord message: $msg_bytes bytes"
+          # Discord's content field tops out at 2000 chars. Highlights are
+          # capped at ~250 words upstream, so this should be comfortable.
+          if [ "$msg_bytes" -gt 1900 ]; then
+            echo "::warning::Discord message is $msg_bytes bytes; close to the 2000-char limit."
+          fi
+
+      - name: Post to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_ANNOUNCEMENTS_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "::error::DISCORD_ANNOUNCEMENTS_WEBHOOK_URL secret is not configured."
+            echo "::error::Create a webhook in the announcements channel and add it via:"
+            echo "::error::  gh secret set DISCORD_ANNOUNCEMENTS_WEBHOOK_URL --repo leftos/yaat"
+            exit 1
+          fi
+
+          payload=$(jq -n --rawfile msg /tmp/discord-msg.txt '{content: $msg}')
+
+          http_code=$(curl -sS -o /tmp/discord-resp.txt -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d "$payload" "$DISCORD_WEBHOOK_URL")
+
+          if [ "$http_code" -ge 400 ]; then
+            echo "::error::Discord webhook returned HTTP $http_code"
+            cat /tmp/discord-resp.txt
+            exit 1
+          fi
+          echo "Posted (HTTP $http_code)"
