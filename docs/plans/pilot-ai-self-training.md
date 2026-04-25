@@ -85,6 +85,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 
 - [x] **M10.0** — TTS pipeline spike (validated 2026-04-25, branched into `tools/Yaat.SpeechSandbox` TTS tab)
 - [x] **M10.1** — Pilot voice (text-only readbacks) (shipped 2026-04-25, commit `8e21fc7`)
+- [ ] **M10.1.1** — Extended spawn check-ins (HoldingShort, LinedUp, OnFinal)
 - [ ] **M10.2** — Student speaks/types real ATC
 - [ ] **M10.3** — TTS layer (audible pilot voice + radio realism)
 - [ ] **M10.3.5** — Frequency contention + transmission queue + activity-aware verbosity
@@ -163,6 +164,44 @@ After M10.0 finishes, we revisit this plan, lock M10.3 specifics (or pivot if fi
 **Verify:**
 - `timeout 30 dotnet test --filter "PhraseologyVerbalizer|PilotResponder" 2>&1 | tee .tmp/test.log` — golden-file tests assert readback strings for the ~30 most common commands. Round-trip test: every rule's pattern, when verbalized via a hand-constructed canonical, produces a string that re-parses to the original canonical via `PhraseologyMapper`.
 - Manual: load any KOAK scenario with `SoloTrainingMode` enabled (M10.2 wires the pref UI; for M10.1 toggle directly via a server-side method or scenario JSON), type a sequence, confirm readback lines appear in the terminal pane.
+
+### M10.1.1 — Extended spawn check-ins (HoldingShort, LinedUp, OnFinal) — Small, ~0.5–1 day
+
+**What ships:** three additional pilot-only check-in templates fired by the phases that match YAAT's existing scenario spawn conditions, beyond M10.1's `AtParkingPhase` "ready to taxi". Same architectural pattern as M10.1: per-phase one-shot flag → `PilotResponder.Build*` template → push to `PendingNotifications` gated by `SoloTrainingMode`. Assumes ATIS information Alpha is current at all fields (real ATIS modeling is deferred indefinitely).
+
+**Spawn conditions covered:**
+
+| Spawn condition | Phase | Check-in |
+|---|---|---|
+| `OnRunway` (LUAW) | `LinedUpAndWaitingPhase` | "Tower, [callsign] runway [rwy], ready." *(after 10 s, only if no `DepartureClearance` — the "did you forget me?" call)* |
+| Arbitrary on ground → reaches hold-short via preset taxi | `HoldingShortPhase` | "Tower, [callsign] holding short runway [rwy], ready for departure." *(fires on phase entry; an aircraft that taxies from parking to hold-short emits both this AND the M10.1 ready-to-taxi at the appropriate times)* |
+| `OnFinal` | `FinalApproachPhase` | IFR with active approach: "Tower, [callsign] [approach-name]." / VFR or IFR without active approach: "Tower, [callsign] [N] mile final runway [rwy], with information Alpha." *(only fires when **spawned** into final, gated by `aircraft.HasMadeInitialContact == false`; aircraft that flew the approach sequence already talked earlier and stay silent here)* |
+
+**Updates to M10.1 templates:**
+- `PilotResponder.BuildReadyToTaxi` appends ", with information Alpha" so the AtParking check-in matches the new arrival/inbound check-ins.
+
+**State model:**
+- `aircraft.HasMadeInitialContact: bool` (new, one-shot) — set true the first time any pilot transmission fires (AtParking ready, HoldingShort, LinedUp, OnFinal). Gates "fresh-spawn" check-ins like FinalApproach so they don't re-fire after the aircraft has already been talking. Snapshot-serialized.
+- `aircraft.HasAnnouncedHoldingShortReady: bool` (new) — set on `HoldingShortPhase` entry, cleared on phase exit. Per-phase-entry semantics so an aircraft that holds short at multiple runways announces each one.
+- `aircraft.HasAnnouncedLinedUpReady: bool` (new) — set after the LinedUpAndWaiting 10 s reminder fires, never cleared (a single LUAW is one logical event).
+- `aircraft.HasAnnouncedReady` (M10.1, AtParking) stays as-is.
+
+**Files to touch:**
+- `src/Yaat.Sim/AircraftState.cs` — three new bool fields plus snapshot mirror.
+- `src/Yaat.Sim/Simulation/Snapshots/AircraftSnapshotDto.cs` — three new fields, all optional (default false on older snapshots).
+- `src/Yaat.Sim/Pilot/PilotResponder.cs` — `BuildReadyToTaxi` appends ATIS; new `BuildHoldingShortReady`, `BuildLinedUpReady`, `BuildOnFinal` (with IFR/VFR variant selection inside).
+- `src/Yaat.Sim/Phases/Ground/HoldingShortPhase.cs` — `OnStart` fires the check-in (no flag-on-phase needed; phase lifecycle gates it). `OnEnd` clears `aircraft.HasAnnouncedHoldingShortReady` so a future re-entry fires again.
+- `src/Yaat.Sim/Phases/Tower/LinedUpAndWaitingPhase.cs` — `OnTick` fires after 10 s if `!HasAnnouncedLinedUpReady && !HasDepartureClearance && SoloTrainingMode`.
+- `src/Yaat.Sim/Phases/Approach/FinalApproachPhase.cs` — `OnStart` fires if `!aircraft.HasMadeInitialContact && SoloTrainingMode`. Branches IFR (with active approach) vs VFR/no-approach for the template.
+- `docs/pilot-phraseology-examples.md` — add a "Spawn check-ins" section listing all four templates and the airborne-inference grid (deferred to M10.4 but documented here so the corpus is complete).
+
+**Riskiest part:** `FinalApproachPhase` fires through the normal-approach path too (an aircraft handed off to tower during approach transitions into FinalApproachPhase), and we don't want a second "tower, callsign" check-in from those aircraft. The `HasMadeInitialContact` gate handles this — those aircraft already announced earlier (at parking, on a STAR check-in via M10.4, or via M10.2's pilot-direct workflow). For M10.1.1 alone, an aircraft that *only* exists post-spawn-on-final stays silent through subsequent phase transitions because the first FinalApproach OnStart sets `HasMadeInitialContact = true`.
+
+**Verify:**
+- Unit tests for the three new builders (`PilotResponderTests`).
+- Phase entry tests: spawn an aircraft directly into each phase, run one tick, assert the right line appears in `PendingNotifications`.
+- Per-phase-entry test for `HasAnnouncedHoldingShortReady` reset: simulate hold-short → cleared cross → reaches another hold-short, assert the second hold-short re-fires the check-in.
+- Negative test: an aircraft that goes through the normal AtParking → Taxi → HoldingShort → LineUp → Takeoff → InitialClimb → FinalApproach (touch-and-go) sequence does NOT fire a redundant OnFinal check-in.
 
 ### M10.2 — Student speaks/types real ATC — Small, ~3–5 days
 
@@ -304,7 +343,7 @@ FrequencyState {
 
 ### M10.4 — Pilot expectations + proactive requests — Medium, ~1–1.5 weeks
 
-**What ships:** a tiny `PilotExpectation` value object on `AircraftState` (NOT a full intent system) and a `PilotProactive` ticker that handles three real-world pilot behaviors: contextual spawn check-in, request-after-silence, and pre-handoff sign-off elaboration.
+**What ships:** a tiny `PilotExpectation` value object on `AircraftState` (NOT a full intent system), a `PilotProactive` ticker that handles three real-world pilot behaviors (contextual spawn check-in, request-after-silence, pre-handoff sign-off elaboration), AND the **airborne-arbitrary-spawn check-in** deferred from M10.1.1 (an aircraft spawned in the air announces appropriately for the student's controlled position and flight rules).
 
 **Files to touch:**
 - `src/Yaat.Sim/Pilot/PilotExpectation.cs` *(new)* — small record:
@@ -323,15 +362,27 @@ FrequencyState {
   - Holding short waiting for takeoff for >60 s with no `DepartureClearance`: push a "ready for departure 28R, callsign" reminder.
   - Inside 10 nm of destination on a STAR with no `ActiveApproach`: push a "with you, ten miles to land 28R" check-in (only fires once per arrival).
   - At parking with flight plan, no `DepartureClearance`, >120 s since last reminder: push "ready to taxi" again.
-- `src/Yaat.Sim/Pilot/PilotResponder.cs` — extend templates to use `PilotExpectation` for richer phraseology (e.g., handoff acknowledgment includes the next frequency from `ExpectationUpdater`).
-- `src/Yaat.Sim/Simulation/SimulationEngine.cs` — call `ExpectationUpdater.Update(ac)` and `PilotProactive.Tick(ac)` after physics, before broadcast.
+- `src/Yaat.Sim/Pilot/PilotResponder.cs` — extend templates to use `PilotExpectation` for richer phraseology (e.g., handoff acknowledgment includes the next frequency from `ExpectationUpdater`). Add `BuildAirborneCheckIn(aircraft, scenario)` for the airborne-arbitrary-spawn case (see grid below).
+- `src/Yaat.Sim/Simulation/SimulationEngine.cs` — call `ExpectationUpdater.Update(ac)` and `PilotProactive.Tick(ac)` after physics, before broadcast. Add a per-aircraft first-airborne-tick check that fires `BuildAirborneCheckIn` when `!aircraft.HasMadeInitialContact && !aircraft.IsOnGround && SoloTrainingMode`.
 
-**What this buys:** a solo student who forgets to clear an arriving aircraft for the approach gets a nudge. Closer to real training, where a flight-following pilot calls you when you've gone quiet.
+**Airborne-arbitrary-spawn check-in grid** (deferred from M10.1.1, surfaces here):
+
+| Student position (`Scenario.StudentPositionType`) | IFR | VFR |
+|---|---|---|
+| Tower | "Tower, [callsign] runway [rwy], with information Alpha." *(rare — direct-to-tower IFR)* | "Tower, [callsign] [N] miles [direction] at [altitude], inbound for landing, with information Alpha." |
+| Approach | "Approach, [callsign] level [altitude], with information Alpha." | "Approach, [callsign] [N] miles [direction] at [altitude], request [landing/transition], with information Alpha." |
+| Center | "Center, [callsign] flight level [FL]." | "Center, [callsign] at [altitude], [N] miles [direction] of [airport]." |
+| Ground (rare for airborne) | skip | skip |
+
+`[N] miles [direction]` is computed from aircraft position relative to the primary airport using `GeoMath.DistanceTo` and a cardinal-direction quantizer (8-point compass). `[altitude]` is rendered via `AltitudeToWords` (sub-FL180) or "flight level X" (FL180+). `[rwy]` for IFR-Tower is `aircraft.DestinationRunway` if set, else falls back to "the airport".
+
+**What this buys:** a solo student who forgets to clear an arriving aircraft for the approach gets a nudge. Closer to real training, where a flight-following pilot calls you when you've gone quiet. Plus airborne-spawned aircraft no longer appear silently — they announce themselves on first airborne tick, matching what a real pilot would do when first checking in on a new frequency.
 
 **Riskiest part:** spamming the terminal. Each proactive request must have a per-request timestamp gate so it fires once per situation, not once per tick. Aggressive cap: a single aircraft cannot generate more than 1 proactive line per 30 s.
 
 **Verify:**
 - New scenario test: aircraft at parking with flight plan, no commands issued → after 5 s a check-in line appears, after 125 s a second reminder, no third reminder for another 120 s.
+- Airborne-spawn tests: spawn an aircraft mid-air with each combination of `StudentPositionType` × `FlightRules`. Assert the right check-in line fires on first tick. Negative test: an aircraft that took off normally (transitioning through `InitialClimbPhase`) does NOT fire the airborne check-in because `HasMadeInitialContact` was set earlier (at parking or during taxi).
 - Aviation review by `aviation-sim-expert` that the prompts are AIM-realistic (initial-contact format per AIM 4-2-3, etc.).
 
 ### M10.5 — DA/MDA contingency + "unable" rejection — Medium, ~1 week
