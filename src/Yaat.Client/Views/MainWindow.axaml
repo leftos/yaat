@@ -130,6 +130,24 @@
                 <MenuItem Header="Configure _CRC Environments"
                           x:Name="ConfigureCrcMenuItem" />
             </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_Getting Started"
+                          x:Name="HelpGettingStartedMenuItem" />
+                <MenuItem Header="_User Guide"
+                          x:Name="HelpUserGuideMenuItem" />
+                <MenuItem Header="_Commands Reference"
+                          x:Name="HelpCommandsMenuItem" />
+                <MenuItem Header="C_hangelog"
+                          x:Name="HelpChangelogMenuItem" />
+                <Separator />
+                <MenuItem Header="_Report a Bug..."
+                          x:Name="HelpReportBugMenuItem" />
+                <MenuItem Header="Open on Git_Hub"
+                          x:Name="HelpOpenRepoMenuItem" />
+                <Separator />
+                <MenuItem Header="_About YAAT..."
+                          x:Name="AboutMenuItem" />
+            </MenuItem>
         </Menu>
 
         <!-- Timeline bar -->

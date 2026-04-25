@@ -131,6 +131,19 @@ public partial class MainWindow : Window
             crcItem.Click += OnConfigureCrcClick;
         }
 
+        var aboutItem = this.FindControl<MenuItem>("AboutMenuItem");
+        if (aboutItem is not null)
+        {
+            aboutItem.Click += OnAboutClick;
+        }
+
+        WireUrlMenuItem("HelpGettingStartedMenuItem", DocLinks.GettingStarted);
+        WireUrlMenuItem("HelpUserGuideMenuItem", DocLinks.UserGuide);
+        WireUrlMenuItem("HelpCommandsMenuItem", DocLinks.Commands);
+        WireUrlMenuItem("HelpChangelogMenuItem", DocLinks.Changelog);
+        WireUrlMenuItem("HelpReportBugMenuItem", DocLinks.Issues);
+        WireUrlMenuItem("HelpOpenRepoMenuItem", DocLinks.Repo);
+
         var embeddedView = this.FindControl<DataGridView>("EmbeddedDataGridView");
         var dataGrid = embeddedView?.GetDataGrid();
         if (dataGrid is not null)
@@ -1628,6 +1641,21 @@ public partial class MainWindow : Window
 
         CrcConfigService.Configure();
         _ = ShowMessageAsync("YAAT server environments added to CRC. Restart CRC to pick up changes.");
+    }
+
+    private async void OnAboutClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var about = new AboutWindow();
+        await about.ShowDialog(this);
+    }
+
+    private void WireUrlMenuItem(string name, string url)
+    {
+        var item = this.FindControl<MenuItem>(name);
+        if (item is not null)
+        {
+            item.Click += (_, _) => UrlLauncher.OpenInBrowser(url);
+        }
     }
 
     private async Task ShowMessageAsync(string message)

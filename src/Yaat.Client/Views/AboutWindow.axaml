@@ -1,0 +1,85 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.AboutWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="About YAAT"
+        Width="460"
+        Height="360"
+        MinWidth="380"
+        MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="20">
+
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,16,0,0">
+            <Button Content="Open on GitHub"
+                    x:Name="OpenRepoButton" />
+            <Button Content="Close"
+                    x:Name="CloseButton"
+                    Width="80"
+                    IsDefault="True"
+                    IsCancel="True" />
+        </StackPanel>
+
+        <StackPanel Spacing="12">
+            <TextBlock Text="YAAT"
+                       FontSize="24"
+                       FontWeight="Bold" />
+            <TextBlock Text="Yet Another ATC Trainer"
+                       Foreground="{DynamicResource SubtleTextBrush}"
+                       FontSize="13" />
+
+            <Grid ColumnDefinitions="120,*"
+                  RowDefinitions="Auto,Auto,Auto,Auto"
+                  Margin="0,8,0,0">
+
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="Version"
+                           Foreground="{DynamicResource SubtleTextBrush}" />
+                <TextBlock Grid.Row="0" Grid.Column="1"
+                           x:Name="VersionText"
+                           FontFamily="{StaticResource MonoFont}" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0"
+                           Text="Build"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           Margin="0,4,0,0" />
+                <TextBlock Grid.Row="1" Grid.Column="1"
+                           x:Name="BuildKindText"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0"
+                           Text=".NET runtime"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           Margin="0,4,0,0" />
+                <TextBlock Grid.Row="2" Grid.Column="1"
+                           x:Name="RuntimeText"
+                           FontFamily="{StaticResource MonoFont}"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="3" Grid.Column="0"
+                           Text="Log file"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           Margin="0,4,0,0" />
+                <TextBlock Grid.Row="3" Grid.Column="1"
+                           x:Name="LogPathText"
+                           FontFamily="{StaticResource MonoFont}"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0" />
+            </Grid>
+
+            <TextBlock TextWrapping="Wrap"
+                       FontSize="11"
+                       Foreground="{DynamicResource SubtleTextBrush}"
+                       Margin="0,12,0,0"
+                       Text="Instructor / RPO desktop client for ATC training. Connects to a yaat-server instance and feeds CRC clients via the standard CRC protocol." />
+        </StackPanel>
+
+    </DockPanel>
+</Window>

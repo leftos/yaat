@@ -409,12 +409,13 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
+            var appLabel = $"YAAT {BuildInfo.TitleSuffix}";
             if (ActiveRoomName is null)
             {
-                return "YAAT";
+                return appLabel;
             }
 
-            return ActiveScenarioName is not null ? $"{ActiveRoomName} ({ActiveScenarioName}) - YAAT" : $"{ActiveRoomName} - YAAT";
+            return ActiveScenarioName is not null ? $"{ActiveRoomName} ({ActiveScenarioName}) - {appLabel}" : $"{ActiveRoomName} - {appLabel}";
         }
     }
 

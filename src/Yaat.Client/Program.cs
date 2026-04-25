@@ -23,6 +23,7 @@ public static class Program
 
         AppLog.Initialize();
         var log = AppLog.CreateLogger("Program");
+        log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
         log.LogInformation("Log file: {LogPath}", AppLog.LogPath);
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
