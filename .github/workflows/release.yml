@@ -39,19 +39,46 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Generate changelog
+      - name: Extract changelog section
         id: cl
         run: |
-          PREVIOUS_TAG=$(git tag --sort=-v:refname | grep '^v' | sed -n '2p' || true)
+          # Extract the section of CHANGELOG.md matching the just-pushed tag.
+          # Headings look like "## 0.1.1-alpha" or "## 0.1.1-alpha - 2026-04-24".
+          # The tag is "v0.1.1-alpha"; strip the leading "v" before matching.
           CURRENT_TAG="${GITHUB_REF_NAME}"
+          VERSION="${CURRENT_TAG#v}"
 
-          if [[ -z "$PREVIOUS_TAG" ]]; then
-            changelog=$(bash .github/scripts/generate-changelog.sh -- "$CURRENT_TAG")
-          else
-            changelog=$(bash .github/scripts/generate-changelog.sh "$PREVIOUS_TAG" "$CURRENT_TAG")
+          if [[ ! -f CHANGELOG.md ]]; then
+            echo "::error::CHANGELOG.md not found at repo root"
+            exit 1
           fi
 
-          # Write to file for multiline output
+          # Print everything from the first "## " heading containing $VERSION
+          # up to (but not including) the next "## " heading. Handles optional
+          # date suffix and either "v"-prefixed or bare version headings.
+          changelog=$(awk -v ver="$VERSION" '
+            /^## / {
+              if (in_section) exit
+              line = substr($0, 4)
+              gsub(/^[ \t]+|[ \t]+$/, "", line)
+              # match the version as a whole token (avoid 0.1 matching 0.10)
+              if (match(line, "(^|[^0-9.])"ver"([^0-9.]|$)")) {
+                in_section = 1
+                next
+              }
+            }
+            in_section { print }
+          ' CHANGELOG.md)
+
+          if [[ -z "$changelog" ]]; then
+            echo "::error::No CHANGELOG.md section found for version '$VERSION'."
+            echo "::error::Run the prepare-release skill — it promotes the unreleased section heading to the tagged version."
+            exit 1
+          fi
+
+          # Trim trailing blank lines for cleaner GitHub Release rendering.
+          changelog=$(printf '%s\n' "$changelog" | awk 'NF{p=1} p' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
+
           echo "$changelog" > /tmp/changelog.md
           {
             echo "changelog<<CHANGELOG_EOF"
