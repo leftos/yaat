@@ -1,0 +1,423 @@
+/*
+ * Yaat.LayoutInspector — interactive HTML stylesheet ("Editorial Forensic")
+ *
+ * Single-accent palette (orange #f0883e) on warm-black, pairing Manrope for
+ * navigation/labels with JetBrains Mono for every cell of data. Borders are
+ * hairline (#1f2126) and resolve to the accent on focus/hover so the UI
+ * reads as instrumentation rather than chrome. Inlined into the rendered
+ * HTML by HtmlRenderer at build time — see GetTemplate().
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #0c0d10;
+  --surface: #15171a;
+  --surface-tint: rgba(21, 23, 26, 0.92);
+  --hairline: #1f2126;
+  --hairline-strong: #2a2d33;
+  --text: #e8e9ec;
+  --text-muted: #7e8390;
+  --text-faint: #4a4e57;
+  --accent: #f0883e;
+  --accent-soft: rgba(240, 136, 62, 0.15);
+  --danger: #e5534b;
+  --legend-twy: #3fb950;
+  --legend-rwy: #58a6ff;
+  --legend-arc: #8957e5;
+  --legend-ramp: #8b949e;
+  --legend-hs: #f85149;
+  --legend-route: #f0883e;
+  --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-feature-settings: 'ss01' on, 'ss02' on, 'cv02' on, 'zero' on;
+}
+
+canvas { display: block; cursor: grab; }
+canvas:active { cursor: grabbing; }
+
+/* ─── Tooltip ─────────────────────────────────────────────────────────── */
+#tooltip {
+  position: fixed;
+  display: none;
+  pointer-events: none;
+  background: var(--surface-tint);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  max-width: 440px;
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+#tooltip .t-title {
+  display: block;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+#tooltip .t-type {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#tooltip .t-edge {
+  color: var(--legend-rwy);
+  display: block;
+  font-size: 11px;
+}
+
+#tooltip .t-ann {
+  color: var(--accent);
+  font-weight: 600;
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ─── HUD (top-left, zoom + airport label) ────────────────────────────── */
+#hud {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+/* ─── Legend (bottom-left) ────────────────────────────────────────────── */
+#legend {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  background: var(--surface-tint);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.9;
+  z-index: 15;
+  backdrop-filter: blur(6px);
+}
+
+#legend code,
+#legend .keys {
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.lc {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.ls { margin-left: 14px; }
+
+/* ─── Highlight panel (top-right) ─────────────────────────────────────── */
+#hlpanel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 300px;
+  background: var(--surface-tint);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 14px 16px 12px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  z-index: 30;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+#hlpanel h4 {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hairline);
+  position: relative;
+}
+
+#hlpanel h4::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 24px;
+  height: 1px;
+  background: var(--accent);
+}
+
+#hlpanel input[type=text] {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--bg);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+#hlpanel input[type=text]::placeholder {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+#hlpanel input[type=text]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+#hlpanel .hint {
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+
+#hlpanel .hint code {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+#hlchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: -2px;
+  padding: 2px;
+}
+
+#hlchips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 8px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+#hlchips .chip:hover { border-color: var(--accent); }
+
+/* Kind indicators are tucked into a thin left rule rather than recoloring
+ * the whole border, so chips read uniform until you focus on them. */
+#hlchips .chip[data-kind=taxiway] { border-left: 2px solid var(--legend-twy); padding-left: 7px; }
+#hlchips .chip[data-kind=runway]  { border-left: 2px solid var(--legend-rwy); padding-left: 7px; }
+#hlchips .chip[data-kind=node]    { border-left: 2px solid var(--accent);     padding-left: 7px; }
+
+#hlchips .chip .label { font-weight: 600; letter-spacing: 0.01em; }
+
+#hlchips .chip button {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 2px;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+#hlchips .chip button:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+#hlclear {
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 5px 10px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  align-self: flex-start;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+#hlclear:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+#hlclear:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+#hlclear:disabled:hover {
+  color: var(--text-muted);
+  border-color: var(--hairline-strong);
+}
+
+/* ─── Player (bottom, only when --ticks supplied) ─────────────────────── */
+#player {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  background: var(--surface-tint);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 10px 14px 12px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+#player .player-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#playBtn {
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+#playBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+#scrub {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+#tickClock {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  min-width: 72px;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+#tickAircraft { display: flex; flex-direction: column; gap: 2px; max-height: 140px; overflow-y: auto; }
+
+#tickAircraft table { border-collapse: collapse; width: 100%; }
+
+#tickAircraft th {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 14px 4px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+#tickAircraft td {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  padding: 3px 14px 3px 0;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+#tickAircraft td[data-col=callsign] { font-weight: 600; }
+#tickAircraft td[data-col=phase],
+#tickAircraft td[data-col=twy]    { color: var(--text-muted); }
+#tickAircraft td[data-col=lim]    { color: var(--accent); }
+
+/* ─── Scrollbars (panel/chips/aircraft) ───────────────────────────────── */
+#hlpanel ::-webkit-scrollbar,
+#tickAircraft::-webkit-scrollbar { width: 6px; height: 6px; }
+
+#hlpanel ::-webkit-scrollbar-track,
+#tickAircraft::-webkit-scrollbar-track { background: transparent; }
+
+#hlpanel ::-webkit-scrollbar-thumb,
+#tickAircraft::-webkit-scrollbar-thumb { background: var(--hairline-strong); border-radius: 3px; }
+
+#hlpanel ::-webkit-scrollbar-thumb:hover,
+#tickAircraft::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }

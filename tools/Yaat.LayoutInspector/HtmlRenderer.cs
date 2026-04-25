@@ -43,8 +43,10 @@ public sealed class HtmlRenderer
     public string Render()
     {
         var data = BuildDataJson();
-        string html = GetTemplate();
-        return html.Replace("/*__DATA__*/", data);
+        string html = LoadAsset("inspector-template.html");
+        string css = LoadAsset("inspector.css");
+        string js = LoadAsset("inspector.js");
+        return html.Replace("/*__CSS__*/", css).Replace("/*__JS__*/", js).Replace("/*__DATA__*/", data);
     }
 
     private string BuildDataJson()
@@ -313,30 +315,35 @@ public sealed class HtmlRenderer
         return false;
     }
 
-    private static string GetTemplate()
+    /// <summary>
+    /// Load a companion render asset (template HTML, CSS, or JS). Tries the
+    /// embedded resource first, then a sibling file, then walks up the source
+    /// tree — so the renderer works whether LI runs from the published binary,
+    /// from <c>dotnet run</c>, or in development tooling.
+    /// </summary>
+    private static string LoadAsset(string fileName)
     {
-        // Template is in a companion file to avoid massive string literals
         var asm = typeof(HtmlRenderer).Assembly;
-        using var stream = asm.GetManifestResourceStream("Yaat.LayoutInspector.inspector-template.html");
-        if (stream is not null)
+        using (var stream = asm.GetManifestResourceStream("Yaat.LayoutInspector." + fileName))
         {
-            using var reader = new StreamReader(stream);
-            return reader.ReadToEnd();
+            if (stream is not null)
+            {
+                using var reader = new StreamReader(stream);
+                return reader.ReadToEnd();
+            }
         }
 
-        // Fallback: read from file next to the assembly
         string dir = Path.GetDirectoryName(asm.Location) ?? ".";
-        string path = Path.Combine(dir, "inspector-template.html");
-        if (File.Exists(path))
+        string sibling = Path.Combine(dir, fileName);
+        if (File.Exists(sibling))
         {
-            return File.ReadAllText(path);
+            return File.ReadAllText(sibling);
         }
 
-        // Last resort: find in source tree
         var d = new DirectoryInfo(AppContext.BaseDirectory);
         while (d is not null)
         {
-            string candidate = Path.Combine(d.FullName, "tools", "Yaat.LayoutInspector", "inspector-template.html");
+            string candidate = Path.Combine(d.FullName, "tools", "Yaat.LayoutInspector", fileName);
             if (File.Exists(candidate))
             {
                 return File.ReadAllText(candidate);
@@ -345,7 +352,7 @@ public sealed class HtmlRenderer
             d = d.Parent;
         }
 
-        throw new FileNotFoundException("inspector-template.html not found");
+        throw new FileNotFoundException(fileName + " not found");
     }
 
     /// <summary>Adapter so Utf8JsonWriter can write to a StringBuilder.</summary>

@@ -11,4 +11,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
     <ProjectReference Include="..\..\src\Yaat.Sim\Yaat.Sim.csproj" />
   </ItemGroup>
+
+  <!-- HTML render template + companion assets are embedded so the rendered
+       output is a single self-contained file regardless of where LI runs from. -->
+  <ItemGroup>
+    <EmbeddedResource Include="inspector-template.html" />
+    <EmbeddedResource Include="inspector.css" />
+    <EmbeddedResource Include="inspector.js" />
+  </ItemGroup>
 </Project>
