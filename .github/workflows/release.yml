@@ -108,7 +108,7 @@ jobs:
               max_tokens: 300,
               messages: [{
                 role: "user",
-                content: ("Given this changelog for YAAT (an ATC training desktop app), write 3-4 concise bullet points highlighting the most notable changes for users. Be specific, not generic. No heading, just bullets.\n\n" + $cl)
+                content: ("Given this changelog for YAAT (an ATC training desktop app), write 3-4 concise bullet points highlighting the most notable changes for end users. The audience is instructors and RPOs running the app, NOT developers — write for them.\n\nRules:\n- Lead with the user-visible effect or capability, not the implementation.\n- Drop implementation jargon: do not name frameworks/libraries (Velopack, Avalonia, SignalR, MessagePack), class/method/property identifiers, exception types, thread/dispatcher terminology, or internal subsystems. Keep names of actual UI elements (e.g. \"Update Now\" button, command bar, Help → About).\n- For fixes, describe the symptom that is gone, not the mechanism. Users do not need to know whether a crash was a thread-affinity bug, null deref, or deadlock.\n- Be specific, not generic. No marketing language (no \"significantly\", \"robust\", \"comprehensive\").\n- No heading, just bullets.\n\nExamples:\n  Bad: \"Fixed Velopack download-progress callback marshalling to UI thread.\"\n  Good: \"Update Now button works again — auto-updates download and apply correctly.\"\n  Bad: \"OnPropertyChanged handler now checks Dispatcher access.\"\n  Good: \"Settings dialog no longer freezes the app on close.\"\n\nChangelog:\n" + $cl)
               }]
             }')" 2>/dev/null) || true
 

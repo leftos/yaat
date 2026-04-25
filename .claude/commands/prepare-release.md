@@ -34,6 +34,9 @@ Read the unreleased section captured in Step 4. Select **3-4 user-impactful item
 - Skip purely internal items even if they made it into the changelog (refactors, test infra, build plumbing).
 - Tighten each chosen bullet to a short, scannable one-liner — drop sub-clauses about how it works internally. The full detail stays in the Changelog section below the Highlights.
 - No marketing language (no "significantly", "robust", "comprehensive", etc.). State the change.
+- **Write for users, not developers.** The audience is instructors and RPOs running YAAT, not contributors. Drop implementation jargon: framework/library names (Velopack, Avalonia, SignalR), class/method names, exception types, thread/dispatcher terminology, internal subsystem names. Lead with what the user sees and does. Keep user-vocabulary names for actual UI elements (e.g. the "Update Now" button, the command bar).
+  - Bad: *"Velopack download-progress callback now marshalled to UI thread, fixing InvalidOperationException."*
+  - Good: *"'Update Now' no longer crashes — auto-updates download and apply correctly."*
 
 ## Step 6: Present draft release notes
 
