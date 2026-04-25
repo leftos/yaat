@@ -59,7 +59,7 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         Assert.NotNull(n436);
         double node508Lat = 0;
         double node508Lon = 0;
-        if (n436.GroundLayout is not null && n436.GroundLayout.Nodes.TryGetValue(508, out var node508))
+        if (n436.Ground.Layout is not null && n436.Ground.Layout.Nodes.TryGetValue(508, out var node508))
         {
             node508Lat = node508.Position.Lat;
             node508Lon = node508.Position.Lon;
@@ -68,9 +68,9 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         // Find SIG1 parking node for distance reference
         double sig1Lat = 0;
         double sig1Lon = 0;
-        if (n436.GroundLayout is not null)
+        if (n436.Ground.Layout is not null)
         {
-            var sig1Node = n436.GroundLayout.FindHelipadByName("SIG1") ?? n436.GroundLayout.FindParkingByName("SIG1");
+            var sig1Node = n436.Ground.Layout.FindHelipadByName("SIG1") ?? n436.Ground.Layout.FindParkingByName("SIG1");
             if (sig1Node is not null)
             {
                 sig1Lat = sig1Node.Position.Lat;
@@ -108,7 +108,7 @@ public class OakGroundE2ETests(ITestOutputHelper output)
             {
                 n569ExitedRunway = true;
                 exitTime = t;
-                output.WriteLine($"t={t}: N569SX exited runway at ({n569.Position.Lat:F6}, {n569.Position.Lon:F6}) on {n569.CurrentTaxiway}");
+                output.WriteLine($"t={t}: N569SX exited runway at ({n569.Position.Lat:F6}, {n569.Position.Lon:F6}) on {n569.Ground.CurrentTaxiway}");
 
                 // Send TAXI G @SIG1
                 var taxiResult = engine.SendCommand("N569SX", "TAXI G @SIG1");

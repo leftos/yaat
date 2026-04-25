@@ -34,9 +34,9 @@ public class InitialClimbAltitudeTests
         var phase = new InitialClimbPhase
         {
             Departure = departure,
+            CruiseAltitude = cruiseAltitude,
             AssignedAltitude = assignedAltitude,
             IsVfr = isVfr,
-            CruiseAltitude = cruiseAltitude,
         };
 
         var runway = MakeRunway();
@@ -170,9 +170,9 @@ public class InitialClimbAltitudeTests
         var phase = new InitialClimbPhase
         {
             Departure = new DefaultDeparture(),
+            CruiseAltitude = 0,
             DepartureRoute = route,
             IsVfr = false,
-            CruiseAltitude = 0,
         };
 
         var runway = MakeRunway();
@@ -217,9 +217,9 @@ public class InitialClimbAltitudeTests
         var phase = new InitialClimbPhase
         {
             Departure = departure,
+            CruiseAltitude = cruiseAltitude,
             AssignedAltitude = assignedAltitude,
             IsVfr = isVfr,
-            CruiseAltitude = cruiseAltitude,
         };
 
         var runway = MakeRunway();
@@ -348,8 +348,8 @@ public class InitialClimbAltitudeTests
         var phase = new InitialClimbPhase
         {
             Departure = new RunwayHeadingDeparture(),
-            IsVfr = true,
             CruiseAltitude = 0,
+            IsVfr = true,
         };
 
         var runway = MakeRunway();

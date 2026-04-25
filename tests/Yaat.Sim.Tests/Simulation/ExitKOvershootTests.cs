@@ -80,23 +80,23 @@ public class ExitKOvershootTests(ITestOutputHelper output)
             {
                 output.WriteLine(
                     $"t+{t}: gs={ac.GroundSpeed:F0} hdg={ac.TrueHeading.Degrees:F0}"
-                        + $" taxiway={ac.CurrentTaxiway ?? "(none)"} phase={ac.Phases?.CurrentPhase?.GetType().Name}"
+                        + $" taxiway={ac.Ground.CurrentTaxiway ?? "(none)"} phase={ac.Phases?.CurrentPhase?.GetType().Name}"
                 );
             }
 
             // CurrentTaxiway is set when RunwayExitPhase completes
-            if (ac.CurrentTaxiway is not null)
+            if (ac.Ground.CurrentTaxiway is not null)
             {
                 double finalHeading = ac.TrueHeading.Degrees;
                 double headingChange = new TrueHeading(finalHeading).AbsAngleTo(new TrueHeading(runwayHeading));
 
                 output.WriteLine(
-                    $"t+{t}: exited at taxiway {ac.CurrentTaxiway} hdg={finalHeading:F0}"
+                    $"t+{t}: exited at taxiway {ac.Ground.CurrentTaxiway} hdg={finalHeading:F0}"
                         + $" (change={headingChange:F0}° from rwy hdg {runwayHeading:F0})"
                 );
 
                 // Aircraft should exit at K
-                Assert.Equal("K", ac.CurrentTaxiway, StringComparer.OrdinalIgnoreCase);
+                Assert.Equal("K", ac.Ground.CurrentTaxiway, StringComparer.OrdinalIgnoreCase);
 
                 // No near-180 reversal — heading change should be ≤100°.
                 // K at SFO is a ~90° perpendicular taxiway, so 90° is expected.
@@ -261,15 +261,15 @@ public class ExitKOvershootTests(ITestOutputHelper output)
             double minDistFt = minDistNm * GeoMath.FeetPerNm;
 
             output.WriteLine(
-                $"t+{t, -3} | {ac.Position.Lat, 11:F6} | {ac.Position.Lon, 12:F6} | {ac.TrueHeading.Degrees, 5:F1} | {ac.GroundSpeed, 5:F1} | {phaseName, -18} | {minDistFt, 12:F1} | {ac.CurrentTaxiway ?? "(none)"}"
+                $"t+{t, -3} | {ac.Position.Lat, 11:F6} | {ac.Position.Lon, 12:F6} | {ac.TrueHeading.Degrees, 5:F1} | {ac.GroundSpeed, 5:F1} | {phaseName, -18} | {minDistFt, 12:F1} | {ac.Ground.CurrentTaxiway ?? "(none)"}"
             );
 
-            if (ac.CurrentTaxiway is not null)
+            if (ac.Ground.CurrentTaxiway is not null)
             {
                 double finalHdg = ac.TrueHeading.Degrees;
                 double hdgChange = new TrueHeading(finalHdg).AbsAngleTo(new TrueHeading(runwayHeading));
                 output.WriteLine(
-                    $"--- EXITED at taxiway {ac.CurrentTaxiway}, hdg={finalHdg:F0} (change={hdgChange:F0}° from rwy {runwayHeading:F0}) ---"
+                    $"--- EXITED at taxiway {ac.Ground.CurrentTaxiway}, hdg={finalHdg:F0} (change={hdgChange:F0}° from rwy {runwayHeading:F0}) ---"
                 );
                 break;
             }

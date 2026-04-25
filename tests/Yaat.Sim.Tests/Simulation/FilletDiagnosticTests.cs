@@ -85,7 +85,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
             var ac = engine.FindAircraft("SKW3078");
-            if (ac?.AssignedTaxiRoute is { } route)
+            if (ac?.Ground.AssignedTaxiRoute is { } route)
             {
                 if (route.CurrentSegmentIndex > maxSegReached)
                 {

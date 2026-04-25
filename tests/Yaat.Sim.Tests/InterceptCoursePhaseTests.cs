@@ -24,7 +24,7 @@ public class InterceptCoursePhaseTests
             TrueHeading = new TrueHeading(heading),
             Altitude = 3000,
             Position = new LatLon(lat, lon),
-            Destination = "OAK",
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
         };
     }
 

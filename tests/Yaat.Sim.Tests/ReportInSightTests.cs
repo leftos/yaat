@@ -35,7 +35,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.True(ac.HasReportedFieldInSight);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
         // Acquisition is a key event — announced via PendingWarnings (orange).
         Assert.Contains("field in sight", ac.PendingWarnings[0]);
         Assert.Empty(ac.PendingNotifications);
@@ -77,7 +77,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Contains("Class Alpha", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback stays diagnostic-free — controller already knows why at FL180+.
         Assert.DoesNotContain("Class", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
@@ -95,7 +95,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
         // RPO diagnostic names the binding layer (OVC020).
         Assert.Contains("OVC020", result.Message);
         // Pilot readback stays diagnostic-free — no METAR codes.
@@ -131,7 +131,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Contains("behind ownship", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback uses the real-world "field's behind us" idiom (no
         // sim-internal "outside forward hemisphere" diagnostic).
@@ -152,7 +152,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
         // RPO diagnostic includes distance + max range + visibility qualifier.
         Assert.Contains("nm", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback is plain.
@@ -173,7 +173,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
         // RPO diagnostic mentions the bank/occlusion.
         Assert.Contains("bank", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback uses the "in the turn" idiom, no high-wing diagnostics.
@@ -220,7 +220,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
-        Assert.True(ownship.HasReportedTrafficInSight);
+        Assert.True(ownship.Approach.HasReportedTrafficInSight);
         // Traffic acquisition is a key event — announced via PendingWarnings
         // (WRN/Orange) so it catches the RPO's eye, not PendingNotifications (RSP/gray).
         Assert.Contains("traffic in sight", ownship.PendingWarnings[0]);
@@ -246,7 +246,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ownship.HasReportedTrafficInSight);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
         var notification = ownship.PendingNotifications[0];
         Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LEAD", notification);
@@ -263,7 +263,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ownship.HasReportedTrafficInSight);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
         var notification = ownship.PendingNotifications[0];
         Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
@@ -282,7 +282,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ownship.HasReportedTrafficInSight);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
         var notification = ownship.PendingNotifications[0];
         Assert.Contains("clouds between us", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
@@ -297,7 +297,7 @@ public class ReportInSightTests
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
         // Heading north so live detection would fail (field behind), but flag is already set
-        ac.HasReportedFieldInSight = true;
+        ac.Approach.HasReportedFieldInSight = true;
         var ctx = TestDispatch.Context(Random.Shared);
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
@@ -311,7 +311,7 @@ public class ReportInSightTests
     public void Rtis_FastPath_WhenFlagAlreadySet()
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
-        ac.HasReportedTrafficInSight = true;
+        ac.Approach.HasReportedTrafficInSight = true;
         var ctx = TestDispatch.Context(Random.Shared);
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
@@ -343,7 +343,7 @@ public class ReportInSightTests
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 250,
-            Destination = destination,
+            FlightPlan = new AircraftFlightPlan { Destination = destination },
         };
     }
 }

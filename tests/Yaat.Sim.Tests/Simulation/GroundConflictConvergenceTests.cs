@@ -80,8 +80,8 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
                 minDistTime = 80 + t;
                 output.WriteLine(
                     $"t={80 + t}: new min dist={distFt:F0}ft "
-                        + $"UAL194 hdg={ual.TrueHeading.Degrees:F0} gs={ual.GroundSpeed:F1} gsl={ual.GroundSpeedLimit?.ToString("F0") ?? "null"} "
-                        + $"THY9WC hdg={thy.TrueHeading.Degrees:F0} gs={thy.GroundSpeed:F1} gsl={thy.GroundSpeedLimit?.ToString("F0") ?? "null"}"
+                        + $"UAL194 hdg={ual.TrueHeading.Degrees:F0} gs={ual.GroundSpeed:F1} gsl={ual.Ground.SpeedLimit?.ToString("F0") ?? "null"} "
+                        + $"THY9WC hdg={thy.TrueHeading.Degrees:F0} gs={thy.GroundSpeed:F1} gsl={thy.Ground.SpeedLimit?.ToString("F0") ?? "null"}"
                 );
             }
         }

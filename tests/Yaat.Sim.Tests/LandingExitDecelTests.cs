@@ -41,7 +41,7 @@ public class LandingExitDecelTests
             Altitude = 9.0,
             IndicatedAirspeed = ias,
             IsOnGround = true,
-            Departure = "TEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
         };
         ac.Phases = new PhaseList();
         return ac;

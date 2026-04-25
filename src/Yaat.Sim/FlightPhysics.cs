@@ -74,7 +74,7 @@ public static class FlightPhysics
         var route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
         {
-            if (aircraft.PendingApproachClearance is { } pendingEarly)
+            if (aircraft.Approach.PendingClearance is { } pendingEarly)
             {
                 ApproachCommandHandler.ActivatePendingApproach(aircraft, pendingEarly);
             }
@@ -143,7 +143,7 @@ public static class FlightPhysics
 
             if (route.Count == 0)
             {
-                if (aircraft.PendingApproachClearance is { } pending)
+                if (aircraft.Approach.PendingClearance is { } pending)
                 {
                     ApproachCommandHandler.ActivatePendingApproach(aircraft, pending);
                     return;
@@ -206,7 +206,7 @@ public static class FlightPhysics
         }
 
         // When SidViaMode is active, only climb planning handles constraints
-        if (aircraft.SidViaMode)
+        if (aircraft.Procedure.SidViaMode)
         {
             return;
         }
@@ -228,7 +228,7 @@ public static class FlightPhysics
             }
         }
 
-        if (!aircraft.StarViaMode && !hasRouteConstraints)
+        if (!aircraft.Procedure.StarViaMode && !hasRouteConstraints)
         {
             return;
         }
@@ -249,7 +249,7 @@ public static class FlightPhysics
             }
 
             // When not in via mode, infer direction from current altitude vs constraint
-            bool isDescending = aircraft.StarViaMode || aircraft.Altitude > restriction.Altitude1Ft;
+            bool isDescending = aircraft.Procedure.StarViaMode || aircraft.Altitude > restriction.Altitude1Ft;
             double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending);
             if (resolvedAlt is not { } targetAlt)
             {
@@ -263,7 +263,7 @@ public static class FlightPhysics
             }
 
             // Apply STAR via floor (only in via mode)
-            if (aircraft.StarViaMode && aircraft.StarViaFloor is { } floor)
+            if (aircraft.Procedure.StarViaMode && aircraft.Procedure.StarViaFloor is { } floor)
             {
                 targetAlt = Math.Max(targetAlt, floor);
             }
@@ -312,7 +312,7 @@ public static class FlightPhysics
         }
 
         // When StarViaMode is active, only descent planning handles constraints
-        if (aircraft.StarViaMode)
+        if (aircraft.Procedure.StarViaMode)
         {
             return;
         }
@@ -334,7 +334,7 @@ public static class FlightPhysics
             }
         }
 
-        if (!aircraft.SidViaMode && !hasRouteConstraints)
+        if (!aircraft.Procedure.SidViaMode && !hasRouteConstraints)
         {
             return;
         }
@@ -354,7 +354,7 @@ public static class FlightPhysics
             }
 
             // When not in via mode, infer direction from current altitude vs constraint
-            bool isDescending = !aircraft.SidViaMode && aircraft.Altitude > restriction.Altitude1Ft;
+            bool isDescending = !aircraft.Procedure.SidViaMode && aircraft.Altitude > restriction.Altitude1Ft;
             double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending);
             if (resolvedAlt is not { } targetAlt)
             {
@@ -368,7 +368,7 @@ public static class FlightPhysics
             }
 
             // Apply SID via ceiling (only in via mode)
-            if (aircraft.SidViaMode && aircraft.SidViaCeiling is { } ceiling)
+            if (aircraft.Procedure.SidViaMode && aircraft.Procedure.SidViaCeiling is { } ceiling)
             {
                 targetAlt = Math.Min(targetAlt, ceiling);
             }
@@ -418,7 +418,7 @@ public static class FlightPhysics
         }
 
         // Don't override controller-issued speed commands or Mach hold
-        if (aircraft.Targets.HasExplicitSpeedCommand || aircraft.SpeedRestrictionsDeleted || (aircraft.Targets.TargetMach is not null))
+        if (aircraft.Targets.HasExplicitSpeedCommand || aircraft.Procedure.SpeedRestrictionsDeleted || (aircraft.Targets.TargetMach is not null))
         {
             return;
         }
@@ -573,8 +573,8 @@ public static class FlightPhysics
     /// </summary>
     internal static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target)
     {
-        bool sidVia = aircraft.SidViaMode;
-        bool starVia = aircraft.StarViaMode;
+        bool sidVia = aircraft.Procedure.SidViaMode;
+        bool starVia = aircraft.Procedure.StarViaMode;
         bool hasConstraint = target.AltitudeRestriction is not null || target.SpeedRestriction is not null;
 
         if (!sidVia && !starVia && !hasConstraint)
@@ -590,12 +590,12 @@ public static class FlightPhysics
             if (resolvedAlt is { } targetAlt)
             {
                 // Apply ceiling/floor limits (only in via mode)
-                if (sidVia && aircraft.SidViaCeiling is { } ceiling)
+                if (sidVia && aircraft.Procedure.SidViaCeiling is { } ceiling)
                 {
                     targetAlt = Math.Min(targetAlt, ceiling);
                 }
 
-                if (starVia && aircraft.StarViaFloor is { } floor)
+                if (starVia && aircraft.Procedure.StarViaFloor is { } floor)
                 {
                     targetAlt = Math.Max(targetAlt, floor);
                 }
@@ -604,7 +604,7 @@ public static class FlightPhysics
             }
         }
 
-        if (target.SpeedRestriction is { } spd && !aircraft.SpeedRestrictionsDeleted)
+        if (target.SpeedRestriction is { } spd && !aircraft.Procedure.SpeedRestrictionsDeleted)
         {
             double targetSpeed = spd.SpeedKts;
 
@@ -669,14 +669,14 @@ public static class FlightPhysics
 
     private static void ClearProcedureState(AircraftState aircraft)
     {
-        aircraft.ActiveSidId = null;
-        aircraft.ActiveStarId = null;
-        aircraft.SidViaMode = false;
-        aircraft.StarViaMode = false;
-        aircraft.SidViaCeiling = null;
-        aircraft.StarViaFloor = null;
-        aircraft.DepartureRunway = null;
-        aircraft.DestinationRunway = null;
+        aircraft.Procedure.ActiveSidId = null;
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.StarViaFloor = null;
+        aircraft.Procedure.DepartureRunway = null;
+        aircraft.Procedure.DestinationRunway = null;
     }
 
     /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009146.</summary>
@@ -772,7 +772,7 @@ public static class FlightPhysics
             aircraft.VerticalSpeed = 0;
             aircraft.Targets.TargetAltitude = null;
             aircraft.Targets.DesiredVerticalRate = null;
-            aircraft.IsExpediting = false;
+            aircraft.Procedure.IsExpediting = false;
             return;
         }
 
@@ -790,7 +790,7 @@ public static class FlightPhysics
                 : AircraftPerformance.DescentRate(aircraft.AircraftType, cat, current);
         }
 
-        if (aircraft.IsExpediting)
+        if (aircraft.Procedure.IsExpediting)
         {
             rate *= 1.5;
         }
@@ -883,7 +883,7 @@ public static class FlightPhysics
         double goal = target.Value;
 
         // Clamp goal to ground conflict limit (ground ops only).
-        if (aircraft.IsOnGround && aircraft.GroundSpeedLimit is { } limit)
+        if (aircraft.IsOnGround && aircraft.Ground.SpeedLimit is { } limit)
         {
             goal = Math.Min(goal, limit);
         }
@@ -931,13 +931,13 @@ public static class FlightPhysics
         if (aircraft.IsOnGround)
         {
             // Enforce ground conflict speed limit before computing displacement.
-            if (aircraft.GroundSpeedLimit is { } limit && aircraft.IndicatedAirspeed > limit)
+            if (aircraft.Ground.SpeedLimit is { } limit && aircraft.IndicatedAirspeed > limit)
             {
                 aircraft.IndicatedAirspeed = limit;
             }
 
             double speedNmPerSec = aircraft.IndicatedAirspeed / 3600.0;
-            double moveDir = aircraft.PushbackTrueHeading?.Degrees ?? aircraft.TrueHeading.Degrees;
+            double moveDir = aircraft.Ground.PushbackTrueHeading?.Degrees ?? aircraft.TrueHeading.Degrees;
             double headingRad = moveDir * DegToRad;
 
             double dLat = speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
@@ -1037,7 +1037,7 @@ public static class FlightPhysics
 
                 if (block.Trigger.Type is BlockTriggerType.OnHandoff)
                 {
-                    aircraft.HandoffAccepted = false;
+                    aircraft.Track.HandoffAccepted = false;
                 }
             }
 
@@ -1078,7 +1078,7 @@ public static class FlightPhysics
 
     private static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup)
     {
-        if (aircraft.GiveWayTarget is null || !aircraft.IsHeld || !aircraft.IsOnGround)
+        if (aircraft.Ground.GiveWayTarget is null || !aircraft.Ground.IsHeld || !aircraft.IsOnGround)
         {
             return;
         }
@@ -1088,22 +1088,22 @@ public static class FlightPhysics
             return;
         }
 
-        var target = aircraftLookup(aircraft.GiveWayTarget);
+        var target = aircraftLookup(aircraft.Ground.GiveWayTarget);
         if (target is null || !target.IsOnGround)
         {
             // Target is gone or airborne — resume
-            aircraft.IsHeld = false;
-            aircraft.GiveWayTarget = null;
+            aircraft.Ground.IsHeld = false;
+            aircraft.Ground.GiveWayTarget = null;
             return;
         }
 
         // Check if give-way condition is met (target has passed)
-        var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = aircraft.GiveWayTarget };
+        var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = aircraft.Ground.GiveWayTarget };
 
         if (IsGiveWayMet(aircraft, trigger, aircraftLookup))
         {
-            aircraft.IsHeld = false;
-            aircraft.GiveWayTarget = null;
+            aircraft.Ground.IsHeld = false;
+            aircraft.Ground.GiveWayTarget = null;
         }
     }
 
@@ -1180,7 +1180,7 @@ public static class FlightPhysics
                 && GeoMath.DistanceNm(aircraft.Position, new LatLon(trigger.TargetLat.Value, trigger.TargetLon.Value)) < FrdArrivalNm,
             BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
             BlockTriggerType.DistanceFinal => IsDistanceFinalMet(aircraft, trigger),
-            BlockTriggerType.OnHandoff => aircraft.HandoffAccepted,
+            BlockTriggerType.OnHandoff => aircraft.Track.HandoffAccepted,
             _ => true,
         };
     }

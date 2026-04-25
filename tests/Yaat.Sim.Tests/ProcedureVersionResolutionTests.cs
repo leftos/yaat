@@ -211,8 +211,8 @@ public class ProcedureVersionResolutionTests
         Assert.True(aircraft.State.Targets.NavigationRoute.Count >= 3, "STAR body should be expanded into navigation route");
 
         // Should have applied altitude profile (StarViaMode enabled)
-        Assert.True(aircraft.State.StarViaMode, "StarViaMode should be enabled via altitude profile");
-        Assert.Equal("BDEGA4", aircraft.State.ActiveStarId);
+        Assert.True(aircraft.State.Procedure.StarViaMode, "StarViaMode should be enabled via altitude profile");
+        Assert.Equal("BDEGA4", aircraft.State.Procedure.ActiveStarId);
 
         // Should have generated a warning about the version change
         Assert.Contains(result.Warnings, w => w.Contains("BDEGA3") && w.Contains("BDEGA4"));

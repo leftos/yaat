@@ -65,7 +65,7 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("DAL1352");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"DAL1352: StarViaMode={aircraft.StarViaMode}, ActiveStarId={aircraft.ActiveStarId}");
+        output.WriteLine($"DAL1352: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude:F0}");
 
         var route = aircraft.Targets.NavigationRoute;
@@ -77,12 +77,12 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
         }
 
         // BDEGA3 should have been resolved to the current version
-        Assert.True(aircraft.StarViaMode, "StarViaMode should be true — BDEGA3 resolved to current version with onAltitudeProfile");
+        Assert.True(aircraft.Procedure.StarViaMode, "StarViaMode should be true — BDEGA3 resolved to current version with onAltitudeProfile");
 
         // ActiveStarId should be the resolved (current) version, not the outdated one
-        Assert.NotNull(aircraft.ActiveStarId);
-        Assert.NotEqual("BDEGA3", aircraft.ActiveStarId);
-        output.WriteLine($"  Resolved STAR: BDEGA3 → {aircraft.ActiveStarId}");
+        Assert.NotNull(aircraft.Procedure.ActiveStarId);
+        Assert.NotEqual("BDEGA3", aircraft.Procedure.ActiveStarId);
+        output.WriteLine($"  Resolved STAR: BDEGA3 → {aircraft.Procedure.ActiveStarId}");
 
         // Route should contain STAR body fixes (not just the base fix "BDEGA")
         Assert.True(route.Count >= 3, $"Route should have STAR body fixes, but only has {route.Count}");
@@ -157,7 +157,7 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
         // here we just confirm the E2E outcome.
         var aircraft = engine.FindAircraft("DAL1352");
         Assert.NotNull(aircraft);
-        Assert.True(aircraft.StarViaMode, "StarViaMode confirms version resolution worked end-to-end");
+        Assert.True(aircraft.Procedure.StarViaMode, "StarViaMode confirms version resolution worked end-to-end");
     }
 
     /// <summary>
@@ -181,10 +181,10 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("SKW3388");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"SKW3388: StarViaMode={aircraft.StarViaMode}, ActiveStarId={aircraft.ActiveStarId}");
+        output.WriteLine($"SKW3388: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
 
-        Assert.True(aircraft.StarViaMode, "Delayed aircraft should also have StarViaMode after version resolution");
-        Assert.NotNull(aircraft.ActiveStarId);
-        Assert.NotEqual("BDEGA3", aircraft.ActiveStarId);
+        Assert.True(aircraft.Procedure.StarViaMode, "Delayed aircraft should also have StarViaMode after version resolution");
+        Assert.NotNull(aircraft.Procedure.ActiveStarId);
+        Assert.NotEqual("BDEGA3", aircraft.Procedure.ActiveStarId);
     }
 }

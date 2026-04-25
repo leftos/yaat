@@ -91,10 +91,13 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
             Altitude = runway.ElevationFt + altAboveField,
             IndicatedAirspeed = touchdownSpeed,
             IsOnGround = false,
-            Departure = airportId,
-            Destination = airportId,
-            FlightRules = "IFR",
-            CruiseAltitude = 3000,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = airportId,
+                Destination = airportId,
+                FlightRules = "IFR",
+                CruiseAltitude = 3000,
+            },
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
@@ -102,7 +105,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
@@ -140,7 +143,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
             );
 
             string distStr = distToBranch > 0 ? $"{distToBranch:F3}" : $"PAST {-distToBranch:F3}";
-            string twy = aircraft.CurrentTaxiway ?? "-";
+            string twy = aircraft.Ground.CurrentTaxiway ?? "-";
 
             if (aircraft.IsOnGround || phase.Contains("Landing") || phase.Contains("Exit") || phase.Contains("Hold"))
             {
@@ -151,7 +154,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
 
             if (phase.Contains("Hold") || phase.Contains("Taxi"))
             {
-                output.WriteLine($"\n  → Exited on {aircraft.CurrentTaxiway}, hdg={aircraft.TrueHeading.Degrees:F0}°");
+                output.WriteLine($"\n  → Exited on {aircraft.Ground.CurrentTaxiway}, hdg={aircraft.TrueHeading.Degrees:F0}°");
                 break;
             }
         }

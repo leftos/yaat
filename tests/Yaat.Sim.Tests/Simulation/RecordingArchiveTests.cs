@@ -497,16 +497,16 @@ public class RecordingArchiveTests
         {
             Callsign = "AAL100",
             AircraftType = "B738",
-            GroundLayout = layout,
+            Ground = new AircraftGroundOps { Layout = layout },
         };
 
         var json = JsonSerializer.Serialize(ac);
 
-        // GroundLayout object must not appear in JSON
+        // Layout object must not appear in JSON
         Assert.DoesNotContain("\"Nodes\"", json);
         Assert.DoesNotContain("\"Edges\"", json);
-        // But GroundLayoutAirportId must be preserved
-        Assert.Contains("\"GroundLayoutAirportId\"", json);
+        // But LayoutAirportId must be preserved
+        Assert.Contains("\"LayoutAirportId\"", json);
         Assert.Contains("KOAK", json);
     }
 
@@ -518,14 +518,14 @@ public class RecordingArchiveTests
         {
             Callsign = "AAL100",
             AircraftType = "B738",
-            GroundLayout = layout,
+            Ground = new AircraftGroundOps { Layout = layout },
         };
 
         var json = JsonSerializer.Serialize(ac);
         var restored = JsonSerializer.Deserialize<AircraftState>(json)!;
 
-        Assert.Null(restored.GroundLayout);
-        Assert.Equal("KOAK", restored.GroundLayoutAirportId);
+        Assert.Null(restored.Ground.Layout);
+        Assert.Equal("KOAK", restored.Ground.LayoutAirportId);
     }
 
     [Fact]
@@ -533,6 +533,6 @@ public class RecordingArchiveTests
     {
         var ac = new AircraftState { Callsign = "AAL100", AircraftType = "B738" };
 
-        Assert.Null(ac.GroundLayoutAirportId);
+        Assert.Null(ac.Ground.LayoutAirportId);
     }
 }

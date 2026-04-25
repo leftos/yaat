@@ -113,42 +113,42 @@ public class SpeedCommandTests
 
         Assert.True(result.Success);
         Assert.Null(ac.Targets.TargetSpeed);
-        Assert.True(ac.SpeedRestrictionsDeleted);
+        Assert.True(ac.Procedure.SpeedRestrictionsDeleted);
     }
 
     [Fact]
     public void SpeedCommand_ClearsDsrFlag()
     {
         var ac = CreateAircraft();
-        ac.SpeedRestrictionsDeleted = true;
+        ac.Procedure.SpeedRestrictionsDeleted = true;
 
         CommandDispatcher.Dispatch(new SpeedCommand(210), ac, TestDispatch.Context(Random.Shared));
 
-        Assert.False(ac.SpeedRestrictionsDeleted);
+        Assert.False(ac.Procedure.SpeedRestrictionsDeleted);
     }
 
     [Fact]
     public void Cvia_ClearsDsrFlag()
     {
         var ac = CreateAircraft();
-        ac.ActiveSidId = "PORTE3";
-        ac.SpeedRestrictionsDeleted = true;
+        ac.Procedure.ActiveSidId = "PORTE3";
+        ac.Procedure.SpeedRestrictionsDeleted = true;
 
         CommandDispatcher.Dispatch(new ClimbViaCommand(null), ac, TestDispatch.Context(Random.Shared));
 
-        Assert.False(ac.SpeedRestrictionsDeleted);
+        Assert.False(ac.Procedure.SpeedRestrictionsDeleted);
     }
 
     [Fact]
     public void Dvia_ClearsDsrFlag()
     {
         var ac = CreateAircraft();
-        ac.ActiveStarId = "SUNOL1";
-        ac.SpeedRestrictionsDeleted = true;
+        ac.Procedure.ActiveStarId = "SUNOL1";
+        ac.Procedure.SpeedRestrictionsDeleted = true;
 
         CommandDispatcher.Dispatch(new DescendViaCommand(null), ac, TestDispatch.Context(Random.Shared));
 
-        Assert.False(ac.SpeedRestrictionsDeleted);
+        Assert.False(ac.Procedure.SpeedRestrictionsDeleted);
     }
 
     // --- SPD rejection inside 5nm final ---
@@ -325,9 +325,9 @@ public class SpeedPhysicsTests
     public void DsrFlag_SkipsViaModeSpdConstraints()
     {
         var ac = CreateAirborne(ias: 280, altitude: 15000);
-        ac.ActiveStarId = "SUNOL1";
-        ac.StarViaMode = true;
-        ac.SpeedRestrictionsDeleted = true;
+        ac.Procedure.ActiveStarId = "SUNOL1";
+        ac.Procedure.StarViaMode = true;
+        ac.Procedure.SpeedRestrictionsDeleted = true;
 
         var target = new NavigationTarget
         {
@@ -346,8 +346,8 @@ public class SpeedPhysicsTests
     public void ViaModeSpdConstraint_ClampedToFloor()
     {
         var ac = CreateAirborne(ias: 210, altitude: 15000);
-        ac.ActiveStarId = "SUNOL1";
-        ac.StarViaMode = true;
+        ac.Procedure.ActiveStarId = "SUNOL1";
+        ac.Procedure.StarViaMode = true;
         ac.Targets.SpeedFloor = 230;
 
         var target = new NavigationTarget
@@ -367,8 +367,8 @@ public class SpeedPhysicsTests
     public void ViaModeSpdConstraint_ClampedToCeiling()
     {
         var ac = CreateAirborne(ias: 280, altitude: 15000);
-        ac.ActiveStarId = "SUNOL1";
-        ac.StarViaMode = true;
+        ac.Procedure.ActiveStarId = "SUNOL1";
+        ac.Procedure.StarViaMode = true;
         ac.Targets.SpeedCeiling = 240;
 
         var target = new NavigationTarget
@@ -391,8 +391,8 @@ public class SpeedPhysicsTests
     {
         // Floor > Ceiling is contradictory; via-mode applies floor then ceiling sequentially
         var ac = CreateAirborne(ias: 250, altitude: 15000);
-        ac.ActiveStarId = "SUNOL1";
-        ac.StarViaMode = true;
+        ac.Procedure.ActiveStarId = "SUNOL1";
+        ac.Procedure.StarViaMode = true;
         ac.Targets.SpeedFloor = 240;
         ac.Targets.SpeedCeiling = 220;
 

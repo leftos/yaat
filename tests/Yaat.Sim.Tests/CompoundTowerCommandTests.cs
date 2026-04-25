@@ -47,8 +47,7 @@ public class CompoundTowerCommandTests
             Altitude = runway.ElevationFt,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = "OAK",
-            CruiseAltitude = 5000,
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK", CruiseAltitude = 5000 },
         };
 
         var phases = new PhaseList { AssignedRunway = runway };
@@ -94,7 +93,7 @@ public class CompoundTowerCommandTests
         var ac = MakeLinedUpAircraft(runway);
 
         // Parse the compound command
-        var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.Route);
+        var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
         Assert.Equal(2, parseResult.Value!.Blocks.Count);
 
@@ -128,7 +127,7 @@ public class CompoundTowerCommandTests
         var ac = MakeLinedUpAircraft(runway);
 
         // Parse and dispatch
-        var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.Route);
+        var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
@@ -202,8 +201,7 @@ public class CompoundTowerCommandTests
             Altitude = 1500,
             IndicatedAirspeed = 100,
             IsOnGround = false,
-            Destination = "OAK",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK", FlightRules = "VFR" },
         };
     }
 
@@ -217,7 +215,7 @@ public class CompoundTowerCommandTests
 
         var ac = MakeAircraftWithoutPhases();
 
-        var parseResult = CommandParser.ParseCompound("ERD 28R, CL", ac.Route);
+        var parseResult = CommandParser.ParseCompound("ERD 28R, CL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
@@ -238,7 +236,7 @@ public class CompoundTowerCommandTests
 
         var ac = MakeAircraftWithoutPhases();
 
-        var parseResult = CommandParser.ParseCompound("ERD 28R; CL", ac.Route);
+        var parseResult = CommandParser.ParseCompound("ERD 28R; CL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
@@ -260,7 +258,7 @@ public class CompoundTowerCommandTests
 
         var ac = MakeAircraftWithoutPhases();
 
-        var parseResult = CommandParser.ParseCompound("CL", ac.Route);
+        var parseResult = CommandParser.ParseCompound("CL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
@@ -274,7 +272,7 @@ public class CompoundTowerCommandTests
         var ac = MakeAircraftWithoutPhases();
         ac.IsOnGround = false;
 
-        var parseResult = CommandParser.ParseCompound("TAXI A", ac.Route);
+        var parseResult = CommandParser.ParseCompound("TAXI A", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));

@@ -164,9 +164,9 @@ public sealed class SimulationEngine
                 {
                     var aircraft = JsonSerializer.Deserialize<LoadedAircraft>(d.AircraftJson)!;
                     // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID
-                    if (aircraft.State.GroundLayoutAirportId is { } layoutAirportId)
+                    if (aircraft.State.Ground.LayoutAirportId is { } layoutAirportId)
                     {
-                        aircraft.State.GroundLayout = _groundData.GetLayout(layoutAirportId);
+                        aircraft.State.Ground.Layout = _groundData.GetLayout(layoutAirportId);
                     }
 
                     Scenario.DelayedQueue.Add(new DelayedSpawn { Aircraft = aircraft, SpawnAtSeconds = d.SpawnAtSeconds });
@@ -260,9 +260,9 @@ public sealed class SimulationEngine
         var beaconCodes = new Dictionary<uint, string>();
         foreach (var ac in aircraft)
         {
-            if (ac.AssignedBeaconCode > 0)
+            if (ac.Transponder.AssignedCode > 0)
             {
-                beaconCodes[ac.AssignedBeaconCode] = ac.Callsign;
+                beaconCodes[ac.Transponder.AssignedCode] = ac.Callsign;
             }
         }
 
@@ -842,13 +842,13 @@ public sealed class SimulationEngine
             return new CommandResult(false, $"Aircraft '{callsign}' not found");
         }
 
-        var parseResult = CommandParser.ParseCompound(command, aircraft.Route);
+        var parseResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
         if (!parseResult.IsSuccess)
         {
             return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
         }
 
-        var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var dispatchCtx = new DispatchContext(
             groundLayout,
             World.Rng,
@@ -898,8 +898,8 @@ public sealed class SimulationEngine
             var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
-        aircraft.AssignedTaxiRoute = null;
-        aircraft.IsHeld = false;
+        aircraft.Ground.AssignedTaxiRoute = null;
+        aircraft.Ground.IsHeld = false;
         aircraft.Queue.Blocks.Clear();
 
         // Place on ground
@@ -915,7 +915,7 @@ public sealed class SimulationEngine
         aircraft.Phases.Add(new HoldingInPositionPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
-        aircraft.GroundLayout = ResolveGroundLayout(aircraft);
+        aircraft.Ground.Layout = ResolveGroundLayout(aircraft);
     }
 
     public void AmendFlightPlan(string callsign, FlightPlanAmendment amendment)
@@ -932,67 +932,67 @@ public sealed class SimulationEngine
         }
         if (amendment.EquipmentSuffix is not null)
         {
-            ac.EquipmentSuffix = amendment.EquipmentSuffix;
+            ac.FlightPlan.EquipmentSuffix = amendment.EquipmentSuffix;
         }
         if (amendment.Departure is not null)
         {
-            ac.Departure = amendment.Departure;
+            ac.FlightPlan.Departure = amendment.Departure;
         }
         if (amendment.Destination is not null)
         {
-            ac.Destination = amendment.Destination;
+            ac.FlightPlan.Destination = amendment.Destination;
         }
         if (amendment.CruiseSpeed is not null)
         {
-            ac.CruiseSpeed = amendment.CruiseSpeed.Value;
+            ac.FlightPlan.CruiseSpeed = amendment.CruiseSpeed.Value;
         }
         if (amendment.CruiseAltitude is not null)
         {
-            ac.CruiseAltitude = amendment.CruiseAltitude.Value;
+            ac.FlightPlan.CruiseAltitude = amendment.CruiseAltitude.Value;
         }
         if (amendment.FlightRules is not null)
         {
-            ac.FlightRules = amendment.FlightRules;
+            ac.FlightPlan.FlightRules = amendment.FlightRules;
         }
         if (amendment.Route is not null)
         {
-            ac.Route = amendment.Route;
+            ac.FlightPlan.Route = amendment.Route;
         }
         if (amendment.Remarks is not null)
         {
-            ac.Remarks = amendment.Remarks;
+            ac.FlightPlan.Remarks = amendment.Remarks;
         }
         if (amendment.Scratchpad1 is not null)
         {
-            ac.Scratchpad1 = amendment.Scratchpad1;
-            ac.WasScratchpad1Cleared = string.IsNullOrEmpty(amendment.Scratchpad1);
+            ac.Stars.Scratchpad1 = amendment.Scratchpad1;
+            ac.Stars.WasScratchpad1Cleared = string.IsNullOrEmpty(amendment.Scratchpad1);
         }
         if (amendment.Scratchpad2 is not null)
         {
-            ac.Scratchpad2 = amendment.Scratchpad2;
+            ac.Stars.Scratchpad2 = amendment.Scratchpad2;
         }
         if (amendment.BeaconCode is not null)
         {
-            ac.BeaconCode = amendment.BeaconCode.Value;
-            ac.AssignedBeaconCode = amendment.BeaconCode.Value;
+            ac.Transponder.Code = amendment.BeaconCode.Value;
+            ac.Transponder.AssignedCode = amendment.BeaconCode.Value;
         }
 
         // Resolve ground layout if departure/destination changed
         if (amendment.Departure is not null || amendment.Destination is not null)
         {
-            ac.GroundLayout = ResolveGroundLayout(ac);
+            ac.Ground.Layout = ResolveGroundLayout(ac);
         }
 
         // Bump the revision counter so the strip can render the new value.
         // CRC displays revision regardless of which fields changed — the counter
         // is a "has been edited" signal, not a per-field diff.
-        ac.RevisionNumber++;
+        ac.FlightPlan.RevisionNumber++;
     }
 
     public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft)
     {
-        var depLayout = string.IsNullOrEmpty(aircraft.Departure) ? null : _groundData.GetLayout(aircraft.Departure);
-        var destLayout = string.IsNullOrEmpty(aircraft.Destination) ? null : _groundData.GetLayout(aircraft.Destination);
+        var depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure) ? null : _groundData.GetLayout(aircraft.FlightPlan.Departure);
+        var destLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Destination) ? null : _groundData.GetLayout(aircraft.FlightPlan.Destination);
 
         if (depLayout is null)
         {
@@ -1036,8 +1036,8 @@ public sealed class SimulationEngine
                     }
 
                     // Condition met — clear the aircraft's give-way hold state
-                    aircraft.GiveWayTarget = null;
-                    aircraft.IsHeld = false;
+                    aircraft.Ground.GiveWayTarget = null;
+                    aircraft.Ground.IsHeld = false;
                 }
                 else if (d.IsDistanceBased)
                 {
@@ -1077,7 +1077,7 @@ public sealed class SimulationEngine
                 _logger.LogInformation("[Deferred] {Callsign}: {Condition} → {Payload}", aircraft.Callsign, conditionDesc, payloadDesc);
                 EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
 
-                var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+                var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
                 var deferredCtx = new DispatchContext(
                     groundLayout,
                     World.Rng,
@@ -1158,7 +1158,7 @@ public sealed class SimulationEngine
 
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         var runway = aircraft.Phases.AssignedRunway;
-        var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var occupiedNodes = _occupiedHoldShortNodes;
 
         var ctx = new PhaseContext
@@ -1268,8 +1268,8 @@ public sealed class SimulationEngine
             }
 
             state.ScenarioId = scenario.ScenarioId;
-            state.Destination = scenario.PrimaryAirportId ?? "";
-            state.GroundLayout = groundLayout;
+            state.FlightPlan.Destination = scenario.PrimaryAirportId ?? "";
+            state.Ground.Layout = groundLayout;
 
             World.AddAircraft(state);
             spawned.Add(state);
@@ -1368,7 +1368,7 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var timedResult = CommandParser.ParseCompound(preset.Command, aircraft.Route);
+            var timedResult = CommandParser.ParseCompound(preset.Command, aircraft.FlightPlan.Route);
             if (!timedResult.IsSuccess)
             {
                 _logger.LogWarning(
@@ -1389,7 +1389,7 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+            var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
             var presetCtx = new DispatchContext(
                 groundLayout,
                 World.Rng,
@@ -1444,13 +1444,13 @@ public sealed class SimulationEngine
             switch (command)
             {
                 case SquawkAllCommand:
-                    ac.BeaconCode = ac.AssignedBeaconCode;
+                    ac.Transponder.Code = ac.Transponder.AssignedCode;
                     break;
                 case SquawkNormalAllCommand:
-                    ac.TransponderMode = "C";
+                    ac.Transponder.Mode = "C";
                     break;
                 case SquawkStandbyAllCommand:
-                    ac.TransponderMode = "Standby";
+                    ac.Transponder.Mode = "Standby";
                     break;
             }
 
@@ -1476,7 +1476,7 @@ public sealed class SimulationEngine
 
     private void DispatchSinglePreset(string command, AircraftState aircraft)
     {
-        var presetResult = CommandParser.ParseCompound(command, aircraft.Route);
+        var presetResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
         if (!presetResult.IsSuccess)
         {
             _logger.LogWarning("Preset parse failed for {Callsign}: \"{Command}\" — {Reason}", aircraft.Callsign, command, presetResult.Reason);
@@ -1491,7 +1491,7 @@ public sealed class SimulationEngine
             return;
         }
 
-        var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var singlePresetCtx = new DispatchContext(
             groundLayout,
             World.Rng,
@@ -1513,9 +1513,9 @@ public sealed class SimulationEngine
         PresetOverride?.Invoke(loaded);
 
         // Ensure destination is set from scenario primary airport for arrivals
-        if (string.IsNullOrWhiteSpace(loaded.State.Destination) && !string.IsNullOrWhiteSpace(scenario.PrimaryAirportId))
+        if (string.IsNullOrWhiteSpace(loaded.State.FlightPlan.Destination) && !string.IsNullOrWhiteSpace(scenario.PrimaryAirportId))
         {
-            loaded.State.Destination = scenario.PrimaryAirportId;
+            loaded.State.FlightPlan.Destination = scenario.PrimaryAirportId;
         }
 
         // Separate immediate presets from delayed ones.
@@ -1660,13 +1660,13 @@ public sealed class SimulationEngine
             return;
         }
 
-        var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.Route);
+        var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.FlightPlan.Route);
         if (!replayResult.IsSuccess)
         {
             return;
         }
 
-        var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var replayCtx = new DispatchContext(
             groundLayout,
             World.Rng,

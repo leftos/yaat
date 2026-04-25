@@ -143,7 +143,7 @@ public sealed class TakeoffPhase : Phase
         // AIM 4-3-2: VFR departures must maintain runway heading until past
         // the DER and within 300ft of pattern altitude. Defer heading changes
         // to InitialClimbPhase which checks both conditions.
-        if (ctx.Aircraft.IsVfr)
+        if (ctx.Aircraft.FlightPlan.IsVfr)
         {
             return;
         }

@@ -35,7 +35,7 @@ public class GroundCommandHandlerTests
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = "OAK",
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
         };
         ac.Phases = new PhaseList();
         return ac;
@@ -189,8 +189,8 @@ public class GroundCommandHandlerTests
         var result = GroundCommandHandler.TryTaxi(ac, cmd, layout);
 
         Assert.True(result.Success);
-        Assert.NotNull(ac.AssignedTaxiRoute);
-        Assert.True(ac.AssignedTaxiRoute!.Segments.Count > 0);
+        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
+        Assert.True(ac.Ground.AssignedTaxiRoute!.Segments.Count > 0);
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class GroundCommandHandlerTests
 
         Assert.True(result.Success);
         // All RunwayCrossing hold-shorts should be pre-cleared
-        foreach (var hs in ac.AssignedTaxiRoute!.HoldShortPoints)
+        foreach (var hs in ac.Ground.AssignedTaxiRoute!.HoldShortPoints)
         {
             if (hs.Reason == HoldShortReason.RunwayCrossing)
             {
@@ -489,21 +489,21 @@ public class GroundCommandHandlerTests
     public void TryCrossRunway_PreClearInRoute_MarksHoldShortCleared()
     {
         var ac = MakeGroundAircraft();
-        ac.AssignedTaxiRoute = MakeRouteWithHoldShort("28R/10L");
+        ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("28R/10L");
 
         // Not currently at a hold-short phase — pre-clear mode
         var cmd = new CrossRunwayCommand("28R");
         var result = GroundCommandHandler.TryCrossRunway(ac, cmd);
 
         Assert.True(result.Success);
-        Assert.True(ac.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
+        Assert.True(ac.Ground.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
     }
 
     [Fact]
     public void TryCrossRunway_NoMatchingHoldShort_Fails()
     {
         var ac = MakeGroundAircraft();
-        ac.AssignedTaxiRoute = MakeRouteWithHoldShort("15/33");
+        ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("15/33");
 
         var cmd = new CrossRunwayCommand("28R");
         var result = GroundCommandHandler.TryCrossRunway(ac, cmd);
@@ -557,7 +557,7 @@ public class GroundCommandHandlerTests
     public void TryHoldShort_NoLayout_Fails()
     {
         var ac = MakeGroundAircraft();
-        ac.AssignedTaxiRoute = MakeRouteWithHoldShort("28R/10L");
+        ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("28R/10L");
         var cmd = new HoldShortCommand("B");
 
         var result = GroundCommandHandler.TryHoldShort(ac, cmd, null);
@@ -621,7 +621,7 @@ public class GroundCommandHandlerTests
         var result = GroundCommandHandler.TryHoldPosition(ac);
 
         Assert.True(result.Success);
-        Assert.True(ac.IsHeld);
+        Assert.True(ac.Ground.IsHeld);
     }
 
     [Fact]
@@ -639,19 +639,19 @@ public class GroundCommandHandlerTests
     public void TryResumeTaxi_WhenHeld_ClearsIsHeld()
     {
         var ac = MakeGroundAircraft();
-        ac.IsHeld = true;
+        ac.Ground.IsHeld = true;
 
         var result = GroundCommandHandler.TryResumeTaxi(ac);
 
         Assert.True(result.Success);
-        Assert.False(ac.IsHeld);
+        Assert.False(ac.Ground.IsHeld);
     }
 
     [Fact]
     public void TryResumeTaxi_NotHeld_Fails()
     {
         var ac = MakeGroundAircraft();
-        ac.IsHeld = false;
+        ac.Ground.IsHeld = false;
 
         var result = GroundCommandHandler.TryResumeTaxi(ac);
 
@@ -869,7 +869,7 @@ public class GroundCommandHandlerTests
         var result = GroundCommandHandler.TryBreakConflict(ac);
 
         Assert.True(result.Success);
-        Assert.Equal(15.0, ac.ConflictBreakRemainingSeconds, precision: 9);
+        Assert.Equal(15.0, ac.Ground.ConflictBreakRemainingSeconds, precision: 9);
     }
 
     [Fact]
@@ -881,7 +881,7 @@ public class GroundCommandHandlerTests
         var result = GroundCommandHandler.TryBreakConflict(ac);
 
         Assert.False(result.Success);
-        Assert.Equal(0.0, ac.ConflictBreakRemainingSeconds);
+        Assert.Equal(0.0, ac.Ground.ConflictBreakRemainingSeconds);
     }
 
     // -------------------------------------------------------------------------
@@ -979,9 +979,9 @@ public class GroundCommandHandlerTests
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42), groundLayout: layout));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
-        Assert.NotNull(ac.AssignedTaxiRoute);
+        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
         // The CROSS 28R should have pre-cleared the hold-short
-        var allHs = ac.AssignedTaxiRoute!.HoldShortPoints;
+        var allHs = ac.Ground.AssignedTaxiRoute!.HoldShortPoints;
         var hs = allHs.FirstOrDefault(h => h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R"));
         Assert.NotNull(hs);
         Assert.True(hs.IsCleared);

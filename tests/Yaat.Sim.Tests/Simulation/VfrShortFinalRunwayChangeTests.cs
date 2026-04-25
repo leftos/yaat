@@ -89,7 +89,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
             var aircraft = engine.FindAircraft("N42416");
             Assert.NotNull(aircraft);
             output.WriteLine(
-                $"N42416: IsVfr={aircraft.IsVfr} type={aircraft.AircraftType} IAS={aircraft.IndicatedAirspeed:F1} "
+                $"N42416: IsVfr={aircraft.FlightPlan.IsVfr} type={aircraft.AircraftType} IAS={aircraft.IndicatedAirspeed:F1} "
                     + $"GS={aircraft.GroundSpeed:F1} hdg={aircraft.TrueHeading.Degrees:F0} alt={aircraft.Altitude:F0} "
                     + $"assignedRwy={aircraft.Phases?.AssignedRunway?.Designator}"
             );
@@ -146,13 +146,12 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         {
             Callsign = "N1VFR",
             AircraftType = "C172",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR", Destination = "KOAK" },
             Position = new LatLon(lat, lon),
             TrueHeading = rwy28R.TrueHeading,
             Altitude = rwy28R.ElevationFt + 300,
             IndicatedAirspeed = 80,
             IsOnGround = false,
-            Destination = "KOAK",
         };
         SetUpFinalApproach(ac, rwy28R, AircraftCategory.Piston);
 
@@ -191,13 +190,12 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         {
             Callsign = "UAL1",
             AircraftType = "B738",
-            FlightRules = "IFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "IFR", Destination = "KOAK" },
             Position = new LatLon(lat, lon),
             TrueHeading = rwy28L.TrueHeading,
             Altitude = rwy28L.ElevationFt + 200,
             IndicatedAirspeed = 140,
             IsOnGround = false,
-            Destination = "KOAK",
         };
         SetUpFinalApproach(ac, rwy28L, AircraftCategory.Jet);
 

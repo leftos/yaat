@@ -70,7 +70,7 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"Route: {aircraft.Route}");
+        output.WriteLine($"Route: {aircraft.FlightPlan.Route}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
         var resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);

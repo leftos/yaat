@@ -58,12 +58,11 @@ public class VfrFollowPhaseTests : IDisposable
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
-            Destination = "KTEST",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { Destination = "KTEST", FlightRules = "VFR" },
             IsOnGround = onGround,
             // Default: traffic already in sight. Tests that exercise the RTIS
             // gate explicitly set this to false.
-            HasReportedTrafficInSight = true,
+            Approach = new AircraftApproachState { HasReportedTrafficInSight = true },
         };
         ac.Phases = new PhaseList();
         return ac;
@@ -107,7 +106,7 @@ public class VfrFollowPhaseTests : IDisposable
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.NotNull(follower.Phases);
         Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
-        Assert.Equal("LEAD", follower.FollowingCallsign);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
     }
 
     [Fact]
@@ -127,7 +126,7 @@ public class VfrFollowPhaseTests : IDisposable
     public void Follow_NotVfr_IsRejected()
     {
         var follower = MakeVfrAircraft("FOLL");
-        follower.FlightRules = "IFR";
+        follower.FlightPlan.FlightRules = "IFR";
 
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
 
@@ -150,7 +149,7 @@ public class VfrFollowPhaseTests : IDisposable
     {
         // A pilot can't follow traffic they haven't visually acquired.
         var follower = MakeVfrAircraft("FOLL");
-        follower.HasReportedTrafficInSight = false;
+        follower.Approach.HasReportedTrafficInSight = false;
 
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
 
@@ -163,7 +162,7 @@ public class VfrFollowPhaseTests : IDisposable
     {
         // Controllers can force traffic-in-sight with RTISF, same as CVA FOLLOW.
         var follower = MakeVfrAircraft("FOLL");
-        follower.HasReportedTrafficInSight = false;
+        follower.Approach.HasReportedTrafficInSight = false;
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), follower, DispatchCtx());
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
@@ -186,7 +185,7 @@ public class VfrFollowPhaseTests : IDisposable
         Assert.True(second.Success);
 
         Assert.Same(phase1, follower.Phases!.CurrentPhase);
-        Assert.Equal("LEAD2", follower.FollowingCallsign);
+        Assert.Equal("LEAD2", follower.Approach.FollowingCallsign);
         Assert.Equal("LEAD2", ((VfrFollowPhase)follower.Phases!.CurrentPhase!).TargetCallsign);
     }
 
@@ -206,7 +205,7 @@ public class VfrFollowPhaseTests : IDisposable
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
-        Assert.Equal("LEAD", follower.FollowingCallsign);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
         // Old phase should no longer be current.
         Assert.NotSame(oldPhase, follower.Phases.CurrentPhase);
     }
@@ -229,7 +228,7 @@ public class VfrFollowPhaseTests : IDisposable
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Same(downwind, follower.Phases.CurrentPhase);
-        Assert.Equal("LEAD", follower.FollowingCallsign);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
     }
 
     // ---------------------------------------------------------------------
@@ -242,7 +241,7 @@ public class VfrFollowPhaseTests : IDisposable
         // Follower at 37.00 N 122.00 W heading 280° (west).
         // Leader ~5 nm due east — the follower should turn toward bearing ~090°.
         var follower = MakeVfrAircraft("FOLL", lat: 37.00, lon: -122.00);
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
         double lonPerNm = 1.0 / (60.0 * Math.Cos(37.0 * Math.PI / 180.0));
         var lead = MakeVfrAircraft("LEAD", lat: 37.00, lon: -122.00 + (5.0 * lonPerNm));
 
@@ -266,7 +265,7 @@ public class VfrFollowPhaseTests : IDisposable
         // they do not dive/climb onto the lead. VfrFollowPhase respects that.
         // Altitude is picked up by PatternEntryPhase on auto-join.
         var follower = MakeVfrAircraft("FOLL");
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
         follower.Altitude = 2500;
         follower.Targets.TargetAltitude = 2500; // last controller-assigned altitude
         var lead = MakeVfrAircraft("LEAD", lat: 37.0 + (2.0 / 60.0), lon: -122.0);
@@ -289,7 +288,7 @@ public class VfrFollowPhaseTests : IDisposable
         // desired distance of 1nm → too far, speed correction should *raise* speed
         // above lead's 80 kts toward the normal follow window).
         var follower = MakeVfrAircraft("FOLL", lat: 37.0, lon: -122.0);
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
         var lead = MakeVfrAircraft("LEAD", lat: 37.0, lon: -122.0 + (2.0 / 54.0));
         lead.IndicatedAirspeed = 80;
 
@@ -310,7 +309,7 @@ public class VfrFollowPhaseTests : IDisposable
     public void VfrFollowPhase_LeadDisappears_PhaseEnds()
     {
         var follower = MakeVfrAircraft("FOLL");
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
 
         var phase = new VfrFollowPhase("LEAD");
         follower.Phases!.Add(phase);
@@ -320,7 +319,7 @@ public class VfrFollowPhaseTests : IDisposable
         bool done = phase.OnTick(ctx);
 
         Assert.True(done);
-        Assert.Null(follower.FollowingCallsign);
+        Assert.Null(follower.Approach.FollowingCallsign);
         Assert.NotEmpty(follower.PendingWarnings);
     }
 
@@ -328,7 +327,7 @@ public class VfrFollowPhaseTests : IDisposable
     public void VfrFollowPhase_LeadOnGround_PhaseEnds()
     {
         var follower = MakeVfrAircraft("FOLL");
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
         var lead = MakeVfrAircraft("LEAD", "C172", lat: 37.0, lon: -122.0, heading: 280, altitude: 0, ias: 0, onGround: true);
 
         var phase = new VfrFollowPhase("LEAD");
@@ -364,7 +363,7 @@ public class VfrFollowPhaseTests : IDisposable
         double farLat = runway.ThresholdLatitude;
         double farLon = runway.ThresholdLongitude + (20.0 / (60.0 * Math.Cos(runway.ThresholdLatitude * Math.PI / 180.0)));
         var follower = MakeVfrAircraft("FOLL", lat: farLat, lon: farLon);
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
 
         var lead = MakeVfrAircraft("LEAD", lat: waypoints.DownwindAbeamLat, lon: waypoints.DownwindAbeamLon);
         lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
@@ -402,7 +401,7 @@ public class VfrFollowPhaseTests : IDisposable
         // join range and unambiguously on the pattern side of runway 28 for a left
         // pattern (south of the runway).
         var follower = MakeVfrAircraft("FOLL", lat: waypoints.DownwindAbeamLat - (1.0 / 60.0), lon: waypoints.DownwindAbeamLon);
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
 
         var lead = MakeVfrAircraft("LEAD", lat: waypoints.DownwindAbeamLat, lon: waypoints.DownwindAbeamLon);
         lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
@@ -427,7 +426,7 @@ public class VfrFollowPhaseTests : IDisposable
         );
         Assert.Equal(runway.Designator, follower.Phases.AssignedRunway?.Designator);
         Assert.Equal(PatternDirection.Left, follower.Phases.TrafficDirection);
-        Assert.Equal("LEAD", follower.FollowingCallsign);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
     }
 
     [Fact]
@@ -448,7 +447,7 @@ public class VfrFollowPhaseTests : IDisposable
         // Left pattern for runway 28 → downwind is south of the runway.
         // Place the follower NORTH of the runway (wrong side), inside the 3nm join range.
         var follower = MakeVfrAircraft("FOLL", lat: runway.ThresholdLatitude + (0.5 / 60.0), lon: runway.ThresholdLongitude);
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
 
         var lead = MakeVfrAircraft("LEAD", lat: waypoints.DownwindAbeamLat, lon: waypoints.DownwindAbeamLon);
         lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
@@ -472,7 +471,7 @@ public class VfrFollowPhaseTests : IDisposable
         // Follower and lead both head east; follower is slower. Simulate enough ticks
         // of growing distance to exceed the runaway grace period.
         var follower = MakeVfrAircraft("FOLL", lat: 37.0, lon: -122.0);
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
         var lead = MakeVfrAircraft("LEAD", lat: 37.0, lon: -121.9);
 
         var phase = new VfrFollowPhase("LEAD");
@@ -497,7 +496,7 @@ public class VfrFollowPhaseTests : IDisposable
         }
 
         Assert.True(cancelled, "Expected runaway-distance auto-cancel");
-        Assert.Null(follower.FollowingCallsign);
+        Assert.Null(follower.Approach.FollowingCallsign);
     }
 
     [Fact]

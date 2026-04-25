@@ -59,10 +59,13 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             Altitude = runway28R.ElevationFt + 900, // ~3° glide slope at 3nm
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "OAK",
-            Destination = "OAK",
-            FlightRules = "VFR",
-            CruiseAltitude = 1500,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                Destination = "OAK",
+                FlightRules = "VFR",
+                CruiseAltitude = 1500,
+            },
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway28R };
@@ -73,7 +76,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
         var layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
@@ -105,7 +108,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         Assert.True(exitResult.Success, $"ER H failed: {exitResult.Message}");
 
         TickUntil(engine, aircraft, 120, "exit complete", ac => ac.Phases?.CurrentPhase?.Name is "Holding After Exit");
-        Assert.Equal("H", aircraft.CurrentTaxiway);
+        Assert.Equal("H", aircraft.Ground.CurrentTaxiway);
 
         // Verify tail past hold-short node 509
         Assert.True(layout.Nodes.TryGetValue(509, out var hsNode509));
@@ -191,10 +194,13 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             Altitude = runway28R.ElevationFt + 900,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "OAK",
-            Destination = "OAK",
-            FlightRules = "VFR",
-            CruiseAltitude = 1500,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                Destination = "OAK",
+                FlightRules = "VFR",
+                CruiseAltitude = 1500,
+            },
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway28R };
@@ -205,7 +211,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
         var layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
@@ -306,7 +312,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
     private static HoldShortPoint? FindActiveHoldShort(AircraftState aircraft, string runwayDesignator)
     {
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return null;

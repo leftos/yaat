@@ -23,7 +23,7 @@ internal static class PatternCommandHandler
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
-            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination;
+            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.FlightPlan.Destination;
             if (airportId is null)
             {
                 return new CommandResult(false, "No airport context to resolve runway");
@@ -37,7 +37,7 @@ internal static class PatternCommandHandler
 
             aircraft.Phases ??= new PhaseList();
             aircraft.Phases.AssignedRunway = resolved;
-            aircraft.DestinationRunway = resolved.Designator;
+            aircraft.Procedure.DestinationRunway = resolved.Designator;
         }
 
         if (aircraft.Phases?.AssignedRunway is null)
@@ -72,9 +72,9 @@ internal static class PatternCommandHandler
                 var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
-                    aircraft.GroundLayout?.FindRunway(runway.Designator),
-                    aircraft.PatternSizeOverrideNm,
-                    aircraft.PatternAltitudeOverrideFt
+                    aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                    aircraft.Pattern.SizeOverrideNm,
+                    aircraft.Pattern.AltitudeOverrideFt
                 );
                 waypoints = PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
             }
@@ -91,9 +91,9 @@ internal static class PatternCommandHandler
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.GroundLayout?.FindRunway(runway.Designator),
-                aircraft.PatternSizeOverrideNm,
-                aircraft.PatternAltitudeOverrideFt
+                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                aircraft.Pattern.SizeOverrideNm,
+                aircraft.Pattern.AltitudeOverrideFt
             );
             waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
             var (eLat, eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
@@ -119,7 +119,7 @@ internal static class PatternCommandHandler
             // Precedent for IsVfr branching: FinalApproachPhase.cs:367.
             double turnRateDegs;
             double speedKts;
-            if (aircraft.IsVfr)
+            if (aircraft.FlightPlan.IsVfr)
             {
                 // 12°/s ≈ 25° bank at 90 kt — AIM medium-bank ceiling for
                 // traffic-pattern maneuvering (AIM 4-3-2/3 + FAA Airplane
@@ -144,7 +144,7 @@ internal static class PatternCommandHandler
             Log.LogDebug(
                 "[EF-LoopCheck] {Callsign}: vfr={IsVfr}, hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, spd={Spd:F0}kt, rate={Rate:F0}°/s, r={R:F2}nm, dist={Dist:F1}nm, arc={Arc:F1}nm",
                 aircraft.Callsign,
-                aircraft.IsVfr,
+                aircraft.FlightPlan.IsVfr,
                 aircraft.TrueHeading.Degrees,
                 bearingToEntry,
                 turnToEntry,
@@ -194,9 +194,9 @@ internal static class PatternCommandHandler
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.GroundLayout?.FindRunway(runway.Designator),
-                aircraft.PatternSizeOverrideNm,
-                aircraft.PatternAltitudeOverrideFt
+                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                aircraft.Pattern.SizeOverrideNm,
+                aircraft.Pattern.AltitudeOverrideFt
             );
             waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
         }
@@ -251,9 +251,9 @@ internal static class PatternCommandHandler
 
         var (circuitSizeOv, circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
-            aircraft.GroundLayout?.FindRunway(runway.Designator),
-            aircraft.PatternSizeOverrideNm,
-            aircraft.PatternAltitudeOverrideFt
+            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
         );
         var circuitPhases = PatternBuilder.BuildCircuit(
             runway,
@@ -268,7 +268,7 @@ internal static class PatternCommandHandler
         );
 
         var phases = new PhaseList { AssignedRunway = runway };
-        aircraft.DestinationRunway = runway.Designator;
+        aircraft.Procedure.DestinationRunway = runway.Designator;
         phases.LandingClearance = aircraft.Phases.LandingClearance;
         phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
         phases.TrafficDirection = aircraft.Phases.TrafficDirection;
@@ -366,7 +366,7 @@ internal static class PatternCommandHandler
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
-            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination;
+            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.FlightPlan.Destination;
             if (airportId is null)
             {
                 return new CommandResult(false, "No airport context to resolve runway");
@@ -380,15 +380,15 @@ internal static class PatternCommandHandler
 
             aircraft.Phases ??= new PhaseList();
             aircraft.Phases.AssignedRunway = resolved;
-            aircraft.DestinationRunway = resolved.Designator;
+            aircraft.Procedure.DestinationRunway = resolved.Designator;
             // Changing runway clears altitude override — different runway, different TPA
-            aircraft.PatternAltitudeOverrideFt = null;
+            aircraft.Pattern.AltitudeOverrideFt = null;
         }
 
         // Set explicit altitude override if provided
         if (altitudeOverride is not null)
         {
-            aircraft.PatternAltitudeOverrideFt = altitudeOverride;
+            aircraft.Pattern.AltitudeOverrideFt = altitudeOverride;
         }
 
         if (aircraft.Phases?.AssignedRunway is null)
@@ -401,9 +401,9 @@ internal static class PatternCommandHandler
         var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
-            aircraft.GroundLayout?.FindRunway(runway.Designator),
-            aircraft.PatternSizeOverrideNm,
-            aircraft.PatternAltitudeOverrideFt
+            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
         );
         var waypoints = PatternGeometry.Compute(runway, category, newDirection, sizeOv, altOv, airportRunways);
 
@@ -596,7 +596,7 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Pattern size must be between 0.25 and 10.0 NM");
         }
 
-        aircraft.PatternSizeOverrideNm = sizeNm;
+        aircraft.Pattern.SizeOverrideNm = sizeNm;
 
         // Update waypoints on active pattern phases if in a pattern
         if (aircraft.Phases?.AssignedRunway is { } runway)
@@ -606,9 +606,9 @@ internal static class PatternCommandHandler
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.GroundLayout?.FindRunway(runway.Designator),
+                aircraft.Ground.Layout?.FindRunway(runway.Designator),
                 sizeNm,
-                aircraft.PatternAltitudeOverrideFt
+                aircraft.Pattern.AltitudeOverrideFt
             );
             var waypoints = PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
             PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
@@ -838,7 +838,7 @@ internal static class PatternCommandHandler
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         if (runway is not null)
         {
-            aircraft.DestinationRunway = runway.Designator;
+            aircraft.Procedure.DestinationRunway = runway.Designator;
         }
 
         aircraft.Phases.Add(phase);
@@ -1052,7 +1052,7 @@ internal static class PatternCommandHandler
         {
             // Traffic pattern direction only applies to VFR, visual approach, or already-in-pattern aircraft
             bool canSetPattern =
-                aircraft.IsVfr
+                aircraft.FlightPlan.IsVfr
                 || (aircraft.Phases.TrafficDirection is not null)
                 || (aircraft.Phases.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true);
             if (!canSetPattern)
@@ -1065,7 +1065,7 @@ internal static class PatternCommandHandler
             // Set pattern altitude override if provided (e.g., GA MLT 15)
             if (ga.TargetAltitude is not null)
             {
-                aircraft.PatternAltitudeOverrideFt = ga.TargetAltitude;
+                aircraft.Pattern.AltitudeOverrideFt = ga.TargetAltitude;
             }
         }
 
@@ -1139,7 +1139,7 @@ internal static class PatternCommandHandler
         CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl);
         if (ctl.NoDelete)
         {
-            aircraft.AutoDeleteExempt = true;
+            aircraft.Ground.AutoDeleteExempt = true;
         }
         return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}");
     }

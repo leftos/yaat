@@ -98,7 +98,7 @@ public class MissedApproachTests
             TrueHeading = new TrueHeading(280),
             Altitude = 200,
             Position = new LatLon(37.0, -122.0),
-            Destination = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Destination = "KTEST" },
         };
 
         var runway = MakeRunway();

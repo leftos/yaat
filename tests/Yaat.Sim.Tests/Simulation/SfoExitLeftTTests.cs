@@ -119,7 +119,7 @@ public class SfoExitLeftTTests(ITestOutputHelper output)
             if (inDetailMode)
             {
                 string reqExit = ac.Phases?.RequestedExit is { } req ? $"side={req.Side}, twy={req.Taxiway ?? "any"}" : "none";
-                string currentTwy = ac.CurrentTaxiway ?? "none";
+                string currentTwy = ac.Ground.CurrentTaxiway ?? "none";
                 string resolvedExit = ac.Phases?.ResolvedExit is { } re
                     ? $"twy={re.TaxiwayName}, hs={re.HoldShortNode.Id}, bp={re.BranchPointNode.Id}, path=[{string.Join(",", re.Path.Select(n => n.Id))}]"
                     : "none";

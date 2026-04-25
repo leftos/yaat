@@ -142,7 +142,7 @@ internal static class DepartureClearanceHandler
 
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
-        aircraft.DepartureRunway = runway.Designator;
+        aircraft.Procedure.DepartureRunway = runway.Designator;
         InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, holding.HoldShort.NodeId, logger);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
@@ -166,7 +166,7 @@ internal static class DepartureClearanceHandler
         aircraft.Phases.Clear(ctx);
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
-        aircraft.DepartureRunway = runway.Designator;
+        aircraft.Procedure.DepartureRunway = runway.Designator;
         InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, null, logger);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
@@ -180,7 +180,7 @@ internal static class DepartureClearanceHandler
         int? assignedAltitude
     )
     {
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -244,7 +244,7 @@ internal static class DepartureClearanceHandler
 
         // Set runway and store departure clearance for TaxiingPhase to consume
         aircraft.Phases!.AssignedRunway = runway;
-        aircraft.DepartureRunway = runway.Designator;
+        aircraft.Procedure.DepartureRunway = runway.Designator;
         aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
         {
             Type = clearanceType,
@@ -305,8 +305,8 @@ internal static class DepartureClearanceHandler
                 DepartureRoute = routeResult?.Targets,
                 DepartureSidId = routeResult?.SidId,
                 SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
-                IsVfr = aircraft.IsVfr,
-                CruiseAltitude = aircraft.CruiseAltitude,
+                IsVfr = aircraft.FlightPlan.IsVfr,
+                CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
             };
             towerPhases = rolling ? [lineup, takeoffPhase, climb] : [lineup, new LinedUpAndWaitingPhase(), takeoffPhase, climb];
         }
@@ -524,7 +524,7 @@ internal static class DepartureClearanceHandler
 
         if (ct.PatternAltitude is not null)
         {
-            aircraft.PatternAltitudeOverrideFt = ct.PatternAltitude;
+            aircraft.Pattern.AltitudeOverrideFt = ct.PatternAltitude;
         }
 
         if (removeInitialClimb)
@@ -537,9 +537,9 @@ internal static class DepartureClearanceHandler
         var airportRunways = Data.NavigationDatabase.Instance.GetRunways(patternRunway.AirportId);
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             patternRunway,
-            aircraft.GroundLayout?.FindRunway(patternRunway.Designator),
-            aircraft.PatternSizeOverrideNm,
-            aircraft.PatternAltitudeOverrideFt
+            aircraft.Ground.Layout?.FindRunway(patternRunway.Designator),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
         );
         var circuit = PatternBuilder.BuildCircuit(
             patternRunway,
@@ -570,20 +570,20 @@ internal static class DepartureClearanceHandler
             case DirectFixDeparture dfd:
                 return new DepartureRouteResult([new NavigationTarget { Name = dfd.FixName, Position = new LatLon(dfd.Lat, dfd.Lon) }], null);
 
-            case OnCourseDeparture when aircraft.Destination is not null:
+            case OnCourseDeparture when aircraft.FlightPlan.Destination is not null:
             {
-                var pos = navDb.GetFixPosition(aircraft.Destination);
+                var pos = navDb.GetFixPosition(aircraft.FlightPlan.Destination);
                 if (pos is null)
                 {
                     return null;
                 }
                 return new DepartureRouteResult(
-                    [new NavigationTarget { Name = aircraft.Destination, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) }],
+                    [new NavigationTarget { Name = aircraft.FlightPlan.Destination, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) }],
                     null
                 );
             }
 
-            case DefaultDeparture when !aircraft.IsVfr && aircraft.Route is not null:
+            case DefaultDeparture when !aircraft.FlightPlan.IsVfr && aircraft.FlightPlan.Route is not null:
             {
                 // Try CIFP SID first for constrained navigation targets
                 var cifpResult = TryResolveSidFromCifp(aircraft);
@@ -593,11 +593,11 @@ internal static class DepartureClearanceHandler
                 }
 
                 // Fallback to NavData body-fix expansion (lateral path only, no constraints)
-                var expanded = navDb.ExpandRouteForNavigation(aircraft.Route, aircraft.Departure);
+                var expanded = navDb.ExpandRouteForNavigation(aircraft.FlightPlan.Route, aircraft.FlightPlan.Departure);
                 var targets = new List<NavigationTarget>();
 
                 // Resolve fix positions, skipping unknown fixes
-                var airportPos = aircraft.Departure is not null ? navDb.GetFixPosition(aircraft.Departure) : null;
+                var airportPos = aircraft.FlightPlan.Departure is not null ? navDb.GetFixPosition(aircraft.FlightPlan.Departure) : null;
 
                 foreach (var name in expanded)
                 {
@@ -643,12 +643,12 @@ internal static class DepartureClearanceHandler
     internal static DepartureRouteResult? TryResolveSidFromCifp(AircraftState aircraft)
     {
         var navDb = NavigationDatabase.Instance;
-        if (aircraft.Route is null || aircraft.Departure is null)
+        if (aircraft.FlightPlan.Route is null || aircraft.FlightPlan.Departure is null)
         {
             return null;
         }
 
-        var routeTokens = aircraft.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var routeTokens = aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (routeTokens.Length == 0)
         {
             return null;
@@ -656,7 +656,7 @@ internal static class DepartureClearanceHandler
 
         // First route token is the SID name
         var sidName = routeTokens[0];
-        var sid = navDb.GetSid(aircraft.Departure, sidName);
+        var sid = navDb.GetSid(aircraft.FlightPlan.Departure, sidName);
         if (sid is null)
         {
             return null;
@@ -719,7 +719,7 @@ internal static class DepartureClearanceHandler
             }
 
             AppendPostSidEnrouteFixes(rvTargets, routeTokens, sid, rvTargets.Count > 0 ? rvTargets[^1].Name : null);
-            StripNearDepartureTargets(rvTargets, aircraft.Departure);
+            StripNearDepartureTargets(rvTargets, aircraft.FlightPlan.Departure);
             return new DepartureRouteResult(rvTargets, null, heading);
         }
 
@@ -731,7 +731,7 @@ internal static class DepartureClearanceHandler
         }
 
         AppendPostSidEnrouteFixes(targets, routeTokens, sid, targets[^1].Name);
-        StripNearDepartureTargets(targets, aircraft.Departure);
+        StripNearDepartureTargets(targets, aircraft.FlightPlan.Departure);
 
         return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId) : null;
     }
@@ -1031,8 +1031,8 @@ internal static class DepartureClearanceHandler
             DepartureRoute = routeResult?.Targets,
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
-            IsVfr = aircraft.IsVfr,
-            CruiseAltitude = aircraft.CruiseAltitude,
+            IsVfr = aircraft.FlightPlan.IsVfr,
+            CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
         };
 
         for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
@@ -1092,10 +1092,10 @@ internal static class DepartureClearanceHandler
             aircraft.Phases.Clear(ctoppCtx);
         }
 
-        aircraft.IsHeld = false;
+        aircraft.Ground.IsHeld = false;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new HelicopterTakeoffPhase());
-        aircraft.Phases.Add(new InitialClimbPhase { IsVfr = aircraft.IsVfr, CruiseAltitude = aircraft.CruiseAltitude });
+        aircraft.Phases.Add(new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.CruiseAltitude });
 
         // Field elevation = current altitude (on ground)
         ctoppCtx = new PhaseContext

@@ -37,8 +37,7 @@ public class DepartureClearanceHandlerTests
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = departure,
-            Route = route!,
+            FlightPlan = new AircraftFlightPlan { Departure = departure, Route = route! },
         };
         ac.Phases = new PhaseList();
         return ac;
@@ -178,7 +177,7 @@ public class DepartureClearanceHandlerTests
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = "OAK",
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
         };
         ac.Phases = new PhaseList();
 
@@ -220,7 +219,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         // Need a taxi route with a destination hold-short
-        ac.AssignedTaxiRoute = new TaxiRoute
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
         {
             Segments = [],
             HoldShortPoints =
@@ -765,7 +764,7 @@ public class DepartureClearanceHandlerTests
         var rwy33 = Runway33();
         var rwy28R = Runway28R();
         var ac = MakeAircraft();
-        ac.AssignedTaxiRoute = new TaxiRoute
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
         {
             Segments = [],
             HoldShortPoints =

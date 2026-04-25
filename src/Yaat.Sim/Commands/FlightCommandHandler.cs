@@ -92,16 +92,16 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyClimbMaintain(ClimbMaintainCommand cmd, AircraftState aircraft)
     {
         var prev = PreviousAltitude(aircraft, cmd.Altitude);
-        aircraft.SidViaMode = false;
-        aircraft.SidViaCeiling = null;
-        aircraft.IsExpediting = false;
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
 
         if (aircraft.Phases?.TrafficDirection is not null)
         {
-            aircraft.PatternAltitudeOverrideFt = cmd.Altitude;
+            aircraft.Pattern.AltitudeOverrideFt = cmd.Altitude;
         }
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
@@ -110,16 +110,16 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyDescendMaintain(DescendMaintainCommand cmd, AircraftState aircraft)
     {
         var prev = PreviousAltitude(aircraft, cmd.Altitude);
-        aircraft.StarViaMode = false;
-        aircraft.StarViaFloor = null;
-        aircraft.IsExpediting = false;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaFloor = null;
+        aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
 
         if (aircraft.Phases?.TrafficDirection is not null)
         {
-            aircraft.PatternAltitudeOverrideFt = cmd.Altitude;
+            aircraft.Pattern.AltitudeOverrideFt = cmd.Altitude;
         }
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
@@ -127,10 +127,10 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyForceAltitude(ForceAltitudeCommand cmd, AircraftState aircraft)
     {
-        aircraft.SidViaMode = false;
-        aircraft.SidViaCeiling = null;
-        aircraft.StarViaMode = false;
-        aircraft.StarViaFloor = null;
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaFloor = null;
         aircraft.Altitude = cmd.Altitude;
         aircraft.VerticalSpeed = 0;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
@@ -151,7 +151,7 @@ internal static class FlightCommandHandler
         }
 
         // Any SPD command clears DSR flag and Mach hold
-        aircraft.SpeedRestrictionsDeleted = false;
+        aircraft.Procedure.SpeedRestrictionsDeleted = false;
         aircraft.Targets.TargetMach = null;
 
         aircraft.Targets.HasExplicitSpeedCommand = true;
@@ -223,7 +223,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
-        aircraft.SpeedRestrictionsDeleted = true;
+        aircraft.Procedure.SpeedRestrictionsDeleted = true;
         return CommandDispatcher.Ok("Speed restrictions deleted");
     }
 
@@ -234,7 +234,7 @@ internal static class FlightCommandHandler
             return new CommandResult(false, "Expedite requires an active altitude assignment");
         }
 
-        aircraft.IsExpediting = true;
+        aircraft.Procedure.IsExpediting = true;
 
         if (cmd.UntilAltitude is not null)
         {
@@ -245,7 +245,7 @@ internal static class FlightCommandHandler
                     Trigger = new BlockTrigger { Type = BlockTriggerType.ReachAltitude, Altitude = cmd.UntilAltitude.Value },
                     ApplyAction = ac =>
                     {
-                        ac.IsExpediting = false;
+                        ac.Procedure.IsExpediting = false;
                         ac.Targets.DesiredVerticalRate = null;
                         return new CommandResult(true);
                     },
@@ -262,7 +262,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyNormalRate(AircraftState aircraft)
     {
-        aircraft.IsExpediting = false;
+        aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.DesiredVerticalRate = null;
         return CommandDispatcher.Ok("Resume normal rate");
     }
@@ -286,50 +286,50 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
-        aircraft.SpeedRestrictionsDeleted = false;
+        aircraft.Procedure.SpeedRestrictionsDeleted = false;
         return CommandDispatcher.Ok($"Force speed {cmd.Speed}");
     }
 
     internal static CommandResult ApplySquawk(SquawkCommand cmd, AircraftState aircraft)
     {
-        aircraft.BeaconCode = cmd.Code;
+        aircraft.Transponder.Code = cmd.Code;
         return CommandDispatcher.Ok($"Squawk {cmd.Code:D4}");
     }
 
     internal static CommandResult ApplySquawkReset(AircraftState aircraft)
     {
-        aircraft.BeaconCode = aircraft.AssignedBeaconCode;
-        return CommandDispatcher.Ok($"Squawk {aircraft.AssignedBeaconCode:D4}");
+        aircraft.Transponder.Code = aircraft.Transponder.AssignedCode;
+        return CommandDispatcher.Ok($"Squawk {aircraft.Transponder.AssignedCode:D4}");
     }
 
     internal static CommandResult ApplySquawkVfr(AircraftState aircraft)
     {
-        aircraft.BeaconCode = 1200;
+        aircraft.Transponder.Code = 1200;
         return CommandDispatcher.Ok("Squawk VFR");
     }
 
     internal static CommandResult ApplySquawkNormal(AircraftState aircraft)
     {
-        aircraft.TransponderMode = "C";
+        aircraft.Transponder.Mode = "C";
         return CommandDispatcher.Ok("Squawk normal");
     }
 
     internal static CommandResult ApplySquawkStandby(AircraftState aircraft)
     {
-        aircraft.TransponderMode = "Standby";
+        aircraft.Transponder.Mode = "Standby";
         return CommandDispatcher.Ok("Squawk standby");
     }
 
     internal static CommandResult ApplyIdent(AircraftState aircraft)
     {
-        aircraft.IsIdenting = true;
+        aircraft.Transponder.IsIdenting = true;
         return CommandDispatcher.Ok("Ident");
     }
 
     internal static CommandResult ApplyRandomSquawk(AircraftState aircraft, Random rng)
     {
-        aircraft.BeaconCode = SimulationWorld.GenerateBeaconCode(rng);
-        return CommandDispatcher.Ok($"Squawk {aircraft.BeaconCode:D4}");
+        aircraft.Transponder.Code = SimulationWorld.GenerateBeaconCode(rng);
+        return CommandDispatcher.Ok($"Squawk {aircraft.Transponder.Code:D4}");
     }
 
     internal static CommandResult ApplyDirectTo(DirectToCommand cmd, AircraftState aircraft, bool validateDctFixes)
@@ -361,7 +361,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedMagneticHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
         foreach (var fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
@@ -410,7 +410,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.PreferredTurnDirection = direction;
         var resolved = fixes.ToList();
         int originalCount = resolved.Count;
-        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
         foreach (var fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
@@ -434,7 +434,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedMagneticHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
         foreach (var fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
@@ -540,7 +540,7 @@ internal static class FlightCommandHandler
 
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {
             foreach (var fix in resolved)
@@ -569,7 +569,7 @@ internal static class FlightCommandHandler
     {
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {
             foreach (var fix in resolved)
@@ -618,7 +618,7 @@ internal static class FlightCommandHandler
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = null;
         }
-        aircraft.AssignedTaxiRoute = null;
+        aircraft.Ground.AssignedTaxiRoute = null;
         aircraft.Targets.TurnRateOverride = null;
         aircraft.Targets.HasExplicitTurnRate = false;
         aircraft.Position = new LatLon(cmd.Latitude, cmd.Longitude);
@@ -644,7 +644,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyWarpGround(WarpGroundCommand cmd, AircraftState aircraft)
     {
-        var layout = aircraft.GroundLayout;
+        var layout = aircraft.Ground.Layout;
         if (layout is null)
         {
             return new CommandResult(false, "No airport layout loaded for this aircraft");
@@ -687,9 +687,9 @@ internal static class FlightCommandHandler
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = null;
         }
-        aircraft.AssignedTaxiRoute = null;
+        aircraft.Ground.AssignedTaxiRoute = null;
         aircraft.Queue.Blocks.Clear();
-        aircraft.IsHeld = false;
+        aircraft.Ground.IsHeld = false;
         aircraft.Targets.TurnRateOverride = null;
         aircraft.Targets.HasExplicitTurnRate = false;
 
@@ -715,12 +715,12 @@ internal static class FlightCommandHandler
     {
         aircraft.Targets.TargetAltitude = null;
         aircraft.Targets.DesiredVerticalRate = null;
-        aircraft.IsExpediting = false;
+        aircraft.Procedure.IsExpediting = false;
     }
 
     internal static bool TryPreserveProcedure(AircraftState aircraft, string firstFixName)
     {
-        if (aircraft.ActiveSidId is null && aircraft.ActiveStarId is null)
+        if (aircraft.Procedure.ActiveSidId is null && aircraft.Procedure.ActiveStarId is null)
         {
             return false;
         }
@@ -748,24 +748,24 @@ internal static class FlightCommandHandler
         }
 
         // Disable via-mode but keep procedure ID
-        aircraft.SidViaMode = false;
-        aircraft.StarViaMode = false;
-        aircraft.SidViaCeiling = null;
-        aircraft.StarViaFloor = null;
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.StarViaFloor = null;
 
         return true;
     }
 
     private static void ClearActiveProcedure(AircraftState aircraft)
     {
-        aircraft.ActiveSidId = null;
-        aircraft.ActiveStarId = null;
-        aircraft.SidViaMode = false;
-        aircraft.StarViaMode = false;
-        aircraft.SidViaCeiling = null;
-        aircraft.StarViaFloor = null;
-        aircraft.DepartureRunway = null;
-        aircraft.DestinationRunway = null;
+        aircraft.Procedure.ActiveSidId = null;
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.StarViaFloor = null;
+        aircraft.Procedure.DepartureRunway = null;
+        aircraft.Procedure.DestinationRunway = null;
     }
 
     private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)
@@ -795,12 +795,12 @@ internal static class FlightCommandHandler
             return $" (was DCT {aircraft.Targets.NavigationRoute[0].Name})";
         }
 
-        if (aircraft.ActiveSidId is { } sid)
+        if (aircraft.Procedure.ActiveSidId is { } sid)
         {
             return $" (was SID {sid})";
         }
 
-        if (aircraft.ActiveStarId is { } star)
+        if (aircraft.Procedure.ActiveStarId is { } star)
         {
             return $" (was STAR {star})";
         }

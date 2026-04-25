@@ -38,7 +38,7 @@ public class PatternCommandHandlerTests
             Altitude = altitude,
             IndicatedAirspeed = groundSpeed,
             IsOnGround = onGround,
-            Departure = "TEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
         };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         return ac;
@@ -502,7 +502,7 @@ public class PatternCommandHandlerTests
         var result = PatternCommandHandler.TrySetPatternSize(ac, 2.5);
 
         Assert.True(result.Success);
-        Assert.Equal(2.5, ac.PatternSizeOverrideNm);
+        Assert.Equal(2.5, ac.Pattern.SizeOverrideNm);
     }
 
     [Fact]
@@ -630,7 +630,7 @@ public class PatternCommandHandlerTests
         var (lat, lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 0.5);
         var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy28L.ElevationFt + 200);
         ac.AircraftType = "B738";
-        ac.Destination = "KOAK";
+        ac.FlightPlan.Destination = "KOAK";
 
         // Set up PhaseList with active FinalApproachPhase for 28L
         var phases = new PhaseList { AssignedRunway = rwy28L };
@@ -665,7 +665,7 @@ public class PatternCommandHandlerTests
         var (lat, lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 5.0);
         var ac = MakeAircraft(lat: lat, lon: lon, altitude: 2000);
         ac.AircraftType = "B738";
-        ac.Destination = "KOAK";
+        ac.FlightPlan.Destination = "KOAK";
 
         // Set up PhaseList with active FinalApproachPhase for 28L
         var phases = new PhaseList { AssignedRunway = rwy28L };

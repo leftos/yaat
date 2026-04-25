@@ -31,7 +31,7 @@ public sealed class TaxiingPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        var route = ctx.Aircraft.AssignedTaxiRoute;
+        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is null || route.IsComplete)
         {
             Log.LogWarning("[Taxi] {Callsign}: OnStart but route is {State}", ctx.Aircraft.Callsign, route is null ? "null" : "already complete");
@@ -54,7 +54,7 @@ public sealed class TaxiingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        var route = ctx.Aircraft.AssignedTaxiRoute;
+        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is null || route.IsComplete)
         {
             Log.LogDebug("[Taxi] {Callsign}: OnTick exit — route {State}", ctx.Aircraft.Callsign, route is null ? "null" : "complete");
@@ -72,7 +72,7 @@ public sealed class TaxiingPhase : Phase
             SetupCurrentSegment(ctx, route);
         }
 
-        if (ctx.Aircraft.IsHeld)
+        if (ctx.Aircraft.Ground.IsHeld)
         {
             ctx.Aircraft.IndicatedAirspeed = Math.Max(
                 0,
@@ -92,7 +92,7 @@ public sealed class TaxiingPhase : Phase
         // Update current taxiway name
         if (route.CurrentSegment is { } seg)
         {
-            ctx.Aircraft.CurrentTaxiway = seg.TaxiwayName;
+            ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
         }
 
         LogPeriodic(ctx, route);
@@ -215,7 +215,7 @@ public sealed class TaxiingPhase : Phase
         // Update taxiway name from the segment that brought us here
         if (route.CurrentSegment is { } arrivedSeg)
         {
-            ctx.Aircraft.CurrentTaxiway = arrivedSeg.TaxiwayName;
+            ctx.Aircraft.Ground.CurrentTaxiway = arrivedSeg.TaxiwayName;
         }
 
         // Check if this node is a hold-short point
@@ -277,7 +277,7 @@ public sealed class TaxiingPhase : Phase
             {
                 if (route.DestinationParking is not null)
                 {
-                    ctx.Aircraft.ParkingSpot = route.DestinationParking;
+                    ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
                     phases.InsertAfterCurrent(new AtParkingPhase());
                 }
                 else
@@ -450,8 +450,8 @@ public sealed class TaxiingPhase : Phase
                 DepartureRoute = dep.DepartureRoute,
                 DepartureSidId = dep.DepartureSidId,
                 SidDepartureHeadingMagnetic = dep.SidDepartureHeadingMagnetic,
-                IsVfr = ctx.Aircraft.IsVfr,
-                CruiseAltitude = ctx.Aircraft.CruiseAltitude,
+                IsVfr = ctx.Aircraft.FlightPlan.IsVfr,
+                CruiseAltitude = ctx.Aircraft.FlightPlan.CruiseAltitude,
             };
             if (rolling)
             {

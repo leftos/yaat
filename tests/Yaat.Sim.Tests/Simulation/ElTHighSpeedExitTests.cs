@@ -141,9 +141,9 @@ public class ElTHighSpeedExitTests(ITestOutputHelper output)
                 $"t+{t, -3} | {ac.Position.Lat, 11:F6} | {ac.Position.Lon, 12:F6} | {ac.TrueHeading.Degrees, 5:F1} | {ac.GroundSpeed, 5:F1} | {phaseName, -18} | {minDistFt, 12:F1} | seg {nearestSeg}"
             );
 
-            if (ac.CurrentTaxiway is not null)
+            if (ac.Ground.CurrentTaxiway is not null)
             {
-                output.WriteLine($"--- EXITED at taxiway {ac.CurrentTaxiway}, hdg={ac.TrueHeading.Degrees:F0} ---");
+                output.WriteLine($"--- EXITED at taxiway {ac.Ground.CurrentTaxiway}, hdg={ac.TrueHeading.Degrees:F0} ---");
                 break;
             }
 

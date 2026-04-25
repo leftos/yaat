@@ -28,9 +28,8 @@ public class ProgrammedFixesTests
             Position = new LatLon(37.62, -122.38),
             TrueHeading = new TrueHeading(280),
             Altitude = 10000,
-            Route = route,
-            Destination = destination ?? "",
-            ExpectedApproach = expectedApproach,
+            FlightPlan = new AircraftFlightPlan { Route = route, Destination = destination ?? "" },
+            Approach = new AircraftApproachState { Expected = expectedApproach },
         };
     }
 

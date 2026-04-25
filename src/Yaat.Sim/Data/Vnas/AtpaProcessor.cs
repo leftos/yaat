@@ -173,7 +173,7 @@ public sealed class AtpaProcessor
 
     private static bool IsExcludedByTcp(AtpaVolumeConfig volume, AircraftState ac)
     {
-        if (volume.ExcludedTcpIds.Count == 0 || ac.Owner is null)
+        if (volume.ExcludedTcpIds.Count == 0 || ac.Track.Owner is null)
         {
             return false;
         }
@@ -204,7 +204,9 @@ public sealed class AtpaProcessor
                 continue;
             }
 
-            var scratchpadToCheck = sp.ScratchPadNumber.Equals("Two", StringComparison.OrdinalIgnoreCase) ? ac.Scratchpad2 : ac.Scratchpad1;
+            var scratchpadToCheck = sp.ScratchPadNumber.Equals("Two", StringComparison.OrdinalIgnoreCase)
+                ? ac.Stars.Scratchpad2
+                : ac.Stars.Scratchpad1;
 
             if (!string.IsNullOrEmpty(scratchpadToCheck) && scratchpadToCheck.Equals(entry, StringComparison.OrdinalIgnoreCase))
             {

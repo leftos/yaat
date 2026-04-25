@@ -141,10 +141,13 @@ public class OakAllExitsTests(ITestOutputHelper output)
             Altitude = runway.ElevationFt + altAboveField,
             IndicatedAirspeed = speed,
             IsOnGround = false,
-            Departure = "OAK",
-            Destination = "OAK",
-            FlightRules = "IFR",
-            CruiseAltitude = 3000,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                Destination = "OAK",
+                FlightRules = "IFR",
+                CruiseAltitude = 3000,
+            },
         };
 
         var layout = new TestAirportGroundData().GetLayout("OAK");
@@ -155,7 +158,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
@@ -267,10 +270,13 @@ public class OakAllExitsTests(ITestOutputHelper output)
             Altitude = runway.ElevationFt + altAboveField,
             IndicatedAirspeed = touchdownSpeed,
             IsOnGround = false,
-            Departure = airportId,
-            Destination = airportId,
-            FlightRules = "IFR",
-            CruiseAltitude = 3000,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = airportId,
+                Destination = airportId,
+                FlightRules = "IFR",
+                CruiseAltitude = 3000,
+            },
         };
 
         var layout = new TestAirportGroundData().GetLayout(airportId);
@@ -281,7 +287,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
@@ -325,7 +331,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
             if (inExitPhase)
             {
                 headingSamples.Add((t, aircraft.TrueHeading.Degrees));
-                if (aircraft.LastNavDiag is { } diag)
+                if (aircraft.Ground.LastNavDiag is { } diag)
                 {
                     deviationSamples.Add((t, diag.PathDeviationFt));
                 }
@@ -373,7 +379,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
 
         return new ExitResult
         {
-            FinalTaxiway = aircraft.CurrentTaxiway,
+            FinalTaxiway = aircraft.Ground.CurrentTaxiway,
             FinalHeading = aircraft.TrueHeading.Degrees,
             TotalHeadingChange = totalHeadingChange,
             TotalSeconds = exitEndTime,

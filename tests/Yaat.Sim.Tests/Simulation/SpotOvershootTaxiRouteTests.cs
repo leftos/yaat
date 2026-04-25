@@ -42,7 +42,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             Altitude = 13,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = "SFO",
+            FlightPlan = new AircraftFlightPlan { Departure = "SFO" },
         };
         ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingAfterPushbackPhase());
@@ -148,7 +148,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Route summary: {route.ToSummary()}");
@@ -219,7 +219,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Route summary: {route.ToSummary()}");
@@ -294,7 +294,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Route summary: {route.ToSummary()}");

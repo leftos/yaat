@@ -94,53 +94,13 @@ public class AircraftState
     public double IndicatedAirspeed { get; set; }
 
     public double VerticalSpeed { get; set; }
-    public uint AssignedBeaconCode { get; set; }
-    public uint BeaconCode { get; set; }
-    public string Departure { get; set; } = "";
-    public string Destination { get; set; } = "";
 
-    /// <summary>
-    /// Cached ground layout for the airport this aircraft is currently at (or about to land at).
-    /// Set at lifecycle events: spawn, CLAND, flight plan amend. Used by phases and commands.
-    /// Excluded from JSON serialization — layouts are stored separately in recording archives.
-    /// </summary>
-    [JsonIgnore]
-    public AirportGroundLayout? GroundLayout { get; set; }
+    public AircraftFlightPlan FlightPlan { get; set; } = new();
 
-    /// <summary>
-    /// Airport ID reference for the ground layout. When <see cref="GroundLayout"/> is set,
-    /// returns its AirportId. When deserialized from JSON (no layout attached), returns the
-    /// stored reference so the layout can be reattached by the caller.
-    /// </summary>
-    public string? GroundLayoutAirportId
-    {
-        get => GroundLayout?.AirportId ?? _groundLayoutAirportId;
-        set => _groundLayoutAirportId = value;
-    }
+    public AircraftGroundOps Ground { get; set; } = new();
 
-    private string? _groundLayoutAirportId;
-    public string Route { get; set; } = "";
-    public string Remarks { get; set; } = "";
+    public AircraftTransponder Transponder { get; set; } = new();
 
-    /// <summary>
-    /// Monotonically increasing count of flight-plan amendments applied to this
-    /// aircraft. Starts at 0 for a freshly-spawned aircraft; incremented by
-    /// <see cref="SimulationEngine.AmendFlightPlan"/> on every amendment
-    /// (empty-amendment calls still tick to match CRC's behavior of showing a
-    /// revision bump any time the controller presses "amend"). Rendered on the
-    /// strip in <see cref="StripMutations.FieldIdxRevision"/> so controllers
-    /// can spot amended flight plans at a glance.
-    /// </summary>
-    public int RevisionNumber { get; set; }
-
-    public string EquipmentSuffix { get; set; } = "A";
-    public string FlightRules { get; set; } = "IFR";
-    public bool IsVfr => FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-    public int CruiseAltitude { get; set; }
-    public int CruiseSpeed { get; set; }
-    public string TransponderMode { get; set; } = "C";
-    public bool IsIdenting { get; set; }
-    public double? IdentStartedAt { get; set; }
     public bool IsOnGround { get; set; }
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();
@@ -149,115 +109,23 @@ public class AircraftState
     public List<string> PendingWarnings { get; } = [];
     public List<string> PendingNotifications { get; } = [];
 
-    // Set by AtParkingPhase after the spawn check-in line has been emitted once. Prevents the
-    // ready-to-taxi readback from spamming the terminal every tick the aircraft sits at the
-    // gate. Snapshot-serialized so replays produce identical pilot output.
-    public bool HasAnnouncedReady { get; set; }
     public List<ApproachScore> PendingApproachScores { get; } = [];
     public ApproachScore? ActiveApproachScore { get; set; }
 
-    // Ground operations state
-    public TaxiRoute? AssignedTaxiRoute { get; set; }
-    public string? ParkingSpot { get; set; }
-    public string? CurrentTaxiway { get; set; }
     public NavTickDiag? LastNavDiag { get; set; }
-    public bool IsHeld { get; set; }
-    public string? GiveWayTarget { get; set; }
-    public bool AutoDeleteExempt { get; set; }
 
-    /// <summary>
-    /// Remaining seconds of BREAK conflict override. While positive, the aircraft
-    /// ignores ground conflict speed limits imposed by GroundConflictDetector.
-    /// Decremented each tick in ApplySpeedLimits.
-    /// </summary>
-    public double ConflictBreakRemainingSeconds { get; set; }
+    public AircraftTrack Track { get; set; } = new();
 
-    /// <summary>
-    /// Max ground speed (kts) imposed by GroundConflictDetector.
-    /// Null = no limit. Reset each tick before conflict detection runs.
-    /// </summary>
-    public double? GroundSpeedLimit { get; set; }
+    public AircraftStarsState Stars { get; set; } = new();
 
-    /// <summary>
-    /// When set, FlightPhysics uses this heading for ground position updates
-    /// instead of <see cref="TrueHeading"/>. Used by pushback (aircraft nose stays
-    /// forward while tug pushes it backward along this direction).
-    /// </summary>
-    public TrueHeading? PushbackTrueHeading { get; set; }
+    public AircraftApproachState Approach { get; set; } = new();
 
-    // Track operations state
-    public bool HasFlightPlan { get; set; }
-    public TrackOwner? Owner { get; set; }
-    public TrackOwner? HandoffPeer { get; set; }
-    public TrackOwner? HandoffRedirectedBy { get; set; }
-    public StarsPointout? Pointout { get; set; }
-    public string? Scratchpad1 { get; set; }
-    public bool WasScratchpad1Cleared { get; set; }
-    public string? PreviousScratchpad1 { get; set; }
-    public string? Scratchpad2 { get; set; }
-    public string? PreviousScratchpad2 { get; set; }
-
-    // ASDEX scratchpads (separate from STARS scratchpads above)
-    public string? AsdexScratchpad1 { get; set; }
-    public string? AsdexScratchpad2 { get; set; }
-
-    public int? TemporaryAltitude { get; set; }
-    public int? PilotReportedAltitude { get; set; }
-    public bool IsAnnotated { get; set; }
-    public bool OnHandoff { get; set; }
-    public bool HandoffAccepted { get; set; }
-    public double? HandoffInitiatedAt { get; set; }
-    public int? AssignedAltitude { get; set; }
-
-    // Approach expectation
-    public string? ExpectedApproach { get; set; }
-
-    /// <summary>
-    /// Approach clearance issued while the aircraft is still on a STAR en route to the
-    /// approach connecting fix. Activated when the aircraft reaches the connecting fix
-    /// via normal navigation. Null when no deferred approach is pending.
-    /// </summary>
-    public PendingApproachInfo? PendingApproachClearance { get; set; }
-
-    // Procedure state (SID/STAR)
-    public string? ActiveSidId { get; set; }
-    public string? ActiveStarId { get; set; }
-
-    /// <summary>Runway designator snapshot from when the SID was activated. Used for radar route display.</summary>
-    public string? DepartureRunway { get; set; }
-
-    /// <summary>Runway designator snapshot for arrival. Set when an approach or pattern assigns a runway. Used for radar route display.</summary>
-    public string? DestinationRunway { get; set; }
-    public bool SidViaMode { get; set; }
-    public bool StarViaMode { get; set; }
-    public int? SidViaCeiling { get; set; }
-    public int? StarViaFloor { get; set; }
+    public AircraftProcedure Procedure { get; set; } = new();
 
     /// <summary>Current bank angle in degrees. Positive = right bank, negative = left bank. Zero when wings level.</summary>
     public double BankAngle { get; set; }
 
-    /// <summary>DSR flag: when true, suppresses via-mode speed constraints at waypoints. Cleared by new SPD, CVIA, or DVIA.</summary>
-    public bool SpeedRestrictionsDeleted { get; set; }
-
-    /// <summary>When true, climb/descent rate is multiplied by 1.5. Cleared on altitude reached or by NORM/CM/DM.</summary>
-    public bool IsExpediting { get; set; }
-
-    /// <summary>Override for pattern downwind offset distance (NM). Null uses category default.</summary>
-    public double? PatternSizeOverrideNm { get; set; }
-
-    /// <summary>Override for pattern altitude (feet MSL). Null uses category-based default. Set by CM/DM during pattern mode or explicit altitude argument on MLT/MRT/CTO/GA.</summary>
-    public double? PatternAltitudeOverrideFt { get; set; }
-
-    // Visual approach state
-    public bool HasReportedFieldInSight { get; set; }
-    public bool HasReportedTrafficInSight { get; set; }
-
-    /// <summary>
-    /// Callsign of the most recently acquired traffic (RTIS or RTISF). A bare
-    /// FOLLOW with no explicit argument defaults to this value; a second RTIS/RTISF
-    /// for different traffic replaces it. Null until the first successful report.
-    /// </summary>
-    public string? LastReportedTrafficCallsign { get; set; }
+    public AircraftPattern Pattern { get; set; } = new();
 
     /// <summary>
     /// Pilot-side "watch for a condition" state — populated when RTIS soft-fails
@@ -268,93 +136,15 @@ public class AircraftState
     /// </summary>
     public List<PilotObservation> PendingObservations { get; } = [];
 
-    public string? FollowingCallsign { get; set; }
+    public AircraftVoice Voice { get; set; } = new();
 
-    // Voice type (CRC display): 0=Unknown, 1=Full, 2=ReceiveOnly, 3=TextOnly
-    public int VoiceType { get; set; } = 1;
+    public AircraftHoldAnnotation HoldAnnotation { get; set; } = new();
 
-    // TDLS dump flag (CRC flight plan)
-    public bool TdlsDumped { get; set; }
+    public AircraftEramState Eram { get; set; } = new();
 
-    // Hold annotations (CRC display)
-    public string? HoldAnnotationFix { get; set; }
-    public int HoldAnnotationDirection { get; set; }
-    public int HoldAnnotationTurns { get; set; }
-    public int? HoldAnnotationLegLength { get; set; }
-    public bool HoldAnnotationLegLengthInNm { get; set; }
-    public int HoldAnnotationEfc { get; set; }
+    public AircraftClearance Clearance { get; set; } = new();
 
-    // ERAM per-track state (CRC display)
-    public bool IsDwellLocked { get; set; }
-    public bool IsVci { get; set; }
-
-    /// <summary>Leader direction override (1=SW .. 9=NE per CRC enum; 5=Default). Null = sector default.</summary>
-    public int? EramLeaderDirection { get; set; }
-
-    /// <summary>Leader length override (0-8 lines). Null = sector default.</summary>
-    public int? EramLeaderLength { get; set; }
-
-    /// <summary>Temp altitude issued via ERAM QZ (distinct from STARS TemporaryAltitude).</summary>
-    public int? EramInterimAltitude { get; set; }
-
-    /// <summary>Controller-entered interim altitude (QQ L&lt;alt&gt;).</summary>
-    public int? LocalInterimAltitude { get; set; }
-
-    /// <summary>Procedure altitude from QQ P&lt;alt&gt;.</summary>
-    public int? ProcedureAltitude { get; set; }
-
-    /// <summary>Altitude manually entered by controller via ERAM commands.</summary>
-    public int? ControllerEnteredAltitude { get; set; }
-
-    /// <summary>Active ERAM pointouts.</summary>
-    public List<EramPointoutState> EramPointouts { get; set; } = [];
-
-    // Clearance (departure clearance from CRC)
-    public string? ClearanceExpect { get; set; }
-    public string? ClearanceSid { get; set; }
-    public string? ClearanceTransition { get; set; }
-    public string? ClearanceClimbout { get; set; }
-    public string? ClearanceClimbvia { get; set; }
-    public string? ClearanceInitialAlt { get; set; }
-    public string? ClearanceContactInfo { get; set; }
-    public string? ClearanceLocalInfo { get; set; }
-    public string? ClearanceDepFreq { get; set; }
-
-    // Unsupported (ghost) track — stationary, no surveillance data
-    public bool IsUnsupported { get; set; }
-
-    /// <summary>
-    /// Ground vehicle (tug, service truck, follow-me). Excluded from STARS
-    /// regardless of altitude; mirrors vatsim-server-rs asdex_track.is_vehicle.
-    /// </summary>
-    public bool IsVehicle { get; set; }
-
-    /// <summary>
-    /// Override display position for ghost tracks overlaying real aircraft.
-    /// When non-null, STARS shows the ghost at this position while the real
-    /// aircraft continues physics at its true lat/lon. Null for pure ghosts
-    /// (where the real position IS the ghost position).
-    /// </summary>
-    public double? UnsupportedLatitude { get; set; }
-    public double? UnsupportedLongitude { get; set; }
-
-    // Ghost track runway association (for stagger ordering)
-    public string? GhostAirportId { get; set; }
-    public string? GhostRunwayId { get; set; }
-
-    // Conflict alert
-    public bool IsCaInhibited { get; set; }
-
-    // Per-track STARS display state (shared across CRC scopes on same TCP)
-    public bool IsModeCInhibited { get; set; }
-    public bool IsMsawInhibited { get; set; }
-    public bool IsDuplicateBeaconInhibited { get; set; }
-    public int? TpaType { get; set; }
-    public int? GlobalLeaderDirection { get; set; }
-    public List<Tcp> ForcedPointoutsTo { get; set; } = [];
-
-    // Per-TCP shared state (per-track, per-controller display overrides)
-    public Dictionary<string, StarsTrackSharedState> SharedState { get; set; } = [];
+    public AircraftGhostTrack Ghost { get; set; } = new();
 
     // Position history for STARS radar trails (recorded every ~5 sim-seconds)
     public List<(double Lat, double Lon)> PositionHistory { get; } = new(10);
@@ -375,139 +165,26 @@ public class AircraftState
             IndicatedAirspeed = dto.IndicatedAirspeed,
             VerticalSpeed = dto.VerticalSpeed,
             BankAngle = dto.BankAngle,
-            HasFlightPlan = dto.HasFlightPlan,
-            Departure = dto.Departure,
-            Destination = dto.Destination,
-            Route = dto.Route,
-            Remarks = dto.Remarks,
-            RevisionNumber = dto.RevisionNumber,
-            EquipmentSuffix = dto.EquipmentSuffix,
-            FlightRules = dto.FlightRules,
-            CruiseAltitude = dto.CruiseAltitude,
-            CruiseSpeed = dto.CruiseSpeed,
-            TransponderMode = dto.TransponderMode,
-            AssignedBeaconCode = dto.AssignedBeaconCode,
-            BeaconCode = dto.BeaconCode,
-            IsIdenting = dto.IsIdenting,
-            IdentStartedAt = dto.IdentStartedAt,
-            HasAnnouncedReady = dto.HasAnnouncedReady,
+            FlightPlan = AircraftFlightPlan.FromSnapshot(dto.FlightPlan),
+            Ground = AircraftGroundOps.FromSnapshot(dto.Ground, groundLayout),
+            Transponder = AircraftTransponder.FromSnapshot(dto.Transponder),
             IsOnGround = dto.IsOnGround,
-            GroundLayout = groundLayout,
-            ParkingSpot = dto.ParkingSpot,
-            CurrentTaxiway = dto.CurrentTaxiway,
-            IsHeld = dto.IsHeld,
-            GiveWayTarget = dto.GiveWayTarget,
-            AutoDeleteExempt = dto.AutoDeleteExempt,
-            ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
-            GroundSpeedLimit = dto.GroundSpeedLimit,
-            PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
-            Owner = dto.Owner is not null ? TrackOwner.FromSnapshot(dto.Owner) : null,
-            HandoffPeer = dto.HandoffPeer is not null ? TrackOwner.FromSnapshot(dto.HandoffPeer) : null,
-            HandoffRedirectedBy = dto.HandoffRedirectedBy is not null ? TrackOwner.FromSnapshot(dto.HandoffRedirectedBy) : null,
-            Pointout = dto.Pointout is not null ? StarsPointout.FromSnapshot(dto.Pointout) : null,
-            Scratchpad1 = dto.Scratchpad1,
-            WasScratchpad1Cleared = dto.WasScratchpad1Cleared,
-            PreviousScratchpad1 = dto.PreviousScratchpad1,
-            Scratchpad2 = dto.Scratchpad2,
-            PreviousScratchpad2 = dto.PreviousScratchpad2,
-            AsdexScratchpad1 = dto.AsdexScratchpad1,
-            AsdexScratchpad2 = dto.AsdexScratchpad2,
-            TemporaryAltitude = dto.TemporaryAltitude,
-            PilotReportedAltitude = dto.PilotReportedAltitude,
-            IsAnnotated = dto.IsAnnotated,
-            OnHandoff = dto.OnHandoff,
-            HandoffAccepted = dto.HandoffAccepted,
-            HandoffInitiatedAt = dto.HandoffInitiatedAt,
-            AssignedAltitude = dto.AssignedAltitude,
-            ExpectedApproach = dto.ExpectedApproach,
-            PendingApproachClearance = dto.PendingApproachClearance is not null
-                ? PendingApproachInfo.FromSnapshot(dto.PendingApproachClearance)
-                : null,
-            ActiveSidId = dto.ActiveSidId,
-            ActiveStarId = dto.ActiveStarId,
-            DepartureRunway = dto.DepartureRunway,
-            DestinationRunway = dto.DestinationRunway,
-            SidViaMode = dto.SidViaMode,
-            StarViaMode = dto.StarViaMode,
-            SidViaCeiling = dto.SidViaCeiling,
-            StarViaFloor = dto.StarViaFloor,
-            SpeedRestrictionsDeleted = dto.SpeedRestrictionsDeleted,
-            IsExpediting = dto.IsExpediting,
-            PatternSizeOverrideNm = dto.PatternSizeOverrideNm,
-            PatternAltitudeOverrideFt = dto.PatternAltitudeOverrideFt,
-            HasReportedFieldInSight = dto.HasReportedFieldInSight,
-            HasReportedTrafficInSight = dto.HasReportedTrafficInSight,
-            LastReportedTrafficCallsign = dto.LastReportedTrafficCallsign,
-            FollowingCallsign = dto.FollowingCallsign,
-            VoiceType = dto.VoiceType,
-            TdlsDumped = dto.TdlsDumped,
-            IsDwellLocked = dto.IsDwellLocked,
-            IsVci = dto.IsVci,
-            EramLeaderDirection = dto.EramLeaderDirection,
-            EramLeaderLength = dto.EramLeaderLength,
-            EramInterimAltitude = dto.EramInterimAltitude,
-            LocalInterimAltitude = dto.LocalInterimAltitude,
-            ProcedureAltitude = dto.ProcedureAltitude,
-            ControllerEnteredAltitude = dto.ControllerEnteredAltitude,
-            EramPointouts = dto.EramPointouts is null
-                ? []
-                : dto
-                    .EramPointouts.Select(p => new EramPointoutState
-                    {
-                        OriginatingFacility = p.OriginatingFacility,
-                        OriginatingSector = p.OriginatingSector,
-                        ReceivingFacility = p.ReceivingFacility,
-                        ReceivingSector = p.ReceivingSector,
-                        IsAcknowledged = p.IsAcknowledged,
-                        IsRecipientSuppressed = p.IsRecipientSuppressed,
-                        IsRSideCleared = p.IsRSideCleared,
-                        IsDSideCleared = p.IsDSideCleared,
-                    })
-                    .ToList(),
-            HoldAnnotationFix = dto.HoldAnnotationFix,
-            HoldAnnotationDirection = dto.HoldAnnotationDirection,
-            HoldAnnotationTurns = dto.HoldAnnotationTurns,
-            HoldAnnotationLegLength = dto.HoldAnnotationLegLength,
-            HoldAnnotationLegLengthInNm = dto.HoldAnnotationLegLengthInNm,
-            HoldAnnotationEfc = dto.HoldAnnotationEfc,
-            ClearanceExpect = dto.ClearanceExpect,
-            ClearanceSid = dto.ClearanceSid,
-            ClearanceTransition = dto.ClearanceTransition,
-            ClearanceClimbout = dto.ClearanceClimbout,
-            ClearanceClimbvia = dto.ClearanceClimbvia,
-            ClearanceInitialAlt = dto.ClearanceInitialAlt,
-            ClearanceContactInfo = dto.ClearanceContactInfo,
-            ClearanceLocalInfo = dto.ClearanceLocalInfo,
-            ClearanceDepFreq = dto.ClearanceDepFreq,
-            IsUnsupported = dto.IsUnsupported,
-            UnsupportedLatitude = dto.UnsupportedLatitude,
-            UnsupportedLongitude = dto.UnsupportedLongitude,
-            GhostAirportId = dto.GhostAirportId,
-            GhostRunwayId = dto.GhostRunwayId,
-            IsVehicle = dto.IsVehicle,
-            IsCaInhibited = dto.IsCaInhibited,
-            IsModeCInhibited = dto.IsModeCInhibited,
-            IsMsawInhibited = dto.IsMsawInhibited,
-            IsDuplicateBeaconInhibited = dto.IsDuplicateBeaconInhibited,
-            TpaType = dto.TpaType,
-            GlobalLeaderDirection = dto.GlobalLeaderDirection,
-            AssignedTaxiRoute = dto.AssignedTaxiRoute is not null ? TaxiRoute.FromSnapshot(dto.AssignedTaxiRoute, groundLayout) : null,
+            Track = AircraftTrack.FromSnapshot(dto.Track),
+            Stars = AircraftStarsState.FromSnapshot(dto.Stars),
+            Approach = AircraftApproachState.FromSnapshot(dto.Approach),
+            Procedure = AircraftProcedure.FromSnapshot(dto.Procedure),
+            Pattern = AircraftPattern.FromSnapshot(dto.Pattern),
+            Voice = AircraftVoice.FromSnapshot(dto.Voice),
+            HoldAnnotation = AircraftHoldAnnotation.FromSnapshot(dto.HoldAnnotation),
+            Eram = AircraftEramState.FromSnapshot(dto.Eram),
+            Clearance = AircraftClearance.FromSnapshot(dto.Clearance),
+            Ghost = AircraftGhostTrack.FromSnapshot(dto.Ghost),
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
         };
 
         ac.WindComponents = (dto.WindN, dto.WindE);
         ControlTargets.RestoreFrom(dto.Targets, ac.Targets);
-
-        if (dto.ForcedPointoutsTo is not null)
-        {
-            ac.ForcedPointoutsTo = dto.ForcedPointoutsTo.Select(Tcp.FromSnapshot).ToList();
-        }
-
-        if (dto.SharedState is not null)
-        {
-            ac.SharedState = dto.SharedState.ToDictionary(kv => kv.Key, kv => StarsTrackSharedState.FromSnapshot(kv.Value));
-        }
 
         if (dto.PositionHistory is not null)
         {
@@ -549,122 +226,20 @@ public class AircraftState
             BankAngle = BankAngle,
             WindN = WindComponents.N,
             WindE = WindComponents.E,
-            HasFlightPlan = HasFlightPlan,
-            Departure = Departure,
-            Destination = Destination,
-            Route = Route,
-            Remarks = Remarks,
-            RevisionNumber = RevisionNumber,
-            EquipmentSuffix = EquipmentSuffix,
-            FlightRules = FlightRules,
-            CruiseAltitude = CruiseAltitude,
-            CruiseSpeed = CruiseSpeed,
-            TransponderMode = TransponderMode,
-            AssignedBeaconCode = AssignedBeaconCode,
-            BeaconCode = BeaconCode,
-            IsIdenting = IsIdenting,
-            IdentStartedAt = IdentStartedAt,
-            HasAnnouncedReady = HasAnnouncedReady,
+            FlightPlan = FlightPlan.ToSnapshot(),
+            Ground = Ground.ToSnapshot(),
+            Transponder = Transponder.ToSnapshot(),
             IsOnGround = IsOnGround,
-            ParkingSpot = ParkingSpot,
-            CurrentTaxiway = CurrentTaxiway,
-            IsHeld = IsHeld,
-            GiveWayTarget = GiveWayTarget,
-            AutoDeleteExempt = AutoDeleteExempt,
-            ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
-            GroundSpeedLimit = GroundSpeedLimit,
-            PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
-            Owner = Owner?.ToSnapshot(),
-            HandoffPeer = HandoffPeer?.ToSnapshot(),
-            HandoffRedirectedBy = HandoffRedirectedBy?.ToSnapshot(),
-            Pointout = Pointout?.ToSnapshot(),
-            Scratchpad1 = Scratchpad1,
-            WasScratchpad1Cleared = WasScratchpad1Cleared,
-            PreviousScratchpad1 = PreviousScratchpad1,
-            Scratchpad2 = Scratchpad2,
-            PreviousScratchpad2 = PreviousScratchpad2,
-            AsdexScratchpad1 = AsdexScratchpad1,
-            AsdexScratchpad2 = AsdexScratchpad2,
-            TemporaryAltitude = TemporaryAltitude,
-            PilotReportedAltitude = PilotReportedAltitude,
-            IsAnnotated = IsAnnotated,
-            OnHandoff = OnHandoff,
-            HandoffAccepted = HandoffAccepted,
-            HandoffInitiatedAt = HandoffInitiatedAt,
-            AssignedAltitude = AssignedAltitude,
-            ExpectedApproach = ExpectedApproach,
-            PendingApproachClearance = PendingApproachClearance?.ToSnapshot(),
-            ActiveSidId = ActiveSidId,
-            ActiveStarId = ActiveStarId,
-            DepartureRunway = DepartureRunway,
-            DestinationRunway = DestinationRunway,
-            SidViaMode = SidViaMode,
-            StarViaMode = StarViaMode,
-            SidViaCeiling = SidViaCeiling,
-            StarViaFloor = StarViaFloor,
-            SpeedRestrictionsDeleted = SpeedRestrictionsDeleted,
-            IsExpediting = IsExpediting,
-            PatternSizeOverrideNm = PatternSizeOverrideNm,
-            PatternAltitudeOverrideFt = PatternAltitudeOverrideFt,
-            HasReportedFieldInSight = HasReportedFieldInSight,
-            HasReportedTrafficInSight = HasReportedTrafficInSight,
-            LastReportedTrafficCallsign = LastReportedTrafficCallsign,
-            FollowingCallsign = FollowingCallsign,
-            VoiceType = VoiceType,
-            TdlsDumped = TdlsDumped,
-            IsDwellLocked = IsDwellLocked,
-            IsVci = IsVci,
-            EramLeaderDirection = EramLeaderDirection,
-            EramLeaderLength = EramLeaderLength,
-            EramInterimAltitude = EramInterimAltitude,
-            LocalInterimAltitude = LocalInterimAltitude,
-            ProcedureAltitude = ProcedureAltitude,
-            ControllerEnteredAltitude = ControllerEnteredAltitude,
-            EramPointouts =
-                EramPointouts.Count > 0
-                    ? EramPointouts
-                        .Select(p => new EramPointoutStateDto
-                        {
-                            OriginatingFacility = p.OriginatingFacility,
-                            OriginatingSector = p.OriginatingSector,
-                            ReceivingFacility = p.ReceivingFacility,
-                            ReceivingSector = p.ReceivingSector,
-                            IsAcknowledged = p.IsAcknowledged,
-                            IsRecipientSuppressed = p.IsRecipientSuppressed,
-                            IsRSideCleared = p.IsRSideCleared,
-                            IsDSideCleared = p.IsDSideCleared,
-                        })
-                        .ToList()
-                    : null,
-            HoldAnnotationFix = HoldAnnotationFix,
-            HoldAnnotationDirection = HoldAnnotationDirection,
-            HoldAnnotationTurns = HoldAnnotationTurns,
-            HoldAnnotationLegLength = HoldAnnotationLegLength,
-            HoldAnnotationLegLengthInNm = HoldAnnotationLegLengthInNm,
-            HoldAnnotationEfc = HoldAnnotationEfc,
-            ClearanceExpect = ClearanceExpect,
-            ClearanceSid = ClearanceSid,
-            ClearanceTransition = ClearanceTransition,
-            ClearanceClimbout = ClearanceClimbout,
-            ClearanceClimbvia = ClearanceClimbvia,
-            ClearanceInitialAlt = ClearanceInitialAlt,
-            ClearanceContactInfo = ClearanceContactInfo,
-            ClearanceLocalInfo = ClearanceLocalInfo,
-            ClearanceDepFreq = ClearanceDepFreq,
-            IsUnsupported = IsUnsupported,
-            UnsupportedLatitude = UnsupportedLatitude,
-            UnsupportedLongitude = UnsupportedLongitude,
-            GhostAirportId = GhostAirportId,
-            GhostRunwayId = GhostRunwayId,
-            IsVehicle = IsVehicle,
-            IsCaInhibited = IsCaInhibited,
-            IsModeCInhibited = IsModeCInhibited,
-            IsMsawInhibited = IsMsawInhibited,
-            IsDuplicateBeaconInhibited = IsDuplicateBeaconInhibited,
-            TpaType = TpaType,
-            GlobalLeaderDirection = GlobalLeaderDirection,
-            ForcedPointoutsTo = ForcedPointoutsTo.Count > 0 ? ForcedPointoutsTo.Select(t => t.ToSnapshot()).ToList() : null,
-            SharedState = SharedState.Count > 0 ? SharedState.ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot()) : null,
+            Track = Track.ToSnapshot(),
+            Stars = Stars.ToSnapshot(),
+            Approach = Approach.ToSnapshot(),
+            Procedure = Procedure.ToSnapshot(),
+            Pattern = Pattern.ToSnapshot(),
+            Voice = Voice.ToSnapshot(),
+            HoldAnnotation = HoldAnnotation.ToSnapshot(),
+            Eram = Eram.ToSnapshot(),
+            Clearance = Clearance.ToSnapshot(),
+            Ghost = Ghost.ToSnapshot(),
             PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
             ActiveApproachScore = ActiveApproachScore is { } score
                 ? new ApproachScoreDto
@@ -683,7 +258,6 @@ public class AircraftState
             Queue = Queue.ToSnapshot(),
             Phases = Phases?.ToSnapshot(),
             DeferredDispatches = DeferredDispatches.Count > 0 ? DeferredDispatches.Select(d => d.ToSnapshot()).ToList() : null,
-            AssignedTaxiRoute = AssignedTaxiRoute?.ToSnapshot(),
         };
 
     public HashSet<string> GetProgrammedFixes()
@@ -695,13 +269,13 @@ public class AircraftState
         }
 
         return ProgrammedFixResolver.Resolve(
-            Route,
-            ExpectedApproach,
-            Destination,
-            Departure,
+            FlightPlan.Route,
+            Approach.Expected,
+            FlightPlan.Destination,
+            FlightPlan.Departure,
             activeApproachFixNames,
-            ActiveStarId,
-            DestinationRunway
+            Procedure.ActiveStarId,
+            Procedure.DestinationRunway
         );
     }
 }

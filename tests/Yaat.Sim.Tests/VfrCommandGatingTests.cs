@@ -35,9 +35,12 @@ public class VfrCommandGatingTests : IDisposable
             Altitude = 3000,
             IndicatedAirspeed = 200,
             IsOnGround = false,
-            Departure = "KSFO",
-            CruiseAltitude = 35000,
-            FlightRules = "IFR",
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KSFO",
+                CruiseAltitude = 35000,
+                FlightRules = "IFR",
+            },
         };
     }
 
@@ -46,9 +49,9 @@ public class VfrCommandGatingTests : IDisposable
         var ac = MakeIfrAircraft();
         ac.Callsign = "N805FM";
         ac.AircraftType = "C172";
-        ac.CruiseAltitude = 3500;
+        ac.FlightPlan.CruiseAltitude = 3500;
         ac.IndicatedAirspeed = 120;
-        ac.FlightRules = "VFR";
+        ac.FlightPlan.FlightRules = "VFR";
         return ac;
     }
 
@@ -94,7 +97,7 @@ public class VfrCommandGatingTests : IDisposable
     {
         var ac = MakeIfrAircraft();
 
-        var parseResult = CommandParser.ParseCompound(commandText, ac.Route);
+        var parseResult = CommandParser.ParseCompound(commandText, ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed for '{commandText}': {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
@@ -113,7 +116,7 @@ public class VfrCommandGatingTests : IDisposable
     {
         var ac = MakeIfrAircraft();
 
-        var parseResult = CommandParser.ParseCompound(commandText, ac.Route);
+        var parseResult = CommandParser.ParseCompound(commandText, ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed for '{commandText}': {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
@@ -132,24 +135,24 @@ public class VfrCommandGatingTests : IDisposable
     public void Cifr_IfrAircraft_BecomesVfr()
     {
         var ac = MakeIfrAircraft();
-        Assert.False(ac.IsVfr);
-        Assert.Equal(35000, ac.CruiseAltitude);
+        Assert.False(ac.FlightPlan.IsVfr);
+        Assert.Equal(35000, ac.FlightPlan.CruiseAltitude);
 
         var result = Dispatch(ac, new CancelIfrCommand());
 
         _output.WriteLine($"CIFR: Success={result.Success} Message={result.Message}");
 
         Assert.True(result.Success);
-        Assert.True(ac.IsVfr);
-        Assert.Equal("VFR", ac.FlightRules);
-        Assert.Equal(0, ac.CruiseAltitude);
+        Assert.True(ac.FlightPlan.IsVfr);
+        Assert.Equal("VFR", ac.FlightPlan.FlightRules);
+        Assert.Equal(0, ac.FlightPlan.CruiseAltitude);
     }
 
     [Fact]
     public void Cifr_VfrAircraft_Rejected()
     {
         var ac = MakeVfrAircraft();
-        Assert.True(ac.IsVfr);
+        Assert.True(ac.FlightPlan.IsVfr);
 
         var result = Dispatch(ac, new CancelIfrCommand());
 
@@ -172,7 +175,7 @@ public class VfrCommandGatingTests : IDisposable
         // Cancel IFR
         var cifrResult = Dispatch(ac, new CancelIfrCommand());
         Assert.True(cifrResult.Success);
-        Assert.True(ac.IsVfr);
+        Assert.True(ac.FlightPlan.IsVfr);
 
         // Now pattern entry should not be rejected for flight rules
         // (will fail for other reasons like no navdata, but NOT for VFR gating)

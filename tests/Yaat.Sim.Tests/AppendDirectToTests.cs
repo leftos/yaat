@@ -21,7 +21,7 @@ public class AppendDirectToTests
             Position = new LatLon(37.62, -122.38),
             TrueHeading = new TrueHeading(280),
             Altitude = 10000,
-            Route = route,
+            FlightPlan = new AircraftFlightPlan { Route = route },
         };
     }
 

@@ -24,8 +24,8 @@ internal static class GroundCommandHandler
             Log.LogWarning(
                 "[TryTaxi] {Callsign}: no ground layout (departure={Dep}, destination={Dest})",
                 aircraft.Callsign,
-                aircraft.Departure,
-                aircraft.Destination
+                aircraft.FlightPlan.Departure,
+                aircraft.FlightPlan.Destination
             );
             return new CommandResult(false, "No airport ground layout available");
         }
@@ -147,19 +147,19 @@ internal static class GroundCommandHandler
         }
 
         // Set up the taxi route and phase
-        aircraft.AssignedTaxiRoute = route;
-        aircraft.IsHeld = false;
+        aircraft.Ground.AssignedTaxiRoute = route;
+        aircraft.Ground.IsHeld = false;
 
         if (taxi.NoDelete)
         {
-            aircraft.AutoDeleteExempt = true;
+            aircraft.Ground.AutoDeleteExempt = true;
         }
 
         aircraft.Phases = new PhaseList();
         if (detectedRunway is not null)
         {
             aircraft.Phases.AssignedRunway = detectedRunway;
-            aircraft.DepartureRunway = detectedRunway.Designator;
+            aircraft.Procedure.DepartureRunway = detectedRunway.Designator;
         }
 
         // Zero-segment route to parking: A* snapped the aircraft to the destination node.
@@ -200,7 +200,7 @@ internal static class GroundCommandHandler
                     if (reroute is not null && reroute.Segments.Count > 0)
                     {
                         route = SetDestination(reroute, taxi);
-                        aircraft.AssignedTaxiRoute = route;
+                        aircraft.Ground.AssignedTaxiRoute = route;
                         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
                         rerouted = true;
 
@@ -217,7 +217,7 @@ internal static class GroundCommandHandler
 
             if (!rerouted)
             {
-                aircraft.ParkingSpot = parkingName;
+                aircraft.Ground.ParkingSpot = parkingName;
                 aircraft.Phases.Add(new AtParkingPhase());
                 ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
                 aircraft.Phases.Start(ctx);
@@ -671,7 +671,7 @@ internal static class GroundCommandHandler
         aircraft.Phases.Add(new AtParkingPhase());
         aircraft.Phases.Start(ctx);
 
-        aircraft.ParkingSpot = destLabel.ToUpperInvariant();
+        aircraft.Ground.ParkingSpot = destLabel.ToUpperInvariant();
 
         var msg = $"Pushing back to {destLabel}";
         if (push.FacingTaxiway is not null)
@@ -696,7 +696,7 @@ internal static class GroundCommandHandler
 
         aircraft.Phases ??= new PhaseList();
         aircraft.Phases.AssignedRunway = runway;
-        aircraft.DepartureRunway = runway.Designator;
+        aircraft.Procedure.DepartureRunway = runway.Designator;
         return CommandDispatcher.Ok($"Runway {runway.Designator}");
     }
 
@@ -707,20 +707,20 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Hold position requires aircraft on the ground");
         }
 
-        aircraft.IsHeld = true;
-        aircraft.GiveWayTarget = null;
+        aircraft.Ground.IsHeld = true;
+        aircraft.Ground.GiveWayTarget = null;
         return CommandDispatcher.Ok("Hold position");
     }
 
     internal static CommandResult TryResumeTaxi(AircraftState aircraft)
     {
-        if (!aircraft.IsHeld)
+        if (!aircraft.Ground.IsHeld)
         {
             return new CommandResult(false, "Aircraft is not held");
         }
 
-        aircraft.IsHeld = false;
-        aircraft.GiveWayTarget = null;
+        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.GiveWayTarget = null;
         return CommandDispatcher.Ok("Resume taxi");
     }
 
@@ -744,7 +744,7 @@ internal static class GroundCommandHandler
         }
 
         // Otherwise, pre-clear the matching hold-short in the taxi route
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -775,7 +775,7 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Hold short requires aircraft on the ground");
         }
 
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -840,13 +840,13 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Give way requires aircraft on the ground");
         }
 
-        if (aircraft.AssignedTaxiRoute is null)
+        if (aircraft.Ground.AssignedTaxiRoute is null)
         {
             return new CommandResult(false, "Aircraft must have a taxi route assigned");
         }
 
-        aircraft.IsHeld = true;
-        aircraft.GiveWayTarget = targetCallsign;
+        aircraft.Ground.IsHeld = true;
+        aircraft.Ground.GiveWayTarget = targetCallsign;
         return CommandDispatcher.Ok($"Give way to {targetCallsign}");
     }
 
@@ -886,7 +886,7 @@ internal static class GroundCommandHandler
             aircraft.Phases.Clear(ctx);
         }
 
-        aircraft.IsHeld = false;
+        aircraft.Ground.IsHeld = false;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
@@ -940,7 +940,7 @@ internal static class GroundCommandHandler
 
         if (land.NoDelete)
         {
-            aircraft.AutoDeleteExempt = true;
+            aircraft.Ground.AutoDeleteExempt = true;
         }
 
         // Clear current phases and set up air taxi → land sequence
@@ -950,7 +950,7 @@ internal static class GroundCommandHandler
             aircraft.Phases.Clear(ctx);
         }
 
-        aircraft.IsHeld = false;
+        aircraft.Ground.IsHeld = false;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
         aircraft.Phases.Add(new HelicopterLandingPhase());
@@ -958,7 +958,7 @@ internal static class GroundCommandHandler
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        aircraft.ParkingSpot = resolvedName;
+        aircraft.Ground.ParkingSpot = resolvedName;
 
         return CommandDispatcher.Ok($"Land at {resolvedName}");
     }
@@ -1013,7 +1013,7 @@ internal static class GroundCommandHandler
 
     private static RunwayInfo? ResolveClosestRunwayEnd(RunwayIdentifier rwyId, double nodeLat, double nodeLon, AircraftState aircraft)
     {
-        var airportId = aircraft.Departure;
+        var airportId = aircraft.FlightPlan.Departure;
         if (airportId is null)
         {
             return null;
@@ -1041,8 +1041,8 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Break requires aircraft on the ground");
         }
 
-        aircraft.ConflictBreakRemainingSeconds = BreakDurationSeconds;
-        aircraft.GroundSpeedLimit = null;
+        aircraft.Ground.ConflictBreakRemainingSeconds = BreakDurationSeconds;
+        aircraft.Ground.SpeedLimit = null;
         Log.LogInformation("[Break] {Callsign}: ignoring ground conflicts for {Duration}s", aircraft.Callsign, BreakDurationSeconds);
         return CommandDispatcher.Ok("Break conflict");
     }
@@ -1069,7 +1069,7 @@ internal static class GroundCommandHandler
         aircraft.Phases.RequestedExit = preference;
         if (noDelete)
         {
-            aircraft.AutoDeleteExempt = true;
+            aircraft.Ground.AutoDeleteExempt = true;
         }
 
         if (preference.Taxiway is not null)

@@ -46,7 +46,7 @@ public sealed class HoldingShortPhase : Phase
 
         // Generate notification
         string target = _holdShort.TargetName ?? "unknown";
-        string taxiway = ctx.Aircraft.CurrentTaxiway ?? "taxiway";
+        string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {label} at {taxiway}");
     }

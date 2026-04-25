@@ -43,7 +43,7 @@ public class RfisSoftFailLookingTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success, $"Expected soft-fail success but got: {result.Message}");
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Contains("looking", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
 
         var obs = Assert.Single(ac.PendingObservations);
@@ -187,7 +187,7 @@ public class RfisSoftFailLookingTests
 
         PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
 
-        Assert.True(ac.HasReportedFieldInSight);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
         Assert.Empty(ac.PendingObservations);
         // Resolution routes through PendingWarnings (orange) for visibility.
         Assert.Contains("field in sight", ac.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
@@ -204,7 +204,7 @@ public class RfisSoftFailLookingTests
 
         PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
 
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Single(ac.PendingObservations);
         // No re-emit of "looking" each tick.
         Assert.Empty(ac.PendingNotifications);
@@ -240,13 +240,13 @@ public class RfisSoftFailLookingTests
         ac.PendingNotifications.Clear();
 
         // Destination cleared between ticks (e.g. flight plan amended).
-        ac.Destination = "";
+        ac.FlightPlan.Destination = "";
 
         PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
 
         Assert.Empty(ac.PendingObservations);
         Assert.Empty(ac.PendingWarnings);
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
     }
 
     [Fact]
@@ -258,11 +258,11 @@ public class RfisSoftFailLookingTests
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         Assert.Single(ac.PendingObservations);
 
-        ac.Destination = "ZZZZ";
+        ac.FlightPlan.Destination = "ZZZZ";
         PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
 
         Assert.Empty(ac.PendingObservations);
-        Assert.False(ac.HasReportedFieldInSight);
+        Assert.False(ac.Approach.HasReportedFieldInSight);
     }
 
     // -------------------------------------------------------------------------
@@ -279,7 +279,7 @@ public class RfisSoftFailLookingTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.True(ac.HasReportedFieldInSight);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
         Assert.Empty(ac.PendingObservations);
         Assert.Contains("field in sight", ac.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
     }
@@ -296,7 +296,7 @@ public class RfisSoftFailLookingTests
         CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, ctx);
 
         Assert.Empty(ac.PendingObservations);
-        Assert.True(ac.HasReportedFieldInSight);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
     }
 
     // -------------------------------------------------------------------------
@@ -314,7 +314,7 @@ public class RfisSoftFailLookingTests
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 250,
-            Destination = destination,
+            FlightPlan = new AircraftFlightPlan { Destination = destination },
         };
     }
 }

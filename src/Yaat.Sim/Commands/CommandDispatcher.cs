@@ -221,8 +221,8 @@ public static class CommandDispatcher
         var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, ctx);
         aircraft.Queue.Blocks.AddRange(singlePreserved);
 
-        bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
-        bool hadViaMode = aircraft.SidViaMode || aircraft.StarViaMode;
+        bool hadProcedure = aircraft.Procedure.ActiveSidId is not null || aircraft.Procedure.ActiveStarId is not null;
+        bool hadViaMode = aircraft.Procedure.SidViaMode || aircraft.Procedure.StarViaMode;
         var result = ApplyCommand(command, aircraft, ctx);
         CheckVectoringWarning(aircraft, [command], hadProcedure, hadViaMode);
         return result;
@@ -268,7 +268,7 @@ public static class CommandDispatcher
 
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
-        if (RequiresVfr(command) && !aircraft.IsVfr)
+        if (RequiresVfr(command) && !aircraft.FlightPlan.IsVfr)
         {
             return VfrRequiredResult;
         }
@@ -398,7 +398,7 @@ public static class CommandDispatcher
                     return new CommandResult(false, eappResolved.Error);
                 }
                 var (eappProc, _, _) = eappResolved;
-                aircraft.ExpectedApproach = eappProc.ApproachId;
+                aircraft.Approach.Expected = eappProc.ApproachId;
                 return Ok($"Expecting {eappProc.ApproachId} approach");
             }
 
@@ -499,11 +499,11 @@ public static class CommandDispatcher
 
             // Helicopter commands
             case ClearedTakeoffPresentCommand:
-                return DepartureClearanceHandler.TryClearedTakeoffPresent(aircraft, aircraft.GroundLayout);
+                return DepartureClearanceHandler.TryClearedTakeoffPresent(aircraft, aircraft.Ground.Layout);
             case AirTaxiCommand atxi:
-                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, aircraft.GroundLayout);
+                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, aircraft.Ground.Layout);
             case LandCommand land:
-                return GroundCommandHandler.TryLand(aircraft, land, aircraft.GroundLayout);
+                return GroundCommandHandler.TryLand(aircraft, land, aircraft.Ground.Layout);
 
             // Hold commands (orbit/hover)
             case HoldPresentPosition360Command hpp:
@@ -519,7 +519,7 @@ public static class CommandDispatcher
             case ClearedToLandCommand ctl:
                 return PatternCommandHandler.TryClearedToLand(ctl, aircraft);
             case LandAndHoldShortCommand lahso:
-                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, aircraft.GroundLayout);
+                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, aircraft.Ground.Layout);
             case CancelLandingClearanceCommand:
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
             case GoAroundCommand ga:
@@ -542,12 +542,12 @@ public static class CommandDispatcher
 
             // --- Flight plan ---
             case CancelIfrCommand:
-                if (aircraft.IsVfr)
+                if (aircraft.FlightPlan.IsVfr)
                 {
                     return new CommandResult(false, "Aircraft is already VFR");
                 }
-                aircraft.FlightRules = "VFR";
-                aircraft.CruiseAltitude = 0;
+                aircraft.FlightPlan.FlightRules = "VFR";
+                aircraft.FlightPlan.CruiseAltitude = 0;
                 return Ok("IFR cancelled, aircraft is now VFR");
 
             case UnsupportedCommand cmd:
@@ -762,7 +762,7 @@ public static class CommandDispatcher
 
         var payloadDesc = string.Join(" ; then ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
 
-        aircraft.GiveWayTarget = gw.TargetCallsign;
+        aircraft.Ground.GiveWayTarget = gw.TargetCallsign;
         aircraft.DeferredDispatches.Add(new DeferredDispatch(payload, gw.TargetCallsign) { SourceText = compound.SourceText });
         return new CommandResult(true, $"After {gw.TargetCallsign} passes: {payloadDesc}");
     }
@@ -827,7 +827,7 @@ public static class CommandDispatcher
     {
         var groundLayout = ctx.GroundLayout;
         var autoCrossRunway = ctx.AutoCrossRunway;
-        if (RequiresVfr(command) && !aircraft.IsVfr)
+        if (RequiresVfr(command) && !aircraft.FlightPlan.IsVfr)
         {
             return VfrRequiredResult;
         }
@@ -991,10 +991,10 @@ public static class CommandDispatcher
 
             // Hold/resume during air taxi (airborne, so ground handler's IsOnGround check would reject)
             case HoldPositionCommand when currentPhase is AirTaxiPhase:
-                aircraft.IsHeld = true;
+                aircraft.Ground.IsHeld = true;
                 return Ok("Hold position");
             case ResumeCommand when currentPhase is AirTaxiPhase:
-                aircraft.IsHeld = false;
+                aircraft.Ground.IsHeld = false;
                 return Ok("Resume taxi");
             case ResumeCommand when currentPhase is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort } holdShort:
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
@@ -1052,9 +1052,9 @@ public static class CommandDispatcher
     internal static string ResolveAirport(AircraftState aircraft)
     {
         // Try destination airport from flight plan
-        if (!string.IsNullOrWhiteSpace(aircraft.Destination))
+        if (!string.IsNullOrWhiteSpace(aircraft.FlightPlan.Destination))
         {
-            string dest = aircraft.Destination;
+            string dest = aircraft.FlightPlan.Destination;
             return dest.StartsWith('K') && dest.Length == 4 ? dest[1..] : dest;
         }
 
@@ -1117,9 +1117,9 @@ public static class CommandDispatcher
         // Treat empty strings (VFR local traffic with no flight plan) the same as null.
         // Fall back to the ground layout airport ID so CTO works for aircraft with no departure/destination.
         var airportId =
-            !string.IsNullOrEmpty(aircraft.Departure) ? aircraft.Departure
-            : !string.IsNullOrEmpty(aircraft.Destination) ? aircraft.Destination
-            : aircraft.GroundLayout?.AirportId;
+            !string.IsNullOrEmpty(aircraft.FlightPlan.Departure) ? aircraft.FlightPlan.Departure
+            : !string.IsNullOrEmpty(aircraft.FlightPlan.Destination) ? aircraft.FlightPlan.Destination
+            : aircraft.Ground.Layout?.AirportId;
 
         if (airportId is null)
         {
@@ -1413,8 +1413,8 @@ public static class CommandDispatcher
         var captured = commands.ToList();
         return ac =>
         {
-            bool hadProcedure = ac.ActiveSidId is not null || ac.ActiveStarId is not null;
-            bool hadViaMode = ac.SidViaMode || ac.StarViaMode;
+            bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
+            bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
             var messages = new List<string>();
 
             foreach (var cmd in captured)
@@ -1451,7 +1451,7 @@ public static class CommandDispatcher
         }
 
         bool hasAltCmd = commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand);
-        bool procedureCleared = aircraft.ActiveSidId is null && aircraft.ActiveStarId is null;
+        bool procedureCleared = aircraft.Procedure.ActiveSidId is null && aircraft.Procedure.ActiveStarId is null;
 
         if (procedureCleared)
         {
@@ -1480,7 +1480,7 @@ public static class CommandDispatcher
         }
 
         // Procedure preserved (DCT to on-procedure fix) but via-mode was disabled
-        if (hadViaMode && !aircraft.SidViaMode && !aircraft.StarViaMode)
+        if (hadViaMode && !aircraft.Procedure.SidViaMode && !aircraft.Procedure.StarViaMode)
         {
             bool hasViaCmd = commands.Any(c => c is ClimbViaCommand or DescendViaCommand);
             if (!hasAltCmd && !hasViaCmd)
@@ -1553,7 +1553,7 @@ public static class CommandDispatcher
     private static CommandResult TryAirborneFollow(AircraftState aircraft, FollowCommand follow)
     {
         // FOLLOW is VFR-only — IFR traffic uses CVA FOLLOW for visual separation.
-        if (!aircraft.IsVfr)
+        if (!aircraft.FlightPlan.IsVfr)
         {
             return new CommandResult(false, "FOLLOW only available for VFR aircraft");
         }
@@ -1565,7 +1565,7 @@ public static class CommandDispatcher
 
         // RTIS gate: a pilot cannot follow traffic they haven't visually acquired.
         // Matches CVA FOLLOW behavior — controllers can force this with RTISF.
-        if (!aircraft.HasReportedTrafficInSight)
+        if (!aircraft.Approach.HasReportedTrafficInSight)
         {
             return new CommandResult(false, "Traffic not in sight — issue RTIS first");
         }
@@ -1573,7 +1573,7 @@ public static class CommandDispatcher
         // Bare FOLLOW (no explicit callsign) defaults to the most recently reported
         // traffic. Explicit callsign always wins. If neither is available, reject.
         // Message mirrors the "Unable, no traffic specified" wording used by RTIS.
-        var target = follow.TargetCallsign ?? aircraft.LastReportedTrafficCallsign;
+        var target = follow.TargetCallsign ?? aircraft.Approach.LastReportedTrafficCallsign;
         if (string.IsNullOrEmpty(target))
         {
             return new CommandResult(false, "Unable, say traffic callsign");
@@ -1584,7 +1584,7 @@ public static class CommandDispatcher
         var current = aircraft.Phases?.CurrentPhase;
         if (current is PatternEntryPhase or DownwindPhase or BasePhase or FinalApproachPhase)
         {
-            aircraft.FollowingCallsign = target;
+            aircraft.Approach.FollowingCallsign = target;
             return Ok($"Follow {target}");
         }
 
@@ -1592,7 +1592,7 @@ public static class CommandDispatcher
         if (current is VfrFollowPhase vfp)
         {
             vfp.UpdateTarget(target);
-            aircraft.FollowingCallsign = target;
+            aircraft.Approach.FollowingCallsign = target;
             return Ok($"Follow {target}");
         }
 
@@ -1608,7 +1608,7 @@ public static class CommandDispatcher
         aircraft.Phases.Phases.Add(new VfrFollowPhase(target));
         var startCtx = BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Start(startCtx);
-        aircraft.FollowingCallsign = target;
+        aircraft.Approach.FollowingCallsign = target;
         return Ok($"Follow {target}");
     }
 }

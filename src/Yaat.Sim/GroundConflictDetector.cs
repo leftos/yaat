@@ -56,11 +56,11 @@ public static class GroundConflictDetector
         // Clear previous limits and tick down BREAK timers
         for (int i = 0; i < aircraft.Count; i++)
         {
-            aircraft[i].GroundSpeedLimit = null;
+            aircraft[i].Ground.SpeedLimit = null;
 
-            if (aircraft[i].ConflictBreakRemainingSeconds > 0)
+            if (aircraft[i].Ground.ConflictBreakRemainingSeconds > 0)
             {
-                aircraft[i].ConflictBreakRemainingSeconds = Math.Max(0, aircraft[i].ConflictBreakRemainingSeconds - deltaSeconds);
+                aircraft[i].Ground.ConflictBreakRemainingSeconds = Math.Max(0, aircraft[i].Ground.ConflictBreakRemainingSeconds - deltaSeconds);
             }
         }
 
@@ -77,7 +77,7 @@ public static class GroundConflictDetector
             var (state, dir) = Classify(ac);
             entries.Add((ac, state, dir));
             diagnosticLog?.Invoke(
-                $"[Classify] {ac.Callsign}: {state}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, route={ac.AssignedTaxiRoute?.CurrentSegmentIndex.ToString() ?? "null"}/{ac.AssignedTaxiRoute?.Segments.Count.ToString() ?? "null"}"
+                $"[Classify] {ac.Callsign}: {state}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, route={ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex.ToString() ?? "null"}/{ac.Ground.AssignedTaxiRoute?.Segments.Count.ToString() ?? "null"}"
             );
         }
 
@@ -92,7 +92,7 @@ public static class GroundConflictDetector
             }
 
             // BREAK: aircraft ignoring conflicts
-            if (a.ConflictBreakRemainingSeconds > 0)
+            if (a.Ground.ConflictBreakRemainingSeconds > 0)
             {
                 continue;
             }
@@ -107,7 +107,7 @@ public static class GroundConflictDetector
                 }
 
                 // BREAK: aircraft ignoring conflicts
-                if (b.ConflictBreakRemainingSeconds > 0)
+                if (b.Ground.ConflictBreakRemainingSeconds > 0)
                 {
                     continue;
                 }
@@ -244,13 +244,13 @@ public static class GroundConflictDetector
         }
 
         // Pushing: has PushbackTrueHeading
-        if (ac.PushbackTrueHeading is { } pushHdg)
+        if (ac.Ground.PushbackTrueHeading is { } pushHdg)
         {
             return (MovementState.Pushing, pushHdg.Degrees);
         }
 
         // Taxiing: has route with current segment (even if GS=0 due to prior speed limit)
-        if (ac.AssignedTaxiRoute?.CurrentSegment is not null)
+        if (ac.Ground.AssignedTaxiRoute?.CurrentSegment is not null)
         {
             double dir = GetSegmentDirection(ac);
             return (MovementState.Taxiing, dir);
@@ -287,8 +287,8 @@ public static class GroundConflictDetector
 
     private static bool TrySameEdge(AircraftState a, AircraftState b, double distFt, Action<string>? diagnosticLog = null)
     {
-        var segA = a.AssignedTaxiRoute?.CurrentSegment;
-        var segB = b.AssignedTaxiRoute?.CurrentSegment;
+        var segA = a.Ground.AssignedTaxiRoute?.CurrentSegment;
+        var segB = b.Ground.AssignedTaxiRoute?.CurrentSegment;
         if (segA is null || segB is null)
         {
             return false;
@@ -343,8 +343,8 @@ public static class GroundConflictDetector
 
     private static bool TryConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog = null)
     {
-        var routeA = a.AssignedTaxiRoute;
-        var routeB = b.AssignedTaxiRoute;
+        var routeA = a.Ground.AssignedTaxiRoute;
+        var routeB = b.Ground.AssignedTaxiRoute;
         if (routeA is null || routeB is null)
         {
             return false;
@@ -602,14 +602,14 @@ public static class GroundConflictDetector
         double? distFt = null
     )
     {
-        double? existing = aircraft.GroundSpeedLimit;
+        double? existing = aircraft.Ground.SpeedLimit;
         if (existing is { } ex)
         {
-            aircraft.GroundSpeedLimit = Math.Min(ex, maxSpeed);
+            aircraft.Ground.SpeedLimit = Math.Min(ex, maxSpeed);
         }
         else
         {
-            aircraft.GroundSpeedLimit = maxSpeed;
+            aircraft.Ground.SpeedLimit = maxSpeed;
         }
 
         // Only log when this call actually set or lowered the limit
@@ -700,8 +700,8 @@ public static class GroundConflictDetector
 
     private static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)
     {
-        var routeA = subject.AssignedTaxiRoute;
-        var routeB = reference.AssignedTaxiRoute;
+        var routeA = subject.Ground.AssignedTaxiRoute;
+        var routeB = reference.Ground.AssignedTaxiRoute;
         if (routeA is null || routeB is null)
         {
             return false;

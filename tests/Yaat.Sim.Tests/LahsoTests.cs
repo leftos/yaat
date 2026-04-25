@@ -80,7 +80,7 @@ public class LahsoTests
             Altitude = 1000,
             IndicatedAirspeed = 140,
             IsOnGround = false,
-            Destination = "KOAK",
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(new FinalApproachPhase());

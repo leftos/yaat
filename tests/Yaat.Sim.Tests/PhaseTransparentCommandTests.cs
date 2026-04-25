@@ -30,9 +30,8 @@ public class PhaseTransparentCommandTests
             Altitude = 800,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "OAK",
-            AssignedBeaconCode = 7110,
-            BeaconCode = 7110,
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Transponder = new AircraftTransponder { AssignedCode = 7110, Code = 7110 },
         };
 
         var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
@@ -62,7 +61,7 @@ public class PhaseTransparentCommandTests
         var result = DispatchSingle(ac, new SquawkCommand(1234u));
 
         Assert.True(result.Success);
-        Assert.Equal(1234u, ac.BeaconCode);
+        Assert.Equal(1234u, ac.Transponder.Code);
         Assert.NotNull(ac.Phases);
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
     }
@@ -87,7 +86,7 @@ public class PhaseTransparentCommandTests
         var result = DispatchSingle(ac, new SquawkCommand(4567u));
 
         Assert.True(result.Success);
-        Assert.Equal(4567u, ac.BeaconCode);
+        Assert.Equal(4567u, ac.Transponder.Code);
         Assert.Single(ac.Queue.Blocks);
     }
 
@@ -99,7 +98,7 @@ public class PhaseTransparentCommandTests
         var result = DispatchSingle(ac, new IdentCommand());
 
         Assert.True(result.Success);
-        Assert.True(ac.IsIdenting);
+        Assert.True(ac.Transponder.IsIdenting);
         Assert.NotNull(ac.Phases);
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
     }
@@ -112,7 +111,7 @@ public class PhaseTransparentCommandTests
         var result = DispatchSingle(ac, new SquawkVfrCommand());
 
         Assert.True(result.Success);
-        Assert.Equal(1200u, ac.BeaconCode);
+        Assert.Equal(1200u, ac.Transponder.Code);
         Assert.NotNull(ac.Phases);
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
     }
@@ -142,7 +141,7 @@ public class PhaseTransparentCommandTests
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
-        Assert.Equal(1234u, ac.BeaconCode);
+        Assert.Equal(1234u, ac.Transponder.Code);
         Assert.Null(ac.Phases);
     }
 
@@ -156,8 +155,8 @@ public class PhaseTransparentCommandTests
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
-        Assert.Equal(1234u, ac.BeaconCode);
-        Assert.True(ac.IsIdenting);
+        Assert.Equal(1234u, ac.Transponder.Code);
+        Assert.True(ac.Transponder.IsIdenting);
         Assert.NotNull(ac.Phases);
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
     }
@@ -171,7 +170,7 @@ public class PhaseTransparentCommandTests
         var result = DispatchSingle(ac, new SquawkCommand(5678));
 
         Assert.True(result.Success);
-        Assert.Equal(5678u, ac.BeaconCode);
+        Assert.Equal(5678u, ac.Transponder.Code);
         Assert.Null(ac.Phases);
     }
 }

@@ -87,13 +87,13 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
 
             output.WriteLine(
                 $"SKW3398: phase={aircraft.Phases?.CurrentPhase?.Name ?? "none"}, "
-                    + $"twy={aircraft.CurrentTaxiway ?? "none"}, "
+                    + $"twy={aircraft.Ground.CurrentTaxiway ?? "none"}, "
                     + $"pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}), "
                     + $"hdg={aircraft.TrueHeading.Degrees:F0}"
             );
 
             // Must have exited on T
-            Assert.Equal("T", aircraft.CurrentTaxiway);
+            Assert.Equal("T", aircraft.Ground.CurrentTaxiway);
         }
     }
 
@@ -158,7 +158,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
 
             string phaseName = ac.Phases?.CurrentPhase?.Name ?? "none";
             string reqExit = ac.Phases?.RequestedExit is { } req ? $"side={req.Side}, twy={req.Taxiway ?? "any"}" : "none";
-            string currentTwy = ac.CurrentTaxiway ?? "none";
+            string currentTwy = ac.Ground.CurrentTaxiway ?? "none";
 
             if (t % 5 == 0 || phaseName.Contains("Exit") || phaseName.Contains("Landing"))
             {

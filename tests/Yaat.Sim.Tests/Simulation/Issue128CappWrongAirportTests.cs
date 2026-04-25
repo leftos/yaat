@@ -69,11 +69,11 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         output.WriteLine(
-            $"Before: ExpectedApproach={aircraft.ExpectedApproach} Destination={aircraft.Destination} NavRoute={aircraft.Targets.NavigationRoute.Count}"
+            $"Before: ExpectedApproach={aircraft.Approach.Expected} Destination={aircraft.FlightPlan.Destination} NavRoute={aircraft.Targets.NavigationRoute.Count}"
         );
 
         // Part 1 fix: primaryApproach should NOT have been assigned to non-primary-airport aircraft
-        Assert.NotEqual("I30L", aircraft.ExpectedApproach);
+        Assert.NotEqual("I30L", aircraft.Approach.Expected);
 
         // Bare CAPP should succeed by auto-discovering a connected approach at NUQ
         var result = engine.SendCommand("EJA864", "CAPP");
@@ -83,7 +83,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         Assert.True(result.Success, $"Bare CAPP should succeed via route-connected approach discovery at NUQ. Got: {result.Message}");
 
         // The resolved approach should be at NUQ (R32L connects via HOSNU)
-        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.PendingApproachClearance?.Clearance.ApproachId;
+        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.Approach.PendingClearance?.Clearance.ApproachId;
         Assert.NotNull(approachId);
         output.WriteLine($"Resolved approach: {approachId}");
     }
@@ -112,9 +112,9 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         // Override ExpectedApproach to something that exists at SJC but doesn't connect to the route
-        aircraft.ExpectedApproach = "I12R";
+        aircraft.Approach.Expected = "I12R";
 
-        output.WriteLine($"Before: ExpectedApproach={aircraft.ExpectedApproach} NavRoute count={aircraft.Targets.NavigationRoute.Count}");
+        output.WriteLine($"Before: ExpectedApproach={aircraft.Approach.Expected} NavRoute count={aircraft.Targets.NavigationRoute.Count}");
 
         Assert.True(aircraft.Targets.NavigationRoute.Count > 0, "Aircraft should be on a navigation route");
 
@@ -125,7 +125,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         // CAPP should succeed by auto-discovering an approach that connects to the RAZRR route
         Assert.True(result.Success, $"Bare CAPP should auto-discover a connected approach. Got: {result.Message}");
 
-        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.PendingApproachClearance?.Clearance.ApproachId;
+        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.Approach.PendingClearance?.Clearance.ApproachId;
         Assert.NotNull(approachId);
         // Should NOT be the disconnected I12R
         Assert.NotEqual("I12R", approachId);
@@ -157,8 +157,8 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         aircraft.Targets.NavigationRoute.Clear();
         Assert.Empty(aircraft.Targets.NavigationRoute);
 
-        output.WriteLine($"ExpectedApproach={aircraft.ExpectedApproach}");
-        Assert.Equal("I30L", aircraft.ExpectedApproach);
+        output.WriteLine($"ExpectedApproach={aircraft.Approach.Expected}");
+        Assert.Equal("I30L", aircraft.Approach.Expected);
 
         var result = engine.SendCommand("LXJ453", "CAPP");
 

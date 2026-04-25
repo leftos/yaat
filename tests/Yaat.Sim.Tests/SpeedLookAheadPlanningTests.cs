@@ -16,7 +16,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         output?.WriteLine(
             $"[{label}] IAS={ac.IndicatedAirspeed:F1} GS={ac.GroundSpeed:F1} alt={ac.Altitude:F0} "
                 + $"TargetSpeed={ac.Targets.TargetSpeed} TargetAlt={ac.Targets.TargetAltitude} "
-                + $"HasExplicitSpd={ac.Targets.HasExplicitSpeedCommand} DSR={ac.SpeedRestrictionsDeleted} "
+                + $"HasExplicitSpd={ac.Targets.HasExplicitSpeedCommand} DSR={ac.Procedure.SpeedRestrictionsDeleted} "
                 + $"Mach={ac.Targets.TargetMach} NavRoute.Count={ac.Targets.NavigationRoute.Count}"
         );
         foreach (var nav in ac.Targets.NavigationRoute)
@@ -170,7 +170,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     public void SpeedRestrictionsDeleted_BlocksPlanning()
     {
         var aircraft = CreateAircraft(ias: 280, altitude: 12000);
-        aircraft.SpeedRestrictionsDeleted = true;
+        aircraft.Procedure.SpeedRestrictionsDeleted = true;
         var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
         aircraft.Targets.NavigationRoute.Add(fix);
 

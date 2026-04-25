@@ -472,7 +472,7 @@ public sealed class LineUpPhase : Phase
     /// <see cref="AircraftState.GroundSpeedLimit"/> currently in effect.
     /// </summary>
     private static double ClampBySpeedLimit(PhaseContext ctx, double requested) =>
-        ctx.Aircraft.GroundSpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
+        ctx.Aircraft.Ground.SpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
 
     /// <summary>
     /// Walk the aircraft's phase list and return true iff the next pending

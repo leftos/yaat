@@ -87,7 +87,7 @@ public class GroundPhaseTests
             Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(heading),
             IsOnGround = true,
-            Departure = "KSFO",
+            FlightPlan = new AircraftFlightPlan { Departure = "KSFO" },
         };
     }
 
@@ -116,7 +116,7 @@ public class GroundPhaseTests
         var result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.True(result.Success);
-        Assert.True(aircraft.IsHeld);
+        Assert.True(aircraft.Ground.IsHeld);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class GroundPhaseTests
         var result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.False(result.Success);
-        Assert.False(aircraft.IsHeld);
+        Assert.False(aircraft.Ground.IsHeld);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class GroundPhaseTests
         var result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.True(result.Success);
-        Assert.True(aircraft.IsHeld);
+        Assert.True(aircraft.Ground.IsHeld);
     }
 
     // --- FIX 2: PushbackPhase respects IsHeld ---
@@ -159,7 +159,7 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // PushbackTrueHeading should be set (opposite of aircraft heading)
-        Assert.NotNull(aircraft.PushbackTrueHeading);
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
 
         // Tick once — phase sets TargetSpeed, FlightPhysics moves
         FlightPhysics.Update(aircraft, 1.0);
@@ -167,7 +167,7 @@ public class GroundPhaseTests
         Assert.True(aircraft.GroundSpeed > 0);
 
         // Hold and tick again
-        aircraft.IsHeld = true;
+        aircraft.Ground.IsHeld = true;
         phase.OnTick(ctx);
         Assert.Equal(0, aircraft.GroundSpeed);
     }
@@ -186,12 +186,12 @@ public class GroundPhaseTests
         FlightPhysics.Update(aircraft, 1.0);
 
         // Hold
-        aircraft.IsHeld = true;
+        aircraft.Ground.IsHeld = true;
         phase.OnTick(ctx);
         Assert.Equal(0, aircraft.GroundSpeed);
 
         // Resume — phase OnTick reasserts TargetSpeed automatically
-        aircraft.IsHeld = false;
+        aircraft.Ground.IsHeld = false;
         for (int i = 0; i < 3; i++)
         {
             FlightPhysics.Update(aircraft, 1.0);
@@ -233,7 +233,7 @@ public class GroundPhaseTests
                 },
             ],
         };
-        aircraft.AssignedTaxiRoute = route;
+        aircraft.Ground.AssignedTaxiRoute = route;
 
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
@@ -290,7 +290,7 @@ public class GroundPhaseTests
                 },
             ],
         };
-        aircraft.AssignedTaxiRoute = route;
+        aircraft.Ground.AssignedTaxiRoute = route;
 
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
@@ -344,7 +344,7 @@ public class GroundPhaseTests
                 },
             ],
         };
-        aircraft.AssignedTaxiRoute = route;
+        aircraft.Ground.AssignedTaxiRoute = route;
 
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
@@ -478,13 +478,13 @@ public class GroundPhaseTests
         Assert.True(aircraft.GroundSpeed > 0, "Should be moving before conflict");
 
         // Simulate conflict: GroundSpeedLimit clamps to 0
-        aircraft.GroundSpeedLimit = 0;
+        aircraft.Ground.SpeedLimit = 0;
         FlightPhysics.Update(aircraft, 1.0);
         phase.OnTick(ctx);
         Assert.Equal(0, aircraft.GroundSpeed);
 
         // Conflict clears
-        aircraft.GroundSpeedLimit = null;
+        aircraft.Ground.SpeedLimit = null;
         for (int i = 0; i < 5; i++)
         {
             FlightPhysics.Update(aircraft, 1.0);
@@ -523,21 +523,21 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // 90° diff > 20° threshold → alignment stage, no PushbackHeading yet
-        Assert.Null(aircraft.PushbackTrueHeading);
+        Assert.Null(aircraft.Ground.PushbackTrueHeading);
 
         // Tick through alignment until aligned (nose rotates toward 90)
         for (int i = 0; i < 100; i++)
         {
             FlightPhysics.Update(aircraft, 1.0);
             phase.OnTick(ctx);
-            if (aircraft.PushbackTrueHeading is not null)
+            if (aircraft.Ground.PushbackTrueHeading is not null)
             {
                 break;
             }
         }
 
         // Should now be aligned and pushing
-        Assert.NotNull(aircraft.PushbackTrueHeading);
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
         Assert.True(aircraft.TrueHeading.Degrees > 60, "Nose should have rotated toward 90 during alignment");
 
         // After more ticks, pushback heading should track nose+180
@@ -548,7 +548,7 @@ public class GroundPhaseTests
         }
 
         double expectedPush = (aircraft.TrueHeading.Degrees + 180.0) % 360.0;
-        Assert.Equal(expectedPush, aircraft.PushbackTrueHeading!.Value.Degrees, 1.0);
+        Assert.Equal(expectedPush, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 1.0);
     }
 
     // --- Mode 2: requires minimum distance even if heading already close ---
@@ -594,28 +594,28 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // Should be in alignment stage — no PushbackHeading yet
-        Assert.Null(aircraft.PushbackTrueHeading);
+        Assert.Null(aircraft.Ground.PushbackTrueHeading);
 
         // Tick through alignment until push stage begins
         for (int i = 0; i < 100; i++)
         {
             FlightPhysics.Update(aircraft, 1.0);
             phase.OnTick(ctx);
-            if (aircraft.PushbackTrueHeading is not null)
+            if (aircraft.Ground.PushbackTrueHeading is not null)
             {
                 break;
             }
         }
 
-        Assert.NotNull(aircraft.PushbackTrueHeading);
-        double initialPushHdg = aircraft.PushbackTrueHeading!.Value.Degrees;
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
+        double initialPushHdg = aircraft.Ground.PushbackTrueHeading!.Value.Degrees;
 
         // Now in push stage — after one tick, PushbackTrueHeading arcs gradually
         FlightPhysics.Update(aircraft, 1.0);
         phase.OnTick(ctx);
 
-        double newPushHdg = aircraft.PushbackTrueHeading!.Value.Degrees;
-        double changeDeg = Math.Abs(aircraft.PushbackTrueHeading.Value.SignedAngleTo(new TrueHeading(initialPushHdg)));
+        double newPushHdg = aircraft.Ground.PushbackTrueHeading!.Value.Degrees;
+        double changeDeg = Math.Abs(aircraft.Ground.PushbackTrueHeading.Value.SignedAngleTo(new TrueHeading(initialPushHdg)));
         double maxAllowed = CategoryPerformance.PushbackTurnRate(AircraftCategory.Jet) * 1.0 + 1.0;
 
         Assert.True(changeDeg <= maxAllowed, $"PushbackHeading changed {changeDeg:F1}° in 1s, max expected ~{maxAllowed:F0}°");
@@ -649,7 +649,7 @@ public class GroundPhaseTests
 
         // Pushback heading should be opposite of nose: 180 + 180 = 360 → 0
         double expected = (180.0 + 180.0) % 360.0;
-        Assert.Equal(expected, aircraft.PushbackTrueHeading!.Value.Degrees, 1.0);
+        Assert.Equal(expected, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 1.0);
     }
 
     [Fact]
@@ -662,7 +662,7 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        Assert.Equal(90, aircraft.PushbackTrueHeading!.Value.Degrees, 1.0);
+        Assert.Equal(90, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 1.0);
     }
 
     [Fact]
@@ -675,7 +675,7 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        Assert.Equal(180, aircraft.PushbackTrueHeading!.Value.Degrees, 1.0);
+        Assert.Equal(180, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 1.0);
     }
 
     // --- TaxiingPhase with pre-cleared hold-short ---
@@ -712,7 +712,7 @@ public class GroundPhaseTests
                 },
             ],
         };
-        aircraft.AssignedTaxiRoute = route;
+        aircraft.Ground.AssignedTaxiRoute = route;
 
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
@@ -754,7 +754,7 @@ public class GroundPhaseTests
         phase.OnTick(ctx);
 
         // Hold
-        aircraft.IsHeld = true;
+        aircraft.Ground.IsHeld = true;
         phase.OnTick(ctx);
 
         Assert.Equal(0, ctx.Targets.TargetSpeed);
@@ -776,7 +776,7 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // Alignment stage: no PushbackHeading, speed = 0
-        Assert.Null(aircraft.PushbackTrueHeading);
+        Assert.Null(aircraft.Ground.PushbackTrueHeading);
         Assert.Equal(0, ctx.Targets.TargetSpeed);
 
         // Tick a few times — heading should change, position should not
@@ -798,13 +798,13 @@ public class GroundPhaseTests
         {
             FlightPhysics.Update(aircraft, 1.0);
             phase.OnTick(ctx);
-            if (aircraft.PushbackTrueHeading is not null)
+            if (aircraft.Ground.PushbackTrueHeading is not null)
             {
                 break;
             }
         }
 
-        Assert.NotNull(aircraft.PushbackTrueHeading);
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
         Assert.True(ctx.Targets.TargetSpeed > 0);
     }
 
@@ -819,7 +819,7 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        Assert.Null(aircraft.PushbackTrueHeading);
+        Assert.Null(aircraft.Ground.PushbackTrueHeading);
         Assert.Equal(0, ctx.Targets.TargetSpeed);
 
         // Position unchanged during alignment
@@ -833,7 +833,7 @@ public class GroundPhaseTests
 
         Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
         Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
-        Assert.Null(aircraft.PushbackTrueHeading);
+        Assert.Null(aircraft.Ground.PushbackTrueHeading);
     }
 
     [Fact]
@@ -848,7 +848,7 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         // PushbackHeading set immediately
-        Assert.NotNull(aircraft.PushbackTrueHeading);
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
         Assert.True(ctx.Targets.TargetSpeed > 0);
     }
 

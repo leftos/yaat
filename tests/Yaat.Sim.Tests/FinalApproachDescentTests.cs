@@ -50,7 +50,7 @@ public class FinalApproachDescentTests
             Altitude = startAltitude,
             IndicatedAirspeed = startSpeed,
             IsOnGround = false,
-            Destination = "OAK",
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
         };
 
         var clearance = new ApproachClearance
@@ -173,7 +173,7 @@ public class FinalApproachDescentTests
             Altitude = gsAt5,
             IndicatedAirspeed = 140,
             IsOnGround = false,
-            Destination = "OAK",
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
         };
 
         ac.Phases = new PhaseList { AssignedRunway = rwy };
@@ -230,7 +230,7 @@ public class FinalApproachDescentTests
             Altitude = gsAt5 - 300,
             IndicatedAirspeed = 140,
             IsOnGround = false,
-            Destination = "OAK",
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
         };
 
         ac.Phases = new PhaseList { AssignedRunway = rwy };

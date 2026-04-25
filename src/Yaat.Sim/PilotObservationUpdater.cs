@@ -65,8 +65,8 @@ public static class PilotObservationUpdater
             return false;
         }
 
-        aircraft.HasReportedTrafficInSight = true;
-        aircraft.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
+        aircraft.Approach.HasReportedTrafficInSight = true;
+        aircraft.Approach.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
         aircraft.PendingWarnings.Add(Commands.NavigationCommandHandler.FormatTrafficInSightNotification(aircraft, obs.TargetCallsign));
         return true;
     }
@@ -91,7 +91,7 @@ public static class PilotObservationUpdater
             return false;
         }
 
-        aircraft.HasReportedFieldInSight = true;
+        aircraft.Approach.HasReportedFieldInSight = true;
         aircraft.PendingWarnings.Add(Commands.NavigationCommandHandler.FormatFieldInSightNotification(aircraft));
         return true;
     }

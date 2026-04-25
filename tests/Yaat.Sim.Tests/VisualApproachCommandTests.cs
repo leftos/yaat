@@ -53,7 +53,7 @@ public class VisualApproachCommandTests : IDisposable
             Altitude = altitude,
             IndicatedAirspeed = 180,
             Position = new LatLon(lat, lon),
-            Destination = destination,
+            FlightPlan = new AircraftFlightPlan { Destination = destination },
         };
     }
 
@@ -132,12 +132,12 @@ public class VisualApproachCommandTests : IDisposable
     public void Cva_WithFollow_SetsFollowingCallsign()
     {
         var aircraft = MakeAircraft(heading: 280);
-        aircraft.HasReportedTrafficInSight = true;
+        aircraft.Approach.HasReportedTrafficInSight = true;
         var cmd = new ClearedVisualApproachCommand("28R", null, null, "UAL456");
         var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.True(result.Success);
-        Assert.Equal("UAL456", aircraft.FollowingCallsign);
+        Assert.Equal("UAL456", aircraft.Approach.FollowingCallsign);
         Assert.Contains("follow UAL456", result.Message);
     }
 
@@ -195,16 +195,16 @@ public class VisualApproachCommandTests : IDisposable
     public void Cva_ClearsPreviousVisualState()
     {
         var aircraft = MakeAircraft(heading: 280);
-        aircraft.HasReportedFieldInSight = true;
-        aircraft.HasReportedTrafficInSight = true;
-        aircraft.FollowingCallsign = "OLD123";
+        aircraft.Approach.HasReportedFieldInSight = true;
+        aircraft.Approach.HasReportedTrafficInSight = true;
+        aircraft.Approach.FollowingCallsign = "OLD123";
 
         var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
         ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
-        Assert.False(aircraft.HasReportedFieldInSight);
-        Assert.False(aircraft.HasReportedTrafficInSight);
-        Assert.Null(aircraft.FollowingCallsign);
+        Assert.False(aircraft.Approach.HasReportedFieldInSight);
+        Assert.False(aircraft.Approach.HasReportedTrafficInSight);
+        Assert.Null(aircraft.Approach.FollowingCallsign);
     }
 
     // -------------------------------------------------------------------------
@@ -215,7 +215,7 @@ public class VisualApproachCommandTests : IDisposable
     public void ReportFieldInSight_WhenFieldSeen_AddsWarning()
     {
         var aircraft = MakeAircraft();
-        aircraft.HasReportedFieldInSight = true;
+        aircraft.Approach.HasReportedFieldInSight = true;
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
@@ -233,7 +233,7 @@ public class VisualApproachCommandTests : IDisposable
     public void ReportTrafficInSight_WhenTrafficSeen_AddsNotification()
     {
         var aircraft = MakeAircraft();
-        aircraft.HasReportedTrafficInSight = true;
+        aircraft.Approach.HasReportedTrafficInSight = true;
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
@@ -246,7 +246,7 @@ public class VisualApproachCommandTests : IDisposable
     public void ReportTrafficInSight_WhenNotSeen_Fails()
     {
         var aircraft = MakeAircraft();
-        aircraft.HasReportedTrafficInSight = false;
+        aircraft.Approach.HasReportedTrafficInSight = false;
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), aircraft, TestDispatch.Context(Random.Shared));
         Assert.False(result.Success);

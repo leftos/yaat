@@ -25,22 +25,26 @@ public class SnapshotRoundTripTests
             VerticalSpeed = -1000,
             BankAngle = 5.2,
             Declination = 13.5,
-            Departure = "KOAK",
-            Destination = "KLAX",
-            Route = "OAK6 OAK",
-            FlightRules = "IFR",
-            HasFlightPlan = true,
-            CruiseAltitude = 35000,
-            CruiseSpeed = 250,
-            BeaconCode = 1234,
-            AssignedBeaconCode = 1234,
-            TransponderMode = "C",
-            Owner = TrackOwner.CreateStars("OA1", "OAK", 10, "1R"),
-            Scratchpad1 = "OA1",
-            OnHandoff = true,
-            SidViaMode = true,
-            ActiveSidId = "OAK6",
-            VoiceType = 1,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KOAK",
+                Destination = "KLAX",
+                Route = "OAK6 OAK",
+                FlightRules = "IFR",
+                HasFlightPlan = true,
+                CruiseAltitude = 35000,
+                CruiseSpeed = 250,
+            },
+            Transponder = new AircraftTransponder
+            {
+                Code = 1234,
+                AssignedCode = 1234,
+                Mode = "C",
+            },
+            Track = new AircraftTrack { Owner = TrackOwner.CreateStars("OA1", "OAK", 10, "1R"), OnHandoff = true },
+            Stars = new AircraftStarsState { Scratchpad1 = "OA1" },
+            Procedure = new AircraftProcedure { SidViaMode = true, ActiveSidId = "OAK6" },
+            Voice = new AircraftVoice { Type = 1 },
         };
 
         ac.WindComponents = (5.0, -3.0);
@@ -63,13 +67,13 @@ public class SnapshotRoundTripTests
         Assert.Equal(ac.BankAngle, restored.BankAngle, 4);
         Assert.Equal(ac.WindComponents.N, restored.WindComponents.N, 4);
         Assert.Equal(ac.WindComponents.E, restored.WindComponents.E, 4);
-        Assert.Equal(ac.Departure, restored.Departure);
-        Assert.Equal(ac.Destination, restored.Destination);
-        Assert.Equal(ac.Owner?.Callsign, restored.Owner?.Callsign);
-        Assert.Equal(ac.Scratchpad1, restored.Scratchpad1);
-        Assert.Equal(ac.OnHandoff, restored.OnHandoff);
-        Assert.Equal(ac.SidViaMode, restored.SidViaMode);
-        Assert.Equal(ac.ActiveSidId, restored.ActiveSidId);
+        Assert.Equal(ac.FlightPlan.Departure, restored.FlightPlan.Departure);
+        Assert.Equal(ac.FlightPlan.Destination, restored.FlightPlan.Destination);
+        Assert.Equal(ac.Track.Owner?.Callsign, restored.Track.Owner?.Callsign);
+        Assert.Equal(ac.Stars.Scratchpad1, restored.Stars.Scratchpad1);
+        Assert.Equal(ac.Track.OnHandoff, restored.Track.OnHandoff);
+        Assert.Equal(ac.Procedure.SidViaMode, restored.Procedure.SidViaMode);
+        Assert.Equal(ac.Procedure.ActiveSidId, restored.Procedure.ActiveSidId);
 
         Assert.Equal(ac.Targets.TargetAltitude, restored.Targets.TargetAltitude);
         Assert.Equal(ac.Targets.TargetSpeed, restored.Targets.TargetSpeed);
@@ -180,47 +184,63 @@ public class SnapshotRoundTripTests
                     BankAngle = 0,
                     WindN = 0,
                     WindE = 0,
-                    HasFlightPlan = true,
-                    Departure = "KOAK",
-                    Destination = "KLAX",
-                    Route = "",
-                    Remarks = "",
-                    EquipmentSuffix = "L",
-                    FlightRules = "IFR",
-                    CruiseAltitude = 35000,
-                    CruiseSpeed = 250,
-                    TransponderMode = "C",
-                    AssignedBeaconCode = 1234,
-                    BeaconCode = 1234,
-                    IsIdenting = false,
+                    FlightPlan = new AircraftFlightPlanDto
+                    {
+                        HasFlightPlan = true,
+                        Departure = "KOAK",
+                        Destination = "KLAX",
+                        Route = "",
+                        Remarks = "",
+                        EquipmentSuffix = "L",
+                        FlightRules = "IFR",
+                        CruiseAltitude = 35000,
+                        CruiseSpeed = 250,
+                    },
+                    Transponder = new AircraftTransponderDto
+                    {
+                        Mode = "C",
+                        AssignedCode = 1234,
+                        Code = 1234,
+                        IsIdenting = false,
+                    },
                     IsOnGround = false,
-                    IsHeld = false,
-                    AutoDeleteExempt = false,
-                    ConflictBreakRemainingSeconds = 0,
-                    WasScratchpad1Cleared = false,
-                    IsAnnotated = false,
-                    OnHandoff = false,
-                    HandoffAccepted = false,
-                    SidViaMode = false,
-                    StarViaMode = false,
-                    SpeedRestrictionsDeleted = false,
-                    IsExpediting = false,
-                    HasReportedFieldInSight = false,
-                    HasReportedTrafficInSight = false,
-                    VoiceType = 1,
-                    TdlsDumped = false,
-                    IsDwellLocked = false,
-                    IsVci = false,
-                    HoldAnnotationDirection = 0,
-                    HoldAnnotationTurns = 0,
-                    HoldAnnotationLegLengthInNm = false,
-                    HoldAnnotationEfc = 0,
-                    IsUnsupported = false,
-                    IsVehicle = false,
-                    IsCaInhibited = false,
-                    IsModeCInhibited = false,
-                    IsMsawInhibited = false,
-                    IsDuplicateBeaconInhibited = false,
+                    Ground = new AircraftGroundOpsDto
+                    {
+                        IsHeld = false,
+                        AutoDeleteExempt = false,
+                        ConflictBreakRemainingSeconds = 0,
+                        HasAnnouncedReady = false,
+                    },
+                    Track = new AircraftTrackDto { OnHandoff = false, HandoffAccepted = false },
+                    Stars = new AircraftStarsStateDto
+                    {
+                        WasScratchpad1Cleared = false,
+                        IsAnnotated = false,
+                        IsCaInhibited = false,
+                        IsModeCInhibited = false,
+                        IsMsawInhibited = false,
+                        IsDuplicateBeaconInhibited = false,
+                    },
+                    Approach = new AircraftApproachStateDto { HasReportedFieldInSight = false, HasReportedTrafficInSight = false },
+                    Procedure = new AircraftProcedureDto
+                    {
+                        SidViaMode = false,
+                        StarViaMode = false,
+                        SpeedRestrictionsDeleted = false,
+                        IsExpediting = false,
+                    },
+                    Pattern = new AircraftPatternDto(),
+                    Voice = new AircraftVoiceDto { Type = 1, TdlsDumped = false },
+                    HoldAnnotation = new AircraftHoldAnnotationDto
+                    {
+                        Direction = 0,
+                        Turns = 0,
+                        LegLengthInNm = false,
+                        Efc = 0,
+                    },
+                    Eram = new AircraftEramStateDto { IsDwellLocked = false, IsVci = false },
+                    Clearance = new AircraftClearanceDto(),
+                    Ghost = new AircraftGhostTrackDto { IsUnsupported = false, IsVehicle = false },
                     Targets = new ControlTargetsDto { HasExplicitSpeedCommand = false },
                     Queue = new CommandQueueDto { Blocks = [], CurrentBlockIndex = 0 },
                 },

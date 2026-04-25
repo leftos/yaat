@@ -23,8 +23,7 @@ public class PatternAltitudeMemoryTests
             Altitude = 1100,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "KTEST",
-            Destination = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST", Destination = "KTEST" },
         };
 
         var waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, null);
@@ -48,7 +47,7 @@ public class PatternAltitudeMemoryTests
 
         FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(1500), ac);
 
-        Assert.Equal(1500, ac.PatternAltitudeOverrideFt);
+        Assert.Equal(1500, ac.Pattern.AltitudeOverrideFt);
     }
 
     [Fact]
@@ -59,7 +58,7 @@ public class PatternAltitudeMemoryTests
 
         FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(800), ac);
 
-        Assert.Equal(800, ac.PatternAltitudeOverrideFt);
+        Assert.Equal(800, ac.Pattern.AltitudeOverrideFt);
     }
 
     // -------------------------------------------------------------------------
@@ -116,14 +115,14 @@ public class PatternAltitudeMemoryTests
             Altitude = 3000,
             IndicatedAirspeed = 120,
             IsOnGround = false,
-            Departure = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
         };
         // No phases or TrafficDirection = null
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
 
         FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(5000), ac);
 
-        Assert.Null(ac.PatternAltitudeOverrideFt);
+        Assert.Null(ac.Pattern.AltitudeOverrideFt);
     }
 
     // -------------------------------------------------------------------------
@@ -165,15 +164,15 @@ public class PatternAltitudeMemoryTests
             Altitude = 1100,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "KTEST",
-            PatternAltitudeOverrideFt = 1500,
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
+            Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
 
         var dto = ac.ToSnapshot();
-        Assert.Equal(1500, dto.PatternAltitudeOverrideFt);
+        Assert.Equal(1500, dto.Pattern.AltitudeOverrideFt);
 
         var restored = AircraftState.FromSnapshot(dto, null);
-        Assert.Equal(1500, restored.PatternAltitudeOverrideFt);
+        Assert.Equal(1500, restored.Pattern.AltitudeOverrideFt);
     }
 
     // -------------------------------------------------------------------------
@@ -206,9 +205,8 @@ public class PatternAltitudeMemoryTests
             Altitude = 1100,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "KOAK",
-            Destination = "KOAK",
-            PatternAltitudeOverrideFt = 1500,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
+            Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
         var waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, null);
         var phases = new PhaseList { AssignedRunway = runway };
@@ -220,7 +218,7 @@ public class PatternAltitudeMemoryTests
         // Changing to 28R (different runway) should clear the altitude override
         var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, "28R", null);
         Assert.True(result.Success);
-        Assert.Null(ac.PatternAltitudeOverrideFt);
+        Assert.Null(ac.Pattern.AltitudeOverrideFt);
     }
 
     [Fact]
@@ -247,9 +245,8 @@ public class PatternAltitudeMemoryTests
             Altitude = 1100,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "KOAK",
-            Destination = "KOAK",
-            PatternAltitudeOverrideFt = 1500,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
+            Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
         var waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, null);
         var phases = new PhaseList { AssignedRunway = runway };
@@ -261,6 +258,6 @@ public class PatternAltitudeMemoryTests
         // Changing direction only (no new runway) should keep the altitude override
         var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null, null);
         Assert.True(result.Success);
-        Assert.Equal(1500, ac.PatternAltitudeOverrideFt);
+        Assert.Equal(1500, ac.Pattern.AltitudeOverrideFt);
     }
 }

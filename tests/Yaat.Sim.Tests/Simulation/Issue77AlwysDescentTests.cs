@@ -66,7 +66,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("SKW5456");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"SKW5456: StarViaMode={aircraft.StarViaMode}, ActiveStarId={aircraft.ActiveStarId}");
+        output.WriteLine($"SKW5456: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude}");
 
         var route = aircraft.Targets.NavigationRoute;
@@ -105,7 +105,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("SKW5456");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"SKW5456 at spawn: alt={aircraft.Altitude:F0} StarViaMode={aircraft.StarViaMode}");
+        output.WriteLine($"SKW5456 at spawn: alt={aircraft.Altitude:F0} StarViaMode={aircraft.Procedure.StarViaMode}");
         output.WriteLine($"  Route: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(f => f.Name))}");
 
         double altAtArrtu = -1;
@@ -167,7 +167,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("SKW5456");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"SKW5456 at spawn: alt={aircraft.Altitude:F0} StarViaMode={aircraft.StarViaMode}");
+        output.WriteLine($"SKW5456 at spawn: alt={aircraft.Altitude:F0} StarViaMode={aircraft.Procedure.StarViaMode}");
 
         var route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route: {string.Join(" → ", route.Select(f => f.Name))}");

@@ -1,0 +1,62 @@
+using Yaat.Sim.Simulation.Snapshots;
+
+namespace Yaat.Sim;
+
+/// <summary>
+/// Filed flight plan and equipment fields. <see cref="HasFlightPlan"/> distinguishes
+/// flighted aircraft from unsupported/ghost tracks. <see cref="RevisionNumber"/>
+/// increments on every CRC amend.
+/// </summary>
+public class AircraftFlightPlan
+{
+    public bool HasFlightPlan { get; set; }
+    public string Departure { get; set; } = "";
+    public string Destination { get; set; } = "";
+    public string Route { get; set; } = "";
+    public string Remarks { get; set; } = "";
+
+    /// <summary>
+    /// Monotonically increasing count of flight-plan amendments applied to this
+    /// aircraft. Starts at 0 for a freshly-spawned aircraft; incremented by
+    /// <c>SimulationEngine.AmendFlightPlan</c> on every amendment (empty-amendment
+    /// calls still tick to match CRC's behavior of showing a revision bump any time
+    /// the controller presses "amend").
+    /// </summary>
+    public int RevisionNumber { get; set; }
+
+    public string EquipmentSuffix { get; set; } = "A";
+    public string FlightRules { get; set; } = "IFR";
+    public bool IsVfr => FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
+    public int CruiseAltitude { get; set; }
+    public int CruiseSpeed { get; set; }
+
+    public AircraftFlightPlanDto ToSnapshot() =>
+        new()
+        {
+            HasFlightPlan = HasFlightPlan,
+            Departure = Departure,
+            Destination = Destination,
+            Route = Route,
+            Remarks = Remarks,
+            RevisionNumber = RevisionNumber,
+            EquipmentSuffix = EquipmentSuffix,
+            FlightRules = FlightRules,
+            CruiseAltitude = CruiseAltitude,
+            CruiseSpeed = CruiseSpeed,
+        };
+
+    public static AircraftFlightPlan FromSnapshot(AircraftFlightPlanDto dto) =>
+        new()
+        {
+            HasFlightPlan = dto.HasFlightPlan,
+            Departure = dto.Departure,
+            Destination = dto.Destination,
+            Route = dto.Route,
+            Remarks = dto.Remarks,
+            RevisionNumber = dto.RevisionNumber,
+            EquipmentSuffix = dto.EquipmentSuffix,
+            FlightRules = dto.FlightRules,
+            CruiseAltitude = dto.CruiseAltitude,
+            CruiseSpeed = dto.CruiseSpeed,
+        };
+}

@@ -195,15 +195,15 @@ public class OnHandoffConditionTests
     {
         var ac = new AircraftState { Callsign = "AAL123", AircraftType = "B738" };
         var acceptor = TrackOwner.CreateStars("NOR_APP", "ZOA", 1, "R");
-        ac.Owner = TrackOwner.CreateStars("OAK_GND", "ZOA", 3, "O");
-        ac.HandoffPeer = acceptor;
+        ac.Track.Owner = TrackOwner.CreateStars("OAK_GND", "ZOA", 3, "O");
+        ac.Track.HandoffPeer = acceptor;
 
         var result = TrackEngine.HandleAccept(ac, acceptor);
 
         Assert.True(result.Success);
-        Assert.True(ac.HandoffAccepted);
-        Assert.Equal(acceptor, ac.Owner);
-        Assert.Null(ac.HandoffPeer);
+        Assert.True(ac.Track.HandoffAccepted);
+        Assert.Equal(acceptor, ac.Track.Owner);
+        Assert.Null(ac.Track.HandoffPeer);
     }
 
     [Fact]
@@ -217,14 +217,13 @@ public class OnHandoffConditionTests
         {
             Callsign = "AAL123",
             AircraftType = "B738",
-            Owner = TrackOwner.CreateStars("OAK_GND", "ZOA", 3, "O"),
-            HandoffAccepted = true,
+            Track = new AircraftTrack { Owner = TrackOwner.CreateStars("OAK_GND", "ZOA", 3, "O"), HandoffAccepted = true },
         };
         world.AddAircraft(ac);
 
         world.Tick(1.0);
 
-        Assert.False(ac.HandoffAccepted);
+        Assert.False(ac.Track.HandoffAccepted);
     }
 
     [Fact]
@@ -238,8 +237,7 @@ public class OnHandoffConditionTests
         {
             Callsign = "AAL123",
             AircraftType = "B738",
-            Owner = TrackOwner.CreateStars("NOR_APP", "ZOA", 1, "R"),
-            HandoffAccepted = true,
+            Track = new AircraftTrack { Owner = TrackOwner.CreateStars("NOR_APP", "ZOA", 1, "R"), HandoffAccepted = true },
         };
         world.AddAircraft(ac);
 
@@ -248,6 +246,6 @@ public class OnHandoffConditionTests
         // but with no commands queued it stays true through the tick
         world.Tick(1.0);
 
-        Assert.True(ac.HandoffAccepted);
+        Assert.True(ac.Track.HandoffAccepted);
     }
 }

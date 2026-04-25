@@ -76,9 +76,12 @@ public class ProcedureLoadingTests
             TrueTrack = new TrueHeading(280),
             Altitude = 0,
             IndicatedAirspeed = 0,
-            Route = route,
-            Departure = departure,
-            Destination = destination,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Route = route,
+                Departure = departure,
+                Destination = destination,
+            },
         };
     }
 
@@ -250,8 +253,8 @@ public class ProcedureLoadingTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.Equal("BDEGA3", aircraft.ActiveStarId);
-        Assert.False(aircraft.StarViaMode);
+        Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
+        Assert.False(aircraft.Procedure.StarViaMode);
 
         // Should have BDEGA (transition) + CEDES + FAITH (common)
         Assert.True(aircraft.Targets.NavigationRoute.Count >= 3);
@@ -280,8 +283,8 @@ public class ProcedureLoadingTests
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        Assert.Equal("BDEGA3", aircraft.ActiveStarId);
-        Assert.False(aircraft.StarViaMode);
+        Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
+        Assert.False(aircraft.Procedure.StarViaMode);
     }
 
     // --- SID resolution ---
@@ -399,9 +402,9 @@ public class ProcedureLoadingTests
         var phase = new InitialClimbPhase
         {
             Departure = new DefaultDeparture(),
+            CruiseAltitude = 35000,
             DepartureRoute = targets,
             DepartureSidId = "PORTE3",
-            CruiseAltitude = 35000,
         };
 
         aircraft.Phases.Phases.Add(phase);
@@ -419,8 +422,8 @@ public class ProcedureLoadingTests
 
         phase.OnStart(ctx);
 
-        Assert.Equal("PORTE3", aircraft.ActiveSidId);
-        Assert.True(aircraft.SidViaMode);
+        Assert.Equal("PORTE3", aircraft.Procedure.ActiveSidId);
+        Assert.True(aircraft.Procedure.SidViaMode);
         Assert.Equal(2, aircraft.Targets.NavigationRoute.Count);
         Assert.Equal("MOLEN", aircraft.Targets.NavigationRoute[0].Name);
 
@@ -456,8 +459,8 @@ public class ProcedureLoadingTests
 
         phase.OnStart(ctx);
 
-        Assert.Null(aircraft.ActiveSidId);
-        Assert.False(aircraft.SidViaMode);
+        Assert.Null(aircraft.Procedure.ActiveSidId);
+        Assert.False(aircraft.Procedure.SidViaMode);
     }
 
     // --- ResolveLegsToTargets ---

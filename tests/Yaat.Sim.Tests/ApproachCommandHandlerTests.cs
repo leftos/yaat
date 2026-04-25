@@ -34,7 +34,7 @@ public class ApproachCommandHandlerTests
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             Position = new LatLon(lat, lon),
-            Destination = destination,
+            FlightPlan = new AircraftFlightPlan { Destination = destination },
         };
 
         if (speed is not null)
@@ -566,7 +566,7 @@ public class ApproachCommandHandlerTests
     public void Ptac_NoApproachId_AutoResolves()
     {
         var aircraft = MakeAircraft();
-        aircraft.ExpectedApproach = "ILS28R";
+        aircraft.Approach.Expected = "ILS28R";
         var navDb = MakeNavDbRunwayAndApproachOnly();
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
@@ -582,7 +582,7 @@ public class ApproachCommandHandlerTests
     public void Ptac_AllPresent_BarePtac()
     {
         var aircraft = MakeAircraft(heading: 310, altitude: 3500);
-        aircraft.ExpectedApproach = "ILS28R";
+        aircraft.Approach.Expected = "ILS28R";
         var navDb = MakeNavDbRunwayAndApproachOnly();
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
@@ -816,7 +816,7 @@ public class ApproachCommandHandlerTests
     public void Capp_BareWithExpectedApproach_ResolvesFromExpectedApproach()
     {
         var aircraft = MakeAircraft();
-        aircraft.ExpectedApproach = "I28R";
+        aircraft.Approach.Expected = "I28R";
         var navDb = MakeNavDb();
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
@@ -832,8 +832,8 @@ public class ApproachCommandHandlerTests
     public void Capp_BareWithExpectedApproachAndDestinationRunway_PrefersExpectedApproach()
     {
         var aircraft = MakeAircraft();
-        aircraft.ExpectedApproach = "I28R";
-        aircraft.DestinationRunway = "28L";
+        aircraft.Approach.Expected = "I28R";
+        aircraft.Procedure.DestinationRunway = "28L";
         var navDb = MakeNavDb();
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
@@ -850,7 +850,7 @@ public class ApproachCommandHandlerTests
     public void Capp_BareCompound_ReadbackContainsResolvedApproachId()
     {
         var aircraft = MakeAircraft();
-        aircraft.ExpectedApproach = "I28R";
+        aircraft.Approach.Expected = "I28R";
         var navDb = MakeNavDb();
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 

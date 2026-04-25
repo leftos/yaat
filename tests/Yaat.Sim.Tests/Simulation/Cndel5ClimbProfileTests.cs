@@ -97,9 +97,8 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
             TrueTrack = new TrueHeading(300),
             Altitude = 1000,
             IndicatedAirspeed = 180,
-            Departure = "KOAK",
-            ActiveSidId = "CNDEL5",
-            SidViaMode = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+            Procedure = new AircraftProcedure { ActiveSidId = "CNDEL5", SidViaMode = true },
         };
 
         foreach (var target in route)
@@ -111,7 +110,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
         FlightPhysics.ApplyFixConstraints(aircraft, route.First(t => t.AltitudeRestriction is not null || t.SpeedRestriction is not null));
 
         output.WriteLine(
-            $"\nAircraft at start: alt={aircraft.Altitude:F0} tgtAlt={aircraft.Targets.TargetAltitude} SidViaMode={aircraft.SidViaMode}"
+            $"\nAircraft at start: alt={aircraft.Altitude:F0} tgtAlt={aircraft.Targets.TargetAltitude} SidViaMode={aircraft.Procedure.SidViaMode}"
         );
 
         // Collect constraint fixes and their expected altitudes

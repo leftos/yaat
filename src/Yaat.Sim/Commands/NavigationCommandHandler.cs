@@ -196,7 +196,7 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft)
     {
         var navDb = NavigationDatabase.Instance;
-        string airport = cmd.AirportCode ?? aircraft.Destination;
+        string airport = cmd.AirportCode ?? aircraft.FlightPlan.Destination;
         if (string.IsNullOrEmpty(airport))
         {
             return new CommandResult(false, "No airport specified and no destination in flight plan");
@@ -255,8 +255,8 @@ internal static class NavigationCommandHandler
                 aircraft.Targets.NavigationRoute.Add(target);
             }
 
-            aircraft.ActiveStarId = cmd.StarId;
-            aircraft.StarViaMode = false; // STAR via mode OFF by default
+            aircraft.Procedure.ActiveStarId = cmd.StarId;
+            aircraft.Procedure.StarViaMode = false; // STAR via mode OFF by default
 
             var cifpFixList = string.Join(" ", cifpResult.Select(t => t.Name));
             return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {cifpFixList}");
@@ -330,8 +330,8 @@ internal static class NavigationCommandHandler
         }
 
         // Set STAR state even for NavData fallback (allows DVIA later)
-        aircraft.ActiveStarId = cmd.StarId;
-        aircraft.StarViaMode = false;
+        aircraft.Procedure.ActiveStarId = cmd.StarId;
+        aircraft.Procedure.StarViaMode = false;
 
         var fixListStr = string.Join(" ", deduped);
         return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {fixListStr}");
@@ -344,13 +344,13 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static List<NavigationTarget>? TryResolveStarFromCifp(JoinStarCommand cmd, AircraftState aircraft)
     {
-        if (aircraft.Destination is null)
+        if (aircraft.FlightPlan.Destination is null)
         {
             return null;
         }
 
         var navDb = NavigationDatabase.Instance;
-        var star = navDb.GetStar(aircraft.Destination, cmd.StarId);
+        var star = navDb.GetStar(aircraft.FlightPlan.Destination, cmd.StarId);
         if (star is null)
         {
             return null;
@@ -794,7 +794,7 @@ internal static class NavigationCommandHandler
         var approachId = cmd.ApproachId;
         if (approachId is null)
         {
-            approachId = aircraft.ExpectedApproach ?? aircraft.DestinationRunway ?? aircraft.DepartureRunway;
+            approachId = aircraft.Approach.Expected ?? aircraft.Procedure.DestinationRunway ?? aircraft.Procedure.DepartureRunway;
             if (approachId is null)
             {
                 return new CommandResult(false, "No approach ID and no runway assigned — cannot auto-resolve");
@@ -870,7 +870,7 @@ internal static class NavigationCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
-        aircraft.DestinationRunway = approachRunway.Designator;
+        aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
         aircraft.Phases.Add(interceptPhase);
         aircraft.Phases.Add(finalPhase);
@@ -884,14 +884,14 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchClimbVia(ClimbViaCommand cmd, AircraftState aircraft)
     {
-        if (aircraft.ActiveSidId is null)
+        if (aircraft.Procedure.ActiveSidId is null)
         {
             return new CommandResult(false, "No active SID — climb via requires an active SID");
         }
 
-        aircraft.SidViaMode = true;
-        aircraft.SidViaCeiling = cmd.Altitude;
-        aircraft.SpeedRestrictionsDeleted = false;
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.SidViaCeiling = cmd.Altitude;
+        aircraft.Procedure.SpeedRestrictionsDeleted = false;
         ApplyFirstConstrainedFix(aircraft);
 
         if (cmd.Altitude is not null)
@@ -904,14 +904,14 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft)
     {
-        if (aircraft.ActiveStarId is null)
+        if (aircraft.Procedure.ActiveStarId is null)
         {
             return new CommandResult(false, "No active STAR — descend via requires an active STAR");
         }
 
-        aircraft.StarViaMode = true;
-        aircraft.StarViaFloor = cmd.Altitude;
-        aircraft.SpeedRestrictionsDeleted = false;
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.StarViaFloor = cmd.Altitude;
+        aircraft.Procedure.SpeedRestrictionsDeleted = false;
         ApplyFirstConstrainedFix(aircraft);
 
         // DVIA SPD <speed> <fix>: inject a speed restriction at the specified fix in the nav route
@@ -974,13 +974,13 @@ internal static class NavigationCommandHandler
     {
         // Fast path: if the tick processor has already confirmed acquisition on a
         // visual approach, just echo the in-sight response.
-        if (aircraft.HasReportedFieldInSight)
+        if (aircraft.Approach.HasReportedFieldInSight)
         {
             aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
             return CommandDispatcher.Ok("Field in sight");
         }
 
-        var destination = aircraft.Destination;
+        var destination = aircraft.FlightPlan.Destination;
         if (string.IsNullOrWhiteSpace(destination))
         {
             return new CommandResult(false, "Unable, no arrival airport assigned");
@@ -1003,7 +1003,7 @@ internal static class NavigationCommandHandler
             // processor take over maintained-contact tracking once visual clearance
             // becomes active. First-check acquisition supersedes any in-flight
             // "looking" state.
-            aircraft.HasReportedFieldInSight = true;
+            aircraft.Approach.HasReportedFieldInSight = true;
             aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
             aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
             return CommandDispatcher.Ok("Field in sight");
@@ -1025,11 +1025,11 @@ internal static class NavigationCommandHandler
         // active FOLLOW, just echo the in-sight response. Still update the stored
         // callsign if a new one is supplied so a later bare FOLLOW targets the
         // most recently reported traffic.
-        if (aircraft.HasReportedTrafficInSight)
+        if (aircraft.Approach.HasReportedTrafficInSight)
         {
             if (!string.IsNullOrWhiteSpace(targetCallsign))
             {
-                aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
+                aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
             }
             aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
             return CommandDispatcher.Ok("Traffic in sight");
@@ -1050,8 +1050,8 @@ internal static class NavigationCommandHandler
 
         if (result.Acquired)
         {
-            aircraft.HasReportedTrafficInSight = true;
-            aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
+            aircraft.Approach.HasReportedTrafficInSight = true;
+            aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
             aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
             // First-check acquisition supersedes any in-flight "looking" state.
             aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
@@ -1215,7 +1215,7 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft)
     {
-        aircraft.HasReportedFieldInSight = true;
+        aircraft.Approach.HasReportedFieldInSight = true;
         aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
         aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
         return CommandDispatcher.Ok("Field in sight (forced)");
@@ -1223,10 +1223,10 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportTrafficInSightForced(AircraftState aircraft, string? targetCallsign)
     {
-        aircraft.HasReportedTrafficInSight = true;
+        aircraft.Approach.HasReportedTrafficInSight = true;
         if (!string.IsNullOrWhiteSpace(targetCallsign))
         {
-            aircraft.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
+            aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
         }
         aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
         return CommandDispatcher.Ok("Traffic in sight (forced)");

@@ -73,9 +73,9 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         output.WriteLine($"Before CAPP: alt={aircraft.Altitude:F0} hdg={aircraft.TrueHeading.Degrees:F1}");
-        output.WriteLine($"Route: {aircraft.Route}");
+        output.WriteLine($"Route: {aircraft.FlightPlan.Route}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
-        output.WriteLine($"StarViaMode: {aircraft.StarViaMode} ActiveStarId: {aircraft.ActiveStarId}");
+        output.WriteLine($"StarViaMode: {aircraft.Procedure.StarViaMode} ActiveStarId: {aircraft.Procedure.ActiveStarId}");
 
         // Send CAPP I17R directly (no AT) — tests approach resolution immediately
         var result = engine.SendCommand("SWA11", "CAPP I17R");
@@ -86,7 +86,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         // Must be I17RZ (connects to KLOCK), not I17RX.
         // May be immediate (Phases.ActiveApproach) or deferred (PendingApproachClearance)
         // depending on whether the aircraft is on a STAR with a connecting fix.
-        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.PendingApproachClearance?.Clearance.ApproachId;
+        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.Approach.PendingClearance?.Clearance.ApproachId;
         Assert.NotNull(approachId);
         output.WriteLine($"Resolved approach: {approachId}");
         Assert.Equal("I17RZ", approachId);
@@ -120,7 +120,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
 
         // The resolved approach must connect to KLOCK.
         // May be immediate (Phases.ActiveApproach) or deferred (PendingApproachClearance).
-        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.PendingApproachClearance?.Clearance.ApproachId;
+        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.Approach.PendingClearance?.Clearance.ApproachId;
         Assert.NotNull(approachId);
         output.WriteLine($"Resolved approach: {approachId}");
 
@@ -159,28 +159,30 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
 
         // Confirm STAR state is active before CAPP
         output.WriteLine(
-            $"Before CAPP: StarViaMode={aircraft.StarViaMode} ActiveStarId={aircraft.ActiveStarId} StarViaFloor={aircraft.StarViaFloor}"
+            $"Before CAPP: StarViaMode={aircraft.Procedure.StarViaMode} ActiveStarId={aircraft.Procedure.ActiveStarId} StarViaFloor={aircraft.Procedure.StarViaFloor}"
         );
 
         // Send CAPP directly to test state clearing
         var result = engine.SendCommand("SWA11", "CAPP I17R");
         Assert.True(result.Success, $"CAPP should succeed. Got: {result.Message}");
 
-        output.WriteLine($"After CAPP: StarViaMode={aircraft.StarViaMode} ActiveStarId={aircraft.ActiveStarId} StarViaFloor={aircraft.StarViaFloor}");
+        output.WriteLine(
+            $"After CAPP: StarViaMode={aircraft.Procedure.StarViaMode} ActiveStarId={aircraft.Procedure.ActiveStarId} StarViaFloor={aircraft.Procedure.StarViaFloor}"
+        );
 
-        if (aircraft.PendingApproachClearance is not null)
+        if (aircraft.Approach.PendingClearance is not null)
         {
             // Deferred path: STAR state stays active while aircraft continues STAR route.
             // STAR state will be cleared when the pending approach activates.
             output.WriteLine("Deferred approach — STAR state preserved during deferred period");
-            Assert.NotNull(aircraft.PendingApproachClearance);
+            Assert.NotNull(aircraft.Approach.PendingClearance);
         }
         else
         {
             // Immediate path: STAR state must be cleared after approach clearance
-            Assert.False(aircraft.StarViaMode, "StarViaMode should be false after immediate CAPP");
-            Assert.Null(aircraft.ActiveStarId);
-            Assert.Null(aircraft.StarViaFloor);
+            Assert.False(aircraft.Procedure.StarViaMode, "StarViaMode should be false after immediate CAPP");
+            Assert.Null(aircraft.Procedure.ActiveStarId);
+            Assert.Null(aircraft.Procedure.StarViaFloor);
         }
     }
 

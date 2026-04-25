@@ -87,9 +87,9 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             var ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
-            Assert.NotNull(ac.AssignedTaxiRoute);
+            Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
-            var segments = ac.AssignedTaxiRoute.Segments;
+            var segments = ac.Ground.AssignedTaxiRoute.Segments;
             int reversals = CountReversals(segments);
             output.WriteLine($"N9225L AssignedTaxiRoute: {segments.Count} segments, {reversals} reversal(s)");
             Assert.True(reversals == 0, $"N9225L TAXI D @NEW1 produced {reversals} reversal(s) in {segments.Count} segments");
@@ -140,9 +140,9 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             ac = engine.FindAircraft("N436MS");
             Assert.NotNull(ac);
-            Assert.NotNull(ac.AssignedTaxiRoute);
+            Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
-            var segments = ac.AssignedTaxiRoute.Segments;
+            var segments = ac.Ground.AssignedTaxiRoute.Segments;
             int reversals = CountReversals(segments);
             output.WriteLine($"N436MS AssignedTaxiRoute: {segments.Count} segments, {reversals} reversal(s)");
             Assert.True(reversals == 0, $"N436MS TAXI C @JSX1 produced {reversals} reversal(s) in {segments.Count} segments");

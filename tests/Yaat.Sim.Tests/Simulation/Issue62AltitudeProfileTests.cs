@@ -63,7 +63,7 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("SWA797");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"SWA797: StarViaMode={aircraft.StarViaMode}, ActiveStarId={aircraft.ActiveStarId}");
+        output.WriteLine($"SWA797: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude:F0}");
 
         var route = aircraft.Targets.NavigationRoute;
@@ -75,8 +75,8 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
             output.WriteLine($"    {fix.Name}{constraint}{speed}");
         }
 
-        Assert.True(aircraft.StarViaMode, "StarViaMode should be true when onAltitudeProfile is set");
-        Assert.Equal("EMZOH4", aircraft.ActiveStarId);
+        Assert.True(aircraft.Procedure.StarViaMode, "StarViaMode should be true when onAltitudeProfile is set");
+        Assert.Equal("EMZOH4", aircraft.Procedure.ActiveStarId);
     }
 
     /// <summary>
@@ -172,10 +172,10 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
             return;
         }
 
-        output.WriteLine($"SWA2384: StarViaMode={aircraft.StarViaMode}, ActiveStarId={aircraft.ActiveStarId}");
+        output.WriteLine($"SWA2384: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude:F0}");
 
-        Assert.True(aircraft.StarViaMode, "StarViaMode should be true after DVIA command");
+        Assert.True(aircraft.Procedure.StarViaMode, "StarViaMode should be true after DVIA command");
 
         double altAfterDvia = aircraft.Altitude;
 

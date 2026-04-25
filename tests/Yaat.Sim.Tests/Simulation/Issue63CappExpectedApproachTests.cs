@@ -64,25 +64,25 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         output.WriteLine(
-            $"Before: ExpectedApproach={aircraft.ExpectedApproach} DestinationRunway={aircraft.DestinationRunway} Phases={aircraft.Phases is not null}"
+            $"Before: ExpectedApproach={aircraft.Approach.Expected} DestinationRunway={aircraft.Procedure.DestinationRunway} Phases={aircraft.Phases is not null}"
         );
 
-        Assert.Equal("I28R", aircraft.ExpectedApproach);
-        Assert.Null(aircraft.DestinationRunway);
+        Assert.Equal("I28R", aircraft.Approach.Expected);
+        Assert.Null(aircraft.Procedure.DestinationRunway);
 
         var result = engine.SendCommand("USC28", "CAPP");
 
         output.WriteLine(
-            $"After:  Success={result.Success} ActiveApproach={aircraft.Phases?.ActiveApproach?.ApproachId} DestinationRunway={aircraft.DestinationRunway}"
+            $"After:  Success={result.Success} ActiveApproach={aircraft.Phases?.ActiveApproach?.ApproachId} DestinationRunway={aircraft.Procedure.DestinationRunway}"
         );
 
         Assert.True(result.Success, $"Bare CAPP should succeed with ExpectedApproach set. Got: {result.Message}");
 
         // May be immediate (Phases.ActiveApproach) or deferred (PendingApproachClearance)
-        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.PendingApproachClearance?.Clearance.ApproachId;
+        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.Approach.PendingClearance?.Clearance.ApproachId;
         Assert.NotNull(approachId);
         Assert.Equal("I28R", approachId);
-        Assert.Equal("28R", aircraft.DestinationRunway);
+        Assert.Equal("28R", aircraft.Procedure.DestinationRunway);
     }
 
     /// <summary>
@@ -104,14 +104,14 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
 
         var aircraft = engine.FindAircraft("USC28");
         Assert.NotNull(aircraft);
-        Assert.Null(aircraft.DestinationRunway);
+        Assert.Null(aircraft.Procedure.DestinationRunway);
 
         var result = engine.SendCommand("USC28", "CAPP I28R");
 
-        output.WriteLine($"CAPP I28R: Success={result.Success} DestinationRunway={aircraft.DestinationRunway}");
+        output.WriteLine($"CAPP I28R: Success={result.Success} DestinationRunway={aircraft.Procedure.DestinationRunway}");
 
         Assert.True(result.Success, $"Explicit CAPP I28R should succeed. Got: {result.Message}");
-        Assert.Equal("28R", aircraft.DestinationRunway);
+        Assert.Equal("28R", aircraft.Procedure.DestinationRunway);
     }
 
     /// <summary>
@@ -135,17 +135,17 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         // Clear the scenario-set ExpectedApproach to test EAPP independently
-        aircraft.ExpectedApproach = null;
-        Assert.Null(aircraft.DestinationRunway);
+        aircraft.Approach.Expected = null;
+        Assert.Null(aircraft.Procedure.DestinationRunway);
 
         var result = engine.SendCommand("USC28", "EAPP I30");
 
         output.WriteLine(
-            $"EAPP I30: Success={result.Success} ExpectedApproach={aircraft.ExpectedApproach} DestinationRunway={aircraft.DestinationRunway}"
+            $"EAPP I30: Success={result.Success} ExpectedApproach={aircraft.Approach.Expected} DestinationRunway={aircraft.Procedure.DestinationRunway}"
         );
 
         Assert.True(result.Success, $"EAPP should succeed. Got: {result.Message}");
-        Assert.Equal("I30", aircraft.ExpectedApproach);
-        Assert.Null(aircraft.DestinationRunway);
+        Assert.Equal("I30", aircraft.Approach.Expected);
+        Assert.Null(aircraft.Procedure.DestinationRunway);
     }
 }

@@ -10,7 +10,7 @@ public class PointoutTests
         {
             Callsign = "N98W",
             AircraftType = "C172",
-            Owner = owner,
+            Track = new AircraftTrack { Owner = owner },
         };
 
     private static TrackOwner MakeOwner(string callsign, int subset, string sectorId) => new(callsign, "NCT", subset, sectorId, TrackOwnerType.Stars);
@@ -26,14 +26,14 @@ public class PointoutTests
     public void PoNoArgs_AcceptsInboundPointout()
     {
         var ac = MakeAircraft();
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         var recipient = MakeOwner("NCT_APP", 2, "N");
 
         var result = TrackEngine.HandlePointOutNoArgs(ac, recipient);
 
         Assert.True(result.Success);
-        Assert.NotNull(ac.Pointout);
-        Assert.Equal(StarsPointoutStatus.Accepted, ac.Pointout.Status);
+        Assert.NotNull(ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout.Status);
     }
 
     // ── PO no-args: retract outbound pointout ──
@@ -42,13 +42,13 @@ public class PointoutTests
     public void PoNoArgs_RetractsOutboundPointout()
     {
         var ac = MakeAircraft();
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         var sender = MakeOwner("NCT_CTR", 1, "D");
 
         var result = TrackEngine.HandlePointOutNoArgs(ac, sender);
 
         Assert.True(result.Success);
-        Assert.Null(ac.Pointout);
+        Assert.Null(ac.Track.Pointout);
     }
 
     // ── PO no-args: no pending pointout ──
@@ -70,7 +70,7 @@ public class PointoutTests
     public void PoNoArgs_UnrelatedIdentity_ReturnsError()
     {
         var ac = MakeAircraft();
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         var unrelated = MakeOwner("NCT_DEP", 3, "B");
 
         var result = TrackEngine.HandlePointOutNoArgs(ac, unrelated);
@@ -86,13 +86,13 @@ public class PointoutTests
         var owner = MakeOwner("NCT_CTR", 1, "D");
         var ac = MakeAircraft(owner);
         var originalPo = MakePendingPointout(2, "N", 1, "D");
-        ac.Pointout = originalPo;
+        ac.Track.Pointout = originalPo;
 
         var result = TrackEngine.HandlePointOut(ac, owner, MakeTcp(3, "B"), MakeTcp(1, "D"));
 
         Assert.False(result.Success);
-        Assert.Same(originalPo, ac.Pointout);
-        Assert.Equal(StarsPointoutStatus.Pending, ac.Pointout.Status);
+        Assert.Same(originalPo, ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);
     }
 
     // ── HandlePointOut: allows overwrite when accepted ──
@@ -102,15 +102,15 @@ public class PointoutTests
     {
         var owner = MakeOwner("NCT_CTR", 1, "D");
         var ac = MakeAircraft(owner);
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
-        ac.Pointout.Status = StarsPointoutStatus.Accepted;
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
 
         var newTarget = MakeTcp(3, "B");
         var senderTcp = MakeTcp(1, "D");
         var result = TrackEngine.HandlePointOut(ac, owner, newTarget, senderTcp);
 
         Assert.True(result.Success);
-        Assert.Equal("3B", ac.Pointout!.Recipient.ToString());
+        Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
     }
 
     // ── HandlePointOut: allows overwrite when rejected ──
@@ -120,15 +120,15 @@ public class PointoutTests
     {
         var owner = MakeOwner("NCT_CTR", 1, "D");
         var ac = MakeAircraft(owner);
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
-        ac.Pointout.Status = StarsPointoutStatus.Rejected;
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout.Status = StarsPointoutStatus.Rejected;
 
         var newTarget = MakeTcp(3, "B");
         var senderTcp = MakeTcp(1, "D");
         var result = TrackEngine.HandlePointOut(ac, owner, newTarget, senderTcp);
 
         Assert.True(result.Success);
-        Assert.Equal("3B", ac.Pointout!.Recipient.ToString());
+        Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
     }
 
     // ── Regression: handoff does not clear pointout ──
@@ -138,17 +138,17 @@ public class PointoutTests
     {
         var owner = MakeOwner("NCT_CTR", 1, "D");
         var ac = MakeAircraft(owner);
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
         var target = MakeOwner("NCT_APP", 2, "N");
-        ac.HandoffPeer = target;
-        ac.HandoffInitiatedAt = 100;
+        ac.Track.HandoffPeer = target;
+        ac.Track.HandoffInitiatedAt = 100;
 
         // Accept the handoff
         TrackEngine.HandleAccept(ac, target);
 
-        Assert.NotNull(ac.Pointout);
-        Assert.Equal(StarsPointoutStatus.Pending, ac.Pointout.Status);
+        Assert.NotNull(ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);
     }
 
     // ── Regression: drop does not clear pointout ──
@@ -158,12 +158,12 @@ public class PointoutTests
     {
         var owner = MakeOwner("NCT_CTR", 1, "D");
         var ac = MakeAircraft(owner);
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
         TrackEngine.HandleDrop(ac, owner);
 
-        Assert.NotNull(ac.Pointout);
-        Assert.Equal(StarsPointoutStatus.Pending, ac.Pointout.Status);
+        Assert.NotNull(ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);
     }
 
     // ── Regression: force handoff does not clear pointout ──
@@ -173,17 +173,17 @@ public class PointoutTests
     {
         var owner = MakeOwner("NCT_CTR", 1, "D");
         var ac = MakeAircraft(owner);
-        ac.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
         var target = MakeOwner("NCT_APP", 2, "N");
 
         // Force handoff transfers ownership directly
-        ac.Owner = target;
-        ac.HandoffPeer = null;
-        ac.HandoffInitiatedAt = null;
-        ac.HandoffRedirectedBy = null;
+        ac.Track.Owner = target;
+        ac.Track.HandoffPeer = null;
+        ac.Track.HandoffInitiatedAt = null;
+        ac.Track.HandoffRedirectedBy = null;
 
-        Assert.NotNull(ac.Pointout);
-        Assert.Equal(StarsPointoutStatus.Pending, ac.Pointout.Status);
+        Assert.NotNull(ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);
     }
 }

@@ -61,7 +61,7 @@ public class SimulationEngineReplayTests
 
         var nks = engine.FindAircraft("NKS2904");
         Assert.NotNull(nks);
-        Assert.NotNull(nks.AssignedTaxiRoute);
+        Assert.NotNull(nks.Ground.AssignedTaxiRoute);
     }
 
     [Fact]
@@ -78,10 +78,11 @@ public class SimulationEngineReplayTests
 
         var nks = engine.FindAircraft("NKS2904");
         Assert.NotNull(nks);
-        Assert.NotNull(nks.AssignedTaxiRoute);
+        Assert.NotNull(nks.Ground.AssignedTaxiRoute);
 
         // Recording issues "TAXI S T U W W1 HS 30" — route should include all these taxiways
-        var taxiways = nks.AssignedTaxiRoute!.Segments.Select(s => s.TaxiwayName)
+        var taxiways = nks
+            .Ground.AssignedTaxiRoute!.Segments.Select(s => s.TaxiwayName)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

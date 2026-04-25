@@ -68,7 +68,7 @@ public static class PilotResponder
     /// </summary>
     public static string BuildReadyToTaxi(AircraftState aircraft)
     {
-        var location = aircraft.ParkingSpot is { Length: > 0 } spot ? $"at {spot.ToLowerInvariant()}" : "at the ramp";
+        var location = aircraft.Ground.ParkingSpot is { Length: > 0 } spot ? $"at {spot.ToLowerInvariant()}" : "at the ramp";
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         return $"[{aircraft.Callsign}] ground, {spoken} {location}, ready to taxi.";
     }

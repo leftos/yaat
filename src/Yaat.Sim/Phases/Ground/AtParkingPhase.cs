@@ -24,7 +24,7 @@ public sealed class AtParkingPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        Log.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.ParkingSpot ?? "unknown");
+        Log.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.Ground.ParkingSpot ?? "unknown");
     }
 
     /// <summary>
@@ -38,10 +38,15 @@ public sealed class AtParkingPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
 
-        if (ctx.SoloTrainingMode && ctx.Aircraft.HasFlightPlan && !ctx.Aircraft.HasAnnouncedReady && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
+        if (
+            ctx.SoloTrainingMode
+            && ctx.Aircraft.FlightPlan.HasFlightPlan
+            && !ctx.Aircraft.Ground.HasAnnouncedReady
+            && ElapsedSeconds >= ReadyToTaxiDelaySeconds
+        )
         {
             ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildReadyToTaxi(ctx.Aircraft));
-            ctx.Aircraft.HasAnnouncedReady = true;
+            ctx.Aircraft.Ground.HasAnnouncedReady = true;
         }
 
         return false;

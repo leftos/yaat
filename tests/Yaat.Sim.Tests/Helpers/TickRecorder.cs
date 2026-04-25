@@ -93,8 +93,8 @@ public sealed class TickRecorder
                     Hdg = ac.TrueHeading.Degrees,
                     Gs = ac.GroundSpeed,
                     Phase = ac.Phases?.CurrentPhase?.Name ?? "none",
-                    Twy = ac.CurrentTaxiway ?? "",
-                    Nav = ac.LastNavDiag,
+                    Twy = ac.Ground.CurrentTaxiway ?? "",
+                    Nav = ac.Ground.LastNavDiag,
                 }
             );
         }
@@ -127,7 +127,7 @@ public sealed class TickRecorder
                 Hdg = _aircraft.TrueHeading.Degrees,
                 Gs = _aircraft.GroundSpeed,
                 Phase = _aircraft.Phases?.CurrentPhase?.Name ?? "none",
-                Twy = _aircraft.CurrentTaxiway ?? "",
+                Twy = _aircraft.Ground.CurrentTaxiway ?? "",
                 Nav = nav,
             }
         );

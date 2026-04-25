@@ -30,7 +30,7 @@ public class UnsupportedCommandPhaseTests
             Altitude = 800,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "OAK",
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
         };
 
         var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null);

@@ -118,9 +118,9 @@ public sealed class SimulationWorld
             foreach (var ac in _aircraft)
             {
                 // Student TCP accepts don't trigger ONHO conditions
-                if (ac.HandoffAccepted && studentTcp is not null && ac.Owner?.IsTcp(studentTcp) == true)
+                if (ac.Track.HandoffAccepted && studentTcp is not null && ac.Track.Owner?.IsTcp(studentTcp) == true)
                 {
-                    ac.HandoffAccepted = false;
+                    ac.Track.HandoffAccepted = false;
                 }
 
                 preTick?.Invoke(ac, deltaSeconds);

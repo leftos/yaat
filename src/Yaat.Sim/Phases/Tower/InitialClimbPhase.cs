@@ -172,8 +172,8 @@ public sealed class InitialClimbPhase : Phase
         // Activate SID procedure state (via mode ON by default for departures)
         if (DepartureSidId is not null)
         {
-            ctx.Aircraft.ActiveSidId = DepartureSidId;
-            ctx.Aircraft.SidViaMode = true;
+            ctx.Aircraft.Procedure.ActiveSidId = DepartureSidId;
+            ctx.Aircraft.Procedure.SidViaMode = true;
         }
 
         Log.LogDebug(
@@ -329,7 +329,7 @@ public sealed class InitialClimbPhase : Phase
     /// </summary>
     private void UpdateRvSidHeadingHold(PhaseContext ctx)
     {
-        var currentOwner = ctx.Aircraft.Owner;
+        var currentOwner = ctx.Aircraft.Track.Owner;
         bool ownedByTower = (currentOwner is null) || (ctx.TowerPosition is not null && currentOwner == ctx.TowerPosition);
 
         if (ownedByTower)

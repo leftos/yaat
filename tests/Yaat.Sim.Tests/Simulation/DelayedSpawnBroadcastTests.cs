@@ -36,9 +36,12 @@ public class DelayedSpawnBroadcastTests
                     Altitude = 5000,
                     IndicatedAirspeed = 250,
                     IsOnGround = false,
-                    Departure = "OAK",
-                    CruiseAltitude = 10000,
-                    FlightRules = "IFR",
+                    FlightPlan = new AircraftFlightPlan
+                    {
+                        Departure = "OAK",
+                        CruiseAltitude = 10000,
+                        FlightRules = "IFR",
+                    },
                 },
             };
             engine.Scenario.DelayedQueue.Add(new DelayedSpawn { Aircraft = aircraft, SpawnAtSeconds = seconds });

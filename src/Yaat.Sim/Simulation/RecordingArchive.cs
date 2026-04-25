@@ -252,7 +252,7 @@ public sealed class RecordingArchive : IDisposable
 
     /// <summary>
     /// Reattach ground layouts to delayed spawn aircraft within a snapshot.
-    /// After deserialization, LoadedAircraft.State.GroundLayout is null but
+    /// After deserialization, LoadedAircraft.State.Ground.Layout is null but
     /// GroundLayoutAirportId is set — look it up in the layout dictionary.
     /// </summary>
     internal static void ReattachDelayedSpawnLayouts(StateSnapshotDto snapshot, Dictionary<string, AirportGroundLayout> layouts)
@@ -265,9 +265,9 @@ public sealed class RecordingArchive : IDisposable
         foreach (var delayed in queue)
         {
             var aircraft = JsonSerializer.Deserialize<LoadedAircraft>(delayed.AircraftJson, RecordingJsonOptions.Default);
-            if (aircraft?.State.GroundLayoutAirportId is { } airportId && layouts.TryGetValue(airportId, out var layout))
+            if (aircraft?.State.Ground.LayoutAirportId is { } airportId && layouts.TryGetValue(airportId, out var layout))
             {
-                aircraft.State.GroundLayout = layout;
+                aircraft.State.Ground.Layout = layout;
             }
         }
     }

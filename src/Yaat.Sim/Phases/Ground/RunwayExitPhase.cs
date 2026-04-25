@@ -419,7 +419,7 @@ public sealed class RunwayExitPhase : Phase
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
 
         _state = ExitState.FollowingExitPath;
-        ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
+        ctx.Aircraft.Ground.CurrentTaxiway = _exitTaxiway;
 
         Log.LogDebug(
             "[Exit] {Callsign}: following exit path, {SegCount} segments on {Twy}, maxSpeed={Speed:F0}kts, path=[virtual→{Path}]",
@@ -446,7 +446,7 @@ public sealed class RunwayExitPhase : Phase
         {
             if (_exitRoute.CurrentSegment is { } seg)
             {
-                ctx.Aircraft.CurrentTaxiway = seg.TaxiwayName;
+                ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
             }
 
             _exitRoute.CurrentSegmentIndex++;

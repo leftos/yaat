@@ -31,7 +31,7 @@ public class ApproachClearanceTests
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             Position = new LatLon(lat, lon),
-            Destination = destination,
+            FlightPlan = new AircraftFlightPlan { Destination = destination },
         };
     }
 

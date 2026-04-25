@@ -49,7 +49,7 @@ public class ConflictAlertDetectorTests
             TrueTrack = new TrueHeading(heading),
             IndicatedAirspeed = groundSpeed,
             VerticalSpeed = verticalSpeed,
-            TransponderMode = transponderMode,
+            Transponder = new AircraftTransponder { Mode = transponderMode },
             IsOnGround = isOnGround,
         };
     }
@@ -345,7 +345,7 @@ public class ConflictAlertDetectorTests
     {
         var a = MakeAircraft("AAL100", altitude: 5000);
         var b = MakeAircraft("UAL200", altitude: 5000);
-        b.IsCaInhibited = true;
+        b.Stars.IsCaInhibited = true;
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
 
@@ -613,9 +613,9 @@ public class ConflictAlertDetectorTests
     {
         // Two VFR aircraft 0.2nm apart, 400ft vertical → detected (within 0.25nm / 500ft)
         var a = MakeAircraft("N12345", altitude: 5000);
-        a.FlightRules = "VFR";
+        a.FlightPlan.FlightRules = "VFR";
         var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.2), altitude: 5400);
-        b.FlightRules = "VFR";
+        b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
 
@@ -627,9 +627,9 @@ public class ConflictAlertDetectorTests
     {
         // Two VFR aircraft 0.3nm apart, 400ft vertical → not detected (outside 0.25nm)
         var a = MakeAircraft("N12345", altitude: 5000);
-        a.FlightRules = "VFR";
+        a.FlightPlan.FlightRules = "VFR";
         var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.3), altitude: 5400);
-        b.FlightRules = "VFR";
+        b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
 
@@ -641,9 +641,9 @@ public class ConflictAlertDetectorTests
     {
         // Two VFR aircraft same position, 600ft vertical → not detected (outside 500ft)
         var a = MakeAircraft("N12345", altitude: 5000);
-        a.FlightRules = "VFR";
+        a.FlightPlan.FlightRules = "VFR";
         var b = MakeAircraft("N67890", altitude: 5600);
-        b.FlightRules = "VFR";
+        b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
 
@@ -656,7 +656,7 @@ public class ConflictAlertDetectorTests
         // One IFR + one VFR, 0.2nm apart, 400ft vertical → detected (VFR thresholds when either is VFR)
         var a = MakeAircraft("AAL100", altitude: 5000);
         var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.2), altitude: 5400);
-        b.FlightRules = "VFR";
+        b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
 
@@ -670,7 +670,7 @@ public class ConflictAlertDetectorTests
         // Would be CA under IFR thresholds (2nm < 3nm, 800ft < 1000ft) but not under VFR (2nm > 0.25nm)
         var a = MakeAircraft("AAL100", altitude: 5000);
         var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5800);
-        b.FlightRules = "VFR";
+        b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
 
@@ -682,9 +682,9 @@ public class ConflictAlertDetectorTests
     {
         // Existing VFR conflict at 0.28nm (between 0.25 entry and 0.30 hysteresis) stays active
         var a = MakeAircraft("N12345", altitude: 5000);
-        a.FlightRules = "VFR";
+        a.FlightPlan.FlightRules = "VFR";
         var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.28), altitude: 5000);
-        b.FlightRules = "VFR";
+        b.FlightPlan.FlightRules = "VFR";
 
         string id = ConflictAlertDetector.MakeConflictId("N12345", "N67890");
 
@@ -731,7 +731,7 @@ public class ConflictAlertDetectorTests
         // Ghost track (IsUnsupported) at same position/altitude as real aircraft → no CA
         var real = MakeAircraft("AAL100", altitude: 5000);
         var ghost = MakeAircraft("UAL200", altitude: 5000);
-        ghost.IsUnsupported = true;
+        ghost.Ghost.IsUnsupported = true;
 
         var result = ConflictAlertDetector.Detect([real, ghost], Ctx());
 

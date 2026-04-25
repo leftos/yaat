@@ -25,7 +25,7 @@ public sealed class ClimbSpeedScheduleTests
             IsOnGround = false,
             TrueHeading = new TrueHeading(90),
             TrueTrack = new TrueHeading(90),
-            Departure = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
         };
         ac.Targets.TargetAltitude = targetAlt;
         ac.Targets.TargetTrueHeading = new TrueHeading(90);
@@ -45,7 +45,7 @@ public sealed class ClimbSpeedScheduleTests
             IsOnGround = false,
             TrueHeading = new TrueHeading(280),
             TrueTrack = new TrueHeading(280),
-            Departure = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };
 
@@ -80,7 +80,7 @@ public sealed class ClimbSpeedScheduleTests
             IsOnGround = false,
             TrueHeading = new TrueHeading(280),
             TrueTrack = new TrueHeading(280),
-            Departure = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };
 
@@ -200,7 +200,7 @@ public sealed class ClimbSpeedScheduleTests
             IsOnGround = false,
             TrueHeading = new TrueHeading(280),
             TrueTrack = new TrueHeading(280),
-            Departure = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
             Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
         };
         ac.Targets.TargetAltitude = 1000;

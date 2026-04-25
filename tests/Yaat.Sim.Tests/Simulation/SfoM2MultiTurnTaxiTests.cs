@@ -154,7 +154,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
         // edge (foot-of-perpendicular on the 92↔1529 edge) rather than 20 ft
         // away. The snap also rotates heading to the nearest edge direction
         // (westbound ~297° true).
-        var layout = ac.GroundLayout;
+        var layout = ac.Ground.Layout;
         Assert.NotNull(layout);
         var nearest = layout.FindNearestTaxiEdge(ac.Position.Lat, ac.Position.Lon);
         Assert.NotNull(nearest);

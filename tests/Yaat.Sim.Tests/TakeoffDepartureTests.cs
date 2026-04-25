@@ -453,7 +453,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(RunwayHeading),
             Altitude = FieldElevation,
@@ -528,7 +528,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400, // post-takeoff
@@ -549,8 +549,8 @@ public class TakeoffDepartureTests
         var climbPhase = new InitialClimbPhase
         {
             Departure = departure,
-            IsVfr = true,
             CruiseAltitude = 4500,
+            IsVfr = true,
         };
         climbPhase.OnStart(ctx);
 
@@ -599,7 +599,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400,
@@ -620,8 +620,8 @@ public class TakeoffDepartureTests
         var climbPhase = new InitialClimbPhase
         {
             Departure = departure,
-            IsVfr = true,
             CruiseAltitude = 4500,
+            IsVfr = true,
         };
         climbPhase.OnStart(ctx);
 
@@ -675,7 +675,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400,
@@ -696,9 +696,9 @@ public class TakeoffDepartureTests
         var climbPhase = new InitialClimbPhase
         {
             Departure = departure,
+            CruiseAltitude = 4500,
             DepartureRoute = departureRoute,
             IsVfr = true,
-            CruiseAltitude = 4500,
         };
         climbPhase.OnStart(ctx);
 
@@ -745,7 +745,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = FieldElevation + 400,
@@ -766,9 +766,9 @@ public class TakeoffDepartureTests
         var climbPhase = new InitialClimbPhase
         {
             Departure = departure,
+            CruiseAltitude = 4500,
             DepartureRoute = departureRoute,
             IsVfr = true,
-            CruiseAltitude = 4500,
         };
         climbPhase.OnStart(ctx);
 
@@ -803,7 +803,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             Position = new LatLon(37.0, -122.0),
             TrueHeading = new TrueHeading(280),
             Altitude = 400,
@@ -824,9 +824,9 @@ public class TakeoffDepartureTests
         var climbPhase = new InitialClimbPhase
         {
             Departure = departure,
+            CruiseAltitude = 4500,
             DepartureRoute = departureRoute,
             IsVfr = true,
-            CruiseAltitude = 4500,
         };
         climbPhase.OnStart(ctx);
 
@@ -880,7 +880,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             // Position AT the crosswind turn point
             Position = crosswindTurn,
             TrueHeading = new TrueHeading(runwayHdg),
@@ -945,7 +945,7 @@ public class TakeoffDepartureTests
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
             Position = crosswindTurn,
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = 750, // 750ft MSL — above threshold of 700ft (1000 - 300)
@@ -1004,8 +1004,8 @@ public class TakeoffDepartureTests
         var climbPhase = new InitialClimbPhase
         {
             Departure = new DefaultDeparture(),
-            IsVfr = true,
             CruiseAltitude = 4500,
+            IsVfr = true,
         };
         climbPhase.OnStart(ctx);
 

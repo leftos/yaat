@@ -94,7 +94,8 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
 
             string phase = ac.Phases?.CurrentPhase?.Name ?? "none";
             output.WriteLine(
-                $"{callsign}: phase={phase}, twy={ac.CurrentTaxiway ?? "none"}, " + $"hdg={ac.TrueHeading.Degrees:F1}, gs={ac.GroundSpeed:F1}kts"
+                $"{callsign}: phase={phase}, twy={ac.Ground.CurrentTaxiway ?? "none"}, "
+                    + $"hdg={ac.TrueHeading.Degrees:F1}, gs={ac.GroundSpeed:F1}kts"
             );
 
             Assert.True(exitCompleted.ContainsKey(callsign), $"{callsign} should have completed exit by t=500, but phase is '{phase}'");
@@ -210,7 +211,7 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
                             + $"pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}), "
                             + $"onGround={ac.IsOnGround}, "
                             + $"reqExit=[{reqExit}], resolved=[{resolvedExit}], "
-                            + $"twy={ac.CurrentTaxiway ?? "none"}"
+                            + $"twy={ac.Ground.CurrentTaxiway ?? "none"}"
                     );
 
                     if (layout is not null && ac.IsOnGround)

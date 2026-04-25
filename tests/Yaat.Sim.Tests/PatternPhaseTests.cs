@@ -39,7 +39,7 @@ public class PatternPhaseTests
             Altitude = altitude,
             IndicatedAirspeed = ias,
             IsOnGround = onGround,
-            Departure = "TEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
         };
         ac.Phases = new PhaseList();
         return ac;

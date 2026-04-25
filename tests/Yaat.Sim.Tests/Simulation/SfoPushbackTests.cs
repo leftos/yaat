@@ -104,7 +104,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
             double distFt = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
-            double pushHdg = ac.PushbackTrueHeading?.Degrees ?? -1;
+            double pushHdg = ac.Ground.PushbackTrueHeading?.Degrees ?? -1;
             _output.WriteLine(
                 $"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {phase, -24}"
             );
@@ -272,7 +272,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         _output.WriteLine($"Command: PUSH @B13 → {result.Message}");
 
         // Log route info
-        var route = ac.AssignedTaxiRoute;
+        var route = ac.Ground.AssignedTaxiRoute;
         if (route is not null)
         {
             _output.WriteLine($"Route: {route.Segments.Count} segments");
@@ -303,8 +303,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
             double distFt = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
-            double pushHdg = ac.PushbackTrueHeading?.Degrees ?? -1;
-            int segIdx = ac.AssignedTaxiRoute?.CurrentSegmentIndex ?? -1;
+            double pushHdg = ac.Ground.PushbackTrueHeading?.Degrees ?? -1;
+            int segIdx = ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex ?? -1;
 
             _output.WriteLine(
                 $"{tick + 13, 5}  {ac.Position.Lat, 12:F6}  {ac.Position.Lon, 13:F6}  {ac.GroundSpeed, 8:F2}  {ac.IndicatedAirspeed, 5:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {distFt, 12:F1}  {segIdx, 6}  {phase, -24}"

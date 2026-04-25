@@ -71,7 +71,7 @@ public class Issue134DiagnosticTest(ITestOutputHelper output)
                             + $"alt={ac.Altitude:F0} "
                             + $"onGround={ac.IsOnGround} "
                             + $"rwy={rwy} exitPref={exitPref} "
-                            + $"taxiway={ac.CurrentTaxiway ?? "-"}"
+                            + $"taxiway={ac.Ground.CurrentTaxiway ?? "-"}"
                     );
                 }
 

@@ -54,7 +54,7 @@ public sealed class HoldingAfterExitPhase : Phase
 
         // Broadcast "clear of runway"
         string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
-        string twy = _exitTaxiway ?? ctx.Aircraft.CurrentTaxiway ?? "taxiway";
+        string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} clear of runway {rwy} at {twy}");
 
         Log.LogDebug(

@@ -72,7 +72,7 @@ public sealed class VfrFollowPhase : Phase
         if (lead is null)
         {
             Log.LogDebug("[VfrFollow] {Callsign}: target {Target} not found, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
-            ctx.Aircraft.FollowingCallsign = null;
+            ctx.Aircraft.Approach.FollowingCallsign = null;
             ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow");
             return true;
         }
@@ -80,7 +80,7 @@ public sealed class VfrFollowPhase : Phase
         if (lead.IsOnGround)
         {
             Log.LogDebug("[VfrFollow] {Callsign}: target {Target} on ground, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
-            ctx.Aircraft.FollowingCallsign = null;
+            ctx.Aircraft.Approach.FollowingCallsign = null;
             ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow");
             return true;
         }
@@ -106,7 +106,7 @@ public sealed class VfrFollowPhase : Phase
                     _bestGapNm,
                     gapNm
                 );
-                ctx.Aircraft.FollowingCallsign = null;
+                ctx.Aircraft.Approach.FollowingCallsign = null;
                 ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to catch up to {TargetCallsign}, cancelling follow");
                 return true;
             }
@@ -226,8 +226,8 @@ public sealed class VfrFollowPhase : Phase
         }
 
         // Preserve the follow target so the pattern phases keep adjusting spacing.
-        ctx.Aircraft.FollowingCallsign = TargetCallsign;
-        ctx.Aircraft.DestinationRunway = leadRunway.Designator;
+        ctx.Aircraft.Approach.FollowingCallsign = TargetCallsign;
+        ctx.Aircraft.Procedure.DestinationRunway = leadRunway.Designator;
 
         // Start the first phase in the new list.
         ctx.Aircraft.Phases.Start(ctx);

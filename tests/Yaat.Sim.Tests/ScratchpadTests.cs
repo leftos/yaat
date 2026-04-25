@@ -59,8 +59,8 @@ public class ScratchpadUndoTests
         TrackEngine.HandleScratchpad1(ac, "");
         TrackEngine.HandleScratchpad1(ac, "");
 
-        Assert.Equal("ABC", ac.Scratchpad1);
-        Assert.False(ac.WasScratchpad1Cleared);
+        Assert.Equal("ABC", ac.Stars.Scratchpad1);
+        Assert.False(ac.Stars.WasScratchpad1Cleared);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class ScratchpadUndoTests
         TrackEngine.HandleScratchpad1(ac, "ABC");
         TrackEngine.HandleScratchpad1(ac, "ABC");
 
-        Assert.Null(ac.Scratchpad1);
+        Assert.Null(ac.Stars.Scratchpad1);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class ScratchpadUndoTests
         TrackEngine.HandleScratchpad1(ac, "XYZ");
         TrackEngine.HandleScratchpad1(ac, "XYZ");
 
-        Assert.Equal("ABC", ac.Scratchpad1);
+        Assert.Equal("ABC", ac.Stars.Scratchpad1);
     }
 
     [Fact]
@@ -93,11 +93,11 @@ public class ScratchpadUndoTests
 
         // Initial state: null, not cleared
         TrackEngine.HandleScratchpad1(ac, "");
-        Assert.True(ac.WasScratchpad1Cleared);
+        Assert.True(ac.Stars.WasScratchpad1Cleared);
 
         // Clear again — undo restores null (previous was null)
         TrackEngine.HandleScratchpad1(ac, "");
-        Assert.Null(ac.Scratchpad1);
+        Assert.Null(ac.Stars.Scratchpad1);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class ScratchpadUndoTests
         TrackEngine.HandleScratchpad2(ac, "");
         TrackEngine.HandleScratchpad2(ac, "");
 
-        Assert.Equal("XYZ", ac.Scratchpad2);
+        Assert.Equal("XYZ", ac.Stars.Scratchpad2);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class ScratchpadUndoTests
         TrackEngine.HandleScratchpad2(ac, "XYZ");
         TrackEngine.HandleScratchpad2(ac, "XYZ");
 
-        Assert.Null(ac.Scratchpad2);
+        Assert.Null(ac.Stars.Scratchpad2);
     }
 
     [Fact]
@@ -132,6 +132,6 @@ public class ScratchpadUndoTests
         TrackEngine.HandleScratchpad2(ac, "XYZ");
         TrackEngine.HandleScratchpad2(ac, "XYZ");
 
-        Assert.Equal("ABC", ac.Scratchpad2);
+        Assert.Equal("ABC", ac.Stars.Scratchpad2);
     }
 }

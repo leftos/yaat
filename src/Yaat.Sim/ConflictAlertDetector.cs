@@ -83,17 +83,17 @@ public static class ConflictAlertDetector
                 continue;
             }
 
-            if (!ac.TransponderMode.Equals("C", StringComparison.OrdinalIgnoreCase))
+            if (!ac.Transponder.Mode.Equals("C", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (ac.IsCaInhibited)
+            if (ac.Stars.IsCaInhibited)
             {
                 continue;
             }
 
-            if (ac.IsUnsupported)
+            if (ac.Ghost.IsUnsupported)
             {
                 continue;
             }
@@ -147,7 +147,7 @@ public static class ConflictAlertDetector
         }
 
         // When either target is VFR, use target-resolution thresholds
-        bool vfr = (a.IsVfr) || (b.IsVfr);
+        bool vfr = (a.FlightPlan.IsVfr) || (b.FlightPlan.IsVfr);
 
         if (alreadyInConflict)
         {

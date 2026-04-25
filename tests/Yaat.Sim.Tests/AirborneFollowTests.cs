@@ -44,8 +44,8 @@ public class AirborneFollowTests : IDisposable
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
-            FollowingCallsign = followingCallsign,
-            Destination = "KTEST",
+            Approach = new AircraftApproachState { FollowingCallsign = followingCallsign },
+            FlightPlan = new AircraftFlightPlan { Destination = "KTEST" },
         };
         ac.Phases = new PhaseList();
         return ac;
@@ -91,7 +91,7 @@ public class AirborneFollowTests : IDisposable
         var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.Null(result);
-        Assert.Null(ac.FollowingCallsign);
+        Assert.Null(ac.Approach.FollowingCallsign);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class AirborneFollowTests : IDisposable
         var resultJet = AirborneFollowHelper.GetAdjustedSpeed(ctxJet, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         // Reset follow state (cleared if leader disappears)
-        follower.FollowingCallsign = "LEAD";
+        follower.Approach.FollowingCallsign = "LEAD";
 
         var ctxPiston = Ctx(follower, lookup: cs => cs == "LEAD" ? pistonLeader : null);
         var resultPiston = AirborneFollowHelper.GetAdjustedSpeed(ctxPiston, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
@@ -284,8 +284,8 @@ public class AirborneFollowTests : IDisposable
     public void Follow_Airborne_SetsFollowingCallsign()
     {
         var ac = MakeAircraft();
-        ac.FlightRules = "VFR";
-        ac.HasReportedTrafficInSight = true;
+        ac.FlightPlan.FlightRules = "VFR";
+        ac.Approach.HasReportedTrafficInSight = true;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new DownwindPhase());
         // Start the phase so CurrentPhase is set.
@@ -295,7 +295,7 @@ public class AirborneFollowTests : IDisposable
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
-        Assert.Equal("LEAD", ac.FollowingCallsign);
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
     }
 
     [Fact]
@@ -303,7 +303,7 @@ public class AirborneFollowTests : IDisposable
     {
         // FOLLOW only applies to VFR aircraft — IFR traffic uses CVA FOLLOW for visual separation.
         var ac = MakeAircraft();
-        ac.FlightRules = "IFR";
+        ac.FlightPlan.FlightRules = "IFR";
 
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
@@ -331,7 +331,7 @@ public class AirborneFollowTests : IDisposable
     public void CvaFollow_Fails_WhenRtisNotReported()
     {
         var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
-        ac.HasReportedTrafficInSight = false;
+        ac.Approach.HasReportedTrafficInSight = false;
 
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD");
         var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac);
@@ -344,44 +344,44 @@ public class AirborneFollowTests : IDisposable
     public void CvaFollow_Succeeds_WhenRtisReported()
     {
         var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
-        ac.HasReportedTrafficInSight = true;
+        ac.Approach.HasReportedTrafficInSight = true;
 
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD");
         var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac);
 
         Assert.True(result.Success);
-        Assert.Equal("LEAD", ac.FollowingCallsign);
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
     }
 
     [Fact]
     public void Rtisf_ForcesTrafficInSight()
     {
         var ac = MakeAircraft();
-        ac.HasReportedTrafficInSight = false;
+        ac.Approach.HasReportedTrafficInSight = false;
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.True(ac.HasReportedTrafficInSight);
+        Assert.True(ac.Approach.HasReportedTrafficInSight);
     }
 
     [Fact]
     public void Rfisf_ForcesFieldInSight()
     {
         var ac = MakeAircraft();
-        ac.HasReportedFieldInSight = false;
+        ac.Approach.HasReportedFieldInSight = false;
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.True(ac.HasReportedFieldInSight);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
     }
 
     [Fact]
     public void CvaFollow_Succeeds_AfterRtisf()
     {
         var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
-        ac.HasReportedTrafficInSight = false;
+        ac.Approach.HasReportedTrafficInSight = false;
 
         // Force traffic in sight via RTISF
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
@@ -391,7 +391,7 @@ public class AirborneFollowTests : IDisposable
         var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac);
 
         Assert.True(result.Success);
-        Assert.Equal("LEAD", ac.FollowingCallsign);
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
     }
 
     // -------------------------------------------------------------------------

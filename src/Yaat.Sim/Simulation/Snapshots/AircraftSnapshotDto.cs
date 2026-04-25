@@ -25,135 +25,25 @@ public sealed class AircraftSnapshotDto
     public required double WindN { get; init; }
     public required double WindE { get; init; }
 
-    // Flight plan
-    public required bool HasFlightPlan { get; init; }
-    public required string Departure { get; init; }
-    public required string Destination { get; init; }
-    public required string Route { get; init; }
-    public required string Remarks { get; init; }
-    public int RevisionNumber { get; init; }
-    public required string EquipmentSuffix { get; init; }
-    public required string FlightRules { get; init; }
-    public required int CruiseAltitude { get; init; }
-    public required int CruiseSpeed { get; init; }
-    public required string TransponderMode { get; init; }
+    public required AircraftFlightPlanDto FlightPlan { get; init; }
+    public required AircraftGroundOpsDto Ground { get; init; }
 
-    // Beacon
-    public required uint AssignedBeaconCode { get; init; }
-    public required uint BeaconCode { get; init; }
-    public required bool IsIdenting { get; init; }
-    public double? IdentStartedAt { get; init; }
+    public required AircraftTransponderDto Transponder { get; init; }
 
-    // One-shot flag set after AtParkingPhase emits the spawn check-in. Optional so older
-    // snapshots default to false (the readback then fires once on resume).
-    public bool HasAnnouncedReady { get; init; }
-
-    // Ground state
     public required bool IsOnGround { get; init; }
-    public string? ParkingSpot { get; init; }
-    public string? CurrentTaxiway { get; init; }
-    public required bool IsHeld { get; init; }
-    public string? GiveWayTarget { get; init; }
-    public required bool AutoDeleteExempt { get; init; }
-    public required double ConflictBreakRemainingSeconds { get; init; }
-    public double? GroundSpeedLimit { get; init; }
-    public double? PushbackTrueHeadingDeg { get; init; }
 
-    // Track operations
-    public TrackOwnerDto? Owner { get; init; }
-    public TrackOwnerDto? HandoffPeer { get; init; }
-    public TrackOwnerDto? HandoffRedirectedBy { get; init; }
-    public PointoutDto? Pointout { get; init; }
-    public string? Scratchpad1 { get; init; }
-    public required bool WasScratchpad1Cleared { get; init; }
-    public string? PreviousScratchpad1 { get; init; }
-    public string? Scratchpad2 { get; init; }
-    public string? PreviousScratchpad2 { get; init; }
-    public string? AsdexScratchpad1 { get; init; }
-    public string? AsdexScratchpad2 { get; init; }
-    public int? TemporaryAltitude { get; init; }
-    public int? PilotReportedAltitude { get; init; }
-    public required bool IsAnnotated { get; init; }
-    public required bool OnHandoff { get; init; }
-    public required bool HandoffAccepted { get; init; }
-    public double? HandoffInitiatedAt { get; init; }
-    public int? AssignedAltitude { get; init; }
+    public required AircraftTrackDto Track { get; init; }
+    public required AircraftStarsStateDto Stars { get; init; }
 
-    // Approach / procedure
-    public string? ExpectedApproach { get; init; }
-    public PendingApproachDto? PendingApproachClearance { get; init; }
-    public string? ActiveSidId { get; init; }
-    public string? ActiveStarId { get; init; }
-    public string? DepartureRunway { get; init; }
-    public string? DestinationRunway { get; init; }
-    public required bool SidViaMode { get; init; }
-    public required bool StarViaMode { get; init; }
-    public int? SidViaCeiling { get; init; }
-    public int? StarViaFloor { get; init; }
-    public required bool SpeedRestrictionsDeleted { get; init; }
-    public required bool IsExpediting { get; init; }
-    public double? PatternSizeOverrideNm { get; init; }
-    public double? PatternAltitudeOverrideFt { get; init; }
-
-    // Visual approach
-    public required bool HasReportedFieldInSight { get; init; }
-    public required bool HasReportedTrafficInSight { get; init; }
-    public string? LastReportedTrafficCallsign { get; init; }
-    public string? FollowingCallsign { get; init; }
-
-    // CRC display
-    public required int VoiceType { get; init; }
-    public required bool TdlsDumped { get; init; }
-
-    // ERAM per-track state (CRC display)
-    public required bool IsDwellLocked { get; init; }
-    public required bool IsVci { get; init; }
-    public int? EramLeaderDirection { get; init; }
-    public int? EramLeaderLength { get; init; }
-    public int? EramInterimAltitude { get; init; }
-    public int? LocalInterimAltitude { get; init; }
-    public int? ProcedureAltitude { get; init; }
-    public int? ControllerEnteredAltitude { get; init; }
-    public List<EramPointoutStateDto>? EramPointouts { get; init; }
-
-    // Hold annotations
-    public string? HoldAnnotationFix { get; init; }
-    public required int HoldAnnotationDirection { get; init; }
-    public required int HoldAnnotationTurns { get; init; }
-    public int? HoldAnnotationLegLength { get; init; }
-    public required bool HoldAnnotationLegLengthInNm { get; init; }
-    public required int HoldAnnotationEfc { get; init; }
-
-    // Clearance (departure from CRC)
-    public string? ClearanceExpect { get; init; }
-    public string? ClearanceSid { get; init; }
-    public string? ClearanceTransition { get; init; }
-    public string? ClearanceClimbout { get; init; }
-    public string? ClearanceClimbvia { get; init; }
-    public string? ClearanceInitialAlt { get; init; }
-    public string? ClearanceContactInfo { get; init; }
-    public string? ClearanceLocalInfo { get; init; }
-    public string? ClearanceDepFreq { get; init; }
-
-    // Unsupported (ghost) tracks
-    public required bool IsUnsupported { get; init; }
-    public double? UnsupportedLatitude { get; init; }
-    public double? UnsupportedLongitude { get; init; }
-    public string? GhostAirportId { get; init; }
-    public string? GhostRunwayId { get; init; }
-
-    // Ground vehicle classification (excluded from STARS)
-    public required bool IsVehicle { get; init; }
-
-    // Conflict alert / display inhibitions
-    public required bool IsCaInhibited { get; init; }
-    public required bool IsModeCInhibited { get; init; }
-    public required bool IsMsawInhibited { get; init; }
-    public required bool IsDuplicateBeaconInhibited { get; init; }
-    public int? TpaType { get; init; }
-    public int? GlobalLeaderDirection { get; init; }
-    public List<TcpDto>? ForcedPointoutsTo { get; init; }
-    public Dictionary<string, SharedStateDto>? SharedState { get; init; }
+    // Domain sub-objects
+    public required AircraftApproachStateDto Approach { get; init; }
+    public required AircraftProcedureDto Procedure { get; init; }
+    public required AircraftPatternDto Pattern { get; init; }
+    public required AircraftVoiceDto Voice { get; init; }
+    public required AircraftHoldAnnotationDto HoldAnnotation { get; init; }
+    public required AircraftEramStateDto Eram { get; init; }
+    public required AircraftClearanceDto Clearance { get; init; }
+    public required AircraftGhostTrackDto Ghost { get; init; }
 
     // Position history
     public List<PositionDto>? PositionHistory { get; init; }
@@ -166,7 +56,6 @@ public sealed class AircraftSnapshotDto
     public required CommandQueueDto Queue { get; init; }
     public PhaseListDto? Phases { get; init; }
     public List<DeferredDispatchDto>? DeferredDispatches { get; init; }
-    public TaxiRouteDto? AssignedTaxiRoute { get; init; }
 }
 
 // --- Nested DTOs ---

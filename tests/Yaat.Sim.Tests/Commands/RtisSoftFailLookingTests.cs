@@ -45,8 +45,8 @@ public class RtisSoftFailLookingTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success, $"Expected soft-fail success but got: {result.Message}");
-        Assert.False(ownship.HasReportedTrafficInSight);
-        Assert.Null(ownship.LastReportedTrafficCallsign);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
+        Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
         Assert.Contains("looking", ownship.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
 
         var obs = Assert.Single(ownship.PendingObservations);
@@ -64,7 +64,7 @@ public class RtisSoftFailLookingTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ownship.HasReportedTrafficInSight);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Single(ownship.PendingObservations);
     }
 
@@ -174,8 +174,8 @@ public class RtisSoftFailLookingTests
 
         PilotObservationUpdater.Update(ownship, cs => cs == "LEAD" ? lead : null, weather: null);
 
-        Assert.True(ownship.HasReportedTrafficInSight);
-        Assert.Equal("LEAD", ownship.LastReportedTrafficCallsign);
+        Assert.True(ownship.Approach.HasReportedTrafficInSight);
+        Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
         Assert.Empty(ownship.PendingObservations);
         // Acquisition readback routes through PendingWarnings (WRN/Orange) for visibility.
         Assert.Contains("in sight", ownship.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
@@ -193,7 +193,7 @@ public class RtisSoftFailLookingTests
 
         PilotObservationUpdater.Update(ownship, cs => cs == "LEAD" ? lead : null, weather: null);
 
-        Assert.False(ownship.HasReportedTrafficInSight);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Single(ownship.PendingObservations);
         // No re-emit of "looking" each tick.
         Assert.Empty(ownship.PendingNotifications);
@@ -242,7 +242,7 @@ public class RtisSoftFailLookingTests
 
         Assert.Empty(ownship.PendingObservations);
         Assert.Empty(ownship.PendingNotifications);
-        Assert.False(ownship.HasReportedTrafficInSight);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
     }
 
     // -------------------------------------------------------------------------
@@ -258,8 +258,8 @@ public class RtisSoftFailLookingTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
-        Assert.True(ownship.HasReportedTrafficInSight);
-        Assert.Equal("LEAD", ownship.LastReportedTrafficCallsign);
+        Assert.True(ownship.Approach.HasReportedTrafficInSight);
+        Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
         Assert.Empty(ownship.PendingObservations);
     }
 
@@ -278,7 +278,7 @@ public class RtisSoftFailLookingTests
             TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 250,
-            Destination = "KOAK",
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
         };
     }
 }

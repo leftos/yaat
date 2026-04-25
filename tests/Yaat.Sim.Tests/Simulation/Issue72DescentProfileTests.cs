@@ -73,7 +73,7 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         double spawnAlt = aircraft.Altitude;
-        output.WriteLine($"UAL238 at spawn: alt={spawnAlt:F0} StarViaMode={aircraft.StarViaMode}");
+        output.WriteLine($"UAL238 at spawn: alt={spawnAlt:F0} StarViaMode={aircraft.Procedure.StarViaMode}");
 
         var route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");

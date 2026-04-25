@@ -94,7 +94,7 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
 
             output.WriteLine(
                 $"t={t} gs={aircraft.GroundSpeed:F1} ias={aircraft.IndicatedAirspeed:F1} "
-                    + $"twy={aircraft.CurrentTaxiway ?? "(runway)"} "
+                    + $"twy={aircraft.Ground.CurrentTaxiway ?? "(runway)"} "
                     + $"pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) hdg={aircraft.TrueHeading.Degrees:F0}"
             );
             if (layout is not null)
@@ -144,9 +144,9 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
             // exit taxiway the phase committed to. We check it hasn't progressed
             // on to a different taxiway (aircraft might be taxiing onward); first
             // assignment is the exit choice.
-            if (aircraft.CurrentTaxiway is not null && lastTaxiway is null)
+            if (aircraft.Ground.CurrentTaxiway is not null && lastTaxiway is null)
             {
-                lastTaxiway = aircraft.CurrentTaxiway;
+                lastTaxiway = aircraft.Ground.CurrentTaxiway;
                 output.WriteLine($"t={t}: aircraft committed to taxiway {lastTaxiway} at gs={aircraft.GroundSpeed:F1}");
             }
 

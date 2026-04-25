@@ -34,8 +34,8 @@ public class ProcedureConstraintTests
     public void SidViaMode_AtOrAbove_ClimbsToRestriction()
     {
         var aircraft = CreateAircraft(altitude: 3000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -47,8 +47,8 @@ public class ProcedureConstraintTests
     public void SidViaMode_AtOrAbove_AlreadyAbove_NoChange()
     {
         var aircraft = CreateAircraft(altitude: 7000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -60,9 +60,9 @@ public class ProcedureConstraintTests
     public void SidViaMode_WithCeiling_CapsAltitude()
     {
         var aircraft = CreateAircraft(altitude: 3000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
-        aircraft.SidViaCeiling = 10000;
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaCeiling = 10000;
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 15000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -74,8 +74,8 @@ public class ProcedureConstraintTests
     public void StarViaMode_AtOrBelow_DescendsToRestriction()
     {
         var aircraft = CreateAircraft(altitude: 15000);
-        aircraft.StarViaMode = true;
-        aircraft.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -87,8 +87,8 @@ public class ProcedureConstraintTests
     public void StarViaMode_AtOrBelow_AlreadyBelow_NoChange()
     {
         var aircraft = CreateAircraft(altitude: 10000);
-        aircraft.StarViaMode = true;
-        aircraft.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -100,8 +100,8 @@ public class ProcedureConstraintTests
     public void StarViaMode_AtOrAbove_DescendsToRestriction()
     {
         var aircraft = CreateAircraft(altitude: 9000);
-        aircraft.StarViaMode = true;
-        aircraft.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -114,9 +114,9 @@ public class ProcedureConstraintTests
     public void StarViaMode_WithFloor_PreventsOverDescent()
     {
         var aircraft = CreateAircraft(altitude: 15000);
-        aircraft.StarViaMode = true;
-        aircraft.ActiveStarId = "BDEGA3";
-        aircraft.StarViaFloor = 10000;
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaFloor = 10000;
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -128,8 +128,8 @@ public class ProcedureConstraintTests
     public void ViaMode_AtRestriction_SetsExactAltitude()
     {
         var aircraft = CreateAircraft(altitude: 5000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -141,8 +141,8 @@ public class ProcedureConstraintTests
     public void ViaMode_BetweenRestriction_TooHigh_DescendsToLower()
     {
         var aircraft = CreateAircraft(altitude: 15000);
-        aircraft.StarViaMode = true;
-        aircraft.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -155,8 +155,8 @@ public class ProcedureConstraintTests
     public void ViaMode_BetweenRestriction_TooLow_ClimbsToUpper()
     {
         var aircraft = CreateAircraft(altitude: 8000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -169,8 +169,8 @@ public class ProcedureConstraintTests
     public void ViaMode_BetweenRestriction_WithinRange_DescendsToLowerBound()
     {
         var aircraft = CreateAircraft(altitude: 11000);
-        aircraft.StarViaMode = true;
-        aircraft.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -183,8 +183,8 @@ public class ProcedureConstraintTests
     public void SpeedRestriction_Applied()
     {
         var aircraft = CreateAircraft();
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         var target = MakeTarget(spd: new CifpSpeedRestriction(210, IsMaximum: true));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -251,8 +251,8 @@ public class ProcedureConstraintTests
     public void ApplyFixConstraints_SpeedRestrictionCappedBelow10000()
     {
         var aircraft = CreateAircraft(altitude: 5000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         var target = MakeTarget(spd: new CifpSpeedRestriction(280, IsMaximum: true));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -265,8 +265,8 @@ public class ProcedureConstraintTests
     public void ApplyFixConstraints_SpeedRestrictionNotCappedAbove10000()
     {
         var aircraft = CreateAircraft(altitude: 12000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         var target = MakeTarget(spd: new CifpSpeedRestriction(280, IsMaximum: true));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
@@ -279,12 +279,12 @@ public class ProcedureConstraintTests
     public void ProcedureState_ClearedOnRouteCompletion()
     {
         var aircraft = CreateAircraft(altitude: 5000);
-        aircraft.ActiveSidId = "PORTE3";
-        aircraft.SidViaMode = true;
-        aircraft.SidViaCeiling = 10000;
-        aircraft.ActiveStarId = "BDEGA3";
-        aircraft.StarViaMode = true;
-        aircraft.StarViaFloor = 5000;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.SidViaCeiling = 10000;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.StarViaFloor = 5000;
 
         // Place aircraft near the last fix so it will be reached
         aircraft.Position = new LatLon(37.5, -122.0);
@@ -294,20 +294,20 @@ public class ProcedureConstraintTests
         // Run a physics tick — aircraft is at the fix, route will empty
         FlightPhysics.Update(aircraft, 1.0);
 
-        Assert.Null(aircraft.ActiveSidId);
-        Assert.Null(aircraft.ActiveStarId);
-        Assert.False(aircraft.SidViaMode);
-        Assert.False(aircraft.StarViaMode);
-        Assert.Null(aircraft.SidViaCeiling);
-        Assert.Null(aircraft.StarViaFloor);
+        Assert.Null(aircraft.Procedure.ActiveSidId);
+        Assert.Null(aircraft.Procedure.ActiveStarId);
+        Assert.False(aircraft.Procedure.SidViaMode);
+        Assert.False(aircraft.Procedure.StarViaMode);
+        Assert.Null(aircraft.Procedure.SidViaCeiling);
+        Assert.Null(aircraft.Procedure.StarViaFloor);
     }
 
     [Fact]
     public void ConstraintsApplied_WhenAdvancingToNextFix()
     {
         var aircraft = CreateAircraft(altitude: 3000);
-        aircraft.SidViaMode = true;
-        aircraft.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ActiveSidId = "PORTE3";
 
         // Place aircraft near the first fix
         aircraft.Position = new LatLon(37.1, -122.0);

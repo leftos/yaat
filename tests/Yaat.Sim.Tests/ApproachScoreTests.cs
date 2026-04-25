@@ -42,7 +42,7 @@ public class ApproachScoreTests
             Altitude = altitude,
             IndicatedAirspeed = ias,
             Position = new LatLon(lat, lon),
-            Destination = "OAK",
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
         };
     }
 
@@ -589,7 +589,7 @@ public class ApproachScoreTests
     public void VfrAircraft_NoScoreCreated()
     {
         var aircraft = MakeEstablishedAircraft();
-        aircraft.FlightRules = "VFR";
+        aircraft.FlightPlan.FlightRules = "VFR";
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {

@@ -44,7 +44,7 @@ public sealed class PushbackToSpotPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
-        ctx.Aircraft.AssignedTaxiRoute = _route;
+        ctx.Aircraft.Ground.AssignedTaxiRoute = _route;
         SetupCurrentSegment(ctx);
 
         Log.LogDebug(
@@ -57,11 +57,11 @@ public sealed class PushbackToSpotPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        if (ctx.Aircraft.IsHeld)
+        if (ctx.Aircraft.Ground.IsHeld)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
-            ctx.Aircraft.PushbackTrueHeading = null;
+            ctx.Aircraft.Ground.PushbackTrueHeading = null;
             return false;
         }
 
@@ -71,7 +71,7 @@ public sealed class PushbackToSpotPhase : Phase
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
-            ctx.Aircraft.PushbackTrueHeading = null;
+            ctx.Aircraft.Ground.PushbackTrueHeading = null;
 
             if (_targetHeading is not { } finalHdg)
             {
@@ -92,21 +92,23 @@ public sealed class PushbackToSpotPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
-            TrueHeading currentPush = ctx.Aircraft.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal();
+            TrueHeading currentPush = ctx.Aircraft.Ground.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal();
             double maxTurn = turnRate * ctx.DeltaSeconds;
-            ctx.Aircraft.PushbackTrueHeading = GeoMath.TurnHeadingToward(currentPush, _pivotTargetHeading.Degrees, maxTurn);
+            ctx.Aircraft.Ground.PushbackTrueHeading = GeoMath.TurnHeadingToward(currentPush, _pivotTargetHeading.Degrees, maxTurn);
 
-            TrueHeading desiredNose = ctx.Aircraft.PushbackTrueHeading.Value.ToReciprocal();
+            TrueHeading desiredNose = ctx.Aircraft.Ground.PushbackTrueHeading.Value.ToReciprocal();
             ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, desiredNose.Degrees, maxTurn);
 
-            double diff = Math.Abs(GeoMath.SignedBearingDifference(_pivotTargetHeading.Degrees, ctx.Aircraft.PushbackTrueHeading.Value.Degrees));
+            double diff = Math.Abs(
+                GeoMath.SignedBearingDifference(_pivotTargetHeading.Degrees, ctx.Aircraft.Ground.PushbackTrueHeading.Value.Degrees)
+            );
             if (diff < HeadingReachedDeg)
             {
                 _pivoting = false;
                 Log.LogDebug(
                     "[PushSpot] {Callsign}: pivot complete, pushHdg={PushHdg:F0}, resuming movement",
                     ctx.Aircraft.Callsign,
-                    ctx.Aircraft.PushbackTrueHeading.Value.Degrees
+                    ctx.Aircraft.Ground.PushbackTrueHeading.Value.Degrees
                 );
             }
 
@@ -125,14 +127,14 @@ public sealed class PushbackToSpotPhase : Phase
         // Steer PushbackHeading toward current target (tail moves toward target)
         double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         double maxArcTurn = turnRate * ctx.DeltaSeconds;
-        ctx.Aircraft.PushbackTrueHeading = GeoMath.TurnHeadingToward(
-            ctx.Aircraft.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal(),
+        ctx.Aircraft.Ground.PushbackTrueHeading = GeoMath.TurnHeadingToward(
+            ctx.Aircraft.Ground.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal(),
             bearingToTarget,
             maxArcTurn
         );
 
         // Keep nose facing opposite of pushback direction
-        TrueHeading desNose = ctx.Aircraft.PushbackTrueHeading.Value.ToReciprocal();
+        TrueHeading desNose = ctx.Aircraft.Ground.PushbackTrueHeading.Value.ToReciprocal();
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, desNose.Degrees, turnRate * ctx.DeltaSeconds);
 
         ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
@@ -149,7 +151,7 @@ public sealed class PushbackToSpotPhase : Phase
                 _route.Segments.Count,
                 dist,
                 ctx.Aircraft.GroundSpeed,
-                ctx.Aircraft.PushbackTrueHeading?.Degrees ?? 0,
+                ctx.Aircraft.Ground.PushbackTrueHeading?.Degrees ?? 0,
                 ctx.Aircraft.TrueHeading.Degrees
             );
         }
@@ -163,7 +165,7 @@ public sealed class PushbackToSpotPhase : Phase
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
-        ctx.Aircraft.PushbackTrueHeading = null;
+        ctx.Aircraft.Ground.PushbackTrueHeading = null;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
@@ -275,7 +277,7 @@ public sealed class PushbackToSpotPhase : Phase
             _reachedFinalNode = true;
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
-            ctx.Aircraft.PushbackTrueHeading = null;
+            ctx.Aircraft.Ground.PushbackTrueHeading = null;
             Log.LogDebug("[PushSpot] {Callsign}: reached destination, rotating to final heading", ctx.Aircraft.Callsign);
 
             if (_targetHeading is null)
@@ -290,7 +292,7 @@ public sealed class PushbackToSpotPhase : Phase
 
         // Check if the next segment requires a large heading change — pivot in place
         double nextBearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
-        TrueHeading currentPush = ctx.Aircraft.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal();
+        TrueHeading currentPush = ctx.Aircraft.Ground.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal();
         double headingChange = Math.Abs(GeoMath.SignedBearingDifference(nextBearing, currentPush.Degrees));
 
         if (headingChange > PivotThresholdDeg)

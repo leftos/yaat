@@ -98,7 +98,7 @@ public class HoldShortQueueTests
             Position = position,
             TrueHeading = new TrueHeading(180), // heading south toward hold-short
             IsOnGround = true,
-            Departure = "KOAK",
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
         };
     }
 
@@ -140,7 +140,7 @@ public class HoldShortQueueTests
         var startNode = layout.Nodes[2];
         var acB = MakeAircraft("TAXI01", "C172", startNode.Position);
         var route = MakeRouteToHoldShort(layout, 2, hsNodeId);
-        acB.AssignedTaxiRoute = route;
+        acB.Ground.AssignedTaxiRoute = route;
         acB.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         acB.Phases.Add(taxiPhase);
@@ -222,7 +222,7 @@ public class HoldShortQueueTests
             ],
             CurrentSegmentIndex = 0,
         };
-        acB.AssignedTaxiRoute = route;
+        acB.Ground.AssignedTaxiRoute = route;
         acB.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         acB.Phases.Add(taxiPhase);
@@ -287,7 +287,7 @@ public class HoldShortQueueTests
 
         // At 120ft behind a 129.5ft aircraft, trailer should be stopped
         // (stop distance = leader length + 25 = 154.5ft, and 120 < 154.5)
-        Assert.NotNull(trailer.GroundSpeedLimit);
-        Assert.Equal(0.0, trailer.GroundSpeedLimit.Value);
+        Assert.NotNull(trailer.Ground.SpeedLimit);
+        Assert.Equal(0.0, trailer.Ground.SpeedLimit.Value);
     }
 }

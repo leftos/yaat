@@ -22,7 +22,7 @@ public class WaitCommandDispatchTests
             Altitude = 13,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = "KSFO",
+            FlightPlan = new AircraftFlightPlan { Departure = "KSFO" },
         };
     }
 
@@ -209,7 +209,7 @@ public class WaitCommandDispatchTests
         // Queue untouched
         Assert.Empty(ac.Queue.Blocks);
         // GiveWay target set on aircraft
-        Assert.Equal("UAL999", ac.GiveWayTarget);
+        Assert.Equal("UAL999", ac.Ground.GiveWayTarget);
         // One deferred dispatch with GiveWay target
         Assert.Single(ac.DeferredDispatches);
         Assert.Equal("UAL999", ac.DeferredDispatches[0].GiveWayTarget);
@@ -235,7 +235,7 @@ public class WaitCommandDispatchTests
         Assert.NotNull(ac.Phases);
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases.CurrentPhase);
         // GiveWay deferred
-        Assert.Equal("UAL999", ac.GiveWayTarget);
+        Assert.Equal("UAL999", ac.Ground.GiveWayTarget);
         Assert.Single(ac.DeferredDispatches);
         Assert.Equal("UAL999", ac.DeferredDispatches[0].GiveWayTarget);
         Assert.IsType<TaxiCommand>(ac.DeferredDispatches[0].Payload.Blocks[0].Commands[0]);

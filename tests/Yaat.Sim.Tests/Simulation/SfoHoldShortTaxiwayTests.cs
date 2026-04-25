@@ -63,7 +63,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         output.WriteLine(
             $"N346G: type={aircraft.AircraftType} pos=({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6}), gs={aircraft.GroundSpeed:F1}"
         );
-        if (aircraft.AssignedTaxiRoute is { } route)
+        if (aircraft.Ground.AssignedTaxiRoute is { } route)
         {
             output.WriteLine($"Route: {route.ToSummary()}, segIdx={route.CurrentSegmentIndex}/{route.Segments.Count}");
             foreach (var hs in route.HoldShortPoints)
@@ -133,7 +133,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         // Find the explicit hold-short for taxiway E
@@ -154,7 +154,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         Assert.NotNull(hsE.Longitude);
 
         // The hold-short node should be the C/E intersection node (has an edge on taxiway E)
-        var layout = aircraft.GroundLayout;
+        var layout = aircraft.Ground.Layout;
         Assert.NotNull(layout);
 
         Assert.True(layout.Nodes.TryGetValue(hsE.NodeId, out var intersectionNode), $"Node {hsE.NodeId} not found in layout");
@@ -298,7 +298,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
 
         // Verify the hold-short list has ExplicitHoldShort AFTER DestinationRunway
         // (this is the condition that triggers the bug)
-        var route = aircraft.AssignedTaxiRoute;
+        var route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         foreach (var hs in route.HoldShortPoints)
         {
@@ -310,6 +310,6 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         output.WriteLine($"CTO result: success={result.Success}, message={result.Message}");
 
         Assert.True(result.Success, $"CTO from taxiway hold-short should succeed: {result.Message}");
-        Assert.Equal("28R", aircraft.DepartureRunway);
+        Assert.Equal("28R", aircraft.Procedure.DepartureRunway);
     }
 }

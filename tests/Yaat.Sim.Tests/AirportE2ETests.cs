@@ -45,7 +45,7 @@ public class AirportE2ETests
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            Departure = departure,
+            FlightPlan = new AircraftFlightPlan { Departure = departure },
         };
         ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
@@ -95,10 +95,10 @@ public class AirportE2ETests
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
-        Assert.NotNull(ac.AssignedTaxiRoute);
+        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
         // Route should start with RAMP (parking→taxiway) then have D segments
-        Assert.Contains(ac.AssignedTaxiRoute!.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(ac.Ground.AssignedTaxiRoute!.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
         Assert.IsType<TaxiingPhase>(ac.Phases!.CurrentPhase);
     }
 
@@ -122,8 +122,8 @@ public class AirportE2ETests
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
-        Assert.Contains(ac.AssignedTaxiRoute!.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(ac.AssignedTaxiRoute.Segments, s => string.Equals(s.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(ac.Ground.AssignedTaxiRoute!.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(ac.Ground.AssignedTaxiRoute.Segments, s => string.Equals(s.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -150,11 +150,11 @@ public class AirportE2ETests
         Assert.IsType<TaxiingPhase>(ac.Phases!.CurrentPhase);
 
         // Route should have D, C, B, and W segments
-        Assert.Contains(ac.AssignedTaxiRoute!.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(ac.AssignedTaxiRoute.Segments, s => string.Equals(s.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(ac.Ground.AssignedTaxiRoute!.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(ac.Ground.AssignedTaxiRoute.Segments, s => string.Equals(s.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase));
 
         // Should end with a hold-short for runway 30 (destination)
-        var destHs = ac.AssignedTaxiRoute.HoldShortPoints.Where(h => h.Reason == HoldShortReason.DestinationRunway).ToList();
+        var destHs = ac.Ground.AssignedTaxiRoute.HoldShortPoints.Where(h => h.Reason == HoldShortReason.DestinationRunway).ToList();
         Assert.True(destHs.Count > 0, "Should have destination runway hold-short");
     }
 
@@ -176,7 +176,7 @@ public class AirportE2ETests
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
-        var route = ac.AssignedTaxiRoute!;
+        var route = ac.Ground.AssignedTaxiRoute!;
 
         var allHs = route.HoldShortPoints;
         var hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
@@ -225,7 +225,7 @@ public class AirportE2ETests
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed (width={widthFt}): {result.Message}");
 
-        var route = ac.AssignedTaxiRoute!;
+        var route = ac.Ground.AssignedTaxiRoute!;
         var allHs = route.HoldShortPoints;
         var hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
 
@@ -340,7 +340,7 @@ public class AirportE2ETests
         Assert.True(result.Success, $"Taxi D K F should succeed: {result.Message}");
 
         // Should have hold-short(s) for runway 15/33 crossing
-        var hsRwy = ac.AssignedTaxiRoute!.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing).ToList();
+        var hsRwy = ac.Ground.AssignedTaxiRoute!.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing).ToList();
         Assert.True(hsRwy.Count > 0, "Should have runway crossing hold-short(s)");
     }
 
@@ -380,7 +380,8 @@ public class AirportE2ETests
         Assert.True(result.Success, $"Taxi D K F (auto-cross) should succeed: {result.Message}");
 
         // All runway crossing hold-shorts should be pre-cleared
-        var unclearedCrossings = ac.AssignedTaxiRoute!.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing && !h.IsCleared)
+        var unclearedCrossings = ac
+            .Ground.AssignedTaxiRoute!.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing && !h.IsCleared)
             .ToList();
         Assert.Empty(unclearedCrossings);
     }
@@ -408,7 +409,7 @@ public class AirportE2ETests
         Assert.IsType<TaxiingPhase>(ac.Phases!.CurrentPhase);
 
         // Verify route has destination hold-short for runway 30
-        var destHs = ac.AssignedTaxiRoute!.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        var destHs = ac.Ground.AssignedTaxiRoute!.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.NotNull(destHs);
 
         // The destination hold-short target should reference runway 30
@@ -835,7 +836,7 @@ public class AirportE2ETests
 
         // The route goes south (away from gate 7A and taxiway A).
         // Last segment ends at the southernmost T7A node (dead end).
-        var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+        var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
 
         // The dead-end node should be further south (lower latitude) than the pushback node
@@ -876,7 +877,7 @@ public class AirportE2ETests
         Assert.True(result.Success, $"TAXI $7A should succeed: {result.Message}");
 
         // Route should end at or very near gate 7A
-        var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+        var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
         double distToSpot = GeoMath.DistanceNm(lastNode.Position, spot7A.Position);
         Assert.True(distToSpot < 0.02, $"TAXI $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
@@ -912,7 +913,7 @@ public class AirportE2ETests
         if (result.Success)
         {
             // If it succeeds, verify route ends near gate 7A
-            var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+            var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
             var lastNode = layout.Nodes[lastSeg.ToNodeId];
             double distToSpot = GeoMath.DistanceNm(lastNode.Position, spot7A.Position);
             Assert.True(distToSpot < 0.02, $"TAXI T7A $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
@@ -947,7 +948,10 @@ public class AirportE2ETests
         Assert.True(result.Success, $"Taxi T7A should succeed: {result.Message}");
 
         // Route should be short (only a few segments on the spur)
-        Assert.True(ac.AssignedTaxiRoute!.Segments.Count <= 10, $"T7A spur should be short, got {ac.AssignedTaxiRoute.Segments.Count} segments");
+        Assert.True(
+            ac.Ground.AssignedTaxiRoute!.Segments.Count <= 10,
+            $"T7A spur should be short, got {ac.Ground.AssignedTaxiRoute.Segments.Count} segments"
+        );
 
         // Run taxi naturally — T7A spur is ~0.05nm.
         // TaxiingPhase adjusts heading/speed but doesn't move position;
@@ -1006,10 +1010,10 @@ public class AirportE2ETests
         Assert.True(result1.Success, $"TAXI $7A should succeed: {result1.Message}");
 
         // Simulate route completion: place aircraft at destination and mark route done.
-        var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+        var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
         ac.Position = lastNode.Position;
-        ac.AssignedTaxiRoute.CurrentSegmentIndex = ac.AssignedTaxiRoute.Segments.Count;
+        ac.Ground.AssignedTaxiRoute.CurrentSegmentIndex = ac.Ground.AssignedTaxiRoute.Segments.Count;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingInPositionPhase());
         ac.Phases.Start(MinCtx(ac));
@@ -1195,7 +1199,7 @@ public class AirportE2ETests
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
-        var route = ac.AssignedTaxiRoute!;
+        var route = ac.Ground.AssignedTaxiRoute!;
         var crossings = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing).ToList();
         var destinations = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.DestinationRunway).ToList();
 
@@ -1243,14 +1247,14 @@ public class AirportE2ETests
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");
         Assert.Contains("A9", result.Message!);
         Assert.IsType<PushbackToSpotPhase>(ac.Phases!.CurrentPhase);
-        Assert.Equal("A9", ac.ParkingSpot);
+        Assert.Equal("A9", ac.Ground.ParkingSpot);
 
         // Route should have at least 1 segment
-        Assert.NotNull(ac.AssignedTaxiRoute);
-        Assert.True(ac.AssignedTaxiRoute.Segments.Count > 0, "Route should have segments");
+        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
+        Assert.True(ac.Ground.AssignedTaxiRoute.Segments.Count > 0, "Route should have segments");
 
         // Final node should be near A9
-        var lastSeg = ac.AssignedTaxiRoute.Segments[^1];
+        var lastSeg = ac.Ground.AssignedTaxiRoute.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
         double distToA9 = GeoMath.DistanceNm(lastNode.Position, a9.Position);
         Assert.True(distToA9 < 0.02, $"Route should end near A9: dist={distToA9:F4}nm");
@@ -1302,9 +1306,9 @@ public class AirportE2ETests
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
-        Assert.NotNull(ac.AssignedTaxiRoute);
+        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
-        var route = ac.AssignedTaxiRoute!;
+        var route = ac.Ground.AssignedTaxiRoute!;
         var hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
 
         // Route should NOT cross runway 28R — aircraft is already on the correct side

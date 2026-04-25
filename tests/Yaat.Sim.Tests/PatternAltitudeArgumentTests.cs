@@ -164,14 +164,13 @@ public class PatternAltitudeArgumentTests
             Altitude = 1100,
             IndicatedAirspeed = 90,
             IsOnGround = false,
-            Departure = "KOAK",
-            Destination = "KOAK",
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };
 
         var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, null, 1500);
 
         Assert.True(result.Success);
-        Assert.Equal(1500, ac.PatternAltitudeOverrideFt);
+        Assert.Equal(1500, ac.Pattern.AltitudeOverrideFt);
     }
 }

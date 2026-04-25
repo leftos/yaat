@@ -303,7 +303,7 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
                 output.WriteLine(
                     $"[t={t}] phase={ac.Phases?.CurrentPhase?.Name ?? "(none)"} "
                         + $"lat={ac.Position.Lat:F6} lon={ac.Position.Lon:F6} hdg={ac.TrueHeading.Degrees:F2}° "
-                        + $"ias={ac.IndicatedAirspeed:F2}kt alt={ac.Altitude:F0}ft twy={ac.CurrentTaxiway ?? "-"}"
+                        + $"ias={ac.IndicatedAirspeed:F2}kt alt={ac.Altitude:F0}ft twy={ac.Ground.CurrentTaxiway ?? "-"}"
                 );
             }
 

@@ -68,7 +68,7 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("DAL1352");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"DAL1352: StarViaMode={aircraft.StarViaMode}, ActiveStarId={aircraft.ActiveStarId}");
+        output.WriteLine($"DAL1352: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude}");
 
         var route = aircraft.Targets.NavigationRoute;
@@ -80,7 +80,7 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
             output.WriteLine($"    {fix.Name}{constraint}{speed}");
         }
 
-        Assert.True(aircraft.StarViaMode, "StarViaMode should be true even without runway in nav path");
+        Assert.True(aircraft.Procedure.StarViaMode, "StarViaMode should be true even without runway in nav path");
 
         // Route should have altitude constraints from CIFP — including runway transition legs
         int constraintCount = route.Count(t => t.AltitudeRestriction is not null);
@@ -112,7 +112,7 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("AAL680");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"AAL680: StarViaMode={aircraft.StarViaMode}, ActiveStarId={aircraft.ActiveStarId}");
+        output.WriteLine($"AAL680: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
 
         var route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
@@ -122,7 +122,7 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
             output.WriteLine($"    {fix.Name}{constraint}");
         }
 
-        Assert.True(aircraft.StarViaMode, "StarViaMode should be enabled for delayed aircraft without runway suffix");
+        Assert.True(aircraft.Procedure.StarViaMode, "StarViaMode should be enabled for delayed aircraft without runway suffix");
 
         int constraintCount = route.Count(t => t.AltitudeRestriction is not null);
         Assert.True(constraintCount >= 2, $"Delayed aircraft should also have runway-transition constraints, but has {constraintCount}");

@@ -19,7 +19,7 @@ public class PilotResponderTests
         {
             Callsign = callsign,
             AircraftType = "B738",
-            ParkingSpot = parkingSpot,
+            Ground = new AircraftGroundOps { ParkingSpot = parkingSpot },
         };
     }
 

@@ -28,9 +28,12 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
             Altitude = 2000,
             IndicatedAirspeed = 120,
             IsOnGround = false,
-            Departure = "OAK",
-            CruiseAltitude = 3000,
-            FlightRules = "VFR",
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                CruiseAltitude = 3000,
+                FlightRules = "VFR",
+            },
         };
     }
 
@@ -44,7 +47,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         var ac = MakeAirborneAircraft();
         Assert.Null(ac.Phases);
 
-        var parseResult = CommandParser.ParseCompound(command, ac.Route);
+        var parseResult = CommandParser.ParseCompound(command, ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
@@ -76,7 +79,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         ac.Phases.Add(new VfrHoldPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var parseResult = CommandParser.ParseCompound("R360", ac.Route);
+        var parseResult = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));

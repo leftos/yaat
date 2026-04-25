@@ -137,7 +137,7 @@ public class FlightCommandFeedbackTests
     public void FlyHeading_WithPriorSid_ShowsPrevious()
     {
         var ac = CreateAircraft();
-        ac.ActiveSidId = "OFFSH2";
+        ac.Procedure.ActiveSidId = "OFFSH2";
 
         var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 
@@ -149,7 +149,7 @@ public class FlightCommandFeedbackTests
     public void FlyHeading_WithPriorStar_ShowsPrevious()
     {
         var ac = CreateAircraft();
-        ac.ActiveStarId = "BDEGA2";
+        ac.Procedure.ActiveStarId = "BDEGA2";
 
         var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 

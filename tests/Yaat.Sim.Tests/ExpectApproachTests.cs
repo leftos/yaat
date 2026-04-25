@@ -23,7 +23,7 @@ public class ExpectApproachTests
             TrueHeading = new TrueHeading(280),
             Altitude = 5000,
             Position = new LatLon(37.75, -122.35),
-            Destination = destination,
+            FlightPlan = new AircraftFlightPlan { Destination = destination },
         };
     }
 
@@ -74,7 +74,7 @@ public class ExpectApproachTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.Equal("I28R", aircraft.ExpectedApproach);
+        Assert.Equal("I28R", aircraft.Approach.Expected);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class ExpectApproachTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.Equal("I28R", aircraft.ExpectedApproach);
+        Assert.Equal("I28R", aircraft.Approach.Expected);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class ExpectApproachTests
     public void Eapp_OverwritesPreviousExpectedApproach()
     {
         var aircraft = MakeAircraft();
-        aircraft.ExpectedApproach = "V28L";
+        aircraft.Approach.Expected = "V28L";
         var navDb = MakeNavDb();
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
@@ -133,7 +133,7 @@ public class ExpectApproachTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.Equal("I28R", aircraft.ExpectedApproach);
+        Assert.Equal("I28R", aircraft.Approach.Expected);
     }
 
     [Fact]
@@ -148,6 +148,6 @@ public class ExpectApproachTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.Equal("I28R", aircraft.ExpectedApproach);
+        Assert.Equal("I28R", aircraft.Approach.Expected);
     }
 }

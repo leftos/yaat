@@ -1057,7 +1057,7 @@ public sealed class GroundNavigator
     /// caps that physics layers above us enforce.
     /// </summary>
     private static double ClampBySpeedLimit(PhaseContext ctx, double requested) =>
-        ctx.Aircraft.GroundSpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
+        ctx.Aircraft.Ground.SpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
 
     /// <summary>
     /// Accelerate/decelerate toward <paramref name="targetSpeed"/> bounded by
@@ -1066,7 +1066,7 @@ public sealed class GroundNavigator
     /// </summary>
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
     {
-        if (ctx.Aircraft.GroundSpeedLimit is { } limit)
+        if (ctx.Aircraft.Ground.SpeedLimit is { } limit)
         {
             targetSpeed = Math.Min(targetSpeed, limit);
         }
@@ -1102,7 +1102,7 @@ public sealed class GroundNavigator
             SegFromLon: _segmentFromLon
         );
         LastTickDiag = diag;
-        ctx.Aircraft.LastNavDiag = diag;
+        ctx.Aircraft.Ground.LastNavDiag = diag;
     }
 
     // ---- Snapshot ----

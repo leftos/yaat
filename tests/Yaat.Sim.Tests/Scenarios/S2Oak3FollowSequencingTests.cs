@@ -60,7 +60,7 @@ public class S2Oak3FollowSequencingTests
         var aircraft = result.ImmediateAircraft;
         Assert.Equal(6, aircraft.Count);
         Assert.All(aircraft, a => Assert.Equal("C172", a.State.AircraftType));
-        Assert.All(aircraft, a => Assert.True(a.State.IsVfr, $"{a.State.Callsign} should be VFR"));
+        Assert.All(aircraft, a => Assert.True(a.State.FlightPlan.IsVfr, $"{a.State.Callsign} should be VFR"));
         Assert.All(aircraft, a => Assert.False(a.State.IsOnGround, $"{a.State.Callsign} should be airborne"));
     }
 
@@ -95,7 +95,7 @@ public class S2Oak3FollowSequencingTests
 
             Assert.True(cmdResult.Success, $"{follower.Callsign} FOLLOW {leadCallsign} failed: {cmdResult.Message}");
             Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
-            Assert.Equal(leadCallsign, follower.FollowingCallsign);
+            Assert.Equal(leadCallsign, follower.Approach.FollowingCallsign);
         }
     }
 

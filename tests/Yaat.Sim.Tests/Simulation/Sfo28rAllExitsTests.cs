@@ -104,10 +104,13 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
             Altitude = runway28R.ElevationFt + 318,
             IndicatedAirspeed = 145,
             IsOnGround = false,
-            Departure = "SFO",
-            Destination = "SFO",
-            FlightRules = "IFR",
-            CruiseAltitude = 3000,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "SFO",
+                Destination = "SFO",
+                FlightRules = "IFR",
+                CruiseAltitude = 3000,
+            },
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway28R };
@@ -115,7 +118,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
@@ -158,7 +161,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
 
             if (phase.Contains("Hold") || phase.Contains("Taxi"))
             {
-                output.WriteLine($"  → Exited on {aircraft.CurrentTaxiway}, hdg={aircraft.TrueHeading.Degrees:F0}°, t={t}s");
+                output.WriteLine($"  → Exited on {aircraft.Ground.CurrentTaxiway}, hdg={aircraft.TrueHeading.Degrees:F0}°, t={t}s");
                 break;
             }
 
@@ -285,10 +288,13 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
             Altitude = runway28R.ElevationFt + 318, // ~3° glide slope at 1nm
             IndicatedAirspeed = 145,
             IsOnGround = false,
-            Departure = "SFO",
-            Destination = "SFO",
-            FlightRules = "IFR",
-            CruiseAltitude = 3000,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "SFO",
+                Destination = "SFO",
+                FlightRules = "IFR",
+                CruiseAltitude = 3000,
+            },
         };
 
         var layout = new TestAirportGroundData().GetLayout("SFO");
@@ -299,7 +305,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
@@ -418,7 +424,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
 
         return new ExitTestResult
         {
-            FinalTaxiway = aircraft.CurrentTaxiway,
+            FinalTaxiway = aircraft.Ground.CurrentTaxiway,
             FinalHeading = aircraft.TrueHeading.Degrees,
             InitialExitHeading = initialExitHeading,
             TotalHeadingChange = totalHeadingChange,
@@ -500,10 +506,13 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
             Altitude = runway28R.ElevationFt + 318,
             IndicatedAirspeed = 145,
             IsOnGround = false,
-            Departure = "SFO",
-            Destination = "SFO",
-            FlightRules = "IFR",
-            CruiseAltitude = 3000,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "SFO",
+                Destination = "SFO",
+                FlightRules = "IFR",
+                CruiseAltitude = 3000,
+            },
         };
 
         var layout = groundData.GetLayout("SFO");
@@ -514,7 +523,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.GroundLayout = layout;
+        aircraft.Ground.Layout = layout;
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);

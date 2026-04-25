@@ -28,7 +28,7 @@ internal static class GoAroundHelper
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is going around ({reason})");
 
         // VFR aircraft without a pattern direction default to left traffic
-        if (ctx.Aircraft.IsVfr && ctx.Aircraft.Phases.TrafficDirection is null)
+        if (ctx.Aircraft.FlightPlan.IsVfr && ctx.Aircraft.Phases.TrafficDirection is null)
         {
             ctx.Aircraft.Phases.TrafficDirection = PatternDirection.Left;
         }

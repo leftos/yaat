@@ -5,7 +5,7 @@ namespace Yaat.Sim.Phases;
 /// <summary>
 /// Provides speed and timing adjustments for airborne aircraft following
 /// another aircraft (visual separation). Pattern and approach phases call
-/// these methods each tick when <see cref="AircraftState.FollowingCallsign"/>
+/// these methods each tick when <see cref="AircraftState.Approach.FollowingCallsign"/>
 /// is set.
 /// </summary>
 public static class AirborneFollowHelper
@@ -75,7 +75,7 @@ public static class AirborneFollowHelper
     /// </param>
     public static double? GetAdjustedSpeed(PhaseContext ctx, double normalSpeed, double minSpeed, double maxSpeedAdjustKts)
     {
-        string? targetCallsign = ctx.Aircraft.FollowingCallsign;
+        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
         if (targetCallsign is null)
         {
             return null;
@@ -86,7 +86,7 @@ public static class AirborneFollowHelper
         {
             // Leader disappeared — clear follow state, continue with normal speed
             Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
-            ctx.Aircraft.FollowingCallsign = null;
+            ctx.Aircraft.Approach.FollowingCallsign = null;
             return null;
         }
 
@@ -102,7 +102,7 @@ public static class AirborneFollowHelper
     /// </summary>
     public static double? GetAdjustedSpeedFreeFlight(PhaseContext ctx, double normalSpeed, double minSpeed)
     {
-        string? targetCallsign = ctx.Aircraft.FollowingCallsign;
+        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
         if (targetCallsign is null)
         {
             return null;
@@ -112,7 +112,7 @@ public static class AirborneFollowHelper
         if (target is null)
         {
             Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
-            ctx.Aircraft.FollowingCallsign = null;
+            ctx.Aircraft.Approach.FollowingCallsign = null;
             return null;
         }
 
@@ -126,7 +126,7 @@ public static class AirborneFollowHelper
     /// pursuit (lead not in a pattern). Treats the lead's ground speed as the
     /// "normal" target so the follower tracks the lead's speed with distance-based
     /// correction, using the wider free-flight desired distances. Does not read
-    /// or clear <see cref="AircraftState.FollowingCallsign"/> — the caller
+    /// or clear <see cref="AircraftState.Approach.FollowingCallsign"/> — the caller
     /// (VfrFollowPhase) owns that lifecycle.
     /// </summary>
     /// <param name="follower">Follower aircraft.</param>
@@ -182,7 +182,7 @@ public static class AirborneFollowHelper
         // separation. Cancel follow and warn once so the controller can intervene.
         if ((adjusted < minSpeed) && (distance < desired * 0.5))
         {
-            follower.FollowingCallsign = null;
+            follower.Approach.FollowingCallsign = null;
             follower.PendingWarnings.Add($"{follower.Callsign} unable to maintain separation from {lead.Callsign}, cancelling follow");
             logger.LogWarning(
                 "[Follow] {Callsign}: cancelled follow on {Target}, at min speed with dist={Dist:F2}nm (desired={Desired:F1}nm)",
@@ -203,7 +203,7 @@ public static class AirborneFollowHelper
     /// </summary>
     public static bool ShouldExtendDownwind(PhaseContext ctx)
     {
-        string? targetCallsign = ctx.Aircraft.FollowingCallsign;
+        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
         if (targetCallsign is null)
         {
             return false;

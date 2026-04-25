@@ -38,9 +38,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             TrueHeading = new TrueHeading(heading),
             Altitude = 5000,
             Position = new LatLon(lat, lon),
-            Destination = destination,
-            DestinationRunway = destinationRunway,
-            Route = route,
+            FlightPlan = new AircraftFlightPlan { Destination = destination, Route = route },
+            Procedure = new AircraftProcedure { DestinationRunway = destinationRunway },
         };
     }
 
@@ -192,7 +191,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         );
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "EMZOH", Position = new LatLon(emzohPos.Value.Lat, emzohPos.Value.Lon) });
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
-        aircraft.ExpectedApproach = "H12-Z";
+        aircraft.Approach.Expected = "H12-Z";
 
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
         var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
@@ -204,8 +203,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.Null(aircraft.Phases);
 
         // PendingApproachClearance should be set
-        Assert.NotNull(aircraft.PendingApproachClearance);
-        Assert.Equal("H12-Z", aircraft.PendingApproachClearance.Clearance.ApproachId);
+        Assert.NotNull(aircraft.Approach.PendingClearance);
+        Assert.Equal("H12-Z", aircraft.Approach.PendingClearance.Clearance.ApproachId);
 
         // NavigationRoute should contain STAR fixes + approach fixes after HIRMO
         var routeNames = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
@@ -221,7 +220,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.True(routeNames.Count > hirmoIdx + 1, "Expected approach fixes after HIRMO in nav route");
 
         // DestinationRunway should be set
-        Assert.Equal("12", aircraft.DestinationRunway);
+        Assert.Equal("12", aircraft.Procedure.DestinationRunway);
     }
 
     [Fact]
@@ -261,7 +260,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         // On assigned heading → immediate activation via intercept
         Assert.NotNull(aircraft.Phases);
-        Assert.Null(aircraft.PendingApproachClearance);
+        Assert.Null(aircraft.Approach.PendingClearance);
     }
 
     [Fact]
@@ -301,8 +300,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         // AT fix matches connecting fix → deferred, same as bare CAPP
         Assert.Null(aircraft.Phases);
-        Assert.NotNull(aircraft.PendingApproachClearance);
-        Assert.Equal("H12-Z", aircraft.PendingApproachClearance.Clearance.ApproachId);
+        Assert.NotNull(aircraft.Approach.PendingClearance);
+        Assert.Equal("H12-Z", aircraft.Approach.PendingClearance.Clearance.ApproachId);
     }
 
     [Fact]
@@ -340,7 +339,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
-        Assert.Null(aircraft.PendingApproachClearance);
+        Assert.Null(aircraft.Approach.PendingClearance);
     }
 
     [Fact]
@@ -372,14 +371,14 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         };
 
         var aircraft = MakeAircraft(destination: "KOAK", heading: 120, lat: 37.73, lon: -122.22);
-        aircraft.PendingApproachClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = runway };
+        aircraft.Approach.PendingClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = runway };
 
         // Simulate route emptying by calling Update with an empty route
         Assert.Empty(aircraft.Targets.NavigationRoute);
         FlightPhysics.Update(aircraft, 1.0);
 
         // Pending approach should be activated
-        Assert.Null(aircraft.PendingApproachClearance);
+        Assert.Null(aircraft.Approach.PendingClearance);
         Assert.NotNull(aircraft.Phases);
         Assert.Equal("H12-Z", aircraft.Phases.ActiveApproach?.ApproachId);
 

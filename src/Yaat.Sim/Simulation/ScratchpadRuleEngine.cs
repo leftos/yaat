@@ -20,25 +20,25 @@ public static class ScratchpadRuleEngine
             return;
         }
 
-        if (string.IsNullOrEmpty(ac.Scratchpad1))
+        if (string.IsNullOrEmpty(ac.Stars.Scratchpad1))
         {
             foreach (var rule in starsConfig.PrimaryScratchpadRules)
             {
                 if (Matches(rule, ac))
                 {
-                    ac.Scratchpad1 = rule.Template;
+                    ac.Stars.Scratchpad1 = rule.Template;
                     break;
                 }
             }
         }
 
-        if (string.IsNullOrEmpty(ac.Scratchpad2))
+        if (string.IsNullOrEmpty(ac.Stars.Scratchpad2))
         {
             foreach (var rule in starsConfig.SecondaryScratchpadRules)
             {
                 if (Matches(rule, ac))
                 {
-                    ac.Scratchpad2 = rule.Template;
+                    ac.Stars.Scratchpad2 = rule.Template;
                     break;
                 }
             }
@@ -52,7 +52,10 @@ public static class ScratchpadRuleEngine
             bool airportMatch = false;
             foreach (var apt in rule.AirportIds)
             {
-                if (NavigationDatabase.AirportIdsMatch(ac.Departure, apt) || NavigationDatabase.AirportIdsMatch(ac.Destination, apt))
+                if (
+                    NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Departure, apt)
+                    || NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Destination, apt)
+                )
                 {
                     airportMatch = true;
                     break;
@@ -68,7 +71,7 @@ public static class ScratchpadRuleEngine
         // Altitude filter — rule altitudes are in hundreds of feet, CruiseAltitude is in feet
         if (rule.MinAltitude is not null)
         {
-            var altHundreds = ac.CruiseAltitude / 100;
+            var altHundreds = ac.FlightPlan.CruiseAltitude / 100;
             if (altHundreds < rule.MinAltitude)
             {
                 return false;
@@ -77,7 +80,7 @@ public static class ScratchpadRuleEngine
 
         if (rule.MaxAltitude is not null)
         {
-            var altHundreds = ac.CruiseAltitude / 100;
+            var altHundreds = ac.FlightPlan.CruiseAltitude / 100;
             if (altHundreds > rule.MaxAltitude)
             {
                 return false;
@@ -88,7 +91,7 @@ public static class ScratchpadRuleEngine
         // '#' is wildcard suffix (e.g., "SEGUL#" matches "SEGUL1", "SEGUL2", etc.)
         if (!string.IsNullOrEmpty(rule.SearchPattern))
         {
-            return MatchesPattern(rule.SearchPattern, ac.Route);
+            return MatchesPattern(rule.SearchPattern, ac.FlightPlan.Route);
         }
 
         return true;

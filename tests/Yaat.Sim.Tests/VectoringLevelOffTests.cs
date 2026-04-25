@@ -23,8 +23,8 @@ public class VectoringLevelOffTests
     private static AircraftState CreateStarAircraft()
     {
         var ac = CreateAircraft(altitude: 15000);
-        ac.ActiveStarId = "BDEGA3";
-        ac.StarViaMode = true;
+        ac.Procedure.ActiveStarId = "BDEGA3";
+        ac.Procedure.StarViaMode = true;
         ac.Targets.TargetAltitude = 5000;
         ac.Targets.AssignedAltitude = 5000;
         // Build a procedure route: fixes A, B, C
@@ -51,8 +51,8 @@ public class VectoringLevelOffTests
     private static AircraftState CreateSidAircraft()
     {
         var ac = CreateAircraft(altitude: 5000);
-        ac.ActiveSidId = "PORTE3";
-        ac.SidViaMode = true;
+        ac.Procedure.ActiveSidId = "PORTE3";
+        ac.Procedure.SidViaMode = true;
         ac.Targets.TargetAltitude = 10000;
         ac.Targets.AssignedAltitude = 10000;
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SIDAA", Position = new LatLon(37.5, -122.5) });
@@ -74,7 +74,7 @@ public class VectoringLevelOffTests
 
         Assert.Null(ac.Targets.TargetAltitude);
         Assert.Null(ac.Targets.DesiredVerticalRate);
-        Assert.False(ac.IsExpediting);
+        Assert.False(ac.Procedure.IsExpediting);
         Assert.Single(ac.PendingWarnings);
         Assert.Contains("without an altitude", ac.PendingWarnings[0]);
     }
@@ -101,7 +101,7 @@ public class VectoringLevelOffTests
 
         CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
-        Assert.Null(ac.ActiveStarId);
+        Assert.Null(ac.Procedure.ActiveStarId);
         Assert.Null(ac.Targets.TargetAltitude);
         Assert.Single(ac.PendingWarnings);
     }
@@ -156,7 +156,7 @@ public class VectoringLevelOffTests
 
         CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
-        Assert.Equal("BDEGA3", ac.ActiveStarId);
+        Assert.Equal("BDEGA3", ac.Procedure.ActiveStarId);
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public class VectoringLevelOffTests
 
         CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
-        Assert.False(ac.StarViaMode);
+        Assert.False(ac.Procedure.StarViaMode);
     }
 
     [Fact]
@@ -210,8 +210,8 @@ public class VectoringLevelOffTests
         var compound = new CompoundCommand([new ParsedBlock(null, [new DirectToCommand(fixes, []), new DescendViaCommand(null)])]);
         CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
-        Assert.True(ac.StarViaMode);
-        Assert.Equal("BDEGA3", ac.ActiveStarId);
+        Assert.True(ac.Procedure.StarViaMode);
+        Assert.Equal("BDEGA3", ac.Procedure.ActiveStarId);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -236,8 +236,8 @@ public class VectoringLevelOffTests
 
         CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
-        Assert.Null(ac.ActiveStarId);
-        Assert.False(ac.StarViaMode);
+        Assert.Null(ac.Procedure.ActiveStarId);
+        Assert.False(ac.Procedure.StarViaMode);
     }
 
     [Fact]
@@ -248,8 +248,8 @@ public class VectoringLevelOffTests
 
         CommandDispatcher.Dispatch(new ForceDirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
-        Assert.Equal("BDEGA3", ac.ActiveStarId);
-        Assert.False(ac.StarViaMode);
+        Assert.Equal("BDEGA3", ac.Procedure.ActiveStarId);
+        Assert.False(ac.Procedure.StarViaMode);
         Assert.Equal(2, ac.Targets.NavigationRoute.Count);
         Assert.Equal("FIXBB", ac.Targets.NavigationRoute[0].Name);
     }
@@ -262,8 +262,8 @@ public class VectoringLevelOffTests
 
         CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
-        Assert.Equal("PORTE3", ac.ActiveSidId);
-        Assert.False(ac.SidViaMode);
+        Assert.Equal("PORTE3", ac.Procedure.ActiveSidId);
+        Assert.False(ac.Procedure.SidViaMode);
         Assert.Equal(2, ac.Targets.NavigationRoute.Count);
         Assert.Equal("SIDBB", ac.Targets.NavigationRoute[0].Name);
         Assert.Equal("SIDCC", ac.Targets.NavigationRoute[1].Name);

@@ -65,7 +65,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
 
         output.WriteLine($"N172SP at t=824: ({ac.Position.Lat:F6},{ac.Position.Lon:F6}) phase={ac.Phases?.CurrentPhase?.GetType().Name}");
 
-        var route = ac.AssignedTaxiRoute;
+        var route = ac.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             output.WriteLine("No taxi route assigned");
@@ -202,7 +202,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
             return;
         }
 
-        var route = ac.AssignedTaxiRoute;
+        var route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Route: {route.ToSummary()}");

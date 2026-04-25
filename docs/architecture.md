@@ -193,9 +193,14 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 
 ```
 # Core
-AircraftState.cs               # Mutable entity: Position (LatLon), flight plan, identity, control, track ops, visual approach state, pattern overrides, ghost track fields (GhostAirportId/GhostRunwayId)
-                               # DeclinationCachePosition (LatLon?): null = "not cached", replaces the old NaN-sentinel pair
-                               # GroundLayout is [JsonIgnore]; GroundLayoutAirportId preserves reference for archive restore
+AircraftState.cs               # Mutable aircraft entity. Identity + kinematics flat at top; cohesive
+                               # state grouped into sub-objects (FlightPlan, Transponder, Ground, Track,
+                               # Stars, Eram, Approach, Procedure, Pattern, Clearance, HoldAnnotation,
+                               # Ghost, Voice). Each sub-object owns its own ToSnapshot/FromSnapshot pair
+                               # with a matching DTO under Simulation/Snapshots/.
+                               # DeclinationCachePosition (LatLon?): null = "not cached", not serialized.
+                               # Ground.Layout is [JsonIgnore]; Ground.LayoutAirportId preserves the
+                               # reference so archive restore can reattach.
                                # PendingObservations: ephemeral pilot-side "watch for condition" state (not persisted in snapshots)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute

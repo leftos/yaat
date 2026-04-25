@@ -75,7 +75,7 @@ public class HoldShortPositionTests(ITestOutputHelper output)
             }
 
             // Check if the aircraft is holding short: speed ≈ 0 and has an uncleared hold-short
-            var route = aircraft.AssignedTaxiRoute;
+            var route = aircraft.Ground.AssignedTaxiRoute;
             if (route is null)
             {
                 continue;
@@ -103,7 +103,7 @@ public class HoldShortPositionTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         // Find the hold-short node for 1L
-        var holdShortPoint = aircraft.AssignedTaxiRoute!.HoldShortPoints.First(hs =>
+        var holdShortPoint = aircraft.Ground.AssignedTaxiRoute!.HoldShortPoints.First(hs =>
             !hs.IsCleared && hs.TargetName is not null && hs.TargetName.Contains("1L", StringComparison.OrdinalIgnoreCase)
         );
 
@@ -162,7 +162,7 @@ public class HoldShortPositionTests(ITestOutputHelper output)
                 continue;
             }
 
-            var route = ac.AssignedTaxiRoute;
+            var route = ac.Ground.AssignedTaxiRoute;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "none";
             string holdShorts = route is not null
                 ? string.Join(", ", route.HoldShortPoints.Select(hs => $"{hs.TargetName}(cleared={hs.IsCleared})"))
@@ -173,7 +173,7 @@ public class HoldShortPositionTests(ITestOutputHelper output)
                 output.WriteLine(
                     $"t={t} gs={ac.GroundSpeed:F1}kts hdg={ac.TrueHeading} "
                         + $"pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) "
-                        + $"phase={phase} twy={ac.CurrentTaxiway ?? "?"} "
+                        + $"phase={phase} twy={ac.Ground.CurrentTaxiway ?? "?"} "
                         + $"holdShorts=[{holdShorts}]"
                 );
 

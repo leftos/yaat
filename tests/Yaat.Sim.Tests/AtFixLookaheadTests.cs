@@ -52,7 +52,7 @@ public class AtFixLookaheadTests(ITestOutputHelper output)
         var ac = MakeAircraft();
 
         // Parse the compound command: DCT through three fixes, AT middle fix descend
-        var parseResult = CommandParser.ParseCompound("DCT FIX_A FIX_B FIX_C; AT FIX_B CM 014", ac.Route);
+        var parseResult = CommandParser.ParseCompound("DCT FIX_A FIX_B FIX_C; AT FIX_B CM 014", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
         Assert.Equal(2, parseResult.Value!.Blocks.Count);
 

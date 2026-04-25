@@ -48,7 +48,7 @@ public class FinalApproachLateralTests
             Altitude = startAltitude,
             IndicatedAirspeed = startSpeed,
             IsOnGround = false,
-            Departure = "KTEST",
+            FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
         };
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         if (isPatternTraffic)

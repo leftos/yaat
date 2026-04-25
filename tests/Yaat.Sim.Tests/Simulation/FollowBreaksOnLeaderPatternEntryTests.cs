@@ -150,7 +150,7 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
             LogTerminalState("t=220", engine);
 
             Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("unable to catch up", StringComparison.OrdinalIgnoreCase));
-            Assert.Equal(Leader, follower.FollowingCallsign);
+            Assert.Equal(Leader, follower.Approach.FollowingCallsign);
 
             var followerPhase = follower.Phases?.CurrentPhase;
             Assert.True(
@@ -173,7 +173,7 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
         output.WriteLine($"{label}:");
         output.WriteLine($"  leader   {Leader}  phase={lead.Phases?.CurrentPhase?.GetType().Name ?? "none"}  ias={lead.IndicatedAirspeed:F1}");
         output.WriteLine(
-            $"  follower {Follower}  phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "none"}  ias={follower.IndicatedAirspeed:F1}  tgtSpd={follower.Targets.TargetSpeed?.ToString("F1") ?? "null"}  follCS={follower.FollowingCallsign ?? "null"}"
+            $"  follower {Follower}  phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "none"}  ias={follower.IndicatedAirspeed:F1}  tgtSpd={follower.Targets.TargetSpeed?.ToString("F1") ?? "null"}  follCS={follower.Approach.FollowingCallsign ?? "null"}"
         );
         output.WriteLine($"  gap={gap:F3} nm  warnings=[{string.Join("; ", follower.PendingWarnings)}]");
     }

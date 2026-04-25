@@ -100,10 +100,13 @@ public static class AircraftGenerator
             TrueTrack = trueHeading,
             Altitude = request.Altitude,
             IndicatedAirspeed = speed,
-            AssignedBeaconCode = beaconCode,
-            BeaconCode = beaconCode,
-            TransponderMode = transponderMode,
-            FlightRules = flightRules,
+            Transponder = new AircraftTransponder
+            {
+                Mode = transponderMode,
+                AssignedCode = beaconCode,
+                Code = beaconCode,
+            },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
         };
 
         return (state, null);
@@ -149,10 +152,13 @@ public static class AircraftGenerator
             TrueTrack = trueHeading,
             Altitude = request.Altitude,
             IndicatedAirspeed = speed,
-            AssignedBeaconCode = beaconCode,
-            BeaconCode = beaconCode,
-            TransponderMode = transponderMode,
-            FlightRules = flightRules,
+            Transponder = new AircraftTransponder
+            {
+                Mode = transponderMode,
+                AssignedCode = beaconCode,
+                Code = beaconCode,
+            },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
         };
 
         return (state, null);
@@ -193,10 +199,13 @@ public static class AircraftGenerator
             Altitude = init.Altitude,
             IndicatedAirspeed = init.Speed,
             IsOnGround = init.IsOnGround,
-            AssignedBeaconCode = beaconCode,
-            BeaconCode = beaconCode,
-            TransponderMode = transponderMode,
-            FlightRules = flightRules,
+            Transponder = new AircraftTransponder
+            {
+                Mode = transponderMode,
+                AssignedCode = beaconCode,
+                Code = beaconCode,
+            },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
             Phases = init.Phases,
         };
 
@@ -241,10 +250,13 @@ public static class AircraftGenerator
             Altitude = init.Altitude,
             IndicatedAirspeed = init.Speed,
             IsOnGround = init.IsOnGround,
-            AssignedBeaconCode = beaconCode,
-            BeaconCode = beaconCode,
-            TransponderMode = transponderMode,
-            FlightRules = flightRules,
+            Transponder = new AircraftTransponder
+            {
+                Mode = transponderMode,
+                AssignedCode = beaconCode,
+                Code = beaconCode,
+            },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
             Phases = init.Phases,
         };
 
@@ -287,13 +299,15 @@ public static class AircraftGenerator
             Altitude = init.Altitude,
             IndicatedAirspeed = init.Speed,
             IsOnGround = init.IsOnGround,
-            ParkingSpot = request.ParkingName,
-            AssignedBeaconCode = beaconCode,
-            BeaconCode = beaconCode,
-            TransponderMode = transponderMode,
-            FlightRules = flightRules,
+            Ground = new AircraftGroundOps { ParkingSpot = request.ParkingName, AutoDeleteExempt = true },
+            Transponder = new AircraftTransponder
+            {
+                Mode = transponderMode,
+                AssignedCode = beaconCode,
+                Code = beaconCode,
+            },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
             Phases = init.Phases,
-            AutoDeleteExempt = true,
         };
 
         return (state, null);

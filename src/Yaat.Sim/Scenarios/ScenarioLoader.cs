@@ -123,17 +123,20 @@ public static class ScenarioLoader
         {
             Callsign = ac.AircraftId,
             AircraftType = equipType,
-            TransponderMode = ac.TransponderMode,
-            FlightRules = InferFlightRules(ac.FlightPlan),
-            CruiseAltitude = ac.FlightPlan?.CruiseAltitude ?? 0,
-            CruiseSpeed = ac.FlightPlan?.CruiseSpeed ?? 0,
-            Departure = ac.FlightPlan?.Departure ?? "",
-            Destination = ac.FlightPlan?.Destination ?? "",
-            Route = ac.FlightPlan?.Route ?? "",
-            Remarks = ac.FlightPlan?.Remarks ?? "",
-            EquipmentSuffix = ExtractSuffix(equipType),
-            ExpectedApproach = effectiveApproach,
-            HasFlightPlan = ac.FlightPlan is not null,
+            Transponder = new AircraftTransponder { Mode = ac.TransponderMode },
+            FlightPlan = new AircraftFlightPlan
+            {
+                FlightRules = InferFlightRules(ac.FlightPlan),
+                CruiseAltitude = ac.FlightPlan?.CruiseAltitude ?? 0,
+                CruiseSpeed = ac.FlightPlan?.CruiseSpeed ?? 0,
+                Departure = ac.FlightPlan?.Departure ?? "",
+                Destination = ac.FlightPlan?.Destination ?? "",
+                Route = ac.FlightPlan?.Route ?? "",
+                Remarks = ac.FlightPlan?.Remarks ?? "",
+                EquipmentSuffix = ExtractSuffix(equipType),
+                HasFlightPlan = ac.FlightPlan is not null,
+            },
+            Approach = new AircraftApproachState { Expected = effectiveApproach },
         };
     }
 
@@ -234,8 +237,8 @@ public static class ScenarioLoader
         state.Altitude = alt;
         state.IndicatedAirspeed = speed;
         var code = SimulationWorld.GenerateBeaconCode(rng);
-        state.AssignedBeaconCode = code;
-        state.BeaconCode = code;
+        state.Transponder.AssignedCode = code;
+        state.Transponder.Code = code;
 
         // Ground detection: near field elevation + zero speed = on the ground
         var agl = alt - fieldElevation;
@@ -248,7 +251,7 @@ public static class ScenarioLoader
 
             // Resolve ground layout from departure (on-ground aircraft) or destination
             var groundAirportId = ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination;
-            state.GroundLayout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
+            state.Ground.Layout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
         }
 
         var navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
@@ -291,9 +294,9 @@ public static class ScenarioLoader
         // on-edge, aligned pose. Runs AFTER heading derivation so the
         // scenario's intended heading is used as the "which edge direction"
         // tiebreaker.
-        if (state.IsOnGround && state.GroundLayout is not null)
+        if (state.IsOnGround && state.Ground.Layout is not null)
         {
-            GroundSpawnSnap.Apply(state, state.GroundLayout);
+            GroundSpawnSnap.Apply(state, state.Ground.Layout);
         }
 
         return new LoadedAircraft
@@ -341,10 +344,10 @@ public static class ScenarioLoader
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
         var rwyCode = SimulationWorld.GenerateBeaconCode(rng);
-        state.AssignedBeaconCode = rwyCode;
-        state.BeaconCode = rwyCode;
+        state.Transponder.AssignedCode = rwyCode;
+        state.Transponder.Code = rwyCode;
         state.Phases = init.Phases;
-        state.GroundLayout = groundData?.GetLayout(airportId);
+        state.Ground.Layout = groundData?.GetLayout(airportId);
 
         return new LoadedAircraft
         {
@@ -398,13 +401,13 @@ public static class ScenarioLoader
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
         var finalCode = SimulationWorld.GenerateBeaconCode(rng);
-        state.AssignedBeaconCode = finalCode;
-        state.BeaconCode = finalCode;
+        state.Transponder.AssignedCode = finalCode;
+        state.Transponder.Code = finalCode;
         state.Phases = init.Phases;
 
         // Arriving aircraft: use destination airport layout for runway exit after landing
         var destId = ac.FlightPlan?.Destination;
-        state.GroundLayout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
+        state.Ground.Layout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
 
         return new LoadedAircraft
         {
@@ -472,11 +475,11 @@ public static class ScenarioLoader
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
         var parkCode = SimulationWorld.GenerateBeaconCode(rng);
-        state.AssignedBeaconCode = parkCode;
-        state.BeaconCode = parkCode;
+        state.Transponder.AssignedCode = parkCode;
+        state.Transponder.Code = parkCode;
         state.Phases = init.Phases;
-        state.AutoDeleteExempt = true;
-        state.GroundLayout = layout;
+        state.Ground.AutoDeleteExempt = true;
+        state.Ground.Layout = layout;
 
         return new LoadedAircraft
         {
@@ -529,9 +532,9 @@ public static class ScenarioLoader
         }
 
         // Append CIFP runway transition fixes for STARs
-        AppendStarRunwayTransition(resolved, navigationPath, state.Destination);
+        AppendStarRunwayTransition(resolved, navigationPath, state.FlightPlan.Destination);
 
-        RouteChainer.AppendRouteRemainder(resolved, state.Route);
+        RouteChainer.AppendRouteRemainder(resolved, state.FlightPlan.Route);
 
         foreach (var fix in resolved)
         {
@@ -542,7 +545,7 @@ public static class ScenarioLoader
     /// <summary>
     /// Detects SID/STAR version upgrades in the navigation path, emits warnings,
     /// and substitutes stale transition fixes with the geographically closest valid one.
-    /// Returns the (possibly modified) navigation path. Also updates state.Route in place.
+    /// Returns the (possibly modified) navigation path. Also updates state.FlightPlan.Route in place.
     /// </summary>
     private static string ResolveVersionChanges(string navigationPath, AircraftState state, List<string> warnings)
     {
@@ -553,7 +556,7 @@ public static class ScenarioLoader
 
         var navDb = NavigationDatabase.Instance;
         var tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var routeTokens = state.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        var routeTokens = state.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         bool modified = false;
 
         for (int i = 0; i < tokens.Length; i++)
@@ -585,7 +588,7 @@ public static class ScenarioLoader
                 {
                     var nextFixDotParts = tokens[nextIdx].Split('.');
                     var nextFixName = nextFixDotParts[0];
-                    if (!IsFixOnSid(nextFixName, resolvedSidId, state.Departure, navDb))
+                    if (!IsFixOnSid(nextFixName, resolvedSidId, state.FlightPlan.Departure, navDb))
                     {
                         var transitions = navDb.GetSidTransitions(resolvedSidId);
                         if (transitions is not null && transitions.Count > 0)
@@ -644,7 +647,7 @@ public static class ScenarioLoader
                 {
                     var prevFixDotParts = tokens[prevIdx].Split('.');
                     var prevFixName = prevFixDotParts[0];
-                    if (!IsFixOnStar(prevFixName, resolvedStarId, state.Destination, navDb))
+                    if (!IsFixOnStar(prevFixName, resolvedStarId, state.FlightPlan.Destination, navDb))
                     {
                         var transitions = navDb.GetStarTransitions(resolvedStarId);
                         if (transitions is not null && transitions.Count > 0)
@@ -688,7 +691,7 @@ public static class ScenarioLoader
 
         if (modified)
         {
-            state.Route = string.Join(" ", routeTokens);
+            state.FlightPlan.Route = string.Join(" ", routeTokens);
             return string.Join(" ", tokens);
         }
 
@@ -1011,7 +1014,7 @@ public static class ScenarioLoader
     /// </summary>
     private static void ApplyAltitudeProfile(AircraftState state, string? navigationPath, List<string> warnings)
     {
-        if (string.IsNullOrWhiteSpace(navigationPath) || string.IsNullOrEmpty(state.Destination))
+        if (string.IsNullOrWhiteSpace(navigationPath) || string.IsNullOrEmpty(state.FlightPlan.Destination))
         {
             return;
         }
@@ -1053,7 +1056,7 @@ public static class ScenarioLoader
             return;
         }
 
-        var star = navDb.GetStar(state.Destination, starId);
+        var star = navDb.GetStar(state.FlightPlan.Destination, starId);
         if (star is null)
         {
             return;
@@ -1063,7 +1066,7 @@ public static class ScenarioLoader
         var orderedLegs = new List<CifpLeg>();
         orderedLegs.AddRange(star.CommonLegs);
 
-        var rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, state.DestinationRunway);
+        var rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, state.Procedure.DestinationRunway);
         if (rwTransitionLegs is not null)
         {
             orderedLegs.AddRange(rwTransitionLegs);
@@ -1100,8 +1103,8 @@ public static class ScenarioLoader
             }
         }
 
-        state.ActiveStarId = starId;
-        state.StarViaMode = true;
+        state.Procedure.ActiveStarId = starId;
+        state.Procedure.StarViaMode = true;
 
         // Apply the first constrained fix's restrictions immediately so the aircraft
         // starts descending toward the first STAR constraint at spawn, not after

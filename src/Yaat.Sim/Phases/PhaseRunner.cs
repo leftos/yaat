@@ -98,9 +98,9 @@ public static class PhaseRunner
                 var airportRunways = Data.NavigationDatabase.Instance.GetRunways(runway.AirportId);
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
-                    ctx.Aircraft.GroundLayout?.FindRunway(runway.Designator),
-                    ctx.Aircraft.PatternSizeOverrideNm,
-                    ctx.Aircraft.PatternAltitudeOverrideFt
+                    ctx.Aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                    ctx.Aircraft.Pattern.SizeOverrideNm,
+                    ctx.Aircraft.Pattern.AltitudeOverrideFt
                 );
                 var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, sizeOv, altOv, airportRunways);
                 phases.Phases.AddRange(nextCircuit);

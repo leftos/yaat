@@ -32,8 +32,11 @@ public class GroundConflictDetectorTests
             TrueHeading = new TrueHeading(heading),
             IsOnGround = true,
             IndicatedAirspeed = gs,
-            PushbackTrueHeading = pushbackHeading.HasValue ? new TrueHeading(pushbackHeading.Value) : null,
-            AssignedTaxiRoute = taxiRoute,
+            Ground = new AircraftGroundOps
+            {
+                PushbackTrueHeading = pushbackHeading.HasValue ? new TrueHeading(pushbackHeading.Value) : null,
+                AssignedTaxiRoute = taxiRoute,
+            },
         };
 
         if (phase is not null)
@@ -206,7 +209,7 @@ public class GroundConflictDetectorTests
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
 
         // One of them should have a speed limit (the trailer)
-        bool anyLimited = a.GroundSpeedLimit is not null || b.GroundSpeedLimit is not null;
+        bool anyLimited = a.Ground.SpeedLimit is not null || b.Ground.SpeedLimit is not null;
         Assert.True(anyLimited, "Expected at least one aircraft to have a speed limit on same edge");
     }
 
@@ -226,7 +229,7 @@ public class GroundConflictDetectorTests
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
 
         // At least one should be limited (the one further from node 2)
-        bool anyLimited = a.GroundSpeedLimit is not null || b.GroundSpeedLimit is not null;
+        bool anyLimited = a.Ground.SpeedLimit is not null || b.Ground.SpeedLimit is not null;
         Assert.True(anyLimited, "Expected convergence detection to limit at least one aircraft");
     }
 
@@ -241,9 +244,9 @@ public class GroundConflictDetectorTests
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
         // A should be limited (closing on stationary B)
-        Assert.NotNull(a.GroundSpeedLimit);
+        Assert.NotNull(a.Ground.SpeedLimit);
         // B is stationary — no limit needed
-        Assert.Null(b.GroundSpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
     }
 
     [Fact]
@@ -258,7 +261,7 @@ public class GroundConflictDetectorTests
 
         // A is heading east but B is north — bearing to B (~0°) vs heading (90°) = 90° diff
         // Not closing (diff >= 90), so no limit
-        Assert.Null(a.GroundSpeedLimit);
+        Assert.Null(a.Ground.SpeedLimit);
     }
 
     [Fact]
@@ -276,8 +279,8 @@ public class GroundConflictDetectorTests
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
         // Pushing aircraft closing on B should yield (stop)
-        Assert.NotNull(a.GroundSpeedLimit);
-        Assert.Equal(0.0, a.GroundSpeedLimit.Value);
+        Assert.NotNull(a.Ground.SpeedLimit);
+        Assert.Equal(0.0, a.Ground.SpeedLimit.Value);
     }
 
     [Fact]
@@ -295,7 +298,7 @@ public class GroundConflictDetectorTests
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
         // A is pushing away from B, no yield needed
-        Assert.Null(a.GroundSpeedLimit);
+        Assert.Null(a.Ground.SpeedLimit);
     }
 
     [Fact]
@@ -309,10 +312,10 @@ public class GroundConflictDetectorTests
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
         // Head-on within 300ft: both should stop
-        Assert.NotNull(a.GroundSpeedLimit);
-        Assert.Equal(0.0, a.GroundSpeedLimit.Value);
-        Assert.NotNull(b.GroundSpeedLimit);
-        Assert.Equal(0.0, b.GroundSpeedLimit.Value);
+        Assert.NotNull(a.Ground.SpeedLimit);
+        Assert.Equal(0.0, a.Ground.SpeedLimit.Value);
+        Assert.NotNull(b.Ground.SpeedLimit);
+        Assert.Equal(0.0, b.Ground.SpeedLimit.Value);
     }
 
     [Fact]
@@ -327,7 +330,7 @@ public class GroundConflictDetectorTests
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
         // A is following — should NOT get a speed limit from the detector
-        Assert.Null(a.GroundSpeedLimit);
+        Assert.Null(a.Ground.SpeedLimit);
     }
 
     [Fact]
@@ -340,8 +343,8 @@ public class GroundConflictDetectorTests
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
-        Assert.Null(a.GroundSpeedLimit);
-        Assert.Null(b.GroundSpeedLimit);
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
     }
 
     [Fact]
@@ -353,8 +356,8 @@ public class GroundConflictDetectorTests
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
-        Assert.Null(a.GroundSpeedLimit);
-        Assert.Null(b.GroundSpeedLimit);
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
     }
 
     [Fact]
@@ -365,7 +368,7 @@ public class GroundConflictDetectorTests
         var aircraft = new List<AircraftState> { a };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
-        Assert.Null(a.GroundSpeedLimit);
+        Assert.Null(a.Ground.SpeedLimit);
     }
 
     [Fact]
@@ -412,25 +415,25 @@ public class GroundConflictDetectorTests
         );
 
         // Give A an active BREAK timer
-        a.ConflictBreakRemainingSeconds = 15.0;
+        a.Ground.ConflictBreakRemainingSeconds = 15.0;
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout, deltaSeconds: 0);
 
         // A has BREAK — must not receive a speed limit
-        Assert.Null(a.GroundSpeedLimit);
+        Assert.Null(a.Ground.SpeedLimit);
     }
 
     [Fact]
     public void Break_TimerDecrements_EachTick()
     {
         var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
-        a.ConflictBreakRemainingSeconds = 15.0;
+        a.Ground.ConflictBreakRemainingSeconds = 15.0;
 
         var aircraft = new List<AircraftState> { a };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null, deltaSeconds: 1.0);
 
-        Assert.Equal(14.0, a.ConflictBreakRemainingSeconds, precision: 9);
+        Assert.Equal(14.0, a.Ground.ConflictBreakRemainingSeconds, precision: 9);
     }
 
     [Fact]
@@ -454,13 +457,13 @@ public class GroundConflictDetectorTests
         );
 
         // BREAK has expired
-        a.ConflictBreakRemainingSeconds = 0;
+        a.Ground.ConflictBreakRemainingSeconds = 0;
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout, deltaSeconds: 0);
 
         // Timer is zero — conflict detection re-engages; trailer should be limited
-        bool anyLimited = a.GroundSpeedLimit is not null || b.GroundSpeedLimit is not null;
+        bool anyLimited = a.Ground.SpeedLimit is not null || b.Ground.SpeedLimit is not null;
         Assert.True(anyLimited, "Expected conflict detection to resume after BREAK expires");
     }
 }

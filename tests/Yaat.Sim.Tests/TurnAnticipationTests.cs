@@ -180,7 +180,7 @@ public class TurnAnticipationTests
         var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, new TrueHeading(0), 5.0); // same heading, no turn
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250, altitude: 5000);
-        aircraft.SidViaMode = true;
+        aircraft.Procedure.SidViaMode = true;
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WP1", Position = new LatLon(wp1.Lat, wp1.Lon) });
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget

@@ -86,7 +86,7 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
 
             if (phase is "Landing" or "Runway Exit")
             {
-                output.WriteLine($"t={430 + t} phase={phase} gs={wja.GroundSpeed:F1} spdLimit={wja.GroundSpeedLimit?.ToString("F1") ?? "null"}");
+                output.WriteLine($"t={430 + t} phase={phase} gs={wja.GroundSpeed:F1} spdLimit={wja.Ground.SpeedLimit?.ToString("F1") ?? "null"}");
             }
         }
 
@@ -137,7 +137,7 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
 
             if (phase == "Holding After Exit")
             {
-                exitTaxiway = wja.CurrentTaxiway;
+                exitTaxiway = wja.Ground.CurrentTaxiway;
                 output.WriteLine($"t={420 + t} WJA1508 exited on taxiway {exitTaxiway}");
                 break;
             }
@@ -211,7 +211,7 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
             if (t % 5 == 0)
             {
                 double dist = GeoMath.DistanceNm(wja.Position.Lat, wja.Position.Lon, skw?.Position.Lat ?? 0, skw?.Position.Lon ?? 0) * 6076.12;
-                string spdLimit = wja.GroundSpeedLimit?.ToString("F1") ?? "null";
+                string spdLimit = wja.Ground.SpeedLimit?.ToString("F1") ?? "null";
                 string skwPhase = skw?.Phases?.CurrentPhase?.Name ?? "gone";
                 string skwGs = skw?.GroundSpeed.ToString("F1") ?? "?";
                 output.WriteLine(

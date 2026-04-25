@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "comment": "Per-domain transforms for AircraftState/AircraftSnapshotDto refactor. Each domain moves a set of flat aircraft fields into a nested container. Used by tools/migrate_aircraft_snapshot_schema.py to upgrade pre-refactor bundles.",
+  "domains": [
+    {
+      "name": "Voice",
+      "container_field": "Voice",
+      "always_emit": true,
+      "fields": [
+        { "old": "VoiceType", "new": "Type", "default": 1 },
+        { "old": "TdlsDumped", "new": "TdlsDumped", "default": false }
+      ]
+    },
+    {
+      "name": "Pattern",
+      "container_field": "Pattern",
+      "always_emit": true,
+      "fields": [
+        { "old": "PatternSizeOverrideNm", "new": "SizeOverrideNm", "default": null },
+        { "old": "PatternAltitudeOverrideFt", "new": "AltitudeOverrideFt", "default": null }
+      ]
+    },
+    {
+      "name": "HoldAnnotation",
+      "container_field": "HoldAnnotation",
+      "always_emit": true,
+      "fields": [
+        { "old": "HoldAnnotationFix", "new": "Fix", "default": null },
+        { "old": "HoldAnnotationDirection", "new": "Direction", "default": 0 },
+        { "old": "HoldAnnotationTurns", "new": "Turns", "default": 0 },
+        { "old": "HoldAnnotationLegLength", "new": "LegLength", "default": null },
+        { "old": "HoldAnnotationLegLengthInNm", "new": "LegLengthInNm", "default": false },
+        { "old": "HoldAnnotationEfc", "new": "Efc", "default": 0 }
+      ]
+    },
+    {
+      "name": "Clearance",
+      "container_field": "Clearance",
+      "always_emit": true,
+      "fields": [
+        { "old": "ClearanceExpect", "new": "Expect", "default": null },
+        { "old": "ClearanceSid", "new": "Sid", "default": null },
+        { "old": "ClearanceTransition", "new": "Transition", "default": null },
+        { "old": "ClearanceClimbout", "new": "Climbout", "default": null },
+        { "old": "ClearanceClimbvia", "new": "Climbvia", "default": null },
+        { "old": "ClearanceInitialAlt", "new": "InitialAlt", "default": null },
+        { "old": "ClearanceContactInfo", "new": "ContactInfo", "default": null },
+        { "old": "ClearanceLocalInfo", "new": "LocalInfo", "default": null },
+        { "old": "ClearanceDepFreq", "new": "DepFreq", "default": null }
+      ]
+    },
+    {
+      "name": "Eram",
+      "container_field": "Eram",
+      "always_emit": true,
+      "fields": [
+        { "old": "IsDwellLocked", "new": "IsDwellLocked", "default": false },
+        { "old": "IsVci", "new": "IsVci", "default": false },
+        { "old": "EramLeaderDirection", "new": "LeaderDirection", "default": null },
+        { "old": "EramLeaderLength", "new": "LeaderLength", "default": null },
+        { "old": "EramInterimAltitude", "new": "InterimAltitude", "default": null },
+        { "old": "LocalInterimAltitude", "new": "LocalInterimAltitude", "default": null },
+        { "old": "ProcedureAltitude", "new": "ProcedureAltitude", "default": null },
+        { "old": "ControllerEnteredAltitude", "new": "ControllerEnteredAltitude", "default": null },
+        { "old": "EramPointouts", "new": "Pointouts", "default": null },
+        { "old": "ForcedPointoutsTo", "new": "ForcedPointoutsTo", "default": null }
+      ]
+    },
+    {
+      "name": "Transponder",
+      "container_field": "Transponder",
+      "always_emit": true,
+      "fields": [
+        { "old": "TransponderMode", "new": "Mode", "default": "C" },
+        { "old": "AssignedBeaconCode", "new": "AssignedCode", "default": 0 },
+        { "old": "BeaconCode", "new": "Code", "default": 0 },
+        { "old": "IsIdenting", "new": "IsIdenting", "default": false },
+        { "old": "IdentStartedAt", "new": "IdentStartedAt", "default": null }
+      ]
+    },
+    {
+      "name": "Ghost",
+      "container_field": "Ghost",
+      "always_emit": true,
+      "fields": [
+        { "old": "IsUnsupported", "new": "IsUnsupported", "default": false },
+        { "old": "UnsupportedLatitude", "new": "Latitude", "default": null },
+        { "old": "UnsupportedLongitude", "new": "Longitude", "default": null },
+        { "old": "GhostAirportId", "new": "AirportId", "default": null },
+        { "old": "GhostRunwayId", "new": "RunwayId", "default": null },
+        { "old": "IsVehicle", "new": "IsVehicle", "default": false }
+      ]
+    },
+    {
+      "name": "Procedure",
+      "container_field": "Procedure",
+      "always_emit": true,
+      "fields": [
+        { "old": "ActiveSidId", "new": "ActiveSidId", "default": null },
+        { "old": "ActiveStarId", "new": "ActiveStarId", "default": null },
+        { "old": "DepartureRunway", "new": "DepartureRunway", "default": null },
+        { "old": "DestinationRunway", "new": "DestinationRunway", "default": null },
+        { "old": "SidViaMode", "new": "SidViaMode", "default": false },
+        { "old": "StarViaMode", "new": "StarViaMode", "default": false },
+        { "old": "SidViaCeiling", "new": "SidViaCeiling", "default": null },
+        { "old": "StarViaFloor", "new": "StarViaFloor", "default": null },
+        { "old": "SpeedRestrictionsDeleted", "new": "SpeedRestrictionsDeleted", "default": false },
+        { "old": "IsExpediting", "new": "IsExpediting", "default": false }
+      ]
+    },
+    {
+      "name": "Approach",
+      "container_field": "Approach",
+      "always_emit": true,
+      "fields": [
+        { "old": "ExpectedApproach", "new": "Expected", "default": null },
+        { "old": "PendingApproachClearance", "new": "PendingClearance", "default": null },
+        { "old": "HasReportedFieldInSight", "new": "HasReportedFieldInSight", "default": false },
+        { "old": "HasReportedTrafficInSight", "new": "HasReportedTrafficInSight", "default": false },
+        { "old": "LastReportedTrafficCallsign", "new": "LastReportedTrafficCallsign", "default": null },
+        { "old": "FollowingCallsign", "new": "FollowingCallsign", "default": null }
+      ]
+    },
+    {
+      "name": "Track",
+      "container_field": "Track",
+      "always_emit": true,
+      "fields": [
+        { "old": "Owner", "new": "Owner", "default": null },
+        { "old": "HandoffPeer", "new": "HandoffPeer", "default": null },
+        { "old": "HandoffRedirectedBy", "new": "HandoffRedirectedBy", "default": null },
+        { "old": "OnHandoff", "new": "OnHandoff", "default": false },
+        { "old": "HandoffAccepted", "new": "HandoffAccepted", "default": false },
+        { "old": "HandoffInitiatedAt", "new": "HandoffInitiatedAt", "default": null },
+        { "old": "Pointout", "new": "Pointout", "default": null }
+      ]
+    },
+    {
+      "name": "FlightPlan",
+      "container_field": "FlightPlan",
+      "always_emit": true,
+      "fields": [
+        { "old": "HasFlightPlan", "new": "HasFlightPlan", "default": false },
+        { "old": "Departure", "new": "Departure", "default": "" },
+        { "old": "Destination", "new": "Destination", "default": "" },
+        { "old": "Route", "new": "Route", "default": "" },
+        { "old": "Remarks", "new": "Remarks", "default": "" },
+        { "old": "RevisionNumber", "new": "RevisionNumber", "default": 0 },
+        { "old": "EquipmentSuffix", "new": "EquipmentSuffix", "default": "A" },
+        { "old": "FlightRules", "new": "FlightRules", "default": "IFR" },
+        { "old": "CruiseAltitude", "new": "CruiseAltitude", "default": 0 },
+        { "old": "CruiseSpeed", "new": "CruiseSpeed", "default": 0 }
+      ]
+    },
+    {
+      "name": "Stars",
+      "container_field": "Stars",
+      "always_emit": true,
+      "fields": [
+        { "old": "Scratchpad1", "new": "Scratchpad1", "default": null },
+        { "old": "WasScratchpad1Cleared", "new": "WasScratchpad1Cleared", "default": false },
+        { "old": "PreviousScratchpad1", "new": "PreviousScratchpad1", "default": null },
+        { "old": "Scratchpad2", "new": "Scratchpad2", "default": null },
+        { "old": "PreviousScratchpad2", "new": "PreviousScratchpad2", "default": null },
+        { "old": "AsdexScratchpad1", "new": "AsdexScratchpad1", "default": null },
+        { "old": "AsdexScratchpad2", "new": "AsdexScratchpad2", "default": null },
+        { "old": "TemporaryAltitude", "new": "TemporaryAltitude", "default": null },
+        { "old": "PilotReportedAltitude", "new": "PilotReportedAltitude", "default": null },
+        { "old": "IsAnnotated", "new": "IsAnnotated", "default": false },
+        { "old": "AssignedAltitude", "new": "AssignedAltitude", "default": null },
+        { "old": "IsCaInhibited", "new": "IsCaInhibited", "default": false },
+        { "old": "IsModeCInhibited", "new": "IsModeCInhibited", "default": false },
+        { "old": "IsMsawInhibited", "new": "IsMsawInhibited", "default": false },
+        { "old": "IsDuplicateBeaconInhibited", "new": "IsDuplicateBeaconInhibited", "default": false },
+        { "old": "TpaType", "new": "TpaType", "default": null },
+        { "old": "GlobalLeaderDirection", "new": "GlobalLeaderDirection", "default": null },
+        { "old": "SharedState", "new": "SharedState", "default": null }
+      ]
+    },
+    {
+      "name": "Ground",
+      "container_field": "Ground",
+      "always_emit": true,
+      "fields": [
+        { "old": "GroundLayoutAirportId", "new": "LayoutAirportId", "default": null },
+        { "old": "AssignedTaxiRoute", "new": "AssignedTaxiRoute", "default": null },
+        { "old": "ParkingSpot", "new": "ParkingSpot", "default": null },
+        { "old": "CurrentTaxiway", "new": "CurrentTaxiway", "default": null },
+        { "old": "IsHeld", "new": "IsHeld", "default": false },
+        { "old": "GiveWayTarget", "new": "GiveWayTarget", "default": null },
+        { "old": "AutoDeleteExempt", "new": "AutoDeleteExempt", "default": false },
+        { "old": "ConflictBreakRemainingSeconds", "new": "ConflictBreakRemainingSeconds", "default": 0 },
+        { "old": "GroundSpeedLimit", "new": "SpeedLimit", "default": null },
+        { "old": "PushbackTrueHeadingDeg", "new": "PushbackTrueHeadingDeg", "default": null },
+        { "old": "HasAnnouncedReady", "new": "HasAnnouncedReady", "default": false }
+      ]
+    }
+  ]
+}

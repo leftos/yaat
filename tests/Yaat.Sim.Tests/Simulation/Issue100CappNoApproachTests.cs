@@ -62,7 +62,7 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         // Preconditions: aircraft has phases but no resolvable approach
         Assert.NotNull(aircraft.Phases);
         Assert.Null(aircraft.Phases.ActiveApproach);
-        Assert.Null(aircraft.ExpectedApproach);
+        Assert.Null(aircraft.Approach.Expected);
 
         var phasesBefore = aircraft.Phases;
 
@@ -127,9 +127,9 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
 
         // FDX3807 needs an ExpectedApproach or DestinationRunway for CAPP to resolve
         // Set ExpectedApproach explicitly to ensure CAPP can resolve
-        if (aircraft.ExpectedApproach is null && aircraft.DestinationRunway is null)
+        if (aircraft.Approach.Expected is null && aircraft.Procedure.DestinationRunway is null)
         {
-            aircraft.ExpectedApproach = "I30";
+            aircraft.Approach.Expected = "I30";
         }
 
         var result = engine.SendCommand("FDX3807", "CAPP");

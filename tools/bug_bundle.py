@@ -405,7 +405,7 @@ def cmd_track(args: argparse.Namespace) -> int:
                     "ias": ac["IndicatedAirspeed"],
                     "hdg": ac["TrueHeadingDeg"],
                     "tgt_spd": (ac.get("Targets") or {}).get("TargetSpeed"),
-                    "following": ac.get("FollowingCallsign"),
+                    "following": (ac.get("Approach") or {}).get("FollowingCallsign"),
                     "phase": _phase_name(ac),
                 }
 
@@ -417,7 +417,7 @@ def cmd_track(args: argparse.Namespace) -> int:
                     b_pos = b.get("Position") or {}
                     gap = _haversine_nm(a_pos["Lat"], a_pos["Lon"], b_pos["Lat"], b_pos["Lon"])
                     row["gap_nm"] = gap
-                    follow_cs = a.get("FollowingCallsign")
+                    follow_cs = (a.get("Approach") or {}).get("FollowingCallsign")
                     if follow_cs != prev_follow_cs:
                         best_gap = float("inf")
                         runaway_elapsed = 0.0

@@ -219,12 +219,12 @@ public sealed class FinalApproachPhase : Phase
         // 3. Inside the stabilization window (≤60s to threshold, or leader on
         //    ground), stop adjusting altogether and anchor on Vref. The follower
         //    is committed — land safely or go around, don't chase.
-        if (_fasSet && ctx.Aircraft.FollowingCallsign is not null)
+        if (_fasSet && ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
             double vref = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double gs = ctx.Aircraft.GroundSpeed;
             bool inStabilizationWindow = (gs > 0) && ((distNm / gs * 3600.0) <= StabilizationWindowSeconds);
-            var lead = ctx.AircraftLookup?.Invoke(ctx.Aircraft.FollowingCallsign);
+            var lead = ctx.AircraftLookup?.Invoke(ctx.Aircraft.Approach.FollowingCallsign);
             bool leaderOnGround = lead?.IsOnGround ?? true;
 
             if (inStabilizationWindow || leaderOnGround)
@@ -382,7 +382,7 @@ public sealed class FinalApproachPhase : Phase
         }
 
         // VFR aircraft are not included in the approach report at all
-        if (ctx.Aircraft.IsVfr)
+        if (ctx.Aircraft.FlightPlan.IsVfr)
         {
             _interceptChecked = true;
             return;

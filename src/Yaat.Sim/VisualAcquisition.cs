@@ -17,7 +17,7 @@ public static class VisualAcquisition
         IReadOnlyList<MetarParser.CloudLayer>? layers = null;
         double? visibilitySm = null;
         double aptElevation = 0.0;
-        var destination = ownship.Destination;
+        var destination = ownship.FlightPlan.Destination;
         if (!string.IsNullOrWhiteSpace(destination))
         {
             var metar = weather?.GetWeatherForAirport(destination);
@@ -39,7 +39,7 @@ public static class VisualAcquisition
     /// </summary>
     public static VisualAcquisitionResult? TryAcquireAirport(AircraftState ownship, WeatherProfile? weather)
     {
-        var destination = ownship.Destination;
+        var destination = ownship.FlightPlan.Destination;
         if (string.IsNullOrWhiteSpace(destination))
         {
             return null;

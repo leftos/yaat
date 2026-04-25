@@ -51,8 +51,8 @@ public static class ApproachCommandHandler
             if (trimmedFixes.Count > 0 && atFixMatchesConnection && NavRouteContainsFix(aircraft, connectingFix))
             {
                 var clearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
-                aircraft.PendingApproachClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
-                aircraft.DestinationRunway = approachRunway.Designator;
+                aircraft.Approach.PendingClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
+                aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
                 // Append approach fixes after the connecting fix in the NavigationRoute
                 AppendApproachFixesToNavRoute(aircraft, trimmedFixes);
@@ -70,7 +70,7 @@ public static class ApproachCommandHandler
         var immClearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = immClearance };
-        aircraft.DestinationRunway = approachRunway.Designator;
+        aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -190,7 +190,7 @@ public static class ApproachCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
-        aircraft.DestinationRunway = approachRunway.Designator;
+        aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
         // Insert hold-in-lieu if needed
         if (needsHold && procedure.HoldInLieuLeg is { } holdLeg)
@@ -280,7 +280,7 @@ public static class ApproachCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
-        aircraft.DestinationRunway = approachRunway.Designator;
+        aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
         aircraft.Phases.Add(
             new InterceptCoursePhase
@@ -309,7 +309,7 @@ public static class ApproachCommandHandler
     {
         // RTIS gate: when following traffic, pilot must have reported traffic in sight.
         // RPO can force this with RTISF command.
-        if ((cmd.FollowCallsign is not null) && !aircraft.HasReportedTrafficInSight)
+        if ((cmd.FollowCallsign is not null) && !aircraft.Approach.HasReportedTrafficInSight)
         {
             return new CommandResult(false, "Traffic not in sight — issue RTIS first");
         }
@@ -348,7 +348,7 @@ public static class ApproachCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
-        aircraft.DestinationRunway = approachRunway.Designator;
+        aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
         // Determine execution path based on aircraft position
         TrueHeading finalCourse = approachRunway.TrueHeading;
@@ -356,7 +356,7 @@ public static class ApproachCommandHandler
 
         if (cmd.FollowCallsign is not null)
         {
-            aircraft.FollowingCallsign = cmd.FollowCallsign;
+            aircraft.Approach.FollowingCallsign = cmd.FollowCallsign;
         }
 
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
@@ -386,9 +386,9 @@ public static class ApproachCommandHandler
             var airportRunways = NavigationDatabase.Instance.GetRunways(approachRunway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 approachRunway,
-                aircraft.GroundLayout?.FindRunway(approachRunway.Designator),
-                aircraft.PatternSizeOverrideNm,
-                aircraft.PatternAltitudeOverrideFt
+                aircraft.Ground.Layout?.FindRunway(approachRunway.Designator),
+                aircraft.Pattern.SizeOverrideNm,
+                aircraft.Pattern.AltitudeOverrideFt
             );
             var waypoints = PatternGeometry.Compute(approachRunway, category, direction, sizeOv, altOv, airportRunways);
 
@@ -523,7 +523,7 @@ public static class ApproachCommandHandler
         bool onNavRoute = aircraft.Targets.NavigationRoute.Count > 0;
 
         // Tier 1: try hint sources in priority order
-        string?[] sources = [aircraft.ExpectedApproach, aircraft.DestinationRunway];
+        string?[] sources = [aircraft.Approach.Expected, aircraft.Procedure.DestinationRunway];
 
         foreach (var source in sources)
         {
@@ -608,9 +608,9 @@ public static class ApproachCommandHandler
         var knownFixes = BuildKnownFixes(aircraft);
 
         // Priority 1: ExpectedApproach, if it matches one of the candidates and connects
-        if (aircraft.ExpectedApproach is not null)
+        if (aircraft.Approach.Expected is not null)
         {
-            var expMatch = candidates.FirstOrDefault(c => c.Equals(aircraft.ExpectedApproach, StringComparison.OrdinalIgnoreCase));
+            var expMatch = candidates.FirstOrDefault(c => c.Equals(aircraft.Approach.Expected, StringComparison.OrdinalIgnoreCase));
             if (expMatch is not null)
             {
                 var expProc = navDb.GetApproach(airport, expMatch);
@@ -663,9 +663,9 @@ public static class ApproachCommandHandler
     private static HashSet<string> BuildKnownFixes(AircraftState aircraft)
     {
         var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrEmpty(aircraft.Route))
+        if (!string.IsNullOrEmpty(aircraft.FlightPlan.Route))
         {
-            foreach (var token in aircraft.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 var dotIdx = token.IndexOf('.');
                 var fixName = dotIdx >= 0 ? token[..dotIdx] : token;
@@ -966,9 +966,9 @@ public static class ApproachCommandHandler
 
         // Build set of known fixes from aircraft's flight plan route + active nav route
         var knownFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrEmpty(aircraft.Route))
+        if (!string.IsNullOrEmpty(aircraft.FlightPlan.Route))
         {
-            foreach (var token in aircraft.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 var dotIdx = token.IndexOf('.');
                 var fixName = dotIdx >= 0 ? token[..dotIdx] : token;
@@ -1353,12 +1353,12 @@ public static class ApproachCommandHandler
     /// </summary>
     public static void ActivatePendingApproach(AircraftState aircraft, PendingApproachInfo pending)
     {
-        aircraft.PendingApproachClearance = null;
+        aircraft.Approach.PendingClearance = null;
 
         // Clear STAR state so stale descent logic doesn't conflict with approach phases
-        aircraft.ActiveStarId = null;
-        aircraft.StarViaMode = false;
-        aircraft.StarViaFloor = null;
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaFloor = null;
 
         aircraft.Phases = new PhaseList { AssignedRunway = pending.AssignedRunway, ActiveApproach = pending.Clearance };
         aircraft.Phases.Add(new FinalApproachPhase());
@@ -1423,14 +1423,14 @@ public static class ApproachCommandHandler
         }
 
         // Clear STAR state so stale descent logic doesn't conflict with approach phases
-        aircraft.ActiveStarId = null;
-        aircraft.StarViaMode = false;
-        aircraft.StarViaFloor = null;
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaFloor = null;
 
         // Clear visual approach state
-        aircraft.HasReportedFieldInSight = false;
-        aircraft.HasReportedTrafficInSight = false;
-        aircraft.FollowingCallsign = null;
+        aircraft.Approach.HasReportedFieldInSight = false;
+        aircraft.Approach.HasReportedTrafficInSight = false;
+        aircraft.Approach.FollowingCallsign = null;
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
     }
 

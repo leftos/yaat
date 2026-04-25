@@ -229,30 +229,30 @@ public class NavigationCommandTests : IDisposable
     public void Dvia_WithAltitude_EnablesStarViaModeWithFloor()
     {
         var aircraft = MakeAircraft(altitude: 10000);
-        aircraft.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var cmd = new DescendViaCommand(5000);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.True(aircraft.StarViaMode);
-        Assert.Equal(5000, aircraft.StarViaFloor);
+        Assert.True(aircraft.Procedure.StarViaMode);
+        Assert.Equal(5000, aircraft.Procedure.StarViaFloor);
     }
 
     [Fact]
     public void Dvia_WithoutAltitude_EnablesStarViaMode()
     {
         var aircraft = MakeAircraft(altitude: 10000);
-        aircraft.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var cmd = new DescendViaCommand(null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.True(aircraft.StarViaMode);
-        Assert.Null(aircraft.StarViaFloor);
+        Assert.True(aircraft.Procedure.StarViaMode);
+        Assert.Null(aircraft.Procedure.StarViaFloor);
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public class NavigationCommandTests : IDisposable
     public void Dvia_ImmediatelyAppliesFirstConstrainedFix()
     {
         var aircraft = MakeAircraft(altitude: 20000);
-        aircraft.ActiveStarId = "TEST1";
+        aircraft.Procedure.ActiveStarId = "TEST1";
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.8, -122.3) });
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
@@ -287,7 +287,7 @@ public class NavigationCommandTests : IDisposable
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.True(aircraft.StarViaMode);
+        Assert.True(aircraft.Procedure.StarViaMode);
         Assert.Equal(12000, aircraft.Targets.TargetAltitude);
     }
 
@@ -346,7 +346,7 @@ public class NavigationCommandTests : IDisposable
     public void Apps_UsesDestinationAsFallback()
     {
         var aircraft = MakeAircraft();
-        aircraft.Destination = "OAK";
+        aircraft.FlightPlan.Destination = "OAK";
         // Provide an empty approach cache for OAK to signal CIFP is available but airport has no approaches
         var navDb = NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] });
         using var _ = NavigationDatabase.ScopedOverride(navDb);
@@ -1287,8 +1287,8 @@ public class NavigationCommandTests : IDisposable
         };
 
         // Neither SidViaMode nor StarViaMode is true
-        Assert.False(aircraft.SidViaMode);
-        Assert.False(aircraft.StarViaMode);
+        Assert.False(aircraft.Procedure.SidViaMode);
+        Assert.False(aircraft.Procedure.StarViaMode);
 
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
@@ -1302,8 +1302,8 @@ public class NavigationCommandTests : IDisposable
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 250;
-        aircraft.StarViaMode = true;
-        aircraft.StarViaFloor = 8000;
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.StarViaFloor = 8000;
 
         var target = new NavigationTarget
         {
