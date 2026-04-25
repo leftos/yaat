@@ -24,6 +24,7 @@ public static class PilotObservationUpdater
             bool resolved = obs switch
             {
                 TrafficAcquisitionObservation traffic => TryResolveTraffic(aircraft, traffic, aircraftLookup, weather),
+                FieldAcquisitionObservation => TryResolveField(aircraft, weather),
                 _ => false,
             };
 
@@ -67,6 +68,31 @@ public static class PilotObservationUpdater
         aircraft.HasReportedTrafficInSight = true;
         aircraft.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
         aircraft.PendingWarnings.Add(Commands.NavigationCommandHandler.FormatTrafficInSightNotification(aircraft, obs.TargetCallsign));
+        return true;
+    }
+
+    /// <summary>
+    /// Re-runs visual acquisition for a pending field observation. Returns
+    /// true if the observation is done (acquired → pilot reports field in
+    /// sight, or the destination is no longer lookupable → silently drop)
+    /// and should be removed.
+    /// </summary>
+    private static bool TryResolveField(AircraftState aircraft, WeatherProfile? weather)
+    {
+        var result = VisualAcquisition.TryAcquireAirport(aircraft, weather);
+        if (result is null)
+        {
+            // Destination cleared or no longer in nav database. Silently drop.
+            return true;
+        }
+
+        if (!result.Value.Acquired)
+        {
+            return false;
+        }
+
+        aircraft.HasReportedFieldInSight = true;
+        aircraft.PendingWarnings.Add(Commands.NavigationCommandHandler.FormatFieldInSightNotification(aircraft));
         return true;
     }
 }

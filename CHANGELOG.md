@@ -12,7 +12,7 @@
 - Airport-authored runway data drives pattern altitude, pattern size, default exit side, and forbidden exits. OAK 28L flies its published 600 ft AGL pattern instead of the per-category default; SFO 28R picks south-side exits and avoids L/P (which cross toward 1L/19R).
 
 ### Changed
-- RTIS soft-fail now surfaces the specific visual-acquisition reason (distance, cloud layer, hemisphere, bank) to the RPO while keeping the pilot readback diagnostic-free. Traffic-in-sight readbacks are promoted from gray notifications to orange warnings.
+- RTIS and RFIS now soft-fail symmetrically: when the pilot can't visually acquire the target/field on the first check, the command succeeds, a diagnostic-free pilot readback is logged (e.g. "Negative contact KOAK, field's behind us, looking"), and the pilot keeps re-checking each tick until the field/traffic comes into view. The specific reason (distance, cloud layer, hemisphere, bank, Class A) is surfaced to the RPO through the command response only. Acquisition readbacks are promoted from gray notifications to orange warnings.
 - README, INSTALL, GETTING_STARTED, and CONTRIBUTING lead with the prebuilt installer path instead of a from-source build.
 - Wire format and recording bundles now use a single `Position {Lat, Lon}` field in place of separate `Latitude` / `Longitude` doubles. Existing v4 bundles can be migrated with `tools/upgrade_bundles_latlon.py`.
 - `EXT` now extends the current pattern leg — upwind, crosswind, or downwind. Base is rejected (use `MNA` to widen instead).

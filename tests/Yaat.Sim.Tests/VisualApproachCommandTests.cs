@@ -212,26 +212,22 @@ public class VisualApproachCommandTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void ReportFieldInSight_WhenFieldSeen_AddsNotification()
+    public void ReportFieldInSight_WhenFieldSeen_AddsWarning()
     {
         var aircraft = MakeAircraft();
         aircraft.HasReportedFieldInSight = true;
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("field in sight", aircraft.PendingNotifications[0]);
+        // Field acquisition routes through PendingWarnings (WRN/Orange) — gates the visual approach.
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("field in sight", aircraft.PendingWarnings[0]);
     }
 
-    [Fact]
-    public void ReportFieldInSight_WhenNotSeen_Fails()
-    {
-        var aircraft = MakeAircraft();
-        aircraft.HasReportedFieldInSight = false;
-
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, TestDispatch.Context(Random.Shared));
-        Assert.False(result.Success);
-    }
+    // Soft-fail behavior (visual reasons) and hard-fail (no destination / not in
+    // nav database) are exhaustively covered in RfisSoftFailLookingTests and
+    // ReportInSightTests using a real NavDb. The scoped runway-only NavDb used
+    // here cannot exercise the airport visual-acquisition path.
 
     [Fact]
     public void ReportTrafficInSight_WhenTrafficSeen_AddsNotification()

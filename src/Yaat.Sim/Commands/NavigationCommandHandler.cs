@@ -976,7 +976,7 @@ internal static class NavigationCommandHandler
         // visual approach, just echo the in-sight response.
         if (aircraft.HasReportedFieldInSight)
         {
-            aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
+            aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
             return CommandDispatcher.Ok("Field in sight");
         }
 
@@ -987,35 +987,36 @@ internal static class NavigationCommandHandler
         }
 
         var navDb = NavigationDatabase.Instance;
-        var aptPos = navDb.GetFixPosition(destination);
-        var aptElevation = navDb.GetAirportElevation(destination);
-        if (aptPos is null || aptElevation is null)
+        if (navDb.GetFixPosition(destination) is null || navDb.GetAirportElevation(destination) is null)
         {
             return new CommandResult(false, $"Unable, {destination} not in nav database");
         }
 
         var metar = ctx.Weather?.GetWeatherForAirport(destination);
-        var result = VisualDetection.TryAcquireAirport(
-            aircraft,
-            aptPos.Value.Lat,
-            aptPos.Value.Lon,
-            aptElevation.Value,
-            metar?.Layers,
-            metar?.VisibilityStatuteMiles,
-            aircraft.BankAngle
-        );
+        var result =
+            VisualAcquisition.TryAcquireAirport(aircraft, ctx.Weather)
+            ?? throw new InvalidOperationException($"Destination {destination} pre-validated but TryAcquireAirport returned null");
 
         if (result.Acquired)
         {
             // Setting the flag here unblocks the CVA FOLLOW gate and lets the tick
             // processor take over maintained-contact tracking once visual clearance
-            // becomes active.
+            // becomes active. First-check acquisition supersedes any in-flight
+            // "looking" state.
             aircraft.HasReportedFieldInSight = true;
-            aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
+            aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
+            aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
             return CommandDispatcher.Ok("Field in sight");
         }
 
-        return new CommandResult(false, FormatFieldFailure(result, metar, destination));
+        // Soft-fail: pilot acknowledges the request but can't see the field yet.
+        // Record the reason in a pilot readback and keep looking each tick via
+        // PilotObservationUpdater. A new RFIS replaces the prior observation —
+        // the latest request always wins.
+        aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
+        aircraft.PendingObservations.Add(new FieldAcquisitionObservation());
+        aircraft.PendingNotifications.Add(FormatFieldLookingNotification(result, destination));
+        return CommandDispatcher.Ok($"Looking for the field — {FormatFieldFailureHint(result, metar, destination)}");
     }
 
     internal static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)
@@ -1114,20 +1115,65 @@ internal static class NavigationCommandHandler
             _ => $"not acquired ({r.Reason})",
         };
 
+    /// <summary>
+    /// Pilot readback when the field has been acquired. Routed through
+    /// PendingWarnings (orange) so the RPO sees the resolution clearly —
+    /// "field in sight" gates the visual approach clearance.
+    /// </summary>
+    internal static string FormatFieldInSightNotification(AircraftState aircraft) => $"{aircraft.Callsign} has the field in sight";
+
+    /// <summary>
+    /// Pilot readback when RFIS can't be satisfied on the first check — the
+    /// pilot acknowledges the request and commits to keep looking. Mirrors
+    /// the RTIS soft-fail readback (see <see cref="FormatTrafficLookingNotification"/>):
+    /// pilot phraseology only, no simulator-internal diagnostics. "Unable" is
+    /// reserved for refused clearances (7110.65 2-4-20) and is NOT used here.
+    /// Reviewed with aviation-sim-expert:
+    /// - "On top" only fits <see cref="VisualAcquisitionFailure.AboveCeiling"/>
+    ///   (the AIM 4-4-8 / 5-5-3 sense of "above an obscuring layer"). For
+    ///   <see cref="VisualAcquisitionFailure.InClassA"/> the issue is altitude,
+    ///   not a deck, so the readback collapses to the default — the controller
+    ///   already knows why at FL180+.
+    /// - "Field's behind us" is a real-world idiom for
+    ///   <see cref="VisualAcquisitionFailure.BehindOwnship"/> and is actionable
+    ///   for the controller (cue to offer a vector).
+    /// - <see cref="VisualAcquisitionFailure.OppositeSideOfRunway"/> stays in
+    ///   the default arm; runway side isn't standard pilot phraseology in this
+    ///   reply.
+    /// See AIM 5-4-23 (visual approach) and AIM 4-1-15 / 5-5-8 ("negative
+    /// contact" usage).
+    /// </summary>
+    private static string FormatFieldLookingNotification(VisualAcquisitionResult r, string airportId) =>
+        r.Reason switch
+        {
+            VisualAcquisitionFailure.OccludedByBank => $"Negative contact, {airportId}, in the turn, looking",
+            VisualAcquisitionFailure.AboveCeiling => $"Negative contact, {airportId}, on top, looking",
+            VisualAcquisitionFailure.BehindOwnship => $"Negative contact, {airportId}, field's behind us, looking",
+            _ => $"Negative contact, {airportId}, looking",
+        };
+
     // Phraseology borrowed from AIM §4-1-15 and §5-5-8 (traffic advisories use
     // "negative contact" when the pilot cannot visually acquire a target) and
     // 7110.65 §7-2-1 (visual separation boundary at FL180).
-    private static string FormatFieldFailure(VisualAcquisitionResult r, MetarParser.ParsedMetar? metar, string airportId) =>
+
+    /// <summary>
+    /// RPO-facing diagnostic naming the specific reason the pilot could not
+    /// visually acquire the field. Surfaced through the command result so the
+    /// instructor/RPO can decide whether to relay it to the student. Distinct
+    /// from <see cref="FormatFieldLookingNotification"/>, which stays in
+    /// pilot phraseology and must avoid sim-internal diagnostics.
+    /// </summary>
+    private static string FormatFieldFailureHint(VisualAcquisitionResult r, MetarParser.ParsedMetar? metar, string airportId) =>
         r.Reason switch
         {
-            VisualAcquisitionFailure.InClassA => "Unable visual, in Class Alpha",
-            VisualAcquisitionFailure.AboveCeiling => $"Unable, {airportId} below {FormatLayer(r.BindingLayer)}",
-            VisualAcquisitionFailure.BehindOwnship => $"Unable, {airportId} behind us (outside forward hemisphere)",
-            VisualAcquisitionFailure.OccludedByBank => $"Unable, {airportId} lost visual in the turn (high wing blocking view)",
+            VisualAcquisitionFailure.InClassA => "ownship in Class Alpha",
+            VisualAcquisitionFailure.AboveCeiling => $"{airportId} below {FormatLayer(r.BindingLayer)} (cloud deck blocking ground view)",
+            VisualAcquisitionFailure.BehindOwnship => $"{airportId} behind ownship (outside forward hemisphere)",
+            VisualAcquisitionFailure.OccludedByBank => $"{airportId} on high-wing side during bank (occluded)",
             VisualAcquisitionFailure.OutOfRange =>
-                $"Negative contact, {airportId}, {r.DistanceNm:F1} miles out (need {r.MaxRangeNm:F1} nm or less{VisibilityQualifier(metar)})",
-            VisualAcquisitionFailure.OppositeSideOfRunway => $"Unable, {airportId} on the opposite side of the runway",
-            _ => $"Unable, {airportId} not in sight",
+                $"{airportId} {r.DistanceNm:F1} nm away, max visual {r.MaxRangeNm:F1} nm{VisibilityQualifier(metar)}",
+            VisualAcquisitionFailure.OppositeSideOfRunway => $"{airportId} on opposite side of runway",
+            _ => $"not acquired ({r.Reason})",
         };
 
     /// <summary>
@@ -1170,7 +1216,8 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft)
     {
         aircraft.HasReportedFieldInSight = true;
-        aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
+        aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
+        aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
         return CommandDispatcher.Ok("Field in sight (forced)");
     }
 

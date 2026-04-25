@@ -36,7 +36,9 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.True(ac.HasReportedFieldInSight);
-        Assert.Contains("field in sight", ac.PendingNotifications[0]);
+        // Acquisition is a key event — announced via PendingWarnings (orange).
+        Assert.Contains("field in sight", ac.PendingWarnings[0]);
+        Assert.Empty(ac.PendingNotifications);
     }
 
     [Fact]
@@ -49,6 +51,7 @@ public class ReportInSightTests
 
         Assert.False(result.Success);
         Assert.Contains("no arrival airport", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(ac.PendingObservations);
     }
 
     [Fact]
@@ -62,22 +65,28 @@ public class ReportInSightTests
         Assert.False(result.Success);
         Assert.Contains("ZZZZ", result.Message);
         Assert.Contains("nav database", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(ac.PendingObservations);
     }
 
     [Fact]
-    public void Rfis_Fails_InClassA()
+    public void Rfis_SoftFails_InClassA()
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 19000, destination: "KOAK");
         var ctx = TestDispatch.Context(Random.Shared);
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
-        Assert.False(result.Success);
+        Assert.True(result.Success);
+        Assert.False(ac.HasReportedFieldInSight);
         Assert.Contains("Class Alpha", result.Message, StringComparison.OrdinalIgnoreCase);
+        // Pilot readback stays diagnostic-free — controller already knows why at FL180+.
+        Assert.DoesNotContain("Class", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("on top", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
     [Fact]
-    public void Rfis_Fails_AboveCeiling()
+    public void Rfis_SoftFails_AboveCeiling()
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 4000, destination: "KOAK");
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC020 20/12 A2992"] };
@@ -85,13 +94,17 @@ public class ReportInSightTests
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
-        Assert.False(result.Success);
-        // Message should name the binding layer (OVC020) rather than say "the layer".
+        Assert.True(result.Success);
+        Assert.False(ac.HasReportedFieldInSight);
+        // RPO diagnostic names the binding layer (OVC020).
         Assert.Contains("OVC020", result.Message);
+        // Pilot readback stays diagnostic-free — no METAR codes.
+        Assert.DoesNotContain("OVC", ac.PendingNotifications[0]);
+        Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
     [Fact]
-    public void Rfis_Fails_AboveHighOvc_WithLowerScattered_NamesHighLayer()
+    public void Rfis_SoftFails_AboveHighOvc_WithLowerScattered_NamesHighLayer()
     {
         // Multi-layer regression: SCT020 (not a ceiling) over OVC150. Aircraft at
         // 16,000 MSL is below FL180 but above the OVC at 15,000 AGL → fail with
@@ -103,12 +116,13 @@ public class ReportInSightTests
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
-        Assert.False(result.Success);
+        Assert.True(result.Success);
         Assert.Contains("OVC150", result.Message);
+        Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
     [Fact]
-    public void Rfis_Fails_WhenAirportBehind()
+    public void Rfis_SoftFails_WhenAirportBehind()
     {
         // Aircraft north of KOAK heading north → airport behind
         var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
@@ -116,12 +130,19 @@ public class ReportInSightTests
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
-        Assert.False(result.Success);
-        Assert.Contains("behind", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success);
+        Assert.False(ac.HasReportedFieldInSight);
+        Assert.Contains("behind ownship", result.Message, StringComparison.OrdinalIgnoreCase);
+        // Pilot readback uses the real-world "field's behind us" idiom (no
+        // sim-internal "outside forward hemisphere" diagnostic).
+        Assert.Contains("field's behind us", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hemisphere", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
     [Fact]
-    public void Rfis_Fails_OutOfRange()
+    public void Rfis_SoftFails_OutOfRange()
     {
         // 1 SM visibility → ~0.87 nm max range; aircraft 3+ nm north of KOAK
         var ac = MakeAircraft(37.76, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
@@ -130,15 +151,19 @@ public class ReportInSightTests
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
-        Assert.False(result.Success);
-        Assert.Contains("Negative contact", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success);
+        Assert.False(ac.HasReportedFieldInSight);
+        // RPO diagnostic includes distance + max range + visibility qualifier.
+        Assert.Contains("nm", result.Message, StringComparison.OrdinalIgnoreCase);
+        // Pilot readback is plain.
+        Assert.Contains("Negative contact", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
     [Fact]
-    public void Rfis_Fails_OccludedByBank()
+    public void Rfis_SoftFails_OccludedByBank()
     {
-        // Heading north with airport on the right; right bank → high wing is left, target is on the right (low wing) so NOT occluded.
-        // To trigger occlusion, put the airport on the left side and bank right.
         // Aircraft south of KOAK, heading east, airport to the northwest (left side).
         // Right bank 25° → high wing left → airport occluded.
         var ac = MakeAircraft(37.71, -122.30, heading: 90, altitude: 3000, destination: "KOAK");
@@ -147,8 +172,13 @@ public class ReportInSightTests
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
-        Assert.False(result.Success);
-        Assert.Contains("lost visual", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success);
+        Assert.False(ac.HasReportedFieldInSight);
+        // RPO diagnostic mentions the bank/occlusion.
+        Assert.Contains("bank", result.Message, StringComparison.OrdinalIgnoreCase);
+        // Pilot readback uses the "in the turn" idiom, no high-wing diagnostics.
+        Assert.Contains("in the turn", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
     // -------------------------------------------------------------------------
@@ -273,7 +303,8 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.Contains("field in sight", ac.PendingNotifications[0]);
+        Assert.Contains("field in sight", ac.PendingWarnings[0]);
+        Assert.Empty(ac.PendingNotifications);
     }
 
     [Fact]

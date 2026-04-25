@@ -11,9 +11,10 @@ namespace Yaat.Sim;
 /// event catches the RPO's attention) and the tick processor removes it from
 /// <see cref="AircraftState.PendingObservations"/>.</para>
 ///
-/// <para>Currently only <see cref="TrafficAcquisitionObservation"/> exists —
-/// it models RTIS soft-fail / "looking for traffic" behavior. Siblings for
-/// "report leaving altitude" or "report passing fix" can slot in later.</para>
+/// <para><see cref="TrafficAcquisitionObservation"/> models RTIS soft-fail /
+/// "looking for traffic". <see cref="FieldAcquisitionObservation"/> is the
+/// matching RFIS soft-fail. Siblings for "report leaving altitude" or
+/// "report passing fix" can slot in later.</para>
 /// </summary>
 public abstract record PilotObservation;
 
@@ -25,3 +26,12 @@ public abstract record PilotObservation;
 /// silently clears.
 /// </summary>
 public sealed record TrafficAcquisitionObservation(string TargetCallsign) : PilotObservation;
+
+/// <summary>
+/// Pilot is looking for the assigned destination airport. Each tick,
+/// <see cref="PilotObservationUpdater"/> re-runs the airport visual
+/// acquisition check; on acquisition the pilot reports "field in sight" and
+/// the observation resolves. If the destination is cleared or no longer in
+/// the nav database the observation silently clears.
+/// </summary>
+public sealed record FieldAcquisitionObservation : PilotObservation;

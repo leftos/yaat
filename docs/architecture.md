@@ -249,15 +249,18 @@ VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportFor
                                # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
                                # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
                                # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)
-VisualAcquisition.cs           # Static helper: TryAcquireTraffic(ownship, target, weather) — bundles METAR/elevation/bank-angle lookup
-                               # around VisualDetection.TryAcquireTraffic so RTIS first-check and PilotObservationUpdater re-check use identical inputs
-PilotObservation.cs            # Abstract record PilotObservation + TrafficAcquisitionObservation(TargetCallsign)
-                               # Pilot-side "watch for a condition" state — populated when RTIS soft-fails (pilot keeps looking)
+VisualAcquisition.cs           # Static helpers: TryAcquireTraffic(ownship, target, weather) and TryAcquireAirport(ownship, weather)
+                               # Bundle METAR/elevation/bank-angle lookup around VisualDetection so RTIS/RFIS first-check and
+                               # PilotObservationUpdater re-check use identical inputs. TryAcquireAirport returns null when the
+                               # destination is missing or not in the nav db (caller drops the observation).
+PilotObservation.cs            # Abstract record PilotObservation + TrafficAcquisitionObservation(TargetCallsign) + FieldAcquisitionObservation
+                               # Pilot-side "watch for a condition" state — populated when RTIS/RFIS soft-fail (pilot keeps looking)
                                # Extension points for future "report leaving altitude", "report passing fix", etc.
 PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhysics.Update after UpdateCommandQueue
-                               # Re-runs VisualAcquisition.TryAcquireTraffic; on success sets HasReportedTrafficInSight + pilot readback
-                               # Acquisition readback routes through PendingWarnings (WRN/Orange) so the event catches RPO attention
-                               # Silently drops observations whose target has left the sim
+                               # Re-runs VisualAcquisition.TryAcquireTraffic / TryAcquireAirport; on success sets the matching
+                               # HasReported* flag and pushes the in-sight pilot readback. Acquisition readbacks route through
+                               # PendingWarnings (WRN/Orange) so the event catches RPO attention. Silently drops observations
+                               # whose target has left the sim or whose destination is no longer lookupable.
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
 
 # Track operations
