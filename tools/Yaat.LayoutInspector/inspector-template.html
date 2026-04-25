@@ -27,10 +27,52 @@ canvas:active { cursor:grabbing; }
 }
 .lc { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; }
 .ls { margin-left:10px; }
+#hlpanel {
+  position:fixed; top:8px; right:8px; width:280px; background:#161b22ee;
+  border:1px solid #30363d; border-radius:8px; padding:10px 12px;
+  color:#c9d1d9; font-size:12px; z-index:30; max-height:80vh; display:flex;
+  flex-direction:column; gap:8px;
+}
+#hlpanel h4 { font-size:11px; color:#8b949e; font-weight:bold; text-transform:uppercase; letter-spacing:0.04em; }
+#hlpanel input[type=text] {
+  width:100%; padding:6px 8px; background:#0d1117; border:1px solid #30363d;
+  border-radius:4px; color:#c9d1d9; font-family:Consolas,monospace; font-size:12px;
+}
+#hlpanel input[type=text]:focus { outline:none; border-color:#58a6ff; }
+#hlpanel .hint { color:#6e7681; font-size:10px; line-height:1.4; }
+#hlchips { display:flex; flex-wrap:wrap; gap:4px; max-height:200px; overflow-y:auto; }
+#hlchips .chip {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 4px 2px 8px; background:#0d1117; border:1px solid #30363d;
+  border-radius:12px; font-size:11px; line-height:1; color:#c9d1d9;
+}
+#hlchips .chip[data-kind=taxiway] { border-color:#3fb950; }
+#hlchips .chip[data-kind=runway] { border-color:#58a6ff; }
+#hlchips .chip[data-kind=node] { border-color:#d29922; }
+#hlchips .chip .label { font-weight:bold; }
+#hlchips .chip button {
+  background:none; border:none; color:#6e7681; cursor:pointer;
+  font-size:14px; line-height:1; padding:0 4px; border-radius:50%;
+}
+#hlchips .chip button:hover { color:#f85149; background:#21262d; }
+#hlclear {
+  background:none; border:1px solid #30363d; color:#8b949e; cursor:pointer;
+  border-radius:4px; padding:4px 8px; font-size:11px; align-self:flex-start;
+}
+#hlclear:hover { color:#f85149; border-color:#f85149; }
+#hlclear:disabled { opacity:0.3; cursor:default; }
 </style></head><body>
 <canvas id="c"></canvas>
 <div id="tooltip"></div>
 <div id="hud"></div>
+<div id="hlpanel">
+  <h4>Highlight</h4>
+  <input id="hlinput" type="text" list="hloptions" placeholder="search node/taxiway/runway, then Enter" autocomplete="off">
+  <datalist id="hloptions"></datalist>
+  <div class="hint">Examples: <code>1753</code> (node id) &middot; <code>E</code> (taxiway) &middot; <code>28L</code> (runway). Click chips to remove.</div>
+  <div id="hlchips"></div>
+  <button id="hlclear">Clear all</button>
+</div>
 <div id="legend">
   <span class="lc" style="background:#3fb950"></span>Taxiway
   <span class="lc ls" style="background:#58a6ff"></span>RWY CL
@@ -40,10 +82,13 @@ canvas:active { cursor:grabbing; }
   <span class="lc ls" style="background:#ff6a00"></span>Route
   <br><span style="color:#484f58">scroll=zoom  drag=pan  hover=inspect  M=measure</span>
 </div>
-<div id="player" style="display:none; position:fixed; bottom:8px; left:8px; right:8px; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:6px 14px; color:#c9d1d9; font-size:12px; z-index:20; display:flex; align-items:center; gap:10px;">
-  <button id="playBtn" style="background:none; border:1px solid #484f58; border-radius:4px; color:#c9d1d9; font-size:14px; cursor:pointer; width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">&#9654;</button>
-  <input id="scrub" type="range" min="0" max="0" value="0" style="flex:1; accent-color:#ff6a00; cursor:pointer;">
-  <span id="tickInfo" style="font-family:Consolas,monospace; width:420px; flex-shrink:0; text-align:right; white-space:nowrap; overflow:hidden;"></span>
+<div id="player" style="display:none; position:fixed; bottom:8px; left:8px; right:8px; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:6px 14px; color:#c9d1d9; font-size:12px; z-index:20; flex-direction:column; gap:6px;">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <button id="playBtn" style="background:none; border:1px solid #484f58; border-radius:4px; color:#c9d1d9; font-size:14px; cursor:pointer; width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">&#9654;</button>
+    <input id="scrub" type="range" min="0" max="0" value="0" style="flex:1; accent-color:#ff6a00; cursor:pointer;">
+    <span id="tickClock" style="font-family:Consolas,monospace; min-width:60px; text-align:right; color:#8b949e;"></span>
+  </div>
+  <div id="tickAircraft" style="display:flex; flex-direction:column; gap:2px; font-family:Consolas,monospace; font-size:11px; line-height:1.4; max-height:120px; overflow-y:auto;"></div>
 </div>
 <script>
 "use strict";
@@ -56,12 +101,61 @@ const hud = document.getElementById('hud');
 const nodeMap = {};
 D.nodes.forEach(n => { nodeMap[n.id] = n; });
 const routeSet = new Set(D.route);
-const hlTwySet = new Set(D.hlTaxiways.map(s => s.toUpperCase()));
-const hasHl = hlTwySet.size > 0 || D.hlRunways.length > 0;
+
+// --- Runtime highlight state (mutable; UI in #hlpanel toggles entries) ---
+// Initialized from the CLI-baked flags so the page comes up matching the
+// command line, but the user can add/remove highlights live without
+// re-running LI. Each Set normalizes its keys: taxiways/runways uppercase,
+// node ids as numbers.
+const state = {
+  taxiways: new Set(D.hlTaxiways.map(s => s.toUpperCase())),
+  runways: new Set(D.hlRunways.map(s => s.toUpperCase())),
+  nodes: new Set(D.nodes.filter(n => n.hl).map(n => n.id)),
+};
+function hasHl() { return state.taxiways.size > 0 || state.runways.size > 0 || state.nodes.size > 0; }
 
 function twyMatch(name) {
-  return hlTwySet.has(name.toUpperCase()) ||
-    name.split(' \u00b7 ').some(p => hlTwySet.has(p.toUpperCase()));
+  if (!name) return false;
+  const u = name.toUpperCase();
+  if (state.taxiways.has(u)) return true;
+  return name.split(' \u00b7 ').some(p => state.taxiways.has(p.toUpperCase()));
+}
+
+function runwayDesignatorMatch(rwyName, designator) {
+  if (!rwyName || !designator) return false;
+  const parts = rwyName.toUpperCase().split('/');
+  return parts.includes(designator.toUpperCase());
+}
+
+function isHlEdge(e) {
+  // No highlights set \u2192 everything is "highlighted" for visual purposes
+  if (!hasHl()) return true;
+  if (state.nodes.has(e.a) || state.nodes.has(e.b)) return true;
+  if (e.twy && twyMatch(e.twy)) return true;
+  // Runway centerline matches any runway designator
+  if (e.rwy && e.twy) {
+    for (const r of state.runways) { if (runwayDesignatorMatch(e.twy, r)) return true; }
+  }
+  return false;
+}
+
+function isHlArc(a) {
+  if (!hasHl()) return true;
+  if (state.nodes.has(a.a) || state.nodes.has(a.b)) return true;
+  if (a.names && a.names.some(twyMatch)) return true;
+  return false;
+}
+
+function isHlRunway(r) {
+  if (state.runways.size === 0) return false;
+  for (const designator of state.runways) {
+    if (runwayDesignatorMatch(r.name, designator)) return true;
+  }
+  return false;
+}
+
+function isHlNode(n) {
+  return state.nodes.has(n.id);
 }
 
 // Bounds
@@ -90,19 +184,39 @@ function saveView() {
   if (_saveViewTimer !== null) return;
   _saveViewTimer = setTimeout(() => {
     _saveViewTimer = null;
-    const h = '#z=' + scale.toFixed(3) + ',px=' + panX.toFixed(2) + ',py=' + panY.toFixed(2);
+    const parts = [
+      'z=' + scale.toFixed(3),
+      'px=' + panX.toFixed(2),
+      'py=' + panY.toFixed(2),
+    ];
+    if (state.taxiways.size > 0) parts.push('tw=' + Array.from(state.taxiways).join(','));
+    if (state.runways.size > 0) parts.push('rw=' + Array.from(state.runways).join(','));
+    if (state.nodes.size > 0) parts.push('nd=' + Array.from(state.nodes).join(','));
+    const h = '#' + parts.join(',');
     try { history.replaceState(null, '', h); } catch (_) { location.hash = h; }
   }, 120);
 }
 function loadView() {
-  const m = (location.hash || '').match(/^#z=([-\d.]+),px=([-\d.]+),py=([-\d.]+)/);
-  if (!m) return;
-  const z = parseFloat(m[1]), x = parseFloat(m[2]), y = parseFloat(m[3]);
-  if (Number.isFinite(z) && Number.isFinite(x) && Number.isFinite(y)) {
-    scale = Math.max(0.5, Math.min(80, z));
-    panX = x;
-    panY = y;
+  const h = location.hash || '';
+  const z = h.match(/(?:^|[#,])z=([-\d.]+)/);
+  const px = h.match(/(?:^|[#,])px=([-\d.]+)/);
+  const py = h.match(/(?:^|[#,])py=([-\d.]+)/);
+  if (z && px && py) {
+    const zv = parseFloat(z[1]), xv = parseFloat(px[1]), yv = parseFloat(py[1]);
+    if (Number.isFinite(zv) && Number.isFinite(xv) && Number.isFinite(yv)) {
+      scale = Math.max(0.5, Math.min(80, zv));
+      panX = xv;
+      panY = yv;
+    }
   }
+  // Highlight state — only override if URL specified them, so the CLI-baked
+  // initial state still wins on a fresh load.
+  const tw = h.match(/(?:^|[#,])tw=([^,]+(?:,[^,]+)*?)(?=,(?:[a-z]+=)|$)/);
+  const rw = h.match(/(?:^|[#,])rw=([^,]+(?:,[^,]+)*?)(?=,(?:[a-z]+=)|$)/);
+  const nd = h.match(/(?:^|[#,])nd=([^,]+(?:,[^,]+)*?)(?=,(?:[a-z]+=)|$)/);
+  if (tw) { state.taxiways.clear(); tw[1].split(',').forEach(t => state.taxiways.add(t.toUpperCase())); }
+  if (rw) { state.runways.clear(); rw[1].split(',').forEach(r => state.runways.add(r.toUpperCase())); }
+  if (nd) { state.nodes.clear(); nd[1].split(',').forEach(n => { const i = parseInt(n, 10); if (Number.isFinite(i)) state.nodes.add(i); }); }
 }
 
 function resize() {
@@ -143,10 +257,11 @@ function draw() {
     const [x2, y2] = toScreen(c[c.length - 1][0], c[c.length - 1][1]);
     const len = Math.hypot(x2 - x1, y2 - y1);
     const widthPx = Math.max(4, r.widthFt * len / 6000);
-    ctx.strokeStyle = r.hl ? '#2d333b' : '#1c2128';
+    const rwHl = isHlRunway(r);
+    ctx.strokeStyle = rwHl ? '#2d333b' : '#1c2128';
     ctx.lineWidth = widthPx; ctx.lineCap = 'round';
     drawLine(x1, y1, x2, y2);
-    ctx.strokeStyle = r.hl ? '#444c56' : '#21262d';
+    ctx.strokeStyle = rwHl ? '#444c56' : '#21262d';
     ctx.lineWidth = 1.5; ctx.setLineDash([12, 8]);
     drawLine(x1, y1, x2, y2); ctx.setLineDash([]);
     // Label
@@ -159,15 +274,17 @@ function draw() {
     ctx.rotate(-ang); ctx.fillText(r.name, 0, 0); ctx.restore();
   });
 
+  const haveAnyHl = hasHl();
+
   // 2. Non-highlighted edges
   ctx.lineCap = 'butt';
   D.edges.forEach(e => {
-    if (e.hl) return;
+    if (isHlEdge(e) && haveAnyHl) return;
     const na = nodeMap[e.a], nb = nodeMap[e.b];
     if (!na || !nb) return;
     const [x1, y1] = toScreen(na.lat, na.lon);
     const [x2, y2] = toScreen(nb.lat, nb.lon);
-    ctx.globalAlpha = hasHl ? 0.25 : 0.3;
+    ctx.globalAlpha = haveAnyHl ? 0.25 : 0.3;
     ctx.strokeStyle = e.rwy ? '#58a6ff' : e.ramp ? '#8b949e' : '#3fb950';
     ctx.lineWidth = 0.7;
     if (e.rwy) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
@@ -177,8 +294,8 @@ function draw() {
 
   // 3. Non-highlighted arcs
   D.arcs.forEach(a => {
-    if (a.hl) return;
-    ctx.globalAlpha = hasHl ? 0.25 : 0.3;
+    if (isHlArc(a) && haveAnyHl) return;
+    ctx.globalAlpha = haveAnyHl ? 0.25 : 0.3;
     ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 0.7; ctx.setLineDash([4, 3]);
     ctx.beginPath();
     a.pts.forEach((p, i) => {
@@ -188,29 +305,31 @@ function draw() {
     ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   });
 
-  // 4. Highlighted edges
-  D.edges.filter(e => e.hl).forEach(e => {
-    const na = nodeMap[e.a], nb = nodeMap[e.b];
-    if (!na || !nb) return;
-    const [x1, y1] = toScreen(na.lat, na.lon);
-    const [x2, y2] = toScreen(nb.lat, nb.lon);
-    ctx.strokeStyle = e.rwy ? '#79c0ff' : '#56d364';
-    ctx.lineWidth = 2;
-    if (e.rwy) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
-    drawLine(x1, y1, x2, y2); ctx.setLineDash([]);
-  });
-
-  // 5. Highlighted arcs
-  D.arcs.filter(a => a.hl).forEach(a => {
-    ctx.strokeStyle = a.rwyJunction ? '#bc8cff' : '#d2a8ff';
-    ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    a.pts.forEach((p, i) => {
-      const [x, y] = toScreen(p[0], p[1]);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  // 4. Highlighted edges (only when something is actively highlighted)
+  if (haveAnyHl) {
+    D.edges.filter(isHlEdge).forEach(e => {
+      const na = nodeMap[e.a], nb = nodeMap[e.b];
+      if (!na || !nb) return;
+      const [x1, y1] = toScreen(na.lat, na.lon);
+      const [x2, y2] = toScreen(nb.lat, nb.lon);
+      ctx.strokeStyle = e.rwy ? '#79c0ff' : '#56d364';
+      ctx.lineWidth = 2;
+      if (e.rwy) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
+      drawLine(x1, y1, x2, y2); ctx.setLineDash([]);
     });
-    ctx.stroke(); ctx.setLineDash([]);
-  });
+
+    // 5. Highlighted arcs
+    D.arcs.filter(isHlArc).forEach(a => {
+      ctx.strokeStyle = a.rwyJunction ? '#bc8cff' : '#d2a8ff';
+      ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      a.pts.forEach((p, i) => {
+        const [x, y] = toScreen(p[0], p[1]);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke(); ctx.setLineDash([]);
+    });
+  }
 
   // 6. Route overlay
   if (D.route.length >= 2) {
@@ -263,11 +382,12 @@ function draw() {
     const isHS = n.type === 'RunwayHoldShort';
     const isSpot = n.type === 'Spot';
     const isPark = n.type === 'Parking';
-    const isImportant = isHS || isSpot || isPark || n.hl;
+    const explicitlyHl = isHlNode(n);
+    const isImportant = isHS || isSpot || isPark || explicitlyHl;
     const onHlTwy = n.edges && n.edges.some(e => twyMatch(e.twy));
-    if (hasHl && !isImportant && !onHlTwy && !n.ann) return;
+    if (haveAnyHl && !isImportant && !onHlTwy && !n.ann) return;
 
-    const r = isImportant ? (n.hl ? 5 : 3) : 1.5;
+    const r = isImportant ? (explicitlyHl ? 5 : 3) : 1.5;
     const color = isHS ? '#f85149' : isSpot ? '#3fb950' : isPark ? '#58a6ff' : '#d29922';
     ctx.globalAlpha = isImportant || onHlTwy ? 0.9 : 0.25;
     ctx.beginPath(); ctx.arc(x, y, Math.max(r, r * Math.min(scale, 3) / 3), 0, Math.PI * 2);
@@ -647,10 +767,15 @@ let playTimer = null;
 if (D.ticks && D.ticks.length > 0) {
   const playerEl = document.getElementById('player');
   playerEl.style.display = 'flex';
-  document.getElementById('legend').style.bottom = '52px';
+  // Lift the legend above the player so they don't overlap. Player vertical
+  // size depends on how many aircraft are in the recording (one row each).
+  const adjustLegendOffset = () => {
+    document.getElementById('legend').style.bottom = (playerEl.getBoundingClientRect().height + 16) + 'px';
+  };
   const scrub = document.getElementById('scrub');
   const playBtn = document.getElementById('playBtn');
-  const tickInfo = document.getElementById('tickInfo');
+  const tickClock = document.getElementById('tickClock');
+  const tickAircraft = document.getElementById('tickAircraft');
 
   // Build the unified time axis (one slider step per distinct tick second)
   const timeSet = new Set();
@@ -659,17 +784,86 @@ if (D.ticks && D.ticks.length > 0) {
   scrub.max = timeFrames.length - 1;
   currentTime = timeFrames[0];
 
-  function updateTickInfo() {
-    const parts = [`t=${currentTime}`];
-    (D.aircraft || []).forEach(meta => {
-      const candidates = D.ticks.filter(t => t.callsign === meta.callsign && t.t <= currentTime);
-      if (candidates.length === 0) return;
-      const t = candidates[candidates.length - 1];
-      let s = `${meta.callsign} hdg=${t.hdg.toFixed(0)}\u00b0 gs=${t.gs.toFixed(0)}kt ${t.phase}`;
-      if (t.speedLimit != null) s += ` lim=${t.speedLimit.toFixed(0)}`;
-      parts.push(s);
+  // Pre-bucket ticks by callsign for fast latest-tick lookups during playback.
+  const ticksByCallsign = {};
+  D.ticks.forEach(t => {
+    if (!ticksByCallsign[t.callsign]) ticksByCallsign[t.callsign] = [];
+    ticksByCallsign[t.callsign].push(t);
+  });
+  Object.values(ticksByCallsign).forEach(arr => arr.sort((a, b) => a.t - b.t));
+
+  // Render the per-aircraft details as a table so columns line up across
+  // multiple aircraft (callsign / hdg / gs / phase / lim / nav target).
+  const tickColumns = ['callsign', 'phase', 'twy', 'hdg', 'gs', 'lim', 'navTarget'];
+  const tickColLabels = { callsign: 'CS', phase: 'phase', twy: 'twy', hdg: 'hdg', gs: 'gs', lim: 'lim', navTarget: 'navTgt' };
+
+  function buildTickTable() {
+    while (tickAircraft.firstChild) tickAircraft.removeChild(tickAircraft.firstChild);
+    const table = document.createElement('table');
+    table.style.borderCollapse = 'collapse';
+    table.style.fontSize = '11px';
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    tickColumns.forEach(c => {
+      const th = document.createElement('th');
+      th.textContent = tickColLabels[c];
+      th.style.cssText = 'text-align:left; color:#8b949e; font-weight:normal; padding:0 8px 2px 0; border-bottom:1px solid #30363d;';
+      trh.appendChild(th);
     });
-    tickInfo.textContent = parts.join(' | ');
+    thead.appendChild(trh);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    (D.aircraft || []).forEach(meta => {
+      const tr = document.createElement('tr');
+      tr.dataset.callsign = meta.callsign;
+      tickColumns.forEach(c => {
+        const td = document.createElement('td');
+        td.dataset.col = c;
+        td.style.cssText = 'padding:1px 8px 1px 0; vertical-align:top; white-space:nowrap;';
+        tr.appendChild(td);
+      });
+      // Color the callsign cell to match the aircraft silhouette
+      tr.firstChild.style.color = meta.color || '#c9d1d9';
+      tr.firstChild.style.fontWeight = 'bold';
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    tickAircraft.appendChild(table);
+  }
+
+  function findLatestTickFor(callsign, t) {
+    const arr = ticksByCallsign[callsign];
+    if (!arr || arr.length === 0 || arr[0].t > t) return null;
+    // Binary search for largest index where arr[i].t <= t
+    let lo = 0, hi = arr.length - 1, best = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (arr[mid].t <= t) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+    }
+    return best >= 0 ? arr[best] : null;
+  }
+
+  function updateTickInfo() {
+    tickClock.textContent = 't=' + currentTime;
+    const rows = tickAircraft.querySelectorAll('tr[data-callsign]');
+    rows.forEach(tr => {
+      const cs = tr.dataset.callsign;
+      const t = findLatestTickFor(cs, currentTime);
+      const cells = {};
+      tr.querySelectorAll('td[data-col]').forEach(td => { cells[td.dataset.col] = td; });
+      if (!t) {
+        cells.callsign.textContent = cs;
+        ['phase', 'twy', 'hdg', 'gs', 'lim', 'navTarget'].forEach(c => cells[c].textContent = '\u2013');
+        return;
+      }
+      cells.callsign.textContent = cs;
+      cells.phase.textContent = t.phase || '';
+      cells.twy.textContent = t.twy || '';
+      cells.hdg.textContent = t.hdg.toFixed(0) + '\u00b0';
+      cells.gs.textContent = t.gs.toFixed(0) + 'kt';
+      cells.lim.textContent = (t.speedLimit != null) ? t.speedLimit.toFixed(0) + 'kt' : '';
+      cells.navTarget.textContent = (t.nav && t.nav.targetNodeId) ? '#' + t.nav.targetNodeId : '';
+    });
   }
 
   function setFrame(i) {
@@ -707,7 +901,9 @@ if (D.ticks && D.ticks.length > 0) {
     if (e.key === 'ArrowLeft') { e.preventDefault(); setFrame(timeIdx - 1); }
   });
 
+  buildTickTable();
   updateTickInfo();
+  adjustLegendOffset();
 }
 
 // --- Measuring tool ---
@@ -812,6 +1008,179 @@ canvas.addEventListener('contextmenu', e => {
   if (bestIdx >= 0) { rulers.splice(bestIdx, 1); draw(); }
 });
 
+// --- Highlight search panel ---
+// Build a search index across nodes (#id [name]), taxiways, and runways.
+// Datalist autocompletes free-form input; pressing Enter parses the token
+// and adds the right kind of highlight. Clicking a chip removes it. State
+// changes invalidate the canvas (draw()) and the URL hash (saveView()).
+const hlinput = document.getElementById('hlinput');
+const hloptions = document.getElementById('hloptions');
+const hlchips = document.getElementById('hlchips');
+const hlclearBtn = document.getElementById('hlclear');
+
+function buildSearchIndex() {
+  // Returns a list of {label, kind, value} entries used to populate the datalist.
+  // 'value' is what we put on the <option> so the input can echo it back; when
+  // the user submits, we re-parse to figure out kind+key.
+  const entries = [];
+  // Nodes — only parking, spots, hold-shorts, and named/labeled get a friendly
+  // label so the dropdown stays small but useful. Generic intersection nodes
+  // are still searchable by typing the bare id.
+  D.nodes.forEach(n => {
+    const tag = n.type === 'Parking' ? 'parking'
+      : n.type === 'Spot' ? 'spot'
+      : n.type === 'RunwayHoldShort' ? 'hold-short'
+      : null;
+    if (tag !== null || n.name) {
+      let label = '#' + n.id + ' (' + (tag || 'node');
+      if (n.name) label += ' "' + n.name + '"';
+      if (n.rwyId) label += ' rwy=' + n.rwyId;
+      label += ')';
+      entries.push({ label, kind: 'node', value: '#' + n.id });
+    }
+  });
+  // Taxiways — collect distinct names from edges. Names like "B - C" denote
+  // arc edges spanning two taxiways; split those into both.
+  const twySet = new Set();
+  D.edges.forEach(e => { if (e.twy && !e.rwy && !e.ramp) twySet.add(e.twy); });
+  D.arcs.forEach(a => { (a.names || []).forEach(n => twySet.add(n)); });
+  Array.from(twySet).sort().forEach(t => {
+    entries.push({ label: 'T ' + t, kind: 'taxiway', value: 'T:' + t });
+  });
+  // Runways — designators on each side of "/".
+  const rwySet = new Set();
+  D.runways.forEach(r => { (r.name || '').split('/').forEach(s => { if (s) rwySet.add(s.toUpperCase()); }); });
+  Array.from(rwySet).sort().forEach(r => {
+    entries.push({ label: 'R ' + r, kind: 'runway', value: 'R:' + r });
+  });
+  return entries;
+}
+
+const searchEntries = buildSearchIndex();
+
+function refreshDatalist() {
+  while (hloptions.firstChild) hloptions.removeChild(hloptions.firstChild);
+  searchEntries.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.value;
+    opt.label = e.label;
+    hloptions.appendChild(opt);
+  });
+}
+
+function parseHighlightToken(raw) {
+  // Returns { kind: 'node'|'taxiway'|'runway', key: string|number } or null.
+  // Rules (case-insensitive):
+  //   "#1234"  / "1234"            → node id
+  //   "T:NAME" / "T NAME"          → taxiway
+  //   "R:DESIG" / "R DESIG"        → runway designator
+  //   "NAME"                        → ambiguous; matches taxiway then runway
+  const s = (raw || '').trim();
+  if (!s) return null;
+  if (s.startsWith('#')) {
+    const id = parseInt(s.slice(1), 10);
+    return Number.isFinite(id) && nodeMap[id] ? { kind: 'node', key: id } : null;
+  }
+  const m = s.match(/^([trTR])[:\s]+(.+)$/);
+  if (m) {
+    const kind = m[1].toLowerCase() === 't' ? 'taxiway' : 'runway';
+    return { kind, key: m[2].trim().toUpperCase() };
+  }
+  // Bare token: try numeric (node), then taxiway, then runway
+  if (/^\d+$/.test(s)) {
+    const id = parseInt(s, 10);
+    return nodeMap[id] ? { kind: 'node', key: id } : null;
+  }
+  const u = s.toUpperCase();
+  if (searchEntries.some(e => e.kind === 'taxiway' && e.value === 'T:' + u)) return { kind: 'taxiway', key: u };
+  if (searchEntries.some(e => e.kind === 'runway' && e.value === 'R:' + u)) return { kind: 'runway', key: u };
+  return null;
+}
+
+function addHighlight(kind, key) {
+  if (kind === 'node') state.nodes.add(key);
+  else if (kind === 'taxiway') state.taxiways.add(key);
+  else if (kind === 'runway') state.runways.add(key);
+  refreshChips();
+  draw();
+  saveView();
+}
+
+function removeHighlight(kind, key) {
+  if (kind === 'node') state.nodes.delete(key);
+  else if (kind === 'taxiway') state.taxiways.delete(key);
+  else if (kind === 'runway') state.runways.delete(key);
+  refreshChips();
+  draw();
+  saveView();
+}
+
+function clearHighlights() {
+  state.nodes.clear();
+  state.taxiways.clear();
+  state.runways.clear();
+  refreshChips();
+  draw();
+  saveView();
+}
+
+function refreshChips() {
+  while (hlchips.firstChild) hlchips.removeChild(hlchips.firstChild);
+  const entries = [];
+  Array.from(state.nodes).sort((a, b) => a - b).forEach(id => entries.push({ kind: 'node', key: id, label: '#' + id }));
+  Array.from(state.taxiways).sort().forEach(t => entries.push({ kind: 'taxiway', key: t, label: 'T ' + t }));
+  Array.from(state.runways).sort().forEach(r => entries.push({ kind: 'runway', key: r, label: 'R ' + r }));
+  entries.forEach(e => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.dataset.kind = e.kind;
+    const lbl = document.createElement('span');
+    lbl.className = 'label';
+    lbl.textContent = e.label;
+    chip.appendChild(lbl);
+    const btn = document.createElement('button');
+    btn.textContent = '×';
+    btn.title = 'Remove';
+    btn.addEventListener('click', () => removeHighlight(e.kind, e.key));
+    chip.appendChild(btn);
+    hlchips.appendChild(chip);
+  });
+  hlclearBtn.disabled = entries.length === 0;
+}
+
+hlinput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const parsed = parseHighlightToken(hlinput.value);
+    if (parsed) {
+      addHighlight(parsed.kind, parsed.key);
+      hlinput.value = '';
+    } else {
+      // Brief visual nudge that the input wasn't recognised
+      const orig = hlinput.style.borderColor;
+      hlinput.style.borderColor = '#f85149';
+      setTimeout(() => { hlinput.style.borderColor = orig; }, 400);
+    }
+  }
+});
+// 'change' fires when the user picks an option from the datalist via mouse,
+// so we accept that flow too without requiring a separate Enter press.
+hlinput.addEventListener('change', () => {
+  const parsed = parseHighlightToken(hlinput.value);
+  if (parsed) {
+    addHighlight(parsed.kind, parsed.key);
+    hlinput.value = '';
+  }
+});
+
+hlclearBtn.addEventListener('click', clearHighlights);
+
+refreshDatalist();
+refreshChips();
+
 loadView();
+// loadView may have changed the highlight Sets from the URL hash — refresh
+// the chip UI so it reflects the loaded state.
+refreshChips();
 resize();
 </script></body></html>
