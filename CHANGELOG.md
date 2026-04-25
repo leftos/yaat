@@ -25,7 +25,7 @@
 ### Fixed
 - Aircraft no longer make spurious U-turns while taxiing.
 - Pattern aircraft going around now turn crosswind 300 ft below pattern altitude (per AIM 4-3-3), matching the threshold for normal VFR departures, instead of holding runway heading until they reach pattern altitude.
-- Followers no longer drift slower than their leader over time — they now hold the leader's speed correctly.
+- Followers no longer accelerate unreasonable amounts to catch up to their leader while following.
 - Follow state is shown in the Info column during pattern legs (previously went blank once the leader entered a pattern).
 
 ## 0.1.0-alpha
