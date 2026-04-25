@@ -1,8 +1,10 @@
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
@@ -409,5 +411,68 @@ public class GeoJsonParserTests
     public GeoJsonParserTests(ITestOutputHelper output)
     {
         _output = output;
+    }
+
+    [Fact]
+    public void Parse_OakRunways_ReadsAuthoredFields()
+    {
+        TestVnasData.EnsureInitialized();
+        string path = Path.Combine("TestData", "oak.geojson");
+        var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), "OAK");
+
+        // OAK 28L - 10R: turnoff=right, holdShortDistance=250 (ignored), patternSize=0.5, patternAltitude=600
+        var rwy28L = layout.Runways.First(r => r.Name == "28L - 10R");
+        Assert.Equal(ExitSide.Right, rwy28L.PreferredTurnoff);
+        Assert.Equal(0.5, rwy28L.PatternSizeNm);
+        Assert.Equal(600, rwy28L.PatternAltitudeAglFt);
+        Assert.Empty(rwy28L.NoTurnoffByEnd);
+
+        // OAK 28R - 10L: turnoff=right, no pattern overrides
+        var rwy28R = layout.Runways.First(r => r.Name == "28R - 10L");
+        Assert.Equal(ExitSide.Right, rwy28R.PreferredTurnoff);
+        Assert.Null(rwy28R.PatternSizeNm);
+        Assert.Null(rwy28R.PatternAltitudeAglFt);
+
+        // 15 - 33: turnoff=left
+        var rwy15 = layout.Runways.First(r => r.Name == "15 - 33");
+        Assert.Equal(ExitSide.Left, rwy15.PreferredTurnoff);
+    }
+
+    [Fact]
+    public void Parse_SfoNoTurnoff_KeyedByEndDesignator()
+    {
+        TestVnasData.EnsureInitialized();
+        string path = Path.Combine("TestData", "sfo.geojson");
+        var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+
+        // SFO 10L - 28R: noTurnoff = [["Q", "T"], ["L", "P"]]
+        // First list belongs to "10L" (landing 10L), second to "28R".
+        var rwy = layout.Runways.First(r => r.Name == "10L - 28R");
+        Assert.Equal(ExitSide.Right, rwy.PreferredTurnoff);
+
+        Assert.True(rwy.NoTurnoffByEnd.TryGetValue("10L", out var land10L));
+        Assert.Equal(new[] { "Q", "T" }, land10L);
+
+        Assert.True(rwy.NoTurnoffByEnd.TryGetValue("28R", out var land28R));
+        Assert.Equal(new[] { "L", "P" }, land28R);
+
+        // Lookup is case-insensitive
+        Assert.True(rwy.NoTurnoffByEnd.ContainsKey("10l"));
+    }
+
+    [Fact]
+    public void Parse_RunwayWithoutPatternFields_LeavesPatternNull()
+    {
+        TestVnasData.EnsureInitialized();
+        // sjc.geojson has turnoff but no patternAltitude/patternSize/noTurnoff
+        string path = Path.Combine("TestData", "sjc.geojson");
+        var layout = GeoJsonParser.Parse("SJC", File.ReadAllText(path), "SJC");
+
+        foreach (var rwy in layout.Runways)
+        {
+            Assert.Null(rwy.PatternSizeNm);
+            Assert.Null(rwy.PatternAltitudeAglFt);
+            Assert.Empty(rwy.NoTurnoffByEnd);
+        }
     }
 }

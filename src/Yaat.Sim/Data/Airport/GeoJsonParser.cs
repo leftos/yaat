@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -221,6 +222,10 @@ public static class GeoJsonParser
                     Name = rwy.Name,
                     Coordinates = new List<(double Lat, double Lon)>(rwy.Coords),
                     WidthFt = rwyWidthFt,
+                    PreferredTurnoff = rwy.PreferredTurnoff,
+                    PatternAltitudeAglFt = rwy.PatternAltitudeAglFt,
+                    PatternSizeNm = rwy.PatternSizeNm,
+                    NoTurnoffByEnd = rwy.NoTurnoffByEnd,
                 }
             );
         }
@@ -479,7 +484,86 @@ public static class GeoJsonParser
     private static RunwayFeature ParseRunway(JsonElement props, JsonElement geom)
     {
         var (name, coords) = ParseLineString(props, geom);
-        return new RunwayFeature(name, coords);
+
+        ExitSide? turnoff = null;
+        if (props.TryGetProperty("turnoff", out var t) && (t.ValueKind == JsonValueKind.String))
+        {
+            turnoff = t.GetString()?.ToLowerInvariant() switch
+            {
+                "left" => ExitSide.Left,
+                "right" => ExitSide.Right,
+                _ => null,
+            };
+        }
+
+        double? patternAltAgl = ReadOptionalDouble(props, "patternAltitude");
+        double? patternSize = ReadOptionalDouble(props, "patternSize");
+
+        var noTurnoff = ParseNoTurnoff(name, props);
+
+        return new RunwayFeature(name, coords, turnoff, patternAltAgl, patternSize, noTurnoff);
+    }
+
+    private static double? ReadOptionalDouble(JsonElement props, string fieldName)
+    {
+        if (!props.TryGetProperty(fieldName, out var v))
+        {
+            return null;
+        }
+        return v.ValueKind switch
+        {
+            JsonValueKind.Number => v.GetDouble(),
+            JsonValueKind.String when double.TryParse(v.GetString(), out double d) => d,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Parse noTurnoff: a 2-element array where index 0 corresponds to the first end-designator
+    /// in the runway name (e.g. "10L" in "10L - 28R") and index 1 to the second.
+    /// </summary>
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseNoTurnoff(string runwayName, JsonElement props)
+    {
+        var empty = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        if (!props.TryGetProperty("noTurnoff", out var arr) || arr.ValueKind != JsonValueKind.Array)
+        {
+            return empty;
+        }
+
+        string[] ends = runwayName.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (ends.Length != 2)
+        {
+            return empty;
+        }
+
+        var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        int idx = 0;
+        foreach (var subArr in arr.EnumerateArray())
+        {
+            if ((idx >= ends.Length) || (subArr.ValueKind != JsonValueKind.Array))
+            {
+                idx++;
+                continue;
+            }
+            var names = new List<string>();
+            foreach (var item in subArr.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    string? s = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(s))
+                    {
+                        names.Add(s);
+                    }
+                }
+            }
+            if (names.Count > 0)
+            {
+                result[ends[idx]] = names;
+            }
+            idx++;
+        }
+        return result;
     }
 
     // Internal feature DTOs — accessible to graph builder and crossing detector
@@ -489,5 +573,16 @@ public static class GeoJsonParser
 
     internal sealed record TaxiwayFeature(string Name, List<(double Lat, double Lon)> Coords);
 
-    internal sealed record RunwayFeature(string Name, List<(double Lat, double Lon)> Coords);
+    internal sealed record RunwayFeature(
+        string Name,
+        List<(double Lat, double Lon)> Coords,
+        ExitSide? PreferredTurnoff = null,
+        double? PatternAltitudeAglFt = null,
+        double? PatternSizeNm = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? NoTurnoffByEnd = null
+    )
+    {
+        public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { get; init; } =
+            NoTurnoffByEnd ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+    }
 }

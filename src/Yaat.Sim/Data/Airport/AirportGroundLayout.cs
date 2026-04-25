@@ -493,6 +493,22 @@ public sealed class GroundRunway
     public required string Name { get; init; }
     public required List<(double Lat, double Lon)> Coordinates { get; init; }
     public required double WidthFt { get; init; }
+
+    /// <summary>Author-specified preferred turn-off side (left/right of nose at rollout). Null when unset in the airport file.</summary>
+    public ExitSide? PreferredTurnoff { get; init; }
+
+    /// <summary>Author-specified pattern altitude in feet AGL above field elevation. Null when unset.</summary>
+    public double? PatternAltitudeAglFt { get; init; }
+
+    /// <summary>Author-specified downwind offset from runway centerline in nm. Null when unset.</summary>
+    public double? PatternSizeNm { get; init; }
+
+    /// <summary>
+    /// Forbidden exit taxiways keyed by landing end designator (e.g. "10L"). Exact-name match.
+    /// Empty for ends without restrictions.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { get; init; } =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class AirportGroundLayout
