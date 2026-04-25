@@ -148,6 +148,11 @@ public class AircraftState
     public List<DeferredDispatch> DeferredDispatches { get; } = [];
     public List<string> PendingWarnings { get; } = [];
     public List<string> PendingNotifications { get; } = [];
+
+    // Set by AtParkingPhase after the spawn check-in line has been emitted once. Prevents the
+    // ready-to-taxi readback from spamming the terminal every tick the aircraft sits at the
+    // gate. Snapshot-serialized so replays produce identical pilot output.
+    public bool HasAnnouncedReady { get; set; }
     public List<ApproachScore> PendingApproachScores { get; } = [];
     public ApproachScore? ActiveApproachScore { get; set; }
 
@@ -385,6 +390,7 @@ public class AircraftState
             BeaconCode = dto.BeaconCode,
             IsIdenting = dto.IsIdenting,
             IdentStartedAt = dto.IdentStartedAt,
+            HasAnnouncedReady = dto.HasAnnouncedReady,
             IsOnGround = dto.IsOnGround,
             GroundLayout = groundLayout,
             ParkingSpot = dto.ParkingSpot,
@@ -558,6 +564,7 @@ public class AircraftState
             BeaconCode = BeaconCode,
             IsIdenting = IsIdenting,
             IdentStartedAt = IdentStartedAt,
+            HasAnnouncedReady = HasAnnouncedReady,
             IsOnGround = IsOnGround,
             ParkingSpot = ParkingSpot,
             CurrentTaxiway = CurrentTaxiway,

@@ -24,6 +24,12 @@ public sealed class SimScenarioState
     public bool AutoCrossRunway { get; set; }
     public bool ValidateDctFixes { get; set; } = true;
 
+    // When true, every successful command dispatch produces a deterministic pilot-readback
+    // line into AircraftState.PendingNotifications and AtParkingPhase emits a spawn check-in
+    // once per parked IFR aircraft. Default false — instructor topology gets zero behavior
+    // change.
+    public bool SoloTrainingMode { get; set; }
+
     // Weather timeline (v2 time-based weather evolution)
     public WeatherTimeline? WeatherTimeline { get; set; }
 
@@ -80,6 +86,7 @@ public sealed class SimScenarioState
             AutoClearedToLand = AutoClearedToLand,
             AutoCrossRunway = AutoCrossRunway,
             ValidateDctFixes = ValidateDctFixes,
+            SoloTrainingMode = SoloTrainingMode,
             IsPaused = IsPaused,
             SimRate = SimRate,
             AutoAcceptDelaySeconds = AutoAcceptDelay.TotalSeconds,

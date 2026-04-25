@@ -6,7 +6,7 @@ namespace Yaat.Sim.Commands;
 
 public static class CommandDescriber
 {
-    internal static CanonicalCommandType ToCanonicalType(ParsedCommand command)
+    public static CanonicalCommandType ToCanonicalType(ParsedCommand command)
     {
         return command switch
         {

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -26,9 +27,23 @@ public sealed class AtParkingPhase : Phase
         Log.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.ParkingSpot ?? "unknown");
     }
 
+    /// <summary>
+    /// Delay before the spawn check-in fires. Avoids announcing on the same tick the aircraft
+    /// appears (gives the world a moment to settle) and gives a barely-perceptible pause that
+    /// reads as the pilot reaching for the radio.
+    /// </summary>
+    public const double ReadyToTaxiDelaySeconds = 5.0;
+
     public override bool OnTick(PhaseContext ctx)
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
+
+        if (ctx.SoloTrainingMode && ctx.Aircraft.HasFlightPlan && !ctx.Aircraft.HasAnnouncedReady && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
+        {
+            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildReadyToTaxi(ctx.Aircraft));
+            ctx.Aircraft.HasAnnouncedReady = true;
+        }
+
         return false;
     }
 

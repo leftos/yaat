@@ -18,6 +18,10 @@ public sealed class ScenarioSnapshotDto
     public required bool IsPaused { get; init; }
     public required double SimRate { get; init; }
 
+    // Optional so older snapshots deserialize cleanly with the default (false = instructor
+    // topology). New snapshots always carry the current value.
+    public bool SoloTrainingMode { get; init; }
+
     // Timing
     public required double AutoAcceptDelaySeconds { get; init; }
     public required bool IsStudentTowerPosition { get; init; }

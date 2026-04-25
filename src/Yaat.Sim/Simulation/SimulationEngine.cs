@@ -139,6 +139,7 @@ public sealed class SimulationEngine
             Scenario.AutoClearedToLand = scenarioDto.AutoClearedToLand;
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
+            Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
             Scenario.IsPaused = scenarioDto.IsPaused;
             Scenario.SimRate = scenarioDto.SimRate;
             Scenario.AutoAcceptDelay = TimeSpan.FromSeconds(scenarioDto.AutoAcceptDelaySeconds);
@@ -854,9 +855,26 @@ public sealed class SimulationEngine
             World.Weather,
             FindAircraft,
             Scenario?.ValidateDctFixes ?? true,
-            Scenario?.AutoCrossRunway ?? false
+            Scenario?.AutoCrossRunway ?? false,
+            Scenario?.SoloTrainingMode ?? false
         );
-        return CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
+
+        // Emit pilot readback in solo-training mode. Single hook here in SendCommand (the
+        // user-issued live path) means deferred / preset / replay dispatches don't re-fire
+        // readbacks. Transparent (squawk/ident/say) and phase-handled paths all funnel
+        // through DispatchCompound, so this catches everything successful from the student's
+        // perspective.
+        if (result.Success && dispatchCtx.SoloTrainingMode)
+        {
+            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft);
+            if (!string.IsNullOrEmpty(readback))
+            {
+                aircraft.PendingNotifications.Add(readback);
+            }
+        }
+
+        return result;
     }
 
     public AircraftState? FindAircraft(string callsign)
@@ -1066,7 +1084,8 @@ public sealed class SimulationEngine
                     World.Weather,
                     FindAircraft,
                     Scenario?.ValidateDctFixes ?? true,
-                    Scenario?.AutoCrossRunway ?? false
+                    Scenario?.AutoCrossRunway ?? false,
+                    Scenario?.SoloTrainingMode ?? false
                 );
                 CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
             }
@@ -1155,6 +1174,7 @@ public sealed class SimulationEngine
             Weather = World.Weather,
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
+            SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
             OccupiedHoldShortNodes = occupiedNodes,
             MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,
@@ -1376,7 +1396,8 @@ public sealed class SimulationEngine
                 World.Weather,
                 FindAircraft,
                 scenario.ValidateDctFixes,
-                scenario.AutoCrossRunway
+                scenario.AutoCrossRunway,
+                scenario.SoloTrainingMode
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
@@ -1477,7 +1498,8 @@ public sealed class SimulationEngine
             World.Weather,
             FindAircraft,
             Scenario!.ValidateDctFixes,
-            Scenario!.AutoCrossRunway
+            Scenario!.AutoCrossRunway,
+            Scenario!.SoloTrainingMode
         );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
@@ -1651,7 +1673,8 @@ public sealed class SimulationEngine
             World.Weather,
             FindAircraft,
             Scenario?.ValidateDctFixes ?? true,
-            Scenario?.AutoCrossRunway ?? false
+            Scenario?.AutoCrossRunway ?? false,
+            Scenario?.SoloTrainingMode ?? false
         );
         CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
     }

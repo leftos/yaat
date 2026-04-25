@@ -56,7 +56,10 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
                          ▼
        ┌──────────────────────────────────────────────────┐ ◄── NEW
        │  PilotResponder                                  │
-       │   • Build readback template from accepted cmd    │
+       │   • PhraseologyVerbalizer inverts each clause    │
+       │     using the same PhraseologyRules that         │
+       │     parse controller speech (one source of truth)│
+       │   • Concat clauses, append spoken callsign tail  │
        │   • Push to AircraftState.PendingNotifications   │
        │   • (M10.3) speak via IPilotVoice                │
        │   • (M10.4) update PilotExpectation              │
@@ -72,6 +75,8 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 
 **Key choice — pilot AI does not generate phases or build plans.** It dispatches canonical commands like the controller does, and the existing phase system handles the rest. This is the single biggest divergence from the old plan, which proposed a parallel `Intent → Plan → Phase` execution model.
 
+**Second key choice — pilot speech is inverted from the same `PhraseologyRules` that parse controller speech.** Real ATC convention is verbatim readback; the codebase already has the vocabulary as 163 input rules. Adding new readbacks happens by adding to `PhraseologyRules`, not by maintaining a parallel template table. Pilot-only utterances (spawn check-in, "going around" volunteered) live in `PilotResponder` directly — small set, no controller equivalent. Pilot shortcuts (e.g., "up to thirty-five" instead of "climb and maintain three thousand five hundred") are a future opt-in via `PhraseologyRule.PilotShortcuts` populated from `docs/pilot-phraseology-examples.md`.
+
 ## Milestone breakdown
 
 > **Decisions committed:** Before any milestone work, **M10.0 runs a TTS spike in `tools/Yaat.Scratch`** to validate the sherpa-onnx + Piper LibriTTS-R + radio-DSP stack on this dev box. M10.1+ are provisional pending spike findings. The first production ship is **M10.1 + M10.2 together** (readbacks + natural-language ATC) — the smallest slice that actually feels like self-training. All new pilot behavior is **gated by `UserPreferences.SoloTrainingMode`** so instructor-mode users see zero behavior change. Missed approach uses a **warn-early-then-miss-at-DA** pattern. **TTS is in scope** — M10.3, layered on top of M10.1's readback strings, locked to **sherpa-onnx + Piper LibriTTS-R 904-speaker model + NAudio.Core DSP** (subject to M10.0 confirmation). **Voice pack is downloaded on-demand**, not bundled — keeps the installer slim for users who never enable TTS. The old `docs/plans/pilot-ai-architecture.md` is **deleted** as part of M10.6.
@@ -82,6 +87,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 - [ ] **M10.1** — Pilot voice (text-only readbacks)
 - [ ] **M10.2** — Student speaks/types real ATC
 - [ ] **M10.3** — TTS layer (audible pilot voice + radio realism)
+- [ ] **M10.3.5** — Frequency contention + transmission queue + activity-aware verbosity
 - [ ] **M10.4** — Pilot expectations + proactive requests
 - [ ] **M10.5** — DA/MDA contingency + "unable" rejection
 - [ ] **M10.6** — Solo Training scenario pack + USER_GUIDE + cleanup
@@ -135,19 +141,28 @@ After M10.0 finishes, we revisit this plan, lock M10.3 specifics (or pivot if fi
 
 **What ships:** when `SoloTrainingMode` is on, every successful dispatch produces a deterministic readback string written to `aircraft.PendingNotifications`. Spawn check-in for IFR aircraft at parking after 5 s of stillness. No new input mode — student still types canonical (M10.2 adds NL ATC).
 
-**Files to touch:**
-- `src/Yaat.Sim/Pilot/PilotResponder.cs` *(new)* — `BuildReadback(CompoundCommand accepted, AircraftState ac, ResolvedCommandContext ctx) → string?`. Hard-coded template table keyed by `CanonicalCommandType` for the ~30 commands a solo student plausibly issues at MVP (Pushback, Taxi, HoldShort, CrossRunway, LineUpAndWait, ClearedForTakeoff, ClimbMaintain, DescendMaintain, FlyHeading, TurnLeft, TurnRight, Speed, DirectTo, ClearedApproach, JoinFinalApproachCourse, ClearedToLand, GoAround, Squawk, Ident, ContactDeparture/Approach, Pattern entries). Returns `null` for commands with no template (no fake fallback).
-- `src/Yaat.Sim/Speech/SpokenCallsignFormatter.cs` *(new)* — inverse of `CallsignParser`. ICAO/N-number → spoken form ("AAL123" → "American one twenty three"). Reuse `AirlineTelephony` + `AtcNumberParser`.
-- `src/Yaat.Sim/Commands/CommandDispatcher.cs` — single hook: after a `DispatchCompound` returns success, if `SoloTrainingMode` (carried via dispatch context or read from a sim-level config flag), call `PilotResponder.BuildReadback` and append to `aircraft.PendingNotifications`. ~10 lines including the gate.
-- `src/Yaat.Sim/Phases/Ground/AtParkingPhase.cs:29` — `OnTick` adds: if `aircraft.HasFlightPlan && !aircraft.HasAnnouncedReady && ElapsedSeconds > 5`, push the spawn check-in line and set `HasAnnouncedReady = true`. ~10 lines.
-- `src/Yaat.Sim/AircraftState.cs:10` — add `bool HasAnnouncedReady` (mutable, snapshot-serialized).
-- `src/Yaat.Sim/Simulation/Snapshots/AircraftSnapshotDto.cs` — add the new field + migration.
+**Architecture — invert `PhraseologyRules`, don't duplicate it.** The existing `PhraseologyMapper` already maps English ATC → canonical via 163 rules of shape `(Pattern[], OutputTemplate, CanonicalCommandType)`. The pilot readback is the *same vocabulary going the other way*: drop the `?` optional-token markers, keep their content, substitute `{capture}` placeholders with the parsed command's args formatted in spoken form. One source of truth for ATC phraseology — adding a rule on the input side gives us the readback for free, and the rule that would have parsed the controller's same words *is* the readback (real ATC convention: verbatim readback).
 
-**Riskiest part:** which event fires the readback. Pick **dispatch acceptance** for MVP — if the controller said "at SUNOL turn left 270" (`AT SUNOL TL 270`), the pilot reads back the *whole* compound once at acceptance, not again when the trigger fires. Keeps the brain from having to know about block-trigger semantics.
+**Files to touch:**
+- `src/Yaat.Sim/Speech/PhraseologyRule.cs` — extend record with `string[]? PilotShortcuts = null` for future shortcut variants (see `docs/pilot-phraseology-examples.md` for the corpus). M10.1 leaves the field null everywhere; M10.x populates the high-traffic rules.
+- `src/Yaat.Sim/Pilot/PhraseologyVerbalizer.cs` *(new)* — `Verbalize(ParsedCommand) → string?`. Looks up the first declared rule for the command's canonical type (textbook readback wins over shortcut variants), runs a per-type argument extractor to fill captures, formats each capture per its name suffix (`{alt}` → AltitudeToWords, `{hdg}` → 3-digit individual, `{spd}` / `{sqk}` → digit-spell, `{rwy}` → "two eight right", `{fix}` → spell-out lowercase, `{tcp}` → frequency phrasing). Returns null for commands without a verbalization rule (admin/diagnostic verbs).
+- `src/Yaat.Sim/Pilot/PilotResponder.cs` *(new)* — thin wrapper: `BuildReadback(CompoundCommand, AircraftState) → string?`. For each ParsedCommand in the compound, calls the verbalizer; concatenates clauses with ", "; appends `, {spoken-callsign}.` tail and `[ICAO]` bracket prefix for terminal rendering. Block conditions ("at SUNOL,") become a leading clause for the first command in that block.
+- `src/Yaat.Sim/Pilot/PilotPersonality.cs` *(new, enum-only stub)* — `PilotPersonality { Verbatim }`. Reserved for M10.x's `Varied` mode that picks `PilotShortcuts` per-aircraft (seeded from scenario seed + callsign hash, same trick as TTS voice assignment). One value at MVP keeps the gate trivial.
+- `src/Yaat.Sim/Speech/CallsignParser.cs` — already exposes `IcaoToSpoken("AAL123")` → "american one twenty three". No new file, no inversion code — the existing helper is bidirectional.
+- `src/Yaat.Sim/Commands/DispatchContext.cs` — add `bool SoloTrainingMode` (required parameter — CLAUDE.md: no optional params). Mirrors how `ValidateDctFixes` and `AutoCrossRunway` already flow.
+- `src/Yaat.Sim/Simulation/SimScenarioState.cs` — add `bool SoloTrainingMode { get; set; }` (default false). Threaded into `DispatchContext` at every construction site in `SimulationEngine` (5 callsites).
+- `src/Yaat.Sim/Simulation/Snapshots/ScenarioSnapshotDto.cs` — add `bool SoloTrainingMode { get; init; }` (non-required so old snapshots default to false on resume).
+- `src/Yaat.Sim/Commands/CommandDispatcher.cs` — single hook: after `DispatchCompound` reaches a success return, if `ctx.SoloTrainingMode`, call `PilotResponder.BuildReadback` and append to `aircraft.PendingNotifications`. The transparent path (SQUAWK/IDENT/SAY) and deferred / preset / replay paths intentionally do not fire readbacks — only user-issued live commands do.
+- `src/Yaat.Sim/Phases/Ground/AtParkingPhase.cs:29` — `OnTick` adds: if `SoloTrainingMode` (resolved via PhaseContext) `&& aircraft.HasFlightPlan && !aircraft.HasAnnouncedReady && ElapsedSeconds > 5`, push the spawn check-in line ("Ground, {callsign} at the {parking}, ready to taxi.") and set `HasAnnouncedReady = true`. The check-in is one of a small set of **pilot-only utterances** (no controller equivalent); these live in `PilotResponder` directly, not in `PhraseologyRules`.
+- `src/Yaat.Sim/AircraftState.cs` — add `bool HasAnnouncedReady` (mutable, snapshot-serialized, mirroring `IsIdenting`).
+- `src/Yaat.Sim/Simulation/Snapshots/AircraftSnapshotDto.cs` — add `bool HasAnnouncedReady` (non-required so old snapshots default to false).
+- `docs/pilot-phraseology-examples.md` — reference corpus for future `PilotShortcuts` population (saved 2026-04-25).
+
+**Riskiest part:** which event fires the readback. Pick **dispatch acceptance** for MVP — if the controller said "at SUNOL turn left 270" (`AT SUNOL TL 270`), the pilot reads back the *whole* compound once at acceptance, not again when the trigger fires. Keeps the brain from having to know about block-trigger semantics. Compound-block conditions get surfaced as a leading clause ("at sunol, turn left two seven zero") in the first command's verbalization, then suppressed for subsequent commands in the same block.
 
 **Verify:**
-- `timeout 30 dotnet test --filter PilotResponderTests 2>&1 | tee .tmp/test.log` — golden-file test asserts readback strings for ~30 commands.
-- Manual: load `KOAK Solo Departure 1` (M10.6 deliverable below — for M10.1 just use any KOAK scenario), type a sequence, eyeball terminal pane.
+- `timeout 30 dotnet test --filter "PhraseologyVerbalizer|PilotResponder" 2>&1 | tee .tmp/test.log` — golden-file tests assert readback strings for the ~30 most common commands. Round-trip test: every rule's pattern, when verbalized via a hand-constructed canonical, produces a string that re-parses to the original canonical via `PhraseologyMapper`.
+- Manual: load any KOAK scenario with `SoloTrainingMode` enabled (M10.2 wires the pref UI; for M10.1 toggle directly via a server-side method or scenario JSON), type a sequence, confirm readback lines appear in the terminal pane.
 
 ### M10.2 — Student speaks/types real ATC — Small, ~3–5 days
 
@@ -168,7 +183,16 @@ After M10.0 finishes, we revisit this plan, lock M10.3 specifics (or pivot if fi
 
 ### M10.3 — TTS layer (audible pilot voice with radio realism) — Medium, ~1.5–2 weeks
 
-**What ships:** M10.1's readback strings get spoken aloud through **sherpa-onnx** (Apache-2.0 NuGet `org.k2fsa.sherpa.onnx`) loading the **Piper `en_US-libritts_r-medium`** voice pack — a single ~75 MB ONNX model that exposes **904 speakers via integer speaker IDs**. Each aircraft is assigned a unique speaker ID (deterministic from scenario seed + callsign hash, capped at IDs 0–500 to avoid undertrained speakers). Output flows through a **band-pass filter + squelch tail** so it sounds like a real radio. Audio plays through a **dedicated radio output device** when configured. Audio queueing ensures one aircraft speaks at a time on the active frequency. Still gated by `SoloTrainingMode`.
+**What ships:** every pilot text emission gets spoken aloud through **sherpa-onnx** (Apache-2.0 NuGet `org.k2fsa.sherpa.onnx`) loading the **Piper `en_US-libritts_r-medium`** voice pack — a single ~75 MB ONNX model that exposes **904 speakers via integer speaker IDs**. Each aircraft is assigned a unique speaker ID (deterministic from scenario seed + callsign hash, capped at IDs 0–500 to avoid undertrained speakers). Output flows through a **band-pass filter + squelch tail** so it sounds like a real radio. Audio plays through a **dedicated radio output device** when configured. Audio queueing ensures one aircraft speaks at a time on the active frequency. Still gated by `SoloTrainingMode`.
+
+**Pilot voice consumes ALL pilot text emissions, not just readbacks.** That includes:
+- Readback strings from `PilotResponder.BuildReadback` (M10.1).
+- Spawn check-ins and other pilot-only utterances from `PilotResponder` (M10.1+).
+- `SAY` / `SaySpeed` / `SayAltitude` / `SayPosition` / etc. command outputs — both RPO-issued and **scenario-preset-fired** (training scenarios script pilot reports that don't fit in the flight plan, e.g., "ten miles for the visual" at 90 seconds in). These already land in `aircraft.PendingNotifications` today via the transparent-command path; the TTS layer reads from that channel and speaks them too.
+- M10.4's proactive comms (pending-clearance reminders, with-you check-ins).
+- M10.5's autonomous "going around" warnings.
+
+The right mental model: the pilot voice synthesizes whatever the pilot says, regardless of *why* they said it. M10.3 hooks into `PendingNotifications` (and likely a richer `PilotTransmission` queue introduced in M10.3.5) rather than into `PilotResponder.BuildReadback` specifically, so SAY commands and proactive comms flow through the same path as readbacks.
 
 **Why this isn't deferred:** audible voice is core to the self-training experience — listening to multiple readbacks while typing, parsing cadence, knowing when the frequency is busy is *the* cognitive load of real ATC. Text in a terminal validates the templates; voice closes the loop.
 
@@ -222,6 +246,61 @@ The `IPilotVoice` interface seam still matters — leaves room for cloud/Kokoro/
 - Replay test: record a scenario, replay, confirm voice assignments match (same `sid` per callsign).
 - Cross-platform: build and smoke-test on Windows + Linux + macOS (CI matrix).
 - License surface: confirm About dialog shows the CC-BY 4.0 + sherpa-onnx attribution.
+
+### M10.3.5 — Frequency contention + transmission queue + activity-aware verbosity — Medium, ~1 week
+
+**What ships:** a sim-level frequency-state machine that serializes pilot speech, blocks pilots from talking over the controller, makes them wait for the addressee's readback before stepping in, and adapts verbosity based on how busy the frequency is. This is the layer that turns a flood of simultaneous text readbacks into the realistic one-at-a-time radio chatter players expect.
+
+**Why it gets its own milestone:** the contention model touches several concepts that don't matter for text-only M10.1 (where everything just appends to the terminal in arbitrary order) but become essential the moment audio enters the picture in M10.3. Lifting it into its own pass keeps M10.3 focused on synthesis + DSP and lets M10.3.5 focus on the radio-protocol semantics. M10.1's `PendingNotifications.Add(readback)` calls become `frequencyState.Enqueue(...)` calls — a single rename per call site, no template rewrites.
+
+**Concept model (per active frequency):**
+
+```
+FrequencyState {
+    Transmitting:        None | Controller | Aircraft(callsign)   // current air time
+    AwaitingReadbackFrom: Aircraft(callsign)?                     // who owes the next transmission
+    PendingTransmissions: Queue<PilotTransmission>                // pilots waiting to talk
+    ActivityWindow:       rolling tx-count over last 60 s         // → Quiet | Moderate | Busy | Saturated
+}
+```
+
+**State transitions:**
+
+- Controller dispatches `DM 5000` to aircraft X → `Transmitting = Controller` for ~controller-airtime; on completion `AwaitingReadbackFrom = X`.
+- X's readback enqueues. Fires the moment `Transmitting == None` AND `AwaitingReadbackFrom == X` → on completion both fields clear.
+- Aircraft Y's proactive call (spawn check-in, pending-clearance reminder, scripted SAY output from a scenario preset) enqueues. Fires when `Transmitting == None` AND `AwaitingReadbackFrom == null`. Y waits behind X's pending readback even if Y was queued first.
+- Activity meter increments on every transmission, decays at 1/60 s. Classification: `<5/min Quiet`, `5–12 Moderate`, `12–20 Busy`, `>20 Saturated`.
+
+**What gets queued:** any pilot text emission. Readbacks from the dispatch hook (M10.1), spawn check-ins (M10.1), SAY-command outputs (RPO-issued and scenario-preset-fired), proactive reminders (M10.4), autonomous warnings (M10.5). Today these land directly in `aircraft.PendingNotifications`; M10.3.5 intercepts that path with a queue so audio playback (M10.3) can serialize them properly and so a busy-frequency pilot Y waits politely instead of stepping on X's readback.
+
+**Verbosity gating** (depends on `PilotPersonality.Varied` from M10.1's data model + `PilotShortcuts` populated from `docs/pilot-phraseology-examples.md`):
+
+- `Saturated` / `Busy` → strongly prefer the shortest variant in `[verbatim] + PilotShortcuts`. Drop optional words. Avoid prefix/suffix sprinkles.
+- `Moderate` → standard verbatim from the rule pattern.
+- `Quiet` → may pick a verbose variant; "alright"/"thanks" personality wrappers (when M10.x adds them) can fire.
+
+**Files to touch:**
+- `src/Yaat.Sim/Pilot/FrequencyState.cs` *(new)* — the state machine. One instance per active frequency; for MVP YAAT has effectively one (the active controller's frequency) so a single sim-level instance is enough.
+- `src/Yaat.Sim/Pilot/PilotTransmission.cs` *(new)* — record `(AircraftCallsign, Text, Priority, Kind)` where `Kind ∈ { Readback, ProactiveRequest, Report, Emergency }`. Priority lets emergencies preempt; Readback is highest non-emergency.
+- `src/Yaat.Sim/Pilot/FrequencyActivityMeter.cs` *(new)* — rolling-window counter with classification.
+- `src/Yaat.Sim/Pilot/PilotResponder.cs` — change call sites: instead of `aircraft.PendingNotifications.Add(readback)`, call `frequencyState.Enqueue(new PilotTransmission(aircraft.Callsign, readback, Priority.Readback, Kind.Readback))`. Drain happens in the tick loop.
+- `src/Yaat.Sim/Simulation/SimulationEngine.cs` — instantiate `FrequencyState`; tick it post-physics; on each drained transmission append to the originating aircraft's `PendingNotifications` (text path) and (M10.3) call `IPilotVoice.SpeakAsync` (audio path).
+- `src/Yaat.Sim/Commands/CommandDispatcher.cs` — on successful controller dispatch, set `frequencyState.AwaitingReadbackFrom = aircraft.Callsign`. The first matching readback clears it.
+- M10.3's `PilotVoiceMixer` becomes a downstream consumer of `FrequencyState` instead of owning its own queue.
+
+**Riskiest parts:**
+1. **Audio duration estimation.** Setting `Transmitting = Aircraft(X)` for *N* seconds requires knowing audio length. M10.3 synthesizes 22.05 kHz PCM with known duration; M10.1's text-only path can use `~0.05s × wordCount` as a proxy so the queue still serializes sensibly even before audio.
+2. **Starvation.** A pilot with low priority + a permanently busy frequency could wait forever. Add max-wait → drops the transmission with a debug log, never silently.
+3. **Multiple frequencies.** Today's simplification is one frequency; if YAAT eventually models per-facility frequencies (Tower vs Ground vs Approach), each gets its own state. Architect for this from day one — `Dictionary<FrequencyId, FrequencyState>`.
+4. **Tick determinism.** Replays must produce identical chatter ordering. The activity meter's rolling window must be tick-deterministic, not wall-clock.
+
+**Verify:**
+- Unit test: dispatch DM to A and CTOR to B at the same tick. Assert A's readback fires before B's because A's came first AND blocks B until A clears.
+- Unit test: simulate 30 controller dispatches in one tick. Assert activity meter classifies as `Saturated` and (when shortcuts are populated) verbalizer picks the shortest variant.
+- Unit test: enqueue a proactive check-in for aircraft Y while controller is mid-transmission to X. Assert Y waits until X reads back.
+- Replay test: record 60s of mixed traffic, replay, confirm transmission ordering is bit-identical.
+
+**Why not in M10.1:** M10.1's job is "verify the readback content is right." Adding contention now means the test surface explodes (timing, ordering, queue starvation) before we've validated that the *strings* are right. Ship M10.1 with `PendingNotifications.Add` direct, then refactor those call sites to `frequencyState.Enqueue` in M10.3.5 — the call-site count is small (we can audit at refactor time).
 
 ### M10.4 — Pilot expectations + proactive requests — Medium, ~1–1.5 weeks
 
@@ -292,7 +371,9 @@ The `IPilotVoice` interface seam still matters — leaves room for cloud/Kokoro/
 | **NLP-rich ATC parsing for solo students** | M10.2's PhraseologyMapper covers ~163 patterns. LLM fallback covers most else. Resist building a richer parser until production playtesting reveals what's actually missing. |
 | **Lost-comms 14 CFR 91.185 procedures** | Solo sessions never run that long. M10.4's pending-clearance reminders + M10.5's missed-approach autonomy cover the failure modes that matter. |
 | **Frequency state machine, ATIS dynamic injection, monitor-vs-active frequencies** | Adds modeling burden with near-zero training value when there's no actual radio. `HOO` already removes the aircraft from the controller's view; that's enough. |
-| **Pilot personalities / variable phraseology / response timing jitter** | Pure flavor. Deterministic readbacks are easier to test, easier for students to learn, and avoid the "uncanny valley" of bad randomization. Keep enum-gated stub (`PilotRealism.Frictionless` is the only value) so a future PR can extend without touching M10.1 code. |
+| **Pilot shortcuts / variable phraseology** | Architecture supports it (`PhraseologyRule.PilotShortcuts` field exists from M10.1, `PilotPersonality.Verbatim` is the default), but no shortcuts populated at MVP. M10.x can populate from `docs/pilot-phraseology-examples.md` and add a `PilotPersonality.Varied` mode that picks one variant per-aircraft (seeded by scenario seed XOR callsign hash, same trick as TTS voice assignment for replay determinism). |
+| **Conditional pilot speech** | Callsign abbreviation after initial contact (FAA / ICAO rules differ), busy-radio frequency-formatting (drop leading 1 + grouped digits), "thanks"/"alright" personality wrappers — all need richer state (per-frequency busyness, `aircraft.HasEstablishedContactWith[facility]`, `PilotPersonality` enum beyond `Verbatim`). Documented in `docs/pilot-phraseology-examples.md` as future work. |
+| **Response timing jitter** | Pure flavor; deterministic readbacks are easier to test and learn against. Defer indefinitely or add as a `PilotPersonality` knob if it ever matters. |
 | **AI-against-AI conflict resolution from the pilot side** | Phase system doesn't model TCAS RAs. Out of scope. |
 | **`SpeedRestrictionStack` from the old plan** | Existing `SpeedFloor`/`SpeedCeiling` + hardcoded 250kt-below-10k regulatory cap is sufficient for current scenarios. Build the stack only when a real scenario forces it. |
 | **`Contingency` system from the old plan** | M10.5's two specific contingencies (DA missed approach, dispatch-rejected unable) cover the cases that matter. Don't build a generic framework for two instances. |
@@ -300,7 +381,8 @@ The `IPilotVoice` interface seam still matters — leaves room for cloud/Kokoro/
 ## Reused infrastructure (don't reinvent these)
 
 - **`CommandDispatcher.DispatchCompound`** — the single integration point. M10.1's hook is one function call after success.
-- **`PhraseologyMapper`** + **`LocalLlmCommandMapper`** — the M10.2 student-input-parser. Already proven, already grammar-constrained, already covering ATC English.
+- **`PhraseologyRules`** + **`PhraseologyMapper`** — single source of ATC vocabulary, used both directions: (a) parsing student/instructor speech in M10.2, (b) generating pilot readbacks in M10.1 via inversion. Adding a new rule on the input side gets us the pilot output for free.
+- **`LocalLlmCommandMapper`** — LLM fallback for the M10.2 student-input-parser. Already grammar-constrained.
 - **`PendingNotifications` / `PendingWarnings`** (`AircraftState:149-150`) — the talkback channel. Terminal already drains them. No new wire format.
 - **Phase system** — the autonomous pilot brain. Auto-exit selection, auto-glideslope capture, auto-pattern entry, auto-holding entry — all already work.
 - **`AirlineTelephony`** + **`AtcNumberParser`** + **`CallsignParser`** — invert these for `SpokenCallsignFormatter`. Mostly symmetric.

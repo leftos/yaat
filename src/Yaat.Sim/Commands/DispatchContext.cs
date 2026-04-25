@@ -24,5 +24,6 @@ public sealed record DispatchContext(
     WeatherProfile? Weather,
     Func<string, AircraftState?>? FindAircraft,
     bool ValidateDctFixes,
-    bool AutoCrossRunway
+    bool AutoCrossRunway,
+    bool SoloTrainingMode
 );

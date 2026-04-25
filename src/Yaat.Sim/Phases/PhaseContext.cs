@@ -38,6 +38,14 @@ public sealed class PhaseContext
     public bool AutoClearedToLand { get; init; }
 
     /// <summary>
+    /// When true, the simulator plays all pilots and emits readbacks / proactive comms via
+    /// <c>PilotResponder</c>. Phases gate any pilot-side speech (e.g.,
+    /// <c>AtParkingPhase</c>'s spawn check-in) on this flag so instructor-mode users see
+    /// zero behavior change.
+    /// </summary>
+    public bool SoloTrainingMode { get; init; }
+
+    /// <summary>
     /// The local tower position (TrackOwner), if the student is controlling tower.
     /// Used by InitialClimbPhase to hold RV SID heading while tower owns the track.
     /// </summary>

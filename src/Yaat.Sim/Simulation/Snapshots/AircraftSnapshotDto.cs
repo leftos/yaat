@@ -44,6 +44,10 @@ public sealed class AircraftSnapshotDto
     public required bool IsIdenting { get; init; }
     public double? IdentStartedAt { get; init; }
 
+    // One-shot flag set after AtParkingPhase emits the spawn check-in. Optional so older
+    // snapshots default to false (the readback then fires once on resume).
+    public bool HasAnnouncedReady { get; init; }
+
     // Ground state
     public required bool IsOnGround { get; init; }
     public string? ParkingSpot { get; init; }

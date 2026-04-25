@@ -18,6 +18,7 @@ internal static class TestDispatch
         AirportGroundLayout? groundLayout = null,
         bool autoCrossRunway = false,
         WeatherProfile? weather = null,
-        Func<string, AircraftState?>? findAircraft = null
-    ) => new(groundLayout, rng, weather, findAircraft, validateDctFixes, autoCrossRunway);
+        Func<string, AircraftState?>? findAircraft = null,
+        bool soloTrainingMode = false
+    ) => new(groundLayout, rng, weather, findAircraft, validateDctFixes, autoCrossRunway, soloTrainingMode);
 }

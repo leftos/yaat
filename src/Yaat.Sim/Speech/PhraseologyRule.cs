@@ -32,7 +32,21 @@ namespace Yaat.Sim.Speech;
 /// sorting, and future context-sensitive rule disambiguation (e.g. <c>maintain {alt}</c>
 /// dispatching to CM vs DM based on current altitude).
 /// </param>
-public sealed record PhraseologyRule(string[] Pattern, string OutputTemplate, CanonicalCommandType Type)
+/// <param name="PilotShortcuts">
+/// Optional alternate output-only forms used by the pilot AI's <c>PhraseologyVerbalizer</c>
+/// when <c>PilotPersonality.Varied</c> is enabled. Same <c>{name}</c> placeholder syntax as
+/// <see cref="Pattern"/>; same spoken-form formatters apply. Examples populated from the
+/// corpus in <c>docs/pilot-phraseology-examples.md</c>:
+/// <code>
+/// new(
+///     ["climb", "and?", "maintain", "{alt}"],
+///     "CM {alt}",
+///     ClimbMaintain,
+///     PilotShortcuts: ["up to {alt}", "up to {alt-tens}", "climbing to {alt}"])
+/// </code>
+/// When null, the verbalizer always emits the pattern-derived verbatim form.
+/// </param>
+public sealed record PhraseologyRule(string[] Pattern, string OutputTemplate, CanonicalCommandType Type, string[]? PilotShortcuts = null)
 {
     /// <summary>Number of non-optional tokens in the pattern — used for match-length comparison.</summary>
     public int RequiredLength { get; } = Pattern.Count(t => !t.EndsWith('?'));
