@@ -9,9 +9,10 @@ obj/
 ## Temp
 .tmp/
 
-## Claude Code worktrees
+## Claude Code local stuff
 .claude/worktrees/
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 ## IDE
 .vs/
