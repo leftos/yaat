@@ -3,7 +3,7 @@
 ## 0.1.2-alpha
 
 ### Fixed
-- "Update Now" no longer fails with a "Call from invalid thread" exception. The Velopack download-progress callback is now marshalled to the UI thread before updating the progress property.
+- The in-app updater no longer crashes when you click "Update Now" — auto-updates now download and apply correctly.
 
 ## 0.1.1-alpha
 
