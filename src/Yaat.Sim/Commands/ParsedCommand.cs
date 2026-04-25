@@ -372,7 +372,27 @@ public abstract record BlockCondition;
 
 public record LevelCondition(int Altitude) : BlockCondition;
 
-public record AtFixCondition(string FixName, double Lat, double Lon, int? Radial = null, int? Distance = null) : BlockCondition;
+public record AtFixCondition(string FixName, double Lat, double Lon, int? Radial = null, int? Distance = null) : BlockCondition
+{
+    /// <summary>
+    /// Resolves a fix by name from <see cref="Data.NavigationDatabase.Instance"/> and constructs
+    /// the condition with its coordinates cached. Use this when you only have the fix name —
+    /// callers that already performed a lookup (the parser caches the resolved position) keep
+    /// using the positional ctor directly to avoid a redundant lookup.
+    /// Throws <see cref="ArgumentException"/> if the fix is unknown to NavData; callers that
+    /// expect the fix may not exist should pre-check via <c>GetFixPosition</c> instead.
+    /// </summary>
+    public static AtFixCondition FromName(string fixName, int? radial = null, int? distance = null)
+    {
+        var pos = Data.NavigationDatabase.Instance.GetFixPosition(fixName);
+        if (pos is null)
+        {
+            throw new ArgumentException($"Unknown fix '{fixName}' — NavigationDatabase has no entry.", nameof(fixName));
+        }
+
+        return new AtFixCondition(fixName, pos.Value.Lat, pos.Value.Lon, radial, distance);
+    }
+}
 
 public record GiveWayCondition(string TargetCallsign) : BlockCondition;
 

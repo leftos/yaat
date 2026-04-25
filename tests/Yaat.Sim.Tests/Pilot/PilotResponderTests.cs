@@ -7,6 +7,12 @@ namespace Yaat.Sim.Tests.Pilot;
 
 public class PilotResponderTests
 {
+    public PilotResponderTests()
+    {
+        // Needed for AtFixCondition.FromName lookups in the at-fix-condition tests.
+        TestVnasData.EnsureInitialized();
+    }
+
     private static AircraftState MakeAircraft(string callsign, string? parkingSpot = null)
     {
         return new AircraftState
@@ -61,7 +67,7 @@ public class PilotResponderTests
     public void BuildReadback_AtFixCondition_PrependsLeadingClause()
     {
         var ac = MakeAircraft("AAL123");
-        var compound = CompoundWithCondition(new AtFixCondition("SUNOL", 37.5, -121.5), new TurnLeftCommand(new MagneticHeading(180)));
+        var compound = CompoundWithCondition(AtFixCondition.FromName("SUNOL"), new TurnLeftCommand(new MagneticHeading(180)));
 
         var result = PilotResponder.BuildReadback(compound, ac);
 
@@ -73,7 +79,7 @@ public class PilotResponderTests
     {
         var ac = MakeAircraft("AAL123");
         var compound = CompoundWithCondition(
-            new AtFixCondition("SUNOL", 37.5, -121.5),
+            AtFixCondition.FromName("SUNOL"),
             new TurnLeftCommand(new MagneticHeading(180)),
             new DescendMaintainCommand(5000)
         );
