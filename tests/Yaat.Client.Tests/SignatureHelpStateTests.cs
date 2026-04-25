@@ -107,17 +107,50 @@ public class SignatureHelpStateTests
 
         state.Show(set, 0, []);
 
-        // Initially selects sig1 (bare, no args)
-        Assert.Equal(0, state.SelectedOverloadIndex);
-
-        state.NextOverload();
+        // paramIndex=0 prefers the 1-arg overload (it still has a slot at the cursor) over
+        // the bare overload, since signature help is only shown once the user has typed past
+        // the verb (i.e. has indicated intent to type more).
         Assert.Equal(1, state.SelectedOverloadIndex);
 
         state.NextOverload();
         Assert.Equal(0, state.SelectedOverloadIndex); // wraps
 
+        state.NextOverload();
+        Assert.Equal(1, state.SelectedOverloadIndex);
+
         state.PreviousOverload();
-        Assert.Equal(1, state.SelectedOverloadIndex); // wraps back
+        Assert.Equal(0, state.SelectedOverloadIndex);
+    }
+
+    [Fact]
+    public void AutoSelect_AdvancesToWiderOverload_WhenCursorMovesPastCurrent()
+    {
+        // Mirrors the ELB shape: bare / runway / runway+distance.
+        // "ELB 28L"  (paramIndex=0) -> 1-arg overload, cursor on runway.
+        // "ELB 28L " (paramIndex=1) -> 2-arg overload, cursor on distance.
+        var bareSig = new CommandSignature(CanonicalCommandType.EnterLeftBase, "ELB", ["ELB"], [], "Bare");
+        var rwySig = new CommandSignature(
+            CanonicalCommandType.EnterLeftBase,
+            "ELB Runway",
+            ["ELB"],
+            [new CommandParameter("runway", "rwy", false)],
+            "Runway"
+        );
+        var rwyDistSig = new CommandSignature(
+            CanonicalCommandType.EnterLeftBase,
+            "ELB Runway+Distance",
+            ["ELB"],
+            [new CommandParameter("runway", "rwy", false), new CommandParameter("distance", "nm", false)],
+            "Runway + Distance"
+        );
+        var set = MakeSet(bareSig, rwySig, rwyDistSig);
+        var state = new SignatureHelpState();
+
+        state.Show(set, 0, ["28L"]);
+        Assert.Equal(1, state.SelectedOverloadIndex);
+
+        state.Show(set, 1, ["28L"]);
+        Assert.Equal(2, state.SelectedOverloadIndex);
     }
 
     [Fact]

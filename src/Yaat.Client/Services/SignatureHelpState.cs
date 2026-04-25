@@ -36,7 +36,7 @@ public partial class SignatureHelpState : ObservableObject
         _currentSet = signatureSet;
         OverloadCount = signatureSet.Signatures.Count;
 
-        var bestIndex = FindBestOverload(signatureSet, typedArgs);
+        var bestIndex = FindBestOverload(signatureSet, paramIndex, typedArgs);
         SelectedOverloadIndex = bestIndex;
         ActiveParameterIndex = paramIndex;
         CurrentSignature = signatureSet.Signatures[bestIndex];
@@ -152,7 +152,7 @@ public partial class SignatureHelpState : ObservableObject
         return $"{param.Name}: {param.TypeHint}";
     }
 
-    private static int FindBestOverload(CommandSignatureSet set, string[] typedArgs)
+    private static int FindBestOverload(CommandSignatureSet set, int paramIndex, string[] typedArgs)
     {
         if (set.Signatures.Count <= 1)
         {
@@ -167,6 +167,14 @@ public partial class SignatureHelpState : ObservableObject
         {
             var sig = set.Signatures[i];
             int score = 0;
+
+            // Prefer overloads that still have a parameter slot at the cursor's current
+            // position. Without this, "ELB 28L " (trailing space, paramIndex=1) keeps showing
+            // the 1-arg overload even though the cursor has moved past it.
+            if (paramIndex >= 0 && sig.Parameters.Count > paramIndex)
+            {
+                score += 30;
+            }
 
             // Prefer overloads with parameters when args are typed
             if (typedArgs.Length > 0 && sig.Parameters.Count > 0)

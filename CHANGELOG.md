@@ -5,6 +5,9 @@
 ### Changed
 - Pushback orientation now uses cardinal directions instead of numeric headings: `PUSH FACE E` / `PUSH TAIL W` (or shorthand `>E` / `<W`), with the eight compass points accepted (N, NE, E, SE, S, SW, W, NW). When combined with a taxiway (`PUSH TE FACE E`) the aircraft aligns with whichever of the taxiway's two directions matches the cardinal closest. Voice control accepts "pushback face east", "pushback tail west", and "pushback onto tango facing east".
 
+### Fixed
+- The inline command hint now shows the next variant when you press space past the last argument — e.g. `ELB 28L ` advances from `ELB [runway]` to `ELB [runway] [distance]`.
+
 ## 0.1.2-alpha
 
 ### Fixed
