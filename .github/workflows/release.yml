@@ -99,6 +99,16 @@ jobs:
 
           changelog=$(cat /tmp/changelog.md)
 
+          # Skip AI summarization for small releases — when the changelog has
+          # ≤3 bullets, summarizing it into 3-4 highlight bullets adds no value
+          # over showing the changelog itself.
+          item_count=$(printf '%s\n' "$changelog" | grep -c '^- ' || true)
+          if [ "$item_count" -le 3 ]; then
+            echo "highlights=" >> "$GITHUB_OUTPUT"
+            echo "Changelog has $item_count bullets — skipping AI highlights."
+            exit 0
+          fi
+
           response=$(curl -s --max-time 30 https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${ANTHROPIC_API_KEY}" \
