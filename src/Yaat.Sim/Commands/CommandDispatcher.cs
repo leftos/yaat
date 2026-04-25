@@ -36,7 +36,7 @@ public static class CommandDispatcher
 
         // GiveWay condition → deferred dispatch: the aircraft stays in its current phase
         // and the payload dispatches when the target aircraft passes.
-        var gwResult = TryDeferGiveWay(compound, aircraft);
+        var gwResult = TryDeferGiveWay(compound, aircraft, ctx);
         if (gwResult is not null)
         {
             return gwResult;
@@ -742,12 +742,21 @@ public static class CommandDispatcher
     /// give-way-gated deferred dispatch. The aircraft stays in its current phase
     /// (e.g. AtParkingPhase) and the payload dispatches fresh when the target passes.
     /// Returns null if the compound doesn't start with a GiveWay condition.
+    ///
+    /// When <paramref name="ctx"/>.FindAircraft is wired (production), an unresolved
+    /// target callsign is hard-rejected so typos don't silently fire the deferred
+    /// payload via the "target gone → MET" shortcut in IsGiveWayMet.
     /// </summary>
-    private static CommandResult? TryDeferGiveWay(CompoundCommand compound, AircraftState aircraft)
+    private static CommandResult? TryDeferGiveWay(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         if (compound.Blocks[0].Condition is not GiveWayCondition gw)
         {
             return null;
+        }
+
+        if (ctx.FindAircraft is { } findAircraft && findAircraft(gw.TargetCallsign) is null)
+        {
+            return new CommandResult(false, $"BEHIND target {gw.TargetCallsign} not found");
         }
 
         // Strip the condition from the first block; keep the commands and subsequent blocks

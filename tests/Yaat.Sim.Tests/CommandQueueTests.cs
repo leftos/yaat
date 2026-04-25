@@ -194,15 +194,19 @@ public class CommandQueueTests
     }
 
     [Fact]
-    public void GiveWay_Met_WhenTargetFar()
+    public void GiveWay_Met_WhenTargetFarAheadSameDirection()
     {
-        // Distance > 0.1nm → conflict resolved
+        // Both heading 090. Target is 0.5nm east (ahead) and moving the same
+        // direction — it has cleared us and is leaving. Condition met.
         var ac = MakeAircraft(new LatLon(37.7, -122.2));
+        ac.TrueHeading = new TrueHeading(090);
+        ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
 
-        // 0.5nm north: 0.5/60 ≈ 0.00833° lat
-        var target = MakeAircraft(new LatLon(37.7083, -122.2));
+        double lonOffset = 0.5 / (60.0 * Math.Cos(37.7 * Math.PI / 180.0));
+        var target = MakeAircraft(new LatLon(37.7, -122.2 + lonOffset));
         target.Callsign = "OTHER";
+        target.TrueHeading = new TrueHeading(090);
         target.IsOnGround = true;
 
         var lookup = new Dictionary<string, AircraftState> { ["OTHER"] = target };

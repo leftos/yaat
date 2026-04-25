@@ -118,23 +118,43 @@ internal static class CallsignArgumentResolver
             return new Result(block, null);
         }
 
-        // Strip any condition prefix (LV/AT/AS/GIVEWAY/BEHIND) and preserve it verbatim.
-        // We do NOT rewrite the condition argument itself — GIVEWAY/BEHIND callsigns are
-        // handled by the main command parser and LV/AT arguments aren't callsigns.
-        var stripped = CommandInputController.StripConditionPrefix(content, out _);
+        // Strip any condition prefix (LV/AT/AS/GIVEWAY/BEHIND). LV/AT arguments
+        // aren't callsigns; AS arguments are positions. GIVEWAY/BEHIND arguments
+        // ARE callsigns and the server's exact-match FindAircraft can't resolve
+        // partial input — rewrite them here so typed shorthand like "BEHIND 152SP"
+        // resolves to "BEHIND N152SP" before reaching the server.
+        var stripped = CommandInputController.StripConditionPrefix(content, out var conditionVerb);
         var prefixLength = content.Length - stripped.Length;
         var prefixText = content[..prefixLength];
         var body = content[prefixLength..];
 
+        if (conditionVerb is "GIVEWAY" or "BEHIND")
+        {
+            var prefixRewrite = TryRewriteConditionCallsign(prefixText, conditionVerb, aircraft);
+            if (prefixRewrite.Error is not null)
+            {
+                return new Result(null, prefixRewrite.Error);
+            }
+
+            if (prefixRewrite.Text is not null)
+            {
+                prefixText = prefixRewrite.Text;
+            }
+        }
+
+        // Cached result for paths that don't rewrite anything in the body but
+        // may still have rewritten the condition prefix above.
+        var prefixOnlyResult = new Result(leading + prefixText + body, null);
+
         if (string.IsNullOrWhiteSpace(body))
         {
-            return new Result(block, null);
+            return prefixOnlyResult;
         }
 
         var tokens = Tokenize(body, out var tokenSpans);
         if (tokens.Count == 0)
         {
-            return new Result(block, null);
+            return prefixOnlyResult;
         }
 
         // The verb is the first token that matches a known alias.
@@ -153,13 +173,13 @@ internal static class CallsignArgumentResolver
 
         if (verbType is null)
         {
-            return new Result(block, null);
+            return prefixOnlyResult;
         }
 
         var def = CommandRegistry.Get(verbType.Value);
         if (def is null)
         {
-            return new Result(block, null);
+            return prefixOnlyResult;
         }
 
         // Collect the set of argument indices (within tokens, relative to the whole block body)
@@ -181,7 +201,7 @@ internal static class CallsignArgumentResolver
         }
         else if (!GenericCallsignArgCommands.Contains(verbType.Value))
         {
-            return new Result(block, null);
+            return prefixOnlyResult;
         }
         else
         {
@@ -216,7 +236,7 @@ internal static class CallsignArgumentResolver
 
         if (callsignTokenIndices.Count == 0)
         {
-            return new Result(block, null);
+            return prefixOnlyResult;
         }
 
         // Resolve and build the rewritten body in-place by replacing specific token spans.
@@ -253,12 +273,65 @@ internal static class CallsignArgumentResolver
 
         if (cursor == 0)
         {
-            // No substitutions occurred.
-            return new Result(block, null);
+            // No substitutions occurred in the body — but the prefix may have changed.
+            return prefixOnlyResult;
         }
 
         rewrittenBody.Append(body, cursor, body.Length - cursor);
         return new Result(leading + prefixText + rewrittenBody, null);
+    }
+
+    /// <summary>
+    /// Rewrites the callsign argument inside a GIVEWAY/BEHIND condition prefix
+    /// (e.g. "BEHIND 152SP " → "BEHIND N152SP ") via <see cref="CallsignMatcher"/>.
+    /// Trailing whitespace is preserved verbatim.
+    ///
+    /// Returns Text=null when no rewrite was needed; Error non-null on ambiguity.
+    /// </summary>
+    private static Result TryRewriteConditionCallsign(string prefixText, string conditionVerb, IReadOnlyCollection<AircraftModel> aircraft)
+    {
+        int verbLen = conditionVerb.Length;
+        if (prefixText.Length < verbLen + 1)
+        {
+            return new Result(null, null);
+        }
+
+        var afterVerb = prefixText[verbLen..];
+        int leadingWs = 0;
+        while (leadingWs < afterVerb.Length && char.IsWhiteSpace(afterVerb[leadingWs]))
+        {
+            leadingWs++;
+        }
+
+        var afterVerbTrimmed = afterVerb[leadingWs..];
+        int callsignEnd = 0;
+        while (callsignEnd < afterVerbTrimmed.Length && !char.IsWhiteSpace(afterVerbTrimmed[callsignEnd]))
+        {
+            callsignEnd++;
+        }
+
+        if (callsignEnd == 0)
+        {
+            return new Result(null, null);
+        }
+
+        var callsignToken = afterVerbTrimmed[..callsignEnd];
+        var (match, outcome, candidates) = CallsignMatcher.Match(callsignToken, aircraft);
+
+        if (outcome == CallsignMatcher.Outcome.Ambiguous)
+        {
+            return new Result(null, CallsignMatcher.FormatAmbiguityMessage(callsignToken, candidates));
+        }
+
+        if (outcome != CallsignMatcher.Outcome.UniqueSubstring || match is null)
+        {
+            // None or Exact — nothing to rewrite.
+            return new Result(null, null);
+        }
+
+        var trailing = afterVerbTrimmed[callsignEnd..];
+        var rewritten = prefixText[..verbLen] + afterVerb[..leadingWs] + match.Callsign + trailing;
+        return new Result(rewritten, null);
     }
 
     private static CanonicalCommandType? ResolveVerb(string token, CommandScheme scheme)

@@ -196,4 +196,50 @@ public class CallsignArgumentResolverTests
         Assert.Null(result.Error);
         Assert.Equal("FOLLOW AAL", result.Text);
     }
+
+    [Fact]
+    public void Behind_UniqueSubstring_RewritesCallsign()
+    {
+        var result = CallsignArgumentResolver.TryRewrite("BEHIND 152SP TAXI C D", Scheme, Aircraft("N152SP", "N569SX"));
+
+        Assert.Null(result.Error);
+        Assert.Equal("BEHIND N152SP TAXI C D", result.Text);
+    }
+
+    [Fact]
+    public void Giveway_UniqueSubstring_RewritesCallsign()
+    {
+        var result = CallsignArgumentResolver.TryRewrite("GIVEWAY 152SP TAXI C", Scheme, Aircraft("N152SP", "N569SX"));
+
+        Assert.Null(result.Error);
+        Assert.Equal("GIVEWAY N152SP TAXI C", result.Text);
+    }
+
+    [Fact]
+    public void Behind_NoMatch_LeavesUntouched()
+    {
+        var result = CallsignArgumentResolver.TryRewrite("BEHIND ZZZ TAXI C", Scheme, Aircraft("N152SP"));
+
+        Assert.Null(result.Error);
+        Assert.Equal("BEHIND ZZZ TAXI C", result.Text);
+    }
+
+    [Fact]
+    public void Behind_Ambiguous_ReturnsError()
+    {
+        var result = CallsignArgumentResolver.TryRewrite("BEHIND N1 TAXI C", Scheme, Aircraft("N152SP", "N172SP"));
+
+        Assert.Null(result.Text);
+        Assert.NotNull(result.Error);
+        Assert.Contains("\"N1\"", result.Error);
+    }
+
+    [Fact]
+    public void Behind_ExactMatch_LeavesUntouched()
+    {
+        var result = CallsignArgumentResolver.TryRewrite("BEHIND N152SP TAXI C", Scheme, Aircraft("N152SP"));
+
+        Assert.Null(result.Error);
+        Assert.Equal("BEHIND N152SP TAXI C", result.Text);
+    }
 }

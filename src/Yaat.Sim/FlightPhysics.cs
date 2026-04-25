@@ -1199,15 +1199,11 @@ public static class FlightPhysics
             return true;
         }
 
-        double distNm = GeoMath.DistanceNm(aircraft.Position, target.Position);
-
-        // If the target is far enough away, the conflict is resolved
-        if (distNm > 0.1)
-        {
-            return true;
-        }
-
-        // Check if they're still conflicting based on heading
+        // The held aircraft proceeds only when the target is no longer in the way:
+        // either behind us (opposite-direction case) or ahead and moving away
+        // (same-direction case). Distance alone is not a release condition — for
+        // ground BEHIND, the target is virtually always >0.1 nm away when the
+        // command is issued (that's the point of issuing it).
         double headingDiff = Math.Abs(aircraft.TrueHeading.Degrees - target.TrueHeading.Degrees);
         if (headingDiff > 180)
         {
