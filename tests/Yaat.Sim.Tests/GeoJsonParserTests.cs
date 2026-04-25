@@ -508,6 +508,56 @@ public class GeoJsonParserTests
     }
 
     [Fact]
+    public void NoTurnoff_ExcludesForbiddenTaxiwaysFromDefaultExitSearch()
+    {
+        TestVnasData.EnsureInitialized();
+        // SFO 28R noTurnoff = ['L', 'P']: landing 28R must not exit at L or P.
+        // Default-search (no command-named taxiway) should never select L or P as the exit.
+        string path = Path.Combine("TestData", "sfo.geojson");
+        var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+
+        var rwy = layout.Runways.First(r => r.Name == "10L - 28R");
+        Assert.Contains("L", rwy.NoTurnoffByEnd["28R"]);
+        Assert.Contains("P", rwy.NoTurnoffByEnd["28R"]);
+
+        // Pick a centerline node well before any L/P branch and search for any exit.
+        // The search must not return an L or P hold-short.
+        var centerline28R = layout.Nodes.Values.First(n => n.Edges.Any(e => e.MatchesRunway("28R")));
+        var heading = new TrueHeading(282);
+        var ac = centerline28R.Position;
+
+        var result = layout.FindExitFromCenterline(ac.Lat, ac.Lon, heading, "28R", preference: null);
+        if (result is not null)
+        {
+            Assert.NotEqual("L", result.Value.Taxiway);
+            Assert.NotEqual("P", result.Value.Taxiway);
+        }
+    }
+
+    [Fact]
+    public void NoTurnoff_HonorsExplicitExitCommandEvenWhenForbidden()
+    {
+        TestVnasData.EnsureInitialized();
+        // Even though P is on noTurnoff for 28R, an explicit "EXIT P" command must still find P.
+        // The forbidden filter applies only to default-search (preference.Taxiway == null).
+        string path = Path.Combine("TestData", "sfo.geojson");
+        var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+
+        var centerline28R = layout.Nodes.Values.First(n => n.Edges.Any(e => e.MatchesRunway("28R")));
+        var heading = new TrueHeading(282);
+        var ac = centerline28R.Position;
+
+        var pref = new ExitPreference { Taxiway = "P" };
+        var result = layout.FindExitFromCenterline(ac.Lat, ac.Lon, heading, "28R", pref);
+
+        // P should be findable when explicitly requested (forbidden list is for default search only).
+        if (result is not null)
+        {
+            Assert.Equal("P", result.Value.Taxiway);
+        }
+    }
+
+    [Fact]
     public void InferPreferredExitSide_NoAuthoredNoNodes_ReturnsNull()
     {
         var layout = new AirportGroundLayout

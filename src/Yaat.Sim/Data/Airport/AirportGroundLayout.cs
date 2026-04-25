@@ -867,6 +867,17 @@ public sealed class AirportGroundLayout
             return null;
         }
 
+        // Authored noTurnoff: forbid named taxiways for this landing direction. Applied only
+        // when the controller hasn't explicitly named a taxiway — explicit EXIT commands win.
+        HashSet<string>? forbiddenTaxiways = null;
+        if ((preference?.Taxiway is null) && (FindRunway(runwayDesignator) is { } authoredRwy))
+        {
+            if (authoredRwy.NoTurnoffByEnd.TryGetValue(runwayDesignator, out var forbidden) && (forbidden.Count > 0))
+            {
+                forbiddenTaxiways = new HashSet<string>(forbidden, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
         // Walk along-track: only consider centerline nodes ahead of the aircraft.
         // When no taxiway preference is set, defer any back-exit (>100°) and keep
         // walking — a real pilot wouldn't U-turn on the runway to reach E if G or
@@ -901,7 +912,7 @@ public sealed class AirportGroundLayout
                 preference?.Taxiway ?? "any",
                 preference?.Side?.ToString() ?? "any"
             );
-            var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference, excludeHoldShortNodes);
+            var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference, excludeHoldShortNodes, forbiddenTaxiways);
             if (result is not null)
             {
                 double? exitAngle = ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
@@ -944,7 +955,8 @@ public sealed class AirportGroundLayout
         string? runwayDesignator,
         TrueHeading runwayHeading,
         ExitPreference? preference,
-        HashSet<int>? excludeHoldShortNodes = null
+        HashSet<int>? excludeHoldShortNodes = null,
+        HashSet<string>? forbiddenTaxiways = null
     )
     {
         const int maxDepth = 20;
@@ -1028,6 +1040,13 @@ public sealed class AirportGroundLayout
                 if ((excludeHoldShortNodes is not null) && excludeHoldShortNodes.Contains(current.Id))
                 {
                     Log.LogDebug("[ExitBFS] HS #{Id}: skip (occupied)", current.Id);
+                    continue;
+                }
+
+                // Skip hold-shorts on a forbidden taxiway (per-end noTurnoff from airport file).
+                if ((forbiddenTaxiways is not null) && forbiddenTaxiways.Contains(branchTwy))
+                {
+                    Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (noTurnoff)", current.Id, branchTwy);
                     continue;
                 }
 
