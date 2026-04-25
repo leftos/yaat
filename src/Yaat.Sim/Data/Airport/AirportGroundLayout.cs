@@ -1859,7 +1859,7 @@ public sealed class AirportGroundLayout
     /// high-speed exits are. Used for traffic flow inheritance when this runway
     /// has no high-speed exits of its own.
     /// </summary>
-    private ExitSide? FindParallelRunwayHsSide(string designator, TrueHeading runwayHeading)
+    public ExitSide? FindParallelRunwayHsSide(string designator, TrueHeading runwayHeading)
     {
         foreach (var rwy in Runways)
         {

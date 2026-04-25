@@ -475,43 +475,28 @@ public sealed class LayoutAnalyzer
         int reachableParkingLeft = CountReachableParking(sorted.Where(e => e.Side == "Left"));
         int reachableParkingRight = CountReachableParking(sorted.Where(e => e.Side == "Right"));
 
-        // Adjacent runway check: for parallel runways, if one has HS exits on a side,
-        // the parallel should prefer the same side (traffic flow). Check if a parallel
-        // runway's HS exits point in the same direction as our candidate side.
-        string? parallelHsSide = FindParallelRunwayHsSide(designator, globalRwyHeading);
-
-        // Infer default side using layered signals:
-        // 1. High-speed exits, validated by parking proximity (dead-end override)
-        // 2. Parallel runway HS inheritance (traffic flow, trusted without validation)
-        // 3. Parking proximity (fallback)
-        string? inferredSide;
-        string? hsSide =
-            (hsLeft > hsRight) ? "Left"
-            : (hsRight > hsLeft) ? "Right"
-            : null;
-        string? parkingSide =
-            (avgParkLeft < avgParkRight) ? "Left"
-            : (avgParkRight < avgParkLeft) ? "Right"
+        // Delegate parallel-runway detection and the final inferred-side decision to
+        // the runtime AirportGroundLayout so the tool reports the same answer the sim
+        // uses. The diagnostic counts above are LayoutInspector's per-(centerline,
+        // hold-short) view; the runtime dedupes by hold-short alone, so its hsLeft/
+        // hsRight may differ — that's intentional, the diagnostic counts are tool data.
+        string? parallelHsSide = globalRwyHeading is { } heading
+            ? Layout.FindParallelRunwayHsSide(designator, heading) switch
+            {
+                ExitSide.Left => "Left",
+                ExitSide.Right => "Right",
+                _ => null,
+            }
             : null;
 
-        if (hsSide is not null)
-        {
-            // HS exits are a strong signal, but validate: if parking proximity
-            // favors the other side, the HS exit leads to a dead end (e.g.,
-            // OAK 28R J exits left toward 28L with no parking on that side).
-            inferredSide = (parkingSide is not null) && (parkingSide != hsSide) ? parkingSide : hsSide;
-        }
-        else if (parallelHsSide is not null)
-        {
-            // No HS exits on this runway, but a parallel runway has them.
-            // Inherit the same side — traffic flow from the parallel runway's
-            // HS exits crosses this runway in that direction.
-            inferredSide = parallelHsSide;
-        }
-        else
-        {
-            inferredSide = parkingSide;
-        }
+        string? inferredSide = globalRwyHeading is { } infHeading
+            ? Layout.InferPreferredExitSide(designator, infHeading) switch
+            {
+                ExitSide.Left => "Left",
+                ExitSide.Right => "Right",
+                _ => null,
+            }
+            : null;
 
         return new ExitsResult(
             designator,
@@ -573,144 +558,6 @@ public sealed class LayoutAnalyzer
         }
 
         return parkingCount;
-    }
-
-    /// <summary>
-    /// Find a parallel runway (same heading ±10°, different designator) and return
-    /// the side where its high-speed exits are, or null if none found.
-    /// </summary>
-    private string? FindParallelRunwayHsSide(string designator, TrueHeading? runwayHeading)
-    {
-        if (runwayHeading is null)
-        {
-            return null;
-        }
-
-        foreach (var rwy in Layout.Runways)
-        {
-            var id = RunwayIdentifier.Parse(rwy.Name);
-            string? parallelDesignator = null;
-
-            // Check both ends of this runway
-            if (
-                string.Equals(id.End1, designator, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(id.End2, designator, StringComparison.OrdinalIgnoreCase)
-            )
-            {
-                continue; // Same runway
-            }
-
-            // Check if either end is parallel to our designator
-            double rwBearing = GeoMath.BearingTo(
-                new LatLon(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon),
-                new LatLon(rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon)
-            );
-            double end1Heading = rwBearing;
-            double end2Heading = (rwBearing + 180) % 360;
-
-            double diff1 = Math.Abs(new TrueHeading(end1Heading).SignedAngleTo(runwayHeading.Value));
-            double diff2 = Math.Abs(new TrueHeading(end2Heading).SignedAngleTo(runwayHeading.Value));
-
-            if (diff1 <= 10)
-            {
-                parallelDesignator = id.End1;
-            }
-            else if (diff2 <= 10)
-            {
-                parallelDesignator = id.End2;
-            }
-
-            if (parallelDesignator is null)
-            {
-                continue;
-            }
-
-            // Found a parallel runway. Get its exits and check HS distribution.
-            TrueHeading parallelHeading = new(diff1 <= 10 ? end1Heading : end2Heading);
-            var parallelExits = GetExitsRaw(parallelDesignator, parallelHeading);
-
-            int parallelHsLeft = parallelExits.Count(e => e.IsHighSpeed && (e.Side == "Left"));
-            int parallelHsRight = parallelExits.Count(e => e.IsHighSpeed && (e.Side == "Right"));
-
-            if (parallelHsLeft > parallelHsRight)
-            {
-                return "Left";
-            }
-
-            if (parallelHsRight > parallelHsLeft)
-            {
-                return "Right";
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Raw exit enumeration (without summary stats) for use by parallel runway check.
-    /// </summary>
-    private List<ExitCandidate> GetExitsRaw(string designator, TrueHeading rwyHeading)
-    {
-        var exits = new List<ExitCandidate>();
-
-        foreach (var node in Layout.Nodes.Values)
-        {
-            bool isCenterline = node.Edges.Any(e => e.MatchesRunway(designator));
-            if (!isCenterline)
-            {
-                continue;
-            }
-
-            var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var edge in node.Edges)
-            {
-                var edgeTaxiwayNames = CollectNonRunwayTaxiwayNames(edge);
-                foreach (string twyName in edgeTaxiwayNames)
-                {
-                    if (!searched.Add(twyName))
-                    {
-                        continue;
-                    }
-
-                    ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
-                    foreach (var side in sides)
-                    {
-                        var pref = new ExitPreference { Taxiway = twyName, Side = side };
-                        var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
-                        if (result is null)
-                        {
-                            continue;
-                        }
-
-                        if (exits.Any(e => (e.CenterlineNodeId == node.Id) && (e.HoldShortNodeId == result.Value.Node.Id)))
-                        {
-                            continue;
-                        }
-
-                        double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-                        double totalDist = GeoMath.DistanceNm(node.Position, result.Value.Node.Position);
-                        bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
-                        string sideName = side == ExitSide.Left ? "Left" : "Right";
-
-                        exits.Add(
-                            new ExitCandidate(
-                                node.Id,
-                                result.Value.Node.Id,
-                                result.Value.Taxiway,
-                                1,
-                                totalDist,
-                                angle,
-                                sideName,
-                                isHighSpeed,
-                                [result.Value.Node.Id]
-                            )
-                        );
-                    }
-                }
-            }
-        }
-
-        return exits;
     }
 
     /// <summary>
