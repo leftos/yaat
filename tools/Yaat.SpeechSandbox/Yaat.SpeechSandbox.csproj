@@ -27,6 +27,14 @@
     <PackageReference Include="LM-Kit.NET.Backend.Cuda13.Windows" Version="2026.4.2" />
   </ItemGroup>
 
+  <!-- M10.0 spike → durable: TTS sandbox tab uses sherpa-onnx for Piper/Kokoro VITS synthesis,
+       NAudio.Core for the radio-FX BiQuadFilter chain. PortAudioSharp2 is already pulled in
+       transitively via Yaat.Client reference (used for STT capture today, output here). -->
+  <ItemGroup>
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.12.40" />
+    <PackageReference Include="NAudio.Core" Version="2.3.0" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
   </ItemGroup>

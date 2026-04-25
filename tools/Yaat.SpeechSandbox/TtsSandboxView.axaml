@@ -1,0 +1,119 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="Yaat.SpeechSandbox.TtsSandboxView">
+    <Grid Margin="12" RowDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Row="0"
+                   Text="TTS sandbox — iterate on Piper voice + radio-FX parameters with sherpa-onnx + NAudio"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,8" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,8,*">
+            <!-- Left column: inputs -->
+            <ScrollViewer Grid.Column="0"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock Classes="h2" Text="Voice pack" />
+                    <TextBlock Classes="subtle" Text="Path to a sherpa-onnx Piper voice directory (must contain *.onnx, tokens.txt, espeak-ng-data/). Auto-detected by walking up from the running .exe looking for .tmp/voices/vits-piper-en_US-libritts_r-medium." />
+                    <TextBox x:Name="VoiceDirBox"
+                             AcceptsReturn="False"
+                             FontFamily="Consolas,Menlo,monospace" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button x:Name="LoadModelButton" Content="Load model" Padding="10,4" />
+                        <Button x:Name="PrewarmButton" Content="Pre-warm (1 throwaway synth)" Padding="10,4" IsEnabled="False" />
+                    </StackPanel>
+                    <TextBlock x:Name="ModelStatusText" Text="No model loaded." Classes="subtle" />
+
+                    <TextBlock Classes="h2" Text="Synthesis parameters" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" Margin="0,4,0,0">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Speaker ID" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Slider x:Name="SpeakerIdSlider" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="500" Value="50" TickFrequency="10" IsSnapToTickEnabled="True" />
+                        <TextBlock x:Name="SpeakerIdValueText" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" MinWidth="40" TextAlignment="Right" Text="50" FontFamily="Consolas,Menlo,monospace" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Speed" VerticalAlignment="Center" Margin="0,4,8,0" />
+                        <Slider x:Name="SpeedSlider" Grid.Row="1" Grid.Column="1" Minimum="0.5" Maximum="2.0" Value="1.0" TickFrequency="0.05" IsSnapToTickEnabled="True" />
+                        <TextBlock x:Name="SpeedValueText" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" MinWidth="40" TextAlignment="Right" Text="1.00" FontFamily="Consolas,Menlo,monospace" />
+                    </Grid>
+
+                    <TextBlock Classes="h2" Text="Text" />
+                    <TextBlock Classes="subtle" Text="What the pilot says. Numbers and callsigns should already be ATC-spoken (e.g. 'November one two three alpha bravo')." />
+                    <TextBox x:Name="TextBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="80"
+                             FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="Radio FX" />
+                    <CheckBox x:Name="RadioFxCheckBox" Content="Apply band-pass + soft-clip + squelch tail" IsChecked="True" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,4,0,0">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="BP center Hz" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Slider x:Name="BpCenterSlider" Grid.Row="0" Grid.Column="1" Minimum="500" Maximum="3000" Value="1500" TickFrequency="50" IsSnapToTickEnabled="True" />
+                        <TextBlock x:Name="BpCenterValueText" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" MinWidth="50" TextAlignment="Right" Text="1500" FontFamily="Consolas,Menlo,monospace" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="BP Q" VerticalAlignment="Center" Margin="0,4,8,0" />
+                        <Slider x:Name="BpQSlider" Grid.Row="1" Grid.Column="1" Minimum="0.3" Maximum="2.0" Value="0.7" TickFrequency="0.05" IsSnapToTickEnabled="True" />
+                        <TextBlock x:Name="BpQValueText" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" MinWidth="50" TextAlignment="Right" Text="0.70" FontFamily="Consolas,Menlo,monospace" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Drive" VerticalAlignment="Center" Margin="0,4,8,0" />
+                        <Slider x:Name="DriveSlider" Grid.Row="2" Grid.Column="1" Minimum="1.0" Maximum="10.0" Value="4.0" TickFrequency="0.25" IsSnapToTickEnabled="True" />
+                        <TextBlock x:Name="DriveValueText" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" MinWidth="50" TextAlignment="Right" Text="4.00" FontFamily="Consolas,Menlo,monospace" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Squelch ms" VerticalAlignment="Center" Margin="0,4,8,0" />
+                        <Slider x:Name="SquelchSlider" Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="500" Value="150" TickFrequency="10" IsSnapToTickEnabled="True" />
+                        <TextBlock x:Name="SquelchValueText" Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" MinWidth="50" TextAlignment="Right" Text="150" FontFamily="Consolas,Menlo,monospace" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="1" Width="4" Background="#22FFFFFF" />
+
+            <!-- Right column: output -->
+            <ScrollViewer Grid.Column="2"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock Classes="h2" Text="Status" />
+                    <TextBlock x:Name="TtsStatusText"
+                               Text="Idle. Load a voice pack to begin."
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Classes="h2" Text="Latency" />
+                    <TextBlock x:Name="LatencyText"
+                               Text="(no synth yet)"
+                               FontFamily="Consolas,Menlo,monospace" />
+
+                    <TextBlock Classes="h2" Text="Last WAV" />
+                    <TextBlock x:Name="LastWavPathText"
+                               Text="(none)"
+                               TextWrapping="Wrap"
+                               FontFamily="Consolas,Menlo,monospace"
+                               FontSize="11" />
+
+                    <TextBlock Classes="h2" Text="Log" />
+                    <TextBox x:Name="TtsLogBox"
+                             AcceptsReturn="True"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             MinHeight="400"
+                             FontFamily="Consolas,Menlo,monospace"
+                             FontSize="11" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button x:Name="SynthAndPlayButton" Content="Synthesize + play" Padding="16,6" IsEnabled="False" />
+            <Button x:Name="SaveWavButton" Content="Save WAV..." Padding="12,6" IsEnabled="False" />
+            <Button x:Name="RunExampleSetButton" Content="Run 5 example utterances" Padding="12,6" IsEnabled="False" />
+            <Button x:Name="LoadExampleTextButton" Content="Load example text" Padding="12,6" />
+            <Button x:Name="StopAudioButton" Content="Stop audio" Padding="12,6" />
+        </StackPanel>
+    </Grid>
+</UserControl>
