@@ -244,14 +244,18 @@ public class HoldShortQueueTests
     [Fact]
     public void ConflictDetector_UsesAircraftLength_ForSeparation()
     {
-        // Real ACD data has B738 LengthFt=129.5, C172 LengthFt=27.2
+        // Real ACD data: A359 LengthFt=218.5, C172 LengthFt=27.2.
+        // Stop distance is centroid-to-centroid: (leaderLen + trailerLen) / 2 + buffer.
+        // For A359 leader + C172 trailer that's (218.5 + 27.2)/2 + 25 = 147.85ft —
+        // well above the 100ft default floor, so a stop at 140ft proves the
+        // detector consulted real aircraft lengths instead of falling back to the
+        // default.
         TestVnasData.EnsureInitialized();
 
-        // B738 holding at a point, C172 approaching from behind
         var leader = new AircraftState
         {
             Callsign = "LEAD",
-            AircraftType = "B738",
+            AircraftType = "A359",
             Position = new LatLon(BaseLat, BaseLon),
             TrueHeading = new TrueHeading(0),
             IsOnGround = true,
@@ -270,8 +274,7 @@ public class HoldShortQueueTests
         );
         leader.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        // Trailer at 120ft behind (less than B738 length of 129.5ft + buffer)
-        double trailOffsetNm = 120.0 / FtPerNm;
+        double trailOffsetNm = 140.0 / FtPerNm;
         var trailer = new AircraftState
         {
             Callsign = "TRAIL",
@@ -285,8 +288,7 @@ public class HoldShortQueueTests
         var allAircraft = new List<AircraftState> { leader, trailer };
         GroundConflictDetector.ApplySpeedLimits(allAircraft, null);
 
-        // At 120ft behind a 129.5ft aircraft, trailer should be stopped
-        // (stop distance = leader length + 25 = 154.5ft, and 120 < 154.5)
+        // 140ft < 147.85ft → trailer must be stopped.
         Assert.NotNull(trailer.Ground.SpeedLimit);
         Assert.Equal(0.0, trailer.Ground.SpeedLimit.Value);
     }

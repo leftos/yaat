@@ -242,7 +242,7 @@ public static class GroundConflictDetector
                 return true;
             }
 
-            var (_, refTrailDist) = GetSeparation(reference);
+            var (_, refTrailDist) = GetSeparation(reference, subject);
             if (distFt > refTrailDist)
             {
                 return true;
@@ -549,7 +549,7 @@ public static class GroundConflictDetector
             return;
         }
 
-        var (stopDist, trailDist) = GetSeparation(obstacle);
+        var (stopDist, trailDist) = GetSeparation(obstacle, mover);
         if (distFt <= stopDist)
         {
             diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ stop({stopDist:F0}ft) → limit=0");
@@ -623,22 +623,25 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
-    /// Returns dimension-aware stop/trail distances based on the leader aircraft's length
-    /// from the FAA Aircraft Characteristics Database.
-    /// Stop distance = aircraft length + buffer, so the trailing aircraft's nose clears the leader's tail.
-    /// Trail distance = stop distance + deceleration margin.
+    /// Returns dimension-aware stop/trail distances between the centroids of <paramref name="leader"/>
+    /// and <paramref name="trailer"/>. <see cref="AircraftState.Position"/> is the centroid, so the
+    /// minimum center-to-center distance that keeps the trailer's nose from passing through the
+    /// leader's tail is <c>(leaderLength + trailerLength) / 2 + buffer</c>. Trail distance adds a
+    /// deceleration margin on top of stop distance. Falls back to <see cref="DefaultAircraftLengthFt"/>
+    /// when the FAA Aircraft Characteristics Database has no record for the aircraft type.
     /// </summary>
-    private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader)
+    private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {
         double leaderLength = FaaAircraftDatabase.Get(leader.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
-        double stopDist = Math.Max(DefaultStopDistanceFt, leaderLength + StopBufferFt);
+        double trailerLength = FaaAircraftDatabase.Get(trailer.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
+        double stopDist = Math.Max(DefaultStopDistanceFt, ((leaderLength + trailerLength) / 2) + StopBufferFt);
         double trailDist = Math.Max(DefaultTrailDistanceFt, stopDist + 100.0);
         return (stopDist, trailDist);
     }
 
     private static void ApplyTrailLimit(AircraftState trailer, AircraftState leader, double distFt)
     {
-        var (stopDist, trailDist) = GetSeparation(leader);
+        var (stopDist, trailDist) = GetSeparation(leader, trailer);
         double maxSpeed;
         string reason;
         if (distFt <= stopDist)

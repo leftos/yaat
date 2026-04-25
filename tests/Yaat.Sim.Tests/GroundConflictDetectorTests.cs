@@ -2,6 +2,7 @@
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
@@ -465,5 +466,66 @@ public class GroundConflictDetectorTests
         // Timer is zero — conflict detection re-engages; trailer should be limited
         bool anyLimited = a.Ground.SpeedLimit is not null || b.Ground.SpeedLimit is not null;
         Assert.True(anyLimited, "Expected conflict detection to resume after BREAK expires");
+    }
+
+    /// <summary>
+    /// Closing-proximity stop must account for the trailer's length, not just
+    /// the leader's. AircraftState.Position is the centroid, so to keep the
+    /// trailer's nose from passing through the leader's tail the stop distance
+    /// (between centroids) must be at least
+    /// <c>(leaderLengthFt + trailerLengthFt) / 2 + buffer</c>.
+    ///
+    /// Pre-fix bug: <c>GetSeparation</c> used <c>leaderLength + buffer</c>,
+    /// which underestimates whenever the trailer is longer than the leader.
+    /// In <c>sfo-s1-ground-control-28-01</c> at t=917 a stationary E175 (length
+    /// 106ft) was hit in the tail by an A350 (length 218.5ft) closing on it —
+    /// pair gap was ~145ft, current code's stop threshold was 131ft, so the
+    /// A350 kept going until its nose ran into the E175.
+    /// </summary>
+    [Fact]
+    public void LongTrailerBehindShortStationaryLeader_StopsBeforeNoseTouchesTail()
+    {
+        TestVnasData.EnsureInitialized();
+        if (!Yaat.Sim.Data.Faa.FaaAircraftDatabase.IsInitialized)
+        {
+            return;
+        }
+
+        // E175: ~106 ft, A359: ~218.5 ft (FAA ACD).
+        // Required nose-to-tail separation = (106 + 218.5) / 2 + 25 = 187.25 ft.
+        // Place trailer 145 ft *south* of leader (center-to-center) — clearly
+        // inside the dimension-aware threshold but well past the
+        // leader-only-length threshold (106 + 25 = 131 ft).
+        const double pairCenterToCenterFt = 145.0;
+        double offsetLat = pairCenterToCenterFt / FtPerNm / 60.0;
+
+        var leader = new AircraftState
+        {
+            Callsign = "LEAD",
+            AircraftType = "E75L/L",
+            Position = new LatLon(BaseLat + offsetLat, BaseLon),
+            TrueHeading = new TrueHeading(0),
+            IsOnGround = true,
+            IndicatedAirspeed = 0,
+        };
+        leader.Phases = new PhaseList();
+        leader.Phases.Add(new AtParkingPhase());
+        leader.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        var trailer = new AircraftState
+        {
+            Callsign = "TRAIL",
+            AircraftType = "A359/L",
+            Position = new LatLon(BaseLat, BaseLon),
+            TrueHeading = new TrueHeading(0),
+            IsOnGround = true,
+            IndicatedAirspeed = 15,
+        };
+
+        var aircraft = new List<AircraftState> { leader, trailer };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(trailer.Ground.SpeedLimit);
+        Assert.Equal(0.0, trailer.Ground.SpeedLimit!.Value);
     }
 }
