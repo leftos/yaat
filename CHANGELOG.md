@@ -9,6 +9,7 @@
 - CRC session/info protocol: client name, version, controller info, and transmit/receive frequency lists are captured from `StartSession` and available to peer info requests.
 - Airport elevation lookup falls back between ICAO and FAA identifiers (e.g. `KSFO` ↔ `SFO`).
 - Build identification and in-app docs: the title bar, the new Help → About YAAT dialog, and the first line of `yaat-client.log` all show the version and whether the build is a Velopack-installed release or a dev build. The Help menu also links Getting Started, User Guide, Commands Reference, and Changelog on GitHub.
+- Airport-authored runway data drives pattern altitude, pattern size, default exit side, and forbidden exits. OAK 28L flies its published 600 ft AGL pattern instead of the per-category default; SFO 28R picks south-side exits and avoids L/P (which cross toward 1L/19R).
 
 ### Changed
 - RTIS soft-fail now surfaces the specific visual-acquisition reason (distance, cloud layer, hemisphere, bank) to the RPO while keeping the pilot readback diagnostic-free. Traffic-in-sight readbacks are promoted from gray notifications to orange warnings.
