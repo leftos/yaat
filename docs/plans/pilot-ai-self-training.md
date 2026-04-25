@@ -84,7 +84,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 ### Progress
 
 - [x] **M10.0** — TTS pipeline spike (validated 2026-04-25, branched into `tools/Yaat.SpeechSandbox` TTS tab)
-- [ ] **M10.1** — Pilot voice (text-only readbacks)
+- [x] **M10.1** — Pilot voice (text-only readbacks) (shipped 2026-04-25, commit `8e21fc7`)
 - [ ] **M10.2** — Student speaks/types real ATC
 - [ ] **M10.3** — TTS layer (audible pilot voice + radio realism)
 - [ ] **M10.3.5** — Frequency contention + transmission queue + activity-aware verbosity
