@@ -316,7 +316,13 @@ public partial class MainViewModel
             var path = await _filePicker.OpenFileAsync(
                 new OpenFileOptions(
                     Title: "Load Recording",
-                    Filters: [new FilePickerFilter("YAAT Recording", ["*.yaat-recording.zip", "*.yaat-recording.br", "*.yaat-recording.json"])]
+                    Filters:
+                    [
+                        new FilePickerFilter(
+                            "YAAT Recording",
+                            ["*.yaat-recording.zip", "*.yaat-recording.br", "*.yaat-recording.json", "*.yaat-bug-report-bundle.zip"]
+                        ),
+                    ]
                 )
             );
 
