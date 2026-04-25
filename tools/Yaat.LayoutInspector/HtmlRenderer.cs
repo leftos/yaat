@@ -19,9 +19,7 @@ public sealed class HtmlRenderer
     private readonly HashSet<string> _highlightRunways = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, string> _nodeAnnotations = [];
     private readonly List<int> _routeNodeIds = [];
-    private List<TickDataRow>? _tickData;
-    private double _aircraftLengthFt = 110.0;
-    private double _aircraftWingspanFt = 110.0;
+    private TickRecording? _tickRecording;
 
     public HtmlRenderer(AirportGroundLayout layout) => _layout = layout;
 
@@ -35,18 +33,12 @@ public sealed class HtmlRenderer
 
     public void AddRouteNode(int id) => _routeNodeIds.Add(id);
 
-    public void SetTickData(List<TickDataRow> ticks) => _tickData = ticks;
-
     /// <summary>
-    /// Aircraft fuselage length in feet. Used to render the aircraft silhouette
-    /// at 1:1 scale over the airport — so at high zooms the aircraft marker
-    /// is visibly sized relative to runway/taxiway/hold-short geometry.
+    /// Embed the TickRecording (aircraft metadata + per-tick events) into the
+    /// rendered HTML. The template renders one trail + silhouette per aircraft,
+    /// using each aircraft's wingspan/length from the recording for 1:1 scale.
     /// </summary>
-    public void SetAircraftDimensions(double lengthFt, double wingspanFt)
-    {
-        _aircraftLengthFt = lengthFt;
-        _aircraftWingspanFt = wingspanFt;
-    }
+    public void SetTickRecording(TickRecording recording) => _tickRecording = recording;
 
     public string Render()
     {
@@ -219,52 +211,68 @@ public sealed class HtmlRenderer
         }
         writer.WriteEndArray();
 
-        if (_tickData is not null)
+        if (_tickRecording is not null)
         {
-            writer.WriteNumber("aircraftLengthFt", _aircraftLengthFt);
-            writer.WriteNumber("aircraftWingspanFt", _aircraftWingspanFt);
-            writer.WriteStartArray("ticks");
-            foreach (var tick in _tickData)
+            writer.WriteStartArray("aircraft");
+            foreach (var meta in _tickRecording.Aircraft)
             {
                 writer.WriteStartObject();
-                writer.WriteNumber("t", tick.Time);
+                writer.WriteString("callsign", meta.Callsign);
+                writer.WriteString("type", meta.Type);
+                writer.WriteString("color", meta.Color);
+                if (meta.WingspanFt is { } w)
+                {
+                    writer.WriteNumber("wingspanFt", w);
+                }
+                if (meta.LengthFt is { } l)
+                {
+                    writer.WriteNumber("lengthFt", l);
+                }
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+
+            writer.WriteStartArray("ticks");
+            foreach (var tick in _tickRecording.Ticks)
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber("t", tick.T);
+                writer.WriteString("callsign", tick.Callsign);
                 writer.WriteNumber("lat", Math.Round(tick.Lat, 8));
                 writer.WriteNumber("lon", Math.Round(tick.Lon, 8));
                 writer.WriteNumber("hdg", Math.Round(tick.Hdg, 2));
                 writer.WriteNumber("gs", Math.Round(tick.Gs, 2));
                 writer.WriteString("phase", tick.Phase);
-                writer.WriteString("twy", tick.Twy);
-                if (tick.NavTarget is not null)
+                if (tick.Twy is { } twy)
                 {
-                    writer.WriteNumber("navTarget", tick.NavTarget.Value);
+                    writer.WriteString("twy", twy);
                 }
-                if (tick.NavDist is not null)
+                if (tick.SpeedLimit is { } sl)
                 {
-                    writer.WriteNumber("navDist", Math.Round(tick.NavDist.Value, 4));
+                    writer.WriteNumber("speedLimit", Math.Round(sl, 1));
                 }
-                if (tick.NavBrg is not null)
+                if (tick.Nav is { } nav)
                 {
-                    writer.WriteNumber("navBrg", Math.Round(tick.NavBrg.Value, 1));
-                }
-                if (tick.NavTargetSpd is not null)
-                {
-                    writer.WriteNumber("navTargetSpd", Math.Round(tick.NavTargetSpd.Value, 1));
-                }
-                if (tick.NavBrakeLimit is not null && tick.NavBrakeLimit.Value < 1e10)
-                {
-                    writer.WriteNumber("navBrakeLimit", Math.Round(tick.NavBrakeLimit.Value, 1));
-                }
-                if (tick.NavArcLimit is not null && tick.NavArcLimit.Value < 1e10)
-                {
-                    writer.WriteNumber("navArcLimit", Math.Round(tick.NavArcLimit.Value, 1));
-                }
-                if (tick.NavOnArc is true)
-                {
-                    writer.WriteBoolean("navOnArc", true);
-                }
-                if (tick.NavNodeReqSpd is not null)
-                {
-                    writer.WriteNumber("navNodeReqSpd", Math.Round(tick.NavNodeReqSpd.Value, 1));
+                    writer.WritePropertyName("nav");
+                    writer.WriteStartObject();
+                    writer.WriteNumber("targetNodeId", nav.TargetNodeId);
+                    writer.WriteNumber("distNm", Math.Round(nav.DistNm, 4));
+                    writer.WriteNumber("brgDeg", Math.Round(nav.BrgDeg, 1));
+                    writer.WriteNumber("targetSpdKts", Math.Round(nav.TargetSpdKts, 1));
+                    if (nav.BrakeLimitKts < 1e10)
+                    {
+                        writer.WriteNumber("brakeLimitKts", Math.Round(nav.BrakeLimitKts, 1));
+                    }
+                    if (nav.ArcLimitKts < 1e10)
+                    {
+                        writer.WriteNumber("arcLimitKts", Math.Round(nav.ArcLimitKts, 1));
+                    }
+                    if (nav.OnArc)
+                    {
+                        writer.WriteBoolean("onArc", true);
+                    }
+                    writer.WriteNumber("nodeReqSpdKts", Math.Round(nav.NodeReqSpdKts, 1));
+                    writer.WriteEndObject();
                 }
                 writer.WriteEndObject();
             }

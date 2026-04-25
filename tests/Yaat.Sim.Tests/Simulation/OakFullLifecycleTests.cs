@@ -165,9 +165,9 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
     /// <summary>
     /// Diagnostic-only: runs the full lifecycle with a <see cref="TickRecorder"/> attached,
-    /// writing per-tick nav diagnostics to <c>.tmp/oak-lifecycle-ticks.csv</c>. Render with:
+    /// writing per-tick nav diagnostics to <c>.tmp/oak-lifecycle-ticks.json</c>. Render with:
     ///   dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/oak.geojson
-    ///     --html .tmp/oak-lifecycle.html --ticks .tmp/oak-lifecycle-ticks.csv
+    ///     --html .tmp/oak-lifecycle.html --ticks .tmp/oak-lifecycle-ticks.json
     /// </summary>
     [Fact]
     public void Diagnostic_RecordLifecycleTicks()
@@ -281,9 +281,9 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             $"[diag] holding short 28L at t+{t}s pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) gs={aircraft.GroundSpeed:F2}"
         );
 
-        string csvPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-lifecycle-ticks.csv");
-        recorder.WriteCsv(csvPath);
-        output.WriteLine($"[diag] wrote {recorder.Count} ticks to {csvPath}");
+        string jsonPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-lifecycle-ticks.json");
+        recorder.WriteJson(jsonPath);
+        output.WriteLine($"[diag] wrote {recorder.Count} ticks to {jsonPath}");
     }
 
     private void TickUntil(SimulationEngine engine, AircraftState aircraft, int maxSeconds, string description, Func<AircraftState, bool> condition)

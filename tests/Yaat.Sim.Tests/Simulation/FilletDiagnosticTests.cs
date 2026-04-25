@@ -66,7 +66,11 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
 
     /// <summary>
     /// SKW3078 receives TAXI E A @B10 at t=816. Must advance past segment 19
-    /// (the former stall point on arc 1218→1221) within 120 seconds.
+    /// (the former stall point on arc 1218→1221) within 180 seconds. The
+    /// window was originally 120s; widened after GroundConflictDetector got
+    /// wingspan-based lateral-clearance skips for parked obstacles, which
+    /// changed traffic-interaction timing on this route (now t+138 instead
+    /// of t+114).
     /// </summary>
     [Fact]
     public void SKW3078_TaxiAtoB10_AdvancesPastFormerStallSegment()
@@ -81,7 +85,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         engine.Replay(recording, 816);
 
         int maxSegReached = -1;
-        for (int t = 1; t <= 120; t++)
+        for (int t = 1; t <= 180; t++)
         {
             engine.ReplayOneSecond();
             var ac = engine.FindAircraft("SKW3078");

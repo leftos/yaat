@@ -80,7 +80,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
                 return;
             }
 
-            using var _ = TickRecorder.Attach(engine, "N9225L", Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n9225l-taxi.csv"));
+            using var _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n9225l-taxi.json"), "N9225L");
 
             // TAXI D @NEW1 is recorded at t=424.
             engine.Replay(recording, 430);
@@ -121,7 +121,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
                 return;
             }
 
-            using var _ = TickRecorder.Attach(engine, "N436MS", Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n436ms-taxi.csv"));
+            using var _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n436ms-taxi.json"), "N436MS");
 
             // The recording's TAXI C @JSX1 at t=455 is rejected during replay because our
             // re-simulated physics has N436MS still in the Landing phase at t=455 (minor

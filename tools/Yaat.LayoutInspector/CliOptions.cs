@@ -73,20 +73,7 @@ public sealed record CliOptions
     public List<(string Runway, string Taxiway, string? Side)> ExitQueries { get; init; } = [];
 
     public string? HtmlOutputPath { get; init; }
-    public string? TicksCsvPath { get; init; }
-
-    /// <summary>
-    /// Aircraft fuselage length in feet for 1:1 rendering of the aircraft
-    /// silhouette at tick positions. Default 110 ft ≈ narrow-body jet
-    /// (B737/A320). Set via <c>--tick-aircraft-length-ft</c>.
-    /// </summary>
-    public double TickAircraftLengthFt { get; init; } = 110.0;
-
-    /// <summary>
-    /// Aircraft wingspan in feet for 1:1 rendering. Default 110 ft matches
-    /// a typical narrow-body span. Set via <c>--tick-aircraft-wingspan-ft</c>.
-    /// </summary>
-    public double TickAircraftWingspanFt { get; init; } = 110.0;
+    public string? TicksJsonPath { get; init; }
 
     public List<string> HtmlHighlightTaxiways { get; init; } = [];
     public List<string> HtmlHighlightRunways { get; init; } = [];
@@ -100,6 +87,13 @@ public sealed record CliOptions
     public (int Lo, int Hi)? TickRange { get; init; }
     public string? TickRefRunway { get; init; }
     public List<string> TickHoldShorts { get; init; } = [];
+
+    /// <summary>
+    /// When set, tick-table filters to a single callsign. Required when the
+    /// JSON contains multiple aircraft and the user wants a single-aircraft
+    /// view; left null to print one block per aircraft in the JSON.
+    /// </summary>
+    public string? TickCallsign { get; init; }
 
     /// <summary>
     /// Parses command-line arguments into a <see cref="CliOptions"/> instance.
@@ -148,7 +142,7 @@ public sealed record CliOptions
         bool debugExits = false;
         var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
         string? htmlOutput = null;
-        string? ticksCsvPath = null;
+        string? ticksJsonPath = null;
         var htmlHighlightTaxiways = new List<string>();
         var htmlHighlightRunways = new List<string>();
         var htmlHighlightNodes = new List<int>();
@@ -159,8 +153,7 @@ public sealed record CliOptions
         (int Lo, int Hi)? tickRange = null;
         string? tickRefRunway = null;
         var tickHoldShorts = new List<string>();
-        double tickAircraftLengthFt = 110.0;
-        double tickAircraftWingspanFt = 110.0;
+        string? tickCallsign = null;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -235,7 +228,7 @@ public sealed record CliOptions
                     htmlOutput = args[++i];
                     break;
                 case "--ticks" when i + 1 < args.Length:
-                    ticksCsvPath = args[++i];
+                    ticksJsonPath = args[++i];
                     break;
                 case "--html-taxiway" when i + 1 < args.Length:
                     htmlHighlightTaxiways.Add(args[++i].ToUpperInvariant());
@@ -319,21 +312,8 @@ public sealed record CliOptions
                     }
 
                     break;
-                case "--tick-aircraft-length-ft" when i + 1 < args.Length:
-                    if (!double.TryParse(args[++i], System.Globalization.CultureInfo.InvariantCulture, out tickAircraftLengthFt))
-                    {
-                        error = "--tick-aircraft-length-ft expects a numeric value";
-                        return false;
-                    }
-
-                    break;
-                case "--tick-aircraft-wingspan-ft" when i + 1 < args.Length:
-                    if (!double.TryParse(args[++i], System.Globalization.CultureInfo.InvariantCulture, out tickAircraftWingspanFt))
-                    {
-                        error = "--tick-aircraft-wingspan-ft expects a numeric value";
-                        return false;
-                    }
-
+                case "--tick-callsign" when i + 1 < args.Length:
+                    tickCallsign = args[++i].ToUpperInvariant();
                     break;
                 default:
                     error = $"Unknown flag: {args[i]}";
@@ -371,7 +351,7 @@ public sealed record CliOptions
             DebugExits = debugExits,
             ExitQueries = exitQueries,
             HtmlOutputPath = htmlOutput,
-            TicksCsvPath = ticksCsvPath,
+            TicksJsonPath = ticksJsonPath,
             HtmlHighlightTaxiways = htmlHighlightTaxiways,
             HtmlHighlightRunways = htmlHighlightRunways,
             HtmlHighlightNodes = htmlHighlightNodes,
@@ -382,8 +362,7 @@ public sealed record CliOptions
             TickRange = tickRange,
             TickRefRunway = tickRefRunway,
             TickHoldShorts = tickHoldShorts,
-            TickAircraftLengthFt = tickAircraftLengthFt,
-            TickAircraftWingspanFt = tickAircraftWingspanFt,
+            TickCallsign = tickCallsign,
         };
         return true;
     }

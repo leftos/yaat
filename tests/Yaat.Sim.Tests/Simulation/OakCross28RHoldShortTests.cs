@@ -220,7 +220,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
 
     /// <summary>
     /// Tick-by-tick recorder for the reroute-from-28R scenario. Writes
-    /// <c>.tmp/oak-reroute28r-ticks.csv</c> capturing the full aircraft
+    /// <c>.tmp/oak-reroute28r-ticks.json</c> capturing the full aircraft
     /// trajectory from TAXI issuance to stop at the crossing hold-short.
     /// Render with LayoutInspector --ticks.
     /// </summary>
@@ -264,8 +264,8 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
             );
         }
 
-        string csvPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-reroute28r-ticks.csv");
-        recorder.WriteCsv(csvPath);
-        output.WriteLine($"[diag] wrote {recorder.Count} ticks to {csvPath}");
+        string jsonPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-reroute28r-ticks.json");
+        recorder.WriteJson(jsonPath);
+        output.WriteLine($"[diag] wrote {recorder.Count} ticks to {jsonPath}");
     }
 }

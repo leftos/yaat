@@ -180,7 +180,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
 
     /// <summary>
     /// Tick recorder for the SFO 28R lineup scenario. Writes
-    /// <c>.tmp/sfo-lineup28r-ticks.csv</c> covering the replay window
+    /// <c>.tmp/sfo-lineup28r-ticks.json</c> covering the replay window
     /// around CTO (t=248..270). Render with LayoutInspector --ticks.
     /// </summary>
     [Fact]
@@ -233,8 +233,8 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
             }
         }
 
-        string csvPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "sfo-lineup28r-ticks.csv");
-        recorder.WriteCsv(csvPath);
-        output.WriteLine($"[diag] wrote {recorder.Count} ticks to {csvPath}");
+        string jsonPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "sfo-lineup28r-ticks.json");
+        recorder.WriteJson(jsonPath);
+        output.WriteLine($"[diag] wrote {recorder.Count} ticks to {jsonPath}");
     }
 }

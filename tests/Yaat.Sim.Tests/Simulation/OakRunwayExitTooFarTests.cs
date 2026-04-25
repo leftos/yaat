@@ -104,10 +104,10 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
         }
 
         string repoRoot = TickRecorder.FindRepoRoot();
-        string csvPath = Path.Combine(repoRoot, ".tmp", "oak-28r-n9225l-rollout.csv");
-        Directory.CreateDirectory(Path.GetDirectoryName(csvPath)!);
-        recorder.WriteCsv(csvPath);
-        output.WriteLine($"Wrote tick CSV to {csvPath}");
+        string jsonPath = Path.Combine(repoRoot, ".tmp", "oak-28r-n9225l-rollout.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
+        recorder.WriteJson(jsonPath);
+        output.WriteLine($"Wrote tick CSV to {jsonPath}");
     }
 
     /// <summary>

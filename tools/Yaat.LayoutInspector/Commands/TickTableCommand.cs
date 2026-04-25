@@ -13,15 +13,15 @@ public sealed class TickTableCommand : ICommand
 {
     public int Execute(LayoutAnalyzer analyzer, CliOptions options)
     {
-        if (options.TicksCsvPath is null)
+        if (options.TicksJsonPath is null)
         {
-            Console.Error.WriteLine("error: --tick-table and --tick-summary require --ticks <csv>");
+            Console.Error.WriteLine("error: --tick-table and --tick-summary require --ticks <json>");
             return 2;
         }
 
-        if (!File.Exists(options.TicksCsvPath))
+        if (!File.Exists(options.TicksJsonPath))
         {
-            Console.Error.WriteLine($"error: {options.TicksCsvPath} not found");
+            Console.Error.WriteLine($"error: {options.TicksJsonPath} not found");
             return 1;
         }
 
@@ -65,25 +65,61 @@ public sealed class TickTableCommand : ICommand
             }
         }
 
-        var rows = TickCsvReader.Read(options.TicksCsvPath);
-        if (options.TickRange is { } r)
+        var recording = TickJsonReader.Read(options.TicksJsonPath);
+        if (recording is null)
         {
-            rows = rows.Where(x => x.Time >= r.Lo && x.Time <= r.Hi).ToList();
-        }
-
-        if (rows.Count == 0)
-        {
-            Console.Error.WriteLine("error: no matching rows in csv");
+            Console.Error.WriteLine("error: tick recording is empty or unreadable");
             return 1;
         }
 
-        if (options.TickSummary)
+        var allRows = recording.Ticks.Select(TickDataRow.From).ToList();
+        if (options.TickRange is { } r)
         {
-            TickTableFormatter.PrintSummary(rows, refLine);
+            allRows = allRows.Where(x => x.Time >= r.Lo && x.Time <= r.Hi).ToList();
+        }
+
+        if (allRows.Count == 0)
+        {
+            Console.Error.WriteLine("error: no matching rows in recording");
+            return 1;
+        }
+
+        // Multi-aircraft handling: filter to one callsign or print one block per callsign.
+        IEnumerable<string> callsigns;
+        if (options.TickCallsign is not null)
+        {
+            callsigns = [options.TickCallsign];
         }
         else
         {
-            TickTableFormatter.PrintTable(rows, refLine, exitRefs);
+            callsigns = allRows.Select(x => x.Callsign).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToList();
+        }
+
+        bool first = true;
+        foreach (string cs in callsigns)
+        {
+            var rows = allRows.Where(x => string.Equals(x.Callsign, cs, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (rows.Count == 0)
+            {
+                continue;
+            }
+
+            if (!first)
+            {
+                Console.WriteLine();
+            }
+
+            Console.WriteLine($"# === {cs} ({rows.Count} rows) ===");
+            first = false;
+
+            if (options.TickSummary)
+            {
+                TickTableFormatter.PrintSummary(rows, refLine);
+            }
+            else
+            {
+                TickTableFormatter.PrintTable(rows, refLine, exitRefs);
+            }
         }
 
         return 0;

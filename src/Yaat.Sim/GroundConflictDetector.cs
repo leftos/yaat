@@ -24,6 +24,31 @@ public static class GroundConflictDetector
     private const double DefaultStopDistanceFt = 100.0;
     private const double DefaultAircraftLengthFt = 60.0;
     private const double StopBufferFt = 25.0;
+    private const double WingtipBufferFt = 25.0;
+
+    /// <summary>
+    /// Optional debug sink for per-pair conflict-detector reasoning. Tests set
+    /// this to capture the decisions <see cref="ApplySpeedLimits"/> makes during
+    /// engine-driven ticks (since the engine doesn't pass a diagnosticLog through).
+    /// Reset to null after the test.
+    /// </summary>
+    public static Action<string>? DebugSink { get; set; }
+
+    /// <summary>
+    /// Toggle for the wingspan-based lateral clearance skip in
+    /// <see cref="ApplyClosingLimit"/>. Defaults to enabled. Tests flip this
+    /// off to capture the pre-fix behavior for before/after comparisons.
+    /// </summary>
+    public static bool WingspanLateralCheckEnabled { get; set; } = true;
+
+    /// <summary>
+    /// When true (default), the wingspan-based skip only applies if the
+    /// obstacle is in <see cref="MovementState.Stationary"/> (parked/holding
+    /// phase). When false, the skip applies to any obstacle inside the
+    /// closing cone — useful for visualizing how a less-restrictive variant
+    /// would behave but known to regress traffic-interaction timing.
+    /// </summary>
+    public static bool WingspanLateralCheckRequireStationary { get; set; } = true;
     private const double OppositeStopDistanceFt = 300.0;
     private const double PushbackBufferFt = 200.0;
     private const double SlowTaxiSpeedKts = 5.0;
@@ -53,6 +78,21 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog = null
     )
     {
+        // Fan in DebugSink so engine-driven calls (which never pass diagnosticLog)
+        // can still be observed when a test sets DebugSink.
+        var explicitLog = diagnosticLog;
+        var sink = DebugSink;
+        if (sink is not null)
+        {
+            diagnosticLog = explicitLog is null
+                ? sink
+                : line =>
+                {
+                    explicitLog(line);
+                    sink(line);
+                };
+        }
+
         // Clear previous limits and tick down BREAK timers
         for (int i = 0; i < aircraft.Count; i++)
         {
@@ -152,12 +192,12 @@ public static class GroundConflictDetector
                 // edges, and any other case where the pilot would see traffic ahead.
                 if (dirA is not null)
                 {
-                    ApplyClosingLimit(a, dirA.Value, b, distFt, diagnosticLog);
+                    ApplyClosingLimit(a, dirA.Value, b, stateB, distFt, diagnosticLog);
                 }
 
                 if (dirB is not null)
                 {
-                    ApplyClosingLimit(b, dirB.Value, a, distFt, diagnosticLog);
+                    ApplyClosingLimit(b, dirB.Value, a, stateA, distFt, diagnosticLog);
                 }
 
                 // 4. Head-on fallback (both moving toward each other)
@@ -459,6 +499,7 @@ public static class GroundConflictDetector
         AircraftState mover,
         double moveDir,
         AircraftState obstacle,
+        MovementState obstacleState,
         double distFt,
         Action<string>? diagnosticLog = null
     )
@@ -471,6 +512,30 @@ public static class GroundConflictDetector
                 $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: dir={moveDir:F0} bearing={bearing:F0} diff={angleDiff:F0}° ≥90, not closing"
             );
             return;
+        }
+
+        // Lateral clearance against a parked obstacle: when both aircraft have
+        // known wingspans and the obstacle is in a parked/holding phase
+        // (MovementState.Stationary), the obstacle's perpendicular offset from
+        // the mover's path tells us whether wingtips can collide. If
+        // lateral > combined half-wingspans + buffer, the mover passes safely
+        // beside the obstacle even at small longitudinal distances. Restricted
+        // to MovementState.Stationary so taxiing aircraft that briefly hit gs=0
+        // (mid-deceleration) don't trigger the skip.
+        double? moverWing = FaaAircraftDatabase.Get(mover.AircraftType)?.WingspanFt;
+        double? obstacleWing = FaaAircraftDatabase.Get(obstacle.AircraftType)?.WingspanFt;
+        bool stationaryGate = !WingspanLateralCheckRequireStationary || obstacleState == MovementState.Stationary;
+        if (WingspanLateralCheckEnabled && stationaryGate && moverWing.HasValue && obstacleWing.HasValue)
+        {
+            double lateralFt = distFt * Math.Sin(angleDiff * Math.PI / 180.0);
+            double requiredLateralFt = (moverWing.Value / 2) + (obstacleWing.Value / 2) + WingtipBufferFt;
+            if (lateralFt > requiredLateralFt)
+            {
+                diagnosticLog?.Invoke(
+                    $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: lateral={lateralFt:F0}ft > clearance({requiredLateralFt:F0}ft, wings {moverWing:F0}+{obstacleWing:F0}), parked, can pass"
+                );
+                return;
+            }
         }
 
         // Aircraft on the runway are not slowed by stationary off-runway traffic.

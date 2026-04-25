@@ -1,193 +1,136 @@
 using System.Globalization;
-using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
-/// Records per-tick aircraft state for visualization with Yaat.TickAnimator.
-/// Attach to any test's simulation loop to capture position, heading, speed,
-/// and phase data as a CSV file.
+/// Records per-tick aircraft state for visualization with Yaat.LayoutInspector
+/// (--ticks JSON overlay) and Yaat.TickAnimator. Produces a JSON document with
+/// embedded aircraft metadata (type, wingspan, length, render color) so the
+/// consumer doesn't need separate CLI flags per aircraft.
 ///
-/// Usage:
+/// Single-aircraft usage:
 ///   var recorder = new TickRecorder(aircraft);
-///
 ///   for (int t = 1; t &lt;= 300; t++)
 ///   {
 ///       engine.TickOneSecond();
 ///       recorder.Record(t);
 ///   }
+///   recorder.WriteJson(".tmp/oak-w6-exit.json");
 ///
-///   recorder.WriteCsv(".tmp/oak-w6-exit.csv");
+/// Multi-aircraft usage:
+///   var recorder = new TickRecorder(n152sp, n569sx);
+///   ... (Record() captures all attached aircraft per tick) ...
+///   recorder.WriteJson(".tmp/conflict-fix.json");
+///
+/// Engine-attached usage (writes on Dispose):
+///   using var _ = TickRecorder.Attach(engine, ".tmp/scenario.json", "N152SP", "N569SX");
 ///
 /// Then visualize:
-///   dotnet run --project tools/Yaat.TickAnimator -- \
-///     --layout tests/Yaat.Sim.Tests/TestData/oak.geojson \
-///     --ticks .tmp/oak-w6-exit.csv \
-///     --aircraft B738 \
-///     --output .tmp/oak-w6-exit.gif
-///
-/// See docs/tick-animator.md for full documentation.
+///   dotnet run --project tools/Yaat.LayoutInspector -- \
+///     tests/Yaat.Sim.Tests/TestData/oak.geojson \
+///     --ticks .tmp/conflict-fix.json --html .tmp/conflict-fix.html
 /// </summary>
 public sealed class TickRecorder
 {
-    private readonly AircraftState _aircraft;
-    private readonly List<TickRow> _rows = [];
+    /// <summary>JSON schema version. Bump on incompatible changes.</summary>
+    public const int SchemaVersion = 1;
 
-    /// <summary>Optional filter: only record ticks where this returns true.</summary>
+    private static readonly string[] DefaultPalette = ["#1e88e5", "#fb8c00", "#43a047", "#e53935", "#8e24aa", "#00acc1", "#fdd835", "#6d4c41"];
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    private readonly List<AircraftState> _aircraft;
+    private readonly Dictionary<string, AircraftMetadata> _metadata = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<TickEvent> _ticks = [];
+    private readonly string? _airportId;
+
+    /// <summary>Optional per-aircraft filter: only record when this returns true.</summary>
     public Func<AircraftState, bool>? Filter { get; set; }
 
-    public TickRecorder(AircraftState aircraft)
-    {
-        _aircraft = aircraft;
-    }
-
     /// <summary>
-    /// Attach a recorder to <paramref name="engine"/>'s <see cref="SimulationEngine.TickCompleted"/>
-    /// event, following <paramref name="callsign"/> (resolved at attach time and each tick so
-    /// the recorder keeps working even if the aircraft is rehydrated). Writes the CSV to
-    /// <paramref name="csvPath"/> on <see cref="IDisposable.Dispose"/>.
-    ///
-    /// Usage:
-    ///   using var _ = TickRecorder.Attach(engine, "N9225L", ".tmp/n9225l.csv");
-    ///
-    /// The <c>using</c> guarantees the CSV is written even if the test asserts fail.
+    /// Construct with one or more aircraft to record. Aircraft metadata
+    /// (type, wingspan, length) is captured at construction and color is
+    /// auto-assigned from a default palette in attach order.
     /// </summary>
-    public static IDisposable Attach(SimulationEngine engine, string callsign, string csvPath)
+    public TickRecorder(params AircraftState[] aircraft)
     {
-        return new AttachedRecorder(engine, callsign, csvPath);
-    }
-
-    private sealed class AttachedRecorder : IDisposable
-    {
-        private readonly SimulationEngine _engine;
-        private readonly string _callsign;
-        private readonly string _csvPath;
-        private readonly List<TickRow> _rows = [];
-        private readonly Action<int> _handler;
-
-        public AttachedRecorder(SimulationEngine engine, string callsign, string csvPath)
+        if (aircraft.Length == 0)
         {
-            _engine = engine;
-            _callsign = callsign;
-            _csvPath = csvPath;
-            _handler = OnTick;
-            _engine.TickCompleted += _handler;
+            throw new ArgumentException("At least one aircraft is required", nameof(aircraft));
         }
 
-        private void OnTick(int elapsedSeconds)
+        _aircraft = [.. aircraft];
+        _airportId = aircraft[0].Ground.LayoutAirportId;
+        for (int i = 0; i < aircraft.Length; i++)
         {
-            var ac = _engine.FindAircraft(_callsign);
-            if (ac is null)
-            {
-                return;
-            }
-
-            _rows.Add(
-                new TickRow
-                {
-                    Time = elapsedSeconds,
-                    Lat = ac.Position.Lat,
-                    Lon = ac.Position.Lon,
-                    Hdg = ac.TrueHeading.Degrees,
-                    Gs = ac.GroundSpeed,
-                    Phase = ac.Phases?.CurrentPhase?.Name ?? "none",
-                    Twy = ac.Ground.CurrentTaxiway ?? "",
-                    Nav = ac.Ground.LastNavDiag,
-                }
-            );
-        }
-
-        public void Dispose()
-        {
-            _engine.TickCompleted -= _handler;
-            WriteRowsCsv(_csvPath, _rows);
+            CaptureMetadata(aircraft[i], DefaultPalette[i % DefaultPalette.Length]);
         }
     }
 
     /// <summary>
-    /// Record the current aircraft state at the given time. Call once per tick
-    /// after <c>engine.TickOneSecond()</c>.
+    /// Add another aircraft to the recorder mid-session. Color auto-assigned.
+    /// </summary>
+    public void AddAircraft(AircraftState aircraft)
+    {
+        _aircraft.Add(aircraft);
+        CaptureMetadata(aircraft, DefaultPalette[(_metadata.Count - 1) % DefaultPalette.Length]);
+    }
+
+    /// <summary>
+    /// Attach a recorder to <paramref name="engine"/>'s
+    /// <see cref="SimulationEngine.TickCompleted"/> event, following each
+    /// callsign in <paramref name="callsigns"/> (resolved each tick so it
+    /// keeps working across rehydration). Writes the JSON to
+    /// <paramref name="jsonPath"/> on <see cref="IDisposable.Dispose"/>.
+    /// </summary>
+    public static IDisposable Attach(SimulationEngine engine, string jsonPath, params string[] callsigns)
+    {
+        return new AttachedRecorder(engine, jsonPath, callsigns);
+    }
+
+    /// <summary>
+    /// Record the current state of all attached aircraft at <paramref name="time"/>.
+    /// Call once per tick after <c>engine.TickOneSecond()</c>.
     /// </summary>
     public void Record(int time)
     {
-        if (Filter is not null && !Filter(_aircraft))
+        foreach (var ac in _aircraft)
         {
-            return;
-        }
-
-        var nav = _aircraft.LastNavDiag;
-        _rows.Add(
-            new TickRow
+            if (Filter is not null && !Filter(ac))
             {
-                Time = time,
-                Lat = _aircraft.Position.Lat,
-                Lon = _aircraft.Position.Lon,
-                Hdg = _aircraft.TrueHeading.Degrees,
-                Gs = _aircraft.GroundSpeed,
-                Phase = _aircraft.Phases?.CurrentPhase?.Name ?? "none",
-                Twy = _aircraft.Ground.CurrentTaxiway ?? "",
-                Nav = nav,
+                continue;
             }
-        );
+
+            _ticks.Add(BuildTickEvent(time, ac));
+        }
     }
 
-    /// <summary>Number of ticks recorded so far.</summary>
-    public int Count => _rows.Count;
+    /// <summary>Number of tick events recorded so far (across all aircraft).</summary>
+    public int Count => _ticks.Count;
 
     /// <summary>
-    /// Write all recorded ticks to a CSV file. Creates parent directories if needed.
+    /// Write the full recording (metadata + ticks) to a JSON file. Creates
+    /// parent directories if needed.
     /// </summary>
-    public void WriteCsv(string path) => WriteRowsCsv(path, _rows);
-
-    private static void WriteRowsCsv(string path, IReadOnlyList<TickRow> rows)
+    public void WriteJson(string path)
     {
-        string? dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine(
-            "t,lat,lon,hdg,gs,phase,twy,navTarget,navDist,navBrg,navAngleDiff,navTargetSpd,navBrakeLimit,navArcLimit,navOnArc,navNodeReqSpd,navPathDevFt,navSegFromLat,navSegFromLon"
-        );
-        foreach (var row in rows)
-        {
-            sb.Append(CultureInfo.InvariantCulture, $"{row.Time},");
-            sb.Append(CultureInfo.InvariantCulture, $"{row.Lat:F8},");
-            sb.Append(CultureInfo.InvariantCulture, $"{row.Lon:F8},");
-            sb.Append(CultureInfo.InvariantCulture, $"{row.Hdg:F2},");
-            sb.Append(CultureInfo.InvariantCulture, $"{row.Gs:F2},");
-            sb.Append(CultureInfo.InvariantCulture, $"{row.Phase},");
-            sb.Append(row.Twy);
-            if (row.Nav is { } n)
-            {
-                sb.Append(CultureInfo.InvariantCulture, $",{n.TargetNodeId}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.DistToTargetNm:F4}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.BearingToTargetDeg:F1}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.AngleDiffDeg:F1}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.TargetSpeedKts:F1}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.BrakingLimitKts:F1}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.ArcSpeedLimitKts:F1}");
-                sb.Append(CultureInfo.InvariantCulture, $",{(n.OnArc ? 1 : 0)}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.NodeRequiredSpeedKts:F1}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.PathDeviationFt:F1}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.SegFromLat:F8}");
-                sb.Append(CultureInfo.InvariantCulture, $",{n.SegFromLon:F8}");
-            }
-
-            sb.AppendLine();
-        }
-
-        File.WriteAllText(path, sb.ToString());
+        WriteJsonFile(path, BuildRecording());
     }
 
     /// <summary>
     /// Walk up from the current directory to find the repo root (contains yaat.slnx).
-    /// Useful for writing CSVs to .tmp/ relative to the repo root regardless of
-    /// where the test runner's working directory is.
+    /// Useful for writing output files to .tmp/ relative to the repo root regardless
+    /// of where the test runner's working directory is.
     /// </summary>
     public static string FindRepoRoot()
     {
@@ -205,15 +148,245 @@ public sealed class TickRecorder
         return AppContext.BaseDirectory;
     }
 
-    private sealed class TickRow
+    private void CaptureMetadata(AircraftState aircraft, string color)
     {
-        public required int Time { get; init; }
-        public required double Lat { get; init; }
-        public required double Lon { get; init; }
-        public required double Hdg { get; init; }
-        public required double Gs { get; init; }
-        public required string Phase { get; init; }
-        public required string Twy { get; init; }
-        public NavTickDiag? Nav { get; init; }
+        if (_metadata.ContainsKey(aircraft.Callsign))
+        {
+            return;
+        }
+
+        var rec = FaaAircraftDatabase.Get(aircraft.AircraftType);
+        _metadata[aircraft.Callsign] = new AircraftMetadata
+        {
+            Callsign = aircraft.Callsign,
+            Type = aircraft.AircraftType,
+            WingspanFt = rec?.WingspanFt,
+            LengthFt = rec?.LengthFt,
+            Color = color,
+        };
     }
+
+    private TickRecording BuildRecording() =>
+        new()
+        {
+            Version = SchemaVersion,
+            AirportId = _airportId,
+            Aircraft = _metadata.Values.OrderBy(m => m.Callsign, StringComparer.Ordinal).ToList(),
+            Ticks = _ticks,
+        };
+
+    private static TickEvent BuildTickEvent(int time, AircraftState ac) =>
+        new()
+        {
+            T = time,
+            Callsign = ac.Callsign,
+            Lat = ac.Position.Lat,
+            Lon = ac.Position.Lon,
+            Hdg = ac.TrueHeading.Degrees,
+            Gs = ac.GroundSpeed,
+            Phase = ac.Phases?.CurrentPhase?.Name ?? "none",
+            Twy = string.IsNullOrEmpty(ac.Ground.CurrentTaxiway) ? null : ac.Ground.CurrentTaxiway,
+            SpeedLimit = ac.Ground.SpeedLimit,
+            Nav = ac.Ground.LastNavDiag is { } n ? NavTickDto.From(n) : null,
+        };
+
+    private static void WriteJsonFile(string path, TickRecording recording)
+    {
+        string? dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        File.WriteAllText(path, JsonSerializer.Serialize(recording, JsonOptions));
+    }
+
+    private sealed class AttachedRecorder : IDisposable
+    {
+        private readonly SimulationEngine _engine;
+        private readonly string _jsonPath;
+        private readonly string[] _callsigns;
+        private readonly List<TickEvent> _ticks = [];
+        private readonly Dictionary<string, AircraftMetadata> _metadata = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Action<int> _handler;
+        private string? _airportId;
+
+        public AttachedRecorder(SimulationEngine engine, string jsonPath, string[] callsigns)
+        {
+            _engine = engine;
+            _jsonPath = jsonPath;
+            _callsigns = callsigns;
+            _handler = OnTick;
+            _engine.TickCompleted += _handler;
+        }
+
+        private void OnTick(int elapsedSeconds)
+        {
+            for (int i = 0; i < _callsigns.Length; i++)
+            {
+                var ac = _engine.FindAircraft(_callsigns[i]);
+                if (ac is null)
+                {
+                    continue;
+                }
+
+                _airportId ??= ac.Ground.LayoutAirportId;
+                if (!_metadata.ContainsKey(ac.Callsign))
+                {
+                    var rec = FaaAircraftDatabase.Get(ac.AircraftType);
+                    _metadata[ac.Callsign] = new AircraftMetadata
+                    {
+                        Callsign = ac.Callsign,
+                        Type = ac.AircraftType,
+                        WingspanFt = rec?.WingspanFt,
+                        LengthFt = rec?.LengthFt,
+                        Color = DefaultPalette[(_metadata.Count) % DefaultPalette.Length],
+                    };
+                }
+
+                _ticks.Add(BuildTickEvent(elapsedSeconds, ac));
+            }
+        }
+
+        public void Dispose()
+        {
+            _engine.TickCompleted -= _handler;
+            var recording = new TickRecording
+            {
+                Version = SchemaVersion,
+                AirportId = _airportId,
+                Aircraft = _metadata.Values.OrderBy(m => m.Callsign, StringComparer.Ordinal).ToList(),
+                Ticks = _ticks,
+            };
+            WriteJsonFile(_jsonPath, recording);
+        }
+    }
+}
+
+// ─── JSON DTOs ───
+
+/// <summary>
+/// Top-level structure of a TickRecorder JSON file. Schema is bumped on
+/// incompatible changes (the consumer in LayoutInspector reads this same shape).
+/// </summary>
+public sealed class TickRecording
+{
+    [JsonPropertyName("version")]
+    public required int Version { get; init; }
+
+    [JsonPropertyName("airportId")]
+    public string? AirportId { get; init; }
+
+    [JsonPropertyName("aircraft")]
+    public required List<AircraftMetadata> Aircraft { get; init; }
+
+    [JsonPropertyName("ticks")]
+    public required List<TickEvent> Ticks { get; init; }
+}
+
+public sealed class AircraftMetadata
+{
+    [JsonPropertyName("callsign")]
+    public required string Callsign { get; init; }
+
+    [JsonPropertyName("type")]
+    public required string Type { get; init; }
+
+    [JsonPropertyName("wingspanFt")]
+    public double? WingspanFt { get; init; }
+
+    [JsonPropertyName("lengthFt")]
+    public double? LengthFt { get; init; }
+
+    [JsonPropertyName("color")]
+    public required string Color { get; init; }
+}
+
+public sealed class TickEvent
+{
+    [JsonPropertyName("t")]
+    public required int T { get; init; }
+
+    [JsonPropertyName("callsign")]
+    public required string Callsign { get; init; }
+
+    [JsonPropertyName("lat")]
+    public required double Lat { get; init; }
+
+    [JsonPropertyName("lon")]
+    public required double Lon { get; init; }
+
+    [JsonPropertyName("hdg")]
+    public required double Hdg { get; init; }
+
+    [JsonPropertyName("gs")]
+    public required double Gs { get; init; }
+
+    [JsonPropertyName("phase")]
+    public required string Phase { get; init; }
+
+    [JsonPropertyName("twy")]
+    public string? Twy { get; init; }
+
+    [JsonPropertyName("speedLimit")]
+    public double? SpeedLimit { get; init; }
+
+    [JsonPropertyName("nav")]
+    public NavTickDto? Nav { get; init; }
+}
+
+public sealed class NavTickDto
+{
+    [JsonPropertyName("targetNodeId")]
+    public required int TargetNodeId { get; init; }
+
+    [JsonPropertyName("distNm")]
+    public required double DistNm { get; init; }
+
+    [JsonPropertyName("brgDeg")]
+    public required double BrgDeg { get; init; }
+
+    [JsonPropertyName("angleDiffDeg")]
+    public required double AngleDiffDeg { get; init; }
+
+    [JsonPropertyName("targetSpdKts")]
+    public required double TargetSpdKts { get; init; }
+
+    [JsonPropertyName("brakeLimitKts")]
+    public required double BrakeLimitKts { get; init; }
+
+    [JsonPropertyName("arcLimitKts")]
+    public required double ArcLimitKts { get; init; }
+
+    [JsonPropertyName("onArc")]
+    public required bool OnArc { get; init; }
+
+    [JsonPropertyName("nodeReqSpdKts")]
+    public required double NodeReqSpdKts { get; init; }
+
+    [JsonPropertyName("pathDevFt")]
+    public required double PathDevFt { get; init; }
+
+    [JsonPropertyName("segFromLat")]
+    public required double SegFromLat { get; init; }
+
+    [JsonPropertyName("segFromLon")]
+    public required double SegFromLon { get; init; }
+
+    public static NavTickDto From(NavTickDiag diag) =>
+        new()
+        {
+            TargetNodeId = diag.TargetNodeId,
+            DistNm = diag.DistToTargetNm,
+            BrgDeg = diag.BearingToTargetDeg,
+            AngleDiffDeg = diag.AngleDiffDeg,
+            TargetSpdKts = diag.TargetSpeedKts,
+            BrakeLimitKts = diag.BrakingLimitKts,
+            ArcLimitKts = diag.ArcSpeedLimitKts,
+            OnArc = diag.OnArc,
+            NodeReqSpdKts = diag.NodeRequiredSpeedKts,
+            PathDevFt = diag.PathDeviationFt,
+            SegFromLat = diag.SegFromLat,
+            SegFromLon = diag.SegFromLon,
+        };
 }

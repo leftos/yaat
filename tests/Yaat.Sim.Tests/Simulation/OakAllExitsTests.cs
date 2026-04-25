@@ -87,7 +87,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
     /// Diagnostic: dump tick CSVs for specific exits. Run manually, then visualize with:
     ///   dotnet run --project tools/Yaat.TickAnimator -- \
     ///     --layout tests/Yaat.Sim.Tests/TestData/oak.geojson \
-    ///     --ticks .tmp/oak-30-W6-ticks.csv --aircraft B738 --output .tmp/oak-30-W6.gif
+    ///     --ticks .tmp/oak-30-W6-ticks.json --aircraft B738 --output .tmp/oak-30-W6.gif
     /// </summary>
     [Theory]
     [InlineData("30", "B738", 130, 1.0, "W6")]
@@ -204,9 +204,9 @@ public class OakAllExitsTests(ITestOutputHelper output)
 
         string exitLabel = exitTaxiway ?? "default";
         string repoRoot = TickRecorder.FindRepoRoot();
-        string csvPath = Path.Combine(repoRoot, ".tmp", $"oak-{runwayId}-{exitLabel}-ticks.csv");
-        recorder.WriteCsv(csvPath);
-        output.WriteLine($"Wrote {recorder.Count} ticks to {csvPath}");
+        string jsonPath = Path.Combine(repoRoot, ".tmp", $"oak-{runwayId}-{exitLabel}-ticks.json");
+        recorder.WriteJson(jsonPath);
+        output.WriteLine($"Wrote {recorder.Count} ticks to {jsonPath}");
     }
 
     private void LogResult(string label, string? requested, ExitResult result)

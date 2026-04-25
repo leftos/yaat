@@ -163,7 +163,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     /// <summary>
     /// Diagnostic: record per-tick CSVs for the four scenario aircraft
     /// through their final-taxi → hold-short → CTO → lineup windows.
-    /// Writes <c>.tmp/oak-lineup-fault-{callsign}.csv</c> for each
+    /// Writes <c>.tmp/oak-lineup-fault-{callsign}.json</c> for each
     /// aircraft. Inspect as text via <c>Yaat.LayoutInspector --tick-table</c>
     /// and render visually with <c>Yaat.LayoutInspector --ticks</c>. CTO seconds from the
     /// recording's actions.json:
@@ -241,8 +241,8 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
         string repoRoot = TickRecorder.FindRepoRoot();
         foreach (var (cs, rec) in recorders)
         {
-            string path = Path.Combine(repoRoot, ".tmp", $"oak-lineup-fault-{cs}.csv");
-            rec.WriteCsv(path);
+            string path = Path.Combine(repoRoot, ".tmp", $"oak-lineup-fault-{cs}.json");
+            rec.WriteJson(path);
             output.WriteLine($"[diag] wrote {rec.Count} ticks for {cs} -> {path}");
         }
     }

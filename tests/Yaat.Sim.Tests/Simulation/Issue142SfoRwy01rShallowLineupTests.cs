@@ -140,11 +140,11 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
     /// <summary>
     /// Diagnostic: record UAL859's full trajectory through the pivot-fallback
     /// lineup as a per-tick CSV for visual inspection with Yaat.LayoutInspector.
-    /// Writes <c>.tmp/issue142-ual859-lineup.csv</c>. Render with:
+    /// Writes <c>.tmp/issue142-ual859-lineup.json</c>. Render with:
     /// <code>
     /// dotnet run --project tools/Yaat.LayoutInspector -- \
     ///     tests/Yaat.Sim.Tests/TestData/sfo.geojson \
-    ///     --ticks .tmp/issue142-ual859-lineup.csv \
+    ///     --ticks .tmp/issue142-ual859-lineup.json \
     ///     --html .tmp/issue142-ual859-lineup.html \
     ///     --html-runway 01R
     /// </code>
@@ -223,8 +223,8 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
         }
 
         string repoRoot = TickRecorder.FindRepoRoot();
-        string outPath = Path.Combine(repoRoot, ".tmp", "issue142-ual859-lineup.csv");
-        recorder.WriteCsv(outPath);
+        string outPath = Path.Combine(repoRoot, ".tmp", "issue142-ual859-lineup.json");
+        recorder.WriteJson(outPath);
         output.WriteLine($"[diag] wrote {recorder.Count} ticks to {outPath}");
     }
 
@@ -238,11 +238,11 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
     /// along A1). This diagnostic captures the per-second taxi trace to
     /// pinpoint where the rotation goes wrong.
     ///
-    /// Writes <c>.tmp/issue142-ual859-taxi.csv</c>. Render with:
+    /// Writes <c>.tmp/issue142-ual859-taxi.json</c>. Render with:
     /// <code>
     /// dotnet run --project tools/Yaat.LayoutInspector -- \
     ///     tests/Yaat.Sim.Tests/TestData/sfo.geojson \
-    ///     --ticks .tmp/issue142-ual859-taxi.csv \
+    ///     --ticks .tmp/issue142-ual859-taxi.json \
     ///     --html .tmp/issue142-ual859-taxi.html \
     ///     --html-runway 01R
     /// </code>
@@ -316,8 +316,8 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
 
         if (recorder is not null)
         {
-            string outPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "issue142-ual859-fullchain.csv");
-            recorder.WriteCsv(outPath);
+            string outPath = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "issue142-ual859-fullchain.json");
+            recorder.WriteJson(outPath);
             output.WriteLine($"[diag] wrote {recorder.Count} ticks ({lastT}s) to {outPath}");
         }
     }

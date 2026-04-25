@@ -73,14 +73,20 @@ public sealed class HtmlRenderCommand : ICommand
             }
         }
 
-        if (options.TicksCsvPath is not null)
+        if (options.TicksJsonPath is not null)
         {
-            var ticks = TickCsvReader.Read(options.TicksCsvPath);
-            htmlRenderer.SetTickData(ticks);
-            htmlRenderer.SetAircraftDimensions(options.TickAircraftLengthFt, options.TickAircraftWingspanFt);
-            Console.Error.WriteLine(
-                $"Loaded {ticks.Count} ticks from {options.TicksCsvPath} (aircraft {options.TickAircraftLengthFt:F0}×{options.TickAircraftWingspanFt:F0} ft)"
-            );
+            var recording = TickJsonReader.Read(options.TicksJsonPath);
+            if (recording is null)
+            {
+                Console.Error.WriteLine($"warning: --ticks {options.TicksJsonPath} is empty or unreadable; HTML will render without tick overlay");
+            }
+            else
+            {
+                htmlRenderer.SetTickRecording(recording);
+                Console.Error.WriteLine(
+                    $"Loaded {recording.Ticks.Count} tick events for {recording.Aircraft.Count} aircraft from {options.TicksJsonPath}"
+                );
+            }
         }
 
         string html = htmlRenderer.Render();

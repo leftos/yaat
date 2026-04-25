@@ -1,12 +1,13 @@
 namespace Yaat.LayoutInspector.Tick;
 
 /// <summary>
-/// One row from a <c>Yaat.Sim.Tests.Helpers.TickRecorder</c> CSV file. Fields
-/// are nullable when the underlying column is optional so both HTML overlays
-/// and text-table output can share the same record without forcing defaults.
+/// One per-tick aircraft state row, derived from a <see cref="TickEvent"/>
+/// in a TickRecorder JSON file. Used by both the HTML overlay and the
+/// text tick-table formatter.
 /// </summary>
 public record TickDataRow(
     int Time,
+    string Callsign,
     double Lat,
     double Lon,
     double Hdg,
@@ -22,4 +23,26 @@ public record TickDataRow(
     double? NavArcLimit,
     bool? NavOnArc,
     double? NavNodeReqSpd
-);
+)
+{
+    public static TickDataRow From(TickEvent ev) =>
+        new(
+            Time: ev.T,
+            Callsign: ev.Callsign,
+            Lat: ev.Lat,
+            Lon: ev.Lon,
+            Hdg: ev.Hdg,
+            Gs: ev.Gs,
+            Phase: ev.Phase,
+            Twy: ev.Twy ?? "",
+            NavTarget: ev.Nav?.TargetNodeId,
+            NavDist: ev.Nav?.DistNm,
+            NavBrg: ev.Nav?.BrgDeg,
+            NavAngleDiff: ev.Nav?.AngleDiffDeg,
+            NavTargetSpd: ev.Nav?.TargetSpdKts,
+            NavBrakeLimit: ev.Nav?.BrakeLimitKts,
+            NavArcLimit: ev.Nav?.ArcLimitKts,
+            NavOnArc: ev.Nav?.OnArc,
+            NavNodeReqSpd: ev.Nav?.NodeReqSpdKts
+        );
+}

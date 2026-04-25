@@ -9,6 +9,7 @@
 - The inline command hint now shows the next variant when you press space past the last argument — e.g. `ELB 28L ` advances from `ELB [runway]` to `ELB [runway] [distance]`.
 - Fixed `BEHIND` / `GIVEWAY` bug that prevented conflict detection.
 - Partial target callsigns in `BEHIND` / `GIVEWAY` (e.g. `BEHIND 152SP`) now resolve to the matching aircraft, matching how partial callsigns already work at the start of a command and in `FOLLOW` / `RTIS`.
+- Aircraft no longer stop when taxiing past a parked aircraft on an adjacent taxiway. The ground-conflict check now uses the parked aircraft's actual wingspan to determine wingtip clearance instead of treating anything within ~100 ft and a 90° forward cone as a hard stop.
 
 ## 0.1.2-alpha
 

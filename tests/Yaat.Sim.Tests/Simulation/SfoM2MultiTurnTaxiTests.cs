@@ -266,11 +266,11 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
     /// Diagnostic: same setup as <see cref="Test1_SpawnOffM2_TaxisThroughTwoNinetyTurns_AndTakesOff"/>
     /// but writes a per-tick CSV of the trajectory so the taxi can be
     /// rendered with <c>Yaat.LayoutInspector --ticks</c> for visual
-    /// inspection. Writes to <c>.tmp/sfo-m2-multiturn.csv</c>. Render with:
+    /// inspection. Writes to <c>.tmp/sfo-m2-multiturn.json</c>. Render with:
     /// <code>
     /// dotnet run --project tools/Yaat.LayoutInspector -- \
     ///     tests/Yaat.Sim.Tests/TestData/sfo.geojson \
-    ///     --ticks .tmp/sfo-m2-multiturn.csv \
+    ///     --ticks .tmp/sfo-m2-multiturn.json \
     ///     --html .tmp/sfo-m2-multiturn.html \
     ///     --html-runway 01R \
     ///     --tick-aircraft-length-ft 110 --tick-aircraft-wingspan-ft 117
@@ -317,8 +317,8 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
         }
 
         string repoRoot = TickRecorder.FindRepoRoot();
-        string outPath = Path.Combine(repoRoot, ".tmp", "sfo-m2-multiturn.csv");
-        recorder.WriteCsv(outPath);
+        string outPath = Path.Combine(repoRoot, ".tmp", "sfo-m2-multiturn.json");
+        recorder.WriteJson(outPath);
         output.WriteLine($"[diag] wrote {recorder.Count} ticks to {outPath}");
     }
 }

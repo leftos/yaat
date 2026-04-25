@@ -562,9 +562,9 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         }
 
         string repoRoot = TickRecorder.FindRepoRoot();
-        string csvPath = Path.Combine(repoRoot, ".tmp", $"sfo-28R-{exitTaxiway}-ticks.csv");
-        recorder.WriteCsv(csvPath);
-        output.WriteLine($"Wrote {recorder.Count} ticks to {csvPath}");
+        string jsonPath = Path.Combine(repoRoot, ".tmp", $"sfo-28R-{exitTaxiway}-ticks.json");
+        recorder.WriteJson(jsonPath);
+        output.WriteLine($"Wrote {recorder.Count} ticks to {jsonPath}");
     }
 
     private sealed class ExitTestResult

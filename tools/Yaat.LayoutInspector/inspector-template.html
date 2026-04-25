@@ -278,116 +278,128 @@ function draw() {
 
   hud.textContent = 'zoom: ' + scale.toFixed(1) + 'x  |  ' + D.airportId;
 
-  // 8. Tick overlay (aircraft position + trail)
-  if (D.ticks && D.ticks.length > 0 && typeof tickIdx !== 'undefined') {
-    // Trail: all ticks up to current
-    const trailLen = 30;
-    const trailStart = Math.max(0, tickIdx - trailLen);
-    ctx.globalAlpha = 0.4;
-    ctx.beginPath();
-    for (let i = trailStart; i <= tickIdx; i++) {
-      const t = D.ticks[i];
-      const [x, y] = toScreen(t.lat, t.lon);
-      if (i === trailStart) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = '#ff6a00'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.globalAlpha = 1;
+  // 8. Tick overlay — multiple aircraft, each with their own trail + silhouette
+  if (D.ticks && D.ticks.length > 0 && typeof currentTime !== 'undefined') {
+    const trailWindowSec = 30;
+    const minTrailTime = currentTime - trailWindowSec;
+    const aircraftMeta = D.aircraft || [];
 
-    // Trail dots
-    for (let i = trailStart; i < tickIdx; i++) {
-      const t = D.ticks[i];
-      const [x, y] = toScreen(t.lat, t.lon);
-      const alpha = 0.15 + 0.5 * (i - trailStart) / (tickIdx - trailStart + 1);
-      ctx.globalAlpha = alpha;
-      ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#ff6a00'; ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+    aircraftMeta.forEach(meta => {
+      const callsign = meta.callsign;
+      const color = meta.color || '#ff6a00';
+      const trailTicks = D.ticks.filter(t => t.callsign === callsign && t.t >= minTrailTime && t.t <= currentTime);
+      if (trailTicks.length === 0) return;
 
-    // Aircraft silhouette at current tick — drawn 1:1 with fuselage length
-    // and wingspan (from D.aircraftLengthFt / D.aircraftWingspanFt) so the
-    // render accurately reflects how big the aircraft is relative to
-    // taxiway/hold-short geometry. Falls back to a 10px triangle when
-    // dimensions aren't provided.
-    const tick = D.ticks[tickIdx];
-    const [ax, ay] = toScreen(tick.lat, tick.lon);
-    const hdgRad = (tick.hdg - 90) * Math.PI / 180;
-    ctx.save();
-    ctx.translate(ax, ay);
-    ctx.rotate(hdgRad);
+      // Trail line
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      trailTicks.forEach((t, i) => {
+        const [x, y] = toScreen(t.lat, t.lon);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+      ctx.globalAlpha = 1;
 
-    let fuselagePx = 0, wingspanPx = 0;
-    if (D.aircraftLengthFt && D.aircraftWingspanFt) {
-      // Derive pixels-per-foot from toScreen at the aircraft's position:
-      // project 100 ft east of the aircraft and measure the pixel delta.
-      const [px0, py0] = toScreen(tick.lat, tick.lon);
-      const dLatFt = 100.0;
-      const dLat = dLatFt / (60.0 * 6076.12);
-      const [px1, py1] = toScreen(tick.lat + dLat, tick.lon);
-      const pxPerFt = Math.hypot(px1 - px0, py1 - py0) / 100.0;
-      fuselagePx = D.aircraftLengthFt * pxPerFt;
-      wingspanPx = D.aircraftWingspanFt * pxPerFt;
-    }
-    // Minimum visible silhouette so the aircraft doesn't vanish at low zoom.
-    if (fuselagePx < 10) fuselagePx = 10;
-    if (wingspanPx < 8) wingspanPx = 8;
+      // Trail dots, fading toward the past
+      const span = trailTicks.length;
+      trailTicks.forEach((t, i) => {
+        if (i === span - 1) return;
+        const [x, y] = toScreen(t.lat, t.lon);
+        ctx.globalAlpha = 0.15 + 0.5 * (i + 1) / span;
+        ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+      });
+      ctx.globalAlpha = 1;
 
-    const halfL = fuselagePx / 2;
-    const halfW = wingspanPx / 2;
-    // Nose-forward silhouette: fuselage = thin rectangle along x-axis,
-    // wings = perpendicular rectangle near the centre of mass.
-    ctx.fillStyle = '#ff6a00';
-    ctx.strokeStyle = '#0d1117';
-    ctx.lineWidth = 1;
-    // Fuselage body (centre line: full length)
-    const fuselageWidth = Math.max(3, wingspanPx * 0.12);
-    ctx.beginPath();
-    ctx.moveTo(halfL, 0);
-    ctx.lineTo(halfL - fuselageWidth, -fuselageWidth * 0.6);
-    ctx.lineTo(-halfL, -fuselageWidth * 0.5);
-    ctx.lineTo(-halfL, fuselageWidth * 0.5);
-    ctx.lineTo(halfL - fuselageWidth, fuselageWidth * 0.6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // Wings (bar perpendicular to fuselage, placed ~40% from nose)
-    const wingX = halfL * 0.1;
-    const wingChord = Math.max(2, fuselagePx * 0.12);
-    ctx.beginPath();
-    ctx.moveTo(wingX + wingChord * 0.5, -halfW);
-    ctx.lineTo(wingX - wingChord * 0.5, -halfW * 0.95);
-    ctx.lineTo(wingX - wingChord * 0.5, halfW * 0.95);
-    ctx.lineTo(wingX + wingChord * 0.5, halfW);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // Tailplane (smaller bar near the tail)
-    const tailX = -halfL + fuselageWidth;
-    const tailspan = wingspanPx * 0.35;
-    const tailChord = Math.max(1, fuselagePx * 0.08);
-    ctx.beginPath();
-    ctx.moveTo(tailX + tailChord * 0.5, -tailspan / 2);
-    ctx.lineTo(tailX - tailChord * 0.5, -tailspan / 2);
-    ctx.lineTo(tailX - tailChord * 0.5, tailspan / 2);
-    ctx.lineTo(tailX + tailChord * 0.5, tailspan / 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+      // Silhouette at the most recent tick
+      const tick = trailTicks[trailTicks.length - 1];
+      drawAircraft(tick, meta, color);
 
-    // Bearing line to target node
-    if (tick.navTarget && nodeMap[tick.navTarget]) {
-      const tn = nodeMap[tick.navTarget];
-      const [tx, ty] = toScreen(tn.lat, tn.lon);
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = '#58a6ff50'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(tx, ty); ctx.stroke();
-      ctx.setLineDash([]);
-      // Target node marker
-      ctx.beginPath(); ctx.arc(tx, ty, 5, 0, Math.PI * 2);
-      ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 1.5; ctx.stroke();
-    }
+      // Bearing line to nav target
+      if (tick.nav && tick.nav.targetNodeId && nodeMap[tick.nav.targetNodeId]) {
+        const [ax, ay] = toScreen(tick.lat, tick.lon);
+        const tn = nodeMap[tick.nav.targetNodeId];
+        const [tx, ty] = toScreen(tn.lat, tn.lon);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = color + '60'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(tx, ty); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+        ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    });
   }
+}
+
+function drawAircraft(tick, meta, color) {
+  const [ax, ay] = toScreen(tick.lat, tick.lon);
+  const hdgRad = (tick.hdg - 90) * Math.PI / 180;
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(hdgRad);
+
+  // Project 100ft east of aircraft to derive pixels-per-foot at the current
+  // pan/zoom. Falls back to a small fixed silhouette when no dimensions.
+  let fuselagePx = 0, wingspanPx = 0;
+  if (meta.lengthFt && meta.wingspanFt) {
+    const [px0, py0] = toScreen(tick.lat, tick.lon);
+    const dLat = 100.0 / (60.0 * 6076.12);
+    const [px1, py1] = toScreen(tick.lat + dLat, tick.lon);
+    const pxPerFt = Math.hypot(px1 - px0, py1 - py0) / 100.0;
+    fuselagePx = meta.lengthFt * pxPerFt;
+    wingspanPx = meta.wingspanFt * pxPerFt;
+  }
+  if (fuselagePx < 10) fuselagePx = 10;
+  if (wingspanPx < 8) wingspanPx = 8;
+
+  const halfL = fuselagePx / 2;
+  const halfW = wingspanPx / 2;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = '#0d1117';
+  ctx.lineWidth = 1;
+  const fuselageWidth = Math.max(3, wingspanPx * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(halfL, 0);
+  ctx.lineTo(halfL - fuselageWidth, -fuselageWidth * 0.6);
+  ctx.lineTo(-halfL, -fuselageWidth * 0.5);
+  ctx.lineTo(-halfL, fuselageWidth * 0.5);
+  ctx.lineTo(halfL - fuselageWidth, fuselageWidth * 0.6);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Wings
+  const wingX = halfL * 0.1;
+  const wingChord = Math.max(2, fuselagePx * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(wingX + wingChord * 0.5, -halfW);
+  ctx.lineTo(wingX - wingChord * 0.5, -halfW * 0.95);
+  ctx.lineTo(wingX - wingChord * 0.5, halfW * 0.95);
+  ctx.lineTo(wingX + wingChord * 0.5, halfW);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Tail
+  const tailX = -halfL + fuselageWidth;
+  const tailspan = wingspanPx * 0.35;
+  const tailChord = Math.max(1, fuselagePx * 0.08);
+  ctx.beginPath();
+  ctx.moveTo(tailX + tailChord * 0.5, -tailspan / 2);
+  ctx.lineTo(tailX - tailChord * 0.5, -tailspan / 2);
+  ctx.lineTo(tailX - tailChord * 0.5, tailspan / 2);
+  ctx.lineTo(tailX + tailChord * 0.5, tailspan / 2);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // Callsign label above the silhouette
+  ctx.save();
+  ctx.font = 'bold 11px Consolas,monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0d1117';
+  ctx.fillText(meta.callsign, ax, ay - Math.max(halfL, halfW) - 6);
+  ctx.fillText(meta.callsign, ax + 1, ay - Math.max(halfL, halfW) - 5);
+  ctx.fillText(meta.callsign, ax - 1, ay - Math.max(halfL, halfW) - 5);
+  ctx.fillStyle = color;
+  ctx.fillText(meta.callsign, ax, ay - Math.max(halfL, halfW) - 5);
+  ctx.restore();
 }
 
 // --- Interaction ---
@@ -498,10 +510,13 @@ function updateTooltip(mx, my) {
     if (d < closestEdgeDist) { closestEdgeDist = d; closestEdge = e; }
   });
 
-  // --- Tick proximity ---
+  // --- Tick proximity (only consider current frame's silhouettes) ---
   let closestTick = null, closestTickDist = Infinity;
-  if (D.ticks) {
-    D.ticks.forEach(t => {
+  if (D.ticks && typeof currentTime !== 'undefined') {
+    (D.aircraft || []).forEach(meta => {
+      const candidates = D.ticks.filter(t => t.callsign === meta.callsign && t.t <= currentTime);
+      if (candidates.length === 0) return;
+      const t = candidates[candidates.length - 1];
       const [sx, sy] = toScreen(t.lat, t.lon);
       const d = Math.hypot(sx - mx, sy - my);
       if (d < closestTickDist) { closestTickDist = d; closestTick = t; }
@@ -521,17 +536,21 @@ function updateTooltip(mx, my) {
   if (hasTick) {
     const titleEl = document.createElement('span');
     titleEl.className = 't-title';
-    titleEl.textContent = 'Tick t=' + closestTick.t;
+    titleEl.textContent = closestTick.callsign + ' @ t=' + closestTick.t;
     tip.appendChild(titleEl);
     const lines = [
       'hdg=' + closestTick.hdg.toFixed(1) + '\u00b0  gs=' + closestTick.gs.toFixed(1) + 'kt',
       'phase=' + closestTick.phase + (closestTick.twy ? '  twy=' + closestTick.twy : ''),
     ];
-    if (closestTick.navTarget != null) {
-      lines.push('target=#' + closestTick.navTarget + '  dist=' + ((closestTick.navDist || 0) * 6076).toFixed(0) + 'ft');
-      lines.push('brg=' + (closestTick.navBrg || 0).toFixed(1) + '\u00b0  targetSpd=' + (closestTick.navTargetSpd || 0).toFixed(1) + 'kt');
-      lines.push('brakeLimit=' + (closestTick.navBrakeLimit || 0).toFixed(1) + 'kt  nodeReq=' + (closestTick.navNodeReqSpd || 0).toFixed(1) + 'kt');
-      if (closestTick.navOnArc) lines.push('ON ARC  arcLimit=' + (closestTick.navArcLimit || 0).toFixed(1) + 'kt');
+    if (closestTick.speedLimit != null) {
+      lines.push('speedLimit=' + closestTick.speedLimit.toFixed(1) + 'kt');
+    }
+    const nav = closestTick.nav;
+    if (nav && nav.targetNodeId != null) {
+      lines.push('target=#' + nav.targetNodeId + '  dist=' + ((nav.distNm || 0) * 6076).toFixed(0) + 'ft');
+      lines.push('brg=' + (nav.brgDeg || 0).toFixed(1) + '\u00b0  targetSpd=' + (nav.targetSpdKts || 0).toFixed(1) + 'kt');
+      lines.push('brakeLimit=' + (nav.brakeLimitKts || 0).toFixed(1) + 'kt  nodeReq=' + (nav.nodeReqSpdKts || 0).toFixed(1) + 'kt');
+      if (nav.onArc) lines.push('ON ARC  arcLimit=' + (nav.arcLimitKts || 0).toFixed(1) + 'kt');
     }
     lines.forEach(l => {
       const el = document.createElement('span');
@@ -618,40 +637,51 @@ function updateTooltip(mx, my) {
   showTip(mx, my);
 }
 
-// --- Tick animation player ---
-let tickIdx = 0;
+// --- Tick animation player (time-axis based; multi-aircraft) ---
+let currentTime = 0;
+let timeFrames = [];   // sorted unique tick timestamps
+let timeIdx = 0;
 let playing = false;
 let playTimer = null;
 
 if (D.ticks && D.ticks.length > 0) {
   const playerEl = document.getElementById('player');
   playerEl.style.display = 'flex';
-  // Shift legend above the player bar
   document.getElementById('legend').style.bottom = '52px';
   const scrub = document.getElementById('scrub');
   const playBtn = document.getElementById('playBtn');
   const tickInfo = document.getElementById('tickInfo');
-  scrub.max = D.ticks.length - 1;
+
+  // Build the unified time axis (one slider step per distinct tick second)
+  const timeSet = new Set();
+  D.ticks.forEach(t => timeSet.add(t.t));
+  timeFrames = Array.from(timeSet).sort((a, b) => a - b);
+  scrub.max = timeFrames.length - 1;
+  currentTime = timeFrames[0];
 
   function updateTickInfo() {
-    const t = D.ticks[tickIdx];
-    let info = `t=${t.t} hdg=${t.hdg.toFixed(0)}\u00b0 gs=${t.gs.toFixed(0)}kt ${t.phase}`;
-    if (t.twy) info += ` [${t.twy}]`;
-    if (t.navTarget != null) info += ` \u2192#${t.navTarget}`;
-    if (t.navOnArc) info += ' (arc)';
-    if (t.navNodeReqSpd != null) info += ` req=${t.navNodeReqSpd.toFixed(0)}kt`;
-    tickInfo.textContent = info;
+    const parts = [`t=${currentTime}`];
+    (D.aircraft || []).forEach(meta => {
+      const candidates = D.ticks.filter(t => t.callsign === meta.callsign && t.t <= currentTime);
+      if (candidates.length === 0) return;
+      const t = candidates[candidates.length - 1];
+      let s = `${meta.callsign} hdg=${t.hdg.toFixed(0)}\u00b0 gs=${t.gs.toFixed(0)}kt ${t.phase}`;
+      if (t.speedLimit != null) s += ` lim=${t.speedLimit.toFixed(0)}`;
+      parts.push(s);
+    });
+    tickInfo.textContent = parts.join(' | ');
   }
 
-  function setTick(i) {
-    tickIdx = Math.max(0, Math.min(i, D.ticks.length - 1));
-    scrub.value = tickIdx;
+  function setFrame(i) {
+    timeIdx = Math.max(0, Math.min(i, timeFrames.length - 1));
+    currentTime = timeFrames[timeIdx];
+    scrub.value = timeIdx;
     updateTickInfo();
     draw();
   }
 
   scrub.addEventListener('input', () => {
-    setTick(parseInt(scrub.value));
+    setFrame(parseInt(scrub.value));
     if (playing) togglePlay();
   });
 
@@ -660,8 +690,8 @@ if (D.ticks && D.ticks.length > 0) {
     playBtn.textContent = playing ? '\u23f8' : '\u25b6';
     if (playing) {
       playTimer = setInterval(() => {
-        if (tickIdx >= D.ticks.length - 1) { togglePlay(); return; }
-        setTick(tickIdx + 1);
+        if (timeIdx >= timeFrames.length - 1) { togglePlay(); return; }
+        setFrame(timeIdx + 1);
       }, 100);
     } else {
       clearInterval(playTimer);
@@ -673,8 +703,8 @@ if (D.ticks && D.ticks.length > 0) {
 
   document.addEventListener('keydown', e => {
     if (e.key === ' ') { e.preventDefault(); togglePlay(); }
-    if (e.key === 'ArrowRight') { e.preventDefault(); setTick(tickIdx + 1); }
-    if (e.key === 'ArrowLeft') { e.preventDefault(); setTick(tickIdx - 1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); setFrame(timeIdx + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); setFrame(timeIdx - 1); }
   });
 
   updateTickInfo();
