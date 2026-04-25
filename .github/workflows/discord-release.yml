@@ -105,7 +105,10 @@ jobs:
             exit 1
           fi
 
-          payload=$(jq -n --rawfile msg /tmp/discord-msg.txt '{content: $msg}')
+          # flags: 4 = SUPPRESS_EMBEDS. The URL in the message body would
+          # otherwise auto-unfurl into a GitHub Release preview that just
+          # restates the bullets we already posted — pure noise.
+          payload=$(jq -n --rawfile msg /tmp/discord-msg.txt '{content: $msg, flags: 4}')
 
           http_code=$(curl -sS -o /tmp/discord-resp.txt -w "%{http_code}" \
             -H "Content-Type: application/json" \
