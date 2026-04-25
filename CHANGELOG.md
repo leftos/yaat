@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.3-alpha
+## Unreleased
 
 ### Changed
 - Pushback orientation now uses cardinal directions instead of numeric headings: `PUSH FACE E` / `PUSH TAIL W` (or shorthand `>E` / `<W`), with the eight compass points accepted (N, NE, E, SE, S, SW, W, NW). When combined with a taxiway (`PUSH TE FACE E`) the aircraft aligns with whichever of the taxiway's two directions matches the cardinal closest. Voice control accepts "pushback face east", "pushback tail west", and "pushback onto tango facing east".
@@ -10,13 +10,14 @@
 - Fixed `BEHIND` / `GIVEWAY` bug that prevented conflict detection.
 - Partial target callsigns in `BEHIND` / `GIVEWAY` (e.g. `BEHIND 152SP`) now resolve to the matching aircraft, matching how partial callsigns already work at the start of a command and in `FOLLOW` / `RTIS`.
 - Aircraft no longer stop when taxiing past a parked aircraft on an adjacent taxiway. The ground-conflict check now uses the parked aircraft's actual wingspan to determine wingtip clearance instead of treating anything within ~100 ft and a 90° forward cone as a hard stop.
+- A longer aircraft trailing a shorter one (e.g. an A350 behind an E175 on a hold-short queue) now stops with its nose clear of the leader's tail. The previous stop threshold only used the leader's length, which underestimated separation whenever the trailer was bigger.
 
-## 0.1.2-alpha
+## v0.1.2-alpha [2026/04/25]
 
 ### Fixed
 - The in-app updater no longer crashes when you click "Update Now" — auto-updates now download and apply correctly.
 
-## 0.1.1-alpha
+## v0.1.1-alpha [2026/04/24]
 
 ### Added
 - ERAM WIP: `QN` / `QF` / `QL` / `QT` / `QZ` / `QQ` / `QS` / `RD` / `QU` / `QP` verbs, sector configuration, dwell lock, and pointouts. Per-track annotations (interim/procedure/controller altitudes, VCI, leader direction/length) persist with the session.
@@ -39,6 +40,6 @@
 - Followers no longer accelerate unreasonable amounts to catch up to their leader while following.
 - Follow state is shown in the Info column during pattern legs (previously went blank once the leader entered a pattern).
 
-## 0.1.0-alpha
+## v0.1.0-alpha [2026/04/23]
 
 - Initial release
