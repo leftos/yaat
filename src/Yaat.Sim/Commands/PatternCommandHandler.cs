@@ -70,14 +70,13 @@ internal static class PatternCommandHandler
             if (isOnWrongSide)
             {
                 var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-                waypoints = PatternGeometry.Compute(
+                var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
-                    category,
-                    direction,
+                    aircraft.GroundLayout?.FindRunway(runway.Designator),
                     aircraft.PatternSizeOverrideNm,
-                    aircraft.PatternAltitudeOverrideFt,
-                    airportRunways
+                    aircraft.PatternAltitudeOverrideFt
                 );
+                waypoints = PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
             }
         }
 
@@ -90,14 +89,13 @@ internal static class PatternCommandHandler
         if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final)
         {
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            waypoints ??= PatternGeometry.Compute(
+            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                category,
-                direction,
+                aircraft.GroundLayout?.FindRunway(runway.Designator),
                 aircraft.PatternSizeOverrideNm,
-                aircraft.PatternAltitudeOverrideFt,
-                airportRunways
+                aircraft.PatternAltitudeOverrideFt
             );
+            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
             var (eLat, eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
 
             double bearingToEntry = GeoMath.BearingTo(aircraft.Position, new LatLon(eLat, eLon));
@@ -194,14 +192,13 @@ internal static class PatternCommandHandler
         // Compute waypoints for the entry point check
         {
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            waypoints ??= PatternGeometry.Compute(
+            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                category,
-                direction,
+                aircraft.GroundLayout?.FindRunway(runway.Designator),
                 aircraft.PatternSizeOverrideNm,
-                aircraft.PatternAltitudeOverrideFt,
-                airportRunways
+                aircraft.PatternAltitudeOverrideFt
             );
+            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
         }
 
         // ERB/ELB without a distance argument: derive FinalDistanceNm from the
@@ -252,6 +249,12 @@ internal static class PatternCommandHandler
             useAircraftPositionAsEntry = true;
         }
 
+        var (circuitSizeOv, circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
+            runway,
+            aircraft.GroundLayout?.FindRunway(runway.Designator),
+            aircraft.PatternSizeOverrideNm,
+            aircraft.PatternAltitudeOverrideFt
+        );
         var circuitPhases = PatternBuilder.BuildCircuit(
             runway,
             category,
@@ -259,8 +262,8 @@ internal static class PatternCommandHandler
             effectiveEntryLeg,
             touchAndGo,
             effectiveFinalDistanceNm,
-            aircraft.PatternSizeOverrideNm,
-            aircraft.PatternAltitudeOverrideFt,
+            circuitSizeOv,
+            circuitAltOv,
             NavigationDatabase.Instance.GetRunways(runway.AirportId)
         );
 
@@ -396,14 +399,13 @@ internal static class PatternCommandHandler
         var runway = aircraft.Phases.AssignedRunway;
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
         var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-        var waypoints = PatternGeometry.Compute(
+        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
-            category,
-            newDirection,
+            aircraft.GroundLayout?.FindRunway(runway.Designator),
             aircraft.PatternSizeOverrideNm,
-            aircraft.PatternAltitudeOverrideFt,
-            airportRunways
+            aircraft.PatternAltitudeOverrideFt
         );
+        var waypoints = PatternGeometry.Compute(runway, category, newDirection, sizeOv, altOv, airportRunways);
 
         // Set traffic direction — aircraft is now in pattern mode
         aircraft.Phases.TrafficDirection = newDirection;
@@ -422,8 +424,8 @@ internal static class PatternCommandHandler
                 PatternEntryLeg.Upwind,
                 true,
                 null,
-                aircraft.PatternSizeOverrideNm,
-                aircraft.PatternAltitudeOverrideFt,
+                sizeOv,
+                altOv,
                 airportRunways
             );
             aircraft.Phases.InsertAfterCurrent(circuit);
@@ -602,7 +604,13 @@ internal static class PatternCommandHandler
             var category = AircraftCategorization.Categorize(aircraft.AircraftType);
             var direction = aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            var waypoints = PatternGeometry.Compute(runway, category, direction, sizeNm, aircraft.PatternAltitudeOverrideFt, airportRunways);
+            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+                runway,
+                aircraft.GroundLayout?.FindRunway(runway.Designator),
+                sizeNm,
+                aircraft.PatternAltitudeOverrideFt
+            );
+            var waypoints = PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
             PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
         }
 

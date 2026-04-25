@@ -384,14 +384,13 @@ public static class ApproachCommandHandler
             var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
 
             var airportRunways = NavigationDatabase.Instance.GetRunways(approachRunway.AirportId);
-            var waypoints = PatternGeometry.Compute(
+            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 approachRunway,
-                category,
-                direction,
+                aircraft.GroundLayout?.FindRunway(approachRunway.Designator),
                 aircraft.PatternSizeOverrideNm,
-                aircraft.PatternAltitudeOverrideFt,
-                airportRunways
+                aircraft.PatternAltitudeOverrideFt
             );
+            var waypoints = PatternGeometry.Compute(approachRunway, category, direction, sizeOv, altOv, airportRunways);
 
             var circuitPhases = PatternBuilder.BuildCircuit(
                 approachRunway,
@@ -400,8 +399,8 @@ public static class ApproachCommandHandler
                 PatternEntryLeg.Downwind,
                 false,
                 null,
-                null,
-                aircraft.PatternAltitudeOverrideFt,
+                sizeOv,
+                altOv,
                 airportRunways
             );
 

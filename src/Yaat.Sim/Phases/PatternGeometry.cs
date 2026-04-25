@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases;
@@ -138,6 +139,31 @@ public static class PatternGeometry
 
     /// <summary>Buffer distance (NM) from downwind track to neighboring runway centerline.</summary>
     public const double RunwayBufferNm = 0.15;
+
+    /// <summary>
+    /// Compose pattern size and altitude overrides from a command-issued override (e.g. TPA/PSIZE)
+    /// and the airport-authored runway data. Command override wins; data fills in when no command
+    /// override is set; otherwise the caller passes nulls and PatternGeometry.Compute falls back
+    /// to the per-category default.
+    ///
+    /// Authored <see cref="GroundRunway.PatternAltitudeAglFt"/> is interpreted as feet AGL above
+    /// field elevation and translated to MSL using <paramref name="runway"/>.ElevationFt.
+    /// </summary>
+    public static (double? SizeNm, double? AltitudeMslFt) ResolveAuthoredOverrides(
+        RunwayInfo runway,
+        GroundRunway? authoredRunway,
+        double? commandSizeNm,
+        double? commandAltitudeMslFt
+    )
+    {
+        double? size = commandSizeNm ?? authoredRunway?.PatternSizeNm;
+        double? alt = commandAltitudeMslFt;
+        if ((alt is null) && (authoredRunway?.PatternAltitudeAglFt is double agl))
+        {
+            alt = runway.ElevationFt + agl;
+        }
+        return (size, alt);
+    }
 
     public static PatternWaypoints Compute(
         RunwayInfo runway,

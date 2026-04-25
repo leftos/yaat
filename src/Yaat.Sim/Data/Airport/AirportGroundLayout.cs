@@ -522,6 +522,26 @@ public sealed class AirportGroundLayout
     public List<GroundArc> Arcs { get; init; } = [];
     public List<GroundRunway> Runways { get; init; } = [];
 
+    /// <summary>
+    /// Find the runway whose two-end name (e.g. "10L - 28R") matches the given designator on either end.
+    /// Returns null when no runway in the layout names this end.
+    /// </summary>
+    public GroundRunway? FindRunway(string designator)
+    {
+        foreach (var rwy in Runways)
+        {
+            string[] ends = rwy.Name.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (
+                (ends.Length == 2)
+                && (ends[0].Equals(designator, StringComparison.OrdinalIgnoreCase) || ends[1].Equals(designator, StringComparison.OrdinalIgnoreCase))
+            )
+            {
+                return rwy;
+            }
+        }
+        return null;
+    }
+
     /// <summary>All edges (straight and arc) for iteration.</summary>
     public IEnumerable<IGroundEdge> AllEdges => Edges.Cast<IGroundEdge>().Concat(Arcs);
 
