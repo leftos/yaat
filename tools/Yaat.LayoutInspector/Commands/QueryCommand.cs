@@ -1,3 +1,4 @@
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -58,7 +59,8 @@ public sealed class QueryCommand : ICommand
             formatter.WriteRunway(analyzer.GetRunwayDetail(runway));
         }
 
-        foreach (int nodeId in options.NodeIds)
+        var nodeIdsToPrint = ExpandNodeIds(analyzer, options.NodeIds, options.NodeDepth);
+        foreach (int nodeId in nodeIdsToPrint)
         {
             var node = analyzer.GetNodeDetail(nodeId);
             if (node is null)
@@ -100,6 +102,11 @@ public sealed class QueryCommand : ICommand
         if ((options.BfsNodeId is not null) && (options.BfsTaxiway is not null))
         {
             formatter.WriteBfsPath(analyzer.GetBfsPath(options.BfsNodeId.Value, options.BfsTaxiway));
+        }
+
+        if (options.WalkTraceNodeId is not null && options.WalkTraceTaxiway is not null)
+        {
+            RunWalkTrace(analyzer, options.WalkTraceNodeId.Value, options.WalkTraceTaxiway);
         }
 
         if ((options.PathfinderNodeId is not null) && (options.PathfinderTaxiways.Count > 0))
@@ -191,18 +198,10 @@ public sealed class QueryCommand : ICommand
                 }
             }
 
-            // Report any reversals (a,b)(b,a) in the combined segment list.
             if (combinedSegments is not null)
             {
-                for (int i = 0; i + 1 < combinedSegments.Count; i++)
-                {
-                    var a = combinedSegments[i];
-                    var b = combinedSegments[i + 1];
-                    if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
-                    {
-                        diagLog.Add($"[LI] REVERSAL at index {i}: ({a.FromNodeId}→{a.ToNodeId}) then ({b.FromNodeId}→{b.ToNodeId})");
-                    }
-                }
+                int explicitWalkCount = ComputeExplicitWalkCount(combinedSegments.Count, diagLog);
+                ScanRouteForAnomalies(analyzer, combinedSegments, options.PathfinderTaxiways, explicitWalkCount, diagLog);
             }
 
             var pfResult = new PathfinderResult(options.PathfinderNodeId.Value, options.PathfinderTaxiways, diagLog, combinedSegments, pfFailReason);
@@ -234,5 +233,239 @@ public sealed class QueryCommand : ICommand
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// Maximum safe arc speed (kts) below which a route segment is flagged as
+    /// dynamically untaxiable in the pathfinder diagnostic output.
+    /// </summary>
+    private const double TightArcMaxSafeKts = 5.0;
+
+    /// <summary>
+    /// Expand the seed node id list to also include every node within
+    /// <paramref name="depth"/> graph hops via a BFS over <see cref="GroundNode.Edges"/>.
+    /// Returns the seeds in input order followed by any newly-discovered ids in BFS
+    /// order. <paramref name="depth"/> = 0 returns the seeds unchanged.
+    /// </summary>
+    private static List<int> ExpandNodeIds(LayoutAnalyzer analyzer, IReadOnlyList<int> seedIds, int depth)
+    {
+        if (depth <= 0 || seedIds.Count == 0)
+        {
+            return [.. seedIds];
+        }
+
+        var visited = new HashSet<int>(seedIds);
+        var ordered = new List<int>(seedIds);
+        var frontier = new List<int>(seedIds);
+        for (int hop = 0; hop < depth && frontier.Count > 0; hop++)
+        {
+            var next = new List<int>();
+            foreach (int id in frontier)
+            {
+                if (!analyzer.Layout.Nodes.TryGetValue(id, out var node))
+                {
+                    continue;
+                }
+
+                foreach (var edge in node.Edges)
+                {
+                    foreach (var nb in edge.Nodes)
+                    {
+                        if (visited.Add(nb.Id))
+                        {
+                            ordered.Add(nb.Id);
+                            next.Add(nb.Id);
+                        }
+                    }
+                }
+            }
+
+            frontier = next;
+        }
+
+        return ordered;
+    }
+
+    /// <summary>
+    /// Single-taxiway walk via <see cref="TaxiPathfinder.ResolveExplicitPath"/>
+    /// with one taxiway argument. The pathfinder's diagnostic log captures every
+    /// step of the underlying <c>WalkTaxiway</c> and the reason it stopped
+    /// (dead-end / next-twy match / hold-short / hint-reached). Prints the trace
+    /// followed by the resulting segment list and any failure reason.
+    /// </summary>
+    private static void RunWalkTrace(LayoutAnalyzer analyzer, int nodeId, string taxiway)
+    {
+        Console.WriteLine($"=== walk-trace from #{nodeId} on '{taxiway}' ===");
+        if (!analyzer.Layout.Nodes.ContainsKey(nodeId))
+        {
+            Console.Error.WriteLine($"Node {nodeId} not found");
+            return;
+        }
+
+        var diag = new List<string>();
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            analyzer.Layout,
+            nodeId,
+            [taxiway],
+            out string? failReason,
+            new ExplicitPathOptions { AirportId = analyzer.AirportId, DiagnosticLog = msg => diag.Add(msg) }
+        );
+
+        foreach (string line in diag)
+        {
+            Console.WriteLine($"  {line}");
+        }
+
+        if (route is not null)
+        {
+            Console.WriteLine($"  result: {route.Segments.Count} segment(s)");
+            for (int i = 0; i < route.Segments.Count; i++)
+            {
+                var s = route.Segments[i];
+                Console.WriteLine($"    [{i, 3}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName})");
+            }
+        }
+
+        if (failReason is not null)
+        {
+            Console.WriteLine($"  fail: {failReason}");
+        }
+    }
+
+    /// <summary>
+    /// Scan a resolved route for two anomaly classes that aren't surfaced by
+    /// the pathfinder itself: (1) any segment whose <c>TaxiwayName</c> is not in
+    /// the user's authorized taxi list (and isn't a runway centerline / RAMP);
+    /// (2) any segment backed by an arc with <c>MaxSafeSpeedKts</c> below
+    /// <see cref="TightArcMaxSafeKts"/>. Adjacent reversals (i.e. (a→b)(b→a))
+    /// are reported up front for symmetry with the runtime warning.
+    /// </summary>
+    /// <summary>
+    /// The pathfinder may append a destination-extension after its explicit-taxiway
+    /// walk (logged as "appended cached Shortest extension (N segments…)" or via the
+    /// LI-side <c>Extension via FindRoute(…)</c> note). Foreign-taxiway warnings on
+    /// that tail are noise — those segments are *expected* to use whatever taxiways
+    /// link the named route to the parking. Parse the diagnostic log to subtract
+    /// the extension count so the foreign-twy scan only flags anomalies inside the
+    /// user-authorized walk.
+    /// </summary>
+    private static int ComputeExplicitWalkCount(int total, IReadOnlyList<string> diagLog)
+    {
+        int extensionCount = 0;
+        var cachedRe = new System.Text.RegularExpressions.Regex(
+            @"cached Shortest extension \((\d+) segments?",
+            System.Text.RegularExpressions.RegexOptions.Compiled
+        );
+        var liRe = new System.Text.RegularExpressions.Regex(
+            @"\[LI\] Extension via FindRoute.*?: (\d+) segment",
+            System.Text.RegularExpressions.RegexOptions.Compiled
+        );
+        foreach (string line in diagLog)
+        {
+            var m = cachedRe.Match(line);
+            if (m.Success && int.TryParse(m.Groups[1].Value, out int n))
+            {
+                extensionCount += n;
+                continue;
+            }
+
+            m = liRe.Match(line);
+            if (m.Success && int.TryParse(m.Groups[1].Value, out int n2))
+            {
+                extensionCount += n2;
+            }
+        }
+
+        return Math.Max(0, total - extensionCount);
+    }
+
+    private static void ScanRouteForAnomalies(
+        LayoutAnalyzer analyzer,
+        IReadOnlyList<PathfinderSegment> segments,
+        IReadOnlyList<string> authorizedTaxiways,
+        int explicitWalkCount,
+        List<string> diagLog
+    )
+    {
+        for (int i = 0; i + 1 < segments.Count; i++)
+        {
+            var a = segments[i];
+            var b = segments[i + 1];
+            if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
+            {
+                diagLog.Add($"[LI] REVERSAL at index {i}: ({a.FromNodeId}→{a.ToNodeId}) then ({b.FromNodeId}→{b.ToNodeId})");
+            }
+        }
+
+        // Only the explicit walk is bound by the user's authorized taxi list;
+        // segments past explicitWalkCount come from a destination-extension
+        // FindRoute call and naturally use whatever taxiways link parking back
+        // to the named taxi route, so flagging them as "foreign" is just noise.
+        var authorized = new HashSet<string>(authorizedTaxiways, StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < explicitWalkCount && i < segments.Count; i++)
+        {
+            string twy = segments[i].TaxiwayName;
+            if (string.IsNullOrEmpty(twy))
+            {
+                continue;
+            }
+
+            if (authorized.Contains(twy))
+            {
+                continue;
+            }
+
+            // RAMP and runway-crossing segments are inserted by the pathfinder
+            // implicitly; they're expected and not "foreign".
+            if (twy.Equals("RAMP", StringComparison.OrdinalIgnoreCase) || twy.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            diagLog.Add(
+                $"[LI] FOREIGN-TWY at index {i}: ({segments[i].FromNodeId}→{segments[i].ToNodeId}) labeled '{twy}', not in authorized list [{string.Join(",", authorizedTaxiways)}]"
+            );
+        }
+
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (TryGetSegmentArc(analyzer, segments[i], out var arc))
+            {
+                double maxSafe = arc.MaxSafeSpeedKts(CategoryPerformance.GroundTurnRate(AircraftCategory.Jet));
+                if (maxSafe < TightArcMaxSafeKts)
+                {
+                    diagLog.Add(
+                        $"[LI] TIGHT-ARC at index {i}: ({segments[i].FromNodeId}→{segments[i].ToNodeId}) "
+                            + $"radius={arc.MinRadiusOfCurvatureFt:F1}ft maxSafe={maxSafe:F1}kt — below {TightArcMaxSafeKts:F0}kt taxiable threshold"
+                    );
+                }
+            }
+        }
+    }
+
+    private static bool TryGetSegmentArc(LayoutAnalyzer analyzer, PathfinderSegment seg, out GroundArc arc)
+    {
+        arc = null!;
+        if (!analyzer.Layout.Nodes.TryGetValue(seg.FromNodeId, out var fromNode))
+        {
+            return false;
+        }
+
+        foreach (var edge in fromNode.Edges)
+        {
+            if (
+                edge is GroundArc candidate
+                && (
+                    (candidate.Nodes[0].Id == seg.FromNodeId && candidate.Nodes[1].Id == seg.ToNodeId)
+                    || (candidate.Nodes[0].Id == seg.ToNodeId && candidate.Nodes[1].Id == seg.FromNodeId)
+                )
+            )
+            {
+                arc = candidate;
+                return true;
+            }
+        }
+
+        return false;
     }
 }

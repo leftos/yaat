@@ -19,6 +19,16 @@ public sealed record CliOptions
     public int? BfsNodeId { get; init; }
     public string? BfsTaxiway { get; init; }
 
+    /// <summary>
+    /// When >0, expand each <see cref="NodeIds"/> entry to also include every node
+    /// reachable within this many graph hops. Useful for dumping a fillet cluster
+    /// without listing every member id by hand. Set via <c>--node-depth N</c>.
+    /// </summary>
+    public int NodeDepth { get; init; }
+
+    public int? WalkTraceNodeId { get; init; }
+    public string? WalkTraceTaxiway { get; init; }
+
     public int? PathfinderNodeId { get; init; }
     public List<string> PathfinderTaxiways { get; init; } = [];
 
@@ -123,6 +133,9 @@ public sealed record CliOptions
         var exitsRunways = new List<string>();
         int? pathNodeId = null;
         string? pathTaxiway = null;
+        int nodeDepth = 0;
+        int? walkTraceNodeId = null;
+        string? walkTraceTaxiway = null;
         int? pfNodeId = null;
         var pfTaxiways = new List<string>();
         string? pfDestRwy = null;
@@ -166,24 +179,49 @@ public sealed record CliOptions
                     navdataDir = args[++i];
                     break;
                 case "--taxiway" when i + 1 < args.Length:
-                    taxiways.Add(args[++i].ToUpperInvariant());
+                    foreach (string twToken in SplitCsv(args[++i]))
+                    {
+                        taxiways.Add(twToken.ToUpperInvariant());
+                    }
+
                     break;
                 case "--runway" when i + 1 < args.Length:
-                    runways.Add(args[++i].ToUpperInvariant());
+                    foreach (string rwToken in SplitCsv(args[++i]))
+                    {
+                        runways.Add(rwToken.ToUpperInvariant());
+                    }
+
                     break;
                 case "--node" when i + 1 < args.Length:
-                    foreach (string nodeToken in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    foreach (string nodeToken in SplitCsv(args[++i]))
                     {
                         nodeIds.Add(int.Parse(nodeToken));
                     }
 
                     break;
+                case "--node-depth" when i + 1 < args.Length:
+                    if (!int.TryParse(args[++i], out int depth) || depth < 0)
+                    {
+                        error = "--node-depth expects a non-negative integer";
+                        return false;
+                    }
+
+                    nodeDepth = depth;
+                    break;
                 case "--exits" when i + 1 < args.Length:
-                    exitsRunways.Add(args[++i].ToUpperInvariant());
+                    foreach (string exToken in SplitCsv(args[++i]))
+                    {
+                        exitsRunways.Add(exToken.ToUpperInvariant());
+                    }
+
                     break;
                 case "--bfs" when i + 2 < args.Length:
                     pathNodeId = int.Parse(args[++i]);
                     pathTaxiway = args[++i].ToUpperInvariant();
+                    break;
+                case "--walk-trace" when i + 2 < args.Length:
+                    walkTraceNodeId = int.Parse(args[++i]);
+                    walkTraceTaxiway = args[++i].ToUpperInvariant();
                     break;
                 case "--parking":
                     showParking = true;
@@ -235,26 +273,36 @@ public sealed record CliOptions
                     ticksJsonPath = args[++i];
                     break;
                 case "--html-taxiway" when i + 1 < args.Length:
-                    htmlHighlightTaxiways.Add(args[++i].ToUpperInvariant());
+                    foreach (string ht in SplitCsv(args[++i]))
+                    {
+                        htmlHighlightTaxiways.Add(ht.ToUpperInvariant());
+                    }
+
                     break;
                 case "--html-runway" when i + 1 < args.Length:
-                    htmlHighlightRunways.Add(args[++i].ToUpperInvariant());
+                    foreach (string hr in SplitCsv(args[++i]))
+                    {
+                        htmlHighlightRunways.Add(hr.ToUpperInvariant());
+                    }
+
                     break;
                 case "--html-node" when i + 1 < args.Length:
-                    htmlHighlightNodes.Add(int.Parse(args[++i]));
+                    foreach (string hn in SplitCsv(args[++i]))
+                    {
+                        htmlHighlightNodes.Add(int.Parse(hn));
+                    }
+
                     break;
                 case "--html-annotate" when i + 2 < args.Length:
                     htmlAnnotations.Add((int.Parse(args[++i]), args[++i]));
                     break;
                 case "--html-route" when i + 1 < args.Length:
-                {
-                    foreach (string nid in args[++i].Split(','))
+                    foreach (string nid in SplitCsv(args[++i]))
                     {
-                        htmlRouteNodes.Add(int.Parse(nid.Trim()));
+                        htmlRouteNodes.Add(int.Parse(nid));
                     }
 
                     break;
-                }
                 case "--pathfinder" when i + 2 < args.Length:
                     pfNodeId = int.Parse(args[++i]);
                     while (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
@@ -267,7 +315,7 @@ public sealed record CliOptions
                     pfDestRwy = args[++i].ToUpperInvariant();
                     break;
                 case "--pf-hold-shorts" when i + 1 < args.Length:
-                    foreach (string hs in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    foreach (string hs in SplitCsv(args[++i]))
                     {
                         pfHoldShorts.Add(hs.ToUpperInvariant());
                     }
@@ -310,7 +358,7 @@ public sealed record CliOptions
                     tickRefRunway = args[++i];
                     break;
                 case "--tick-hold-shorts" when i + 1 < args.Length:
-                    foreach (string twy in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    foreach (string twy in SplitCsv(args[++i]))
                     {
                         tickHoldShorts.Add(twy);
                     }
@@ -336,6 +384,9 @@ public sealed record CliOptions
             ExitsRunways = exitsRunways,
             BfsNodeId = pathNodeId,
             BfsTaxiway = pathTaxiway,
+            NodeDepth = nodeDepth,
+            WalkTraceNodeId = walkTraceNodeId,
+            WalkTraceTaxiway = walkTraceTaxiway,
             PathfinderNodeId = pfNodeId,
             PathfinderTaxiways = pfTaxiways,
             PathfinderDestinationRunway = pfDestRwy,
@@ -381,9 +432,12 @@ public sealed record CliOptions
         || (NodeIds.Count > 0)
         || (ExitsRunways.Count > 0)
         || (BfsNodeId is not null)
+        || (WalkTraceNodeId is not null)
         || (PathfinderNodeId is not null)
         || ShowParking
         || ShowSpots
         || Validate
         || (IntersectionTaxiway1 is not null);
+
+    private static IEnumerable<string> SplitCsv(string s) => s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
