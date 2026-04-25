@@ -13,7 +13,7 @@ public static class UsageText
         Console.WriteLine("Flags:");
         Console.WriteLine("  --taxiway <name>         Show nodes/edges for a taxiway");
         Console.WriteLine("  --runway <designator>    Show centerline/hold-shorts for a runway");
-        Console.WriteLine("  --node <id>              Show detail for a single node (repeatable)");
+        Console.WriteLine("  --node <id>[,<id>...]    Show detail for one or more nodes (also repeatable)");
         Console.WriteLine("  --exits <designator>     Show all exits for a runway (BFS, repeatable)");
         Console.WriteLine("  --bfs <node-id> <twy>    BFS trace from node through taxiway to hold-short");
         Console.WriteLine("  --pathfinder <node-id> <twy1> [twy2 ...]  Resolve taxi route with diagnostic trace");

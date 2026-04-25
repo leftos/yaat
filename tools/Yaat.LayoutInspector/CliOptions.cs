@@ -172,7 +172,11 @@ public sealed record CliOptions
                     runways.Add(args[++i].ToUpperInvariant());
                     break;
                 case "--node" when i + 1 < args.Length:
-                    nodeIds.Add(int.Parse(args[++i]));
+                    foreach (string nodeToken in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        nodeIds.Add(int.Parse(nodeToken));
+                    }
+
                     break;
                 case "--exits" when i + 1 < args.Length:
                     exitsRunways.Add(args[++i].ToUpperInvariant());
