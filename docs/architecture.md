@@ -268,6 +268,8 @@ TrackOwner.cs                  # Record: Callsign, FacilityId, Subset, SectorId,
 TrackOwnerType.cs              # Enum: Other, Eram, Stars, Caats, Atop
 Tcp.cs                         # Record: Subset, SectorId, Id, ParentTcpId
 StarsPointout.cs / StarsPointoutStatus.cs  # Pointout state
+EramPointoutState.cs           # Per-aircraft ERAM pointout record (mirrors vatsim-server-rs radar_state::PointoutState)
+                               # Runtime-only: not round-tripped through AircraftSnapshotDto, consistent with other ERAM per-track state
 
 # Coordination
 CoordinationChannel.cs         # Channel config: ListId, Title, SendingTcps, Receivers, Items

@@ -14,7 +14,7 @@
 ### Changed
 - RTIS and RFIS now soft-fail symmetrically: when the pilot can't visually acquire the target/field on the first check, the command succeeds, a diagnostic-free pilot readback is logged (e.g. "Negative contact KOAK, field's behind us, looking"), and the pilot keeps re-checking each tick until the field/traffic comes into view. The specific reason (distance, cloud layer, hemisphere, bank, Class A) is surfaced to the RPO through the command response only. Acquisition readbacks are promoted from gray notifications to orange warnings.
 - README, INSTALL, GETTING_STARTED, and CONTRIBUTING lead with the prebuilt installer path instead of a from-source build.
-- Wire format and recording bundles now use a single `Position {Lat, Lon}` field in place of separate `Latitude` / `Longitude` doubles. Existing v4 bundles can be migrated with `tools/upgrade_bundles_latlon.py`.
+- Wire format and recording bundles now use a single `Position {Lat, Lon}` field in place of separate `Latitude` / `Longitude` doubles.
 - `EXT` now extends the current pattern leg — upwind, crosswind, or downwind. Base is rejected (use `MNA` to widen instead).
 
 ### Fixed
