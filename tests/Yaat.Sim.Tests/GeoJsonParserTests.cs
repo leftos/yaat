@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -420,35 +422,34 @@ public class GeoJsonParserTests
         string path = Path.Combine("TestData", "oak.geojson");
         var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), "OAK");
 
-        // OAK 28L - 10R: turnoff=right, holdShortDistance=250 (ignored), patternSize=0.5, patternAltitude=600
+        // OAK 28L - 10R: turnoff=right (anchored to 28L's heading), holdShortDistance=250 (ignored),
+        // patternSize=0.5, patternAltitude=600. Right of 28L (heading ~282°) = north (GA parking side).
+        // Same physical side is on the LEFT when landing 10R east → 10R should resolve to Left.
         var rwy28L = layout.Runways.First(r => r.Name == "28L - 10R");
-        Assert.Equal(ExitSide.Right, rwy28L.PreferredTurnoff);
+        Assert.Equal(ExitSide.Right, rwy28L.TurnoffByEnd["28L"]);
+        Assert.Equal(ExitSide.Left, rwy28L.TurnoffByEnd["10R"]);
         Assert.Equal(0.5, rwy28L.PatternSizeNm);
         Assert.Equal(600, rwy28L.PatternAltitudeAglFt);
         Assert.Empty(rwy28L.NoTurnoffByEnd);
 
-        // OAK 28R - 10L: turnoff=right, no pattern overrides
-        var rwy28R = layout.Runways.First(r => r.Name == "28R - 10L");
-        Assert.Equal(ExitSide.Right, rwy28R.PreferredTurnoff);
-        Assert.Null(rwy28R.PatternSizeNm);
-        Assert.Null(rwy28R.PatternAltitudeAglFt);
-
-        // 15 - 33: turnoff=left
+        // 15 - 33: turnoff=left (anchored to 15) → 33 flips to Right
         var rwy15 = layout.Runways.First(r => r.Name == "15 - 33");
-        Assert.Equal(ExitSide.Left, rwy15.PreferredTurnoff);
+        Assert.Equal(ExitSide.Left, rwy15.TurnoffByEnd["15"]);
+        Assert.Equal(ExitSide.Right, rwy15.TurnoffByEnd["33"]);
     }
 
     [Fact]
-    public void Parse_SfoNoTurnoff_KeyedByEndDesignator()
+    public void Parse_SfoTurnoffAndNoTurnoff_KeyedByEndDesignator()
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "sfo.geojson");
         var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
 
-        // SFO 10L - 28R: noTurnoff = [["Q", "T"], ["L", "P"]]
-        // First list belongs to "10L" (landing 10L), second to "28R".
+        // SFO 10L - 28R: turnoff=right (anchored to 10L east), noTurnoff = [["Q", "T"], ["L", "P"]].
+        // Right of 10L (~102°) = south = terminal side. Same physical side is LEFT of 28R (~282°).
         var rwy = layout.Runways.First(r => r.Name == "10L - 28R");
-        Assert.Equal(ExitSide.Right, rwy.PreferredTurnoff);
+        Assert.Equal(ExitSide.Right, rwy.TurnoffByEnd["10L"]);
+        Assert.Equal(ExitSide.Left, rwy.TurnoffByEnd["28R"]);
 
         Assert.True(rwy.NoTurnoffByEnd.TryGetValue("10L", out var land10L));
         Assert.Equal(new[] { "Q", "T" }, land10L);
@@ -458,6 +459,72 @@ public class GeoJsonParserTests
 
         // Lookup is case-insensitive
         Assert.True(rwy.NoTurnoffByEnd.ContainsKey("10l"));
+        Assert.True(rwy.TurnoffByEnd.ContainsKey("10l"));
+    }
+
+    [Fact]
+    public void InferPreferredExitSide_UsesAuthoredTurnoffWhenSet()
+    {
+        TestVnasData.EnsureInitialized();
+        // SFO 28R: authored turnoff resolves to Left (same physical side as terminal-south of 10L).
+        string path = Path.Combine("TestData", "sfo.geojson");
+        var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+
+        var rwy = layout.Runways.First(r => r.Name == "10L - 28R");
+        Assert.Equal(ExitSide.Left, rwy.TurnoffByEnd["28R"]);
+
+        // 28R true heading is ~282°. The authored data should short-circuit the heuristic.
+        Assert.Equal(ExitSide.Left, layout.InferPreferredExitSide("28R", new TrueHeading(282)));
+        Assert.Equal(ExitSide.Right, layout.InferPreferredExitSide("10L", new TrueHeading(102)));
+    }
+
+    [Fact]
+    public void InferPreferredExitSide_AuthoredOverridesHeuristic()
+    {
+        // Build a layout where authored turnoff disagrees with what the heuristic would pick.
+        // Without nodes/parking, the heuristic returns null. The authored value should still surface,
+        // and should flip per landing direction.
+        var layout = new AirportGroundLayout
+        {
+            AirportId = "TST",
+            Runways =
+            {
+                new GroundRunway
+                {
+                    Name = "28 - 10",
+                    Coordinates = [],
+                    WidthFt = 150,
+                    TurnoffByEnd = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["28"] = ExitSide.Left,
+                        ["10"] = ExitSide.Right,
+                    },
+                },
+            },
+        };
+
+        Assert.Equal(ExitSide.Left, layout.InferPreferredExitSide("28", new TrueHeading(280)));
+        Assert.Equal(ExitSide.Right, layout.InferPreferredExitSide("10", new TrueHeading(100)));
+    }
+
+    [Fact]
+    public void InferPreferredExitSide_NoAuthoredNoNodes_ReturnsNull()
+    {
+        var layout = new AirportGroundLayout
+        {
+            AirportId = "TST",
+            Runways =
+            {
+                new GroundRunway
+                {
+                    Name = "28 - 10",
+                    Coordinates = [],
+                    WidthFt = 150,
+                },
+            },
+        };
+
+        Assert.Null(layout.InferPreferredExitSide("28", new TrueHeading(280)));
     }
 
     [Fact]

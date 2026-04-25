@@ -17,11 +17,10 @@
 - `EXT` now extends the current pattern leg — upwind, crosswind, or downwind. Base is rejected (use `MNA` to widen instead).
 
 ### Fixed
+- Taxi pathfinder fixes focused on eliminating spurrious U-turns
 - Pattern aircraft going around now turn crosswind 300 ft below pattern altitude (per AIM 4-3-3), matching the threshold for normal VFR departures, instead of holding runway heading until they reach pattern altitude.
 - Follow speed clamp no longer compounds each tick, so followers stay locked to the leader's speed instead of drifting slower.
 - Follow state is shown in the Info column during pattern legs (previously went blank once the leader entered a pattern).
-- Taxi pathfinder picks the best stop node by looking ahead with a Shortest-A\* pass, avoiding premature anchoring to a suboptimal node.
-- `FewestTurns` and `Fastest` A\* heuristics are now admissible, so these pathfinder modes return true-optimal routes instead of good-enough ones.
 
 ## 0.1.0-alpha
 

@@ -222,7 +222,7 @@ public static class GeoJsonParser
                     Name = rwy.Name,
                     Coordinates = new List<(double Lat, double Lon)>(rwy.Coords),
                     WidthFt = rwyWidthFt,
-                    PreferredTurnoff = rwy.PreferredTurnoff,
+                    TurnoffByEnd = rwy.TurnoffByEnd,
                     PatternAltitudeAglFt = rwy.PatternAltitudeAglFt,
                     PatternSizeNm = rwy.PatternSizeNm,
                     NoTurnoffByEnd = rwy.NoTurnoffByEnd,
@@ -485,16 +485,7 @@ public static class GeoJsonParser
     {
         var (name, coords) = ParseLineString(props, geom);
 
-        ExitSide? turnoff = null;
-        if (props.TryGetProperty("turnoff", out var t) && (t.ValueKind == JsonValueKind.String))
-        {
-            turnoff = t.GetString()?.ToLowerInvariant() switch
-            {
-                "left" => ExitSide.Left,
-                "right" => ExitSide.Right,
-                _ => null,
-            };
-        }
+        var turnoff = ParseTurnoff(name, props);
 
         double? patternAltAgl = ReadOptionalDouble(props, "patternAltitude");
         double? patternSize = ReadOptionalDouble(props, "patternSize");
@@ -502,6 +493,40 @@ public static class GeoJsonParser
         var noTurnoff = ParseNoTurnoff(name, props);
 
         return new RunwayFeature(name, coords, turnoff, patternAltAgl, patternSize, noTurnoff);
+    }
+
+    /// <summary>
+    /// Parse the "turnoff" property as a side relative to the first-named end's heading and produce a per-end map.
+    /// The second end gets the flipped side so the same physical side of the runway resolves for either landing direction.
+    /// </summary>
+    private static IReadOnlyDictionary<string, ExitSide> ParseTurnoff(string runwayName, JsonElement props)
+    {
+        var empty = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
+        if (!props.TryGetProperty("turnoff", out var t) || (t.ValueKind != JsonValueKind.String))
+        {
+            return empty;
+        }
+
+        ExitSide? end1Side = t.GetString()?.ToLowerInvariant() switch
+        {
+            "left" => ExitSide.Left,
+            "right" => ExitSide.Right,
+            _ => null,
+        };
+        if (end1Side is null)
+        {
+            return empty;
+        }
+
+        string[] ends = runwayName.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (ends.Length != 2)
+        {
+            return empty;
+        }
+
+        var result = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase) { [ends[0]] = end1Side.Value };
+        result[ends[1]] = (end1Side.Value == ExitSide.Left) ? ExitSide.Right : ExitSide.Left;
+        return result;
     }
 
     private static double? ReadOptionalDouble(JsonElement props, string fieldName)
@@ -576,12 +601,15 @@ public static class GeoJsonParser
     internal sealed record RunwayFeature(
         string Name,
         List<(double Lat, double Lon)> Coords,
-        ExitSide? PreferredTurnoff = null,
+        IReadOnlyDictionary<string, ExitSide>? TurnoffByEnd = null,
         double? PatternAltitudeAglFt = null,
         double? PatternSizeNm = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? NoTurnoffByEnd = null
     )
     {
+        public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd { get; init; } =
+            TurnoffByEnd ?? new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
+
         public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { get; init; } =
             NoTurnoffByEnd ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
     }

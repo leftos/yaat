@@ -494,8 +494,13 @@ public sealed class GroundRunway
     public required List<(double Lat, double Lon)> Coordinates { get; init; }
     public required double WidthFt { get; init; }
 
-    /// <summary>Author-specified preferred turn-off side (left/right of nose at rollout). Null when unset in the airport file.</summary>
-    public ExitSide? PreferredTurnoff { get; init; }
+    /// <summary>
+    /// Author-specified preferred turn-off side per landing-end designator (left/right of nose at rollout).
+    /// In ATCTrainer airport files, "turnoff" is one value per physical runway, expressed relative to the
+    /// first-named end's heading. Parsing flips it for the second end so the same physical side resolves
+    /// regardless of which direction the aircraft lands. Empty when no turnoff is authored.
+    /// </summary>
+    public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd { get; init; } = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Author-specified pattern altitude in feet AGL above field elevation. Null when unset.</summary>
     public double? PatternAltitudeAglFt { get; init; }
@@ -1693,14 +1698,21 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// Infers the preferred exit side for a runway using layered signals:
-    /// 1. High-speed exits (≤45°), validated by parking proximity
-    /// 2. Parallel runway HS inheritance (for runways with no HS exits)
-    /// 3. Parking proximity (fallback)
+    /// Returns the preferred exit side for a runway. Priority:
+    /// 1. Airport-authored <see cref="GroundRunway.PreferredTurnoff"/> (from GeoJSON "turnoff")
+    /// 2. High-speed exits (≤45°), validated by parking proximity
+    /// 3. Parallel runway HS inheritance (for runways with no HS exits)
+    /// 4. Parking proximity (fallback)
     /// Returns null if no preference can be determined.
     /// </summary>
     public ExitSide? InferPreferredExitSide(string runwayDesignator, TrueHeading runwayHeading)
     {
+        // Authored data wins: when the airport file specifies a side for this end, trust it over inference.
+        if ((FindRunway(runwayDesignator) is { } rwy) && rwy.TurnoffByEnd.TryGetValue(runwayDesignator, out var authored))
+        {
+            return authored;
+        }
+
         // Enumerate all exits on both sides
         var exits = EnumerateExitsBothSides(runwayDesignator, runwayHeading);
         if (exits.Count == 0)
