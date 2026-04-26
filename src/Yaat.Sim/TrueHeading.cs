@@ -50,6 +50,18 @@ public readonly record struct TrueHeading(double Degrees)
     /// <summary>True if this heading is within <paramref name="toleranceDeg"/> of <paramref name="other"/>.</summary>
     public bool IsCloseTo(TrueHeading other, double toleranceDeg) => AbsAngleTo(other) < toleranceDeg;
 
+    /// <summary>
+    /// Circular linear interpolation along the shorter arc from <paramref name="from"/>
+    /// to <paramref name="to"/>. <c>t = 0</c> returns <paramref name="from"/>;
+    /// <c>t = 1</c> returns <paramref name="to"/>. <c>t</c> is clamped to [0, 1].
+    /// </summary>
+    public static TrueHeading Lerp(TrueHeading from, TrueHeading to, double t)
+    {
+        double clamped = Math.Clamp(t, 0.0, 1.0);
+        double signedDelta = from.SignedAngleTo(to);
+        return new TrueHeading(from.Degrees + (signedDelta * clamped));
+    }
+
     // --- Arithmetic ---
 
     public static TrueHeading operator +(TrueHeading h, double d) => new(h.Degrees + d);

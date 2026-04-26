@@ -5,6 +5,10 @@
 ### Fixed
 - Aircraft on a cleared approach now descend continuously toward the glideslope instead of holding their assigned altitude until reaching a fix with an At/AtOrBelow restriction (typically the FAF). The descent target now follows the published 3° glideslope extended back through the approach, bounded above by the assigned altitude and below by published AtOrAbove constraints.
 - Aircraft cleared for the approach below the glideslope no longer climb up to capture it. They now hold their assigned altitude until the glideslope descends to meet them from above, matching AIM 5-4-14.
+- Aircraft on approaches whose published final approach course differs from the runway heading (offset approaches like LDA and SOIA, plus small magnetic-variation differences on aligned approaches) no longer trigger a spurious "going around" warning at the threshold. The aircraft now visually transitions from the published course to the runway centerline over the last segment of the approach, finishing the alignment before flare. The alignment window depends on the offset magnitude — small differences resolve in the last 200 → 150 ft AGL; published offset approaches anchor on the FAA Stabilized Approach Point at 500 → 300 ft AGL.
+
+### Changed
+- The "going around" warning issued when an approach becomes destabilized now names the specific reason — e.g. *"unstable: bank 22°"*, *"unstable: descent 1450 fpm"*, or *"unstable: 540 ft off centerline, IAS 195 > 182 kt (1.3·Vref)"* — instead of the bare token *"unstabilized"*.
 
 ## v0.1.4-alpha [2026/04/25]
 

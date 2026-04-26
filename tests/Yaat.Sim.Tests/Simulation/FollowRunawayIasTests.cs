@@ -126,7 +126,7 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
 
             Assert.DoesNotContain(
                 follower.PendingWarnings,
-                w => w.Contains("unstabilized", StringComparison.OrdinalIgnoreCase) && w.Contains("going around", StringComparison.OrdinalIgnoreCase)
+                w => w.Contains("unstable", StringComparison.OrdinalIgnoreCase) && w.Contains("going around", StringComparison.OrdinalIgnoreCase)
             );
         }
     }

@@ -46,7 +46,7 @@ public sealed class LandingPhase : Phase
     private const double MinSoftBrakingRateKtsPerSec = 0.5;
     private const double TurnOffSpeedToleranceKts = 3.0;
 
-    // --- Stabilization gate (AC 120-71B §6.3) ---
+    // --- Stabilization gate (FSF ALAR Briefing Note 7.1; FAA InFO 11009 endorses FSF criteria) ---
 
     private const double StabilizedSpeedFactor = 1.3; // above 1.3·Vref → unstabilized
     private const double StabilizedBankDeg = 15.0;
@@ -732,18 +732,37 @@ public sealed class LandingPhase : Phase
             new LatLon(plan.ThresholdLat, plan.ThresholdLon),
             plan.RunwayHeading
         );
-        bool unstabilized =
-            ctx.Aircraft.IndicatedAirspeed > plan.Vref * StabilizedSpeedFactor
-            || Math.Abs(signedXte) > StabilizedXteNm
-            || Math.Abs(ctx.Aircraft.BankAngle) > StabilizedBankDeg
-            || ctx.Aircraft.VerticalSpeed < StabilizedVsiFpm;
 
-        if (unstabilized)
+        double ias = ctx.Aircraft.IndicatedAirspeed;
+        double vrefLimit = plan.Vref * StabilizedSpeedFactor;
+        double bank = Math.Abs(ctx.Aircraft.BankAngle);
+        double vs = ctx.Aircraft.VerticalSpeed;
+        double xteFt = Math.Abs(signedXte) * 6076.12;
+
+        List<string>? failures = null;
+        if (ias > vrefLimit)
+        {
+            (failures ??= []).Add($"IAS {ias:F0} > {vrefLimit:F0} kt (1.3·Vref)");
+        }
+        if (Math.Abs(signedXte) > StabilizedXteNm)
+        {
+            (failures ??= []).Add($"{xteFt:F0} ft off centerline");
+        }
+        if (bank > StabilizedBankDeg)
+        {
+            (failures ??= []).Add($"bank {bank:F0}°");
+        }
+        if (vs < StabilizedVsiFpm)
+        {
+            (failures ??= []).Add($"descent {-vs:F0} fpm");
+        }
+
+        if (failures is not null)
         {
             _stabilizedSinceSec += ctx.DeltaSeconds;
             if (_stabilizedSinceSec >= StabilizedGraceSeconds)
             {
-                GoAroundHelper.Trigger(ctx, "unstabilized");
+                GoAroundHelper.Trigger(ctx, $"unstable: {string.Join(", ", failures)}");
                 CurrentState = State.GoAround;
             }
         }

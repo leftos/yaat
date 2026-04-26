@@ -44,6 +44,62 @@ public sealed class FinalApproachPhase : Phase
     /// </summary>
     private const double IsAlignedToleranceDeg = 10.0;
 
+    /// <summary>
+    /// AGL at which the visual-alignment ramp begins for a small (CIFP/mag-var-rounding)
+    /// FAC offset. Below this altitude the steering reference linearly blends from the
+    /// published FAC toward the runway centerline, completing by
+    /// <see cref="MagVarRampEndAgl"/>. 200 ft AGL approximates Cat I DA — the conventional
+    /// "transition to visual" point. Replace with CIFP DA/MDA when extracted
+    /// (cifparse field 5171 "Minimum Descent Height").
+    /// </summary>
+    private const double MagVarRampStartAgl = 200.0;
+
+    /// <summary>
+    /// AGL at which the small-offset alignment ramp completes (small offset case). Set
+    /// well above flare entry AND above the FinalApproach handoff so the aircraft is
+    /// wings-level on runway heading before LandingPhase takes over — LandingPhase
+    /// snaps to runway heading directly and any residual heading delta at the handoff
+    /// trips the bank-angle stabilization gate.
+    /// </summary>
+    private const double MagVarRampEndAgl = 150.0;
+
+    /// <summary>
+    /// AGL at which the visual-alignment ramp begins for a genuine offset approach
+    /// (LDA, RNAV with offset CF leg, VOR offset, SOIA). The Stabilized Approach Point
+    /// (SAP) for an offset approach is 500 ft AGL above threshold per AIM 5-4-20 7.2.b —
+    /// the visual maneuver to runway centerline must complete by then.
+    /// </summary>
+    private const double OffsetRampStartAgl = 500.0;
+
+    /// <summary>
+    /// AGL at which the offset-approach alignment ramp completes. Anchored at 300 ft AGL
+    /// to clear the SAP comfortably while leaving margin above flare entry. A genuine
+    /// offset approach's published visual-segment geometry is more nuanced than a linear
+    /// interpolation; this is a defensible approximation in lieu of CIFP visual-segment
+    /// data.
+    /// </summary>
+    private const double OffsetRampEndAgl = 300.0;
+
+    /// <summary>
+    /// Minimum FAC-vs-runway-heading offset (degrees) at which the visual-alignment ramp
+    /// applies. Below this threshold the ramp is a no-op — the bearing-to-aim-point already
+    /// resolves to the runway centerline because FAC == runway, and lerping further would
+    /// drag the bearing toward runway heading at the expense of XTE-correction angles
+    /// (breaks pattern intercepts that rely on bearing being the aim-point intercept).
+    /// </summary>
+    private const double FacRampMinOffsetDeg = 0.5;
+
+    /// <summary>
+    /// FAC-vs-runway-heading offset (degrees) above which we treat the approach as a
+    /// genuine offset (LDA / RNAV-with-offset-CF / VOR-offset / SOIA) rather than a
+    /// small CIFP/mag-var rounding artifact. Genuine offsets anchor the alignment ramp
+    /// on the SAP (500 ft AGL); rounding artifacts use the tighter 200 → 150 ft window.
+    /// 5° is a defensible split — typical CONUS mag-var rounding is well under 5°, and
+    /// virtually every published offset approach exceeds it (KCCR S19R = 18°, KSAN
+    /// LOC 27 = 9°, etc.).
+    /// </summary>
+    private const double OffsetApproachThresholdDeg = 5.0;
+
     private double _thresholdLat;
     private double _thresholdLon;
     private double _thresholdElevation;
@@ -272,7 +328,7 @@ public sealed class FinalApproachPhase : Phase
         // Floor at 30% of turn radius keeps correction angles gentle near centerline.
         double xteRatio = turnRadiusNm > 0.01 ? Math.Clamp(absXte / turnRadiusNm, 0.0, 1.0) : 1.0;
         double minLead = Math.Max(turnRadiusNm * 0.3, AimPointMinNm);
-        double leadNm = Math.Max(turnRadiusNm * xteRatio + absXte * (1.0 - xteRatio), minLead);
+        double leadNm = Math.Max((turnRadiusNm * xteRatio) + (absXte * (1.0 - xteRatio)), minLead);
 
         double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_anchorLat, _anchorLon), _finalApproachCourse);
         double aimAlongTrack = Math.Min(alongTrack + leadNm, 0.0);
@@ -280,7 +336,64 @@ public sealed class FinalApproachPhase : Phase
         TrueHeading reciprocal = _finalApproachCourse.ToReciprocal();
         var aimPoint = GeoMath.ProjectPoint(new LatLon(_anchorLat, _anchorLon), reciprocal, Math.Abs(aimAlongTrack));
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, aimPoint);
-        ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
+
+        // Visual-alignment ramp: blend the target heading from the FAC-derived bearing
+        // toward the physical runway centerline as the aircraft descends through the
+        // alignment window. This mirrors a pilot's transition at minimums — track the
+        // published course down to DA/MDA, then visually align with the runway for the
+        // last segment, finishing the alignment well above touchdown so the aircraft
+        // enters flare wings-level. Without the ramp, LandingPhase would snap the
+        // heading at the threshold and trip its bank-angle stab gate.
+        //
+        // Two windows depending on offset magnitude:
+        //   * < FacRampMinOffsetDeg          → no-op (FAC ≡ runway centerline)
+        //   * < OffsetApproachThresholdDeg   → small CIFP/mag-var rounding: 200 → 150 ft AGL
+        //   * ≥ OffsetApproachThresholdDeg   → genuine offset approach (LDA, RNAV w/ offset
+        //                                      CF, VOR offset, SOIA): 500 → 300 ft AGL,
+        //                                      anchored on the FAA-published Stabilized
+        //                                      Approach Point (AIM 5-4-20 7.2.b).
+        //
+        // Skipping the ramp when offset is sub-threshold matters: the lerp would
+        // otherwise pull the aim-point bearing toward runway heading even when XTE
+        // correction needs a different intercept angle, breaking pattern intercepts
+        // that rely on bearing being the aim-point intercept.
+        double agl = ctx.Aircraft.Altitude - _thresholdElevation;
+        double facVsRunwayDeg = _finalApproachCourse.AbsAngleTo(_runwayHeading);
+        if (facVsRunwayDeg >= FacRampMinOffsetDeg)
+        {
+            double rampStart;
+            double rampEnd;
+            if (facVsRunwayDeg >= OffsetApproachThresholdDeg)
+            {
+                rampStart = OffsetRampStartAgl;
+                rampEnd = OffsetRampEndAgl;
+            }
+            else
+            {
+                rampStart = MagVarRampStartAgl;
+                rampEnd = MagVarRampEndAgl;
+            }
+
+            double rampT;
+            if (agl >= rampStart)
+            {
+                rampT = 0.0;
+            }
+            else if (agl <= rampEnd)
+            {
+                rampT = 1.0;
+            }
+            else
+            {
+                rampT = (rampStart - agl) / (rampStart - rampEnd);
+            }
+
+            ctx.Targets.TargetTrueHeading = TrueHeading.Lerp(new TrueHeading(bearing), _runwayHeading, rampT);
+        }
+        else
+        {
+            ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
+        }
 
         // Target: glideslope altitude at current distance (true 3°/6° path).
         // Only follow GS once the aircraft is at/above it. Below GS and not yet captured,
@@ -398,7 +511,6 @@ public sealed class FinalApproachPhase : Phase
         }
 
         // Phase complete at threshold
-        double agl = ctx.Aircraft.Altitude - _thresholdElevation;
         bool complete = distNm < 0.05 || agl < 5;
         if (complete)
         {
