@@ -360,6 +360,34 @@ GroundNavigator.cs             # Core ground nav: angle-based speed scaling, mul
 RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 
+# Pilot/ — solo-training pilot AI (deterministic readbacks)
+Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → spoken-English readback string.
+                               # Picks the first-declared rule per CanonicalCommandType (textbook form), substitutes captures via AtcNumberParser
+Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
+                               # Uses PhraseologyVerbalizer for rule-backed commands; spawn check-in / "going around" live here directly
+Pilot/PilotPersonality.cs      # Enum (Verbatim) controlling readback variation; Verbatim emits the textbook form for every command
+
+# Speech/ — STT + phraseology rule engine (Yaat.Sim layer)
+Speech/PhraseologyMapper.cs    # Static: transcript → canonical command (rule-based layer of the hybrid NLU).
+                               # Pipeline: digit normalize → tokenize/strip filler → callsign extract → condition extract → longest-match against PhraseologyRules.All
+Speech/PhraseologyRule.cs      # Single rule record: Pattern (literal / literal? / {capture} tokens) + OutputTemplate + CanonicalType
+Speech/PhraseologyRules.cs     # Static catalog of all phraseology → canonical rules, organized by command category to mirror CommandRegistry
+Speech/PhraseologyCommandMapper.cs  # ISpeechCommandMapper adapter so the rule engine can sit alongside the LLM fallback in the speech pipeline list
+Speech/ISpeechCommandMapper.cs # Interface + MapContext record (active callsigns, programmed fixes, custom-fix patterns) shared by rule + LLM mappers
+Speech/CanonicalCommandGrammar.cs   # GBNF grammar generated from CommandRegistry.AliasToCanonicType; constrains LLM fallback output to valid canonical commands
+Speech/AtcNumberParser.cs      # Bidirectional spoken-numbers ↔ digit conversion (NormalizeDigits, FlightNumberToWords, AltitudeToWords)
+Speech/CallsignParser.cs       # Spoken callsign ↔ ICAO callsign (TryParseLeading/Trailing for transcripts; IcaoToSpoken for prompt seeding)
+Speech/AirlineTelephony.cs     # Static bidirectional airline ICAO ↔ telephony map; data from OpenFlights airlines.dat (ODbL 1.0)
+Speech/AircraftTypeNames.cs    # Static ICAO type designator → spoken manufacturer/family name (e.g. C25C → "Citation"); preprocessed from vNAS AircraftSpecs
+Speech/ScenarioCallsignExtractor.cs # Pulls custom telephony designators from scenario flight-plan remarks for whisper initial_prompt seeding
+Speech/NatoPhoneticAlphabet.cs # Single canonical NATO letter ↔ word map consumed by every other Speech/ class
+Speech/NatoLetterNormalizer.cs # Collapses runs of NATO words ("tango uniform whiskey") into single taxiway tokens; topology-aware via the airport taxiway set
+Speech/NatoNearMissResolver.cs # Levenshtein-1 rewrite of Whisper NATO mishears; runs after custom-fix collapse and before callsign extraction
+Speech/PhoneticFixMatcher.cs   # Fuzzy-match transcribed tokens against known fix names (Whisper transcribes fixes phonetically — this restores the canonical id)
+Speech/CustomFixSpeechPattern.cs # Multi-token spoken pattern → custom-fix canonical alias (e.g. "runway 30 numbers" → OAK30NUM); built at NavigationDatabase load
+Speech/WhisperBiasingPrompt.cs # Static initial_prompt assembled from ATC numbers, all PhraseologyRules literals, and the SCRAMBLED NATO alphabet (avoids the alphabetical-extrapolation prior)
+Speech/Data/                   # Static reference data: airlines.tsv (OpenFlights), aircraft-types.tsv (ICAO Doc 8643 via vNAS), source .meta + LICENSE-OPENFLIGHTS.txt
+
 # Data/
 Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways/airways/SID/STAR indexes + lazy CIFP procedures.
                                # Access via NavigationDatabase.Instance (initialized at startup, SetInstance for tests).
@@ -460,15 +488,38 @@ Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 
 ## Yaat.LayoutInspector — CLI tool (`tools/Yaat.LayoutInspector/`)
 
-Loads airport GeoJSON and queries the ground graph: node/edge detail, taxiway connectivity, runway exits with angles, BFS path traces for multi-hop exits, parking/spots.
+Loads airport GeoJSON and queries the ground graph (nodes, taxiways, runways, exits, BFS path traces, pathfinder route forensics, parking/spots), renders interactive HTML maps with optional tick overlays, and prints text tick-tables from `TickRecorder` JSON. Output modes are mutually exclusive: `--html` → HtmlRenderCommand, `--dump` → DumpCommand, `--tick-table`/`--tick-summary` → TickTableCommand, otherwise → QueryCommand (text or `--json`).
 
 ```
-Program.cs                     # CLI entry: flag parsing, NavData loading, formatter dispatch
-LayoutAnalyzer.cs              # Core: loads GeoJSON, query methods (overview, node, taxiway, runway, exits, BFS path, parking, spots)
-QueryResults.cs                # Result record types for all queries
-IFormatter.cs                  # Output formatter interface
-TextFormatter.cs               # Human-readable output
-JsonFormatter.cs               # JSON output (--json flag)
+Program.cs                     # Thin entry: parse args → bootstrap → dispatch ICommand
+CliOptions.cs                  # Options record + TryParse (all arg parsing lives here, including comma-separated --node id lists, batch query flags, --html-route, --pathfinder)
+UsageText.cs                   # --help text
+Bootstrap.cs                   # NavData auto-discovery (walks up to yaat.slnx) + debug logger wiring
+
+Commands/
+  ICommand.cs                  # int Execute(LayoutAnalyzer, CliOptions)
+  QueryCommand.cs              # Default: text/json query dispatch (--taxiway, --runway, --node, --exits, --bfs, --pathfinder, --parking, --spots, --intersection, --validate)
+  HtmlRenderCommand.cs         # --html <path>: interactive HTML render; honors all --html-* highlights and overlays --ticks animation when present
+  DumpCommand.cs               # --dump: full airport JSON to stdout
+  TickTableCommand.cs          # --tick-table / --tick-summary: TickRecorder JSON → fixed-width text table; optional --tick-ref + --tick-hold-shorts add cross-track / along-track columns
+
+Tick/
+  TickRecording.cs             # Top-level TickRecorder JSON schema (mirrors Yaat.Sim.Tests.Helpers.TickRecording); rejects unknown major versions
+  TickJsonReader.cs            # JSON file → TickRecording
+  TickDataRow.cs               # One per-tick aircraft state row used by both HTML overlay and text formatter
+  RunwayReference.cs           # Runway centerline (lat/lon + true heading) for signed xteFt / hdgErr columns
+  HoldShortResolver.cs         # Resolve --tick-hold-shorts taxiway letters → GroundNode list + along-track distance math
+
+LayoutAnalyzer.cs              # Core query engine over AirportGroundLayout
+LayoutValidator.cs             # Post-fillet sanity checks: stale node refs, degenerate arcs, tangent misalignment (run via --validate)
+QueryResults.cs                # Result record DTOs for all queries
+IFormatter.cs                  # Output formatter interface (text vs JSON)
+TextFormatter.cs               # Human-readable stdout formatter for query results
+JsonFormatter.cs               # JSON stdout formatter (--json flag)
+TickTableFormatter.cs          # Fixed-width text formatter for --tick-table / --tick-summary (not an IFormatter — operates on a row list, not single results)
+HtmlRenderer.cs                # Interactive HTML+Canvas renderer; embeds layout JSON in inspector-template.html, all rendering happens client-side
+inspector-template.html        # Page shell — pan/zoom, search, toggle highlights, tick-overlay player, URL-hash persisted view
+inspector.css / inspector.js   # Extracted styles + client logic (layout polish, forensic restyle); kept out of the C# string template
 ```
 
 ## Yaat.TickAnimator — CLI tool (`tools/Yaat.TickAnimator/`)
