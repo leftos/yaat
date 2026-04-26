@@ -18,8 +18,13 @@ public static class AirborneFollowHelper
     /// <summary>Desired following distance when leader is a turboprop (nm).</summary>
     private const double DesiredDistanceMediumNm = 1.5;
 
-    /// <summary>Desired following distance when leader is a jet (nm).</summary>
-    private const double DesiredDistanceLargeNm = 2.0;
+    /// <summary>
+    /// Desired following distance when leader is a jet (nm). 3.0 nm matches
+    /// the FAA 7110.65 §5-5-4 IFR same-runway / same-altitude radar separation
+    /// minimum, which is the floor real controllers aim for on jet-follows-jet
+    /// approaches even under visual separation.
+    /// </summary>
+    private const double DesiredDistanceLargeNm = 3.0;
 
     // Free-flight spacing is wider than pattern-tight spacing: pilots maintaining
     // visual separation outside the pattern have less context (no runway cues,
@@ -27,7 +32,7 @@ public static class AirborneFollowHelper
     // the tighter pattern constants above take over.
     private const double FreeFlightDistanceSmallNm = 1.5;
     private const double FreeFlightDistanceMediumNm = 2.0;
-    private const double FreeFlightDistanceLargeNm = 2.5;
+    private const double FreeFlightDistanceLargeNm = 3.5;
 
     /// <summary>Speed correction gain: kts per nm of distance error.</summary>
     private const double SpeedGainPerNm = 25.0;

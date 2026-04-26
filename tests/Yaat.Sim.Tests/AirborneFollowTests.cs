@@ -267,7 +267,7 @@ public class AirborneFollowTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Theory]
-    [InlineData(AircraftCategory.Jet, 2.0)]
+    [InlineData(AircraftCategory.Jet, 3.0)] // FAA 7110.65 §5-5-4 IFR radar separation minimum
     [InlineData(AircraftCategory.Turboprop, 1.5)]
     [InlineData(AircraftCategory.Piston, 1.0)]
     [InlineData(AircraftCategory.Helicopter, 1.0)]
