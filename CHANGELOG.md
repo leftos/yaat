@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.5-alpha [2026/04/26]
 
 ### Added
 - A searchable in-app command cheatsheet under **Help → Command Cheatsheet**. Lists every ATC command grouped by category (Heading, Altitude/Speed, Approach, Tower, Pattern, Ground, …) with verb, aliases, and short description. The filter box narrows by verb, alias, description, or category name; categories with no matches collapse out of the way.
