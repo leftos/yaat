@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Velopack;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -40,6 +41,21 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
 
     public ObservableCollection<TrainingRoomInfoDto> AvailableRooms { get; } = [];
 
+    private readonly UpdateService _updateService = new(channel: Program.VStripsChannel);
+    private UpdateInfo? _pendingUpdate;
+
+    [ObservableProperty]
+    private bool _isUpdateAvailable;
+
+    [ObservableProperty]
+    private string _updateVersion = "";
+
+    [ObservableProperty]
+    private int _updateProgress;
+
+    [ObservableProperty]
+    private bool _isDownloadingUpdate;
+
     public StandaloneViewModel()
     {
         Preferences = new UserPreferences();
@@ -72,6 +88,56 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
                 ActiveRoomName = null;
                 ActiveRoomId = null;
             });
+
+        _ = CheckForUpdateAsync();
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            var update = await _updateService.CheckForUpdateAsync();
+            if (update is null)
+            {
+                return;
+            }
+
+            _pendingUpdate = update;
+            UpdateVersion = update.TargetFullRelease.Version.ToString();
+            IsUpdateAvailable = true;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Update check failed");
+        }
+    }
+
+    [RelayCommand]
+    private async Task UpdateNowAsync()
+    {
+        if (_pendingUpdate is null)
+        {
+            return;
+        }
+
+        try
+        {
+            IsDownloadingUpdate = true;
+            await _updateService.DownloadUpdateAsync(_pendingUpdate, progress => Dispatcher.UIThread.Post(() => UpdateProgress = progress));
+            _updateService.ApplyUpdateAndRestart(_pendingUpdate);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Update apply failed");
+            IsDownloadingUpdate = false;
+        }
+    }
+
+    [RelayCommand]
+    private void DismissUpdate()
+    {
+        IsUpdateAvailable = false;
+        _pendingUpdate = null;
     }
 
     /// <summary>

@@ -29,6 +29,49 @@
             </MenuItem>
         </Menu>
 
+        <!-- Update banner -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#1A3A5C"
+                BorderBrush="#2A5A8C"
+                BorderThickness="0,1,0,0"
+                Padding="8,4"
+                IsVisible="{Binding IsUpdateAvailable}">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           FontSize="12">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="YAAT Flight Strips {0} is available.">
+                            <Binding Path="UpdateVersion" />
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+                <ProgressBar Grid.Column="1"
+                             Width="120"
+                             Height="14"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="{Binding UpdateProgress}"
+                             IsVisible="{Binding IsDownloadingUpdate}"
+                             VerticalAlignment="Center"
+                             Margin="8,0" />
+                <Button Grid.Column="2"
+                        Content="Update Now"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="4,0"
+                        Command="{Binding UpdateNowCommand}"
+                        IsVisible="{Binding !IsDownloadingUpdate}" />
+                <Button Grid.Column="3"
+                        Content="Later"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="4,0"
+                        Command="{Binding DismissUpdateCommand}"
+                        IsVisible="{Binding !IsDownloadingUpdate}" />
+            </Grid>
+        </Border>
+
         <!-- Status bar -->
         <Border DockPanel.Dock="Bottom"
                 Background="#252529"

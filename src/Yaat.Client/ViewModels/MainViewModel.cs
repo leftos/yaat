@@ -390,7 +390,7 @@ public partial class MainViewModel : ObservableObject
     private string _distanceReferenceFix = "";
 
     // Auto-update state
-    private readonly UpdateService _updateService = new();
+    private readonly UpdateService _updateService = new(channel: null);
     private UpdateInfo? _pendingUpdate;
 
     [ObservableProperty]

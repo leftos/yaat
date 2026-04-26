@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Velopack;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim;
 
 namespace Yaat.Client;
 
@@ -21,7 +22,8 @@ public static class Program
 
         builder.Run();
 
-        AppLog.Initialize();
+        YaatPaths.Initialize("yaat");
+        AppLog.Initialize("yaat-client.log");
         var log = AppLog.CreateLogger("Program");
         log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
         log.LogInformation("Log file: {LogPath}", AppLog.LogPath);

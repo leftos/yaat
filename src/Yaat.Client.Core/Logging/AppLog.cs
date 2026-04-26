@@ -14,9 +14,9 @@ public static class AppLog
 
     public static string LogPath { get; private set; } = "";
 
-    public static void Initialize()
+    public static void Initialize(string logFileName)
     {
-        LogPath = YaatPaths.Combine("yaat-client.log");
+        LogPath = YaatPaths.Combine(logFileName);
 
         var provider = new FileLoggerProvider(LogPath);
 

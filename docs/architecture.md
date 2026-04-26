@@ -52,12 +52,14 @@ Shared code referenced by Yaat.Client and Yaat.VStrips. No LM-Kit, PortAudio, or
 
 ```
 Logging/
-  AppLog.cs                     # Static logger factory
-  FileLoggerProvider.cs         # Writes to %LOCALAPPDATA%/yaat/yaat-client.log
+  AppLog.cs                     # Static logger factory; Initialize(logFileName) called by each app's Program.cs
+  FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log or yaat-vstrips.log)
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
-  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json
+  UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (per-app: %LOCALAPPDATA%/yaat/ for Client, /yaat-vstrips/ for VStrips)
+  UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel),
+                                # "vstrips-{platform}" for Yaat.VStrips so each app downloads its own installer from the shared GitHub release.
 
 ViewModels/
   VStripsViewModel.cs           # Root vStrips VM; manages strip bays, items, rack state
@@ -86,10 +88,6 @@ Services/
 ## Yaat.Client — Avalonia desktop app (`src/Yaat.Client/`)
 
 ```
-Logging/
-  AppLog.cs                     # Static logger factory
-  FileLoggerProvider.cs         # Writes to %LOCALAPPDATA%/yaat/yaat-client.log
-
 Models/
   AircraftModel.cs              # ObservableObject wrapping AircraftDto; computed displays; FromDto/UpdateFromDto
   TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
@@ -104,6 +102,7 @@ Services/
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
   CommandHistoryFormatter.cs    # Pure formatter — canonicalizes partial callsign prefix in up-arrow recall history
   TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
+  (UpdateService.cs lives in Yaat.Client.Core; MainViewModel constructs it with channel: null)
   ArgumentSuggester.cs           # Command argument autocomplete from CommandRegistry metadata (literal options + contextual fix/runway suggestions)
   FixSuggester.cs               # Fix name suggestions from FixDb
   AddCommandSuggester.cs        # ADD command callsign/model suggestions
@@ -181,10 +180,12 @@ Views/Radar/
 Flight strip display client independent of Yaat.Client. References Yaat.Client.Core only. 109 MB self-contained publish (no LM-Kit, no PortAudio, no SharpHook). Students run this alongside CRC while YAAT awaits vNAS vStrips approval.
 
 ```
-StandaloneViewModel.cs         # ~200 lines: owns ServerConnection + VStripsViewModel + connect/room flow; handles lifecycle
+StandaloneViewModel.cs         # Owns ServerConnection + VStripsViewModel + connect/room flow; also holds the auto-update banner state (UpdateService with channel: vstrips-{platform})
 RoomPickerWindow.axaml.cs      # Room selection after login
+MainWindow.axaml{,.cs}         # DockPanel host: menu bar, update banner (visible when UpdateService finds a release), status bar, VStripsView
 App.axaml.cs                   # XAML app root
-Program.cs                     # Entry point
+Program.cs                     # Entry point. VStripsChannel constant — must match the --channel flag in release.yml's vpk pack invocations.
+                               # Initializes YaatPaths to %LOCALAPPDATA%/yaat-vstrips/ so settings/log don't collide with Yaat.Client.
 ```
 
 ## Yaat.Sim — Shared simulation library (`src/Yaat.Sim/`)

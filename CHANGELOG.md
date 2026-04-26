@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.4-alpha [2026/04/25]
+
+### Fixed
+- **Auto-update downloaded the wrong app.** In v0.1.3-alpha, clicking "Update Now" in YAAT Client could download and install YAAT Flight Strips on top of it (and vice versa), because both apps published their Velopack release index files (`RELEASES`, `releases.win.json`, `assets.win.json`) under the same filenames to the shared GitHub release — whichever job uploaded last won. Each app now publishes on its own Velopack channel (`win`/`linux`/`osx` for Client, `vstrips-win`/`vstrips-linux`/`vstrips-osx` for Flight Strips) and the auto-updater picks the matching channel for the running app. **If your Yaat.Client install was overwritten by Flight Strips during a v0.1.3-alpha update, you'll need to manually re-install Yaat.Client from the v0.1.4-alpha installer — there's no in-app way to recover.**
+- YAAT Flight Strips now uses its own settings folder (`%LOCALAPPDATA%/yaat-vstrips/`) instead of sharing `%LOCALAPPDATA%/yaat/` with YAAT Client. The two apps no longer overwrite each other's preferences or log files.
+
+### Added
+- YAAT Flight Strips now offers in-app auto-updates with the same "Update Now" / "Later" banner as YAAT Client.
+
 ## v0.1.3-alpha [2026/04/25]
 
 ### Changed

@@ -221,6 +221,7 @@ jobs:
             --mainExe Yaat.VStrips.exe `
             --packTitle "YAAT Flight Strips" `
             --icon src/Yaat.Client/Resources/icon.ico `
+            --channel vstrips-win `
             --outputDir releases-vstrips
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
@@ -276,6 +277,7 @@ jobs:
             --mainExe Yaat.VStrips \
             --packTitle "YAAT Flight Strips" \
             --icon src/Yaat.Client/Resources/icon.png \
+            --channel vstrips-linux \
             --outputDir releases-vstrips
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
@@ -347,6 +349,7 @@ jobs:
             --mainExe Yaat.VStrips \
             --packTitle "YAAT Flight Strips" \
             --icon "$ICNS_PATH" \
+            --channel vstrips-osx \
             --outputDir releases-vstrips
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
