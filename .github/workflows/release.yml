@@ -471,3 +471,7 @@ jobs:
         with:
           body: ${{ steps.body.outputs.body }}
           files: release/*
+          # Use a PAT instead of GITHUB_TOKEN so the resulting release: published
+          # event triggers discord-release.yml. GitHub suppresses workflow chaining
+          # when events are fired by the default token.
+          token: ${{ secrets.DISPATCH_TOKEN }}
