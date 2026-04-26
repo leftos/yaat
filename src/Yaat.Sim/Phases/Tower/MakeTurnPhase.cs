@@ -16,6 +16,14 @@ public sealed class MakeTurnPhase : Phase
     private const double CompletionToleranceDeg = 5.0;
     private const double ExitAlignmentDeg = 10.0;
 
+    /// <summary>
+    /// Always-ahead heading lead applied while the turn is in progress.
+    /// Far above <c>FlightPhysics.HeadingSnapDeg</c> (0.5°) so the snap that
+    /// clears <c>PreferredTurnDirection</c> never fires until the exit
+    /// window opens at <see cref="ExitAlignmentDeg"/> from the goal.
+    /// </summary>
+    private const double SustainedTurnLeadDeg = 90.0;
+
     private TrueHeading _startHeading;
     private double _cumulativeTurn;
     private TrueHeading _lastHeading;
@@ -58,10 +66,7 @@ public sealed class MakeTurnPhase : Phase
         _startHeading = ctx.Aircraft.TrueHeading;
         _lastHeading = ctx.Aircraft.TrueHeading;
 
-        // Set initial turn target 1° past start in the turn direction
-        double offset = Direction == TurnDirection.Left ? -1 : 1;
-        ctx.Targets.TargetTrueHeading = _startHeading + offset;
-        ctx.Targets.PreferredTurnDirection = Direction;
+        SetSustainedTurnTarget(ctx);
         ctx.Targets.NavigationRoute.Clear();
 
         Log.LogDebug(
@@ -80,11 +85,21 @@ public sealed class MakeTurnPhase : Phase
         _cumulativeTurn += Math.Abs(delta);
         _lastHeading = current;
 
-        if (!_exiting && _cumulativeTurn >= TargetDegrees - ExitAlignmentDeg)
+        if (!_exiting && (_cumulativeTurn >= TargetDegrees - ExitAlignmentDeg))
         {
             _exiting = true;
             ctx.Targets.TargetTrueHeading = ComputeExitHeading();
             ctx.Targets.PreferredTurnDirection = Direction;
+        }
+        else if (!_exiting)
+        {
+            // Re-issue the target every tick. FlightPhysics.UpdateHeading clears
+            // PreferredTurnDirection when it snaps to the goal (|diff| < 0.5°),
+            // so a static target = start ± 1° stalls after the very first tick.
+            // A 90° lead keeps |diff| well above the snap threshold and keeps
+            // PreferredTurnDirection set, so the aircraft turns continuously
+            // until the exit window opens above.
+            SetSustainedTurnTarget(ctx);
         }
 
         bool complete = _cumulativeTurn >= TargetDegrees - CompletionToleranceDeg;
@@ -94,6 +109,13 @@ public sealed class MakeTurnPhase : Phase
         }
 
         return complete;
+    }
+
+    private void SetSustainedTurnTarget(PhaseContext ctx)
+    {
+        double offset = Direction == TurnDirection.Left ? -SustainedTurnLeadDeg : SustainedTurnLeadDeg;
+        ctx.Targets.TargetTrueHeading = ctx.Aircraft.TrueHeading + offset;
+        ctx.Targets.PreferredTurnDirection = Direction;
     }
 
     private TrueHeading ComputeExitHeading()
