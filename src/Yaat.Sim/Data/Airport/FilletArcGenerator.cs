@@ -145,18 +145,20 @@ public static class FilletArcGenerator
         int rescued = RescueOrphanedTangentNodes(layout);
         int redundant = RemoveRedundantPreserveEdges(layout);
         int duplicateCornerArcs = RemoveDuplicateCornerArcs(layout);
+        int parallelBypassEdges = RemoveParallelBypassEdges(layout);
 
         layout.RebuildAdjacencyLists();
 
         Log.LogInformation(
-            "Fillet arcs: {FilletedNodes} filleted, {Arcs} arcs, {Merged} merged, {NodesMerged} coincident merged, {Rescued} rescued, {Redundant} redundant preserve edges removed, {DupCorners} duplicate corner arcs removed",
+            "Fillet arcs: {FilletedNodes} filleted, {Arcs} arcs, {Merged} merged, {NodesMerged} coincident merged, {Rescued} rescued, {Redundant} redundant preserve edges removed, {DupCorners} duplicate corner arcs removed, {Bypasses} parallel bypass edges removed",
             filletedCount,
             arcCount,
             mergedCount,
             nodesMerged,
             rescued,
             redundant,
-            duplicateCornerArcs
+            duplicateCornerArcs,
+            parallelBypassEdges
         );
     }
 
@@ -247,6 +249,221 @@ public static class FilletArcGenerator
         }
 
         return toRemove.Count;
+    }
+
+    /// <summary>
+    /// Post-fillet cleanup: remove parallel-collinear bypass edges. When two
+    /// adjacent intersections each emit a phase-d straight-edge chain on the
+    /// same physical taxiway pavement (e.g. SFO @141 and @268 both place
+    /// tangent chains on the shared E centerline between them), the resulting
+    /// graph contains two parallel collinear chains. The longer "bypass" edge
+    /// from a node skips intermediate tangent nodes that the shorter edge
+    /// reaches via a chain — and the bypass's endpoint is often a tangent that
+    /// only continues into a foreign-taxiway corner arc, so walkers stepping
+    /// onto the bypass dead-end at a transition arc instead of staying on the
+    /// authorized taxiway.
+    ///
+    /// <para>
+    /// Detection: for each node N with two outgoing same-taxiway phase-d
+    /// straight edges in the same bearing bucket (5°), the longer edge is a
+    /// bypass iff its endpoint is reachable from the shorter edge's endpoint
+    /// by walking forward along the same taxiway with the same general
+    /// bearing through straight phase-d edges and SINGLE-named taxiway arcs.
+    /// (Multi-named transition arcs are excluded from the walk — they
+    /// represent corner transitions to other taxiways, not continuations.)
+    /// Iterates until no more bypasses found.
+    /// </para>
+    ///
+    /// <para>
+    /// Conservative: only phase-d origin edges are eligible for removal, so
+    /// original GeoJSON straight edges are preserved. Corner arcs are never
+    /// touched. Tangent nodes are never removed — only the bypass straight
+    /// edges that skip them.
+    /// </para>
+    /// </summary>
+    private static int RemoveParallelBypassEdges(AirportGroundLayout layout)
+    {
+        const int BearingBucketDeg = 5;
+        const double WalkBearingToleranceDeg = 30.0;
+        const int MaxWalkSteps = 10;
+
+        int totalRemoved = 0;
+
+        bool changed;
+        do
+        {
+            // Refresh adjacency before each pass so node.Edges reflects prior removals.
+            layout.RebuildAdjacencyLists();
+            changed = false;
+            var toRemove = new HashSet<GroundEdge>();
+
+            foreach (var node in layout.Nodes.Values)
+            {
+                var groups = new Dictionary<(string Twy, int Bucket), List<(GroundEdge Edge, GroundNode Other, double Bearing)>>();
+
+                foreach (var iedge in node.Edges)
+                {
+                    if (iedge is not GroundEdge edge)
+                    {
+                        continue;
+                    }
+                    if (edge.Origin is null || !edge.Origin.StartsWith("Fillet:phase-d-", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    var other = edge.Nodes[0].Id == node.Id ? edge.Nodes[1] : edge.Nodes[0];
+                    double bearing = GeoMath.BearingTo(node.Position, other.Position);
+                    int bucket = ((int)Math.Round(bearing / BearingBucketDeg) + 72) % 72;
+                    var key = (edge.TaxiwayName, bucket);
+                    if (!groups.TryGetValue(key, out var list))
+                    {
+                        list = [];
+                        groups[key] = list;
+                    }
+                    list.Add((edge, other, bearing));
+                }
+
+                foreach (var (_, edges) in groups)
+                {
+                    if (edges.Count < 2)
+                    {
+                        continue;
+                    }
+                    edges.Sort((a, b) => a.Edge.DistanceNm.CompareTo(b.Edge.DistanceNm));
+
+                    for (int i = 0; i < edges.Count - 1; i++)
+                    {
+                        var shorter = edges[i];
+                        if (toRemove.Contains(shorter.Edge))
+                        {
+                            continue;
+                        }
+
+                        for (int j = i + 1; j < edges.Count; j++)
+                        {
+                            var longer = edges[j];
+                            if (toRemove.Contains(longer.Edge))
+                            {
+                                continue;
+                            }
+
+                            if (
+                                CanReachByWalkingTaxiway(
+                                    shorter.Other,
+                                    longer.Other,
+                                    longer.Edge.TaxiwayName,
+                                    longer.Bearing,
+                                    WalkBearingToleranceDeg,
+                                    toRemove,
+                                    MaxWalkSteps
+                                )
+                            )
+                            {
+                                Log.LogDebug(
+                                    "[BypassDedup] Removing bypass {Twy} #{From}↔#{To} ({Dist:F0}ft, bearing={Brg:F1}°) — endpoint reachable via #{ShortMid} ({ShortDist:F0}ft)",
+                                    longer.Edge.TaxiwayName,
+                                    node.Id,
+                                    longer.Other.Id,
+                                    longer.Edge.DistanceNm * GeoMath.FeetPerNm,
+                                    longer.Bearing,
+                                    shorter.Other.Id,
+                                    shorter.Edge.DistanceNm * GeoMath.FeetPerNm
+                                );
+                                toRemove.Add(longer.Edge);
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (toRemove.Count > 0)
+            {
+                foreach (var e in toRemove)
+                {
+                    layout.Edges.Remove(e);
+                }
+                totalRemoved += toRemove.Count;
+            }
+        } while (changed);
+
+        return totalRemoved;
+    }
+
+    /// <summary>
+    /// BFS forward along same-taxiway edges with bearings within
+    /// <paramref name="tolDeg"/> of <paramref name="targetBearing"/>. Returns
+    /// true if <paramref name="goal"/> is reachable from <paramref name="start"/>.
+    /// Excludes edges in <paramref name="excluded"/> (pending-removal bypasses)
+    /// and multi-named transition arcs (which represent corner exits to other
+    /// taxiways, not continuations of the named taxiway).
+    /// </summary>
+    private static bool CanReachByWalkingTaxiway(
+        GroundNode start,
+        GroundNode goal,
+        string twy,
+        double targetBearing,
+        double tolDeg,
+        ISet<GroundEdge> excluded,
+        int maxSteps
+    )
+    {
+        if (start.Id == goal.Id)
+        {
+            return true;
+        }
+
+        var visited = new HashSet<int> { start.Id };
+        var queue = new Queue<GroundNode>();
+        queue.Enqueue(start);
+
+        for (int step = 0; step < maxSteps && queue.Count > 0; step++)
+        {
+            int levelCount = queue.Count;
+            for (int q = 0; q < levelCount; q++)
+            {
+                var current = queue.Dequeue();
+                foreach (var edge in current.Edges)
+                {
+                    if (!edge.MatchesTaxiway(twy))
+                    {
+                        continue;
+                    }
+                    if (edge is GroundEdge straight && excluded.Contains(straight))
+                    {
+                        continue;
+                    }
+                    // Multi-named arcs (e.g. F-E) are corner transitions — they
+                    // exit the current taxiway. Don't treat as continuations.
+                    if (edge is GroundArc arc && arc.TaxiwayNames.Length != 1)
+                    {
+                        continue;
+                    }
+
+                    var other = edge.Nodes[0].Id == current.Id ? edge.Nodes[1] : edge.Nodes[0];
+                    if (visited.Contains(other.Id))
+                    {
+                        continue;
+                    }
+
+                    double bearing = GeoMath.BearingTo(current.Position, other.Position);
+                    if (GeoMath.AbsBearingDifference(bearing, targetBearing) > tolDeg)
+                    {
+                        continue;
+                    }
+
+                    if (other.Id == goal.Id)
+                    {
+                        return true;
+                    }
+                    visited.Add(other.Id);
+                    queue.Enqueue(other);
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

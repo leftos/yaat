@@ -11,6 +11,7 @@
 - Partial target callsigns in `BEHIND` / `GIVEWAY` (e.g. `BEHIND 152SP`) now resolve to the matching aircraft, matching how partial callsigns already work at the start of a command and in `FOLLOW` / `RTIS`.
 - Aircraft no longer stop when taxiing past a parked aircraft on an adjacent taxiway. The ground-conflict check now uses the parked aircraft's actual wingspan to determine wingtip clearance instead of treating anything within ~100 ft and a 90° forward cone as a hard stop.
 - A longer aircraft trailing a shorter one (e.g. an A350 behind an E175 on a hold-short queue) now stops with its nose clear of the leader's tail. The previous stop threshold only used the leader's length, which underestimated separation whenever the trailer was bigger.
+- Aircraft no longer spin in place at certain 4-way taxi intersections. At crossings like SFO's E/F intersection south of 28L, taxi routes to a parking spot could include a detour through a sub-2 kt corner arc that the aircraft physically couldn't follow, producing a slow on-the-spot pirouette. The pathfinder now sees a cleaned-up graph (parallel bypass edges from adjacent fillets removed) and routes through the proper centerline.
 
 ## v0.1.2-alpha [2026/04/25]
 
