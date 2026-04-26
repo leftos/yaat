@@ -13,6 +13,7 @@
 
 ### Changed
 - The "going around" warning issued when an approach becomes destabilized now names the specific reason — e.g. *"unstable: bank 22°"*, *"unstable: descent 1450 fpm"*, or *"unstable: 540 ft off centerline, IAS 195 > 182 kt (1.3·Vref)"* — instead of the bare token *"unstabilized"*.
+- `WARP` no longer requires all four arguments. The fix is still required, but heading, altitude, and speed are now optional — when omitted, the aircraft keeps its current value for that parameter (matching the radar context-menu Warp, which already pre-fills current values). Trailing tokens are matched left-to-right against `heading → altitude → speed`, so `WARP SJC` keeps everything but position, `WARP SJC 270` only changes heading, and `WARP SJC 5000` only changes altitude (since 5000 can't be a heading).
 
 ## v0.1.4-alpha [2026/04/25]
 

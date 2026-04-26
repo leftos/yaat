@@ -404,7 +404,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Force altitude | `CMN 240` | — | — |
 | Force speed | `SPDN 250` | — | — |
 | Set turn rate | `TRATE 3` | — | — |
-| Warp | `WARP FRD hdg alt spd` | — | — |
+| Warp | `WARP FRD [hdg] [alt] [spd]` | — | — |
 | Warp ground | `WARPG location` | — | — |
 
 ---
@@ -1046,11 +1046,17 @@ Teleport an aircraft to a specific position:
 |---------|--------|
 | `WARP OAK005002 020 050 120` | Warp to OAK 005°/2nm, heading 020, altitude 5,000 ft, speed 120 kts |
 | `WARP SJC 180 100 250` | Warp to SJC fix, heading 180, altitude 10,000 ft, speed 250 kts |
+| `WARP SJC` | Teleport to SJC keeping current heading, altitude, and speed |
+| `WARP SJC 270` | Teleport to SJC and turn to 270; altitude/speed unchanged |
+| `WARP SJC 5000` | Teleport to SJC and set altitude 5,000 ft; heading/speed unchanged |
+| `WARP SJC 5000 220` | Teleport to SJC, altitude 5,000 ft, speed 220 kts; heading unchanged |
 | `WARPG C B` | Warp to the intersection of taxiways C and B (ground aircraft only) |
 | `WARPG #42` | Warp to node ID 42 (ground aircraft only; use Ctrl+D debug overlay to find IDs) |
 | `WARPG @B12` | Warp to parking spot B12 (ground aircraft only) |
 
-**WARP** accepts a fix name or [FRD](#fix-radial-distance-frd) as the position, followed by heading (1-360), altitude (shorthand hundreds), and speed (knots).
+**WARP** accepts a fix name or [FRD](#fix-radial-distance-frd) as the position. The trailing heading, altitude, and speed are optional — when omitted, the aircraft keeps its current value for that parameter (the same way the radar context-menu Warp pre-fills current values).
+
+Trailing tokens are matched left-to-right against `heading → altitude → speed`. A token fills `heading` only if it is an integer in 1–360; otherwise it skips heading and is tried against altitude (`AltitudeResolver`: shorthand hundreds, full feet, or AGL form), then speed. So `WARP SJC 5000` sets altitude 5,000 ft (the value can't be a heading), and `WARP SJC 270` sets heading 270 (any value 1–360 is taken as a heading first). To set altitude alone in heading-overlap range, use full feet (e.g., `WARP SJC 5000`) rather than shorthand (`50`).
 
 **WARPG** accepts either two taxiway names (finds their intersection) or a node ID reference (`#nodeId`). Use the Ground View debug overlay (Ctrl+D) to find node IDs.
 

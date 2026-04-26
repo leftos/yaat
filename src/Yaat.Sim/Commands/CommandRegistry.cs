@@ -190,7 +190,12 @@ public static class CommandRegistry
                 [
                     O(
                         null,
-                        [R("FRD", "fix/radial/distance"), R("heading", "0-360"), R("altitude", "in hundreds"), R("speed", "knots IAS")],
+                        [
+                            R("FRD", "fix/radial/distance"),
+                            Opt("heading", "1-360 (omit to keep current)"),
+                            Opt("altitude", "feet or hundreds (omit to keep current)"),
+                            Opt("speed", "knots IAS (omit to keep current)"),
+                        ],
                         "Teleport aircraft to position"
                     ),
                 ]

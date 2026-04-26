@@ -1603,23 +1603,26 @@ public static class CommandParser
 
     private static PR ParseWarp(string? arg)
     {
-        // WARP <FRD|FIX> <heading> <altitude> <speed>
+        // WARP <FRD|FIX> [heading] [altitude] [speed]
+        // heading/altitude/speed are optional and slot-filled left-to-right.
+        // A token fills `heading` only if it parses as int in [1,360]; otherwise heading is skipped
+        // and the same token is tried against altitude (via AltitudeResolver), then speed (positive int).
+        // Skipped slots default to null and the handler reuses the aircraft's current value.
         if (arg is null)
         {
-            return PR.Fail("WARP requires fix heading altitude speed");
+            return PR.Fail("WARP requires a fix");
         }
 
         var navDb = NavigationDatabase.Instance;
 
         var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length != 4)
+        if (parts.Length is < 1 or > 4)
         {
-            return PR.Fail($"invalid warp format '{arg}' (expected fix heading altitude speed)");
+            return PR.Fail($"invalid warp format '{arg}' (expected fix [heading] [altitude] [speed])");
         }
 
         var posToken = parts[0].ToUpperInvariant();
 
-        // Try direct fix lookup first
         double lat,
             lon;
         var fixPos = navDb.GetFixPosition(posToken);
@@ -1630,7 +1633,6 @@ public static class CommandParser
         }
         else
         {
-            // Try FRD resolution
             var frd = FrdResolver.Resolve(posToken, navDb);
             if (frd is null)
             {
@@ -1641,23 +1643,55 @@ public static class CommandParser
             lon = frd.Value.Lon;
         }
 
-        if (!int.TryParse(parts[1], out var heading) || heading < 1 || heading > 360)
+        int? heading = null;
+        int? altitude = null;
+        int? speed = null;
+        var headingOpen = true;
+        var altitudeOpen = true;
+        var speedOpen = true;
+
+        for (var i = 1; i < parts.Length; i++)
         {
-            return PR.Fail($"invalid warp heading '{parts[1]}'");
+            var token = parts[i];
+
+            if (headingOpen)
+            {
+                if (int.TryParse(token, out var h) && (h >= 1) && (h <= 360))
+                {
+                    heading = h;
+                    headingOpen = false;
+                    continue;
+                }
+                headingOpen = false;
+            }
+
+            if (altitudeOpen)
+            {
+                var alt = AltitudeResolver.Resolve(token);
+                if (alt is not null)
+                {
+                    altitude = alt;
+                    altitudeOpen = false;
+                    continue;
+                }
+                altitudeOpen = false;
+            }
+
+            if (speedOpen)
+            {
+                if (int.TryParse(token, out var s) && (s > 0))
+                {
+                    speed = s;
+                    speedOpen = false;
+                    continue;
+                }
+                speedOpen = false;
+            }
+
+            return PR.Fail($"invalid warp argument '{token}' (no remaining slot accepts it)");
         }
 
-        int? altitude = AltitudeResolver.Resolve(parts[2]);
-        if (altitude is null)
-        {
-            return PR.Fail($"invalid warp altitude '{parts[2]}'");
-        }
-
-        if (!int.TryParse(parts[3], out var speed) || speed <= 0)
-        {
-            return PR.Fail($"invalid warp speed '{parts[3]}'");
-        }
-
-        return PR.Ok(new WarpCommand(posToken, lat, lon, new MagneticHeading(heading), altitude.Value, speed));
+        return PR.Ok(new WarpCommand(posToken, lat, lon, heading is null ? null : new MagneticHeading(heading.Value), altitude, speed));
     }
 
     private static PR ParseWarpGround(string arg)

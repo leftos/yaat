@@ -610,6 +610,10 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyWarp(WarpCommand cmd, AircraftState aircraft)
     {
+        var heading = cmd.MagneticHeading ?? aircraft.MagneticHeading;
+        var altitude = cmd.Altitude ?? (int)Math.Round(aircraft.Altitude);
+        var speed = cmd.Speed ?? (int)Math.Round(aircraft.IndicatedAirspeed);
+
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         if (aircraft.Phases is not null)
@@ -622,24 +626,22 @@ internal static class FlightCommandHandler
         aircraft.Targets.TurnRateOverride = null;
         aircraft.Targets.HasExplicitTurnRate = false;
         aircraft.Position = new LatLon(cmd.Latitude, cmd.Longitude);
-        aircraft.TrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
-        aircraft.TrueTrack = cmd.MagneticHeading.ToTrue(aircraft.Declination);
-        aircraft.Altitude = cmd.Altitude;
+        aircraft.TrueHeading = heading.ToTrue(aircraft.Declination);
+        aircraft.TrueTrack = heading.ToTrue(aircraft.Declination);
+        aircraft.Altitude = altitude;
         aircraft.VerticalSpeed = 0;
-        aircraft.IndicatedAirspeed = cmd.Speed;
-        aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
-        aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
+        aircraft.IndicatedAirspeed = speed;
+        aircraft.Targets.TargetTrueHeading = heading.ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = heading;
         aircraft.Targets.PreferredTurnDirection = null;
-        aircraft.Targets.TargetAltitude = cmd.Altitude;
-        aircraft.Targets.AssignedAltitude = cmd.Altitude;
-        aircraft.Targets.TargetSpeed = cmd.Speed;
-        aircraft.Targets.AssignedSpeed = cmd.Speed;
+        aircraft.Targets.TargetAltitude = altitude;
+        aircraft.Targets.AssignedAltitude = altitude;
+        aircraft.Targets.TargetSpeed = speed;
+        aircraft.Targets.AssignedSpeed = speed;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.IsOnGround = false;
-        return CommandDispatcher.Ok(
-            $"Warped to {cmd.PositionLabel}, heading {cmd.MagneticHeading.Degrees:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts"
-        );
+        return CommandDispatcher.Ok($"Warped to {cmd.PositionLabel}, heading {heading.Degrees:000}, {altitude:N0} ft, {speed} kts");
     }
 
     internal static CommandResult ApplyWarpGround(WarpGroundCommand cmd, AircraftState aircraft)

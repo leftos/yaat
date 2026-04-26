@@ -1,3 +1,4 @@
+using System.Text;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
@@ -379,7 +380,7 @@ public static class CommandDescriber
             ForceSpeedCommand cmd => $"SPDN {cmd.Speed}",
             SetTurnRateCommand cmd => $"TRATE {cmd.DegreesPerSecond}",
             ClearTurnRateCommand => "TRATE",
-            WarpCommand cmd => $"WARP {cmd.PositionLabel} {cmd.MagneticHeading.Degrees:000} {cmd.Altitude} {cmd.Speed}",
+            WarpCommand cmd => FormatWarpCanonical(cmd),
             WarpGroundCommand cmd => cmd.NodeId is int nid ? $"WARPG #{nid}"
             : cmd.ParkingName is string p ? $"WARPG @{p}"
             : $"WARPG {cmd.Taxiway1} {cmd.Taxiway2}",
@@ -634,7 +635,7 @@ public static class CommandDescriber
             ForceSpeedCommand cmd => $"Force speed {cmd.Speed}",
             SetTurnRateCommand cmd => $"Turn rate {cmd.DegreesPerSecond} deg/sec",
             ClearTurnRateCommand => "Turn rate default",
-            WarpCommand cmd => $"Warp to {cmd.PositionLabel}, heading {cmd.MagneticHeading.Degrees:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts",
+            WarpCommand cmd => FormatWarpNatural(cmd),
             WarpGroundCommand cmd => cmd.NodeId is int nid2 ? $"Warp to node #{nid2}"
             : cmd.ParkingName is string p2 ? $"Warp to parking {p2}"
             : $"Warp to {cmd.Taxiway1}/{cmd.Taxiway2} intersection",
@@ -927,6 +928,32 @@ public static class CommandDescriber
             SpeedModifier.Ceiling => $"SPD {cmd.Speed}-",
             _ => $"SPD {cmd.Speed}",
         };
+    }
+
+    private static string FormatWarpCanonical(WarpCommand cmd)
+    {
+        var sb = new StringBuilder("WARP ").Append(cmd.PositionLabel);
+        if (cmd.MagneticHeading is { } h)
+        {
+            sb.Append(' ').Append($"{h.Degrees:000}");
+        }
+        if (cmd.Altitude is { } a)
+        {
+            sb.Append(' ').Append(a);
+        }
+        if (cmd.Speed is { } s)
+        {
+            sb.Append(' ').Append(s);
+        }
+        return sb.ToString();
+    }
+
+    private static string FormatWarpNatural(WarpCommand cmd)
+    {
+        var headingPart = cmd.MagneticHeading is { } h ? $"heading {h.Degrees:000}" : "heading unchanged";
+        var altitudePart = cmd.Altitude is { } a ? $"{a:N0} ft" : "altitude unchanged";
+        var speedPart = cmd.Speed is { } s ? $"{s} kts" : "speed unchanged";
+        return $"Warp to {cmd.PositionLabel}, {headingPart}, {altitudePart}, {speedPart}";
     }
 
     private static string FormatSpeedNatural(SpeedCommand cmd)
