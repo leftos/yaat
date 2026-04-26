@@ -397,9 +397,13 @@ jobs:
           cp artifacts/yaat-installer-macos/YaatClient-osx-Setup.pkg "release/YaatClient-${VERSION}-osx-Setup.pkg"
           cp artifacts/yaat-installer-linux/YaatClient.AppImage      "release/YaatClient-${VERSION}-linux.AppImage"
 
-          cp artifacts/yaat-vstrips-installer-win/YaatVStrips-win-Setup.exe   "release/YaatVStrips-${VERSION}-win-Setup.exe"
-          cp artifacts/yaat-vstrips-installer-macos/YaatVStrips-osx-Setup.pkg "release/YaatVStrips-${VERSION}-osx-Setup.pkg"
-          cp artifacts/yaat-vstrips-installer-linux/YaatVStrips.AppImage     "release/YaatVStrips-${VERSION}-linux.AppImage"
+          # Note: vpk pack --channel embeds the channel into installer filenames
+          # (YaatVStrips-vstrips-win-Setup.exe, etc), so the source paths include
+          # the channel suffix — only the destination keeps the user-facing
+          # {App}-{Version}-{Platform} convention.
+          cp artifacts/yaat-vstrips-installer-win/YaatVStrips-vstrips-win-Setup.exe     "release/YaatVStrips-${VERSION}-win-Setup.exe"
+          cp artifacts/yaat-vstrips-installer-macos/YaatVStrips-vstrips-osx-Setup.pkg   "release/YaatVStrips-${VERSION}-osx-Setup.pkg"
+          cp artifacts/yaat-vstrips-installer-linux/YaatVStrips-vstrips-linux.AppImage  "release/YaatVStrips-${VERSION}-linux.AppImage"
 
           # ---- Loose single-file binaries (Portable form) ----
           # These are the self-contained `dotnet publish` outputs, renamed to
