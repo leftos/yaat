@@ -832,6 +832,7 @@ internal static class NavigationCommandHandler
         aircraft.Targets.AssignedSpeed = null;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -892,6 +893,9 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.SidViaCeiling = cmd.Altitude;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
+        // Reset procedural speed memory; ApplyFirstConstrainedFix will repopulate
+        // it from the next constrained fix in the route.
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         ApplyFirstConstrainedFix(aircraft);
 
         if (cmd.Altitude is not null)
@@ -912,6 +916,9 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.StarViaFloor = cmd.Altitude;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
+        // Reset procedural speed memory; ApplyFirstConstrainedFix will repopulate
+        // it from the next constrained fix in the route.
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         ApplyFirstConstrainedFix(aircraft);
 
         // DVIA SPD <speed> <fix>: inject a speed restriction at the specified fix in the nav route

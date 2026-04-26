@@ -156,6 +156,9 @@ internal static class FlightCommandHandler
 
         aircraft.Targets.HasExplicitSpeedCommand = true;
 
+        // ATC speed supersedes the procedural last-published-speed memory.
+        aircraft.Procedure.LastProcedureSpeedKts = null;
+
         aircraft.Targets.AssignedSpeed = cmd.Speed;
 
         switch (cmd.Modifier)
@@ -200,6 +203,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok("Resume normal speed");
     }
 
@@ -213,6 +217,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
     }
 
@@ -224,6 +229,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
         aircraft.Procedure.SpeedRestrictionsDeleted = true;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok("Speed restrictions deleted");
     }
 
@@ -275,6 +281,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Maintain Mach {cmd.MachNumber:F2}");
     }
 
@@ -287,6 +294,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Force speed {cmd.Speed}");
     }
 
@@ -640,6 +648,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedSpeed = speed;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
         aircraft.IsOnGround = false;
         return CommandDispatcher.Ok($"Warped to {cmd.PositionLabel}, heading {heading.Degrees:000}, {altitude:N0} ft, {speed} kts");
     }

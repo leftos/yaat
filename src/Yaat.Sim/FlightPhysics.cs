@@ -149,6 +149,16 @@ public static class FlightPhysics
                     return;
                 }
 
+                // AIM 5-4-1 NOTE 2: after the procedure's terminating fix the pilot
+                // maintains the last published speed until ATC intervenes. Publish
+                // it as a ceiling so the auto speed schedule cannot accelerate the
+                // aircraft above it. An explicit ATC speed (HasExplicitSpeedCommand)
+                // wins — leave the procedural memory aside in that case.
+                if (!aircraft.Targets.HasExplicitSpeedCommand && aircraft.Procedure.LastProcedureSpeedKts is { } lastProcSpeed)
+                {
+                    aircraft.Targets.SpeedCeiling = lastProcSpeed;
+                }
+
                 aircraft.Targets.TargetTrueHeading = null;
                 aircraft.Targets.PreferredTurnDirection = null;
                 ClearProcedureState(aircraft);
@@ -626,6 +636,11 @@ public static class FlightPhysics
             }
 
             aircraft.Targets.TargetSpeed = targetSpeed;
+
+            // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
+            // procedure terminates without further ATC instruction the aircraft
+            // does not accelerate beyond it.
+            aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
         }
     }
 
@@ -677,6 +692,7 @@ public static class FlightPhysics
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
         aircraft.Procedure.DestinationRunway = null;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
     }
 
     /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009146.</summary>
@@ -866,6 +882,14 @@ public static class FlightPhysics
         )
         {
             double defaultSpeed = AircraftPerformance.DefaultSpeed(aircraft.AircraftType, cat, aircraft.Altitude, aircraft.Targets.TargetAltitude);
+
+            // Honor an active speed ceiling so the auto schedule cannot accelerate
+            // past a procedural last-published-speed memory or other capped speed.
+            if (aircraft.Targets.SpeedCeiling is { } scheduleCeiling)
+            {
+                defaultSpeed = Math.Min(defaultSpeed, scheduleCeiling);
+            }
+
             if (Math.Abs(aircraft.IndicatedAirspeed - defaultSpeed) > SpeedSnapKts)
             {
                 aircraft.Targets.TargetSpeed = defaultSpeed;
@@ -892,6 +916,14 @@ public static class FlightPhysics
         if (below10k && !speedLimitWaived)
         {
             goal = Math.Min(goal, 250);
+        }
+
+        // Honor SpeedCeiling continuously, including when a non-procedural source
+        // (e.g. auto speed schedule, controller-assigned TargetSpeed before a ceiling
+        // was published) has set TargetSpeed above the cap.
+        if (aircraft.Targets.SpeedCeiling is { } activeCeiling)
+        {
+            goal = Math.Min(goal, activeCeiling);
         }
 
         double diff = goal - current;

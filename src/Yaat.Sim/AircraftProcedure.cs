@@ -28,6 +28,16 @@ public class AircraftProcedure
     /// <summary>When true, climb/descent rate is multiplied by 1.5. Cleared on altitude reached or by NORM/CM/DM.</summary>
     public bool IsExpediting { get; set; }
 
+    /// <summary>
+    /// IAS (knots) of the most recently applied published speed restriction from a SID/STAR
+    /// fix. Used to enforce AIM 5-4-1 NOTE 2: after sequencing past a procedure's terminating
+    /// fix without further ATC instruction, pilots maintain the last published speed. When
+    /// the route empties, this value is published as <see cref="ControlTargets.SpeedCeiling"/>
+    /// so the auto speed schedule cannot accelerate the aircraft above it. Cleared by an
+    /// explicit ATC speed command, DRS, RFAS, or when procedure state is reset.
+    /// </summary>
+    public double? LastProcedureSpeedKts { get; set; }
+
     public AircraftProcedureDto ToSnapshot() =>
         new()
         {
@@ -41,6 +51,7 @@ public class AircraftProcedure
             StarViaFloor = StarViaFloor,
             SpeedRestrictionsDeleted = SpeedRestrictionsDeleted,
             IsExpediting = IsExpediting,
+            LastProcedureSpeedKts = LastProcedureSpeedKts,
         };
 
     public static AircraftProcedure FromSnapshot(AircraftProcedureDto dto) =>
@@ -56,5 +67,6 @@ public class AircraftProcedure
             StarViaFloor = dto.StarViaFloor,
             SpeedRestrictionsDeleted = dto.SpeedRestrictionsDeleted,
             IsExpediting = dto.IsExpediting,
+            LastProcedureSpeedKts = dto.LastProcedureSpeedKts,
         };
 }
