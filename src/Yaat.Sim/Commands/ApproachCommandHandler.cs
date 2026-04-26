@@ -314,13 +314,26 @@ public static class ApproachCommandHandler
             return new CommandResult(false, "Traffic not in sight — issue RTIS first");
         }
 
-        string airport = cmd.AirportCode ?? CommandDispatcher.ResolveAirport(aircraft);
+        var navDb = NavigationDatabase.Instance;
+        string airport;
+        if (cmd.AirportCode is not null)
+        {
+            if (!navDb.TryResolveAirport(cmd.AirportCode, out var canonical))
+            {
+                return new CommandResult(false, $"Unknown airport {cmd.AirportCode.Trim().ToUpperInvariant()}");
+            }
+            airport = canonical;
+        }
+        else
+        {
+            airport = CommandDispatcher.ResolveAirport(aircraft);
+        }
+
         if (string.IsNullOrEmpty(airport))
         {
             return new CommandResult(false, "Cannot determine airport for visual approach");
         }
 
-        var navDb = NavigationDatabase.Instance;
         var runway = navDb.GetRunway(airport, cmd.RunwayId);
         if (runway is null)
         {
@@ -480,7 +493,20 @@ public static class ApproachCommandHandler
     internal static ResolvedApproach ResolveApproach(string? approachId, string? airportCode, AircraftState aircraft)
     {
         var navDb = NavigationDatabase.Instance;
-        string airport = airportCode ?? CommandDispatcher.ResolveAirport(aircraft);
+        string airport;
+        if (airportCode is not null)
+        {
+            if (!navDb.TryResolveAirport(airportCode, out var canonical))
+            {
+                return ResolvedApproach.Fail($"Unknown airport {airportCode.Trim().ToUpperInvariant()}");
+            }
+            airport = canonical;
+        }
+        else
+        {
+            airport = CommandDispatcher.ResolveAirport(aircraft);
+        }
+
         if (string.IsNullOrEmpty(airport))
         {
             return ResolvedApproach.Fail("Cannot determine airport for approach");

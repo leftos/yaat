@@ -362,7 +362,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 
 | Command | Primary | Aliases | Notes |
 |---------|---------|---------|-------|
-| Change destination | `APT KSFO` | `DEST` | Changes aircraft destination airport |
+| Change destination | `APT KSFO` | `DEST` | Changes aircraft destination airport. Accepts FAA (`OAK`) or ICAO (`KOAK`); resolves to canonical ICAO. Rejects unknown airports. |
 | Create IFR flight plan | `FP B738 220 KBOS DCT KJFK` | — | Altitude in hundreds (220 = FL220) |
 | Create VFR flight plan | `VP C172 5500 KOAK DCT KJFK` | — | Altitude absolute (5500 = 5,500 ft) |
 | Flight Data (abbreviated FP) | `DA C172 065 4304` | — | CRC F6 key. Optional fields in any order: type, altitude (hundreds), beacon code, scratchpad (`` `VFF ``), flight rules (`.V`/`.E`). Creates VFR FP by default. Errors with DUP NEW ID if aircraft already has a flight plan. |

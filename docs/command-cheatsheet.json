@@ -233,7 +233,7 @@
       "id": "flight-plan",
       "name": "Flight Plan",
       "rows": [
-        { "verb": "APT", "aliases": ["dest"], "description": "Change destination airport" },
+        { "verb": "APT", "aliases": ["dest"], "description": "Change destination (FAA or ICAO)" },
         { "verb": "FP", "aliases": [], "description": "Create IFR FP (type alt route)" },
         { "verb": "VP", "aliases": [], "description": "Create VFR FP (type alt route)" },
         { "verb": "DA", "aliases": [], "description": "Flight data / abbreviated FP" },

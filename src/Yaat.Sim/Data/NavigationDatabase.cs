@@ -25,6 +25,12 @@ public sealed class NavigationDatabase
     private readonly Dictionary<string, List<string>> _airways = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
+    // Maps every recognized airport identifier (FAA "OAK" or ICAO "KOAK") to the
+    // canonical ICAO form (or FAA fallback when no ICAO is published). Built from
+    // navData.Airports during BuildIndex; consumed by TryResolveAirport so commands
+    // can validate user-typed airport codes and normalize storage.
+    private readonly Dictionary<string, string> _airportCanonical = new(StringComparer.OrdinalIgnoreCase);
+
     // CIFP per-airport caches (parsed on first access from the CIFP file)
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
@@ -112,10 +118,58 @@ public sealed class NavigationDatabase
         IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? starTransitions = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? airways = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null,
-        IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? sidTransitions = null
+        IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? sidTransitions = null,
+        IReadOnlyDictionary<string, string>? airports = null
     )
     {
         var db = new NavigationDatabase();
+
+        // Auto-derive recognized airports from runways, approachesByAirport, and elevations
+        // so tests that pre-seed those don't also have to hand-roll an airports map. Explicit
+        // `airports` entries override.
+        if (runways is not null)
+        {
+            foreach (var rwy in runways)
+            {
+                if (!string.IsNullOrEmpty(rwy.AirportId))
+                {
+                    db._airportCanonical.TryAdd(rwy.AirportId, rwy.AirportId);
+                }
+            }
+        }
+
+        if (approachesByAirport is not null)
+        {
+            foreach (var key in approachesByAirport.Keys)
+            {
+                if (!string.IsNullOrEmpty(key))
+                {
+                    db._airportCanonical.TryAdd(key, key);
+                }
+            }
+        }
+
+        if (elevations is not null)
+        {
+            foreach (var key in elevations.Keys)
+            {
+                if (!string.IsNullOrEmpty(key))
+                {
+                    db._airportCanonical.TryAdd(key, key);
+                }
+            }
+        }
+
+        if (airports is not null)
+        {
+            foreach (var (input, canonical) in airports)
+            {
+                if (!string.IsNullOrEmpty(input) && !string.IsNullOrEmpty(canonical))
+                {
+                    db._airportCanonical[input] = canonical;
+                }
+            }
+        }
 
         if (fixes is not null)
         {
@@ -849,6 +903,20 @@ public sealed class NavigationDatabase
                 _navDb.TryAdd(airport.IcaoId, pos);
                 _elevations.TryAdd(airport.IcaoId, airport.Elevation);
             }
+
+            string canonical = !string.IsNullOrEmpty(airport.IcaoId) ? airport.IcaoId : airport.FaaId ?? "";
+            if (!string.IsNullOrEmpty(canonical))
+            {
+                if (!string.IsNullOrEmpty(airport.FaaId))
+                {
+                    _airportCanonical.TryAdd(airport.FaaId, canonical);
+                }
+
+                if (!string.IsNullOrEmpty(airport.IcaoId))
+                {
+                    _airportCanonical.TryAdd(airport.IcaoId, canonical);
+                }
+            }
         }
 
         foreach (var fix in navData.Fixes)
@@ -1250,6 +1318,37 @@ public sealed class NavigationDatabase
     {
         string upper = code.ToUpperInvariant().Trim();
         return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
+    }
+
+    /// <summary>
+    /// Resolves a user-supplied airport identifier in any common form (FAA "OAK",
+    /// ICAO "KOAK", mixed case, surrounding whitespace) to the canonical ICAO form
+    /// scenarios use in flight-plan fields. Returns false if no airport in the
+    /// navigation database matches the input — callers should reject unknown
+    /// airports with a clear error rather than storing them.
+    /// </summary>
+    /// <param name="input">User-typed airport identifier.</param>
+    /// <param name="canonicalId">
+    /// On success, the canonical ICAO id (or FAA id if the airport has no published
+    /// ICAO). Empty string on failure.
+    /// </param>
+    public bool TryResolveAirport(string? input, out string canonicalId)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            canonicalId = string.Empty;
+            return false;
+        }
+
+        string key = input.Trim().ToUpperInvariant();
+        if (_airportCanonical.TryGetValue(key, out var resolved))
+        {
+            canonicalId = resolved;
+            return true;
+        }
+
+        canonicalId = string.Empty;
+        return false;
     }
 
     /// <summary>

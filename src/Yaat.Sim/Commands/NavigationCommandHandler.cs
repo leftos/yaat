@@ -196,7 +196,20 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft)
     {
         var navDb = NavigationDatabase.Instance;
-        string airport = cmd.AirportCode ?? aircraft.FlightPlan.Destination;
+        string airport;
+        if (cmd.AirportCode is not null)
+        {
+            if (!navDb.TryResolveAirport(cmd.AirportCode, out var canonical))
+            {
+                return new CommandResult(false, $"Unknown airport {cmd.AirportCode.Trim().ToUpperInvariant()}");
+            }
+            airport = canonical;
+        }
+        else
+        {
+            airport = aircraft.FlightPlan.Destination;
+        }
+
         if (string.IsNullOrEmpty(airport))
         {
             return new CommandResult(false, "No airport specified and no destination in flight plan");

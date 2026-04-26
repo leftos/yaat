@@ -77,6 +77,25 @@ public class ApproachCommandHandlerTests
     }
 
     [Fact]
+    public void Capp_ExplicitUnknownAirport_Rejects()
+    {
+        // When the user supplies an explicit airport code that is not in the navigation
+        // database, CAPP must reject with a clear "Unknown airport" message instead of
+        // continuing into approach resolution against a bogus identifier.
+        var aircraft = MakeAircraft();
+        var navDb = MakeNavDb();
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var cmd = new ClearedApproachCommand("ILS28R", "ZZZZ", false, null, null, null, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.Message);
+        Assert.Contains("Unknown airport", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ZZZZ", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Capp_SetsActiveApproach()
     {
         var aircraft = MakeAircraft();

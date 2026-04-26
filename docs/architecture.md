@@ -311,6 +311,8 @@ Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Tra
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry
 Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
+Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
+                                    # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports. Called from yaat-server's RoomEngine APT handler.
 
 # Phases/ — clearance-gated behavior
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance, ManagesSpeed (suppresses auto schedule)

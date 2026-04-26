@@ -36,6 +36,15 @@ public class FlightPlanCommandParserTests
     }
 
     [Fact]
+    public void Apt_FaaCode_Parses()
+    {
+        // Parser stays permissive — handler validates against NavigationDatabase.
+        var result = CommandParser.Parse("APT OAK");
+        var cmd = Assert.IsType<ChangeDestinationCommand>(result.Value);
+        Assert.Equal("OAK", cmd.Airport);
+    }
+
+    [Fact]
     public void Fp_ParsesIfrFlightPlan()
     {
         var result = CommandParser.Parse("FP B738 220 KBOS SSOXS6 BUZRD KJFK");

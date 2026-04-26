@@ -359,6 +359,25 @@ public class NavigationCommandTests : IDisposable
         Assert.Contains("OAK", result.Message);
     }
 
+    [Fact]
+    public void Apps_ExplicitUnknownAirport_Rejects()
+    {
+        // When the user passes an explicit airport code that is not in the navigation
+        // database, APPS must reject with a clear "Unknown airport" message rather than
+        // returning a misleading "No approaches found" string.
+        var aircraft = MakeAircraft();
+        var navDb = NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] });
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var cmd = new ListApproachesCommand("ZZZZ");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Contains("Unknown airport", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ZZZZ", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // --- JARR ---
 
     [Fact]
