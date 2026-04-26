@@ -129,5 +129,4 @@ public static class RunwayIntersectionCalculator
         string firstEnd = runwayName[..slashIdx];
         return firstEnd.Equals(designator, StringComparison.OrdinalIgnoreCase);
     }
-
 }

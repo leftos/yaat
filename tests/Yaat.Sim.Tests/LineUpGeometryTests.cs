@@ -64,12 +64,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
             rwy.TrueHeading,
             alongFromThreshFt / GeoMath.FeetPerNm
         );
-        var (poseLat, poseLon) = GeoMath.ProjectPoint(
-            alongLat,
-            alongLon,
-            new TrueHeading(perpRightBearingDeg),
-            signedCrossFt / GeoMath.FeetPerNm
-        );
+        var (poseLat, poseLon) = GeoMath.ProjectPoint(alongLat, alongLon, new TrueHeading(perpRightBearingDeg), signedCrossFt / GeoMath.FeetPerNm);
         return (poseLat, poseLon, new TrueHeading(hdgDeg));
     }
 
@@ -293,7 +288,13 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double finalBearing = t2.StartBearingFromCenterDeg + (t2.RightTurn ? t2.SweepDeg : -t2.SweepDeg);
         finalBearing = ((finalBearing % 360.0) + 360.0) % 360.0;
         var (finalLat, finalLon) = GeoMath.ProjectPoint(t2.CenterLat, t2.CenterLon, new TrueHeading(finalBearing), t2.RadiusNm);
-        double crossAfterTurn2 = GeoMath.SignedCrossTrackDistanceNm(finalLat, finalLon, rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading);
+        double crossAfterTurn2 = GeoMath.SignedCrossTrackDistanceNm(
+            finalLat,
+            finalLon,
+            rwy.ThresholdLatitude,
+            rwy.ThresholdLongitude,
+            rwy.TrueHeading
+        );
         double crossFtAfterTurn2 = Math.Abs(crossAfterTurn2) * GeoMath.FeetPerNm;
         Assert.True(crossFtAfterTurn2 < 1.0, $"PivotTurn2 should end on centerline, got {crossFtAfterTurn2:F2}ft cross-track");
     }

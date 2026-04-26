@@ -80,7 +80,9 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Select LLM Model File (GGUF)", [new FilePickerFilter("GGUF Models", ["*.gguf"])]));
+        var path = await _filePicker.OpenFileAsync(
+            new OpenFileOptions("Select LLM Model File (GGUF)", [new FilePickerFilter("GGUF Models", ["*.gguf"])])
+        );
         if (!string.IsNullOrEmpty(path))
         {
             vm.LlmModelPath = path;

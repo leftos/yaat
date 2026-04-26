@@ -169,7 +169,13 @@ public static class LineUpGeometry
             return Fault(category, rwyHdgDeg, dthetaDeg, arcSpeedKts, $"turn magnitude {turnMagnitudeDeg:F1}° exceeds max {MaxTurnDeg:F1}°");
         }
 
-        double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(acLat, acLon, runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading);
+        double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(
+            acLat,
+            acLon,
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            runway.TrueHeading
+        );
         double crossFt = Math.Abs(signedCrossNm) * GeoMath.FeetPerNm;
 
         // Convergence check: aircraft must be moving toward centerline. The
@@ -207,7 +213,8 @@ public static class LineUpGeometry
         }
 
         double wasteStraightFt = ComputeWasteStraightFt(crossFt, dHdgDeg);
-        double alongFromThreshFt = GeoMath.AlongTrackDistanceNm(acLat, acLon, runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading) * GeoMath.FeetPerNm;
+        double alongFromThreshFt =
+            GeoMath.AlongTrackDistanceNm(acLat, acLon, runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading) * GeoMath.FeetPerNm;
         double remainingRunwayFt = runway.LengthFt - alongFromThreshFt;
         if (remainingRunwayFt <= 0)
         {
