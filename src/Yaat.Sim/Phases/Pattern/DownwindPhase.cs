@@ -32,6 +32,14 @@ public sealed class DownwindPhase : Phase
     /// </summary>
     public bool IsExtended { get; set; }
 
+    /// <summary>
+    /// If true, an SA (short approach) was armed before this leg activated.
+    /// On the first tick after activation, the phase completes immediately so the
+    /// PhaseList advances to BasePhase — mirroring the on-Downwind semantics of
+    /// <see cref="PatternCommandHandler.TryMakeShortApproach"/>.
+    /// </summary>
+    public bool ShortApproachArmed { get; set; }
+
     public override string Name => "Downwind";
     public override bool ManagesSpeed => true;
 
@@ -65,6 +73,15 @@ public sealed class DownwindPhase : Phase
             _downwindHeading
         );
 
+        // Short approach armed before activation — compress the past-abeam extension
+        // so the base turn fires near abeam-the-threshold instead of after the normal
+        // category extension. AIM 4-3-3 lets pilots vary pattern size; the shrunk
+        // extension keeps geometry sane (no teleport, base turn is still discrete).
+        if (ShortApproachArmed)
+        {
+            _baseTurnAlongTrack = _abeamAlongTrack + CategoryPerformance.ShortApproachBaseExtensionNm(ctx.Category);
+        }
+
         ctx.Targets.TargetTrueHeading = Waypoints.DownwindHeading;
         ctx.Targets.PreferredTurnDirection = null;
         if (!ctx.Targets.HasExplicitTurnRate)
@@ -73,11 +90,29 @@ public sealed class DownwindPhase : Phase
         }
         ctx.Targets.NavigationRoute.Clear();
 
-        // Target pattern altitude. If still above TPA (e.g., from a high pattern entry),
-        // continue descending at the pattern rate instead of using the slower default.
-        ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
-        ctx.Targets.DesiredVerticalRate =
-            (ctx.Aircraft.Altitude > Waypoints.PatternAltitude + 100) ? -CategoryPerformance.PatternDescentRate(ctx.Category) : null;
+        if (ShortApproachArmed)
+        {
+            // Pilot aware of upcoming short approach — start descending immediately
+            // rather than waiting for abeam. Real pilots issued an SA earlier than
+            // the leg begin descent on crosswind/early-downwind so the GS-intercept
+            // altitude is reached by the (compressed) base-turn point. Mark _pastAbeam
+            // so OnTick's normal abeam-trigger doesn't re-overwrite the targets.
+            _pastAbeam = true;
+            double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
+                ctx.Aircraft.Position,
+                new LatLon(_thresholdLat, _thresholdLon),
+                _downwindHeading
+            );
+            ApplyPastAbeamDescentTargets(ctx, aircraftAlongTrack);
+        }
+        else
+        {
+            // Target pattern altitude. If still above TPA (e.g., from a high pattern entry),
+            // continue descending at the pattern rate instead of using the slower default.
+            ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
+            ctx.Targets.DesiredVerticalRate =
+                (ctx.Aircraft.Altitude > Waypoints.PatternAltitude + 100) ? -CategoryPerformance.PatternDescentRate(ctx.Category) : null;
+        }
 
         // Downwind speed (per-type if available)
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
@@ -117,22 +152,7 @@ public sealed class DownwindPhase : Phase
             {
                 _pastAbeam = true;
                 Log.LogDebug("[Downwind] {Callsign}: abeam threshold, beginning descent", ctx.Aircraft.Callsign);
-                double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
-                ctx.Targets.DesiredVerticalRate = -descentRate;
-
-                // Target: 60% of the way from threshold to pattern altitude
-                double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
-                double midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.6;
-                ctx.Targets.TargetAltitude = midAlt;
-
-                // Compute altitude floor for extended downwind: the altitude
-                // at which the aircraft would intercept a 3° glideslope from
-                // the approximate final approach distance to the threshold.
-                double patternSize = CategoryPerformance.PatternSizeNm(ctx.Category);
-                double baseExt = CategoryPerformance.BaseExtensionNm(ctx.Category);
-                double finalApproachDist = Math.Sqrt(patternSize * patternSize + baseExt * baseExt);
-                double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
-                _altitudeFloor = thresholdElev + finalApproachDist * GlideSlopeGeometry.FeetPerNm(gsAngle);
+                ApplyPastAbeamDescentTargets(ctx, aircraftAlongTrack);
 
                 // Begin decelerating toward base speed
                 ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
@@ -191,6 +211,143 @@ public sealed class DownwindPhase : Phase
         return complete;
     }
 
+    /// <summary>
+    /// Compress the base-turn target so the aircraft turns base from its current
+    /// position rather than continuing to the normal category extension. Called by
+    /// <see cref="PatternCommandHandler.TryMakeShortApproach"/> when SA is issued
+    /// while this leg is already active. The aircraft rolls into base via the normal
+    /// turn-rate / bank logic on the next tick — no teleport (AIM 4-3-5 forbids
+    /// abrupt unexpected maneuvers). Also lowers the descent target / steepens the
+    /// rate so the altitude profile lines up with the compressed final-approach
+    /// length (Jet 1.5 nm, Piston 0.5 nm — see <see cref="CategoryPerformance.MinShortApproachFinalNm"/>).
+    /// </summary>
+    public void ApplyShortApproach(PhaseContext ctx)
+    {
+        ShortApproachArmed = true;
+
+        if (Waypoints is null)
+        {
+            return;
+        }
+
+        double currentAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
+
+        double compressedExtension = _abeamAlongTrack + CategoryPerformance.ShortApproachBaseExtensionNm(ctx.Category);
+
+        // Take the further of the two so the aircraft never reverses backward to a
+        // base turn point it has already passed: clamp to current along-track.
+        double newBaseTurn = Math.Max(compressedExtension, currentAlongTrack);
+        if (newBaseTurn < _baseTurnAlongTrack)
+        {
+            _baseTurnAlongTrack = newBaseTurn;
+        }
+
+        // If past abeam (descent already started), recompute targets so the
+        // altitude profile reflects the compressed geometry. Mid-leg SA implies
+        // a steeper descent to make the new base-turn altitude.
+        if (_pastAbeam)
+        {
+            ApplyPastAbeamDescentTargets(ctx, currentAlongTrack);
+        }
+    }
+
+    /// <summary>
+    /// Reverse <see cref="ApplyShortApproach"/> by restoring the original base-turn
+    /// along-track from <see cref="Waypoints"/>. Called by MNA. If the aircraft has
+    /// already passed the original base-turn point under SA, the restored value sits
+    /// behind the aircraft — OnTick still reports completion on the next tick, which
+    /// is the right behavior (you can't un-shorten an already-flown pattern).
+    /// </summary>
+    public void RemoveShortApproach(PhaseContext ctx)
+    {
+        ShortApproachArmed = false;
+
+        if (Waypoints is null)
+        {
+            return;
+        }
+
+        _baseTurnAlongTrack = GeoMath.AlongTrackDistanceNm(
+            Waypoints.BaseTurnLat,
+            Waypoints.BaseTurnLon,
+            _thresholdLat,
+            _thresholdLon,
+            _downwindHeading
+        );
+
+        if (_pastAbeam)
+        {
+            double currentAlongTrack = GeoMath.AlongTrackDistanceNm(
+                ctx.Aircraft.Position,
+                new LatLon(_thresholdLat, _thresholdLon),
+                _downwindHeading
+            );
+            ApplyPastAbeamDescentTargets(ctx, currentAlongTrack);
+        }
+    }
+
+    /// <summary>
+    /// Computes the mid-altitude target, vertical rate, and altitude floor for the
+    /// past-abeam descent and writes them onto <paramref name="ctx"/>. Branches on
+    /// <see cref="ShortApproachArmed"/>: normal pattern uses 60% TPA midpoint and the
+    /// category default rate; SA uses the GS-intercept altitude implied by
+    /// <see cref="CategoryPerformance.MinShortApproachFinalNm"/> with a steeper rate
+    /// derived from the remaining downwind distance and current ground speed.
+    /// Called both at abeam-detect (OnTick) and live SA/MNA (Apply/RemoveShortApproach).
+    /// </summary>
+    private void ApplyPastAbeamDescentTargets(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        if (Waypoints is null)
+        {
+            return;
+        }
+
+        double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
+        double patternSize = CategoryPerformance.PatternSizeNm(ctx.Category);
+        double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
+        double baseDescentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
+
+        double midAlt;
+        double baseExtForFloor;
+        double descentRate;
+
+        if (ShortApproachArmed)
+        {
+            // Compressed final length → base-turn altitude is the GS intercept
+            // altitude implied by sqrt(patternSize² + finalLen²).
+            double finalLen = CategoryPerformance.MinShortApproachFinalNm(ctx.Category);
+            double diagonalNm = Math.Sqrt(patternSize * patternSize + finalLen * finalLen);
+            midAlt = thresholdElev + diagonalNm * GlideSlopeGeometry.FeetPerNm(gsAngle);
+            baseExtForFloor = CategoryPerformance.ShortApproachBaseExtensionNm(ctx.Category);
+
+            // Required rate to lose the altitude delta over the remaining distance
+            // to the base-turn point. Clamped at the category default (won't be slower
+            // than normal) and at 1500 fpm (descent limit before "unable, too high").
+            double deltaAlt = Math.Max(ctx.Aircraft.Altitude - midAlt, 0);
+            double distToBaseTurnNm = Math.Max(_baseTurnAlongTrack - aircraftAlongTrack, 0.05);
+            double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, 60);
+            double timeMinToBaseTurn = distToBaseTurnNm / (groundSpeedKt / 60.0);
+            double computedRate = timeMinToBaseTurn > 0 ? deltaAlt / timeMinToBaseTurn : baseDescentRate;
+            descentRate = Math.Clamp(computedRate, baseDescentRate, 1500);
+        }
+        else
+        {
+            // Target: 60% of the way from threshold to pattern altitude
+            midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.6;
+            baseExtForFloor = CategoryPerformance.BaseExtensionNm(ctx.Category);
+            descentRate = baseDescentRate;
+        }
+
+        ctx.Targets.TargetAltitude = midAlt;
+        ctx.Targets.DesiredVerticalRate = -descentRate;
+
+        // Altitude floor for extended downwind: GS intercept altitude at the
+        // diagonal distance from base-turn point to threshold (uses the same
+        // geometry SA selects, so the floor is consistent with the descent target).
+        double finalApproachDist = Math.Sqrt(patternSize * patternSize + baseExtForFloor * baseExtForFloor);
+        _altitudeFloor = thresholdElev + finalApproachDist * GlideSlopeGeometry.FeetPerNm(gsAngle);
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         return cmd switch
@@ -202,6 +359,8 @@ public sealed class DownwindPhase : Phase
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.MakeShortApproach => CommandAcceptance.Allowed,
+            CanonicalCommandType.MakeNormalApproach => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };
@@ -223,6 +382,7 @@ public sealed class DownwindPhase : Phase
             PastAbeam = _pastAbeam,
             AltitudeFloor = _altitudeFloor,
             MidfieldBroadcastIssued = _midfieldBroadcastIssued,
+            ShortApproachArmed = ShortApproachArmed,
         };
 
     public static DownwindPhase FromSnapshot(DownwindPhaseDto dto)
@@ -231,6 +391,7 @@ public sealed class DownwindPhase : Phase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             IsExtended = dto.IsExtended,
+            ShortApproachArmed = dto.ShortApproachArmed,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

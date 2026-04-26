@@ -280,6 +280,44 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>
+    /// Compressed past-abeam extension when "make short approach" is armed for an
+    /// upcoming downwind leg. Pilots tighten the back of the pattern by turning base
+    /// near abeam-the-threshold rather than at the normal extension. AIM 4-3-3 allows
+    /// the pilot to vary pattern size; AIM FIG 4-3-2 requires the turn to final to
+    /// complete at least 1/4 mile from the runway, so values stay positive.
+    /// </summary>
+    public static double ShortApproachBaseExtensionNm(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 0.3,
+            AircraftCategory.Turboprop => 0.2,
+            AircraftCategory.Piston => 0.15,
+            AircraftCategory.Helicopter => 0.1,
+            _ => 0.3,
+        };
+    }
+
+    /// <summary>
+    /// Minimum final-approach length after a "make short approach" base turn (nm).
+    /// Floors the request so the resulting profile remains stabilized at the realistic
+    /// approach speed for the category. AIM FIG 4-3-2 publishes a 1/4-mile minimum
+    /// (helicopter floor); jet/turboprop need more room to be at the stabilized-approach
+    /// gate (~500 ft AGL) on a 3° glideslope.
+    /// </summary>
+    public static double MinShortApproachFinalNm(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 1.5,
+            AircraftCategory.Turboprop => 1.0,
+            AircraftCategory.Piston => 0.5,
+            AircraftCategory.Helicopter => 0.25,
+            _ => 1.5,
+        };
+    }
+
     /// <summary>Speed on downwind leg (knots).</summary>
     public static double DownwindSpeed(AircraftCategory cat)
     {

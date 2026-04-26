@@ -27,6 +27,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   t=580–595 N152SP stuck at ias=0 because of GroundConflictDetector
 ///   t=596 N152SP: BREAK → can finally proceed
 /// </summary>
+[Collection("NavDbMutator")]
 public class ConflictStopAfterBehindE2ETests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/conflict-stop-after-behind-recording.yaat-bug-report-bundle.zip";

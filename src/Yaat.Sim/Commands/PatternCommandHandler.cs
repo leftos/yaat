@@ -500,38 +500,124 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryMakeShortApproach(AircraftState aircraft)
     {
-        if (aircraft.Phases?.CurrentPhase is DownwindPhase)
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+
+        if (aircraft.Phases?.CurrentPhase is DownwindPhase liveDownwind)
         {
+            // Compress the base-turn target so the aircraft turns base immediately
+            // from its current position. Physics handles the bank — no teleport.
+            // Also arm the upcoming Base with the category-floored short final so
+            // the descent profile through Base targets the GS intercept altitude.
             var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-            aircraft.Phases.SkipTo<BasePhase>(ctx);
+            liveDownwind.ApplyShortApproach(ctx);
+            if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBaseLive)
+            {
+                pendingBaseLive.FinalDistanceNm = CategoryPerformance.MinShortApproachFinalNm(category);
+            }
             return CommandDispatcher.Ok("Make short approach");
         }
 
-        if (aircraft.Phases?.CurrentPhase is BasePhase bp)
+        if (aircraft.Phases?.CurrentPhase is BasePhase liveBase)
         {
-            bp.FinalDistanceNm = 0.5;
+            liveBase.FinalDistanceNm = CategoryPerformance.MinShortApproachFinalNm(category);
             return CommandDispatcher.Ok("Make short approach");
         }
 
-        return new CommandResult(false, "Make short approach requires downwind or base leg");
+        // Queued modifier: aircraft hasn't reached downwind/base yet (e.g. still on
+        // PatternEntry, Upwind, or Crosswind). Arm the next pending pattern leg so
+        // the short approach takes effect when the aircraft actually gets there.
+        // Both the upcoming Downwind (compress base extension + early descent) AND
+        // the following Base (set FinalDistanceNm to the category-floored short final)
+        // must be armed together — otherwise the descent profile would target the
+        // normal-pattern altitude on Base and the aircraft arrives high to Final.
+        bool armed = false;
+        if (TryFindNextPendingPhase<DownwindPhase>(aircraft) is { } pendingDownwind)
+        {
+            pendingDownwind.ShortApproachArmed = true;
+            armed = true;
+        }
+        if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBase)
+        {
+            pendingBase.FinalDistanceNm = CategoryPerformance.MinShortApproachFinalNm(category);
+            armed = true;
+        }
+        if (armed)
+        {
+            return CommandDispatcher.Ok("Make short approach");
+        }
+
+        return new CommandResult(false, "Make short approach requires downwind or base leg in the pattern");
     }
 
     internal static CommandResult TryMakeNormalApproach(AircraftState aircraft)
     {
-        if (aircraft.Phases?.CurrentPhase is BasePhase bp)
+        if (aircraft.Phases?.CurrentPhase is DownwindPhase liveDownwind)
         {
-            bp.FinalDistanceNm = null;
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            liveDownwind.RemoveShortApproach(ctx);
+            if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBaseLive)
+            {
+                pendingBaseLive.FinalDistanceNm = null;
+            }
             return CommandDispatcher.Ok("Make normal approach");
         }
 
-        if (aircraft.Phases?.CurrentPhase is DownwindPhase)
+        if (aircraft.Phases?.CurrentPhase is BasePhase liveBase)
         {
-            // On downwind, MNA is a no-op since MSA from downwind skips to base.
-            // If the aircraft is still on downwind, there's nothing to undo.
+            liveBase.FinalDistanceNm = null;
             return CommandDispatcher.Ok("Make normal approach");
         }
 
-        return new CommandResult(false, "Make normal approach requires downwind or base leg");
+        // Queued modifier: clear SA arm on both the upcoming Downwind and the
+        // following Base — symmetric to TryMakeShortApproach.
+        bool cleared = false;
+        if (TryFindNextPendingPhase<DownwindPhase>(aircraft) is { } pendingDownwind)
+        {
+            pendingDownwind.ShortApproachArmed = false;
+            cleared = true;
+        }
+        if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBase)
+        {
+            pendingBase.FinalDistanceNm = null;
+            cleared = true;
+        }
+        if (cleared)
+        {
+            return CommandDispatcher.Ok("Make normal approach");
+        }
+
+        return new CommandResult(false, "Make normal approach requires downwind or base leg in the pattern");
+    }
+
+    /// <summary>
+    /// Returns the first pending phase of the given type after the current index,
+    /// or null if none is pending. Used by SA/MNA to arm or clear short-approach
+    /// behavior on an upcoming Downwind/Base before the aircraft reaches it.
+    /// </summary>
+    private static T? TryFindNextPendingPhase<T>(AircraftState aircraft)
+        where T : Phase
+    {
+        var phases = aircraft.Phases;
+        if (phases is null)
+        {
+            return null;
+        }
+
+        for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+        {
+            var p = phases.Phases[i];
+            if (p.Status != PhaseStatus.Pending)
+            {
+                continue;
+            }
+
+            if (p is T match)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     internal static CommandResult TryCancel270(AircraftState aircraft)

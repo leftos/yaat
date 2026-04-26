@@ -579,8 +579,8 @@ The `GA` altitude argument uses the same format as CM/DM (see [Altitude Argument
 | `EXT` | Extend current pattern leg (upwind, crosswind, or downwind — not base) |
 | `ELC` / `ERC` | Enter left/right crosswind |
 | `ELC 28R` / `ERC 28R` | Enter left/right crosswind, assign runway |
-| `SA` / `MSA` | Make short approach (cut base turn short) |
-| `MNA` | Make normal approach (cancel short approach) |
+| `SA` / `MSA` | Make short approach — compress the unflown pattern. Issue while on or before downwind/base; can be chained with `ERD`/`ERB` (e.g. `ERD 28R; SA`) to arm the upcoming leg. |
+| `MNA` | Make normal approach — clear an armed/active short approach. Same chaining semantics as `SA`. |
 | `L360` / `R360` | Left/right 360° orbit in the pattern (resumes same leg after) |
 | `L270` / `R270` | Left/right 270° turn (immediate) |
 | `P270` / `PLAN270` | Plan a 270° turn at the next pattern turn point |

@@ -64,18 +64,54 @@ public static class CommandDispatcher
             {
                 // Tower command handled the first block. Enqueue remaining blocks
                 // so they execute after phases complete (UpdateCommandQueue picks them
-                // up once CurrentPhase becomes null).
+                // up once CurrentPhase becomes null) — except phase-modifier blocks
+                // (SA / MNA), which we dispatch immediately via the tower path so
+                // they actually arm the just-installed pattern. Otherwise they sit
+                // in the queue forever (UpdateCommandQueue short-circuits while a
+                // phase is active).
                 if (result.Success && compound.Blocks.Count > 1)
                 {
                     var phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
                     var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, ctx);
                     aircraft.DeferredDispatches.Clear();
 
-                    var remainingMessages = EnqueueBlocks(compound, 1, aircraft, ctx);
-                    aircraft.Queue.Blocks.AddRange(phasePreserved);
-                    if (remainingMessages.Count > 0)
+                    var modifierMessages = new List<string>();
+                    var remainingBlocks = new List<ParsedBlock>();
+                    for (int i = 1; i < compound.Blocks.Count; i++)
                     {
-                        var combined = result.Message + "; then " + string.Join("; then ", remainingMessages);
+                        var pb = compound.Blocks[i];
+                        if (IsImmediatePhaseModifierBlock(pb))
+                        {
+                            var modCmd = pb.Commands[0];
+                            var modPhase = aircraft.Phases?.CurrentPhase ?? currentPhase;
+                            var modResult = TryApplyTowerCommand(modCmd, aircraft, modPhase, ctx);
+                            if (modResult is null || !modResult.Success)
+                            {
+                                // Couldn't apply right now — fall back to enqueueing.
+                                remainingBlocks.Add(pb);
+                                continue;
+                            }
+
+                            modifierMessages.Add(modResult.Message ?? CommandDescriber.DescribeNatural(modCmd));
+                        }
+                        else
+                        {
+                            remainingBlocks.Add(pb);
+                        }
+                    }
+
+                    var remainingMessages =
+                        remainingBlocks.Count > 0
+                            ? EnqueueBlocks(new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText }, 0, aircraft, ctx)
+                            : new List<string>();
+                    aircraft.Queue.Blocks.AddRange(phasePreserved);
+
+                    var combinedMessages = new List<string> { result.Message ?? "" };
+                    combinedMessages.AddRange(modifierMessages);
+                    combinedMessages.AddRange(remainingMessages);
+                    if (combinedMessages.Count > 1)
+                    {
+                        var combined = string.Join(" ; then ", combinedMessages.Where(m => !string.IsNullOrEmpty(m)));
                         return new CommandResult(true, combined);
                     }
                 }
@@ -137,6 +173,40 @@ public static class CommandDispatcher
                 if (messages.Count > 0)
                 {
                     messages[0] = firstNewBlock.NaturalDescription;
+                }
+
+                // If the just-applied block installed pattern phases (e.g. ERD), any
+                // subsequent SA/MNA blocks would otherwise sit in the queue forever
+                // — UpdateCommandQueue short-circuits while a phase is active. Apply
+                // them immediately via the tower path so they arm the pending leg.
+                if (aircraft.Phases?.CurrentPhase is { } postApplyPhase)
+                {
+                    for (int bi = firstNewBlockIdx + 1; bi < aircraft.Queue.Blocks.Count; bi++)
+                    {
+                        var block = aircraft.Queue.Blocks[bi];
+                        if (block.IsApplied || block.Trigger is not null || block.ParsedCommands is not { Count: 1 })
+                        {
+                            break;
+                        }
+
+                        var parsedCmd = block.ParsedCommands[0];
+                        if (parsedCmd is not (MakeShortApproachCommand or MakeNormalApproachCommand))
+                        {
+                            break;
+                        }
+
+                        var modResult = TryApplyTowerCommand(parsedCmd, aircraft, postApplyPhase, ctx);
+                        if (modResult is null || !modResult.Success)
+                        {
+                            break;
+                        }
+
+                        block.IsApplied = true;
+                        if (bi - firstNewBlockIdx < messages.Count)
+                        {
+                            messages[bi - firstNewBlockIdx] = modResult.Message ?? block.NaturalDescription;
+                        }
+                    }
                 }
             }
             // If there's a trigger, the physics tick will check and apply when met
@@ -625,6 +695,24 @@ public static class CommandDispatcher
         // Commands not handled at the Sim level (e.g. DEL, server-side commands)
         // cannot be validated here — assume valid.
         return new CommandResult(true, "");
+    }
+
+    /// <summary>
+    /// True when a parsed block in a compound, occurring after a tower-handled
+    /// first block (e.g. <c>ERD 28R</c>), can be applied immediately rather than
+    /// enqueued. These commands modify the just-installed pattern phases (arming a
+    /// pending downwind for short approach, etc.) and would otherwise sit in the
+    /// command queue forever — <see cref="FlightPhysics"/>.UpdateCommandQueue
+    /// short-circuits while any phase is active.
+    /// </summary>
+    private static bool IsImmediatePhaseModifierBlock(ParsedBlock block)
+    {
+        if (block.Condition is not null || block.Commands.Count != 1)
+        {
+            return false;
+        }
+
+        return block.Commands[0] is MakeShortApproachCommand or MakeNormalApproachCommand;
     }
 
     private static bool IsPatternEntryWithRunway(ParsedCommand cmd)

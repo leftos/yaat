@@ -638,9 +638,11 @@ def cmd_install(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
-    if not args.issue or args.issue <= 0:
-        print("error: --issue N is required (positive integer)", file=sys.stderr)
+    if args.issue is not None and args.issue <= 0:
+        print("error: --issue must be a positive integer when provided", file=sys.stderr)
         return 2
+
+    prefix = f"issue{args.issue}-" if args.issue is not None else ""
 
     # Source bundle
     if args.bundle is not None:
@@ -653,14 +655,21 @@ def cmd_install(args: argparse.Namespace) -> int:
             ext = "-recording.yaat-bug-report-bundle.zip"
         else:
             ext = "-recording.zip"
-        dest = TESTDATA_DIR / f"issue{args.issue}-{args.desc}{ext}"
+        dest = TESTDATA_DIR / f"{prefix}{args.desc}{ext}"
         if dest.exists() and not args.force:
             print(f"error: {dest} already exists (use --force to overwrite)", file=sys.stderr)
             return 1
         shutil.copy2(src, dest)
         print(f"installed {src} -> {dest}")
     else:
-        # Fetch from GitHub issue via gh
+        # Fetch from GitHub issue via gh — requires --issue
+        if args.issue is None:
+            print(
+                "error: --issue N is required when no local bundle path is provided "
+                "(needed to locate the GitHub issue's attachment)",
+                file=sys.stderr,
+            )
+            return 2
         bodies = _gh_fetch_issue_bodies(args.owner, args.repo, args.issue)
         urls: list[str] = []
         for body in bodies:
@@ -678,7 +687,7 @@ def cmd_install(args: argparse.Namespace) -> int:
             ext = "-recording.yaat-bug-report-bundle.zip"
         else:
             ext = "-recording.zip"
-        dest = TESTDATA_DIR / f"issue{args.issue}-{args.desc}{ext}"
+        dest = TESTDATA_DIR / f"{prefix}{args.desc}{ext}"
         if dest.exists() and not args.force:
             print(f"error: {dest} already exists (use --force to overwrite)", file=sys.stderr)
             return 1
@@ -842,10 +851,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_ins = sub.add_parser(
         "install",
-        help="copy bundle into TestData with issue{N}-{desc}-... naming (local path or --issue)",
+        help="copy bundle into TestData with [issue{N}-]{desc}-... naming (local path or --issue)",
     )
-    p_ins.add_argument("bundle", type=Path, nargs="?", default=None, help="local bundle path (omit to use --issue)")
-    p_ins.add_argument("--issue", type=int, required=True, help="GitHub issue number")
+    p_ins.add_argument("bundle", type=Path, nargs="?", default=None, help="local bundle path (omit to fetch from --issue)")
+    p_ins.add_argument(
+        "--issue",
+        type=int,
+        default=None,
+        help="GitHub issue number; required when fetching from GitHub, optional when installing a local bundle (omit for descriptive non-numbered name)",
+    )
     p_ins.add_argument("--desc", type=str, required=True, help="kebab-case slug for filename")
     p_ins.add_argument("--owner", type=str, default="leftos", help="GitHub owner (default: leftos)")
     p_ins.add_argument("--repo", type=str, default="yaat", help="GitHub repo (default: yaat)")

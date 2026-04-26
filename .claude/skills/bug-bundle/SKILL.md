@@ -48,10 +48,18 @@ python tools/bug_bundle.py logs <bundle.zip>
 python tools/bug_bundle.py install <local.zip> --issue 134 --desc oak-runway-exit
 ```
 
+**Install with a custom (non-issue-numbered) name:**
+```bash
+python tools/bug_bundle.py install <local.zip> --desc sa-armed-for-downwind
+```
+Omitting `--issue` produces `{desc}-recording[.yaat-bug-report-bundle].zip` —
+useful when the bundle isn't yet tied to a GitHub issue.
+
 **Install from a GitHub issue (uses `gh`):**
 ```bash
 python tools/bug_bundle.py install --issue 134 --desc oak-runway-exit
 ```
+The GitHub-fetch path still requires `--issue`.
 
 **Format integrity check:**
 ```bash
@@ -69,7 +77,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `weather` | Print `weather.json` if present |
 | `layouts` | List airport IDs, `--airport X` to dump one, `--all --out-dir D` for all |
 | `logs` | Extract `yaat-client.log`/`yaat-server.log` to `.tmp/` |
-| `install` | Copy into TestData as `issue{N}-{desc}-recording[.yaat-bug-report-bundle].zip` |
+| `install` | Copy into TestData as `[issue{N}-]{desc}-recording[.yaat-bug-report-bundle].zip` (`--issue` optional for local installs) |
 | `validate` | Manifest + Brotli decompression integrity check |
 
 ### Tips

@@ -60,13 +60,33 @@ public sealed class BasePhase : Phase
         }
         ctx.Targets.NavigationRoute.Clear();
 
-        // Begin descent
+        // Begin descent. Default rate; if SA shortened the final, compute a
+        // steeper rate so the aircraft hits the GS intercept altitude by the
+        // final-turn point.
         double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
-        ctx.Targets.DesiredVerticalRate = -descentRate;
 
-        // Approximate target altitude: halfway between pattern and threshold
+        // Approximate target altitude: halfway between pattern and threshold.
+        // When SA shortens the final to MinShortApproachFinalNm, that midpoint
+        // sits above the GS intercept altitude — substitute the GS altitude so
+        // the aircraft is at a stabilized profile by the start of final.
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
         double midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.5;
+        if (FinalDistanceNm is { } finalDist)
+        {
+            double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
+            double gsAlt = thresholdElev + finalDist * GlideSlopeGeometry.FeetPerNm(gsAngle);
+            if (gsAlt < midAlt)
+            {
+                midAlt = gsAlt;
+                double deltaAlt = Math.Max(ctx.Aircraft.Altitude - midAlt, 0);
+                double baseLen = CategoryPerformance.PatternSizeNm(ctx.Category);
+                double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, 60);
+                double timeMin = baseLen / (groundSpeedKt / 60.0);
+                double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
+                descentRate = Math.Clamp(computedRate, descentRate, 1500);
+            }
+        }
+        ctx.Targets.DesiredVerticalRate = -descentRate;
         ctx.Targets.TargetAltitude = midAlt;
 
         // Slow to base speed
@@ -130,6 +150,8 @@ public sealed class BasePhase : Phase
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.MakeShortApproach => CommandAcceptance.Allowed,
+            CanonicalCommandType.MakeNormalApproach => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

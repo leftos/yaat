@@ -104,6 +104,8 @@ public sealed class CrosswindPhase : Phase
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.MakeShortApproach => CommandAcceptance.Allowed,
+            CanonicalCommandType.MakeNormalApproach => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };
