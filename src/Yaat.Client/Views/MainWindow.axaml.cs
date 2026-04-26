@@ -8,6 +8,8 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
+using MsBox.Avalonia;
+using MsBox.Avalonia.Enums;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -1631,22 +1633,22 @@ public partial class MainWindow : Window
         await connectWindow.ShowDialog(this);
     }
 
-    private void OnConfigureCrcClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnConfigureCrcClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (!CrcConfigService.IsCrcInstalled())
         {
-            _ = ShowMessageAsync("CRC is not installed on this computer.");
+            await ShowMessageAsync("CRC is not installed on this computer.");
             return;
         }
 
         if (CrcConfigService.AreYaatEntriesPresent())
         {
-            _ = ShowMessageAsync("CRC already has YAAT server environments configured.");
+            await ShowMessageAsync("CRC already has YAAT server environments configured.");
             return;
         }
 
         CrcConfigService.Configure();
-        _ = ShowMessageAsync("YAAT server environments added to CRC. Restart CRC to pick up changes.");
+        await ShowMessageAsync("YAAT server environments added to CRC. Restart CRC to pick up changes.");
     }
 
     private async void OnAboutClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -1677,41 +1679,8 @@ public partial class MainWindow : Window
 
     private async Task ShowMessageAsync(string message)
     {
-        var dialog = new Window
-        {
-            Title = "YAAT",
-            Width = 400,
-            Height = 140,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new Avalonia.Controls.StackPanel
-            {
-                Margin = new Avalonia.Thickness(20),
-                Spacing = 12,
-                Children =
-                {
-                    new Avalonia.Controls.TextBlock
-                    {
-                        Text = message,
-                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                        FontSize = 13,
-                    },
-                    new Avalonia.Controls.Button
-                    {
-                        Content = "OK",
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                        Width = 60,
-                    },
-                },
-            },
-        };
-
-        if (dialog.Content is Avalonia.Controls.StackPanel panel && panel.Children[1] is Avalonia.Controls.Button okBtn)
-        {
-            okBtn.Click += (_, _) => dialog.Close();
-        }
-
-        await dialog.ShowDialog(this);
+        var box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.Ok);
+        await box.ShowWindowDialogAsync(this);
     }
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
