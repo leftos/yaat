@@ -251,4 +251,54 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
         output.WriteLine($"OAK: {layout.Nodes.Count} nodes, {layout.Edges.Count} edges, {layout.Arcs.Count} arcs");
     }
+
+    // ─── Plan E: SFO E/F intersection at @268 ───
+
+    /// <summary>
+    /// SFO node #268 is the E/F 4-way crossing south of 28L. A 4-way produces
+    /// exactly four corners, so the fillet generator should emit four arcs
+    /// tagged with the @268 origin: two at the wider angle (~102°) and two
+    /// at the narrower (~78°). Currently the count is six because upstream
+    /// intersections @57 and @141 each leave behind a parallel E-NE edge on
+    /// 268 (one to 1240 from @57's passthrough, one to 1483 from @141's
+    /// shorten) on top of the original 268↔141. By the time @268's pair
+    /// iterator runs, it sees three parallel E-NE edges and crosses each
+    /// with the two F-side edges, producing the extra arcs — including the
+    /// 9 ft / 13 ft tight ones that broke SKW3078's E→A taxi.
+    ///
+    /// Skipped pending a fix. Investigation captured in
+    /// docs/plans/open-issues/fillet-parallel-edges-at-268.md — three fix
+    /// attempts have regressed unrelated OAK and SFO M2/A1 pathfinder tests.
+    /// </summary>
+    [Fact]
+    public void SFO_FilletArcs_Node268_HasExactlyFourArcs()
+    {
+        var layout = LoadSfo();
+        if (layout is null)
+        {
+            return;
+        }
+
+        Assert.True(layout.Nodes.TryGetValue(268, out _), "SFO node 268 not found");
+
+        // Arcs created during @268's fillet pass are tagged with the origin
+        // string emitted by FilletArcGenerator.PhaseBC_CreateTangentNodesAndArcs:
+        //     "Fillet:phase-c-arc@268 <twyA>/<twyB>"
+        // Filter on the prefix; merge events later append "+merge(...)" so we
+        // match a substring rather than equality.
+        var arcs = layout.Arcs.Where(a => (a.Origin ?? "").Contains("phase-c-arc@268 ", StringComparison.Ordinal)).ToList();
+
+        output.WriteLine($"SFO @268: {arcs.Count} fillet arcs");
+        foreach (var arc in arcs)
+        {
+            output.WriteLine(
+                $"  #{arc.Nodes[0].Id}↔#{arc.Nodes[1].Id} "
+                    + $"twy={arc.TaxiwayName} turn={arc.TurnAngleDeg:F1}° "
+                    + $"radius={arc.MinRadiusOfCurvatureFt:F1}ft "
+                    + $"origin={arc.Origin}"
+            );
+        }
+
+        Assert.Equal(4, arcs.Count);
+    }
 }

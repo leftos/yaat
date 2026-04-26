@@ -144,18 +144,158 @@ public static class FilletArcGenerator
 
         int rescued = RescueOrphanedTangentNodes(layout);
         int redundant = RemoveRedundantPreserveEdges(layout);
+        int duplicateCornerArcs = RemoveDuplicateCornerArcs(layout);
 
         layout.RebuildAdjacencyLists();
 
         Log.LogInformation(
-            "Fillet arcs: {FilletedNodes} filleted, {Arcs} arcs, {Merged} merged, {NodesMerged} coincident merged, {Rescued} rescued, {Redundant} redundant preserve edges removed",
+            "Fillet arcs: {FilletedNodes} filleted, {Arcs} arcs, {Merged} merged, {NodesMerged} coincident merged, {Rescued} rescued, {Redundant} redundant preserve edges removed, {DupCorners} duplicate corner arcs removed",
             filletedCount,
             arcCount,
             mergedCount,
             nodesMerged,
             rescued,
-            redundant
+            redundant,
+            duplicateCornerArcs
         );
+    }
+
+    /// <summary>
+    /// Post-fillet cleanup: when the per-intersection pair iterator emits multiple
+    /// arcs that round the *same physical corner* — same intersection, same pair
+    /// of taxiway directions, same approach bearings at the tangent endpoints —
+    /// keep only the arc with the largest <see cref="GroundArc.MinRadiusOfCurvatureFt"/>
+    /// and discard the rest. The duplicates arise when upstream intersections
+    /// inject parallel bypass edges (e.g. SFO @57 leaves a `phase-d-passthrough@57`
+    /// edge alongside the original 268↔141 on the same E centerline; @268's pair
+    /// iterator then crosses every F-side edge with each parallel E-NE edge,
+    /// producing extra arcs at the same corner with smaller radii). The largest
+    /// radius corresponds to the tangent placement that had the most edge
+    /// available — the "best" geometry for that corner. Smaller-radius arcs
+    /// at the same corner come from constrained tangent placements and are not
+    /// needed because the larger arc covers the same turn.
+    ///
+    /// The corner identity is `(intersectionId, sorted-taxiway-pair, sorted
+    /// approach-bearings rounded to 5°)`. Different physical corners at the
+    /// same intersection always differ in the bearing pair (e.g. a 4-way's
+    /// NE+NW corner vs SW+SE corner share the same turn angle but have
+    /// opposite bearings at each tangent), so this key is robust against
+    /// merging legitimately distinct corners.
+    /// </summary>
+    private static int RemoveDuplicateCornerArcs(AirportGroundLayout layout)
+    {
+        var arcsByCorner = new Dictionary<(int IntId, string Twy, int Brg0Bucket, int Brg1Bucket), List<GroundArc>>();
+
+        foreach (var arc in layout.Arcs)
+        {
+            if (!TryParsePhaseCArcOrigin(arc.Origin, out int intId, out string twyKey))
+            {
+                continue;
+            }
+
+            // Round bearings to 5° buckets and sort so endpoint order doesn't matter.
+            int b0 = ((int)Math.Round(arc.EdgeBearingAtNode0Deg / 5.0) + 72) % 72;
+            int b1 = ((int)Math.Round(arc.EdgeBearingAtNode1Deg / 5.0) + 72) % 72;
+            (int lo, int hi) = b0 <= b1 ? (b0, b1) : (b1, b0);
+            var key = (intId, twyKey, lo, hi);
+
+            if (!arcsByCorner.TryGetValue(key, out var list))
+            {
+                list = [];
+                arcsByCorner[key] = list;
+            }
+
+            list.Add(arc);
+        }
+
+        var toRemove = new List<GroundArc>();
+        foreach (var (key, list) in arcsByCorner)
+        {
+            if (list.Count <= 1)
+            {
+                continue;
+            }
+
+            // Keep the arc with the largest min radius — that's the one whose
+            // tangent placement had the most edge available, i.e. the corner
+            // geometry the fillet generator would have picked if the parallel
+            // bypass edges hadn't existed.
+            list.Sort((a, b) => b.MinRadiusOfCurvatureFt.CompareTo(a.MinRadiusOfCurvatureFt));
+            for (int i = 1; i < list.Count; i++)
+            {
+                toRemove.Add(list[i]);
+            }
+
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[CornerDedup@{IntId}] {Twy} bearings({Lo}°,{Hi}°): kept r={KeptR:F1}ft, dropped {DropCount} (radii={DroppedRadii})",
+                    key.IntId,
+                    key.Twy,
+                    key.Brg0Bucket * 5,
+                    key.Brg1Bucket * 5,
+                    list[0].MinRadiusOfCurvatureFt,
+                    list.Count - 1,
+                    string.Join(",", list.Skip(1).Select(a => $"{a.MinRadiusOfCurvatureFt:F1}"))
+                );
+            }
+        }
+
+        foreach (var arc in toRemove)
+        {
+            layout.Arcs.Remove(arc);
+        }
+
+        return toRemove.Count;
+    }
+
+    /// <summary>
+    /// Parse the intersection id and taxiway pair from a `Fillet:phase-c-arc@<id> <twyA>/<twyB>` origin tag.
+    /// Returns false for any other origin format. The taxiway pair is normalized so the order
+    /// (twyA/twyB vs twyB/twyA) doesn't matter.
+    /// </summary>
+    private static bool TryParsePhaseCArcOrigin(string? origin, out int intId, out string twyKey)
+    {
+        intId = 0;
+        twyKey = "";
+        if (string.IsNullOrEmpty(origin))
+        {
+            return false;
+        }
+
+        const string prefix = "Fillet:phase-c-arc@";
+        if (!origin.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        int spaceIdx = origin.IndexOf(' ', prefix.Length);
+        if (spaceIdx <= prefix.Length)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(origin.AsSpan(prefix.Length, spaceIdx - prefix.Length), out intId))
+        {
+            return false;
+        }
+
+        // Walk forward to find the twyA/twyB token (everything up to the next space or end).
+        int twyStart = spaceIdx + 1;
+        int twyEnd = origin.IndexOf(' ', twyStart);
+        string twyToken = twyEnd < 0 ? origin[twyStart..] : origin[twyStart..twyEnd];
+
+        int slashIdx = twyToken.IndexOf('/');
+        if (slashIdx < 0)
+        {
+            twyKey = twyToken;
+            return true;
+        }
+
+        string twyA = twyToken[..slashIdx];
+        string twyB = twyToken[(slashIdx + 1)..];
+        twyKey = string.CompareOrdinal(twyA, twyB) <= 0 ? $"{twyA}/{twyB}" : $"{twyB}/{twyA}";
+        return true;
     }
 
     private static bool IsEligibleForFilleting(GroundNode node)
