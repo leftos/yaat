@@ -1,0 +1,374 @@
+using Xunit;
+using Xunit.Abstractions;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
+
+namespace Yaat.Sim.Tests.Simulation;
+
+/// <summary>
+/// E2E + unit tests for the S2-OAK-4 bug bundle covering three related defects:
+///
+/// 1. **Compound DCT;ERD queueing**: `DCT VPCOL; ERD 28R` is acknowledged but the
+///    ERD never builds pattern phases — the aircraft cruises straight past VPCOL.
+///    Bare `ERD 28R` (no compound) works correctly. (N80ZU at t=1070, N655EX at t=1479.)
+///
+/// 2. **TryEnterPattern doesn't set TrafficDirection**: After ERD 28R, the right-pattern
+///    phases install but `Phases.TrafficDirection` stays null. This becomes the
+///    setup for bug 3.
+///
+/// 3. **Go-around defaults VFR to LEFT for parallel runways**: When N80ZU (right
+///    pattern for 28R) went around, `GoAroundHelper.cs:30-34` re-entered LEFT traffic
+///    because `TrafficDirection` was null. For parallel runways the side should
+///    follow the runway's L/R suffix; for non-parallel/center runways the prior
+///    direction (or Left fallback) should be preserved.
+///
+/// Recording: S2-OAK-4 VFR Transitions/Radar Concepts.
+/// </summary>
+public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
+{
+    private const string RecordingPath = "TestData/issue143-oak-erd-compound-and-ga-direction-recording.yaat-bug-report-bundle.zip";
+
+    private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
+
+    private SimulationEngine? BuildEngine()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return null;
+        }
+
+        var groundData = new TestAirportGroundData();
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+
+        return new SimulationEngine(groundData);
+    }
+
+    /// <summary>
+    /// Diagnostic: replay the bundle and log N80ZU's phase progression after the
+    /// compound `DCT VPCOL; ERD 28R` at t=1070. Snapshots showed Phases=null the
+    /// whole flight, but the recording was paused/processed differently. Live replay
+    /// is authoritative.
+    /// </summary>
+    [Fact]
+    public void Diagnostic_N80zu_AfterCompoundErd()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // Replay to just after the compound was sent (t=1070).
+        engine.Replay(recording, 1075);
+
+        var ac = engine.FindAircraft("N80ZU");
+        if (ac is null)
+        {
+            output.WriteLine("N80ZU not found at t=1075");
+            return;
+        }
+
+        output.WriteLine($"t=1075: phases={DescribePhases(ac)} ias={ac.IndicatedAirspeed:F0} alt={ac.Altitude:F0} hdg={ac.TrueHeading.Degrees:F0}");
+        output.WriteLine(
+            $"  pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) navRoute=[{string.Join(",", ac.Targets.NavigationRoute.Select(n => n.Name))}]"
+        );
+        output.WriteLine($"  queue: {ac.Queue.Blocks.Count} blocks, idx={ac.Queue.CurrentBlockIndex}");
+        for (int i = 0; i < ac.Queue.Blocks.Count; i++)
+        {
+            var b = ac.Queue.Blocks[i];
+            output.WriteLine($"    [{i}] {b.SourceCommandText} applied={b.IsApplied} complete={b.AllComplete}");
+        }
+
+        // Tick 1 second at a time and watch for phase changes
+        string? lastPhase = ac.Phases?.CurrentPhase?.GetType().Name;
+        for (int t = 1; t <= 600; t++)
+        {
+            engine.ReplayOneSecond();
+            ac = engine.FindAircraft("N80ZU");
+            if (ac is null)
+            {
+                output.WriteLine($"  t+{t}: aircraft deleted");
+                break;
+            }
+
+            string? curPhase = ac.Phases?.CurrentPhase?.GetType().Name;
+            if (curPhase != lastPhase)
+            {
+                output.WriteLine(
+                    $"  t+{t}: phase change {lastPhase ?? "null"} → {curPhase ?? "null"} alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0} td={ac.Phases?.TrafficDirection}"
+                );
+                lastPhase = curPhase;
+            }
+
+            if (t % 60 == 0)
+            {
+                var navRoute = string.Join(",", ac.Targets.NavigationRoute.Select(n => n.Name));
+                output.WriteLine(
+                    $"  t+{t}: phase={curPhase ?? "null"} alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0} hdg={ac.TrueHeading.Degrees:F0} nav=[{navRoute}]"
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Test 1 — Compound `DCT VPCOL; ERD 28R` must build pattern phases after VPCOL.
+    /// Replays N80ZU's ERD command, ticks for ~10 minutes, and asserts that within
+    /// that window the aircraft enters a pattern phase (Downwind or later). Should
+    /// fail today: snapshots show Phases=null throughout the entire 14-minute window.
+    /// </summary>
+    [Fact]
+    public void CompoundDctErd_BuildsPatternPhases()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // The compound `DCT VPCOL; ERD 28R` was sent at t=1070. Replay to t=1075
+        // (5s after dispatch) and tick forward looking for pattern phase activation.
+        engine.Replay(recording, 1075);
+
+        var ac = engine.FindAircraft("N80ZU");
+        Assert.NotNull(ac);
+
+        bool sawPatternPhase = false;
+        string? lastPhase = null;
+        for (int t = 1; t <= 600; t++)
+        {
+            engine.ReplayOneSecond();
+            ac = engine.FindAircraft("N80ZU");
+            if (ac is null)
+            {
+                output.WriteLine($"t+{t}: deleted");
+                break;
+            }
+
+            var phase = ac.Phases?.CurrentPhase;
+            if (phase is PatternEntryPhase or DownwindPhase or BasePhase or FinalApproachPhase)
+            {
+                sawPatternPhase = true;
+                output.WriteLine($"t+{t}: pattern phase reached: {phase.GetType().Name} (alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0})");
+                break;
+            }
+
+            string? phaseName = phase?.GetType().Name;
+            if (phaseName != lastPhase)
+            {
+                output.WriteLine($"t+{t}: phase {lastPhase ?? "null"} → {phaseName ?? "null"}");
+                lastPhase = phaseName;
+            }
+        }
+
+        Assert.True(
+            sawPatternPhase,
+            "Compound `DCT VPCOL; ERD 28R` should eventually build pattern phases after the aircraft reaches VPCOL — but no PatternEntry/Downwind/Base/Final ever activated within 10 minutes."
+        );
+    }
+
+    /// <summary>
+    /// Test 2 — `ERD 28R` must set `Phases.TrafficDirection = Right`.
+    /// Bare ERD already builds the phase list (verified by the second N80ZU ERD at
+    /// t=2076 in the recording), but TrafficDirection stays null. This is the root
+    /// cause of the GA-flips-to-left bug.
+    /// </summary>
+    [Fact]
+    public void BareErd28R_SetsTrafficDirectionToRight()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // Replay to t=2078 (just after the bare `ERD 28R` at t=2076 fires).
+        engine.Replay(recording, 2078);
+
+        var ac = engine.FindAircraft("N80ZU");
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Phases);
+
+        output.WriteLine($"t=2078: phases=[{string.Join(",", ac.Phases.Phases.Select(p => p.GetType().Name))}]");
+        output.WriteLine($"  TrafficDirection={ac.Phases.TrafficDirection}");
+        output.WriteLine($"  AssignedRunway={ac.Phases.AssignedRunway?.Designator}");
+
+        Assert.Equal(PatternDirection.Right, ac.Phases.TrafficDirection);
+    }
+
+    /// <summary>
+    /// Test 3 — A go-around with a right-pattern aircraft on 28R must keep
+    /// TrafficDirection = Right. Today the GoAroundHelper falls through to its
+    /// `null → Left` default whenever the pattern phases haven't bothered to
+    /// stamp TrafficDirection (which TryEnterPattern doesn't do — see Test 2).
+    /// This test sets the state up explicitly so it can pass without depending
+    /// on Test 2's fix landing first.
+    /// </summary>
+    [Fact]
+    public void GoAround_PreservesRightPatternFor28R()
+    {
+        var engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        var ac = SpawnAirborneOverOak(engine, "TST001", trueHeadingDeg: 280, altFt: 1000);
+        Assert.NotNull(ac);
+
+        // Establish a right-pattern entry for 28R explicitly.
+        var erdResult = engine.SendCommand("TST001", "ERD 28R");
+        output.WriteLine($"ERD 28R: {erdResult.Success} — {erdResult.Message}");
+        Assert.True(erdResult.Success);
+
+        ac = engine.FindAircraft("TST001");
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Phases);
+        Assert.NotNull(ac.Phases.AssignedRunway);
+
+        // Force-set TrafficDirection so Test 3 isolates GoAroundHelper behavior
+        // from Test 2's TryEnterPattern fix.
+        ac.Phases.TrafficDirection = PatternDirection.Right;
+
+        // Trigger a go-around via the helper directly.
+        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        GoAroundHelper.Trigger(ctx, "test-trigger");
+
+        ac = engine.FindAircraft("TST001");
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Phases);
+        Assert.Equal(PatternDirection.Right, ac.Phases.TrafficDirection);
+    }
+
+    /// <summary>
+    /// Test 4 — A go-around with no prior TrafficDirection must use the runway
+    /// side for parallel pairs (28L→Left, 28R→Right). Today it always defaults
+    /// to Left.
+    /// </summary>
+    [Theory]
+    [InlineData("28R", PatternDirection.Right)]
+    [InlineData("28L", PatternDirection.Left)]
+    public void GoAround_NoPriorDirection_UsesParallelRunwaySide(string runwayDesignator, PatternDirection expected)
+    {
+        var engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        var ac = SpawnAirborneOverOak(engine, "TST002", trueHeadingDeg: 280, altFt: 1000);
+        Assert.NotNull(ac);
+
+        var rwy = NavigationDatabase.Instance.GetRunway("OAK", runwayDesignator);
+        Assert.NotNull(rwy);
+
+        // Set up phases without a prior TrafficDirection (e.g. straight-in approach).
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+        Assert.Null(ac.Phases.TrafficDirection);
+
+        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        GoAroundHelper.Trigger(ctx, "test-parallel-runway-side");
+
+        ac = engine.FindAircraft("TST002");
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Phases);
+        Assert.Equal(expected, ac.Phases.TrafficDirection);
+    }
+
+    /// <summary>
+    /// Test 5 — A go-around on a non-parallel runway (single runway like SQL 30 or
+    /// any runway with no L/R sibling) with no prior direction must preserve the
+    /// existing Left default behavior. This documents that the fix only changes
+    /// behavior for parallel pairs, not single runways.
+    /// </summary>
+    [Fact]
+    public void GoAround_NoPriorDirection_NonParallelRunway_DefaultsLeft()
+    {
+        var engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        // SQL 30 is a single non-parallel runway.
+        var rwy = NavigationDatabase.Instance.GetRunway("SQL", "30");
+        if (rwy is null)
+        {
+            output.WriteLine("SQL/30 not in navdata; skipping");
+            return;
+        }
+
+        var ac = SpawnAirborneAt(engine, "TST003", lat: 37.5, lon: -122.25, headingDeg: 300, altFt: 1000);
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+        Assert.Null(ac.Phases.TrafficDirection);
+
+        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        GoAroundHelper.Trigger(ctx, "test-non-parallel");
+
+        ac = engine.FindAircraft("TST003");
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Phases);
+        Assert.Equal(PatternDirection.Left, ac.Phases.TrafficDirection);
+    }
+
+    // --- Helpers ---
+
+    private static string DescribePhases(AircraftState ac)
+    {
+        if (ac.Phases is null)
+        {
+            return "<null>";
+        }
+
+        var names = ac.Phases.Phases.Select(p => p.GetType().Name);
+        return $"[{string.Join(",", names)}] cur={ac.Phases.CurrentPhase?.GetType().Name ?? "null"}";
+    }
+
+    private static AircraftState SpawnAirborneOverOak(SimulationEngine engine, string callsign, double trueHeadingDeg, double altFt)
+    {
+        // Drop the aircraft a few miles east of OAK 28R threshold on the right downwind side.
+        return SpawnAirborneAt(engine, callsign, lat: 37.66, lon: -122.16, headingDeg: trueHeadingDeg, altFt: altFt, destination: "OAK");
+    }
+
+    private static AircraftState SpawnAirborneAt(
+        SimulationEngine engine,
+        string callsign,
+        double lat,
+        double lon,
+        double headingDeg,
+        double altFt,
+        string? destination = null
+    )
+    {
+        var ac = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "DA62",
+            Position = new LatLon(lat, lon),
+            TrueHeading = new TrueHeading(headingDeg),
+            TrueTrack = new TrueHeading(headingDeg),
+            Altitude = altFt,
+            IndicatedAirspeed = 110,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KOAK",
+                Destination = destination ?? "KOAK",
+                FlightRules = "VFR",
+                CruiseAltitude = 1000,
+                CruiseSpeed = 150,
+            },
+        };
+
+        engine.World.AddAircraft(ac);
+        return ac;
+    }
+}

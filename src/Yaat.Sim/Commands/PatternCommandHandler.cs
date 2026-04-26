@@ -271,7 +271,11 @@ internal static class PatternCommandHandler
         aircraft.Procedure.DestinationRunway = runway.Designator;
         phases.LandingClearance = aircraft.Phases.LandingClearance;
         phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
-        phases.TrafficDirection = aircraft.Phases.TrafficDirection;
+        // Stamp the commanded pattern direction so a subsequent go-around preserves
+        // it (GoAroundHelper otherwise defaults VFR to Left, regardless of the
+        // ERD/ELB/ERB/ELD intent). Applies to wrong-side entries too — the
+        // controller's clearance still names the side the pilot must rejoin on.
+        phases.TrafficDirection = direction;
 
         // If the aircraft is airborne and far from the pattern, insert a PatternEntryPhase
         // to navigate to the entry point with descent/climb to pattern altitude.

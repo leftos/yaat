@@ -1591,13 +1591,17 @@ public sealed class SimulationEngine
 
     private void ReplayCommand(RecordedCommand cmd)
     {
+        // Single-command parse handles type-specific shortcuts (DEL, track, spawn,
+        // global squawk, etc.) that bypass the compound dispatch path. Compound
+        // commands like "DCT VPCOL; ERD 28R" intentionally fail this parse — they
+        // fall through to ParseCompound below.
         var simpleResult = CommandParser.Parse(cmd.Command);
-        if (!simpleResult.IsSuccess || simpleResult.Value is SayCommand or ShowQueuedCommand)
+        var simpleParsed = simpleResult.IsSuccess ? simpleResult.Value : null;
+
+        if (simpleParsed is SayCommand or ShowQueuedCommand)
         {
             return;
         }
-
-        var simpleParsed = simpleResult.Value!;
 
         // DEL before the aircraft-exists guard: target may be in the delayed queue only.
         if (simpleParsed is DeleteCommand)
@@ -1619,45 +1623,48 @@ public sealed class SimulationEngine
             return;
         }
 
-        // Skip track commands (server-only: ownership, handoffs, scratchpads, etc.)
-        // For complete snapshots, use ReplayWithSnapshots with the server's action applier.
-        if (IsTrackCommand(simpleParsed))
+        if (simpleParsed is not null)
         {
-            return;
-        }
+            // Skip track commands (server-only: ownership, handoffs, scratchpads, etc.)
+            // For complete snapshots, use ReplayWithSnapshots with the server's action applier.
+            if (IsTrackCommand(simpleParsed))
+            {
+                return;
+            }
 
-        // Skip coordination commands (server-only)
-        if (IsCoordinationCommand(simpleParsed))
-        {
-            return;
-        }
+            // Skip coordination commands (server-only)
+            if (IsCoordinationCommand(simpleParsed))
+            {
+                return;
+            }
 
-        if (simpleParsed is ConsolidateCommand or DeconsolidateCommand)
-        {
-            return;
-        }
+            if (simpleParsed is ConsolidateCommand or DeconsolidateCommand)
+            {
+                return;
+            }
 
-        if (simpleParsed is AcceptAllHandoffsCommand or InitiateHandoffAllCommand)
-        {
-            return;
-        }
+            if (simpleParsed is AcceptAllHandoffsCommand or InitiateHandoffAllCommand)
+            {
+                return;
+            }
 
-        if (simpleParsed is SpawnNowCommand)
-        {
-            HandleSpawnNow(cmd.Callsign);
-            return;
-        }
+            if (simpleParsed is SpawnNowCommand)
+            {
+                HandleSpawnNow(cmd.Callsign);
+                return;
+            }
 
-        if (simpleParsed is SpawnDelayCommand spawnDelay)
-        {
-            HandleSpawnDelay(cmd.Callsign, spawnDelay.Seconds);
-            return;
-        }
+            if (simpleParsed is SpawnDelayCommand spawnDelay)
+            {
+                HandleSpawnDelay(cmd.Callsign, spawnDelay.Seconds);
+                return;
+            }
 
-        if (simpleParsed is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand)
-        {
-            HandleGlobalSquawkCommand(simpleParsed);
-            return;
+            if (simpleParsed is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand)
+            {
+                HandleGlobalSquawkCommand(simpleParsed);
+                return;
+            }
         }
 
         var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.FlightPlan.Route);
