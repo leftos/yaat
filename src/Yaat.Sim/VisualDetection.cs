@@ -67,8 +67,15 @@ public readonly record struct VisualAcquisitionResult(bool Acquired, VisualAcqui
 public static class VisualDetection
 {
     private const double SmToNm = 0.869;
-    private const double MaxAirportRangeNm = 12.0;
     private const double ClassAFloorFt = 18000.0;
+
+    // Geometric horizon = 1.23 * sqrt(eye-height in ft), in nm.
+    // Half is a defensible upper bound for visual airport acquisition: full
+    // horizon ignores haze, scan limits, and the field-of-view problem
+    // (finding a small target in a wide sky). At 4,000 ft AGL this gives
+    // ~39 nm; at 1,000 ft, ~19 nm; at 100 ft, ~6 nm — all reasonable.
+    private const double HorizonNmPerSqrtFt = 1.23;
+    private const double HorizonScaleFactor = 0.5;
 
     // Bank occlusion thresholds
     private const double MinBankForOcclusion = 15.0;
@@ -80,6 +87,9 @@ public static class VisualDetection
     /// <summary>
     /// Attempts to visually acquire the airport. Pass <paramref name="bankAngleDeg"/> for
     /// initial acquisition checks; pass 0 for maintained-contact checks.
+    /// <paramref name="airportSizeCapNm"/> is the maximum acquisition range driven by
+    /// airport conspicuity (lighting, runway length, terrain backdrop) — see
+    /// <see cref="VisualAcquisition.AirportSizeCapNm"/> for the canonical lookup.
     /// </summary>
     public static VisualAcquisitionResult TryAcquireAirport(
         AircraftState aircraft,
@@ -88,10 +98,21 @@ public static class VisualDetection
         double airportElevation,
         IReadOnlyList<MetarParser.CloudLayer>? layers,
         double? visibilitySm,
-        double bankAngleDeg
+        double bankAngleDeg,
+        double airportSizeCapNm
     )
     {
-        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, layers, visibilitySm, runwayHeading: null, bankAngleDeg);
+        return TryAcquireAirportCore(
+            aircraft,
+            airportLat,
+            airportLon,
+            airportElevation,
+            layers,
+            visibilitySm,
+            runwayHeading: null,
+            bankAngleDeg,
+            airportSizeCapNm
+        );
     }
 
     /// <summary>
@@ -99,7 +120,8 @@ public static class VisualDetection
     /// the basic visual checks, ensures the aircraft is on the approach side of the
     /// runway (not on the opposite side, where the pilot would need to overfly the
     /// field). Pass <paramref name="bankAngleDeg"/> for initial acquisition checks;
-    /// pass 0 for maintained-contact checks.
+    /// pass 0 for maintained-contact checks. See <see cref="TryAcquireAirport"/> for
+    /// <paramref name="airportSizeCapNm"/>.
     /// </summary>
     public static VisualAcquisitionResult TryAcquireAirportForRunway(
         AircraftState aircraft,
@@ -109,10 +131,21 @@ public static class VisualDetection
         IReadOnlyList<MetarParser.CloudLayer>? layers,
         double? visibilitySm,
         TrueHeading runwayHeading,
-        double bankAngleDeg
+        double bankAngleDeg,
+        double airportSizeCapNm
     )
     {
-        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, layers, visibilitySm, runwayHeading, bankAngleDeg);
+        return TryAcquireAirportCore(
+            aircraft,
+            airportLat,
+            airportLon,
+            airportElevation,
+            layers,
+            visibilitySm,
+            runwayHeading,
+            bankAngleDeg,
+            airportSizeCapNm
+        );
     }
 
     /// <summary>
@@ -218,11 +251,25 @@ public static class VisualDetection
         IReadOnlyList<MetarParser.CloudLayer>? layers,
         double? visibilitySm,
         TrueHeading? runwayHeading,
-        double bankAngleDeg
+        double bankAngleDeg,
+        double airportSizeCapNm
     )
     {
         double distance = GeoMath.DistanceNm(aircraft.Position, new LatLon(airportLat, airportLon));
-        double maxRange = visibilitySm is not null ? Math.Min(visibilitySm.Value * SmToNm, MaxAirportRangeNm) : MaxAirportRangeNm;
+
+        // Multi-factor acquisition range. Neither 7110.65 §7-4-3 nor AIM §5-4-23
+        // prescribe a distance limit ("airport in sight" is the only criterion);
+        // AIM §5-4-24.6 (CVFP design) treats 20 nm acquisition as routine. We
+        // model the realistic limiters: METAR visibility (hard ceiling), the
+        // observer's geometric horizon scaled by HorizonScaleFactor (haze, scan,
+        // field-of-view), and an airport-conspicuity cap (large hub vs GA field).
+        double altAgl = Math.Max(0, aircraft.Altitude - airportElevation);
+        double horizonNm = HorizonScaleFactor * HorizonNmPerSqrtFt * Math.Sqrt(altAgl);
+        double maxRange = Math.Min(horizonNm, airportSizeCapNm);
+        if (visibilitySm is not null)
+        {
+            maxRange = Math.Min(maxRange, visibilitySm.Value * SmToNm);
+        }
 
         // Class A: no visual approaches at or above FL180 (7110.65 §7-2-1.a)
         if (aircraft.Altitude >= ClassAFloorFt)

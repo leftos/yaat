@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `RFIS` (report field in sight) now succeeds at realistic distances for the destination's size and the aircraft's altitude. The previous 12 nm cap caused pilots to report "looking, negative contact" on a clear day at ranges where they should have seen the field. Acquisition range is now bounded by reported METAR visibility, the aircraft's geometric horizon (so low-altitude aircraft still can't see distant fields), and an airport-conspicuity cap derived from the runway envelope (single-strip GA field ~15 nm; multi-runway hub like KSFO up to 25 nm). KOAK and similar major fields now acquire out to ~20 nm at jet altitudes, matching real-world pilot reports.
+
 ## v0.1.5-alpha [2026/04/26]
 
 ### Added

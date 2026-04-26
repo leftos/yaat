@@ -9,6 +9,11 @@ public class VisualDetectionTests
     private const double AptLon = -122.221;
     private const double AptElev = 9.0;
 
+    // Test-only conspicuity cap for the airport-acquisition tests below.
+    // 25 nm is the large-hub ceiling from VisualAcquisition.AirportSizeCapNm,
+    // chosen here so range assertions are not gated by airport size.
+    private const double LargeCap = 25.0;
+
     public VisualDetectionTests()
     {
         TestVnasData.EnsureInitialized();
@@ -24,7 +29,7 @@ public class VisualDetectionTests
     public void CanSeeAirport_InFront_WithinRange_BelowCeiling_True()
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 10.0, 0.0).Acquired);
+        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 10.0, 0.0, LargeCap).Acquired);
     }
 
     [Fact]
@@ -32,7 +37,7 @@ public class VisualDetectionTests
     {
         // Aircraft heading north, airport to the south → behind
         var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 10.0, 0.0, LargeCap).Acquired);
     }
 
     [Fact]
@@ -40,7 +45,7 @@ public class VisualDetectionTests
     {
         // 1SM visibility ≈ 0.869nm, airport ~2nm away
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 1.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 1.0, 0.0, LargeCap).Acquired);
     }
 
     [Fact]
@@ -48,29 +53,85 @@ public class VisualDetectionTests
     {
         // Ceiling 2000 AGL + 9ft elevation = 2009 MSL, aircraft at 3000 MSL
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(2000), 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(2000), 10.0, 0.0, LargeCap).Acquired);
     }
 
     [Fact]
     public void CanSeeAirport_NoCeiling_StillChecksRangeAndBearing()
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 10000);
-        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0).Acquired);
+        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0, LargeCap).Acquired);
     }
 
     [Fact]
     public void CanSeeAirport_AboveFL180_False()
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 18000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0, LargeCap).Acquired);
     }
 
     [Fact]
-    public void CanSeeAirport_NoVisibility_UsesMaxRange()
+    public void CanSeeAirport_NoVisibility_UsesHorizonAndSizeCap()
     {
-        // Aircraft 5nm away, no visibility data → max range 12nm
+        // Aircraft 5nm away at 3000 ft AGL, no METAR. Horizon = 0.5 * 1.23 * sqrt(2991) ≈ 33.6 nm,
+        // capped by LargeCap = 25 nm. 5 < 25 → acquire.
         var ac = MakeAircraft(37.80, -122.221, heading: 180, altitude: 3000);
-        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, null, 0.0).Acquired);
+        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, null, 0.0, LargeCap).Acquired);
+    }
+
+    [Fact]
+    public void CanSeeAirport_LongRangeAtJetAltitude_True()
+    {
+        // The user's empirical case: B738 at 5000 ft on a vectored downwind/base
+        // ~18 nm out can absolutely see KOAK on a CAVOK day. Horizon at 4991 ft AGL
+        // = 0.5 * 1.23 * sqrt(4991) ≈ 43.4 nm; large-airport cap = 25 nm; → 18 < 25.
+        // Pre-multi-factor model (12 nm hard cap) failed this case.
+        var ac = MakeAircraft(38.022, -122.221, heading: 180, altitude: 5000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, null, 0.0, LargeCap);
+        Assert.True(result.Acquired, $"Expected acquired at ~18 nm / 5000 ft, got {result.Reason} (range={result.MaxRangeNm:F1} nm)");
+    }
+
+    [Fact]
+    public void CanSeeAirport_LowAltitudeHorizonLimits_False()
+    {
+        // 100 ft AGL → horizon = 0.5 * 1.23 * sqrt(91) ≈ 5.9 nm. Aircraft 12 nm
+        // out cannot see the field at this altitude even on a clear day.
+        var ac = MakeAircraft(37.521, -122.221, heading: 0, altitude: 100);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, null, 0.0, LargeCap);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.OutOfRange, result.Reason);
+    }
+
+    [Fact]
+    public void CanSeeAirport_BeyondSizeCap_False()
+    {
+        // 27 nm out at 8000 ft. Horizon ≈ 0.5 * 1.23 * sqrt(7991) ≈ 55 nm — not the limiter.
+        // Large cap = 25 nm — IS the limiter. 27 > 25 → fail.
+        var ac = MakeAircraft(38.171, -122.221, heading: 180, altitude: 8000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, null, 0.0, LargeCap);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.OutOfRange, result.Reason);
+    }
+
+    // -------------------------------------------------------------------------
+    // AirportSizeCapNm — polygon-extent classifier
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void AirportSizeCap_KOAK_LargeFieldNearCeiling()
+    {
+        // KOAK has 3 runways spread over ~2 nm of ground. Should land near the
+        // upper end of the [15, 25] nm scale.
+        double cap = VisualAcquisition.AirportSizeCapNm("OAK");
+        Assert.InRange(cap, 18.0, 25.0);
+    }
+
+    [Fact]
+    public void AirportSizeCap_UnknownAirport_ReturnsFloor()
+    {
+        // No runway data → conservative floor (small-field cap).
+        double cap = VisualAcquisition.AirportSizeCapNm("ZZZZ");
+        Assert.Equal(15.0, cap);
     }
 
     // -------------------------------------------------------------------------
@@ -83,7 +144,9 @@ public class VisualDetectionTests
         // Runway heading 284° → approach from ~104° (east side)
         // Aircraft to the east of airport, heading west toward airport
         var ac = MakeAircraft(37.721, -122.15, heading: 270, altitude: 3000);
-        Assert.True(VisualDetection.TryAcquireAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0), 0.0).Acquired);
+        Assert.True(
+            VisualDetection.TryAcquireAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0), 0.0, LargeCap).Acquired
+        );
     }
 
     [Fact]
@@ -91,7 +154,9 @@ public class VisualDetectionTests
     {
         // Aircraft to the west of airport (departure end for Rwy 28R), looking east at airport
         var ac = MakeAircraft(37.721, -122.30, heading: 90, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0), 0.0).Acquired);
+        Assert.False(
+            VisualDetection.TryAcquireAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0), 0.0, LargeCap).Acquired
+        );
     }
 
     [Fact]
@@ -102,7 +167,9 @@ public class VisualDetectionTests
         // bearing from airport to aircraft is roughly south (~180°), approach side reciprocal is 104°
         // 180-104 = 76° < 120° → should pass approach-side check
         var ac = MakeAircraft(37.69, -122.221, heading: 350, altitude: 3000);
-        Assert.True(VisualDetection.TryAcquireAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0), 0.0).Acquired);
+        Assert.True(
+            VisualDetection.TryAcquireAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0), 0.0, LargeCap).Acquired
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -157,7 +224,7 @@ public class VisualDetectionTests
     {
         // Visual approaches still prohibited in Class A
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 18000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0, LargeCap).Acquired);
     }
 
     // -------------------------------------------------------------------------
@@ -230,7 +297,7 @@ public class VisualDetectionTests
         // Aircraft at 10,000 MSL with BKN050 + OVC200 → above BKN050, binding = BKN050
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 10000);
         IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Broken, 5000), new(MetarParser.CloudCover.Overcast, 20000)];
-        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0, LargeCap);
         Assert.False(result.Acquired);
         Assert.Equal(VisualAcquisitionFailure.AboveCeiling, result.Reason);
         Assert.NotNull(result.BindingLayer);
@@ -246,7 +313,7 @@ public class VisualDetectionTests
         // Layers but is correctly ignored.
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 16000);
         IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Overcast, 15000)];
-        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0, LargeCap);
         Assert.False(result.Acquired);
         Assert.Equal(VisualAcquisitionFailure.AboveCeiling, result.Reason);
         Assert.NotNull(result.BindingLayer);
@@ -259,7 +326,7 @@ public class VisualDetectionTests
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 1500);
         IReadOnlyList<MetarParser.CloudLayer> layers = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Broken, 7000)];
-        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0).Acquired);
+        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, layers, 10.0, 0.0, LargeCap).Acquired);
     }
 
     // -------------------------------------------------------------------------
