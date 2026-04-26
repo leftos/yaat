@@ -202,13 +202,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string? _activeScenarioName;
 
-    /// <summary>
-    /// Whether the student's position is a tower (LC/TWR) position. When false, AutoClearedToLand is
-    /// forced on by the server and the setting is non-editable.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isStudentTowerPosition = true;
-
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     private string? _activeWeatherName;
@@ -1823,6 +1816,8 @@ public partial class MainViewModel : ObservableObject
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionValidateDctFixes = dto.ValidateDctFixes;
         _isApplyingSessionSettings = false;
+
+        ApplyAutoClearedToLandLocally(dto.AutoClearedToLand);
     }
 
     private void ApplySessionSettingsFromRoom(RoomStateDto state)
@@ -1869,6 +1864,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (!_isApplyingSessionSettings)
         {
+            ApplyAutoClearedToLandLocally(value);
             _ = _connection.SetAutoClearedToLandAsync(value);
         }
     }
@@ -1923,18 +1919,28 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-            await _connection.SetAutoClearedToLandAsync(_isAutoClearedToLand);
-            foreach (var ac in Aircraft)
-            {
-                ac.IsAutoClearedToLand = _isAutoClearedToLand;
-                ac.ComputeSmartStatus();
-            }
+            var value = _preferences.GetAutoClearedToLand(_studentPositionType);
+            ApplyAutoClearedToLandLocally(value);
+            await _connection.SetAutoClearedToLandAsync(value);
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set auto-cleared-to-land");
         }
+    }
+
+    /// <summary>
+    /// Push a new "Auto Cleared-to-Land" value into local client state: stores it
+    /// in <see cref="_isAutoClearedToLand"/> (read by
+    /// <c>ApplyAutoClearedToLand(AircraftModel)</c> when fresh aircraft DTOs arrive)
+    /// and updates every existing <see cref="AircraftModel"/> so the in-list red
+    /// "No landing clnc" alert tracks the live setting. Called from the in-session
+    /// flyout toggle, the cross-RPO settings broadcast, and scenario-load wiring.
+    /// </summary>
+    internal void ApplyAutoClearedToLandLocally(bool value)
+    {
+        _isAutoClearedToLand = value;
+        AutoClearedToLandSync.ApplyToAircraft(Aircraft, value);
     }
 
     private async Task SendAutoCrossRunway()
