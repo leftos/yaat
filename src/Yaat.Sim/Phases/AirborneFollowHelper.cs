@@ -130,21 +130,24 @@ public static class AirborneFollowHelper
     /// Phase-context-free variant used by <see cref="VfrFollowPhase"/> during free
     /// pursuit (lead not in a pattern). Treats the lead's ground speed as the
     /// "normal" target so the follower tracks the lead's speed with distance-based
-    /// correction, using the wider free-flight desired distances. Does not read
-    /// or clear <see cref="AircraftState.Approach.FollowingCallsign"/> — the caller
-    /// (VfrFollowPhase) owns that lifecycle.
+    /// correction, using the wider free-flight desired distances.
+    ///
+    /// Returns the adjusted speed, or <c>null</c> when separation cannot be
+    /// maintained — in that case the helper has already added a one-shot warning
+    /// to <see cref="AircraftState.PendingWarnings"/> and cleared
+    /// <see cref="AircraftState.Approach.FollowingCallsign"/>; the caller MUST
+    /// end its follow phase or the warning will fire again next tick.
     /// </summary>
     /// <param name="follower">Follower aircraft.</param>
     /// <param name="lead">Lead aircraft.</param>
     /// <param name="minSpeed">Absolute floor — never returns below this.</param>
     /// <param name="logger">Logger for warnings when separation cannot be maintained.</param>
-    public static double AdjustedFreeFlightSpeed(AircraftState follower, AircraftState lead, double minSpeed, ILogger logger)
+    public static double? AdjustedFreeFlightSpeed(AircraftState follower, AircraftState lead, double minSpeed, ILogger logger)
     {
         double normalSpeed = Math.Max(lead.IndicatedAirspeed, minSpeed);
         var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
-        var result = ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, MaxSpeedAdjustKts, logger);
-        return result ?? normalSpeed;
+        return ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, MaxSpeedAdjustKts, logger);
     }
 
     /// <summary>

@@ -125,7 +125,15 @@ public sealed class VfrFollowPhase : Phase
         ctx.Targets.TargetTrueHeading = new TrueHeading(targetBearing);
 
         double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-        ctx.Targets.TargetSpeed = AirborneFollowHelper.AdjustedFreeFlightSpeed(ctx.Aircraft, lead, minSpeed, Log);
+        double? adjusted = AirborneFollowHelper.AdjustedFreeFlightSpeed(ctx.Aircraft, lead, minSpeed, Log);
+        if (adjusted is null)
+        {
+            // Helper has already added a one-shot "unable to maintain separation"
+            // warning and cleared Approach.FollowingCallsign. End the phase so the
+            // helper isn't re-entered every tick (which would re-spam the warning).
+            return true;
+        }
+        ctx.Targets.TargetSpeed = adjusted;
 
         return false;
     }
