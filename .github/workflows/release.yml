@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write  # for the final step that dispatches discord-release.yml
 
 jobs:
   version:
@@ -478,7 +479,14 @@ jobs:
         with:
           body: ${{ steps.body.outputs.body }}
           files: release/*
-          # Use a PAT instead of GITHUB_TOKEN so the resulting release: published
-          # event triggers discord-release.yml. GitHub suppresses workflow chaining
-          # when events are fired by the default token.
-          token: ${{ secrets.DISPATCH_TOKEN }}
+
+      # Manually dispatch discord-release.yml. GitHub's recursion guard prevents
+      # the release: published event from auto-triggering workflows when the
+      # release was created by the default GITHUB_TOKEN, but workflow_dispatch
+      # is exempt from that guard, so this works with GITHUB_TOKEN's actions:write.
+      - name: Announce release on Discord
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.version }}
+        run: |
+          gh workflow run discord-release.yml --ref main -f tag="v${TAG}"
