@@ -76,7 +76,16 @@ public sealed class FinalApproachPhase : Phase
     private bool _isPatternTraffic;
     private bool _tooHighGoAroundChecked;
     private bool _fasSet;
+    private bool _gsCaptured;
     private double _mapDistNm;
+
+    /// <summary>
+    /// Aircraft is considered "captured" on the glideslope once its altitude reaches the GS
+    /// path (within this window from above) — at that point the phase locks onto GS for the
+    /// rest of the descent. Below the window and not yet captured, the phase holds the
+    /// assigned altitude rather than commanding a climb up to GS.
+    /// </summary>
+    private const double GsCaptureWindowFt = 50.0;
 
     /// <summary>
     /// When true, skips the illegal intercept distance check.
@@ -108,6 +117,7 @@ public sealed class FinalApproachPhase : Phase
             TooHighGoAroundChecked = _tooHighGoAroundChecked,
             FasSet = _fasSet,
             MapDistNm = _mapDistNm,
+            GsCaptured = _gsCaptured,
         };
 
     public static FinalApproachPhase FromSnapshot(FinalApproachPhaseDto dto)
@@ -132,6 +142,7 @@ public sealed class FinalApproachPhase : Phase
         phase._tooHighGoAroundChecked = dto.TooHighGoAroundChecked;
         phase._fasSet = dto.FasSet;
         phase._mapDistNm = dto.MapDistNm;
+        phase._gsCaptured = dto.GsCaptured;
         return phase;
     }
 
@@ -271,9 +282,26 @@ public sealed class FinalApproachPhase : Phase
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, aimPoint);
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
 
-        // Target: glideslope altitude at current distance (true 3°/6° path)
+        // Target: glideslope altitude at current distance (true 3°/6° path).
+        // Only follow GS once the aircraft is at/above it. Below GS and not yet captured,
+        // hold the assigned altitude (clamped by current altitude — never climb up to assigned
+        // either) and wait for the GS to descend to meet the aircraft from above. Aircraft must
+        // never fly UP to capture a glideslope.
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, _gsAngleDeg);
-        ctx.Targets.TargetAltitude = gsAltitude;
+        if (!_gsCaptured && (ctx.Aircraft.Altitude >= gsAltitude - GsCaptureWindowFt))
+        {
+            _gsCaptured = true;
+        }
+
+        if (_gsCaptured)
+        {
+            ctx.Targets.TargetAltitude = gsAltitude;
+        }
+        else
+        {
+            double assigned = ctx.Targets.AssignedAltitude ?? ctx.Aircraft.Altitude;
+            ctx.Targets.TargetAltitude = Math.Min(assigned, ctx.Aircraft.Altitude);
+        }
 
         // Descent rate: geometry-based convergence when above GS, gentle recovery when below
         double standardFpm = GlideSlopeGeometry.RequiredDescentRate(ctx.Aircraft.GroundSpeed, _gsAngleDeg);
@@ -281,7 +309,16 @@ public sealed class FinalApproachPhase : Phase
         double maxFpm = distNm > 2.0 ? Math.Max(Math.Min(2500, standardFpm * 2.0), 200) : 1500;
 
         double fpm;
-        if (deviation > 50)
+        if (!_gsCaptured)
+        {
+            // Below GS waiting for capture: hold level. Without this branch the gentle-recovery
+            // formula below would still command a 200 fpm minimum descent (per the Math.Clamp
+            // floor) and slowly bleed altitude — opposite of AIM 5-4-14 ("maintain assigned
+            // altitude until intercepting the glideslope").
+            ctx.Targets.DesiredVerticalRate = 0;
+            fpm = 0;
+        }
+        else if (deviation > 50)
         {
             // Above GS: compute FPM needed to reach GS altitude at a convergence point ahead.
             // Convergence point = min(distNm - 1.0, distNm × 0.7) nm from threshold, floored at 0.5nm.
@@ -305,12 +342,15 @@ public sealed class FinalApproachPhase : Phase
         }
         else
         {
-            // On or below GS: gentle scaling (0.5–1.0×)
+            // On or below GS (captured): gentle scaling (0.5–1.0×)
             double scale = Math.Clamp(1.0 + deviation / 1000.0, 0.5, 1.0);
             fpm = standardFpm * scale;
         }
 
-        ctx.Targets.DesiredVerticalRate = -Math.Clamp(fpm, 200, maxFpm);
+        if (_gsCaptured)
+        {
+            ctx.Targets.DesiredVerticalRate = -Math.Clamp(fpm, 200, maxFpm);
+        }
 
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);

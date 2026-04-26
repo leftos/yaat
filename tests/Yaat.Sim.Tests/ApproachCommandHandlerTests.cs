@@ -731,13 +731,16 @@ public class ApproachCommandHandlerTests
     public void ApproachNavPhase_AppliesAltitudeRestriction()
     {
         var altRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 3000);
-        var fixes = new List<ApproachFix> { new("FIX1", 37.80, -122.30, altRestriction), new("FIX2", 37.75, -122.25) };
+        var fixes = new List<ApproachFix> { new("FIX1", 37.73, -122.23, altRestriction), new("FIX2", 37.725, -122.225) };
 
         var phase = new ApproachNavigationPhase { Fixes = fixes };
-        var aircraft = MakeAircraft(altitude: 5000, lat: 37.85, lon: -122.35);
-        var ctx = MakeContext(aircraft);
+        // Aircraft placed close enough to the threshold that gsAltitude (≈ 327 ft at 1 nm)
+        // is well below the At 3000 constraint, so the constraint is the binding floor.
+        var aircraft = MakeAircraft(altitude: 5000, lat: 37.735, lon: -122.235);
+        var ctx = MakeContext(aircraft, MakeRunway());
 
         phase.OnStart(ctx);
+        phase.OnTick(ctx);
 
         Assert.Equal(3000, aircraft.Targets.TargetAltitude);
     }
@@ -799,14 +802,17 @@ public class ApproachCommandHandlerTests
     public void ApproachNavPhase_AppliesGlideSlopeInterceptAltitude()
     {
         var altRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.GlideSlopeIntercept, 1800);
-        var fixes = new List<ApproachFix> { new("FIX1", 37.80, -122.30, altRestriction), new("FIX2", 37.75, -122.25) };
+        var fixes = new List<ApproachFix> { new("FIX1", 37.73, -122.23, altRestriction), new("FIX2", 37.725, -122.225) };
 
         var phase = new ApproachNavigationPhase { Fixes = fixes };
-        var aircraft = MakeAircraft(altitude: 3000, lat: 37.85, lon: -122.35);
-        var ctx = MakeContext(aircraft);
+        // Aircraft close enough to the threshold that gsAltitude is below the 1800 floor.
+        var aircraft = MakeAircraft(altitude: 3000, lat: 37.735, lon: -122.235);
+        var ctx = MakeContext(aircraft, MakeRunway());
 
         phase.OnStart(ctx);
+        phase.OnTick(ctx);
 
+        // GlideSlopeIntercept is treated as a hard At for descent floor purposes.
         Assert.Equal(1800, aircraft.Targets.TargetAltitude);
     }
 
@@ -883,7 +889,7 @@ public class ApproachCommandHandlerTests
 
     // --- Helpers ---
 
-    private static PhaseContext MakeContext(AircraftState aircraft)
+    private static PhaseContext MakeContext(AircraftState aircraft, RunwayInfo? runway = null)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         return new PhaseContext
@@ -892,6 +898,8 @@ public class ApproachCommandHandlerTests
             Targets = aircraft.Targets,
             Category = cat,
             DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway?.ElevationFt ?? 0,
             Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
         };
     }

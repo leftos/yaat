@@ -258,6 +258,92 @@ public class FinalApproachDescentTests
         Assert.True(actualRate < standardFpm, $"Rate {actualRate:F0} should be less than standard {standardFpm:F0} when below GS");
     }
 
+    /// <summary>
+    /// Aircraft 600 ft below the 3° glideslope at 5 nm must NOT have its
+    /// TargetAltitude set above its current altitude — i.e. FinalApproachPhase
+    /// must not command a climb to capture the glideslope from below. Real
+    /// procedure: hold the assigned/current altitude until the GS descends to
+    /// meet the aircraft from above, then track it down. Aircraft must never
+    /// climb to capture a glideslope.
+    /// </summary>
+    [Fact]
+    public void BelowGlideslope_DoesNotCommandClimb()
+    {
+        const double thresholdElev = 9;
+        double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, thresholdElev);
+        double startAlt = gsAt5 - 600;
+
+        var rwy = TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "OAK",
+            thresholdLat: 37.72,
+            thresholdLon: -122.22,
+            heading: 280,
+            elevationFt: thresholdElev
+        );
+
+        var reciprocal = rwy.TrueHeading.ToReciprocal();
+        var startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 5.0);
+
+        var ac = new AircraftState
+        {
+            Callsign = "UAL123",
+            AircraftType = "B738",
+            Position = new LatLon(startPos.Lat, startPos.Lon),
+            TrueHeading = rwy.TrueHeading,
+            Altitude = startAlt,
+            IndicatedAirspeed = 140,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+        };
+
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = rwy,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = rwy.TrueHeading,
+            },
+        };
+        ac.Targets.AssignedAltitude = startAlt;
+        ac.Targets.TargetSpeed = 140;
+
+        var phase = new FinalApproachPhase { SkipInterceptCheck = true };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Runway = rwy,
+            FieldElevation = rwy.ElevationFt,
+            Logger = NullLogger.Instance,
+            AutoClearedToLand = true,
+        };
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        double? tgt = ac.Targets.TargetAltitude;
+        double? vs = ac.Targets.DesiredVerticalRate;
+        _output.WriteLine(
+            $"Below GS by 600ft at 5nm: alt={ac.Altitude:F0}, gsAlt={gsAt5:F0}, TargetAltitude={tgt?.ToString("F0") ?? "null"}, DesiredVS={vs?.ToString("F0") ?? "null"}"
+        );
+
+        Assert.NotNull(tgt);
+        Assert.True(
+            tgt.Value <= ac.Altitude + 1,
+            $"FinalApproachPhase must not command a climb to GS. Altitude {ac.Altitude:F0}, TargetAltitude {tgt:F0}, gsAlt {gsAt5:F0}"
+        );
+        Assert.True(
+            (vs ?? 0) >= 0,
+            $"FinalApproachPhase must not command descent while below GS uncaptured (would slowly bleed altitude waiting for capture). DesiredVerticalRate={vs}"
+        );
+    }
+
     [Fact]
     public void TooHighAtMAP_TriggersGoAround()
     {

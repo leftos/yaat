@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Aircraft on a cleared approach now descend continuously toward the glideslope instead of holding their assigned altitude until reaching a fix with an At/AtOrBelow restriction (typically the FAF). The descent target now follows the published 3° glideslope extended back through the approach, bounded above by the assigned altitude and below by published AtOrAbove constraints.
+- Aircraft cleared for the approach below the glideslope no longer climb up to capture it. They now hold their assigned altitude until the glideslope descends to meet them from above, matching AIM 5-4-14.
+
 ## v0.1.4-alpha [2026/04/25]
 
 ### Fixed

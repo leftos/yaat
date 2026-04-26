@@ -44,6 +44,8 @@ public sealed class ApproachNavigationPhase : Phase
             return true;
         }
 
+        ApplyContinuousDescentTarget(ctx);
+
         var fix = Fixes[_currentFixIndex];
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
 
@@ -130,56 +132,78 @@ public sealed class ApproachNavigationPhase : Phase
             );
         }
 
-        // Apply altitude restriction
-        if (fix.Altitude is { } alt)
-        {
-            ApplyAltitudeRestriction(ctx, alt);
-        }
-
-        // Apply speed restriction
+        // Speed restriction is applied per fix; altitude is owned by the per-tick
+        // continuous-descent path (ApplyContinuousDescentTarget).
         if (fix.SpeedKts is { } speed)
         {
             ctx.Targets.TargetSpeed = speed;
         }
     }
 
-    private static void ApplyAltitudeRestriction(PhaseContext ctx, CifpAltitudeRestriction alt)
+    /// <summary>
+    /// Sets <c>TargetAltitude</c> per tick to track the published 3°/6° glideslope
+    /// extended back through the approach, so the aircraft descends continuously
+    /// from CAPP onward instead of holding its assigned altitude until a fix with
+    /// an explicit At/AtOrBelow restriction forces it down. Bounded below by the
+    /// highest remaining AtOrAbove constraint and above by the aircraft's current
+    /// altitude — the aircraft never climbs to capture the profile from below.
+    /// </summary>
+    private void ApplyContinuousDescentTarget(PhaseContext ctx)
     {
-        switch (alt.Type)
+        if (ctx.Runway is null)
         {
-            case CifpAltitudeRestrictionType.At:
-            case CifpAltitudeRestrictionType.GlideSlopeIntercept:
-                ctx.Targets.TargetAltitude = alt.Altitude1Ft;
-                break;
-
-            case CifpAltitudeRestrictionType.AtOrAbove:
-                if (ctx.Aircraft.Altitude < alt.Altitude1Ft)
-                {
-                    ctx.Targets.TargetAltitude = alt.Altitude1Ft;
-                }
-                break;
-
-            case CifpAltitudeRestrictionType.AtOrBelow:
-                if (ctx.Aircraft.Altitude > alt.Altitude1Ft)
-                {
-                    ctx.Targets.TargetAltitude = alt.Altitude1Ft;
-                }
-                break;
-
-            case CifpAltitudeRestrictionType.Between:
-                if (alt.Altitude2Ft is { } lower)
-                {
-                    if (ctx.Aircraft.Altitude > alt.Altitude1Ft)
-                    {
-                        ctx.Targets.TargetAltitude = alt.Altitude1Ft;
-                    }
-                    else if (ctx.Aircraft.Altitude < lower)
-                    {
-                        ctx.Targets.TargetAltitude = lower;
-                    }
-                }
-                break;
+            return;
         }
+
+        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude));
+        double gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, ctx.Runway.ElevationFt, gsAngleDeg);
+
+        double floor = gsAltitude;
+        for (int i = _currentFixIndex; i < Fixes.Count; i++)
+        {
+            if (Fixes[i].Altitude is not { } alt)
+            {
+                continue;
+            }
+
+            switch (alt.Type)
+            {
+                case CifpAltitudeRestrictionType.AtOrAbove:
+                case CifpAltitudeRestrictionType.At:
+                case CifpAltitudeRestrictionType.GlideSlopeIntercept:
+                    if (alt.Altitude1Ft > floor)
+                    {
+                        floor = alt.Altitude1Ft;
+                    }
+                    break;
+
+                case CifpAltitudeRestrictionType.Between:
+                    if (alt.Altitude2Ft is { } lower && lower > floor)
+                    {
+                        floor = lower;
+                    }
+                    break;
+            }
+        }
+
+        // Don't climb to capture the profile from below — hold current altitude
+        // (or assigned, whichever is lower) until the GS line descends to meet it.
+        double target = floor;
+        if (target > ctx.Aircraft.Altitude)
+        {
+            double assigned = ctx.Targets.AssignedAltitude ?? ctx.Aircraft.Altitude;
+            target = Math.Min(assigned, ctx.Aircraft.Altitude);
+        }
+
+        // Cap by controller's assigned ceiling (only relevant when the GS-driven
+        // target would otherwise want a lower altitude — assigned is a clearance).
+        if (ctx.Targets.AssignedAltitude is { } asg && target > asg)
+        {
+            target = asg;
+        }
+
+        ctx.Targets.TargetAltitude = target;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

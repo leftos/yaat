@@ -551,6 +551,13 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     public double? AnchorLat { get; init; }
 
     public double? AnchorLon { get; init; }
+
+    /// <summary>
+    /// True once the aircraft has reached glideslope altitude from below (or started
+    /// above). While false, FinalApproachPhase holds assigned/current altitude rather
+    /// than commanding a climb up to the GS — aircraft must never fly UP to capture.
+    /// </summary>
+    public bool GsCaptured { get; init; }
 }
 
 public sealed class LandingPhaseDto : PhaseDto
