@@ -12,6 +12,7 @@
 - Aircraft no longer stop when taxiing past a parked aircraft on an adjacent taxiway. The ground-conflict check now uses the parked aircraft's actual wingspan to determine wingtip clearance instead of treating anything within ~100 ft and a 90° forward cone as a hard stop.
 - A longer aircraft trailing a shorter one (e.g. an A350 behind an E175 on a hold-short queue) now stops with its nose clear of the leader's tail. The previous stop threshold only used the leader's length, which underestimated separation whenever the trailer was bigger.
 - Aircraft no longer spin in place at certain 4-way taxi intersections. At crossings like SFO's E/F intersection south of 28L, taxi routes to a parking spot could include a detour through a sub-2 kt corner arc that the aircraft physically couldn't follow, producing a slow on-the-spot pirouette. The pathfinder now sees a cleaned-up graph (parallel bypass edges from adjacent fillets removed) and routes through the proper centerline.
+- Aircraft taxiing to a parking spot now stay on the controller's named taxiway as long as possible instead of slipping onto a parallel taxiway to save a few feet. For example, `TAXI E A @B10` now stays on A all the way to the numbered ramp connectors (M1, M3, RAMP) instead of routing through parallel taxiway Y because it was marginally shorter. The bias only affects unnamed letter-only taxiways — numbered taxiways and ramps are still used freely as needed to reach the spot.
 
 ## v0.1.2-alpha [2026/04/25]
 

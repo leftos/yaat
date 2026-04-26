@@ -130,6 +130,35 @@ public static class TaxiPathfinder
         int currentNodeId = fromNodeId;
         int segmentCountBeforeLastTw = 0;
 
+        // Set of taxiway names the controller explicitly named in the
+        // instruction. Used to bias the parking-extension and bridge A*
+        // searches against entering letter-only taxiways the controller did
+        // not authorize (e.g. avoid Y on a TAXI E A @B10 when stays-on-A is
+        // available). Node references (@123) are excluded because they're
+        // routing waypoints, not taxiway names.
+        //
+        // Also include the start node's currently-on taxiways: if the aircraft
+        // is parked on G when given TAXI D, the natural bridge from G to D
+        // walks G — penalizing G would force a worse D-entry point.
+        var authorizedTaxiways = new HashSet<string>(taxiwayNames.Where(n => !IsNodeReference(n)), StringComparer.OrdinalIgnoreCase);
+        if (layout.Nodes.TryGetValue(fromNodeId, out var startNodeForAuth))
+        {
+            foreach (var startEdge in startNodeForAuth.Edges)
+            {
+                if (startEdge is GroundArc startArc)
+                {
+                    foreach (var twy in startArc.TaxiwayNames)
+                    {
+                        authorizedTaxiways.Add(twy);
+                    }
+                }
+                else
+                {
+                    authorizedTaxiways.Add(startEdge.TaxiwayName);
+                }
+            }
+        }
+
         // Resolve destination hint for direction guidance when no next taxiway is available.
         // Use destinationRunway first; fall back to the first explicit hold-short (HS keyword)
         // so that "TAXI Y H B M1 HS 01L" steers the same direction as "TAXI Y H B M1 1L".
@@ -221,7 +250,15 @@ public static class TaxiPathfinder
             BestStopResult bestStopResult = default;
             if (destinationHintNode is not null && !IsNodeReference(twName))
             {
-                bestStopResult = SelectBestStopNode(layout, currentNodeId, twName, nextTwName, destinationHintNode.Id, diagnosticLog);
+                bestStopResult = SelectBestStopNode(
+                    layout,
+                    currentNodeId,
+                    twName,
+                    nextTwName,
+                    destinationHintNode.Id,
+                    authorizedTaxiways,
+                    diagnosticLog
+                );
                 if (bestStopResult.BestNodeId is not null)
                 {
                     passedStopNodeIds = [bestStopResult.BestNodeId.Value];
@@ -396,7 +433,8 @@ public static class TaxiPathfinder
         int toNodeId,
         RoutePreference? preference = null,
         int maxRoutes = 4,
-        string? aircraftType = null
+        string? aircraftType = null,
+        IReadOnlySet<string>? authorizedTaxiways = null
     )
     {
         var strategies = preference is not null
@@ -416,10 +454,10 @@ public static class TaxiPathfinder
         {
             Func<IGroundEdge, IGroundEdge?, double> costFn = strategy switch
             {
-                RoutePreference.Shortest => (edge, _) => CostShortest(edge),
+                RoutePreference.Shortest => (edge, _) => CostShortestBiased(edge, authorizedTaxiways),
                 RoutePreference.FewestTurns => (edge, prev) => CostFewestTurns(edge, prev),
                 RoutePreference.Fastest => (edge, _) => CostFastest(edge, turnRateDegSec, taxiSpeedKts),
-                _ => (edge, _) => CostShortest(edge),
+                _ => (edge, _) => CostShortestBiased(edge, authorizedTaxiways),
             };
 
             // Heuristic must lower-bound the cost-to-goal in the same units as costFn.
@@ -640,6 +678,91 @@ public static class TaxiPathfinder
             cost += RunwayEdgePenaltyCost;
         }
 
+        return cost;
+    }
+
+    /// <summary>
+    /// Multiplier applied to per-edge distance when an edge is on a letter-only
+    /// taxiway not in the controller's authorized list. Letter-only names (A,
+    /// Y, F, M) denote full named taxiways that controllers explicitly issue
+    /// in instructions; if a route candidate enters one that wasn't requested,
+    /// it is almost certainly a parallel detour the controller would have
+    /// named had they intended it. Numbered taxiways (any name containing a
+    /// digit — A1, M1, AY1) are treated as ramp/connector links the controller
+    /// expects the pilot to use without naming. Multiplier &gt; 1 biases A* away
+    /// from unauthorized letter-only paths without forbidding them — if the
+    /// only physical route to the goal goes through one, A* will still pick it.
+    /// </summary>
+    private const double UnauthorizedLetterOnlyTaxiwayMultiplier = 5.0;
+
+    /// <summary>
+    /// Names that look letter-only but are graph categories rather than real
+    /// taxiways and must be exempt from the bias (otherwise the parking-
+    /// extension A* would refuse to enter the ramp it must reach).
+    /// </summary>
+    private static readonly HashSet<string> LetterOnlyTaxiwayBiasExemptions = new(StringComparer.OrdinalIgnoreCase) { "RAMP", "SPOT" };
+
+    private static bool IsLetterOnlyTaxiway(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return false;
+        }
+        if (LetterOnlyTaxiwayBiasExemptions.Contains(name))
+        {
+            return false;
+        }
+        for (int i = 0; i < name.Length; i++)
+        {
+            if (char.IsDigit(name[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// CostShortest plus a multiplicative bias that discourages entering
+    /// letter-only taxiways the controller didn't authorize. See
+    /// <see cref="UnauthorizedLetterOnlyTaxiwayMultiplier"/> for the rationale.
+    /// When <paramref name="authorizedTaxiways"/> is null the bias is disabled
+    /// (cost matches <see cref="CostShortest"/>).
+    ///
+    /// <para>
+    /// For multi-named transition arcs (e.g. "C - RAMP", "F - E"), the bias
+    /// checks each of the arc's declared taxiway names: if any one is in the
+    /// authorized list, or if any one is not a letter-only taxiway (i.e.
+    /// numbered or exempt like RAMP/SPOT), the edge is not penalized. The
+    /// arc is the legitimate transition between those taxiways and shouldn't
+    /// be discouraged just because its formatted name string contains a
+    /// separator.
+    /// </para>
+    /// </summary>
+    private static double CostShortestBiased(IGroundEdge edge, IReadOnlySet<string>? authorizedTaxiways)
+    {
+        double cost = CostShortest(edge);
+        if (authorizedTaxiways is null)
+        {
+            return cost;
+        }
+
+        string[] names = edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
+
+        bool unauthorized = true;
+        foreach (var name in names)
+        {
+            if (authorizedTaxiways.Contains(name) || !IsLetterOnlyTaxiway(name))
+            {
+                unauthorized = false;
+                break;
+            }
+        }
+
+        if (unauthorized)
+        {
+            cost *= UnauthorizedLetterOnlyTaxiwayMultiplier;
+        }
         return cost;
     }
 
@@ -988,6 +1111,7 @@ public static class TaxiPathfinder
         string taxiwayName,
         string? nextTaxiwayName,
         int finalDestinationNodeId,
+        IReadOnlySet<string> authorizedTaxiways,
         Action<string>? diagnosticLog
     )
     {
@@ -1026,7 +1150,14 @@ public static class TaxiPathfinder
             }
             else
             {
-                var bridgeCandidates = FindRoutes(layout, walkStartNodeId, candidateId, RoutePreference.Shortest, 1);
+                var bridgeCandidates = FindRoutes(
+                    layout,
+                    walkStartNodeId,
+                    candidateId,
+                    RoutePreference.Shortest,
+                    1,
+                    authorizedTaxiways: authorizedTaxiways
+                );
                 if (bridgeCandidates.Count == 0)
                 {
                     scores.Add($"{candidateId}=unreachable");
@@ -1057,7 +1188,14 @@ public static class TaxiPathfinder
             // distance-weight-1.0 heuristic — A* then behaves non-admissibly and can
             // pick longer single-taxiway detours. Shortest's cost and heuristic are
             // both in distance-nm, so A* returns the actual minimum-distance route.
-            var extensionCandidates = FindRoutes(layout, candidateId, finalDestinationNodeId, RoutePreference.Shortest, 1);
+            var extensionCandidates = FindRoutes(
+                layout,
+                candidateId,
+                finalDestinationNodeId,
+                RoutePreference.Shortest,
+                1,
+                authorizedTaxiways: authorizedTaxiways
+            );
             if (extensionCandidates.Count == 0)
             {
                 scores.Add($"{candidateId}=no_route");

@@ -206,6 +206,74 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Bias check: <c>TAXI E A @B10</c> from node 852 must not enter
+    /// taxiway Y in the parking extension. Y is a letter-only taxiway
+    /// (parallel to A) that the controller did not authorize. The current
+    /// route uses A → AY1 → Y → M1 → M3 → RAMP because Y happens to be
+    /// marginally shorter; the desired route stays on A and uses only
+    /// numbered/RAMP connectors past A.
+    ///
+    /// <para>
+    /// Numbered taxiways (containing any digit — AY1, M1, M3) and RAMP are
+    /// fine because they're typically required ramp/connector links.
+    /// Letter-only taxiways not in the original instruction (Y, F, etc.) are
+    /// the ones to avoid — controllers would name them explicitly if they
+    /// wanted them in the route.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Route_FromNode852_ToB10_DoesNotEnterUnauthorizedLetterOnlyTaxiway_Y()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var groundData = new TestAirportGroundData();
+        var layout = groundData.GetLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+
+        var parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
+            (n.Type == GroundNodeType.Parking || n.Type == GroundNodeType.Spot)
+            && string.Equals(n.Name, ParkingName, StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.NotNull(parkingNode);
+
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            fromNodeId: StartNodeId,
+            taxiwayNames: Taxiways,
+            out string? failReason,
+            new ExplicitPathOptions { AirportId = "SFO", DestinationHintNode = parkingNode }
+        );
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+
+        var ySegments = route
+            .Segments.Select((s, i) => (Index: i, Segment: s))
+            .Where(x => string.Equals(x.Segment.TaxiwayName, "Y", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (ySegments.Count > 0)
+        {
+            output.WriteLine($"!!! {ySegments.Count} segment(s) on un-authorized letter-only taxiway Y:");
+            foreach (var (idx, seg) in ySegments)
+            {
+                output.WriteLine($"  [{idx}] {seg.FromNodeId}->{seg.ToNodeId}");
+            }
+        }
+
+        Assert.Empty(ySegments);
+    }
+
+    /// <summary>
     /// Replay the actual sfo-s1-ground-control-28-01 bundle through the
     /// current engine + current sfo.geojson and dump SKW3078's live taxi
     /// route once it's been built. The bundle was recorded against an older
