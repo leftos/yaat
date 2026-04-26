@@ -21,7 +21,12 @@ $ServerDir = Join-Path (Split-Path $ClientDir) "yaat-server"
 
 # --sync: fetch version from remote server, checkout matching commit, run client-only
 if ($Sync) {
-    $versionUrl = "$($Sync.TrimEnd('/'))/api/version"
+    # Default to https when no scheme is provided -- Invoke-RestMethod won't auto-follow http->https redirects.
+    if ($Sync -notmatch '^[a-zA-Z][a-zA-Z0-9+.-]*://') {
+        $Sync = "https://$Sync"
+    }
+    $Sync = $Sync.TrimEnd('/')
+    $versionUrl = "$Sync/api/version"
     Write-Host "Fetching version from $versionUrl..."
     try {
         $version = Invoke-RestMethod -Uri $versionUrl -TimeoutSec 10
