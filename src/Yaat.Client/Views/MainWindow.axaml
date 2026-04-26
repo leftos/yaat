@@ -137,6 +137,8 @@
                           x:Name="HelpUserGuideMenuItem" />
                 <MenuItem Header="_Commands Reference"
                           x:Name="HelpCommandsMenuItem" />
+                <MenuItem Header="Command _Cheatsheet"
+                          x:Name="HelpCheatsheetMenuItem" />
                 <MenuItem Header="C_hangelog"
                           x:Name="HelpChangelogMenuItem" />
                 <Separator />

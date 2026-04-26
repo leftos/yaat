@@ -65,6 +65,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Resources\icon.png" />
+    <AvaloniaResource Include="..\..\docs\command-cheatsheet.json" Link="Assets\command-cheatsheet.json" />
   </ItemGroup>
 
   <ItemGroup>

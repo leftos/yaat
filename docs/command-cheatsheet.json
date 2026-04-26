@@ -1,0 +1,304 @@
+{
+  "version": "1",
+  "intro": [
+    "Args concatenate: `FH270` `CM240` `S250` `HO3Y`",
+    "Altitudes: `050` / `5000` = 5,000 ft   `A25` = 2,500 ft AGL",
+    "`*` = global command"
+  ],
+  "categories": [
+    {
+      "id": "heading",
+      "name": "Heading",
+      "rows": [
+        { "verb": "FH", "aliases": ["h"], "description": "Fly heading" },
+        { "verb": "TL / TR", "aliases": ["l", "r"], "description": "Turn left / right to heading" },
+        { "verb": "RELL / RELR", "aliases": ["lt", "rt"], "description": "Relative turn (T30L / T30R syntax)" },
+        { "verb": "FPH", "aliases": ["fch"], "description": "Fly present heading" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "altitude-speed",
+      "name": "Altitude / Speed",
+      "rows": [
+        { "verb": "CM", "aliases": [], "description": "Climb and maintain alt" },
+        { "verb": "DM", "aliases": [], "description": "Descend and maintain alt" },
+        { "verb": "SPD", "aliases": ["s", "sl", "slow"], "description": "Speed (knots IAS); 210+ / 210- floor/ceil" },
+        { "verb": "RNS", "aliases": ["ns"], "description": "Resume normal speed" },
+        { "verb": "RFAS", "aliases": ["fas"], "description": "Reduce to final approach speed" },
+        { "verb": "DSR", "aliases": [], "description": "Delete speed restrictions" },
+        { "verb": "EXP", "aliases": [], "description": "Expedite [alt]" },
+        { "verb": "NORM", "aliases": [], "description": "Normal rate" },
+        { "verb": "MACH", "aliases": ["m"], "description": "Maintain Mach number" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "navigation",
+      "name": "Navigation",
+      "rows": [
+        { "verb": "DCT", "aliases": [], "description": "Direct to fix" },
+        { "verb": "DCTF", "aliases": [], "description": "Force direct to (bypass validation)" },
+        { "verb": "ADCT", "aliases": [], "description": "Append direct to fix" },
+        { "verb": "ADCTF", "aliases": [], "description": "Append force direct to" },
+        { "verb": "TLDCT / TRDCT", "aliases": [], "description": "Turn L/R then direct to fix" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "transponder",
+      "name": "Transponder",
+      "rows": [
+        { "verb": "SQ", "aliases": ["squawk"], "description": "Squawk code (random if bare)" },
+        { "verb": "SQVFR", "aliases": ["sqv"], "description": "Squawk VFR (1200)" },
+        { "verb": "SQNORM", "aliases": ["sn"], "description": "Squawk normal" },
+        { "verb": "SQSBY", "aliases": ["ss"], "description": "Squawk standby" },
+        { "verb": "IDENT", "aliases": ["id"], "description": "Ident" },
+        { "verb": "RANDSQ", "aliases": [], "description": "Random squawk" }
+      ],
+      "notes": ["Global: `SQALL` `SNALL` `SSALL`"]
+    },
+    {
+      "id": "approach",
+      "name": "Approach / Procedures",
+      "rows": [
+        { "verb": "EAPP", "aliases": ["expect"], "description": "Expect approach" },
+        { "verb": "CAPP", "aliases": ["ctl"], "description": "Cleared approach [id]" },
+        { "verb": "JAPP", "aliases": [], "description": "Join approach id" },
+        { "verb": "CAPPSI / JAPPSI", "aliases": [], "description": "Straight-in approach" },
+        { "verb": "CAPPF / JAPPF", "aliases": [], "description": "Force approach (bypass checks)" },
+        { "verb": "JFAC", "aliases": ["jloc", "jf"], "description": "Join final approach course [id]" },
+        { "verb": "JARR", "aliases": ["arr", "star"], "description": "Join STAR (star entry_fix)" },
+        { "verb": "JAWY", "aliases": [], "description": "Join airway" },
+        { "verb": "JRADO", "aliases": ["jrad"], "description": "Join radial outbound (fix bearing)" },
+        { "verb": "JRADI", "aliases": ["jicrs"], "description": "Join radial inbound (fix bearing)" },
+        { "verb": "HOLDP", "aliases": [], "description": "Holding pattern (fix inbound leg L/R)" },
+        { "verb": "PTAC", "aliases": [], "description": "Pos/turn/alt/clearance [hdg alt app] (PTACF = force, bypass 30° gate)" },
+        { "verb": "CVIA", "aliases": [], "description": "Climb via SID [except alt]" },
+        { "verb": "DVIA", "aliases": [], "description": "Descend via STAR [except alt]" },
+        { "verb": "CFIX", "aliases": ["cf"], "description": "Cross fix at altitude" },
+        { "verb": "DEPART", "aliases": ["dep", "d"], "description": "Depart fix on heading" },
+        { "verb": "APPS", "aliases": [], "description": "List approaches [airport]", "global": true },
+        { "verb": "CVA", "aliases": ["visual"], "description": "Cleared visual approach (runway)" },
+        { "verb": "FOLLOW", "aliases": ["fol"], "description": "Follow traffic (airborne)" },
+        { "verb": "RFIS", "aliases": [], "description": "Report field in sight (RFISF = force)", "global": true },
+        { "verb": "RTIS", "aliases": [], "description": "Report traffic in sight [cs] (RTISF = force)", "global": true }
+      ],
+      "notes": ["Rich forms: `AT fix CAPP` `DCT fix CAPP` `CFIX fix alt CAPP`"]
+    },
+    {
+      "id": "tower",
+      "name": "Tower",
+      "rows": [
+        { "verb": "LUAW", "aliases": ["pos", "lu", "ph"], "description": "Line up and wait" },
+        { "verb": "CTO", "aliases": [], "description": "Cleared for takeoff" },
+        { "verb": "CTOC", "aliases": [], "description": "Cancel takeoff clearance" },
+        { "verb": "GO", "aliases": [], "description": "Begin takeoff roll" },
+        { "verb": "GA", "aliases": [], "description": "Go around [heading]" },
+        { "verb": "CLAND", "aliases": ["cl", "fs"], "description": "Cleared to land (NODEL mod)" },
+        { "verb": "LAHSO", "aliases": [], "description": "Land and hold short of runway" },
+        { "verb": "CLC", "aliases": ["ctlc"], "description": "Cancel landing clearance" },
+        { "verb": "TG", "aliases": [], "description": "Touch and go [rwy / MLT / MRT]" },
+        { "verb": "SG", "aliases": [], "description": "Stop and go [MLT / MRT]" },
+        { "verb": "LA", "aliases": [], "description": "Low approach [MLT / MRT]" },
+        { "verb": "COPT", "aliases": [], "description": "Cleared for option [MLT / MRT]" }
+      ],
+      "notes": ["CTO modes: `RH` `OC` `hdg` `LT` `RT` `MLT` `MRT` `DCT` `MRC` `MRD` `MLC` `MLD` `MR270` `ML270` `360`"]
+    },
+    {
+      "id": "pattern",
+      "name": "Pattern",
+      "rows": [
+        { "verb": "ELD / ERD", "aliases": [], "description": "Enter L/R downwind [rwy]" },
+        { "verb": "ELC / ERC", "aliases": [], "description": "Enter L/R crosswind [rwy]" },
+        { "verb": "ELB / ERB", "aliases": [], "description": "Enter L/R base [rwy] [dist]" },
+        { "verb": "EF", "aliases": [], "description": "Enter final [rwy]" },
+        { "verb": "MLT / MRT", "aliases": [], "description": "Make L/R traffic [rwy]" },
+        { "verb": "TC", "aliases": [], "description": "Turn crosswind" },
+        { "verb": "TD", "aliases": [], "description": "Turn downwind" },
+        { "verb": "TB", "aliases": [], "description": "Turn base" },
+        { "verb": "EXT", "aliases": [], "description": "Extend current pattern leg (not base)" },
+        { "verb": "SA", "aliases": ["msa"], "description": "Short approach" },
+        { "verb": "MNA", "aliases": [], "description": "Normal approach" },
+        { "verb": "L360 / R360", "aliases": [], "description": "Left / right 360" },
+        { "verb": "L270 / R270", "aliases": [], "description": "Left / right 270" },
+        { "verb": "P270", "aliases": ["plan270"], "description": "Plan 270 at next turn" },
+        { "verb": "NO270", "aliases": [], "description": "Cancel 270" },
+        { "verb": "PS", "aliases": ["pattsize"], "description": "Pattern size multiplier" },
+        { "verb": "MLS / MRS", "aliases": [], "description": "S-turns (initial L / R) [count]" },
+        { "verb": "CA", "aliases": ["circle"], "description": "Circle airport" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "hold",
+      "name": "Hold",
+      "rows": [
+        { "verb": "HPPL / HPPR", "aliases": [], "description": "Hold present position 360 L/R" },
+        { "verb": "HPP", "aliases": [], "description": "Hold present position (hover)" },
+        { "verb": "HFIXL / HFIXR", "aliases": [], "description": "Hold at fix L/R turns" },
+        { "verb": "HFIX", "aliases": [], "description": "Hold/hover at fix" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "ground",
+      "name": "Ground",
+      "rows": [
+        { "verb": "PUSH", "aliases": [], "description": "Pushback [twy] [<C / >C / FACE C / TAIL C], C∈N/NE/E/SE/S/SW/W/NW" },
+        { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
+        { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position" },
+        { "verb": "RES", "aliases": ["resume"], "description": "Resume taxi" },
+        { "verb": "CROSS", "aliases": [], "description": "Cross runway" },
+        { "verb": "HS", "aliases": [], "description": "Hold short of taxiway/runway" },
+        { "verb": "RWY", "aliases": [], "description": "Assign runway (TAXI mod avail)" },
+        { "verb": "FOLLOWG", "aliases": ["folg"], "description": "Follow traffic (ground)" },
+        { "verb": "GIVEWAY", "aliases": ["behind", "gw"], "description": "Give way to traffic" },
+        { "verb": "EL / ER", "aliases": [], "description": "Exit runway L/R [twy] (NODEL)" },
+        { "verb": "EXIT", "aliases": [], "description": "Exit onto taxiway (NODEL)" },
+        { "verb": "TAXIALL", "aliases": [], "description": "Taxi all to destination", "global": true },
+        { "verb": "BREAK", "aliases": [], "description": "Break conflict" }
+      ],
+      "notes": ["TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `$spot`"]
+    },
+    {
+      "id": "helicopter",
+      "name": "Helicopter",
+      "rows": [
+        { "verb": "ATXI", "aliases": [], "description": "Air taxi [helipad]" },
+        { "verb": "LAND", "aliases": [], "description": "Land at helipad (NODEL)" },
+        { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "track",
+      "name": "Track Operations",
+      "rows": [
+        { "verb": "AS", "aliases": [], "description": "Set active position", "global": true },
+        { "verb": "TRACK", "aliases": [], "description": "Track aircraft [position]" },
+        { "verb": "DROP", "aliases": [], "description": "Drop track" },
+        { "verb": "HO", "aliases": [], "description": "Handoff [position]" },
+        { "verb": "HOF", "aliases": [], "description": "Force handoff to position" },
+        { "verb": "ACCEPT", "aliases": ["a"], "description": "Accept handoff [callsign]" },
+        { "verb": "CANCEL", "aliases": [], "description": "Cancel handoff" },
+        { "verb": "PO", "aliases": [], "description": "Point out [position]" },
+        { "verb": "OK", "aliases": [], "description": "Acknowledge" },
+        { "verb": "ONHO", "aliases": ["onh"], "description": "On handoff action" },
+        { "verb": "ACCEPTALL", "aliases": [], "description": "Accept all handoffs", "global": true },
+        { "verb": "HOALL", "aliases": [], "description": "Handoff all to position", "global": true }
+      ],
+      "notes": []
+    },
+    {
+      "id": "data-strips",
+      "name": "Data / Strips",
+      "rows": [
+        { "verb": "ANNOTATE", "aliases": ["an", "box"], "description": "Annotate strip box (box# text)" },
+        { "verb": "STRIP", "aliases": [], "description": "Push strip to bay" },
+        { "verb": "SP1", "aliases": ["sp"], "description": "Scratchpad 1 [text / bare=clear]" },
+        { "verb": "SP2", "aliases": [], "description": "Scratchpad 2 [text / bare=clear]" },
+        { "verb": "TEMPALT", "aliases": ["ta", "qq"], "description": "Temporary altitude" },
+        { "verb": "CRUISE", "aliases": ["qz"], "description": "Cruise altitude" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "coordination",
+      "name": "Coordination",
+      "rows": [
+        { "verb": "RD", "aliases": [], "description": "Release [channel]" },
+        { "verb": "RDH", "aliases": [], "description": "Hold release [channel]" },
+        { "verb": "RDR", "aliases": [], "description": "Recall release [channel]" },
+        { "verb": "RDACK", "aliases": [], "description": "Acknowledge release [channel]" },
+        { "verb": "RDAUTO", "aliases": [], "description": "Toggle auto-ack for channel", "global": true }
+      ],
+      "notes": []
+    },
+    {
+      "id": "broadcast",
+      "name": "Broadcast",
+      "rows": [
+        { "verb": "SAY", "aliases": ["sayf"], "description": "Broadcast pilot message (text)" },
+        { "verb": "SSPD", "aliases": [], "description": "Say speed" },
+        { "verb": "SMACH", "aliases": [], "description": "Say Mach" },
+        { "verb": "SEAPP", "aliases": [], "description": "Say expected approach" },
+        { "verb": "SALT", "aliases": [], "description": "Say altitude" },
+        { "verb": "SHDG", "aliases": [], "description": "Say heading" },
+        { "verb": "SPOS", "aliases": [], "description": "Say position" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "flight-plan",
+      "name": "Flight Plan",
+      "rows": [
+        { "verb": "APT", "aliases": ["dest"], "description": "Change destination airport" },
+        { "verb": "FP", "aliases": [], "description": "Create IFR FP (type alt route)" },
+        { "verb": "VP", "aliases": [], "description": "Create VFR FP (type alt route)" },
+        { "verb": "DA", "aliases": [], "description": "Flight data / abbreviated FP" },
+        { "verb": "REMARKS", "aliases": ["rem"], "description": "Set flight plan remarks" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "queue",
+      "name": "Queue",
+      "rows": [
+        { "verb": "DELAT", "aliases": [], "description": "Delete queued commands [index]" },
+        { "verb": "SHOWAT", "aliases": [], "description": "Show queued commands" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "consolidation",
+      "name": "Consolidation",
+      "rows": [
+        { "verb": "CON", "aliases": [], "description": "Consolidate positions", "global": true },
+        { "verb": "CON+", "aliases": [], "description": "Full consolidate positions", "global": true },
+        { "verb": "DECON", "aliases": [], "description": "Deconsolidate position", "global": true }
+      ],
+      "notes": []
+    },
+    {
+      "id": "sim-control",
+      "name": "Sim Control",
+      "rows": [
+        { "verb": "DEL", "aliases": ["x"], "description": "Delete aircraft" },
+        { "verb": "PAUSE", "aliases": ["p"], "description": "Pause simulation", "global": true },
+        { "verb": "UNPAUSE", "aliases": ["u", "un"], "description": "Unpause simulation", "global": true },
+        { "verb": "SIMRATE", "aliases": [], "description": "Sim rate 1-8", "global": true },
+        { "verb": "WAIT", "aliases": ["delay"], "description": "Wait seconds before next cmd" },
+        { "verb": "WAITD", "aliases": [], "description": "Wait until distance (nm) from fix" },
+        { "verb": "ADD", "aliases": [], "description": "Add aircraft (rules wt eng brg dist alt)", "global": true },
+        { "verb": "SPAWN", "aliases": [], "description": "Spawn now" },
+        { "verb": "SPAWNDELAY", "aliases": [], "description": "Set spawn delay (seconds)" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "force-teleport",
+      "name": "Force / Teleport",
+      "rows": [
+        { "verb": "FHN", "aliases": [], "description": "Instantly set heading" },
+        { "verb": "CMN", "aliases": [], "description": "Instantly set altitude" },
+        { "verb": "SPDN", "aliases": ["sln"], "description": "Instantly set speed" },
+        { "verb": "WARP", "aliases": [], "description": "Teleport to FRD hdg alt spd" },
+        { "verb": "WARPG", "aliases": [], "description": "Teleport on ground to location" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "chaining",
+      "name": "Chaining / Conditions",
+      "rows": [
+        { "verb": ";", "aliases": [], "description": "Sequential", "examples": ["CM 100 ; FH 270"] },
+        { "verb": ",", "aliases": [], "description": "Parallel", "examples": ["CM 100 , FH 270"] },
+        { "verb": "LV", "aliases": [], "description": "At altitude", "examples": ["LV 50 FH 270"] },
+        { "verb": "AT", "aliases": [], "description": "At fix", "examples": ["AT SUNOL CM 100"] },
+        { "verb": "UNTIL", "aliases": [], "description": "Until fix/dist", "examples": ["SPD 210 UNTIL SUNOL"] }
+      ],
+      "notes": []
+    }
+  ]
+}

@@ -3,352 +3,399 @@
 <head>
 <meta charset="UTF-8">
 <title>YAAT Command Cheatsheet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="tools/build-cheatsheet.mjs">
 <style>
+:root { color-scheme: light; --bg: #ffffff; --fg: #1a1a1a; --muted: #555; --rule: #f0f0f0; --hd: #2a2a2a; --code-bg: #f0f0f0; --accent: #0066cc; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--fg); }
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: clamp(11px, 0.55vw + 9px, 14px);
+  line-height: 1.4;
+  padding: 16px;
+}
+.filter {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  margin: -16px -16px 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.filter input {
+  flex: 1;
+  max-width: 480px;
+  padding: 6px 10px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  font: inherit;
+}
+.filter input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.filter .count { color: var(--muted); font-size: 0.85em; white-space: nowrap; }
+h1 {
+  text-align: center;
+  font-size: clamp(15px, 1.2vw + 10px, 22px);
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+.sub {
+  text-align: center;
+  font-size: 0.85em;
+  color: var(--muted);
+  margin-bottom: 12px;
+  border-bottom: 2px solid #333;
+  padding-bottom: 8px;
+}
+.sub code { font-size: 0.95em; }
+.sheet {
+  columns: 22rem auto;
+  column-gap: 1.5rem;
+}
+.cat {
+  break-inside: avoid;
+  margin-bottom: 8px;
+}
+.cat[hidden] { display: none; }
+.cat h2 {
+  background: var(--hd);
+  color: #fff;
+  padding: 2px 6px;
+  font-size: 0.85em;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.row {
+  display: flex;
+  gap: 6px;
+  padding: 1px 2px;
+  border-bottom: 1px solid var(--rule);
+}
+.row[hidden] { display: none; }
+.verb {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 5.2em;
+}
+.alias {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 4em;
+  font-size: 0.92em;
+}
+.desc { color: #333; flex: 1; }
+.desc .ex { color: var(--muted); margin-left: 4px; }
+.row.global .verb::after { content: " *"; color: #999; font-weight: 400; }
+.note {
+  font-style: italic;
+  color: var(--muted);
+  font-size: 0.88em;
+  padding: 2px 0 2px 4px;
+  break-inside: avoid;
+}
+code {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  background: var(--code-bg);
+  padding: 0 3px;
+  border-radius: 2px;
+  font-size: 0.92em;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1a1a1a; --fg: #e6e6e6; --muted: #9a9a9a; --rule: #2a2a2a; --hd: #2a2a2a; --code-bg: #2a2a2a; --accent: #4a9eff; }
+  .filter { background: rgba(26,26,26,0.96); border-bottom-color: #333; }
+  .filter input { background: #222; color: #e6e6e6; border-color: #444; }
+  .sub { border-bottom-color: #555; }
+  .desc { color: #d0d0d0; }
+}
+
+@media print {
   @page { size: letter landscape; margin: 0.35in; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: "Segoe UI", Arial, sans-serif;
+    padding: 8px;
     font-size: 6.5pt;
     line-height: 1.22;
-    color: #1a1a1a;
-    margin: 8px;
-    columns: 4;
-    column-gap: 10px;
-    column-rule: 1px solid #ddd;
   }
-  h1 {
-    column-span: all;
-    text-align: center;
-    font-size: 10pt;
-    margin-bottom: 2px;
-    letter-spacing: 0.4px;
-  }
-  .sub {
-    column-span: all;
-    text-align: center;
-    font-size: 6pt;
-    color: #555;
-    margin-bottom: 4px;
-    border-bottom: 1.5px solid #333;
-    padding-bottom: 3px;
-  }
-  .sub code { font-size: 6pt; }
-  h2 {
-    font-size: 7pt;
-    background: #2a2a2a;
-    color: #fff;
-    padding: 1px 4px;
-    margin: 3px 0 1px 0;
-    break-after: avoid;
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
-  }
-  .s { break-inside: avoid-column; }
-  .r {
-    display: flex;
-    padding: 0.5px 0;
-    border-bottom: 1px solid #f0f0f0;
-  }
-  .v {
-    font-family: "Cascadia Mono", Consolas, monospace;
-    font-size: 6.5pt;
-    font-weight: 700;
-    white-space: nowrap;
-    min-width: 52px;
-  }
-  .a {
-    font-family: "Cascadia Mono", Consolas, monospace;
-    font-size: 6pt;
-    color: #666;
-    white-space: nowrap;
-    min-width: 42px;
-  }
-  .d {
-    color: #444;
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .n {
-    font-size: 5.5pt;
-    color: #666;
-    font-style: italic;
-    padding: 0.5px 0 1px 2px;
-    break-inside: avoid;
-  }
-  code {
-    font-family: "Cascadia Mono", Consolas, monospace;
-    font-size: 6pt;
-    background: #f0f0f0;
-    padding: 0 1.5px;
-    border-radius: 1px;
-  }
-  .g { color: #999; font-size: 5.5pt; font-style: italic; }
+  .filter { display: none; }
+  .sheet { columns: 4; column-gap: 10px; column-rule: 1px solid #ddd; }
+  h1 { font-size: 10pt; margin-bottom: 2px; }
+  .sub { font-size: 6pt; padding-bottom: 3px; margin-bottom: 4px; border-bottom-width: 1.5px; }
+  .cat h2 { font-size: 7pt; padding: 1px 4px; margin: 3px 0 1px 0; }
+  .row { font-size: 6.5pt; padding: 0.5px 0; }
+  .verb { min-width: 52px; font-size: 6.5pt; }
+  .alias { min-width: 42px; font-size: 6pt; }
+  .note { font-size: 5.5pt; padding: 0.5px 0 1px 2px; }
+  code { font-size: 6pt; padding: 0 1.5px; }
+  .row.global .verb::after { content: " *"; }
+}
 </style>
 </head>
 <body>
 
+<div class="filter">
+  <input id="q" type="search" placeholder="Filter commands…" aria-label="Filter commands">
+  <span class="count" id="count"></span>
+</div>
+
 <h1>YAAT Command Cheatsheet</h1>
-<div class="sub">Args concatenate: <code>FH270</code> <code>CM240</code> <code>S250</code> <code>HO3Y</code> &nbsp;|&nbsp; Altitudes: <code>050</code> / <code>5000</code> = 5,000 ft &nbsp; <code>A25</code> = 2,500 ft AGL &nbsp;|&nbsp; <code>*</code> = global command</div>
+<div class="sub">Args concatenate: <code>FH270</code> <code>CM240</code> <code>S250</code> <code>HO3Y</code>  &nbsp;|&nbsp;  Altitudes: <code>050</code> / <code>5000</code> = 5,000 ft   <code>A25</code> = 2,500 ft AGL  &nbsp;|&nbsp;  <code>*</code> = global command</div>
 
-<!-- ═══ HEADING ═══ -->
-<div class="s">
+<div class="sheet">
+<section class="cat" id="heading" data-name="heading">
 <h2>Heading</h2>
-<div class="r"><span class="v">FH</span><span class="a">h</span><span class="d">Fly heading</span></div>
-<div class="r"><span class="v">TL / TR</span><span class="a">l r</span><span class="d">Turn left / right to heading</span></div>
-<div class="r"><span class="v">RELL / RELR</span><span class="a">lt rt</span><span class="d">Relative turn (T30L / T30R syntax)</span></div>
-<div class="r"><span class="v">FPH</span><span class="a">fch</span><span class="d">Fly present heading</span></div>
-</div>
-
-<!-- ═══ ALTITUDE / SPEED ═══ -->
-<div class="s">
+<div class="row" data-search="fh h fly heading"><span class="verb">FH</span><span class="alias">h</span><span class="desc">Fly heading</span></div>
+<div class="row" data-search="tl / tr l r turn left / right to heading"><span class="verb">TL / TR</span><span class="alias">l r</span><span class="desc">Turn left / right to heading</span></div>
+<div class="row" data-search="rell / relr lt rt relative turn (t30l / t30r syntax)"><span class="verb">RELL / RELR</span><span class="alias">lt rt</span><span class="desc">Relative turn (T30L / T30R syntax)</span></div>
+<div class="row" data-search="fph fch fly present heading"><span class="verb">FPH</span><span class="alias">fch</span><span class="desc">Fly present heading</span></div>
+</section>
+<section class="cat" id="altitude-speed" data-name="altitude / speed">
 <h2>Altitude / Speed</h2>
-<div class="r"><span class="v">CM</span><span class="a"></span><span class="d">Climb and maintain alt</span></div>
-<div class="r"><span class="v">DM</span><span class="a"></span><span class="d">Descend and maintain alt</span></div>
-<div class="r"><span class="v">SPD</span><span class="a">s sl slow</span><span class="d">Speed (knots IAS); 210+ / 210- floor/ceil</span></div>
-<div class="r"><span class="v">RNS</span><span class="a">ns</span><span class="d">Resume normal speed</span></div>
-<div class="r"><span class="v">RFAS</span><span class="a">fas</span><span class="d">Reduce to final approach speed</span></div>
-<div class="r"><span class="v">DSR</span><span class="a"></span><span class="d">Delete speed restrictions</span></div>
-<div class="r"><span class="v">EXP</span><span class="a"></span><span class="d">Expedite [alt]</span></div>
-<div class="r"><span class="v">NORM</span><span class="a"></span><span class="d">Normal rate</span></div>
-<div class="r"><span class="v">MACH</span><span class="a">m</span><span class="d">Maintain Mach number</span></div>
-</div>
-
-<!-- ═══ NAVIGATION ═══ -->
-<div class="s">
+<div class="row" data-search="cm climb and maintain alt"><span class="verb">CM</span><span class="alias"></span><span class="desc">Climb and maintain alt</span></div>
+<div class="row" data-search="dm descend and maintain alt"><span class="verb">DM</span><span class="alias"></span><span class="desc">Descend and maintain alt</span></div>
+<div class="row" data-search="spd s sl slow speed (knots ias); 210+ / 210- floor/ceil"><span class="verb">SPD</span><span class="alias">s sl slow</span><span class="desc">Speed (knots IAS); 210+ / 210- floor/ceil</span></div>
+<div class="row" data-search="rns ns resume normal speed"><span class="verb">RNS</span><span class="alias">ns</span><span class="desc">Resume normal speed</span></div>
+<div class="row" data-search="rfas fas reduce to final approach speed"><span class="verb">RFAS</span><span class="alias">fas</span><span class="desc">Reduce to final approach speed</span></div>
+<div class="row" data-search="dsr delete speed restrictions"><span class="verb">DSR</span><span class="alias"></span><span class="desc">Delete speed restrictions</span></div>
+<div class="row" data-search="exp expedite [alt]"><span class="verb">EXP</span><span class="alias"></span><span class="desc">Expedite [alt]</span></div>
+<div class="row" data-search="norm normal rate"><span class="verb">NORM</span><span class="alias"></span><span class="desc">Normal rate</span></div>
+<div class="row" data-search="mach m maintain mach number"><span class="verb">MACH</span><span class="alias">m</span><span class="desc">Maintain Mach number</span></div>
+</section>
+<section class="cat" id="navigation" data-name="navigation">
 <h2>Navigation</h2>
-<div class="r"><span class="v">DCT</span><span class="a"></span><span class="d">Direct to fix</span></div>
-<div class="r"><span class="v">DCTF</span><span class="a"></span><span class="d">Force direct to (bypass validation)</span></div>
-<div class="r"><span class="v">ADCT</span><span class="a"></span><span class="d">Append direct to fix</span></div>
-<div class="r"><span class="v">ADCTF</span><span class="a"></span><span class="d">Append force direct to</span></div>
-<div class="r"><span class="v">TLDCT / TRDCT</span><span class="a"></span><span class="d">Turn L/R then direct to fix</span></div>
-</div>
-
-<!-- ═══ TRANSPONDER ═══ -->
-<div class="s">
+<div class="row" data-search="dct direct to fix"><span class="verb">DCT</span><span class="alias"></span><span class="desc">Direct to fix</span></div>
+<div class="row" data-search="dctf force direct to (bypass validation)"><span class="verb">DCTF</span><span class="alias"></span><span class="desc">Force direct to (bypass validation)</span></div>
+<div class="row" data-search="adct append direct to fix"><span class="verb">ADCT</span><span class="alias"></span><span class="desc">Append direct to fix</span></div>
+<div class="row" data-search="adctf append force direct to"><span class="verb">ADCTF</span><span class="alias"></span><span class="desc">Append force direct to</span></div>
+<div class="row" data-search="tldct / trdct turn l/r then direct to fix"><span class="verb">TLDCT / TRDCT</span><span class="alias"></span><span class="desc">Turn L/R then direct to fix</span></div>
+</section>
+<section class="cat" id="transponder" data-name="transponder">
 <h2>Transponder</h2>
-<div class="r"><span class="v">SQ</span><span class="a">squawk</span><span class="d">Squawk code (random if bare)</span></div>
-<div class="r"><span class="v">SQVFR</span><span class="a">sqv</span><span class="d">Squawk VFR (1200)</span></div>
-<div class="r"><span class="v">SQNORM</span><span class="a">sn</span><span class="d">Squawk normal</span></div>
-<div class="r"><span class="v">SQSBY</span><span class="a">ss</span><span class="d">Squawk standby</span></div>
-<div class="r"><span class="v">IDENT</span><span class="a">id</span><span class="d">Ident</span></div>
-<div class="r"><span class="v">RANDSQ</span><span class="a"></span><span class="d">Random squawk</span></div>
-<div class="n">Global: <code>SQALL</code>* <code>SNALL</code>* <code>SSALL</code>*</div>
-</div>
-
-<!-- ═══ APPROACH / PROCEDURES ═══ -->
-<div class="s">
+<div class="row" data-search="sq squawk squawk code (random if bare)"><span class="verb">SQ</span><span class="alias">squawk</span><span class="desc">Squawk code (random if bare)</span></div>
+<div class="row" data-search="sqvfr sqv squawk vfr (1200)"><span class="verb">SQVFR</span><span class="alias">sqv</span><span class="desc">Squawk VFR (1200)</span></div>
+<div class="row" data-search="sqnorm sn squawk normal"><span class="verb">SQNORM</span><span class="alias">sn</span><span class="desc">Squawk normal</span></div>
+<div class="row" data-search="sqsby ss squawk standby"><span class="verb">SQSBY</span><span class="alias">ss</span><span class="desc">Squawk standby</span></div>
+<div class="row" data-search="ident id ident"><span class="verb">IDENT</span><span class="alias">id</span><span class="desc">Ident</span></div>
+<div class="row" data-search="randsq random squawk"><span class="verb">RANDSQ</span><span class="alias"></span><span class="desc">Random squawk</span></div>
+<div class="note">Global: <code>SQALL</code> <code>SNALL</code> <code>SSALL</code></div>
+</section>
+<section class="cat" id="approach" data-name="approach / procedures">
 <h2>Approach / Procedures</h2>
-<div class="r"><span class="v">EAPP</span><span class="a">expect</span><span class="d">Expect approach</span></div>
-<div class="r"><span class="v">CAPP</span><span class="a">ctl</span><span class="d">Cleared approach [id]</span></div>
-<div class="r"><span class="v">JAPP</span><span class="a"></span><span class="d">Join approach id</span></div>
-<div class="r"><span class="v">CAPPSI / JAPPSI</span><span class="a"></span><span class="d">Straight-in approach</span></div>
-<div class="r"><span class="v">CAPPF / JAPPF</span><span class="a"></span><span class="d">Force approach (bypass checks)</span></div>
-<div class="r"><span class="v">JFAC</span><span class="a">jloc jf</span><span class="d">Join final approach course [id]</span></div>
-<div class="r"><span class="v">JARR</span><span class="a">arr star</span><span class="d">Join STAR (star entry_fix)</span></div>
-<div class="r"><span class="v">JAWY</span><span class="a"></span><span class="d">Join airway</span></div>
-<div class="r"><span class="v">JRADO</span><span class="a">jrad</span><span class="d">Join radial outbound (fix bearing)</span></div>
-<div class="r"><span class="v">JRADI</span><span class="a">jicrs</span><span class="d">Join radial inbound (fix bearing)</span></div>
-<div class="r"><span class="v">HOLDP</span><span class="a"></span><span class="d">Holding pattern (fix inbound leg L/R)</span></div>
-<div class="r"><span class="v">PTAC</span><span class="a"></span><span class="d">Pos/turn/alt/clearance [hdg alt app] (PTACF = force, bypass 30&deg; gate)</span></div>
-<div class="r"><span class="v">CVIA</span><span class="a"></span><span class="d">Climb via SID [except alt]</span></div>
-<div class="r"><span class="v">DVIA</span><span class="a"></span><span class="d">Descend via STAR [except alt]</span></div>
-<div class="r"><span class="v">CFIX</span><span class="a">cf</span><span class="d">Cross fix at altitude</span></div>
-<div class="r"><span class="v">DEPART</span><span class="a">dep d</span><span class="d">Depart fix on heading</span></div>
-<div class="r"><span class="v">APPS</span><span class="a"></span><span class="d">List approaches [airport]*</span></div>
-<div class="r"><span class="v">CVA</span><span class="a">visual</span><span class="d">Cleared visual approach (runway)</span></div>
-<div class="r"><span class="v">FOLLOW</span><span class="a">fol</span><span class="d">Follow traffic (airborne)</span></div>
-<div class="r"><span class="v">RFIS</span><span class="a"></span><span class="d">Report field in sight* (RFISF = force)</span></div>
-<div class="r"><span class="v">RTIS</span><span class="a"></span><span class="d">Report traffic in sight* [cs] (RTISF = force)</span></div>
-<div class="n">Rich forms: <code>AT fix CAPP</code> <code>DCT fix CAPP</code> <code>CFIX fix alt CAPP</code></div>
-</div>
-
-<!-- ═══ TOWER ═══ -->
-<div class="s">
+<div class="row" data-search="eapp expect expect approach"><span class="verb">EAPP</span><span class="alias">expect</span><span class="desc">Expect approach</span></div>
+<div class="row" data-search="capp ctl cleared approach [id]"><span class="verb">CAPP</span><span class="alias">ctl</span><span class="desc">Cleared approach [id]</span></div>
+<div class="row" data-search="japp join approach id"><span class="verb">JAPP</span><span class="alias"></span><span class="desc">Join approach id</span></div>
+<div class="row" data-search="cappsi / jappsi straight-in approach"><span class="verb">CAPPSI / JAPPSI</span><span class="alias"></span><span class="desc">Straight-in approach</span></div>
+<div class="row" data-search="cappf / jappf force approach (bypass checks)"><span class="verb">CAPPF / JAPPF</span><span class="alias"></span><span class="desc">Force approach (bypass checks)</span></div>
+<div class="row" data-search="jfac jloc jf join final approach course [id]"><span class="verb">JFAC</span><span class="alias">jloc jf</span><span class="desc">Join final approach course [id]</span></div>
+<div class="row" data-search="jarr arr star join star (star entry_fix)"><span class="verb">JARR</span><span class="alias">arr star</span><span class="desc">Join STAR (star entry_fix)</span></div>
+<div class="row" data-search="jawy join airway"><span class="verb">JAWY</span><span class="alias"></span><span class="desc">Join airway</span></div>
+<div class="row" data-search="jrado jrad join radial outbound (fix bearing)"><span class="verb">JRADO</span><span class="alias">jrad</span><span class="desc">Join radial outbound (fix bearing)</span></div>
+<div class="row" data-search="jradi jicrs join radial inbound (fix bearing)"><span class="verb">JRADI</span><span class="alias">jicrs</span><span class="desc">Join radial inbound (fix bearing)</span></div>
+<div class="row" data-search="holdp holding pattern (fix inbound leg l/r)"><span class="verb">HOLDP</span><span class="alias"></span><span class="desc">Holding pattern (fix inbound leg L/R)</span></div>
+<div class="row" data-search="ptac pos/turn/alt/clearance [hdg alt app] (ptacf = force, bypass 30° gate)"><span class="verb">PTAC</span><span class="alias"></span><span class="desc">Pos/turn/alt/clearance [hdg alt app] (PTACF = force, bypass 30° gate)</span></div>
+<div class="row" data-search="cvia climb via sid [except alt]"><span class="verb">CVIA</span><span class="alias"></span><span class="desc">Climb via SID [except alt]</span></div>
+<div class="row" data-search="dvia descend via star [except alt]"><span class="verb">DVIA</span><span class="alias"></span><span class="desc">Descend via STAR [except alt]</span></div>
+<div class="row" data-search="cfix cf cross fix at altitude"><span class="verb">CFIX</span><span class="alias">cf</span><span class="desc">Cross fix at altitude</span></div>
+<div class="row" data-search="depart dep d depart fix on heading"><span class="verb">DEPART</span><span class="alias">dep d</span><span class="desc">Depart fix on heading</span></div>
+<div class="row global" data-search="apps list approaches [airport]"><span class="verb">APPS</span><span class="alias"></span><span class="desc">List approaches [airport]</span></div>
+<div class="row" data-search="cva visual cleared visual approach (runway)"><span class="verb">CVA</span><span class="alias">visual</span><span class="desc">Cleared visual approach (runway)</span></div>
+<div class="row" data-search="follow fol follow traffic (airborne)"><span class="verb">FOLLOW</span><span class="alias">fol</span><span class="desc">Follow traffic (airborne)</span></div>
+<div class="row global" data-search="rfis report field in sight (rfisf = force)"><span class="verb">RFIS</span><span class="alias"></span><span class="desc">Report field in sight (RFISF = force)</span></div>
+<div class="row global" data-search="rtis report traffic in sight [cs] (rtisf = force)"><span class="verb">RTIS</span><span class="alias"></span><span class="desc">Report traffic in sight [cs] (RTISF = force)</span></div>
+<div class="note">Rich forms: <code>AT fix CAPP</code> <code>DCT fix CAPP</code> <code>CFIX fix alt CAPP</code></div>
+</section>
+<section class="cat" id="tower" data-name="tower">
 <h2>Tower</h2>
-<div class="r"><span class="v">LUAW</span><span class="a">pos lu ph</span><span class="d">Line up and wait</span></div>
-<div class="r"><span class="v">CTO</span><span class="a"></span><span class="d">Cleared for takeoff</span></div>
-<div class="n">CTO modes: <code>RH</code> <code>OC</code> <code>hdg</code> <code>LT</code> <code>RT</code> <code>MLT</code> <code>MRT</code> <code>DCT</code> <code>MRC</code> <code>MRD</code> <code>MLC</code> <code>MLD</code> <code>MR270</code> <code>ML270</code> <code>360</code></div>
-<div class="r"><span class="v">CTOC</span><span class="a"></span><span class="d">Cancel takeoff clearance</span></div>
-<div class="r"><span class="v">GO</span><span class="a"></span><span class="d">Begin takeoff roll</span></div>
-<div class="r"><span class="v">GA</span><span class="a"></span><span class="d">Go around [heading]</span></div>
-<div class="r"><span class="v">CLAND</span><span class="a">cl fs</span><span class="d">Cleared to land (NODEL mod)</span></div>
-<div class="r"><span class="v">LAHSO</span><span class="a"></span><span class="d">Land and hold short of runway</span></div>
-<div class="r"><span class="v">CLC</span><span class="a">ctlc</span><span class="d">Cancel landing clearance</span></div>
-<div class="r"><span class="v">TG</span><span class="a"></span><span class="d">Touch and go [rwy / MLT / MRT]</span></div>
-<div class="r"><span class="v">SG</span><span class="a"></span><span class="d">Stop and go [MLT / MRT]</span></div>
-<div class="r"><span class="v">LA</span><span class="a"></span><span class="d">Low approach [MLT / MRT]</span></div>
-<div class="r"><span class="v">COPT</span><span class="a"></span><span class="d">Cleared for option [MLT / MRT]</span></div>
-</div>
-
-<!-- ═══ PATTERN ═══ -->
-<div class="s">
+<div class="row" data-search="luaw pos lu ph line up and wait"><span class="verb">LUAW</span><span class="alias">pos lu ph</span><span class="desc">Line up and wait</span></div>
+<div class="row" data-search="cto cleared for takeoff"><span class="verb">CTO</span><span class="alias"></span><span class="desc">Cleared for takeoff</span></div>
+<div class="row" data-search="ctoc cancel takeoff clearance"><span class="verb">CTOC</span><span class="alias"></span><span class="desc">Cancel takeoff clearance</span></div>
+<div class="row" data-search="go begin takeoff roll"><span class="verb">GO</span><span class="alias"></span><span class="desc">Begin takeoff roll</span></div>
+<div class="row" data-search="ga go around [heading]"><span class="verb">GA</span><span class="alias"></span><span class="desc">Go around [heading]</span></div>
+<div class="row" data-search="cland cl fs cleared to land (nodel mod)"><span class="verb">CLAND</span><span class="alias">cl fs</span><span class="desc">Cleared to land (NODEL mod)</span></div>
+<div class="row" data-search="lahso land and hold short of runway"><span class="verb">LAHSO</span><span class="alias"></span><span class="desc">Land and hold short of runway</span></div>
+<div class="row" data-search="clc ctlc cancel landing clearance"><span class="verb">CLC</span><span class="alias">ctlc</span><span class="desc">Cancel landing clearance</span></div>
+<div class="row" data-search="tg touch and go [rwy / mlt / mrt]"><span class="verb">TG</span><span class="alias"></span><span class="desc">Touch and go [rwy / MLT / MRT]</span></div>
+<div class="row" data-search="sg stop and go [mlt / mrt]"><span class="verb">SG</span><span class="alias"></span><span class="desc">Stop and go [MLT / MRT]</span></div>
+<div class="row" data-search="la low approach [mlt / mrt]"><span class="verb">LA</span><span class="alias"></span><span class="desc">Low approach [MLT / MRT]</span></div>
+<div class="row" data-search="copt cleared for option [mlt / mrt]"><span class="verb">COPT</span><span class="alias"></span><span class="desc">Cleared for option [MLT / MRT]</span></div>
+<div class="note">CTO modes: <code>RH</code> <code>OC</code> <code>hdg</code> <code>LT</code> <code>RT</code> <code>MLT</code> <code>MRT</code> <code>DCT</code> <code>MRC</code> <code>MRD</code> <code>MLC</code> <code>MLD</code> <code>MR270</code> <code>ML270</code> <code>360</code></div>
+</section>
+<section class="cat" id="pattern" data-name="pattern">
 <h2>Pattern</h2>
-<div class="r"><span class="v">ELD / ERD</span><span class="a"></span><span class="d">Enter L/R downwind [rwy]</span></div>
-<div class="r"><span class="v">ELC / ERC</span><span class="a"></span><span class="d">Enter L/R crosswind [rwy]</span></div>
-<div class="r"><span class="v">ELB / ERB</span><span class="a"></span><span class="d">Enter L/R base [rwy] [dist]</span></div>
-<div class="r"><span class="v">EF</span><span class="a"></span><span class="d">Enter final [rwy]</span></div>
-<div class="r"><span class="v">MLT / MRT</span><span class="a"></span><span class="d">Make L/R traffic [rwy]</span></div>
-<div class="r"><span class="v">TC</span><span class="a"></span><span class="d">Turn crosswind</span></div>
-<div class="r"><span class="v">TD</span><span class="a"></span><span class="d">Turn downwind</span></div>
-<div class="r"><span class="v">TB</span><span class="a"></span><span class="d">Turn base</span></div>
-<div class="r"><span class="v">EXT</span><span class="a"></span><span class="d">Extend current pattern leg (not base)</span></div>
-<div class="r"><span class="v">SA</span><span class="a">msa</span><span class="d">Short approach</span></div>
-<div class="r"><span class="v">MNA</span><span class="a"></span><span class="d">Normal approach</span></div>
-<div class="r"><span class="v">L360 / R360</span><span class="a"></span><span class="d">Left / right 360</span></div>
-<div class="r"><span class="v">L270 / R270</span><span class="a"></span><span class="d">Left / right 270</span></div>
-<div class="r"><span class="v">P270</span><span class="a">plan270</span><span class="d">Plan 270 at next turn</span></div>
-<div class="r"><span class="v">NO270</span><span class="a"></span><span class="d">Cancel 270</span></div>
-<div class="r"><span class="v">PS</span><span class="a">pattsize</span><span class="d">Pattern size multiplier</span></div>
-<div class="r"><span class="v">MLS / MRS</span><span class="a"></span><span class="d">S-turns (initial L / R) [count]</span></div>
-<div class="r"><span class="v">CA</span><span class="a">circle</span><span class="d">Circle airport</span></div>
-</div>
-
-<!-- ═══ HOLD ═══ -->
-<div class="s">
+<div class="row" data-search="eld / erd enter l/r downwind [rwy]"><span class="verb">ELD / ERD</span><span class="alias"></span><span class="desc">Enter L/R downwind [rwy]</span></div>
+<div class="row" data-search="elc / erc enter l/r crosswind [rwy]"><span class="verb">ELC / ERC</span><span class="alias"></span><span class="desc">Enter L/R crosswind [rwy]</span></div>
+<div class="row" data-search="elb / erb enter l/r base [rwy] [dist]"><span class="verb">ELB / ERB</span><span class="alias"></span><span class="desc">Enter L/R base [rwy] [dist]</span></div>
+<div class="row" data-search="ef enter final [rwy]"><span class="verb">EF</span><span class="alias"></span><span class="desc">Enter final [rwy]</span></div>
+<div class="row" data-search="mlt / mrt make l/r traffic [rwy]"><span class="verb">MLT / MRT</span><span class="alias"></span><span class="desc">Make L/R traffic [rwy]</span></div>
+<div class="row" data-search="tc turn crosswind"><span class="verb">TC</span><span class="alias"></span><span class="desc">Turn crosswind</span></div>
+<div class="row" data-search="td turn downwind"><span class="verb">TD</span><span class="alias"></span><span class="desc">Turn downwind</span></div>
+<div class="row" data-search="tb turn base"><span class="verb">TB</span><span class="alias"></span><span class="desc">Turn base</span></div>
+<div class="row" data-search="ext extend current pattern leg (not base)"><span class="verb">EXT</span><span class="alias"></span><span class="desc">Extend current pattern leg (not base)</span></div>
+<div class="row" data-search="sa msa short approach"><span class="verb">SA</span><span class="alias">msa</span><span class="desc">Short approach</span></div>
+<div class="row" data-search="mna normal approach"><span class="verb">MNA</span><span class="alias"></span><span class="desc">Normal approach</span></div>
+<div class="row" data-search="l360 / r360 left / right 360"><span class="verb">L360 / R360</span><span class="alias"></span><span class="desc">Left / right 360</span></div>
+<div class="row" data-search="l270 / r270 left / right 270"><span class="verb">L270 / R270</span><span class="alias"></span><span class="desc">Left / right 270</span></div>
+<div class="row" data-search="p270 plan270 plan 270 at next turn"><span class="verb">P270</span><span class="alias">plan270</span><span class="desc">Plan 270 at next turn</span></div>
+<div class="row" data-search="no270 cancel 270"><span class="verb">NO270</span><span class="alias"></span><span class="desc">Cancel 270</span></div>
+<div class="row" data-search="ps pattsize pattern size multiplier"><span class="verb">PS</span><span class="alias">pattsize</span><span class="desc">Pattern size multiplier</span></div>
+<div class="row" data-search="mls / mrs s-turns (initial l / r) [count]"><span class="verb">MLS / MRS</span><span class="alias"></span><span class="desc">S-turns (initial L / R) [count]</span></div>
+<div class="row" data-search="ca circle circle airport"><span class="verb">CA</span><span class="alias">circle</span><span class="desc">Circle airport</span></div>
+</section>
+<section class="cat" id="hold" data-name="hold">
 <h2>Hold</h2>
-<div class="r"><span class="v">HPPL / HPPR</span><span class="a"></span><span class="d">Hold present position 360 L/R</span></div>
-<div class="r"><span class="v">HPP</span><span class="a"></span><span class="d">Hold present position (hover)</span></div>
-<div class="r"><span class="v">HFIXL / HFIXR</span><span class="a"></span><span class="d">Hold at fix L/R turns</span></div>
-<div class="r"><span class="v">HFIX</span><span class="a"></span><span class="d">Hold/hover at fix</span></div>
-</div>
-
-<!-- ═══ GROUND ═══ -->
-<div class="s">
+<div class="row" data-search="hppl / hppr hold present position 360 l/r"><span class="verb">HPPL / HPPR</span><span class="alias"></span><span class="desc">Hold present position 360 L/R</span></div>
+<div class="row" data-search="hpp hold present position (hover)"><span class="verb">HPP</span><span class="alias"></span><span class="desc">Hold present position (hover)</span></div>
+<div class="row" data-search="hfixl / hfixr hold at fix l/r turns"><span class="verb">HFIXL / HFIXR</span><span class="alias"></span><span class="desc">Hold at fix L/R turns</span></div>
+<div class="row" data-search="hfix hold/hover at fix"><span class="verb">HFIX</span><span class="alias"></span><span class="desc">Hold/hover at fix</span></div>
+</section>
+<section class="cat" id="ground" data-name="ground">
 <h2>Ground</h2>
-<div class="r"><span class="v">PUSH</span><span class="a"></span><span class="d">Pushback [twy] [&lt;C / &gt;C / FACE C / TAIL C], C∈N/NE/E/SE/S/SW/W/NW</span></div>
-<div class="r"><span class="v">TAXI</span><span class="a"></span><span class="d">Taxi via route (see mods below)</span></div>
-<div class="n">TAXI mods: <code>RWY</code> <code>HS</code> <code>CROSS</code> <code>NODEL</code> <code>@parking</code> <code>$spot</code></div>
-<div class="r"><span class="v">HOLD</span><span class="a">hp</span><span class="d">Hold position</span></div>
-<div class="r"><span class="v">RES</span><span class="a">resume</span><span class="d">Resume taxi</span></div>
-<div class="r"><span class="v">CROSS</span><span class="a"></span><span class="d">Cross runway</span></div>
-<div class="r"><span class="v">HS</span><span class="a"></span><span class="d">Hold short of taxiway/runway</span></div>
-<div class="r"><span class="v">RWY</span><span class="a"></span><span class="d">Assign runway (TAXI mod avail)</span></div>
-<div class="r"><span class="v">FOLLOWG</span><span class="a">folg</span><span class="d">Follow traffic (ground)</span></div>
-<div class="r"><span class="v">GIVEWAY</span><span class="a">behind gw</span><span class="d">Give way to traffic</span></div>
-<div class="r"><span class="v">EL / ER</span><span class="a"></span><span class="d">Exit runway L/R [twy] (NODEL)</span></div>
-<div class="r"><span class="v">EXIT</span><span class="a"></span><span class="d">Exit onto taxiway (NODEL)</span></div>
-<div class="r"><span class="v">TAXIALL</span><span class="a"></span><span class="d">Taxi all to destination*</span></div>
-<div class="r"><span class="v">BREAK</span><span class="a"></span><span class="d">Break conflict</span></div>
-</div>
-
-<!-- ═══ HELICOPTER ═══ -->
-<div class="s">
+<div class="row" data-search="push pushback [twy] [&lt;c / &gt;c / face c / tail c], c∈n/ne/e/se/s/sw/w/nw"><span class="verb">PUSH</span><span class="alias"></span><span class="desc">Pushback [twy] [&lt;C / &gt;C / FACE C / TAIL C], C∈N/NE/E/SE/S/SW/W/NW</span></div>
+<div class="row" data-search="taxi taxi via route (see mods below)"><span class="verb">TAXI</span><span class="alias"></span><span class="desc">Taxi via route (see mods below)</span></div>
+<div class="row" data-search="hold hp hold position"><span class="verb">HOLD</span><span class="alias">hp</span><span class="desc">Hold position</span></div>
+<div class="row" data-search="res resume resume taxi"><span class="verb">RES</span><span class="alias">resume</span><span class="desc">Resume taxi</span></div>
+<div class="row" data-search="cross cross runway"><span class="verb">CROSS</span><span class="alias"></span><span class="desc">Cross runway</span></div>
+<div class="row" data-search="hs hold short of taxiway/runway"><span class="verb">HS</span><span class="alias"></span><span class="desc">Hold short of taxiway/runway</span></div>
+<div class="row" data-search="rwy assign runway (taxi mod avail)"><span class="verb">RWY</span><span class="alias"></span><span class="desc">Assign runway (TAXI mod avail)</span></div>
+<div class="row" data-search="followg folg follow traffic (ground)"><span class="verb">FOLLOWG</span><span class="alias">folg</span><span class="desc">Follow traffic (ground)</span></div>
+<div class="row" data-search="giveway behind gw give way to traffic"><span class="verb">GIVEWAY</span><span class="alias">behind gw</span><span class="desc">Give way to traffic</span></div>
+<div class="row" data-search="el / er exit runway l/r [twy] (nodel)"><span class="verb">EL / ER</span><span class="alias"></span><span class="desc">Exit runway L/R [twy] (NODEL)</span></div>
+<div class="row" data-search="exit exit onto taxiway (nodel)"><span class="verb">EXIT</span><span class="alias"></span><span class="desc">Exit onto taxiway (NODEL)</span></div>
+<div class="row global" data-search="taxiall taxi all to destination"><span class="verb">TAXIALL</span><span class="alias"></span><span class="desc">Taxi all to destination</span></div>
+<div class="row" data-search="break break conflict"><span class="verb">BREAK</span><span class="alias"></span><span class="desc">Break conflict</span></div>
+<div class="note">TAXI mods: <code>RWY</code> <code>HS</code> <code>CROSS</code> <code>NODEL</code> <code>@parking</code> <code>$spot</code></div>
+</section>
+<section class="cat" id="helicopter" data-name="helicopter">
 <h2>Helicopter</h2>
-<div class="r"><span class="v">ATXI</span><span class="a"></span><span class="d">Air taxi [helipad]</span></div>
-<div class="r"><span class="v">LAND</span><span class="a"></span><span class="d">Land at helipad (NODEL)</span></div>
-<div class="r"><span class="v">CTOPP</span><span class="a"></span><span class="d">Cleared takeoff present position</span></div>
-</div>
-
-<!-- ═══ TRACK OPERATIONS ═══ -->
-<div class="s">
+<div class="row" data-search="atxi air taxi [helipad]"><span class="verb">ATXI</span><span class="alias"></span><span class="desc">Air taxi [helipad]</span></div>
+<div class="row" data-search="land land at helipad (nodel)"><span class="verb">LAND</span><span class="alias"></span><span class="desc">Land at helipad (NODEL)</span></div>
+<div class="row" data-search="ctopp cleared takeoff present position"><span class="verb">CTOPP</span><span class="alias"></span><span class="desc">Cleared takeoff present position</span></div>
+</section>
+<section class="cat" id="track" data-name="track operations">
 <h2>Track Operations</h2>
-<div class="r"><span class="v">AS</span><span class="a"></span><span class="d">Set active position*</span></div>
-<div class="r"><span class="v">TRACK</span><span class="a"></span><span class="d">Track aircraft [position]</span></div>
-<div class="r"><span class="v">DROP</span><span class="a"></span><span class="d">Drop track</span></div>
-<div class="r"><span class="v">HO</span><span class="a"></span><span class="d">Handoff [position]</span></div>
-<div class="r"><span class="v">HOF</span><span class="a"></span><span class="d">Force handoff to position</span></div>
-<div class="r"><span class="v">ACCEPT</span><span class="a">a</span><span class="d">Accept handoff [callsign]</span></div>
-<div class="r"><span class="v">CANCEL</span><span class="a"></span><span class="d">Cancel handoff</span></div>
-<div class="r"><span class="v">PO</span><span class="a"></span><span class="d">Point out [position]</span></div>
-<div class="r"><span class="v">OK</span><span class="a"></span><span class="d">Acknowledge</span></div>
-<div class="r"><span class="v">ONHO</span><span class="a">onh</span><span class="d">On handoff action</span></div>
-<div class="r"><span class="v">ACCEPTALL</span><span class="a"></span><span class="d">Accept all handoffs*</span></div>
-<div class="r"><span class="v">HOALL</span><span class="a"></span><span class="d">Handoff all to position*</span></div>
-</div>
-
-<!-- ═══ DATA / STRIPS ═══ -->
-<div class="s">
+<div class="row global" data-search="as set active position"><span class="verb">AS</span><span class="alias"></span><span class="desc">Set active position</span></div>
+<div class="row" data-search="track track aircraft [position]"><span class="verb">TRACK</span><span class="alias"></span><span class="desc">Track aircraft [position]</span></div>
+<div class="row" data-search="drop drop track"><span class="verb">DROP</span><span class="alias"></span><span class="desc">Drop track</span></div>
+<div class="row" data-search="ho handoff [position]"><span class="verb">HO</span><span class="alias"></span><span class="desc">Handoff [position]</span></div>
+<div class="row" data-search="hof force handoff to position"><span class="verb">HOF</span><span class="alias"></span><span class="desc">Force handoff to position</span></div>
+<div class="row" data-search="accept a accept handoff [callsign]"><span class="verb">ACCEPT</span><span class="alias">a</span><span class="desc">Accept handoff [callsign]</span></div>
+<div class="row" data-search="cancel cancel handoff"><span class="verb">CANCEL</span><span class="alias"></span><span class="desc">Cancel handoff</span></div>
+<div class="row" data-search="po point out [position]"><span class="verb">PO</span><span class="alias"></span><span class="desc">Point out [position]</span></div>
+<div class="row" data-search="ok acknowledge"><span class="verb">OK</span><span class="alias"></span><span class="desc">Acknowledge</span></div>
+<div class="row" data-search="onho onh on handoff action"><span class="verb">ONHO</span><span class="alias">onh</span><span class="desc">On handoff action</span></div>
+<div class="row global" data-search="acceptall accept all handoffs"><span class="verb">ACCEPTALL</span><span class="alias"></span><span class="desc">Accept all handoffs</span></div>
+<div class="row global" data-search="hoall handoff all to position"><span class="verb">HOALL</span><span class="alias"></span><span class="desc">Handoff all to position</span></div>
+</section>
+<section class="cat" id="data-strips" data-name="data / strips">
 <h2>Data / Strips</h2>
-<div class="r"><span class="v">ANNOTATE</span><span class="a">an box</span><span class="d">Annotate strip box (box# text)</span></div>
-<div class="r"><span class="v">STRIP</span><span class="a"></span><span class="d">Push strip to bay</span></div>
-<div class="r"><span class="v">SP1</span><span class="a">sp</span><span class="d">Scratchpad 1 [text / bare=clear]</span></div>
-<div class="r"><span class="v">SP2</span><span class="a"></span><span class="d">Scratchpad 2 [text / bare=clear]</span></div>
-<div class="r"><span class="v">TEMPALT</span><span class="a">ta qq</span><span class="d">Temporary altitude</span></div>
-<div class="r"><span class="v">CRUISE</span><span class="a">qz</span><span class="d">Cruise altitude</span></div>
-</div>
-
-<!-- ═══ COORDINATION ═══ -->
-<div class="s">
+<div class="row" data-search="annotate an box annotate strip box (box# text)"><span class="verb">ANNOTATE</span><span class="alias">an box</span><span class="desc">Annotate strip box (box# text)</span></div>
+<div class="row" data-search="strip push strip to bay"><span class="verb">STRIP</span><span class="alias"></span><span class="desc">Push strip to bay</span></div>
+<div class="row" data-search="sp1 sp scratchpad 1 [text / bare=clear]"><span class="verb">SP1</span><span class="alias">sp</span><span class="desc">Scratchpad 1 [text / bare=clear]</span></div>
+<div class="row" data-search="sp2 scratchpad 2 [text / bare=clear]"><span class="verb">SP2</span><span class="alias"></span><span class="desc">Scratchpad 2 [text / bare=clear]</span></div>
+<div class="row" data-search="tempalt ta qq temporary altitude"><span class="verb">TEMPALT</span><span class="alias">ta qq</span><span class="desc">Temporary altitude</span></div>
+<div class="row" data-search="cruise qz cruise altitude"><span class="verb">CRUISE</span><span class="alias">qz</span><span class="desc">Cruise altitude</span></div>
+</section>
+<section class="cat" id="coordination" data-name="coordination">
 <h2>Coordination</h2>
-<div class="r"><span class="v">RD</span><span class="a"></span><span class="d">Release [channel]</span></div>
-<div class="r"><span class="v">RDH</span><span class="a"></span><span class="d">Hold release [channel]</span></div>
-<div class="r"><span class="v">RDR</span><span class="a"></span><span class="d">Recall release [channel]</span></div>
-<div class="r"><span class="v">RDACK</span><span class="a"></span><span class="d">Acknowledge release [channel]</span></div>
-<div class="r"><span class="v">RDAUTO</span><span class="a"></span><span class="d">Toggle auto-ack for channel*</span></div>
-</div>
-
-<!-- ═══ BROADCAST ═══ -->
-<div class="s">
+<div class="row" data-search="rd release [channel]"><span class="verb">RD</span><span class="alias"></span><span class="desc">Release [channel]</span></div>
+<div class="row" data-search="rdh hold release [channel]"><span class="verb">RDH</span><span class="alias"></span><span class="desc">Hold release [channel]</span></div>
+<div class="row" data-search="rdr recall release [channel]"><span class="verb">RDR</span><span class="alias"></span><span class="desc">Recall release [channel]</span></div>
+<div class="row" data-search="rdack acknowledge release [channel]"><span class="verb">RDACK</span><span class="alias"></span><span class="desc">Acknowledge release [channel]</span></div>
+<div class="row global" data-search="rdauto toggle auto-ack for channel"><span class="verb">RDAUTO</span><span class="alias"></span><span class="desc">Toggle auto-ack for channel</span></div>
+</section>
+<section class="cat" id="broadcast" data-name="broadcast">
 <h2>Broadcast</h2>
-<div class="r"><span class="v">SAY</span><span class="a">sayf</span><span class="d">Broadcast pilot message (text)</span></div>
-<div class="r"><span class="v">SSPD</span><span class="a"></span><span class="d">Say speed</span></div>
-<div class="r"><span class="v">SMACH</span><span class="a"></span><span class="d">Say Mach</span></div>
-<div class="r"><span class="v">SEAPP</span><span class="a"></span><span class="d">Say expected approach</span></div>
-<div class="r"><span class="v">SALT</span><span class="a"></span><span class="d">Say altitude</span></div>
-<div class="r"><span class="v">SHDG</span><span class="a"></span><span class="d">Say heading</span></div>
-<div class="r"><span class="v">SPOS</span><span class="a"></span><span class="d">Say position</span></div>
-</div>
-
-<!-- ═══ FLIGHT PLAN ═══ -->
-<div class="s">
+<div class="row" data-search="say sayf broadcast pilot message (text)"><span class="verb">SAY</span><span class="alias">sayf</span><span class="desc">Broadcast pilot message (text)</span></div>
+<div class="row" data-search="sspd say speed"><span class="verb">SSPD</span><span class="alias"></span><span class="desc">Say speed</span></div>
+<div class="row" data-search="smach say mach"><span class="verb">SMACH</span><span class="alias"></span><span class="desc">Say Mach</span></div>
+<div class="row" data-search="seapp say expected approach"><span class="verb">SEAPP</span><span class="alias"></span><span class="desc">Say expected approach</span></div>
+<div class="row" data-search="salt say altitude"><span class="verb">SALT</span><span class="alias"></span><span class="desc">Say altitude</span></div>
+<div class="row" data-search="shdg say heading"><span class="verb">SHDG</span><span class="alias"></span><span class="desc">Say heading</span></div>
+<div class="row" data-search="spos say position"><span class="verb">SPOS</span><span class="alias"></span><span class="desc">Say position</span></div>
+</section>
+<section class="cat" id="flight-plan" data-name="flight plan">
 <h2>Flight Plan</h2>
-<div class="r"><span class="v">APT</span><span class="a">dest</span><span class="d">Change destination airport</span></div>
-<div class="r"><span class="v">FP</span><span class="a"></span><span class="d">Create IFR FP (type alt route)</span></div>
-<div class="r"><span class="v">VP</span><span class="a"></span><span class="d">Create VFR FP (type alt route)</span></div>
-<div class="r"><span class="v">DA</span><span class="a"></span><span class="d">Flight data / abbreviated FP</span></div>
-<div class="r"><span class="v">REMARKS</span><span class="a">rem</span><span class="d">Set flight plan remarks</span></div>
-</div>
-
-<!-- ═══ QUEUE ═══ -->
-<div class="s">
+<div class="row" data-search="apt dest change destination airport"><span class="verb">APT</span><span class="alias">dest</span><span class="desc">Change destination airport</span></div>
+<div class="row" data-search="fp create ifr fp (type alt route)"><span class="verb">FP</span><span class="alias"></span><span class="desc">Create IFR FP (type alt route)</span></div>
+<div class="row" data-search="vp create vfr fp (type alt route)"><span class="verb">VP</span><span class="alias"></span><span class="desc">Create VFR FP (type alt route)</span></div>
+<div class="row" data-search="da flight data / abbreviated fp"><span class="verb">DA</span><span class="alias"></span><span class="desc">Flight data / abbreviated FP</span></div>
+<div class="row" data-search="remarks rem set flight plan remarks"><span class="verb">REMARKS</span><span class="alias">rem</span><span class="desc">Set flight plan remarks</span></div>
+</section>
+<section class="cat" id="queue" data-name="queue">
 <h2>Queue</h2>
-<div class="r"><span class="v">DELAT</span><span class="a"></span><span class="d">Delete queued commands [index]</span></div>
-<div class="r"><span class="v">SHOWAT</span><span class="a"></span><span class="d">Show queued commands</span></div>
-</div>
-
-<!-- ═══ CONSOLIDATION ═══ -->
-<div class="s">
+<div class="row" data-search="delat delete queued commands [index]"><span class="verb">DELAT</span><span class="alias"></span><span class="desc">Delete queued commands [index]</span></div>
+<div class="row" data-search="showat show queued commands"><span class="verb">SHOWAT</span><span class="alias"></span><span class="desc">Show queued commands</span></div>
+</section>
+<section class="cat" id="consolidation" data-name="consolidation">
 <h2>Consolidation</h2>
-<div class="r"><span class="v">CON</span><span class="a"></span><span class="d">Consolidate positions*</span></div>
-<div class="r"><span class="v">CON+</span><span class="a"></span><span class="d">Full consolidate positions*</span></div>
-<div class="r"><span class="v">DECON</span><span class="a"></span><span class="d">Deconsolidate position*</span></div>
-</div>
-
-<!-- ═══ SIM CONTROL ═══ -->
-<div class="s">
+<div class="row global" data-search="con consolidate positions"><span class="verb">CON</span><span class="alias"></span><span class="desc">Consolidate positions</span></div>
+<div class="row global" data-search="con+ full consolidate positions"><span class="verb">CON+</span><span class="alias"></span><span class="desc">Full consolidate positions</span></div>
+<div class="row global" data-search="decon deconsolidate position"><span class="verb">DECON</span><span class="alias"></span><span class="desc">Deconsolidate position</span></div>
+</section>
+<section class="cat" id="sim-control" data-name="sim control">
 <h2>Sim Control</h2>
-<div class="r"><span class="v">DEL</span><span class="a">x</span><span class="d">Delete aircraft</span></div>
-<div class="r"><span class="v">PAUSE</span><span class="a">p</span><span class="d">Pause simulation*</span></div>
-<div class="r"><span class="v">UNPAUSE</span><span class="a">u un</span><span class="d">Unpause simulation*</span></div>
-<div class="r"><span class="v">SIMRATE</span><span class="a"></span><span class="d">Sim rate 1-8*</span></div>
-<div class="r"><span class="v">WAIT</span><span class="a">delay</span><span class="d">Wait seconds before next cmd</span></div>
-<div class="r"><span class="v">WAITD</span><span class="a"></span><span class="d">Wait until distance (nm) from fix</span></div>
-<div class="r"><span class="v">ADD</span><span class="a"></span><span class="d">Add aircraft (rules wt eng brg dist alt)*</span></div>
-<div class="r"><span class="v">SPAWN</span><span class="a"></span><span class="d">Spawn now</span></div>
-<div class="r"><span class="v">SPAWNDELAY</span><span class="a"></span><span class="d">Set spawn delay (seconds)</span></div>
-</div>
-
-<!-- ═══ FORCE / TELEPORT ═══ -->
-<div class="s">
+<div class="row" data-search="del x delete aircraft"><span class="verb">DEL</span><span class="alias">x</span><span class="desc">Delete aircraft</span></div>
+<div class="row global" data-search="pause p pause simulation"><span class="verb">PAUSE</span><span class="alias">p</span><span class="desc">Pause simulation</span></div>
+<div class="row global" data-search="unpause u un unpause simulation"><span class="verb">UNPAUSE</span><span class="alias">u un</span><span class="desc">Unpause simulation</span></div>
+<div class="row global" data-search="simrate sim rate 1-8"><span class="verb">SIMRATE</span><span class="alias"></span><span class="desc">Sim rate 1-8</span></div>
+<div class="row" data-search="wait delay wait seconds before next cmd"><span class="verb">WAIT</span><span class="alias">delay</span><span class="desc">Wait seconds before next cmd</span></div>
+<div class="row" data-search="waitd wait until distance (nm) from fix"><span class="verb">WAITD</span><span class="alias"></span><span class="desc">Wait until distance (nm) from fix</span></div>
+<div class="row global" data-search="add add aircraft (rules wt eng brg dist alt)"><span class="verb">ADD</span><span class="alias"></span><span class="desc">Add aircraft (rules wt eng brg dist alt)</span></div>
+<div class="row" data-search="spawn spawn now"><span class="verb">SPAWN</span><span class="alias"></span><span class="desc">Spawn now</span></div>
+<div class="row" data-search="spawndelay set spawn delay (seconds)"><span class="verb">SPAWNDELAY</span><span class="alias"></span><span class="desc">Set spawn delay (seconds)</span></div>
+</section>
+<section class="cat" id="force-teleport" data-name="force / teleport">
 <h2>Force / Teleport</h2>
-<div class="r"><span class="v">FHN</span><span class="a"></span><span class="d">Instantly set heading</span></div>
-<div class="r"><span class="v">CMN</span><span class="a"></span><span class="d">Instantly set altitude</span></div>
-<div class="r"><span class="v">SPDN</span><span class="a">sln</span><span class="d">Instantly set speed</span></div>
-<div class="r"><span class="v">WARP</span><span class="a"></span><span class="d">Teleport to FRD hdg alt spd</span></div>
-<div class="r"><span class="v">WARPG</span><span class="a"></span><span class="d">Teleport on ground to location</span></div>
+<div class="row" data-search="fhn instantly set heading"><span class="verb">FHN</span><span class="alias"></span><span class="desc">Instantly set heading</span></div>
+<div class="row" data-search="cmn instantly set altitude"><span class="verb">CMN</span><span class="alias"></span><span class="desc">Instantly set altitude</span></div>
+<div class="row" data-search="spdn sln instantly set speed"><span class="verb">SPDN</span><span class="alias">sln</span><span class="desc">Instantly set speed</span></div>
+<div class="row" data-search="warp teleport to frd hdg alt spd"><span class="verb">WARP</span><span class="alias"></span><span class="desc">Teleport to FRD hdg alt spd</span></div>
+<div class="row" data-search="warpg teleport on ground to location"><span class="verb">WARPG</span><span class="alias"></span><span class="desc">Teleport on ground to location</span></div>
+</section>
+<section class="cat" id="chaining" data-name="chaining / conditions">
+<h2>Chaining / Conditions</h2>
+<div class="row" data-search="; sequential cm 100 ; fh 270"><span class="verb">;</span><span class="alias"></span><span class="desc">Sequential: <span class="ex"><code>CM 100 ; FH 270</code></span></span></div>
+<div class="row" data-search=", parallel cm 100 , fh 270"><span class="verb">,</span><span class="alias"></span><span class="desc">Parallel: <span class="ex"><code>CM 100 , FH 270</code></span></span></div>
+<div class="row" data-search="lv at altitude lv 50 fh 270"><span class="verb">LV</span><span class="alias"></span><span class="desc">At altitude: <span class="ex"><code>LV 50 FH 270</code></span></span></div>
+<div class="row" data-search="at at fix at sunol cm 100"><span class="verb">AT</span><span class="alias"></span><span class="desc">At fix: <span class="ex"><code>AT SUNOL CM 100</code></span></span></div>
+<div class="row" data-search="until until fix/dist spd 210 until sunol"><span class="verb">UNTIL</span><span class="alias"></span><span class="desc">Until fix/dist: <span class="ex"><code>SPD 210 UNTIL SUNOL</code></span></span></div>
+</section>
 </div>
 
-<!-- ═══ COMMAND CHAINING ═══ -->
-<div class="s">
-<h2>Chaining / Conditions</h2>
-<div class="r"><span class="v">;</span><span class="a"></span><span class="d">Sequential: <code>CM 100 ; FH 270</code></span></div>
-<div class="r"><span class="v">,</span><span class="a"></span><span class="d">Parallel: <code>CM 100 , FH 270</code></span></div>
-<div class="r"><span class="v">LV</span><span class="a"></span><span class="d">At altitude: <code>LV 50 FH 270</code></span></div>
-<div class="r"><span class="v">AT</span><span class="a"></span><span class="d">At fix: <code>AT SUNOL CM 100</code></span></div>
-<div class="r"><span class="v">UNTIL</span><span class="a"></span><span class="d">Until fix/dist: <code>SPD 210 UNTIL SUNOL</code></span></div>
-</div>
+<script>
+(() => {
+  const input = document.getElementById('q');
+  const count = document.getElementById('count');
+  const cats = [...document.querySelectorAll('.cat')];
+  const update = () => {
+    const q = input.value.trim().toLowerCase();
+    let visible = 0, total = 0;
+    cats.forEach(cat => {
+      const rows = [...cat.querySelectorAll('.row')];
+      const catMatch = q.length > 0 && (cat.dataset.name || '').includes(q);
+      let hits = 0;
+      rows.forEach(row => {
+        total++;
+        const text = row.dataset.search;
+        const match = !q || catMatch || text.includes(q);
+        row.hidden = !match;
+        if (match) { hits++; visible++; }
+      });
+      cat.hidden = q.length > 0 && !catMatch && hits === 0;
+    });
+    count.textContent = q ? visible + ' / ' + total + ' match' : '';
+  };
+  input.addEventListener('input', update);
+  update();
+})();
+</script>
 
 </body>
 </html>

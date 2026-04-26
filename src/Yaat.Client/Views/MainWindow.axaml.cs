@@ -137,6 +137,12 @@ public partial class MainWindow : Window
             aboutItem.Click += OnAboutClick;
         }
 
+        var cheatsheetItem = this.FindControl<MenuItem>("HelpCheatsheetMenuItem");
+        if (cheatsheetItem is not null)
+        {
+            cheatsheetItem.Click += OnCommandCheatsheetClick;
+        }
+
         WireUrlMenuItem("HelpGettingStartedMenuItem", DocLinks.GettingStarted);
         WireUrlMenuItem("HelpUserGuideMenuItem", DocLinks.UserGuide);
         WireUrlMenuItem("HelpCommandsMenuItem", DocLinks.Commands);
@@ -1647,6 +1653,17 @@ public partial class MainWindow : Window
     {
         var about = new AboutWindow();
         await about.ShowDialog(this);
+    }
+
+    private async void OnCommandCheatsheetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var window = new CommandCheatsheetWindow(vm.Preferences);
+        await window.ShowDialog(this);
     }
 
     private void WireUrlMenuItem(string name, string url)
