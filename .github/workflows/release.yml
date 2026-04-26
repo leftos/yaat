@@ -488,5 +488,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.version.outputs.version }}
+          REPO: ${{ github.repository }}
         run: |
-          gh workflow run discord-release.yml --ref main -f tag="v${TAG}"
+          # --repo is required because the release job never checks out the
+          # source tree, so gh has no .git/ to infer the repo from.
+          gh workflow run discord-release.yml --repo "$REPO" --ref main -f tag="v${TAG}"
