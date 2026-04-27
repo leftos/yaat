@@ -17,6 +17,8 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
     <!-- DataGrid needed for the room-picker dialog -->
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <!-- Standard OK/error dialogs for the Tools menu (CRC config status). -->
+    <PackageReference Include="MessageBox.Avalonia" Version="3.3.1.1" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
 

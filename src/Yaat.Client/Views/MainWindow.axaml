@@ -124,9 +124,10 @@
                           Command="{Binding SaveBugReportBundleCommand}"
                           IsEnabled="{Binding IsInRoom}" />
             </MenuItem>
-            <MenuItem Header="_Settings"
-                        x:Name="SettingsMenuItem" />
             <MenuItem Header="_Tools">
+                <MenuItem Header="_Settings"
+                          x:Name="SettingsMenuItem" />
+                <Separator />
                 <MenuItem Header="Configure _CRC Environments"
                           x:Name="ConfigureCrcMenuItem" />
             </MenuItem>

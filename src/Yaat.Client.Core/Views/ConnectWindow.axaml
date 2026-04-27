@@ -5,14 +5,14 @@
         Icon="avares://Yaat.Client.Core/Resources/icon.png"
         Title="Connect to Server"
         Width="560"
-        Height="400"
+        Height="500"
         CanResize="True">
 
     <Design.DataContext>
         <vm:ConnectViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="*,Auto,Auto" Margin="12">
+    <Grid RowDefinitions="*,Auto,Auto,Auto" Margin="12">
 
         <!-- Server list + sidebar buttons -->
         <Grid ColumnDefinitions="*,Auto">
@@ -36,6 +36,11 @@
                 <Separator Height="8" />
                 <Button Content="↑" Command="{Binding MoveUpCommand}" Width="72" />
                 <Button Content="↓" Command="{Binding MoveDownCommand}" Width="72" />
+                <Separator Height="8" />
+                <Button Content="Restore"
+                        Command="{Binding RestoreDefaultsCommand}"
+                        Width="72"
+                        ToolTip.Tip="Re-add any missing default servers (YAAT1, Local) and reset their URLs to the default values. Custom entries are not touched." />
             </StackPanel>
         </Grid>
 
@@ -48,8 +53,24 @@
             <TextBox Grid.Column="3" Text="{Binding SelectedServer.Url}" />
         </Grid>
 
+        <!-- Identity strip -->
+        <Border Grid.Row="2"
+                BorderBrush="#3A3A40"
+                BorderThickness="0,1,0,0"
+                Margin="0,12,0,0"
+                Padding="0,12,0,0">
+            <Grid ColumnDefinitions="Auto,90,12,Auto,80,12,Auto,*">
+                <TextBlock Grid.Column="0" Text="VATSIM CID:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Grid.Column="1" Text="{Binding VatsimCid}" Watermark="1234567" />
+                <TextBlock Grid.Column="3" Text="Initials:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Grid.Column="4" Text="{Binding UserInitials}" MaxLength="2" Watermark="AB" />
+                <TextBlock Grid.Column="6" Text="ARTCC:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Grid.Column="7" Text="{Binding ArtccId}" MaxLength="4" Watermark="ZOA" />
+            </Grid>
+        </Border>
+
         <!-- Bottom strip -->
-        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
+        <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
             <!-- Connecting indicator -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
                         IsVisible="{Binding IsConnecting}">

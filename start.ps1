@@ -1,17 +1,22 @@
 ﻿# Start yaat-server and yaat-client side by side.
-# Kill both on Ctrl-C.
+# Kill all processes on Ctrl-C.
 # Build sequentially first -- both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-Scenario <id>] [-Sync <url>]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-Scenario <id>] [-Sync <url>]
 #
 # -Sync <url>  Sync local yaat repo to the commit pinned by a remote server,
 #              then build and run client-only. Example:
 #                .\start.ps1 -Sync https://yaat1.leftos.dev
+# -VStrips     Also launch the standalone Yaat.VStrips client alongside the
+#              main client, autoconnecting to the same server. Combine with
+#              -ClientOnly or -Sync to launch vStrips against an existing
+#              server. Ignored with -ServerOnly.
 
 param(
     [switch]$Pull,
     [switch]$Docker,
     [switch]$ClientOnly,
     [switch]$ServerOnly,
+    [switch]$VStrips,
     [string]$Scenario,
     [string]$Sync
 )
@@ -115,6 +120,12 @@ if (-not $ServerOnly) {
     if ($LASTEXITCODE -ne 0) { Write-Error "Client build failed"; exit 1 }
 }
 
+if ($VStrips -and -not $ServerOnly) {
+    Write-Host "Building yaat-vstrips..."
+    dotnet build "$ClientDir\tools\Yaat.VStrips" -v q
+    if ($LASTEXITCODE -ne 0) { Write-Error "vStrips build failed"; exit 1 }
+}
+
 $procs = @()
 
 if (-not $ClientOnly) {
@@ -126,15 +137,19 @@ if (-not $ClientOnly) {
     }
 }
 
+$autoconnectUrl = $null
+if ($Sync) {
+    $autoconnectUrl = $Sync
+} elseif (-not $ClientOnly) {
+    $autoconnectUrl = "http://localhost:${ServerPort}"
+}
+
 if (-not $ServerOnly) {
     Write-Host "Starting yaat-client..."
     $clientArgs = "run --no-build --project `"$ClientDir\src\Yaat.Client`""
     $needsDashDash = $true
-    if ($Sync) {
-        $clientArgs += " -- --autoconnect $Sync"
-        $needsDashDash = $false
-    } elseif (-not $ClientOnly) {
-        $clientArgs += " -- --autoconnect http://localhost:${ServerPort}"
+    if ($autoconnectUrl) {
+        $clientArgs += " -- --autoconnect $autoconnectUrl"
         $needsDashDash = $false
     }
     if ($Scenario) {
@@ -142,6 +157,15 @@ if (-not $ServerOnly) {
         $clientArgs += " --scenario $Scenario"
     }
     $procs += Start-Process -PassThru -NoNewWindow dotnet $clientArgs
+}
+
+if ($VStrips -and -not $ServerOnly) {
+    Write-Host "Starting yaat-vstrips..."
+    $vstripsArgs = "run --no-build --project `"$ClientDir\tools\Yaat.VStrips`""
+    if ($autoconnectUrl) {
+        $vstripsArgs += " -- --autoconnect $autoconnectUrl"
+    }
+    $procs += Start-Process -PassThru -NoNewWindow dotnet $vstripsArgs
 }
 
 Write-Host "PIDs: $($procs.Id -join ', ')"

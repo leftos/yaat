@@ -123,16 +123,16 @@ public sealed class ServerConnection : IAsyncDisposable
 
     // --- Room lifecycle ---
 
-    public async Task<string> CreateRoomAsync(string cid, string initials, string artccId)
+    public async Task<string> CreateRoomAsync(string cid, string initials, string artccId, string kind)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<string>("CreateRoom", cid, initials, artccId);
+        return await _connection!.InvokeAsync<string>("CreateRoom", cid, initials, artccId, kind);
     }
 
-    public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string cid, string initials, string artccId)
+    public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string cid, string initials, string artccId, string kind)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, cid, initials, artccId);
+        return await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, cid, initials, artccId, kind);
     }
 
     public async Task LeaveRoomAsync()
@@ -145,6 +145,12 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         EnsureConnected();
         return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>("GetActiveRooms");
+    }
+
+    public async Task<TrainingRoomInfoDto?> FindRoomForMyCidAsync(string cid)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<TrainingRoomInfoDto?>("FindRoomForMyCid", cid);
     }
 
     // --- Scenario lifecycle ---

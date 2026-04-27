@@ -6,6 +6,8 @@ namespace Yaat.VStrips;
 
 public class App : Application
 {
+    public static string? AutoConnectTarget { get; set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -15,8 +17,11 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var vm = new StandaloneViewModel();
-            desktop.MainWindow = new MainWindow { DataContext = vm };
+            // MainWindow constructs its own StandaloneViewModel so it can share the VM's
+            // UserPreferences instance with WindowGeometryHelper. A second prefs instance
+            // here would race with the VM's instance on save and overwrite each other's
+            // in-memory state.
+            desktop.MainWindow = new MainWindow();
         }
 
         base.OnFrameworkInitializationCompleted();

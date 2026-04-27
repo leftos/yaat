@@ -52,6 +52,12 @@ public static class Program
         YaatPaths.Initialize("yaat-vstrips");
         AppLog.Initialize("yaat-vstrips.log");
 
+        int autoIdx = Array.FindIndex(args, a => a.Equals("--autoconnect", StringComparison.OrdinalIgnoreCase));
+        if (autoIdx >= 0 && autoIdx + 1 < args.Length)
+        {
+            App.AutoConnectTarget = args[autoIdx + 1];
+        }
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
     }

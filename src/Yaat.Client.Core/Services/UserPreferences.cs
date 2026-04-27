@@ -621,7 +621,7 @@ public sealed class UserPreferences
     {
         if (!File.Exists(ConfigPath))
         {
-            return new SavedPrefs();
+            return ApplyDefaultServers(new SavedPrefs());
         }
 
         string json;
@@ -632,7 +632,7 @@ public sealed class UserPreferences
         catch (IOException ex)
         {
             Log.LogWarning(ex, "Could not read preferences from {Path}", ConfigPath);
-            return new SavedPrefs();
+            return ApplyDefaultServers(new SavedPrefs());
         }
 
         // Fast path: full deserialization
@@ -641,13 +641,7 @@ public sealed class UserPreferences
             var saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
             if (saved is not null)
             {
-                // Normalize empty server list on load
-                if (saved.SavedServers is null or { Count: 0 })
-                {
-                    saved.SavedServers = [new SavedServer("YAAT1", "https://yaat1.leftos.dev"), new SavedServer("Local", "http://localhost:5000")];
-                }
-
-                return saved;
+                return ApplyDefaultServers(saved);
             }
         }
         catch (JsonException)
@@ -759,13 +753,26 @@ public sealed class UserPreferences
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
         };
 
-        // Normalize empty server list on recovery
-        if (result.SavedServers is null or { Count: 0 })
+        return ApplyDefaultServers(result);
+    }
+
+    /// <summary>
+    /// Canonical default server list. Used (a) to populate the saved-servers list on
+    /// first launch when no preferences file exists, and (b) by the Connect dialog's
+    /// "Restore defaults" button so a user who accidentally edits or deletes one of
+    /// these can put them back without resetting unrelated preferences.
+    /// </summary>
+    public static IReadOnlyList<SavedServer> DefaultServers { get; } =
+    [new SavedServer("YAAT1", "https://yaat1.leftos.dev"), new SavedServer("Local", "http://localhost:5000")];
+
+    private static SavedPrefs ApplyDefaultServers(SavedPrefs prefs)
+    {
+        if (prefs.SavedServers is null or { Count: 0 })
         {
-            result.SavedServers = [new SavedServer("YAAT1", "https://yaat1.leftos.dev"), new SavedServer("Local", "http://localhost:5000")];
+            prefs.SavedServers = [.. DefaultServers.Select(s => new SavedServer(s.Name, s.Url))];
         }
 
-        return result;
+        return prefs;
     }
 
     private static T GetFieldOr<T>(JsonObject obj, string name, T fallback)

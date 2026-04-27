@@ -101,9 +101,20 @@ public partial class MainViewModel
     {
         try
         {
-            var roomId = await _connection.CreateRoomAsync(_preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
+            var roomId = await _connection.CreateRoomAsync(
+                _preferences.VatsimCid,
+                _preferences.UserInitials,
+                _preferences.ArtccId,
+                Yaat.Sim.ClientKind.Main
+            );
 
-            var state = await _connection.JoinRoomAsync(roomId, _preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
+            var state = await _connection.JoinRoomAsync(
+                roomId,
+                _preferences.VatsimCid,
+                _preferences.UserInitials,
+                _preferences.ArtccId,
+                Yaat.Sim.ClientKind.Main
+            );
 
             if (state is null)
             {
@@ -130,7 +141,13 @@ public partial class MainViewModel
     {
         try
         {
-            var state = await _connection.JoinRoomAsync(roomId, _preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
+            var state = await _connection.JoinRoomAsync(
+                roomId,
+                _preferences.VatsimCid,
+                _preferences.UserInitials,
+                _preferences.ArtccId,
+                Yaat.Sim.ClientKind.Main
+            );
 
             if (state is null)
             {
@@ -353,7 +370,13 @@ public partial class MainViewModel
 
             try
             {
-                var state = await _connection.JoinRoomAsync(ActiveRoomId, _preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
+                var state = await _connection.JoinRoomAsync(
+                    ActiveRoomId,
+                    _preferences.VatsimCid,
+                    _preferences.UserInitials,
+                    _preferences.ArtccId,
+                    Yaat.Sim.ClientKind.Main
+                );
 
                 if (state is not null)
                 {

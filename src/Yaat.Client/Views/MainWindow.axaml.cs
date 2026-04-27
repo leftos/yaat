@@ -1625,8 +1625,17 @@ public partial class MainWindow : Window
         var connectVm = new ConnectViewModel(
             vm.Preferences.SavedServers,
             vm.Preferences.LastUsedServerUrl,
+            vm.Preferences.VatsimCid,
+            vm.Preferences.UserInitials,
+            vm.Preferences.ArtccId,
             connectAction: vm.AttemptConnectAsync,
             saveAction: (servers, lastUrl) => vm.Preferences.SetSavedServers(servers, lastUrl),
+            identitySaveAction: (cid, initials, artcc) =>
+            {
+                vm.Preferences.SetVatsimCid(cid);
+                vm.Preferences.SetUserInitials(initials);
+                vm.Preferences.SetArtccId(artcc);
+            },
             closeAction: () => connectWindow?.Close()
         );
         connectWindow = new ConnectWindow(connectVm, vm.Preferences);

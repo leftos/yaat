@@ -9,6 +9,7 @@ public partial class ConnectViewModel : ObservableObject
 {
     private readonly Func<string, CancellationToken, Task<string?>> _connectAction;
     private readonly Action<IList<SavedServer>, string> _saveAction;
+    private readonly Action<string, string, string> _identitySaveAction;
     private readonly Action _closeAction;
     private CancellationTokenSource? _currentCts;
 
@@ -28,19 +29,36 @@ public partial class ConnectViewModel : ObservableObject
     [ObservableProperty]
     private string? _errorMessage;
 
+    [ObservableProperty]
+    private string _vatsimCid = "";
+
+    [ObservableProperty]
+    private string _userInitials = "";
+
+    [ObservableProperty]
+    private string _artccId = "";
+
     public ConnectViewModel(
         IReadOnlyList<SavedServer> servers,
         string lastUsedUrl,
+        string vatsimCid,
+        string userInitials,
+        string artccId,
         Func<string, CancellationToken, Task<string?>> connectAction,
         Action<IList<SavedServer>, string> saveAction,
+        Action<string, string, string> identitySaveAction,
         Action closeAction
     )
     {
         Servers = new ObservableCollection<SavedServer>(servers);
         _connectAction = connectAction;
         _saveAction = saveAction;
+        _identitySaveAction = identitySaveAction;
         _closeAction = closeAction;
         SelectedServer = Servers.FirstOrDefault(s => s.Url == lastUsedUrl) ?? Servers.FirstOrDefault();
+        VatsimCid = vatsimCid;
+        UserInitials = userInitials;
+        ArtccId = artccId;
 
         // Subscribe to property changes on existing servers
         foreach (var server in Servers)
@@ -64,6 +82,34 @@ public partial class ConnectViewModel : ObservableObject
         entry.PropertyChanged += OnServerPropertyChanged;
         Servers.Add(entry);
         SelectedServer = entry;
+        SaveServers();
+    }
+
+    /// <summary>
+    /// Re-adds any missing default servers and resets the URL of any default
+    /// entries that have been edited. User-added entries (and their custom names)
+    /// are left untouched. Match is by Name (case-insensitive); a default
+    /// renamed by the user will be re-added under its original name rather
+    /// than reverting the rename.
+    /// </summary>
+    [RelayCommand]
+    private void RestoreDefaults()
+    {
+        foreach (var def in UserPreferences.DefaultServers)
+        {
+            var existing = Servers.FirstOrDefault(s => string.Equals(s.Name, def.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing is null)
+            {
+                var entry = new SavedServer(def.Name, def.Url);
+                entry.PropertyChanged += OnServerPropertyChanged;
+                Servers.Add(entry);
+            }
+            else if (!string.Equals(existing.Url, def.Url, StringComparison.OrdinalIgnoreCase))
+            {
+                existing.Url = def.Url;
+            }
+        }
+
         SaveServers();
     }
 
@@ -156,6 +202,9 @@ public partial class ConnectViewModel : ObservableObject
         {
             return;
         }
+
+        // Persist identity before connect so AttemptConnectAsync sees the new values via Preferences.
+        _identitySaveAction(VatsimCid.Trim(), UserInitials.Trim(), ArtccId.Trim());
 
         using var cts = new CancellationTokenSource();
         _currentCts = cts;

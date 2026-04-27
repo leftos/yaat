@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- VATSIM CID, initials, and ARTCC fields are now in the Connect dialog itself, alongside the server list. YAAT Flight Strips had no place to set these previously — connecting and joining a room would silently send empty identity to the server. YAAT Client picks them up in Connect too as a shortcut around opening Settings.
+- "Restore" button in the Connect dialog re-adds the default servers (YAAT1, Local) and resets their URLs if you've accidentally edited them. User-added servers are left alone.
+- YAAT Flight Strips auto-joins your active training room on connect when your VATSIM CID is already in a room (via YAAT Client, CRC, or another vStrips session). The room picker still works for joining other rooms.
+- YAAT Flight Strips gained a **Tools → Configure CRC Environments...** menu item, mirroring the same action in YAAT Client. Adds the YAAT1 and YAAT Local entries to CRC's `DevEnvironments.json`.
+- The room terminal now distinguishes Flight Strips clients: *"joined the room (Flight Strips)"* / *"left the room (Flight Strips)"* instead of the bare *"joined/left the room"* used for the full trainer. Other RPOs in the room can tell at a glance whether a participant has the full trainer or the limited client.
+
+### Fixed
+- YAAT Flight Strips no longer crashes when you click a bay containing strips. The standalone app's resource dictionary was missing the script-style font and the brushes the strip control depends on, so the first attempt to render a strip threw `KeyNotFoundException` for `StaticResource StripScriptFont`.
+- The server list in YAAT Flight Strips's Connect dialog (and the room picker) now renders. The standalone app was missing the DataGrid theme include, so both grids rendered as invisible controls — making it look like there were no saved servers and no rooms to pick.
+- Removing or moving a server in YAAT Flight Strips's Connect dialog now persists across window close. Previously the change was correctly saved when you clicked **Remove**, but the standalone app's window held a second copy of preferences in memory for window geometry; closing the window re-wrote the file with the deleted server still present.
+- YAAT Flight Strips populates the default server list (YAAT1, Local) on first launch instead of starting with an empty list. The defaults previously only kicked in when a preferences file already existed with an empty server list, so a brand-new install showed no servers in the Connect dialog.
+
 ## v0.1.6-alpha [2026/04/26]
 
 ### Added

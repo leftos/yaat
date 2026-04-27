@@ -148,11 +148,20 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
     {
         try
         {
+            _log.LogInformation(
+                "AttemptConnect to {Url}; identity cid='{Cid}' initials='{Initials}' artcc='{Artcc}'",
+                url,
+                Preferences.VatsimCid,
+                Preferences.UserInitials,
+                Preferences.ArtccId
+            );
             StatusText = $"Connecting to {url}...";
             await _connection.ConnectAsync(url, ct);
             IsConnected = true;
             StatusText = $"Connected to {url}";
             Preferences.SetSavedServers(Preferences.SavedServers, url);
+
+            await TryAutoJoinForCidAsync();
             return null;
         }
         catch (Exception ex)
@@ -160,6 +169,34 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
             StatusText = "Connection failed";
             _log.LogWarning(ex, "Connect failed: {Url}", url);
             return ex.Message;
+        }
+    }
+
+    private async Task TryAutoJoinForCidAsync()
+    {
+        var cid = Preferences.VatsimCid;
+        if (string.IsNullOrWhiteSpace(cid))
+        {
+            _log.LogInformation("Auto-join skipped: no VATSIM CID set");
+            return;
+        }
+
+        try
+        {
+            var room = await _connection.FindRoomForMyCidAsync(cid);
+            if (room is null)
+            {
+                _log.LogInformation("Auto-join: no existing room for CID {Cid}", cid);
+                return;
+            }
+
+            _log.LogInformation("Auto-join: room {RoomId} found for CID {Cid}, joining", room.RoomId, cid);
+            StatusText = $"Auto-joining {room.CreatorInitials}'s room...";
+            await JoinRoomAsync(room.RoomId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Auto-join lookup failed");
         }
     }
 
@@ -179,12 +216,15 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
     {
         if (!IsConnected)
         {
+            _log.LogInformation("RefreshRooms skipped: not connected");
             return;
         }
 
         try
         {
+            _log.LogInformation("RefreshRooms calling GetActiveRooms");
             var rooms = await _connection.GetActiveRoomsAsync();
+            _log.LogInformation("RefreshRooms got {Count} rooms", rooms.Count);
             AvailableRooms.Clear();
             foreach (var room in rooms)
             {
@@ -202,14 +242,29 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
     {
         if (!IsConnected)
         {
+            _log.LogInformation("JoinRoom skipped: not connected");
             return false;
         }
 
         try
         {
-            var state = await _connection.JoinRoomAsync(roomId, Preferences.VatsimCid, Preferences.UserInitials, Preferences.ArtccId);
+            _log.LogInformation(
+                "JoinRoom {RoomId} as cid='{Cid}' initials='{Initials}' artcc='{Artcc}'",
+                roomId,
+                Preferences.VatsimCid,
+                Preferences.UserInitials,
+                Preferences.ArtccId
+            );
+            var state = await _connection.JoinRoomAsync(
+                roomId,
+                Preferences.VatsimCid,
+                Preferences.UserInitials,
+                Preferences.ArtccId,
+                Yaat.Sim.ClientKind.VStrips
+            );
             if (state is null)
             {
+                _log.LogWarning("JoinRoom {RoomId} returned null state", roomId);
                 StatusText = "Room not found";
                 return false;
             }
