@@ -283,7 +283,7 @@ public enum HoldShortReason
 public sealed class HoldShortPoint
 {
     public required int NodeId { get; init; }
-    public required HoldShortReason Reason { get; init; }
+    public required HoldShortReason Reason { get; set; }
 
     /// <summary>Runway ID or taxiway name this hold-short protects.</summary>
     public string? TargetName { get; init; }

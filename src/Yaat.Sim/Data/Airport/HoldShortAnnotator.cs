@@ -157,7 +157,34 @@ internal static class HoldShortAnnotator
         string target
     )
     {
-        // First pass: check for runway hold-short nodes matching the target
+        // Runway pass: an explicit HS for a runway must always hold on the entry side
+        // and must not be silently cleared by auto-cross. The implicit pass
+        // (AddImplicitRunwayHoldShorts) has already chosen the correct entry-side node
+        // and added it as RunwayCrossing — promote that entry to ExplicitHoldShort so
+        // the auto-cross loop in GroundCommandHandler.TryTaxi leaves it uncleared.
+        // Otherwise, walk segments and add the FIRST matching node only — never the
+        // exit-side, which would shadow the explicit hold on the wrong side of the runway.
+        foreach (var existing in holdShorts)
+        {
+            if (existing.Reason != HoldShortReason.RunwayCrossing || existing.TargetName is null)
+            {
+                continue;
+            }
+
+            if (!RunwayIdentifier.Parse(existing.TargetName).Contains(target))
+            {
+                continue;
+            }
+
+            existing.Reason = HoldShortReason.ExplicitHoldShort;
+            Log.LogDebug(
+                "[HoldShortAnnotator] Explicit HS {Target}: upgraded existing crossing at node {NodeId} to ExplicitHoldShort",
+                target,
+                existing.NodeId
+            );
+            return;
+        }
+
         bool foundRunway = false;
         foreach (var seg in segments)
         {
@@ -188,6 +215,7 @@ internal static class HoldShortAnnotator
                     }
                 );
             }
+            break;
         }
 
         if (foundRunway)
