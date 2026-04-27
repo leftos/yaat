@@ -222,6 +222,9 @@ FlightPhysics.cs               # Static 8-step Update: navigationâ†’descentPlanâ
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
                                # Each primary function has scalar (double, double, double, double) and LatLon (LatLon, LatLon) overloads
                                # FootOfPerpendicular returns (LatLon Foot, double AlongNm, bool Clamped)
+ClientKind.cs                  # Static constants: Main / VStrips identify which YAAT app a SignalR client is running.
+                               # Sent on CreateRoom/JoinRoom; stored in RoomMember.Kind; DisplaySuffix appends e.g.
+                               # " (Flight Strips)" to terminal-broadcast verbs ("joined the room (Flight Strips)").
 SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(ILoggerFactory) at startup
 SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngState record); drop-in Random replacement
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings

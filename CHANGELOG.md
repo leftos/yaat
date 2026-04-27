@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.7-alpha [2026/04/26]
 
 ### Added
 - VATSIM CID, initials, and ARTCC fields are now in the Connect dialog itself, alongside the server list. YAAT Flight Strips had no place to set these previously — connecting and joining a room would silently send empty identity to the server. YAAT Client picks them up in Connect too as a shortcut around opening Settings.
