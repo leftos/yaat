@@ -2,7 +2,7 @@
 
 There are two ways to install YAAT. Most users want the first option.
 
-- **[Install a prebuilt release](#install-a-prebuilt-release)** — download an installer or portable binary. No terminal, no Git, no .NET SDK. Takes a couple of minutes.
+- **[Install a prebuilt release](#install-a-prebuilt-release)** — download an installer or portable archive. No terminal, no Git, no .NET SDK. Takes a couple of minutes.
 - **[Building from source](#building-from-source)** — clone the repositories and build locally. Use this if you want to host a YAAT server, run against a nightly build, or contribute code changes.
 
 If you're joining a training session hosted by an instructor, the prebuilt release is all you need.
@@ -13,39 +13,36 @@ If you're joining a training session hosted by an instructor, the prebuilt relea
 
 Open the [Releases page](https://github.com/leftos/yaat/releases/latest) and grab the asset that matches your platform.
 
-| Platform | Installer (recommended) | Portable (single file) |
-|----------|-------------------------|------------------------|
-| Windows  | `YaatClient-Setup.exe` | `Yaat.Client-win-x64.exe` |
-| Linux    | `YaatClient-linux-x64.AppImage` | `Yaat.Client-linux-x64` |
-| macOS    | `YaatClient-osx-arm64.pkg` | `Yaat.Client-osx-arm64` |
+| Platform | Installer (recommended) | Portable |
+|----------|-------------------------|----------|
+| Windows  | `YaatClient-<ver>-win-Setup.exe` | `YaatClient-<ver>-win-Portable.zip` |
+| Linux    | `YaatClient-<ver>-linux.AppImage` | (the AppImage is itself portable) |
+| macOS    | `YaatClient-<ver>-osx-Setup.pkg` | `YaatClient-<ver>-osx-Portable.zip` |
 
 The **installers** register YAAT with your OS and keep themselves up to date automatically — when a new version ships, YAAT downloads it in the background and applies it the next time you launch.
 
-The **portable** binaries are single-file executables. They don't install anything, don't auto-update, and are handy for USB sticks or locked-down machines. Drop the file anywhere and run it.
+The **portable** archives unzip to a folder containing the YAAT executable and its native dependencies (SkiaSharp, Avalonia, LM-Kit). They don't install anything, don't auto-update, and are handy for USB sticks or locked-down machines. Unzip the folder anywhere and run the executable inside. On Linux the AppImage already runs without install, so it's both the recommended installer *and* the portable form.
 
 A separate **YAAT Flight Strips** download (`YaatVStrips-*`) is also available — it's a standalone flight-strips UI for students who want to replace vStrips without installing the full trainer.
 
 ### Step 2: Run the installer (or the portable)
 
-**Windows installer:** double-click `YaatClient-Setup.exe`. Windows SmartScreen may warn that the installer is unsigned — click **More info** → **Run anyway**. YAAT appears in the Start menu when the install finishes.
+**Windows installer:** double-click `YaatClient-<ver>-win-Setup.exe`. Windows SmartScreen may warn that the installer is unsigned — click **More info** → **Run anyway**. YAAT appears in the Start menu when the install finishes.
 
 **Linux AppImage:** mark it executable and run it.
 
 ```bash
-chmod +x YaatClient-linux-x64.AppImage
-./YaatClient-linux-x64.AppImage
+chmod +x YaatClient-<ver>-linux.AppImage
+./YaatClient-<ver>-linux.AppImage
 ```
 
 On some distros you'll also need `libfontconfig1` and `libfreetype6` for text rendering — see [Linux prerequisites](#linux-prerequisites) below.
 
-**macOS package:** double-click `YaatClient-osx-arm64.pkg`. macOS Gatekeeper may block the first launch; if so, right-click the installed app → **Open** → **Open** again.
+**macOS package:** double-click `YaatClient-<ver>-osx-Setup.pkg`. macOS Gatekeeper may block the first launch; if so, right-click the installed app → **Open** → **Open** again.
 
-**Portable binaries:** just run the file. On Linux/macOS, make it executable first:
+**Windows portable:** the zip contains flat files (the executable plus its native dependencies). Create an empty folder, extract the zip into it, then double-click `Yaat.Client.exe`. Don't extract into Downloads — the app expects all its sibling files in the same folder.
 
-```bash
-chmod +x Yaat.Client-linux-x64
-./Yaat.Client-linux-x64
-```
+**macOS portable:** the zip contains `Yaat.Client.app`. Unzip it, then double-click the `.app` (or drag it to `/Applications`). Gatekeeper may block the first launch — right-click → **Open** → **Open** to allow it.
 
 ### Step 3: Connect and run a scenario
 

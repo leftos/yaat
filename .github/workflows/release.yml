@@ -381,9 +381,6 @@ jobs:
           # ---- Velopack auto-update metadata (keep filenames intact) ----
           # The auto-updater fetches RELEASES*, *.json, and *-full.nupkg by
           # exact filename. Renaming would break updates from older clients.
-          # The Velopack-default *-Portable.zip files are deliberately omitted
-          # — they duplicate the loose single-file binaries below, which are
-          # the documented portable form.
           for src in artifacts/yaat-installer-win artifacts/yaat-installer-linux artifacts/yaat-installer-macos \
                      artifacts/yaat-vstrips-installer-win artifacts/yaat-vstrips-installer-linux artifacts/yaat-vstrips-installer-macos; do
             [ -d "$src" ] || continue
@@ -406,19 +403,17 @@ jobs:
           cp artifacts/yaat-vstrips-installer-macos/YaatVStrips-vstrips-osx-Setup.pkg   "release/YaatVStrips-${VERSION}-osx-Setup.pkg"
           cp artifacts/yaat-vstrips-installer-linux/YaatVStrips-vstrips-linux.AppImage  "release/YaatVStrips-${VERSION}-linux.AppImage"
 
-          # ---- Loose single-file binaries (Portable form) ----
-          # These are the self-contained `dotnet publish` outputs, renamed to
-          # match the {App}-{Version}-{Platform}-Portable pattern. No install
-          # step, no auto-update — download and run.
-          cp artifacts/yaat-client-win-x64/Yaat.Client.exe   "release/YaatClient-${VERSION}-win-Portable.exe"
-          cp artifacts/yaat-client-linux-x64/Yaat.Client     "release/YaatClient-${VERSION}-linux-Portable"
-          cp artifacts/yaat-client-osx-arm64/Yaat.Client     "release/YaatClient-${VERSION}-osx-Portable"
-          chmod +x "release/YaatClient-${VERSION}-linux-Portable" "release/YaatClient-${VERSION}-osx-Portable"
+          # ---- Portable archives (Velopack-produced) ----
+          # vpk pack writes a *-Portable.zip alongside the installer, containing
+          # the full publish folder (single-file exe + sibling native DLLs like
+          # libSkiaSharp, HarfBuzz, LM-Kit). User unzips and runs.
+          # On Linux there is no separate portable zip — the AppImage already
+          # bundles everything and runs without install, so it serves both roles.
+          cp artifacts/yaat-installer-win/YaatClient-win-Portable.zip   "release/YaatClient-${VERSION}-win-Portable.zip"
+          cp artifacts/yaat-installer-macos/YaatClient-osx-Portable.zip "release/YaatClient-${VERSION}-osx-Portable.zip"
 
-          cp artifacts/yaat-vstrips-win-x64/Yaat.VStrips.exe "release/YaatVStrips-${VERSION}-win-Portable.exe"
-          cp artifacts/yaat-vstrips-linux-x64/Yaat.VStrips   "release/YaatVStrips-${VERSION}-linux-Portable"
-          cp artifacts/yaat-vstrips-osx-arm64/Yaat.VStrips   "release/YaatVStrips-${VERSION}-osx-Portable"
-          chmod +x "release/YaatVStrips-${VERSION}-linux-Portable" "release/YaatVStrips-${VERSION}-osx-Portable"
+          cp artifacts/yaat-vstrips-installer-win/YaatVStrips-vstrips-win-Portable.zip     "release/YaatVStrips-${VERSION}-win-Portable.zip"
+          cp artifacts/yaat-vstrips-installer-macos/YaatVStrips-vstrips-osx-Portable.zip   "release/YaatVStrips-${VERSION}-osx-Portable.zip"
 
           echo "=== release/ contents ==="
           find release -maxdepth 1 -type f -printf '%-50f %12s bytes\n' | sort
@@ -454,19 +449,19 @@ jobs:
             echo "### YAAT Client"
             echo "| Platform | Installer (recommended) | Portable |"
             echo "|----------|------------------------|----------|"
-            echo "| Windows | \`YaatClient-${VERSION}-win-Setup.exe\` | \`YaatClient-${VERSION}-win-Portable.exe\` |"
-            echo "| Linux   | \`YaatClient-${VERSION}-linux.AppImage\` | \`YaatClient-${VERSION}-linux-Portable\` |"
-            echo "| macOS   | \`YaatClient-${VERSION}-osx-Setup.pkg\` | \`YaatClient-${VERSION}-osx-Portable\` |"
+            echo "| Windows | \`YaatClient-${VERSION}-win-Setup.exe\` | \`YaatClient-${VERSION}-win-Portable.zip\` |"
+            echo "| Linux   | \`YaatClient-${VERSION}-linux.AppImage\` | (the AppImage is itself portable) |"
+            echo "| macOS   | \`YaatClient-${VERSION}-osx-Setup.pkg\` | \`YaatClient-${VERSION}-osx-Portable.zip\` |"
             echo ""
             echo "### YAAT Flight Strips (standalone)"
             echo "Drop-in replacement for vStrips — run alongside CRC to see, modify, create, and move flight strips while YAAT awaits vNAS approval."
             echo "| Platform | Installer (recommended) | Portable |"
             echo "|----------|------------------------|----------|"
-            echo "| Windows | \`YaatVStrips-${VERSION}-win-Setup.exe\` | \`YaatVStrips-${VERSION}-win-Portable.exe\` |"
-            echo "| Linux   | \`YaatVStrips-${VERSION}-linux.AppImage\` | \`YaatVStrips-${VERSION}-linux-Portable\` |"
-            echo "| macOS   | \`YaatVStrips-${VERSION}-osx-Setup.pkg\` | \`YaatVStrips-${VERSION}-osx-Portable\` |"
+            echo "| Windows | \`YaatVStrips-${VERSION}-win-Setup.exe\` | \`YaatVStrips-${VERSION}-win-Portable.zip\` |"
+            echo "| Linux   | \`YaatVStrips-${VERSION}-linux.AppImage\` | (the AppImage is itself portable) |"
+            echo "| macOS   | \`YaatVStrips-${VERSION}-osx-Setup.pkg\` | \`YaatVStrips-${VERSION}-osx-Portable.zip\` |"
             echo ""
-            echo "Installers include auto-update support. Portable binaries are standalone single-file executables."
+            echo "Installers include auto-update support. Portable archives unzip to a folder you can run from anywhere — no install, no auto-update. The Linux AppImage is itself portable."
           } > "$body_file"
 
           {

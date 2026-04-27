@@ -19,17 +19,17 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 
 ## Download
 
-Pre-built installers and portable binaries are published on the [Releases page](https://github.com/leftos/yaat/releases/latest). No terminal, Git, or .NET SDK required.
+Pre-built installers and portable archives are published on the [Releases page](https://github.com/leftos/yaat/releases/latest). No terminal, Git, or .NET SDK required.
 
-| Platform | Installer (recommended) | Portable (single file) |
-|----------|-------------------------|------------------------|
-| Windows  | `YaatClient-Setup.exe` — auto-updates in the background | `Yaat.Client-win-x64.exe` |
-| Linux    | `YaatClient-linux-x64.AppImage` | `Yaat.Client-linux-x64` |
-| macOS    | `YaatClient-osx-arm64.pkg` | `Yaat.Client-osx-arm64` |
+| Platform | Installer (recommended) | Portable |
+|----------|-------------------------|----------|
+| Windows  | `YaatClient-<ver>-win-Setup.exe` — auto-updates in the background | `YaatClient-<ver>-win-Portable.zip` |
+| Linux    | `YaatClient-<ver>-linux.AppImage` | (the AppImage is itself portable) |
+| macOS    | `YaatClient-<ver>-osx-Setup.pkg` | `YaatClient-<ver>-osx-Portable.zip` |
 
 A second installer, **YAAT Flight Strips** (`YaatVStrips-*`), ships the flight-strips UI on its own for students who want to replace vStrips but don't need the full trainer.
 
-Installers keep themselves up to date automatically. Portable binaries don't auto-update — download the next release when you want it. Either launcher can connect to a hosted YAAT server (ask your instructor for the URL) or a local server you run yourself.
+Installers keep themselves up to date automatically. Portable archives unzip to a folder containing the executable and its native dependencies — drop the folder on a USB stick or locked-down machine and run it from there. They don't auto-update; grab the next release when you want it. On Linux the AppImage runs without install, so it doubles as the portable form. Either launcher can connect to a hosted YAAT server (ask your instructor for the URL) or a local server you run yourself.
 
 **NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings → Speech → Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.
 
