@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -8,7 +7,8 @@ namespace Yaat.Client.Services;
 
 /// <summary>
 /// Manages CRC DevEnvironments.json configuration — adds/updates YAAT server entries.
-/// Port of Setup-CrcEnvironment.ps1 into C#.
+/// Detects CRC's per-user config directory (where its JSON files live) by probing
+/// platform-specific candidate paths for a marker file.
 /// </summary>
 public static class CrcConfigService
 {
@@ -16,6 +16,8 @@ public static class CrcConfigService
 
     private const string CrcRegKey = @"Software\CRC";
     private const string CrcRegValue = "Install_Dir";
+    private const string MarkerFileName = "GeneralSettings.json";
+    private const string EnvironmentsFileName = "DevEnvironments.json";
 
     private static readonly CrcEnvironmentEntry[] YaatEntries =
     [
@@ -39,30 +41,17 @@ public static class CrcConfigService
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public static bool IsCrcInstalled()
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return false;
-        }
-
-        return GetCrcInstallDir() is not null;
-    }
+    public static bool IsCrcInstalled() => GetCrcConfigDir() is not null;
 
     public static bool AreYaatEntriesPresent()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        var configDir = GetCrcConfigDir();
+        if (configDir is null)
         {
             return false;
         }
 
-        var crcDir = GetCrcInstallDir();
-        if (crcDir is null)
-        {
-            return false;
-        }
-
-        var jsonPath = Path.Combine(crcDir, "DevEnvironments.json");
+        var jsonPath = Path.Combine(configDir, EnvironmentsFileName);
         if (!File.Exists(jsonPath))
         {
             return false;
@@ -101,20 +90,14 @@ public static class CrcConfigService
 
     public static void Configure()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        var configDir = GetCrcConfigDir();
+        if (configDir is null)
         {
-            Log.LogDebug("CRC configuration skipped — not running on Windows");
+            Log.LogWarning("CRC config directory not found — cannot configure environments");
             return;
         }
 
-        var crcDir = GetCrcInstallDir();
-        if (crcDir is null)
-        {
-            Log.LogWarning("CRC registry key not found — cannot configure environments");
-            return;
-        }
-
-        var jsonPath = Path.Combine(crcDir, "DevEnvironments.json");
+        var jsonPath = Path.Combine(configDir, EnvironmentsFileName);
 
         try
         {
@@ -166,9 +149,69 @@ public static class CrcConfigService
         }
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static string? GetCrcInstallDir()
+    internal static string? GetCrcConfigDir() => FindFirstConfigDir(EnumerateCandidates());
+
+    internal static string? FindFirstConfigDir(IEnumerable<string> candidates)
     {
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                if (File.Exists(Path.Combine(candidate, MarkerFileName)))
+                {
+                    return candidate;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.LogDebug(ex, "Error probing CRC candidate path {Path}", candidate);
+            }
+        }
+
+        return null;
+    }
+
+    internal static IEnumerable<string> EnumerateCandidates()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var fromRegistry = TryGetWindowsInstallDirFromRegistry();
+            if (fromRegistry is not null)
+            {
+                yield return fromRegistry;
+            }
+
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrEmpty(localAppData))
+            {
+                yield return Path.Combine(localAppData, "CRC");
+            }
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(home))
+            {
+                yield return Path.Combine(home, "Library", "Application Support", "CRC");
+            }
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(home))
+            {
+                yield return Path.Combine(home, ".config", "CRC");
+            }
+        }
+    }
+
+    private static string? TryGetWindowsInstallDirFromRegistry()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
         try
         {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CrcRegKey);
@@ -177,7 +220,7 @@ public static class CrcConfigService
                 return null;
             }
 
-            return Directory.Exists(installDir) ? installDir : null;
+            return string.IsNullOrEmpty(installDir) ? null : installDir;
         }
         catch (Exception ex)
         {

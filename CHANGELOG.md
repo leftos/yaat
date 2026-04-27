@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- "Configure CRC Environments" no longer reports *"CRC is not installed"* when CRC is installed but its registry entry is missing. The menu (in YAAT Client and YAAT Flight Strips) and the standalone `Setup-CrcEnvironment.ps1` script now find CRC by probing its config folder — `%LOCALAPPDATA%\CRC` on Windows, `~/Library/Application Support/CRC` on macOS, `~/.config/CRC` on Linux.
+
 ## v0.1.7-alpha [2026/04/26]
 
 ### Added
