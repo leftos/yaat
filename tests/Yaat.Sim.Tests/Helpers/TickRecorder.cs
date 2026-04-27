@@ -188,6 +188,10 @@ public sealed class TickRecorder
             Twy = string.IsNullOrEmpty(ac.Ground.CurrentTaxiway) ? null : ac.Ground.CurrentTaxiway,
             SpeedLimit = ac.Ground.SpeedLimit,
             Nav = ac.Ground.LastNavDiag is { } n ? NavTickDto.From(n) : null,
+            Ias = ac.IsOnGround ? null : ac.IndicatedAirspeed,
+            Vs = ac.IsOnGround ? null : ac.VerticalSpeed,
+            Alt = ac.IsOnGround ? null : ac.Altitude,
+            TgtSpd = ac.Targets.TargetSpeed,
         };
 
     private static void WriteJsonFile(string path, TickRecording recording)
@@ -333,6 +337,22 @@ public sealed class TickEvent
 
     [JsonPropertyName("nav")]
     public NavTickDto? Nav { get; init; }
+
+    /// <summary>Indicated airspeed (kt) for airborne aircraft. Null on the ground.</summary>
+    [JsonPropertyName("ias")]
+    public double? Ias { get; init; }
+
+    /// <summary>Vertical speed (fpm) for airborne aircraft. Null on the ground.</summary>
+    [JsonPropertyName("vs")]
+    public double? Vs { get; init; }
+
+    /// <summary>Altitude (ft MSL) for airborne aircraft. Null on the ground.</summary>
+    [JsonPropertyName("alt")]
+    public double? Alt { get; init; }
+
+    /// <summary>Phase-commanded TargetSpeed (kt). Null when the aircraft has no speed target set.</summary>
+    [JsonPropertyName("tgtSpd")]
+    public double? TgtSpd { get; init; }
 }
 
 public sealed class NavTickDto

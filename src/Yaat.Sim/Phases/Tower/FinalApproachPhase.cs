@@ -151,6 +151,17 @@ public sealed class FinalApproachPhase : Phase
 
     public override string Name => "FinalApproach";
 
+    /// <summary>
+    /// FinalApproach owns speed: it commands the FAS deceleration and (for followers)
+    /// the spacing-adjusted target. Without this, <see cref="FlightPhysics.UpdateSpeed"/>'s
+    /// auto-speed-schedule fires whenever <see cref="ControlTargets.TargetSpeed"/> snaps
+    /// to null (which happens every time IAS reaches the FAS goal within tolerance) and
+    /// reassigns the category-default descent speed (e.g. ~110 kt for a small piston),
+    /// causing the aircraft to accelerate from FAS back up through 1.3·Vref before reaching
+    /// the threshold and triggering an unprompted unstable-approach go-around.
+    /// </summary>
+    public override bool ManagesSpeed => true;
+
     public override PhaseDto ToSnapshot() =>
         new FinalApproachPhaseDto
         {
