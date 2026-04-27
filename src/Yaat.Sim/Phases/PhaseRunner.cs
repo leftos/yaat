@@ -102,7 +102,12 @@ public static class PhaseRunner
                     ctx.Aircraft.Pattern.SizeOverrideNm,
                     ctx.Aircraft.Pattern.AltitudeOverrideFt
                 );
-                var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, sizeOv, altOv, airportRunways);
+                // After a GoAroundPhase, honor the captured pre-GA landing intent
+                // (full-stop → next circuit ends in LandingPhase). After any other
+                // pattern terminator (TouchAndGoPhase, StopAndGoPhase, LowApproachPhase)
+                // the aircraft was cycling, so keep cycling with TG.
+                bool nextTouchAndGo = current is GoAroundPhase ga ? !ga.NextLandingFullStop : true;
+                var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, sizeOv, altOv, airportRunways, nextTouchAndGo);
                 phases.Phases.AddRange(nextCircuit);
 
                 // Clear landing clearance — RPO must re-clear each approach

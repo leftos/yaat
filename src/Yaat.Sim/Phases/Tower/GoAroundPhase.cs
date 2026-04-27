@@ -34,6 +34,7 @@ public sealed class GoAroundPhase : Phase
             FieldElevation = _fieldElevation,
             RunwayTrueHeadingDeg = _runwayTrueHeading.Degrees,
             HeadingAssigned = _headingAssigned,
+            NextLandingFullStop = NextLandingFullStop,
         };
 
     public static GoAroundPhase FromSnapshot(GoAroundPhaseDto dto)
@@ -44,6 +45,7 @@ public sealed class GoAroundPhase : Phase
             AssignedMagneticHeading = assignedHeading,
             TargetAltitude = dto.TargetAltitude,
             ReenterPattern = dto.ReenterPattern,
+            NextLandingFullStop = dto.NextLandingFullStop,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
@@ -65,6 +67,14 @@ public sealed class GoAroundPhase : Phase
     /// Set for pattern traffic and visual approaches; false for instrument approaches.
     /// </summary>
     public bool ReenterPattern { get; init; }
+
+    /// <summary>
+    /// True when the aircraft was on track for a full-stop landing before the go-around
+    /// (pre-GA terminating phase was <see cref="LandingPhase"/> or <see cref="HelicopterLandingPhase"/>).
+    /// When ReenterPattern is also true, the next auto-cycled circuit ends in a landing phase
+    /// instead of a touch-and-go phase, preserving the aircraft's pre-go-around landing intent.
+    /// </summary>
+    public bool NextLandingFullStop { get; init; }
 
     public override void OnStart(PhaseContext ctx)
     {

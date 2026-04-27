@@ -58,13 +58,52 @@ internal static class GoAroundHelper
             targetAlt = null;
         }
 
-        var goAround = new GoAroundPhase { TargetAltitude = targetAlt, ReenterPattern = isPattern };
+        var goAround = new GoAroundPhase
+        {
+            TargetAltitude = targetAlt,
+            ReenterPattern = isPattern,
+            NextLandingFullStop = CaptureLandingFullStopIntent(ctx.Aircraft.Phases),
+        };
 
         var phases = new List<Phase> { goAround };
         phases.AddRange(mapPhases);
 
         ctx.Aircraft.Phases.ReplaceUpcoming(phases);
         ctx.Aircraft.Phases.AdvanceToNext(ctx);
+    }
+
+    /// <summary>
+    /// Captures the aircraft's pre-go-around landing intent from the last pending
+    /// approach-ending phase. Drives the next auto-cycled circuit's terminator: a
+    /// TG aircraft keeps cycling TG (returns false), a landing aircraft keeps trying
+    /// to land (returns true). Without this, every VFR aircraft would be forced into
+    /// TG cycling after a go-around regardless of what the pilot was originally doing.
+    /// Default true (full-stop) when no terminator is queued — a visual aircraft
+    /// stays in landing intent instead of being silently switched to TG.
+    /// </summary>
+    internal static bool CaptureLandingFullStopIntent(PhaseList list)
+    {
+        for (int i = list.Phases.Count - 1; i >= 0; i--)
+        {
+            var phase = list.Phases[i];
+            if (phase.Status != PhaseStatus.Pending)
+            {
+                continue;
+            }
+
+            switch (phase)
+            {
+                case LandingPhase:
+                case HelicopterLandingPhase:
+                    return true;
+                case TouchAndGoPhase:
+                case StopAndGoPhase:
+                case LowApproachPhase:
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

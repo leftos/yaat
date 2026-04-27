@@ -76,9 +76,10 @@ public static class PatternBuilder
     }
 
     /// <summary>
-    /// Build the next full pattern circuit (from upwind) for an aircraft
-    /// that is cycling in the pattern after a touch-and-go or similar.
-    /// Always ends in TouchAndGoPhase since the aircraft is in pattern mode.
+    /// Build the next full pattern circuit (from upwind) for an aircraft cycling in the pattern.
+    /// Auto-cycle callers choose <paramref name="touchAndGo"/> based on the previous circuit's
+    /// intent: true after a touch-and-go completion (TG cycling), false after a go-around from
+    /// a landing-intent approach (the aircraft keeps trying to land full-stop).
     /// </summary>
     public static List<Phase> BuildNextCircuit(
         RunwayInfo runway,
@@ -86,10 +87,11 @@ public static class PatternBuilder
         PatternDirection direction,
         double? patternSizeNm,
         double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        bool touchAndGo
     )
     {
-        return BuildCircuit(runway, category, direction, PatternEntryLeg.Upwind, true, null, patternSizeNm, altitudeOverrideFt, airportRunways);
+        return BuildCircuit(runway, category, direction, PatternEntryLeg.Upwind, touchAndGo, null, patternSizeNm, altitudeOverrideFt, airportRunways);
     }
 
     /// <summary>

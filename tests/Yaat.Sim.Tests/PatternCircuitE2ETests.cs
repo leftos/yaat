@@ -321,6 +321,100 @@ public class PatternCircuitE2ETests : IDisposable
     }
 
     // -------------------------------------------------------------------------
+    // GoAround intent preservation
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void GoAroundHelper_PendingLandingPhase_CapturesFullStopIntent()
+    {
+        var rwy = DefaultRunway();
+        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        ac.Phases!.TrafficDirection = PatternDirection.Left;
+
+        // Aircraft on final with a pending full-stop landing.
+        ac.Phases.Add(new FinalApproachPhase());
+        ac.Phases.Add(new LandingPhase());
+        ac.Phases.Start(Ctx(ac));
+
+        GoAroundHelper.Trigger(Ctx(ac), "test");
+
+        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        Assert.True(ga.NextLandingFullStop, "GoAroundHelper should capture full-stop intent from pending LandingPhase");
+    }
+
+    [Fact]
+    public void GoAroundHelper_PendingTouchAndGoPhase_CapturesTouchAndGoIntent()
+    {
+        var rwy = DefaultRunway();
+        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        ac.Phases!.TrafficDirection = PatternDirection.Left;
+
+        // Pattern aircraft on final with a pending touch-and-go.
+        ac.Phases.Add(new FinalApproachPhase());
+        ac.Phases.Add(new TouchAndGoPhase());
+        ac.Phases.Start(Ctx(ac));
+
+        GoAroundHelper.Trigger(Ctx(ac), "test");
+
+        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        Assert.False(ga.NextLandingFullStop, "GoAroundHelper should capture touch-and-go intent from pending TouchAndGoPhase");
+    }
+
+    [Fact]
+    public void AutoCycle_AfterGoAroundFromLandingIntent_NextCircuitEndsWithLandingPhase()
+    {
+        var rwy = DefaultRunway();
+        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        ac.Phases!.TrafficDirection = PatternDirection.Left;
+
+        // Aircraft on final with full-stop intent.
+        ac.Phases.Add(new FinalApproachPhase());
+        ac.Phases.Add(new LandingPhase());
+        ac.Phases.Start(Ctx(ac));
+
+        GoAroundHelper.Trigger(Ctx(ac), "test");
+        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+
+        // Bump altitude past the GA target so OnTick completes on the next tick.
+        Assert.NotNull(ga.TargetAltitude);
+        ac.Altitude = ga.TargetAltitude!.Value + 100;
+
+        PhaseRunner.Tick(ac, Ctx(ac));
+
+        // Auto-cycle should have appended a next circuit ending in LandingPhase
+        // (preserved full-stop intent), not TouchAndGoPhase.
+        Assert.Contains(ac.Phases.Phases, p => p is UpwindPhase);
+        var lastPending = ac.Phases.Phases.Last();
+        Assert.IsType<LandingPhase>(lastPending);
+    }
+
+    [Fact]
+    public void AutoCycle_AfterGoAroundFromTouchAndGoIntent_NextCircuitEndsWithTouchAndGoPhase()
+    {
+        var rwy = DefaultRunway();
+        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        ac.Phases!.TrafficDirection = PatternDirection.Left;
+
+        // Pattern aircraft on final with touch-and-go intent.
+        ac.Phases.Add(new FinalApproachPhase());
+        ac.Phases.Add(new TouchAndGoPhase());
+        ac.Phases.Start(Ctx(ac));
+
+        GoAroundHelper.Trigger(Ctx(ac), "test");
+        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+
+        Assert.NotNull(ga.TargetAltitude);
+        ac.Altitude = ga.TargetAltitude!.Value + 100;
+
+        PhaseRunner.Tick(ac, Ctx(ac));
+
+        // Auto-cycle should have appended a next circuit ending in TouchAndGoPhase.
+        Assert.Contains(ac.Phases.Phases, p => p is UpwindPhase);
+        var lastPending = ac.Phases.Phases.Last();
+        Assert.IsType<TouchAndGoPhase>(lastPending);
+    }
+
+    // -------------------------------------------------------------------------
     // PatternBuilder unit tests
     // -------------------------------------------------------------------------
 
@@ -437,14 +531,25 @@ public class PatternCircuitE2ETests : IDisposable
     }
 
     [Fact]
-    public void BuildNextCircuit_IsFullCircuitWithTouchAndGo()
+    public void BuildNextCircuit_TouchAndGo_IsFullCircuitWithTouchAndGo()
     {
         var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildNextCircuit(rwy, AircraftCategory.Jet, PatternDirection.Right, null, null, null);
+        var phases = PatternBuilder.BuildNextCircuit(rwy, AircraftCategory.Jet, PatternDirection.Right, null, null, null, touchAndGo: true);
 
         Assert.Equal(6, phases.Count);
         Assert.IsType<UpwindPhase>(phases[0]);
         Assert.IsType<TouchAndGoPhase>(phases[5]);
+    }
+
+    [Fact]
+    public void BuildNextCircuit_FullStop_EndsWithLandingPhase()
+    {
+        var rwy = DefaultRunway();
+        var phases = PatternBuilder.BuildNextCircuit(rwy, AircraftCategory.Jet, PatternDirection.Right, null, null, null, touchAndGo: false);
+
+        Assert.Equal(6, phases.Count);
+        Assert.IsType<UpwindPhase>(phases[0]);
+        Assert.IsType<LandingPhase>(phases[5]);
     }
 
     [Fact]

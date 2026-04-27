@@ -1186,6 +1186,7 @@ internal static class PatternCommandHandler
             AssignedMagneticHeading = ga.AssignedMagneticHeading,
             TargetAltitude = gaTargetAlt,
             ReenterPattern = isGaPattern,
+            NextLandingFullStop = GoAroundHelper.CaptureLandingFullStopIntent(aircraft.Phases),
         };
 
         var phases = new List<Phase> { goAround };

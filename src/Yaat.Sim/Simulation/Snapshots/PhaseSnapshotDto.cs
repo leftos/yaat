@@ -383,6 +383,11 @@ public sealed class GoAroundPhaseDto : PhaseDto
     public required double FieldElevation { get; init; }
     public required double RunwayTrueHeadingDeg { get; init; }
     public required bool HeadingAssigned { get; init; }
+
+    // True when the pre-go-around terminating phase was a full-stop landing.
+    // Drives the next auto-cycled circuit's terminator: false → TouchAndGoPhase, true → LandingPhase.
+    // Default false on absent field keeps replays of older snapshots on the pre-fix code path.
+    public bool NextLandingFullStop { get; init; }
 }
 
 public sealed class HelicopterTakeoffPhaseDto : PhaseDto
