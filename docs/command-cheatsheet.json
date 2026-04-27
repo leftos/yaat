@@ -245,7 +245,7 @@
       "id": "queue",
       "name": "Queue",
       "rows": [
-        { "verb": "DELAT", "aliases": [], "description": "Delete queued commands [index]" },
+        { "verb": "DELAT", "aliases": ["cxl", "clr"], "description": "Delete queued commands [index]" },
         { "verb": "SHOWAT", "aliases": [], "description": "Show queued commands" }
       ],
       "notes": []

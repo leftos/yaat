@@ -1280,7 +1280,7 @@ public static class CommandRegistry
                 "Delete Queued Commands",
                 "Queue",
                 false,
-                ["DELAT"],
+                ["DELAT", "CXL", "CLR"],
                 [O(null, [], "Delete all queued commands"), O("Index", [R("index", "1-based index")], "Delete specific queued command")]
             ),
             Bare(ShowQueuedCommands, "Show Queued Commands", "Queue", false, ["SHOWAT"]),

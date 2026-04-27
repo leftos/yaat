@@ -137,6 +137,26 @@ LV 050 WAIT 10; FH 090
 ```
 At 5,000 ft, wait 10 seconds, then fly heading 090.
 
+### Clearing the Pending Queue
+
+When you re-issue a command that conflicts with one already in flight, YAAT only supersedes the **same control surface** (altitude, lateral, or speed) — orthogonal pending blocks survive on purpose. For example, after `DM 020, DCT VPCOL; ERD 28R`, re-issuing `DM 025` updates the altitude target but leaves `DCT VPCOL` flying and the queued `ERD 28R` waiting.
+
+To wipe the rest of the pending queue, issue **`CXL`** (or `CLR`, or `DELAT`) as a follow-up command:
+
+```
+DM 025
+CXL
+```
+
+`CXL` removes every pending block but does not touch the aircraft's currently active commands. To also drop an active `DCT` or heading hold, add `FPH` (fly present heading) before clearing:
+
+```
+DM 025, FPH
+CXL
+```
+
+Use `DELAT 3` (or `CXL 3` / `CLR 3`) to remove a specific pending block by its 1-based index — see `SHOWAT` to list pending blocks.
+
 ---
 
 ## Quick Reference
@@ -386,7 +406,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Unpause | `UNPAUSE` | `U`, `UN`, `UNP`, `UP` | — |
 | Sim rate | `SIMRATE 2` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
-| Delete queued commands | `DELAT` / `DELAT 2` | — | — |
+| Delete queued commands | `DELAT` / `DELAT 2` | `CXL`, `CLR` | — |
 | Show queued commands | `SHOWAT` | — | — |
 | Say | `SAY text` | `SAYF` | — |
 | Say speed | `SSPD` | — | Aircraft reports current speed (includes Mach at/above FL240) |

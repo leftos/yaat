@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- `CXL` and `CLR` aliases for `DELAT` (delete pending queue). Re-issuing a command like `DM 025` deliberately only supersedes the same control surface, so any queued `ERD`, `DCT`, etc. survives — `CXL` is the explicit way to wipe the rest of the pending queue. New "Clearing the Pending Queue" section in COMMANDS.md walks through the workflow.
+
 ### Fixed
 - An explicit `HS <runway>` in a TAXI command is now honored when "auto-cross runways" is enabled. Previously the auto-cross loop would clear the implicit hold-short on the entry side of the runway and a duplicate explicit hold-short would be left on the *exit* side of the same crossing, so the aircraft taxied across the runway and stopped on the far side. Aircraft now hold short on the entry side as instructed; auto-cross still clears any other (unspecified) crossings along the route.
 - VFR pattern aircraft no longer accelerate after reaching final approach speed. After decelerating to Vref on the final leg, `FlightPhysics`'s auto-speed-schedule was kicking in and reassigning the category default speed (~110 kt for a small piston) — pushing the aircraft from Vref back up through 1.3·Vref and tripping the unstable-approach gate at the threshold. `FinalApproachPhase` now declares `ManagesSpeed = true` like every other pattern phase, so the auto-schedule no longer fires while it's active. Aircraft hold Vref through the flare and touch down normally instead of going around unprompted.
