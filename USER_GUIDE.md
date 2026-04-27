@@ -126,7 +126,7 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 | Key | Action |
 |-----|--------|
-| Enter | Send command (dismisses suggestions if open) |
+| Enter | Send command. If a suggestion is highlighted, expand it first (toggle in **Settings > Advanced > Command Input**) |
 | Tab | Accept the highlighted suggestion (or first if none highlighted) |
 | Up | Navigate suggestions or recall older history |
 | Down | Navigate suggestions or recall newer history |

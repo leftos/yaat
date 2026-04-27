@@ -188,6 +188,15 @@ public partial class CommandInputView : UserControl
                 return;
 
             case Key.Enter:
+                if (input.IsSuggestionsVisible && input.SelectedSuggestionIndex >= 0 && vm.Preferences.AutoExpandSuggestionOnEnter)
+                {
+                    var expanded = input.AcceptSuggestion(vm.CommandText);
+                    if (expanded is not null)
+                    {
+                        vm.CommandText = expanded;
+                        MoveCaret(cmdInput, expanded.Length);
+                    }
+                }
                 input.DismissSuggestions();
                 input.SignatureHelp.Dismiss();
                 if (vm.SendCommandCommand.CanExecute(null))

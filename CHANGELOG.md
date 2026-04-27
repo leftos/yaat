@@ -4,6 +4,7 @@
 
 ### Added
 - `CXL` and `CLR` aliases for `DELAT` (delete pending queue). Re-issuing a command like `DM 025` deliberately only supersedes the same control surface, so any queued `ERD`, `DCT`, etc. survives — `CXL` is the explicit way to wipe the rest of the pending queue. New "Clearing the Pending Queue" section in COMMANDS.md walks through the workflow.
+- Pressing **Enter** with a suggestion highlighted now expands the suggestion before sending the command — equivalent to pressing **Tab** then **Enter**. Toggle off in **Settings > Advanced > Command Input** to restore the previous behavior (Enter sends the typed text as-is). Defaults to on.
 
 ### Fixed
 - An explicit `HS <runway>` in a TAXI command is now honored when "auto-cross runways" is enabled. Previously the auto-cross loop would clear the implicit hold-short on the entry side of the runway and a duplicate explicit hold-short would be left on the *exit* side of the same crossing, so the aircraft taxied across the runway and stopped on the far side. Aircraft now hold short on the entry side as instructed; auto-cross still clears any other (unspecified) crossings along the route.

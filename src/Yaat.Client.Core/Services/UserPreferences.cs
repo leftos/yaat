@@ -175,6 +175,7 @@ public sealed class UserPreferences
         );
 
     public string SignatureHelpPlacement => _data.SignatureHelpPlacement;
+    public bool AutoExpandSuggestionOnEnter => _data.AutoExpandSuggestionOnEnter;
     public int DataGridFontSize => _data.DataGridFontSize;
 
     public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
@@ -442,6 +443,12 @@ public sealed class UserPreferences
     public void SetSignatureHelpPlacement(string placement)
     {
         _data.SignatureHelpPlacement = placement;
+        Save();
+    }
+
+    public void SetAutoExpandSuggestionOnEnter(bool value)
+    {
+        _data.AutoExpandSuggestionOnEnter = value;
         Save();
     }
 
@@ -747,6 +754,7 @@ public sealed class UserPreferences
             GroundDatablockTextColor = GetFieldOr(obj, "groundDatablockTextColor", GroundColorScheme.DefaultDatablockText),
             GroundBrightness = GetFieldOr(obj, "groundBrightness", GroundColorScheme.DefaultBrightness),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
+            AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
         };
@@ -934,6 +942,7 @@ public sealed class UserPreferences
         public string GroundDatablockTextColor { get; set; } = GroundColorScheme.DefaultDatablockText;
         public int GroundBrightness { get; set; } = GroundColorScheme.DefaultBrightness;
         public string SignatureHelpPlacement { get; set; } = "Above";
+        public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 

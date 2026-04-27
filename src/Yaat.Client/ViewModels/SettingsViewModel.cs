@@ -241,6 +241,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _selectedSignatureHelpPlacementIndex;
 
     [ObservableProperty]
+    private bool _autoExpandSuggestionOnEnter;
+
+    [ObservableProperty]
     private int _dataGridFontSize;
 
     [ObservableProperty]
@@ -456,6 +459,7 @@ public partial class SettingsViewModel : ObservableObject
         _groundVideoMapOverlayBrightness = _preferences.GroundVideoMapOverlayBrightness;
         _groundYaatLayoutBrightness = _preferences.GroundYaatLayoutBrightness;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
+        _autoExpandSuggestionOnEnter = _preferences.AutoExpandSuggestionOnEnter;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
         LoadMacros();
@@ -536,6 +540,7 @@ public partial class SettingsViewModel : ObservableObject
             GroundYaatLayoutBrightness
         );
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
+        _preferences.SetAutoExpandSuggestionOnEnter(AutoExpandSuggestionOnEnter);
         _preferences.SetDataGridFontSize(DataGridFontSize);
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         SaveMacros();
