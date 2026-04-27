@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.6-alpha [2026/04/26]
 
 ### Added
 - `CXL` and `CLR` aliases for `DELAT` (delete pending queue). Re-issuing a command like `DM 025` deliberately only supersedes the same control surface, so any queued `ERD`, `DCT`, etc. survives — `CXL` is the explicit way to wipe the rest of the pending queue. New "Clearing the Pending Queue" section in COMMANDS.md walks through the workflow.

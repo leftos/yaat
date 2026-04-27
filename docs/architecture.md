@@ -130,6 +130,7 @@ ViewModels/
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar, scenario-scoped)
+  AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
   SettingsViewModel.cs          # Alias editing; preset detection
