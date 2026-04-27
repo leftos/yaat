@@ -1724,6 +1724,10 @@ public sealed class SimulationEngine
             return;
         }
 
+        // Mirrors yaat-server's SimControlService recorders. Every setting the
+        // server records mid-session must round-trip through replay so bundle
+        // playback (and snapshot regeneration at export time) matches what the
+        // user actually saw live.
         switch (setting.Setting)
         {
             case "AutoClearedToLand":
@@ -1737,6 +1741,18 @@ public sealed class SimulationEngine
                 {
                     scenario.AutoCrossRunway = acr;
                 }
+                break;
+            case "AutoAcceptDelay":
+                if (int.TryParse(setting.Value, out var seconds))
+                {
+                    scenario.AutoAcceptDelay = seconds < 0 ? TimeSpan.FromSeconds(-1) : TimeSpan.FromSeconds(Math.Clamp(seconds, 0, 60));
+                }
+                break;
+            case "AutoDeleteMode":
+                // Server writes ClientAutoDeleteOverride, not ScenarioAutoDeleteMode.
+                // Null/empty string is a valid value: it means "clear the override and
+                // fall back to the scenario default".
+                scenario.ClientAutoDeleteOverride = string.IsNullOrEmpty(setting.Value) ? null : setting.Value;
                 break;
         }
     }
