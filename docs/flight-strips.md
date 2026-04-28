@@ -82,6 +82,24 @@ YAAT produces types `0` (via `STRIP`), `1` (auto), `2`–`8` (via `SEP`,
 by `TickProcessor.ProcessAutoArrivalStrips` when the arrival is within
 `StripMutations.ArrivalAutoPrintMinutes` (default 20.0) of destination.
 
+### Departure strip auto-routing by student position
+
+Where an auto-printed departure lands depends on the student's position
+type (resolved from the callsign suffix in `DeterminePositionType`):
+
+| Student type | Suffixes | Auto-print destination |
+|--------------|----------|------------------------|
+| Tower | `_TWR`, `_LOC` | First own bay whose name starts with "Ground" (case- and whitespace-insensitive). Falls back to printer queue if no Ground bay exists. |
+| Ground | `_GND`, `_DEL` | Departure printer queue (student plays Clearance Delivery and physically picks the strip up). |
+| Approach | `_APP`, `_DEP` | No spawn auto-print. `TickProcessor.ProcessAutoApproachDepartureStrips` creates the strip on takeoff roll (`TakeoffPhase` / `HelicopterTakeoffPhase`) and places it directly in the bay whose name matches the student's position display name (e.g. "Friant" bay for FAT_F_APP). Mimics the tower's "rolling call" handoff. |
+| Center / unknown | `_CTR`, other | Departure printer queue (current default). |
+
+Tower routing uses `ArtccConfigService.FindFirstOwnBayWithNamePrefix`;
+approach routing uses `FindPositionByCallsign` + `FindFirstOwnBayWithNamePrefix`
+together. Both filter to **own** (non-external) bays so auto-routed
+strips always land in the student's own facility, never in a linked
+external bay.
+
 ## Server state model
 
 Strip state lives on the per-room `TrainingRoom.StripState` property,
