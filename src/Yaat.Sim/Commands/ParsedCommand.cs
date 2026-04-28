@@ -470,6 +470,12 @@ public record HalfStripAmendCommand(string? BayName, int? Rack, IReadOnlyList<st
 
 public record HalfStripDeleteCommand(string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
 
+// HSE: edit a half-strip's full FieldValues array by stripId. Drives the
+// inline 3×2 cell grid so per-cell commits can target a specific strip
+// regardless of whether FieldValues[0] is empty or duplicated across
+// half-strips. Empty entries clear a slot.
+public record HalfStripEditCommand(string StripId, IReadOnlyList<string> Lines) : ParsedCommand;
+
 // HSM / HSO / HSS: same lookup model as HSA/HSD — optional source bay + first-line key.
 // HSM additionally carries the destination position.
 public record HalfStripMoveCommand(string? SourceBayName, int? SourceRack, string? LookupKey, string DestBayName, int? DestRack, int? DestIndex)
@@ -495,6 +501,11 @@ public record SeparatorCreateCommand(SeparatorStyle Style, IReadOnlyList<string>
 // then treats the trailing token as label-first (match separator labels in bay);
 // if no label matches and the token is numeric, fall back to rack/index position.
 public record SeparatorDeleteCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
+
+// SEPM <stripId> <bay>/<rack>/<index>: relocate a separator to a new
+// rack slot without changing its label or style. Identifies by stripId
+// so a drag-drop survives concurrent moves on other clients.
+public record SeparatorMoveCommand(string StripId, string DestBayName, int DestRack, int DestIndex) : ParsedCommand;
 
 // SEPE <bay> <rack> <oldLabelOrIndex> <new label...>: atomic label edit. Bay +
 // rack + (label-or-1-based-index) locate the existing separator; remaining

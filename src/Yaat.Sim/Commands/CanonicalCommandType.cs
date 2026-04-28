@@ -220,9 +220,11 @@ public enum CanonicalCommandType
     HalfStripMove,
     HalfStripOffset,
     HalfStripSlide,
+    HalfStripEdit,
     SeparatorCreate,
     SeparatorDelete,
     SeparatorEdit,
+    SeparatorMove,
     BlankCreate,
     BlankDelete,
 

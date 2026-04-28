@@ -93,6 +93,14 @@ public static class VStripsCanonicalBuilder
     /// <summary>Delete a half-strip by lookup key.</summary>
     public static string BuildHalfStripDelete(string lookupKey) => $"HSD {lookupKey}";
 
+    /// <summary>
+    /// Replace a half-strip's full FieldValues by stripId. Empty cells are
+    /// preserved by `\`-separation so the inline grid can clear individual
+    /// slots without collapsing the array.
+    /// </summary>
+    public static string BuildHalfStripEdit(string stripId, IReadOnlyList<string> slots) =>
+        slots.Count == 0 ? $"HSE {stripId}" : $"HSE {stripId} {string.Join('\\', slots)}";
+
     /// <summary>Toggle offset on a half-strip by lookup key.</summary>
     public static string BuildHalfStripOffset(string lookupKey) => $"HSO {lookupKey}";
 
@@ -104,16 +112,17 @@ public static class VStripsCanonicalBuilder
     /// label. Emits <c>SEP style bay/rack/index [label]</c>; label may contain
     /// spaces and is captured as the remainder of the line.
     /// </summary>
-    public static string BuildSeparatorCreate(SeparatorStyle style, string bayName, int rack, int index, string? label)
+    public static string BuildSeparatorCreate(SeparatorStyle style, string bayName, int rack, int? index, string? label)
     {
-        var sb = new StringBuilder("SEP ")
-            .Append(StyleChar(style))
-            .Append(' ')
-            .Append(bayName)
-            .Append('/')
-            .Append(OneBased(rack))
-            .Append('/')
-            .Append(OneBased(index));
+        // Index null → wire omits the slash-index, signaling "append at the
+        // top of the rack" to the server. Used by the empty-rack add-menu so
+        // a freshly added separator stacks above any existing strips instead
+        // of pushing them upward off the visual top.
+        var sb = new StringBuilder("SEP ").Append(StyleChar(style)).Append(' ').Append(bayName).Append('/').Append(OneBased(rack));
+        if (index is int explicitIndex)
+        {
+            sb.Append('/').Append(OneBased(explicitIndex));
+        }
         var trimmed = label?.Trim();
         if (!string.IsNullOrEmpty(trimmed))
         {
@@ -136,6 +145,14 @@ public static class VStripsCanonicalBuilder
     }
 
     /// <summary>
+    /// Delete a separator by stripId. Emits <c>SEPD &lt;stripId&gt;</c> — the
+    /// server detects the <c>SEP_</c> prefix and skips the bay/rack/label
+    /// resolution so the command can't desync between the right-click and
+    /// the dispatch.
+    /// </summary>
+    public static string BuildSeparatorDeleteById(string stripId) => $"SEPD {stripId}";
+
+    /// <summary>
     /// Atomic separator label edit. Emits <c>SEPE bay/rack/index newLabel</c>
     /// where <paramref name="rack"/> / <paramref name="index"/> are 0-based
     /// internally and converted to 1-based on the wire. Replaces the prior
@@ -148,17 +165,55 @@ public static class VStripsCanonicalBuilder
         return $"SEPE {bayName}/{OneBased(rack)}/{OneBased(index)} {trimmed}";
     }
 
-    /// <summary>Create a blank strip. Null bay = printer queue; otherwise bay/rack/index.</summary>
+    /// <summary>
+    /// Atomic separator label edit by stripId. Emits <c>SEPE &lt;stripId&gt;
+    /// &lt;newLabel&gt;</c>. The server detects the id form via the
+    /// <c>SEP_</c> prefix and bypasses bay/rack/index resolution — useful
+    /// when the inline edit dispatches without knowing the current rack
+    /// position (the strip might have been moved by another client between
+    /// keystrokes).
+    /// </summary>
+    public static string BuildSeparatorEditById(string stripId, string newLabel)
+    {
+        var trimmed = newLabel.Trim();
+        return string.IsNullOrEmpty(trimmed) ? $"SEPE {stripId}" : $"SEPE {stripId} {trimmed}";
+    }
+
+    /// <summary>
+    /// Move a separator by stripId to a new bay/rack/index. Emits
+    /// <c>SEPM &lt;stripId&gt; &lt;bay&gt;/&lt;rack&gt;/&lt;index&gt;</c>.
+    /// True relocate (not a delete+create) so existing label and style stick
+    /// with the strip across the move.
+    /// </summary>
+    public static string BuildSeparatorMove(string stripId, string bayName, int rack, int index) =>
+        $"SEPM {stripId} {bayName}/{OneBased(rack)}/{OneBased(index)}";
+
+    /// <summary>
+    /// Create a blank strip. Null bay = printer queue; otherwise bay[/rack[/index]].
+    /// Omitting <paramref name="index"/> tells the server to append at the
+    /// top of the rack (matches the empty-rack add-menu intent).
+    /// </summary>
     public static string BuildBlankCreate(string? bayName, int? rack, int? index)
     {
         if (bayName is null)
         {
             return "BLANK";
         }
-        var rackVal = OneBased(rack ?? 0);
-        var indexVal = OneBased(index ?? 0);
-        return $"BLANK {bayName}/{rackVal}/{indexVal}";
+        var sb = new StringBuilder("BLANK ").Append(bayName).Append('/').Append(OneBased(rack ?? 0));
+        if (index is int explicitIndex)
+        {
+            sb.Append('/').Append(OneBased(explicitIndex));
+        }
+        return sb.ToString();
     }
+
+    /// <summary>
+    /// Delete a blank strip by stripId. Emits <c>BLANKD &lt;stripId&gt;</c> —
+    /// the server detects the <c>BLANK_</c> prefix and removes the strip
+    /// wherever it lives (printer queue or a bay rack), so the printer
+    /// modal's Delete button can wire through without resolving a bay.
+    /// </summary>
+    public static string BuildBlankDeleteById(string stripId) => $"BLANKD {stripId}";
 
     /// <summary>Delete one blank strip from a bay (blanks are fungible — server picks first match).</summary>
     public static string BuildBlankDelete(string bayName, int? rack)

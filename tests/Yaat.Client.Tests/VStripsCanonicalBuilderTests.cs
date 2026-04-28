@@ -120,6 +120,15 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
+    public void BuildSeparatorCreate_NullIndex_OmitsSlashIndex()
+    {
+        // Null index → wire omits /index so the server appends at the rack
+        // tail (visual top). Used by the empty-rack add-menu.
+        Assert.Equal("SEP H Ground/1", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.Handwritten, "Ground", 0, null, null));
+        Assert.Equal("SEP W Local/2 HOLD", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.White, "Local", 1, null, "HOLD"));
+    }
+
+    [Fact]
     public void BuildSeparatorDelete_LabelWinsOverIndex()
     {
         // When a label is supplied, the index argument is ignored; bay/rack is
@@ -154,8 +163,9 @@ public class VStripsCanonicalBuilderTests
     {
         // 0-based rack 1 / index 2 → wire rack 2 / index 3, slash-compound.
         Assert.Equal("BLANK Ground/2/3", VStripsCanonicalBuilder.BuildBlankCreate("Ground", 1, 2));
-        // Null rack/index default to 0 then convert 1-based → "Ground/1/1".
-        Assert.Equal("BLANK Ground/1/1", VStripsCanonicalBuilder.BuildBlankCreate("Ground", null, null));
+        // Null rack defaults to 0 → "Ground/1"; null index omits the slash-
+        // index so the server appends at the rack tail (visual top).
+        Assert.Equal("BLANK Ground/1", VStripsCanonicalBuilder.BuildBlankCreate("Ground", null, null));
     }
 
     [Fact]

@@ -652,11 +652,10 @@ public partial class VStripsView : UserControl
 
     private void OnStripPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        // If we never crossed the drag threshold, the press is treated as a
-        // short click. The TextBox (if any) under the press already gained
-        // focus via its own bubble-phase handler, so nothing to do here
-        // beyond clearing state. A drag-in-progress path clears state in
-        // OnStripPointerMoved's finally block.
+        // No-op release: the separator's inline TextBox handles single-click
+        // edit via its own KeyDown / LostFocus path, so there's nothing to
+        // do here when the press never promoted to a drag. Just clear state
+        // so the next gesture starts fresh.
         if (!_dragInitiated)
         {
             _pressedStripView = null;
@@ -933,7 +932,7 @@ public partial class VStripsView : UserControl
             {
                 var styleSnapshot = style;
                 var item = new MenuItem { Header = style.ToString() };
-                item.Click += async (_, _) => await vm.CreateSeparatorAsync(styleSnapshot, selectedBay, rack.RackIndex, index: 0, label: null);
+                item.Click += async (_, _) => await vm.CreateSeparatorAsync(styleSnapshot, selectedBay, rack.RackIndex, index: null, label: null);
                 addSeparator.Items.Add(item);
             }
             menu.Items.Add(addSeparator);
@@ -944,12 +943,15 @@ public partial class VStripsView : UserControl
             // (docs/crc/vstrips.md:195).
             var addHandwritten = new MenuItem { Header = "Add handwritten separator" };
             addHandwritten.Click += async (_, _) =>
-                await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, selectedBay, rack.RackIndex, index: 0, label: null);
+                await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, selectedBay, rack.RackIndex, index: null, label: null);
             menu.Items.Add(addHandwritten);
         }
 
+        // Index null on each adder → server appends at the rack tail (visual
+        // top), so a freshly added separator / blank stacks above any
+        // existing strips instead of pushing them off the top.
         var addBlank = new MenuItem { Header = "Add blank strip" };
-        addBlank.Click += async (_, _) => await vm.CreateBlankAsync(selectedBay, rack.RackIndex, index: 0);
+        addBlank.Click += async (_, _) => await vm.CreateBlankAsync(selectedBay, rack.RackIndex, index: null);
         menu.Items.Add(addBlank);
 
         return menu;
@@ -957,9 +959,8 @@ public partial class VStripsView : UserControl
 
     /// <summary>
     /// True when the hit target sits inside a FlightStripControl annotation
-    /// cell — Border whose Tag is a numeric string "1".."9". Used to suppress
-    /// drag initiation so the cell's own click handler can open the inline
-    /// editor in the Bubble phase.
+    /// cell or half-strip cell. Suppresses drag initiation so the cell's
+    /// own click handler can focus the inline editor in the Bubble phase.
     /// </summary>
     private static bool IsAnnotationCellHit(Visual hit)
     {
@@ -967,6 +968,10 @@ public partial class VStripsView : UserControl
         while (v is not null && v is not FlightStripControl)
         {
             if (v is Border b && b.Tag is string tag && IsAnnotationTag(tag))
+            {
+                return true;
+            }
+            if (v is TextBox tb && tb.Tag is string tbTag && (IsAnnotationTag(tbTag) || IsHalfCellTag(tbTag) || tbTag == "sep"))
             {
                 return true;
             }
@@ -980,6 +985,11 @@ public partial class VStripsView : UserControl
     /// plus <c>"8a"</c> and <c>"8b"</c> (col-3 freeform slots below field 8).
     /// </summary>
     private static bool IsAnnotationTag(string tag) => (tag.Length == 1 && tag[0] >= '1' && tag[0] <= '9') || tag is "8a" or "8b";
+
+    /// <summary>
+    /// True for the half-strip cell tags: <c>"h0"</c>..<c>"h5"</c>.
+    /// </summary>
+    private static bool IsHalfCellTag(string tag) => tag.Length == 2 && tag[0] == 'h' && tag[1] >= '0' && tag[1] <= '5';
 
     /// <summary>
     /// Walks up the visual tree from a hit target to the enclosing rack Border
@@ -1313,6 +1323,14 @@ public partial class VStripsView : UserControl
         }
     }
 
+    private async void OnMoveAllToBayClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is VStripsViewModel vm)
+        {
+            await vm.MoveAllPrinterStripsToBayAsync();
+        }
+    }
+
     private void OnDeparturePrevClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is VStripsViewModel vm)
@@ -1420,8 +1438,9 @@ public partial class VStripsView : UserControl
                 else
                 {
                     // Default to handwritten — users can cycle styles via the
-                    // separator right-click menu afterwards.
-                    await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, vm.SelectedBay, targetRack, 0, label: null);
+                    // separator right-click menu afterwards. Index null →
+                    // append at rack top.
+                    await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, vm.SelectedBay, targetRack, index: null, label: null);
                 }
                 e.Handled = true;
                 return;

@@ -648,13 +648,7 @@ public partial class VStripsViewModel : ObservableObject
                 indexOrZero
             ),
             StripItemType.HandwrittenSeparator or StripItemType.WhiteSeparator or StripItemType.RedSeparator or StripItemType.GreenSeparator =>
-                VStripsCanonicalBuilder.BuildSeparatorCreate(
-                    MapSeparator(strip.Type),
-                    destBay.Name,
-                    rack,
-                    indexOrZero,
-                    strip.FieldValues.Length > 0 ? strip.FieldValues[0] : null
-                ),
+                VStripsCanonicalBuilder.BuildSeparatorMove(strip.Id, destBay.Name, rack, indexOrZero),
             StripItemType.BlankStrip => VStripsCanonicalBuilder.BuildBlankCreate(destBay.Name, rack, indexOrZero),
             _ => null,
         };
@@ -675,6 +669,11 @@ public partial class VStripsViewModel : ObservableObject
         {
             StripItemType.DepartureStrip or StripItemType.ArrivalStrip => (strip.AircraftId ?? "", VStripsCanonicalBuilder.BuildStripDelete()),
             StripItemType.HalfStripLeft or StripItemType.HalfStripRight => ("", VStripsCanonicalBuilder.BuildHalfStripDelete(strip.LookupKey)),
+            StripItemType.HandwrittenSeparator or StripItemType.WhiteSeparator or StripItemType.RedSeparator or StripItemType.GreenSeparator => (
+                "",
+                VStripsCanonicalBuilder.BuildSeparatorDeleteById(strip.Id)
+            ),
+            StripItemType.BlankStrip => ("", VStripsCanonicalBuilder.BuildBlankDeleteById(strip.Id)),
             _ => ((string)"", (string?)null),
         };
 
@@ -736,16 +735,32 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Rename a separator atomically via the server-side SEPE command.
-    /// Single mutation under the state gate replaces the prior
-    /// delete-then-create pair — no broadcast gap, no race with concurrent
-    /// moves. Locked facilities (SeparatorsLocked=true) drop this call to
-    /// match the CRC constraint that only handwritten separators can be
-    /// edited.
+    /// Replace a half-strip's full FieldValues array by stripId. Used by
+    /// the inline 3×2 cell grid — when a cell loses focus the view assembles
+    /// the current slot values (with the edit applied) and dispatches HSE
+    /// so empty cells are preserved without ambiguity around FieldValues[0]
+    /// being the lookup key.
+    /// </summary>
+    public async Task EditHalfStripFieldsAsync(StripItemViewModel strip, IReadOnlyList<string> slots)
+    {
+        if (!strip.IsHalfStrip || string.IsNullOrEmpty(strip.Id))
+        {
+            return;
+        }
+        var canonical = VStripsCanonicalBuilder.BuildHalfStripEdit(strip.Id, slots);
+        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+    }
+
+    /// <summary>
+    /// Rename a separator atomically via the server-side SEPE command,
+    /// addressed by stripId so the dispatch survives concurrent moves
+    /// between the inline edit and the server round-trip. Locked
+    /// facilities (SeparatorsLocked=true) drop this call to match the CRC
+    /// constraint that only handwritten separators can be edited.
     /// </summary>
     public async Task EditSeparatorLabelAsync(StripItemViewModel strip, string newLabel)
     {
-        if (!strip.IsSeparator || SelectedBay is null)
+        if (!strip.IsSeparator || string.IsNullOrEmpty(strip.Id))
         {
             return;
         }
@@ -754,27 +769,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        // Locate the separator by scanning the selected bay's racks; the
-        // server's authoritative position lives on the strip record and the
-        // VM's rack ordering mirrors it, so the first match wins.
-        var rackIndex = -1;
-        var posIndex = -1;
-        for (var r = 0; r < SelectedBay.Racks.Count; r++)
-        {
-            var idx = SelectedBay.Racks[r].Strips.IndexOf(strip);
-            if (idx >= 0)
-            {
-                rackIndex = r;
-                posIndex = idx;
-                break;
-            }
-        }
-        if (rackIndex < 0)
-        {
-            return;
-        }
-
-        var canonical = VStripsCanonicalBuilder.BuildSeparatorEdit(SelectedBay.Name, rackIndex, posIndex, newLabel);
+        var canonical = VStripsCanonicalBuilder.BuildSeparatorEditById(strip.Id, newLabel);
         await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
     }
 
@@ -794,7 +789,7 @@ public partial class VStripsViewModel : ObservableObject
         await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
     }
 
-    public async Task CreateSeparatorAsync(SeparatorStyle style, StripBayViewModel bay, int rack, int index, string? label)
+    public async Task CreateSeparatorAsync(SeparatorStyle style, StripBayViewModel bay, int rack, int? index, string? label)
     {
         if (SeparatorsLocked)
         {
@@ -813,11 +808,15 @@ public partial class VStripsViewModel : ObservableObject
     /// <summary>
     /// Prints a blank strip directly into the printer queue. Matches the CRC
     /// "Print Blank Strip" button in docs/crc/img/printer.png — blanks go to
-    /// the printer first, from where users drag them into racks.
+    /// the printer first, from where users drag them into racks. The
+    /// departure carousel jumps to the newly-printed blank on the next
+    /// reconcile so the user sees what they just printed without arrowing
+    /// through the queue.
     /// </summary>
     public async Task PrintBlankStripAsync()
     {
         await CreateBlankAsync(bay: null, rack: null, index: null);
+        Printer.RequestFocusOnNewBlank();
     }
 
     /// <summary>
@@ -889,6 +888,48 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Moves every strip currently in the printer queues to the first rack
+    /// of <see cref="SelectedBay"/>, ordered alphabetically by callsign so
+    /// the visual top-to-bottom stack reads in callsign order. Blanks (no
+    /// callsign) sort to the bottom of the alphabetical list. Each strip is
+    /// dispatched as an explicit <c>STRIP bay/1/i</c> with a 1-based index
+    /// so the server preserves the requested order — relying on "append"
+    /// would let intervening server-side broadcasts reorder concurrent
+    /// dispatches.
+    /// </summary>
+    public async Task MoveAllPrinterStripsToBayAsync()
+    {
+        if (SelectedBay is null)
+        {
+            return;
+        }
+        // Snapshot the current queue so the dispatch loop sees a stable list
+        // even as the server's broadcasts mutate Printer.* mid-flight.
+        var pending = Printer.Queue.ToList();
+        if (pending.Count == 0)
+        {
+            return;
+        }
+        // Sort ascending: AAL → ZZZZ. Dispatch in REVERSE so the first
+        // dispatched (last alphabetically) lands at index 0 (visual bottom)
+        // and successive appends stack above — yielding ascending top-to-
+        // bottom on screen, the natural reading order.
+        var sorted = pending.OrderBy(s => s.AircraftId ?? "~", StringComparer.OrdinalIgnoreCase).ToList();
+        var initials = _preferences?.UserInitials ?? "";
+        for (var i = sorted.Count - 1; i >= 0; i--)
+        {
+            var strip = sorted[i];
+            if (!strip.IsFullStrip)
+            {
+                continue; // half-strips and separators don't sit in the printer
+            }
+            var canonical = VStripsCanonicalBuilder.BuildStripMove(SelectedBay.Name, rack: 0, index: null);
+            var callsign = strip.AircraftId ?? "";
+            await _sendCommand(callsign, canonical, initials);
+        }
+    }
+
+    /// <summary>
     /// Deletes the visible printer strip (for the given queue kind). Mirrors
     /// the "Delete" button next to the carousel in docs/crc/img/printer.png.
     /// </summary>
@@ -938,15 +979,6 @@ public partial class VStripsViewModel : ObservableObject
         var strips = destBay.Racks[rack].Strips;
         return index < strips.Count && ReferenceEquals(strips[index], strip);
     }
-
-    private static SeparatorStyle MapSeparator(StripItemType type) =>
-        type switch
-        {
-            StripItemType.WhiteSeparator => SeparatorStyle.White,
-            StripItemType.RedSeparator => SeparatorStyle.Red,
-            StripItemType.GreenSeparator => SeparatorStyle.Green,
-            _ => SeparatorStyle.Handwritten,
-        };
 
     /// <summary>
     /// All known strip view-models keyed by id. Exposed internally so the view

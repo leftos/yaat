@@ -84,6 +84,39 @@ public class HalfStripCommandParserTests
         Assert.IsType<HalfStripCreateCommand>(result.Value);
     }
 
+    [Fact]
+    public void Hsc_MultiWordBayName_WithRack_ParsesAsSingleBay()
+    {
+        // "Ground 1/2" → bay "GROUND 1", rack 1 (0-based). The trailing rack
+        // suffix on the second token marks the bay-spec boundary.
+        var result = CommandParser.Parse("HSC Ground 1/2");
+        var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
+        Assert.Equal("GROUND 1", cmd.BayName);
+        Assert.Equal(1, cmd.Rack);
+        Assert.Empty(cmd.Lines);
+    }
+
+    [Fact]
+    public void Hsc_MultiWordBayName_WithRack_AndLines()
+    {
+        var result = CommandParser.Parse(@"HSC Ground 1/2 a\b\c");
+        var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
+        Assert.Equal("GROUND 1", cmd.BayName);
+        Assert.Equal(1, cmd.Rack);
+        Assert.Equal(["a", "b", "c"], cmd.Lines);
+    }
+
+    [Fact]
+    public void Hsc_FirstTokenBay_PreservedWhenNoRackSuffix()
+    {
+        // Without a `/digits` rack-suffix the historical single-token-bay rule
+        // still applies — "VFR pattern" stays as line content, not bay name.
+        var result = CommandParser.Parse(@"HSC LCL VFR pattern\Touch and go");
+        var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
+        Assert.Equal("LCL", cmd.BayName);
+        Assert.Equal(["VFR pattern", "Touch and go"], cmd.Lines);
+    }
+
     // ── HSA (amend) — auto-search form ─────────────────────────
 
     [Fact]

@@ -122,6 +122,25 @@ public partial class StripItemViewModel : ObservableObject
     public string Annotation8A => Field(19);
     public string Annotation8B => Field(20);
 
+    // Half-strip cell grid: FieldValues[0..5] mapped row-major into a 3×2
+    // inline-edit grid (cell 0 = row 0 col 0, cell 1 = row 0 col 1, …,
+    // cell 5 = row 2 col 1). Edits dispatch HSE so empty cells are
+    // preserved without ambiguity around FieldValues[0] doubling as the
+    // half-strip lookup key.
+    public string HalfCell0 => Field(0);
+    public string HalfCell1 => Field(1);
+    public string HalfCell2 => Field(2);
+    public string HalfCell3 => Field(3);
+    public string HalfCell4 => Field(4);
+    public string HalfCell5 => Field(5);
+
+    /// <summary>
+    /// Separator label rendered as the band's centered text. Stored in
+    /// <c>FieldValues[0]</c> by the server (SEP/SEPE handlers) — matches
+    /// the layout in <c>StripCommandHandler.HandleSeparatorEditAsync</c>.
+    /// </summary>
+    public string SeparatorLabel => Field(0);
+
     /// <summary>
     /// Replaces the underlying DTO with a new server snapshot and raises property
     /// changes for every field-derived accessor. Preserves the wrapping instance
@@ -170,6 +189,13 @@ public partial class StripItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Annotation18));
         OnPropertyChanged(nameof(Annotation8A));
         OnPropertyChanged(nameof(Annotation8B));
+        OnPropertyChanged(nameof(HalfCell0));
+        OnPropertyChanged(nameof(HalfCell1));
+        OnPropertyChanged(nameof(HalfCell2));
+        OnPropertyChanged(nameof(HalfCell3));
+        OnPropertyChanged(nameof(HalfCell4));
+        OnPropertyChanged(nameof(HalfCell5));
+        OnPropertyChanged(nameof(SeparatorLabel));
     }
 
     /// <summary>

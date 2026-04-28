@@ -723,9 +723,11 @@ public static class CommandParser
             HalfStripMove when arg is not null => ParseHalfStripMove(arg),
             HalfStripOffset => ParseHalfStripOffsetOrSlide(arg ?? "", isSlide: false),
             HalfStripSlide => ParseHalfStripOffsetOrSlide(arg ?? "", isSlide: true),
+            HalfStripEdit when arg is not null => ParseHalfStripEdit(arg),
             SeparatorCreate when arg is not null => ParseSeparatorCreate(arg),
             SeparatorDelete when arg is not null => ParseSeparatorDelete(arg),
             SeparatorEdit when arg is not null => ParseSeparatorEdit(arg),
+            SeparatorMove when arg is not null => ParseSeparatorMove(arg),
             BlankCreate => PR.Ok(new BlankCreateCommand(SplitWhitespace(arg ?? ""))),
             BlankDelete when arg is not null => ParseBlankDelete(arg),
             Scratchpad1 when arg is null => PR.Ok(new Scratchpad1Command("")),
@@ -776,9 +778,11 @@ public static class CommandParser
             or StripMove
             or HalfStripCreate
             or HalfStripMove
+            or HalfStripEdit
             or SeparatorCreate
             or SeparatorDelete
             or SeparatorEdit
+            or SeparatorMove
             or BlankDelete
             or Say
             or SetRemarks
@@ -2124,17 +2128,62 @@ public static class CommandParser
             return PR.Fail("HS requires a bay name");
         }
 
-        var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        var bayToken = parts[0];
-        if (!TryParseBaySpec(bayToken, out var bayName, out var rack, out var bayError))
+        // Bay-spec / lines split: the bay-spec ends at either (a) a token
+        // carrying a `/digits` rack suffix, in which case the bay name spans
+        // every token up to and including that one, or (b) the first token —
+        // when no rack suffix is present, the historical single-word-bay rule
+        // applies. This lets multi-word bays like "Ground 1/2" coexist with
+        // `HSC LCL VFR pattern\Touch and go` where "LCL" is the bay and "VFR
+        // pattern" is line content. The first token that contains a `\` (line
+        // separator) caps the search for a rack-suffix.
+        var headTokens = SplitWhitespace(trimmed);
+        var lineStartIdx = -1;
+        for (var i = 0; i < headTokens.Count; i++)
+        {
+            if (headTokens[i].Contains('\\', StringComparison.Ordinal))
+            {
+                lineStartIdx = i;
+                break;
+            }
+        }
+
+        var rackTokIdx = -1;
+        var searchEnd = lineStartIdx < 0 ? headTokens.Count : lineStartIdx;
+        for (var i = 0; i < searchEnd; i++)
+        {
+            if (LooksLikeRackSuffix(headTokens[i]))
+            {
+                rackTokIdx = i;
+                break;
+            }
+        }
+
+        int bayEnd; // exclusive index — tokens[0..bayEnd) form the bay-spec
+        if (rackTokIdx >= 0)
+        {
+            bayEnd = rackTokIdx + 1;
+        }
+        else
+        {
+            bayEnd = 1;
+        }
+
+        var headPart = string.Join(' ', headTokens.Take(bayEnd));
+        if (headPart.Length == 0)
+        {
+            return PR.Fail("HS requires a bay name");
+        }
+
+        if (!TryParseMultiWordBaySpec(headPart, out var bayName, out var rack, out var bayError))
         {
             return PR.Fail(bayError!);
         }
 
         var lines = Array.Empty<string>();
-        if (parts.Length > 1)
+        if (bayEnd < headTokens.Count)
         {
-            lines = parts[1].Split('\\', StringSplitOptions.TrimEntries);
+            var linesPart = string.Join(' ', headTokens.Skip(bayEnd));
+            lines = linesPart.Split('\\', StringSplitOptions.TrimEntries);
         }
 
         if (lines.Length > HalfStripMaxLines)
@@ -2143,6 +2192,110 @@ public static class CommandParser
         }
 
         return PR.Ok(new HalfStripCreateCommand(bayName, rack, lines));
+    }
+
+    /// <summary>
+    /// HSE: edit a half-strip's full FieldValues array by stripId.
+    /// Wire: <c>HSE &lt;stripId&gt; &lt;line0&gt;\&lt;line1&gt;\…\&lt;line5&gt;</c>.
+    /// First whitespace-token is the stripId (no `\` permitted in ids); the
+    /// remainder is `\`-split with empty entries preserved so the user can
+    /// clear individual cells without collapsing the array.
+    /// </summary>
+    private static PR ParseHalfStripEdit(string arg)
+    {
+        var trimmed = arg.Trim();
+        if (trimmed.Length == 0)
+        {
+            return PR.Fail("HSE requires a strip id");
+        }
+
+        var spaceIdx = trimmed.IndexOf(' ');
+        string stripId;
+        string body;
+        if (spaceIdx < 0)
+        {
+            stripId = trimmed;
+            body = "";
+        }
+        else
+        {
+            stripId = trimmed[..spaceIdx];
+            body = trimmed[(spaceIdx + 1)..];
+        }
+
+        if (stripId.Length == 0)
+        {
+            return PR.Fail("HSE requires a strip id");
+        }
+
+        var lines = body.Length == 0 ? [] : body.Split('\\', StringSplitOptions.TrimEntries);
+        if (lines.Length > HalfStripMaxLines)
+        {
+            return PR.Fail($"HSE supports at most {HalfStripMaxLines} lines (got {lines.Length})");
+        }
+
+        return PR.Ok(new HalfStripEditCommand(stripId, lines));
+    }
+
+    /// <summary>
+    /// True when <paramref name="token"/> ends with a `/digit+` rack suffix —
+    /// the part before the slash may be empty ("/2"), a bay tail ("1/2"), or
+    /// a single-token bay-spec ("GROUND/2"). The post-slash portion must be
+    /// digits only so a `\`-separated line-content token like "line1/2" is
+    /// not mistaken for a rack boundary.
+    /// </summary>
+    private static bool LooksLikeRackSuffix(string token)
+    {
+        var slashIdx = token.IndexOf('/');
+        if (slashIdx < 0)
+        {
+            return false;
+        }
+        var after = token[(slashIdx + 1)..];
+        if (after.Length == 0)
+        {
+            return false;
+        }
+        foreach (var c in after)
+        {
+            if (c is < '0' or > '9')
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Parses a possibly multi-word bay-spec of the form
+    /// <c>word [word2 ...] [/rack]</c>. Mirrors <see cref="TryParseBaySpec"/>
+    /// but tolerates inner whitespace so HSC can accept "Ground 1/2" alongside
+    /// "Ground1/2". Bay name is upper-cased; rack is 1-based on the wire and
+    /// returned as a 0-based internal index.
+    /// </summary>
+    private static bool TryParseMultiWordBaySpec(string spec, out string bayName, out int? rack, out string? error)
+    {
+        bayName = "";
+        rack = null;
+        error = null;
+
+        var slashIdx = spec.IndexOf('/');
+        if (slashIdx < 0)
+        {
+            bayName = spec.ToUpperInvariant();
+            return true;
+        }
+
+        bayName = spec[..slashIdx].Trim().ToUpperInvariant();
+        var rackPart = spec[(slashIdx + 1)..];
+        if (!int.TryParse(rackPart, out var rackWire) || rackWire < 1)
+        {
+            error = $"invalid rack index '{rackPart}' (expected 1-based positive integer)";
+            return false;
+        }
+
+        rack = rackWire - 1;
+        return true;
     }
 
     /// <summary>
@@ -2369,12 +2522,45 @@ public static class CommandParser
         return PR.Ok(new SeparatorDeleteCommand(tokens));
     }
 
+    /// <summary>
+    /// SEPM: move a separator to a new bay/rack/index by stripId.
+    /// Wire: <c>SEPM &lt;stripId&gt; &lt;bay&gt;/&lt;rack&gt;/&lt;index&gt;</c>.
+    /// </summary>
+    private static PR ParseSeparatorMove(string arg)
+    {
+        var trimmed = arg.Trim();
+        if (trimmed.Length == 0)
+        {
+            return PR.Fail("SEPM requires a strip id and destination");
+        }
+        var spaceIdx = trimmed.IndexOf(' ');
+        if (spaceIdx < 0)
+        {
+            return PR.Fail("SEPM requires a destination (bay/rack/index)");
+        }
+        var stripId = trimmed[..spaceIdx];
+        var destSpec = trimmed[(spaceIdx + 1)..].Trim();
+        if (stripId.Length == 0)
+        {
+            return PR.Fail("SEPM requires a strip id");
+        }
+        if (!TryParseStripDest(destSpec, out var bayName, out var rack, out var index, out var error))
+        {
+            return PR.Fail(error!);
+        }
+        if (rack is not int rackVal || index is not int indexVal)
+        {
+            return PR.Fail("SEPM destination requires bay/rack/index (1-based)");
+        }
+        return PR.Ok(new SeparatorMoveCommand(stripId, bayName, rackVal, indexVal));
+    }
+
     private static PR ParseSeparatorEdit(string arg)
     {
         var tokens = SplitWhitespace(arg);
-        if (tokens.Count < 3)
+        if (tokens.Count < 2)
         {
-            return PR.Fail("SEPE requires a bay, a rack, a locator (old label or 1-based index), and a new label");
+            return PR.Fail("SEPE requires a locator (bay/rack/index or stripId) and a new label");
         }
 
         return PR.Ok(new SeparatorEditCommand(tokens));

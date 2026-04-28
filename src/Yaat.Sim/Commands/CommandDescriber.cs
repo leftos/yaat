@@ -174,9 +174,11 @@ public static class CommandDescriber
             HalfStripMoveCommand => CanonicalCommandType.HalfStripMove,
             HalfStripOffsetCommand => CanonicalCommandType.HalfStripOffset,
             HalfStripSlideCommand => CanonicalCommandType.HalfStripSlide,
+            HalfStripEditCommand => CanonicalCommandType.HalfStripEdit,
             SeparatorCreateCommand => CanonicalCommandType.SeparatorCreate,
             SeparatorDeleteCommand => CanonicalCommandType.SeparatorDelete,
             SeparatorEditCommand => CanonicalCommandType.SeparatorEdit,
+            SeparatorMoveCommand => CanonicalCommandType.SeparatorMove,
             BlankCreateCommand => CanonicalCommandType.BlankCreate,
             BlankDeleteCommand => CanonicalCommandType.BlankDelete,
             Scratchpad1Command => CanonicalCommandType.Scratchpad1,
@@ -507,9 +509,11 @@ public static class CommandDescriber
             HalfStripMoveCommand cmd => FormatHalfStripMoveCanonical(cmd),
             HalfStripOffsetCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSO", cmd.BayName, cmd.Rack, cmd.LookupKey),
             HalfStripSlideCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSS", cmd.BayName, cmd.Rack, cmd.LookupKey),
+            HalfStripEditCommand cmd => FormatHalfStripEditCanonical(cmd),
             SeparatorCreateCommand cmd => FormatSeparatorCreateCanonical(cmd),
             SeparatorDeleteCommand cmd => FormatTokenizedCanonical("SEPD", cmd.Tokens),
             SeparatorEditCommand cmd => FormatTokenizedCanonical("SEPE", cmd.Tokens),
+            SeparatorMoveCommand cmd => $"SEPM {cmd.StripId} {cmd.DestBayName}/{cmd.DestRack + 1}/{cmd.DestIndex + 1}",
             BlankCreateCommand cmd => FormatTokenizedCanonical("BLANK", cmd.Tokens),
             BlankDeleteCommand cmd => FormatTokenizedCanonical("BLANKD", cmd.Tokens),
             _ => command.ToString() ?? "?",
@@ -591,6 +595,12 @@ public static class CommandDescriber
         }
 
         return $"HSC {baySpec} {string.Join('\\', lines)}";
+    }
+
+    private static string FormatHalfStripEditCanonical(HalfStripEditCommand cmd)
+    {
+        var lines = cmd.Lines ?? [];
+        return lines.Count == 0 ? $"HSE {cmd.StripId}" : $"HSE {cmd.StripId} {string.Join('\\', lines)}";
     }
 
     private static string FormatHalfStripMutateCanonical(string verb, string? bayName, int? rack, IReadOnlyList<string>? tokens)
@@ -764,6 +774,7 @@ public static class CommandDescriber
             HalfStripCreateCommand cmd => DescribeHalfStripCreateNatural(cmd),
             HalfStripAmendCommand cmd => DescribeHalfStripAmendNatural(cmd),
             HalfStripDeleteCommand cmd => DescribeHalfStripDeleteNatural(cmd),
+            HalfStripEditCommand cmd => $"Edit half-strip {cmd.StripId}",
             _ => command.ToString() ?? "?",
         };
     }

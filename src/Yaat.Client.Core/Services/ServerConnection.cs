@@ -33,6 +33,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<int, int>? ExportRecordingProgress;
     public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
     public event Action<List<StripItemDto>>? StripItemsChanged;
+    public event Action<string>? RoomAvailableForCid;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -79,6 +80,7 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
         _connection.On<FlightStripsStateDto>("FlightStripsStateChanged", dto => FlightStripsStateChanged?.Invoke(dto));
         _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
+        _connection.On<string>("RoomAvailableForCid", roomId => RoomAvailableForCid?.Invoke(roomId));
 
         _connection.Reconnecting += error =>
         {

@@ -130,7 +130,7 @@
              overlay (see below) rather than a side column, matching
              docs/crc/img/printer.png. -->
         <Grid Grid.Row="1">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                 <!-- LayoutTransformControl scales the racks area (including
                      strips, padding, and rack widths) without affecting the
                      header. Bound to VStripsViewModel.ZoomScale. Avalonia's
@@ -341,6 +341,10 @@
                                         Background="#2F6FB8" Foreground="White"
                                         Padding="14,4"
                                         Click="OnDepartureMoveToBayClick"/>
+                                <Button Content="Move All to Bay"
+                                        Background="#2F6FB8" Foreground="White"
+                                        Padding="14,4"
+                                        Click="OnMoveAllToBayClick"/>
                                 <Button Content="Delete"
                                         Background="#B8323A" Foreground="White"
                                         Padding="14,4"

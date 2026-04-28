@@ -74,6 +74,18 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
                 ActiveRoomName = null;
                 ActiveRoomId = null;
             });
+        // Server pushes RoomAvailableForCid when a same-CID CRC sibling
+        // gets bound to a room — auto-join unless we're already in one.
+        _connection.RoomAvailableForCid += roomId =>
+            Dispatcher.UIThread.Post(async () =>
+            {
+                if (IsInRoom)
+                {
+                    return;
+                }
+                _log.LogInformation("RoomAvailableForCid: auto-joining room {RoomId}", roomId);
+                await JoinRoomAsync(roomId);
+            });
         _connection.ScenarioLoaded += dto =>
         {
             VStrips.ApplyBayConfig(dto.FlightStripsConfig);

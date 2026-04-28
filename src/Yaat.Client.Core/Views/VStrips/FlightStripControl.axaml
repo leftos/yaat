@@ -7,6 +7,16 @@
              Background="Transparent">
 
     <UserControl.Styles>
+        <!-- Suppress Avalonia's built-in TextBox cut/copy/paste flyout on
+             every inline-edit cell. Right-click on a strip belongs to the
+             strip context menu (delete / push / etc.), not to text editing —
+             the duplicate flyout would overlap the strip menu and
+             intercept Delete clicks. Applied via a shared selector so all
+             three cell variants opt out. -->
+        <Style Selector="TextBox.annotation, TextBox.halfcell, TextBox.sep">
+            <Setter Property="ContextMenu" Value="{x:Null}"/>
+            <Setter Property="ContextFlyout" Value="{x:Null}"/>
+        </Style>
         <!-- Flat-styled annotation TextBox. Looks like a TextBlock until the
              user clicks it (then the caret appears). No border / padding /
              background so the strip cell border provides the only chrome.
@@ -65,6 +75,96 @@
         <Style Selector="TextBox.annotation.col3">
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="TextAlignment" Value="Left"/>
+        </Style>
+        <!-- Half-strip cell grid: same flat-on-cream look as the annotation
+             boxes, with thin borders between cells. The grid is 3 rows × 2
+             cols; cells are tagged "h0".."h5" so the code-behind can resolve
+             the slot index for HSE dispatch and Tab navigation. -->
+        <Style Selector="TextBox.halfcell">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource StripBorderBrush}"/>
+            <Setter Property="Padding" Value="3,1"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+        </Style>
+        <Style Selector="TextBox.halfcell /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="TextBox.halfcell:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="TextBox.halfcell:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="TextBox.halfcell:focus-within /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="TextBox.halfcell:focus">
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
+        </Style>
+        <Style Selector="TextBox.halfcell:pointerover">
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
+        </Style>
+        <!-- Separator label TextBox: a single line centered across the
+             full-height colored band. Background and border come from the
+             Border the TextBox lives inside; only the text foreground /
+             caret color depends on the style variant (dark text on white
+             backgrounds, light text on red/green). -->
+        <Style Selector="TextBox.sep">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+            <Setter Property="FontSize" Value="32"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBox.sep.sep-script">
+            <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+        </Style>
+        <Style Selector="TextBox.sep.sep-dark">
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
+        </Style>
+        <Style Selector="TextBox.sep.sep-light">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CaretBrush" Value="White"/>
+        </Style>
+        <Style Selector="TextBox.sep /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.sep:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.sep:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.sep:focus-within /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.sep.sep-dark:focus">
+            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
+        </Style>
+        <Style Selector="TextBox.sep.sep-light:focus">
+            <Setter Property="Foreground" Value="White"/>
         </Style>
     </UserControl.Styles>
 
@@ -351,7 +451,10 @@
             </Grid>
 
             <!-- Half-strip: narrow cream tile with the opposite side rendered
-                 as a grey drop-zone (docs/crc/img/half-strip.png). -->
+                 as a grey drop-zone (docs/crc/img/half-strip.png). The cream
+                 side hosts a 3×2 grid of inline-edit TextBoxes — Tag "h0"…
+                 "h5" identifies the slot index for the LostFocus/Tab
+                 handlers (FlightStripControl.OnHalfCell*). -->
             <Grid x:Name="HalfStripGrid"
                   IsVisible="{Binding IsHalfStrip}"
                   Width="535"
@@ -361,19 +464,34 @@
                         Background="{StaticResource StripCellBrush}"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="1"
-                        Padding="6,4"
+                        Padding="0"
                         IsVisible="{Binding !IsHalfStripRight}">
-                    <ItemsControl ItemsSource="{Binding FieldValues}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}"
-                                           FontFamily="{StaticResource StripScriptFont}"
-                                           FontStyle="Italic" FontWeight="Bold"
-                                           FontSize="12"
-                                           Foreground="{StaticResource StripPrintedBrush}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <Grid RowDefinitions="*,*,*" ColumnDefinitions="*,*">
+                        <TextBox Classes="halfcell" Tag="h0" Grid.Row="0" Grid.Column="0"
+                                 Text="{Binding HalfCell0, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h1" Grid.Row="0" Grid.Column="1"
+                                 Text="{Binding HalfCell1, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h2" Grid.Row="1" Grid.Column="0"
+                                 Text="{Binding HalfCell2, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h3" Grid.Row="1" Grid.Column="1"
+                                 Text="{Binding HalfCell3, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h4" Grid.Row="2" Grid.Column="0"
+                                 Text="{Binding HalfCell4, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h5" Grid.Row="2" Grid.Column="1"
+                                 Text="{Binding HalfCell5, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                    </Grid>
                 </Border>
                 <Border Grid.Column="1"
                         Background="{StaticResource StripDropZoneBrush}"
@@ -385,79 +503,90 @@
                         Background="{StaticResource StripCellBrush}"
                         BorderBrush="{StaticResource StripBorderBrush}"
                         BorderThickness="1"
-                        Padding="6,4"
+                        Padding="0"
                         IsVisible="{Binding IsHalfStripRight}">
-                    <ItemsControl ItemsSource="{Binding FieldValues}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}"
-                                           FontFamily="{StaticResource StripScriptFont}"
-                                           FontStyle="Italic" FontWeight="Bold"
-                                           FontSize="12"
-                                           Foreground="{StaticResource StripPrintedBrush}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <Grid RowDefinitions="*,*,*" ColumnDefinitions="*,*">
+                        <TextBox Classes="halfcell" Tag="h0" Grid.Row="0" Grid.Column="0"
+                                 Text="{Binding HalfCell0, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h1" Grid.Row="0" Grid.Column="1"
+                                 Text="{Binding HalfCell1, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h2" Grid.Row="1" Grid.Column="0"
+                                 Text="{Binding HalfCell2, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h3" Grid.Row="1" Grid.Column="1"
+                                 Text="{Binding HalfCell3, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h4" Grid.Row="2" Grid.Column="0"
+                                 Text="{Binding HalfCell4, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                        <TextBox Classes="halfcell" Tag="h5" Grid.Row="2" Grid.Column="1"
+                                 Text="{Binding HalfCell5, Mode=OneWay}"
+                                 LostFocus="OnHalfCellLostFocus"
+                                 KeyDown="OnHalfCellKeyDown"/>
+                    </Grid>
                 </Border>
             </Grid>
 
             <!-- Separator bands — full-rack-width colored strips with centered
-                 labels (docs/crc/img/separators.png). -->
+                 labels (docs/crc/img/separators.png). The label sits in an
+                 inline-edit TextBox (Tag "sep") so single-click edits like
+                 the 3×3 annotation grid; the per-style class (sep-dark for
+                 white/handwritten, sep-light for red/green) controls
+                 foreground via the styles in UserControl.Styles. -->
             <Border x:Name="HandwrittenSeparator"
                     IsVisible="{Binding IsHandwrittenSeparator}"
-                    Width="535" Height="23"
+                    Width="535" Height="69"
                     Background="{StaticResource StripSeparatorWhiteBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
                     Padding="4,0">
-                <TextBlock Text="{Binding Annotation10}"
-                           FontFamily="{StaticResource StripScriptFont}"
-                           FontStyle="Italic" FontWeight="Bold" FontSize="13"
-                           Foreground="{StaticResource StripPrintedBrush}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                <TextBox Classes="sep sep-dark sep-script" Tag="sep"
+                         Text="{Binding SeparatorLabel, Mode=OneWay}"
+                         LostFocus="OnSeparatorLostFocus"
+                         KeyDown="OnSeparatorKeyDown"/>
             </Border>
             <Border x:Name="WhiteSeparator"
                     IsVisible="{Binding IsWhiteSeparator}"
-                    Width="535" Height="23"
+                    Width="535" Height="69"
                     Background="{StaticResource StripSeparatorWhiteBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
                     Padding="4,0">
-                <TextBlock Text="{Binding Annotation10}"
-                           FontFamily="{StaticResource MonoFont}"
-                           FontSize="13" FontWeight="Bold"
-                           Foreground="{StaticResource StripPrintedBrush}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                <TextBox Classes="sep sep-dark" Tag="sep"
+                         Text="{Binding SeparatorLabel, Mode=OneWay}"
+                         LostFocus="OnSeparatorLostFocus"
+                         KeyDown="OnSeparatorKeyDown"/>
             </Border>
             <Border x:Name="RedSeparator"
                     IsVisible="{Binding IsRedSeparator}"
-                    Width="535" Height="23"
+                    Width="535" Height="69"
                     Background="{StaticResource StripSeparatorRedBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
                     Padding="4,0">
-                <TextBlock Text="{Binding Annotation10}"
-                           FontFamily="{StaticResource MonoFont}"
-                           FontSize="13" FontWeight="Bold"
-                           Foreground="White"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                <TextBox Classes="sep sep-light" Tag="sep"
+                         Text="{Binding SeparatorLabel, Mode=OneWay}"
+                         LostFocus="OnSeparatorLostFocus"
+                         KeyDown="OnSeparatorKeyDown"/>
             </Border>
             <Border x:Name="GreenSeparator"
                     IsVisible="{Binding IsGreenSeparator}"
-                    Width="535" Height="23"
+                    Width="535" Height="69"
                     Background="{StaticResource StripSeparatorGreenBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
                     Padding="4,0">
-                <TextBlock Text="{Binding Annotation10}"
-                           FontFamily="{StaticResource MonoFont}"
-                           FontSize="13" FontWeight="Bold"
-                           Foreground="White"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                <TextBox Classes="sep sep-light" Tag="sep"
+                         Text="{Binding SeparatorLabel, Mode=OneWay}"
+                         LostFocus="OnSeparatorLostFocus"
+                         KeyDown="OnSeparatorKeyDown"/>
             </Border>
 
             <!-- Disconnected overlay: diagonal red stroke drawn in code-behind

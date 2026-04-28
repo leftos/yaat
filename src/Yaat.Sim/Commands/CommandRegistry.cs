@@ -898,7 +898,28 @@ public static class CommandRegistry
                 "Strip Operations",
                 false,
                 ["SEPE"],
-                [O(null, [R("dest", "bay/rack/index"), R("label", "new label text")], "Atomic separator label edit (replaces delete+create)")]
+                [
+                    O("By position", [R("dest", "bay/rack/index"), R("label", "new label text")], "Atomic separator label edit at the given slot"),
+                    O(
+                        "By id",
+                        [R("stripId", "separator id"), R("label", "new label text")],
+                        "Atomic separator label edit by strip id (powers inline edit)"
+                    ),
+                ]
+            ),
+            Cmd(
+                SeparatorMove,
+                "Move Separator",
+                "Strip Operations",
+                false,
+                ["SEPM"],
+                [
+                    O(
+                        null,
+                        [R("stripId", "separator id"), R("dest", "bay/rack/index")],
+                        "Relocate a separator to a new rack slot (preserves label and style)"
+                    ),
+                ]
             ),
             Cmd(
                 BlankCreate,
@@ -960,6 +981,20 @@ public static class CommandRegistry
                     O("Auto-search", [R("key", "first line of half-strip")], "Delete half-strip by first-line key (auto-search across bays)"),
                     O("Explicit bay", [R("bay", "bay[/rack]"), R("key", "first line of half-strip")], "Delete with explicit bay disambiguation"),
                     O("Aircraft-scoped", [], "With aircraft selected: delete half-strip whose first line is the callsign"),
+                ]
+            ),
+            Cmd(
+                HalfStripEdit,
+                "Edit Half-Strip Fields",
+                "Strip Operations",
+                false,
+                ["HSE", "HALFSTRIPEDIT"],
+                [
+                    O(
+                        null,
+                        [R("stripId", "half-strip id"), R("fields", @"line0\line1\... (up to 6, empty cells preserved)")],
+                        "Replace a half-strip's full FieldValues array by stripId (drives the inline 3×2 cell grid)"
+                    ),
                 ]
             ),
             Cmd(

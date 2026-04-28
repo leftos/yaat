@@ -75,10 +75,12 @@ public partial class FlightStripControl : UserControl
     }
 
     /// <summary>
-    /// Offset strips translate left out of the rack (docs/crc/img/offset.png).
-    /// Applied as a negative outer margin so the strip visibly protrudes over
-    /// the rack's left edge — matches CRC behavior where the user can read the
-    /// callsign column at a glance even when another rack scrolls past on top.
+    /// Offset strips translate right out of the rack (docs/crc/img/offset.png).
+    /// Applied as a positive left margin balanced by a matching negative right
+    /// margin so the strip's layout slot stays the same width — only the
+    /// horizontal position shifts. Sliding right keeps the callsign column
+    /// (col 1) visible above the next rack's strips rather than hiding it
+    /// behind the previous rack.
     /// </summary>
     private void ApplyOffset(StripItemViewModel vm)
     {
@@ -87,7 +89,7 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        root.Margin = vm.IsOffset ? new Thickness(-32, 1, 1, 0) : new Thickness(1, 1, 1, 0);
+        root.Margin = vm.IsOffset ? new Thickness(33, 1, -31, 0) : new Thickness(1, 1, 1, 0);
     }
 
     /// <summary>
@@ -331,6 +333,10 @@ public partial class FlightStripControl : UserControl
     /// Escape cancels (restores the TextBox.Text from the VM's current value
     /// before blurring, with <see cref="_annotationCancelPending"/> telling
     /// the LostFocus handler to skip the AN dispatch).
+    /// Tab / Shift+Tab move focus to the next / previous annotation cell in
+    /// row-major order (1→2→…→9, with 8a/8b inserted after 8 in the column-3
+    /// slot). Marking the event Handled keeps <see cref="VStripsView.OnKeyDown"/>
+    /// from intercepting Tab to toggle the printer panel.
     /// </summary>
     private void OnAnnotationKeyDown(object? sender, KeyEventArgs e)
     {
@@ -363,6 +369,233 @@ public partial class FlightStripControl : UserControl
                     "8b" => strip.Annotation8B,
                     _ => tb.Text,
                 };
+            }
+            e.Handled = true;
+            this.Focus();
+        }
+        else if (e.Key == Key.Tab)
+        {
+            var forward = !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            var nextTag = NextAnnotationTag(box, forward);
+            if (nextTag is null)
+            {
+                return; // out-of-range tag — let default Tab navigation run
+            }
+            var nextBox = FindAnnotationTextBox(nextTag);
+            if (nextBox is null)
+            {
+                return;
+            }
+            // Mark handled BEFORE focus changes so Avalonia's tab navigation
+            // (and the bubble up to VStripsView's printer-toggle handler)
+            // both stay out of the way. Moving focus triggers LostFocus on
+            // the current cell, which commits the annotation as usual.
+            e.Handled = true;
+            nextBox.Focus();
+            nextBox.SelectAll();
+        }
+    }
+
+    /// <summary>
+    /// Maps a 3×3 grid annotation tag to its row-major successor (or
+    /// predecessor when <paramref name="forward"/> is false). Cycles 1→2→…→9
+    /// with wrap-around so Tab keeps focus inside the strip rather than
+    /// escaping to the next focusable element. The 8a/8b column-3 slots are
+    /// not part of the cycle — they're navigated via Ctrl+8a/8b mouse.
+    /// </summary>
+    private static string? NextAnnotationTag(string current, bool forward)
+    {
+        if (current.Length != 1 || current[0] < '1' || current[0] > '9')
+        {
+            return null;
+        }
+        var n = current[0] - '0';
+        var next = forward ? (n == 9 ? 1 : n + 1) : (n == 1 ? 9 : n - 1);
+        return next.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private TextBox? FindAnnotationTextBox(string tag)
+    {
+        foreach (var descendant in this.GetVisualDescendants())
+        {
+            if (descendant is TextBox candidate && candidate.Tag is string candidateTag && candidateTag == tag)
+            {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private bool _halfCellCancelPending;
+
+    /// <summary>
+    /// Commits the current half-strip cell by composing the full
+    /// <see cref="StripItemDto.FieldValues"/> (with this cell's text
+    /// replacing slot N) and dispatching <c>HSE</c>. Skipped when Escape
+    /// flagged a cancel — the OneWay binding reverts the TextBox to the
+    /// authoritative VM value on the next render.
+    /// </summary>
+    private void OnHalfCellLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.Tag is not string tag || !tag.StartsWith('h'))
+        {
+            return;
+        }
+        if (_halfCellCancelPending)
+        {
+            _halfCellCancelPending = false;
+            return;
+        }
+        if (DataContext is not StripItemViewModel strip || !strip.IsHalfStrip)
+        {
+            return;
+        }
+        if (!int.TryParse(tag.AsSpan(1), out var slot) || slot is < 0 or > 5)
+        {
+            return;
+        }
+
+        var host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
+        if (host is null || host.DataContext is not VStripsViewModel vm)
+        {
+            return;
+        }
+
+        var slots = new string[6];
+        for (var i = 0; i < 6; i++)
+        {
+            slots[i] = i < strip.FieldValues.Length ? strip.FieldValues[i] ?? "" : "";
+        }
+        slots[slot] = tb.Text ?? "";
+        if (string.Equals(slots[slot], strip.FieldValues.Length > slot ? strip.FieldValues[slot] ?? "" : "", StringComparison.Ordinal))
+        {
+            return; // unchanged — skip the round-trip
+        }
+
+        _ = vm.EditHalfStripFieldsAsync(strip, slots);
+    }
+
+    /// <summary>
+    /// Half-strip cell key handling: Enter commits via blur, Escape cancels,
+    /// Tab / Shift+Tab move focus to the next / previous slot in row-major
+    /// order (h0 → h1 → h2 → … → h5 → h0). Marking Tab handled keeps
+    /// VStripsView from intercepting it to toggle the printer.
+    /// </summary>
+    private void OnHalfCellKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.Tag is not string tag)
+        {
+            return;
+        }
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            this.Focus();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            _halfCellCancelPending = true;
+            if (DataContext is StripItemViewModel strip && tag.StartsWith('h') && int.TryParse(tag.AsSpan(1), out var slot) && slot is >= 0 and <= 5)
+            {
+                tb.Text = slot switch
+                {
+                    0 => strip.HalfCell0,
+                    1 => strip.HalfCell1,
+                    2 => strip.HalfCell2,
+                    3 => strip.HalfCell3,
+                    4 => strip.HalfCell4,
+                    _ => strip.HalfCell5,
+                };
+            }
+            e.Handled = true;
+            this.Focus();
+        }
+        else if (e.Key == Key.Tab)
+        {
+            var forward = !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            var nextTag = NextHalfCellTag(tag, forward);
+            if (nextTag is null)
+            {
+                return;
+            }
+            var nextBox = FindAnnotationTextBox(nextTag);
+            if (nextBox is null)
+            {
+                return;
+            }
+            e.Handled = true;
+            nextBox.Focus();
+            nextBox.SelectAll();
+        }
+    }
+
+    private static string? NextHalfCellTag(string current, bool forward)
+    {
+        if (current.Length != 2 || current[0] != 'h' || current[1] < '0' || current[1] > '5')
+        {
+            return null;
+        }
+        var n = current[1] - '0';
+        var next = forward ? (n == 5 ? 0 : n + 1) : (n == 0 ? 5 : n - 1);
+        return $"h{next}";
+    }
+
+    private bool _separatorCancelPending;
+
+    /// <summary>
+    /// Commits a separator label edit by dispatching <c>SEPE &lt;stripId&gt;
+    /// &lt;newLabel&gt;</c>. Skipped on cancel — the OneWay binding restores
+    /// the TextBox to the authoritative VM value on the next render.
+    /// </summary>
+    private void OnSeparatorLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb)
+        {
+            return;
+        }
+        if (_separatorCancelPending)
+        {
+            _separatorCancelPending = false;
+            return;
+        }
+        if (DataContext is not StripItemViewModel strip || !strip.IsSeparator)
+        {
+            return;
+        }
+        var newLabel = tb.Text ?? "";
+        if (string.Equals(newLabel, strip.SeparatorLabel, StringComparison.Ordinal))
+        {
+            return;
+        }
+        var host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
+        if (host is null || host.DataContext is not VStripsViewModel vm)
+        {
+            return;
+        }
+        _ = vm.EditSeparatorLabelAsync(strip, newLabel);
+    }
+
+    /// <summary>
+    /// Separator label key handling: Enter commits (focus out fires
+    /// LostFocus), Escape cancels by reverting the TextBox to the VM value.
+    /// </summary>
+    private void OnSeparatorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb)
+        {
+            return;
+        }
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            this.Focus();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            _separatorCancelPending = true;
+            if (DataContext is StripItemViewModel strip)
+            {
+                tb.Text = strip.SeparatorLabel;
             }
             e.Handled = true;
             this.Focus();

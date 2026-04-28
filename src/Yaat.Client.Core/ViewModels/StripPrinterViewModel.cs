@@ -60,6 +60,12 @@ public partial class StripPrinterViewModel : ObservableObject
     /// </summary>
     private string? _pendingFocusCallsign;
 
+    // True when a "Print Blank Strip" click is awaiting its broadcast — the
+    // next ReplaceAll then jumps the departure carousel to the newest blank
+    // (highest index) so the user sees what they just printed without
+    // arrowing through the queue. Reset on apply.
+    private bool _pendingFocusOnNewBlank;
+
     /// <summary>
     /// Marks <paramref name="callsign"/> as the target to focus on the next
     /// reconcile. Called from <c>VStripsViewModel.RequestStripAsync</c> after
@@ -76,28 +82,59 @@ public partial class StripPrinterViewModel : ObservableObject
         TryApplyPendingFocus();
     }
 
+    /// <summary>
+    /// Marks the next reconcile as having printed a blank strip — the
+    /// departure carousel jumps to the newest <c>BlankStrip</c> in the
+    /// queue. Called from <c>VStripsViewModel.PrintBlankStripAsync</c>
+    /// after the dispatch returns; the actual focus shift happens when
+    /// the broadcast lands and <see cref="ReplaceAll"/> runs.
+    /// </summary>
+    public void RequestFocusOnNewBlank()
+    {
+        _pendingFocusOnNewBlank = true;
+        TryApplyPendingFocus();
+    }
+
     private void TryApplyPendingFocus()
     {
-        if (string.IsNullOrEmpty(_pendingFocusCallsign))
+        if (!string.IsNullOrEmpty(_pendingFocusCallsign))
         {
-            return;
-        }
-        for (var i = 0; i < DepartureQueue.Count; i++)
-        {
-            if (string.Equals(DepartureQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
+            for (var i = 0; i < DepartureQueue.Count; i++)
             {
-                VisibleDepartureIndex = i;
-                _pendingFocusCallsign = null;
-                return;
+                if (string.Equals(DepartureQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
+                {
+                    VisibleDepartureIndex = i;
+                    _pendingFocusCallsign = null;
+                    break;
+                }
+            }
+            if (_pendingFocusCallsign is not null)
+            {
+                for (var i = 0; i < ArrivalQueue.Count; i++)
+                {
+                    if (string.Equals(ArrivalQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
+                    {
+                        VisibleArrivalIndex = i;
+                        _pendingFocusCallsign = null;
+                        break;
+                    }
+                }
             }
         }
-        for (var i = 0; i < ArrivalQueue.Count; i++)
+
+        if (_pendingFocusOnNewBlank)
         {
-            if (string.Equals(ArrivalQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
+            // Newest blank = highest-index BlankStrip in the departure queue.
+            // Walk the queue tail-first so the most recently appended blank
+            // wins even when the server merged it with other items.
+            for (var i = DepartureQueue.Count - 1; i >= 0; i--)
             {
-                VisibleArrivalIndex = i;
-                _pendingFocusCallsign = null;
-                return;
+                if (DepartureQueue[i].Type == StripItemType.BlankStrip)
+                {
+                    VisibleDepartureIndex = i;
+                    _pendingFocusOnNewBlank = false;
+                    break;
+                }
             }
         }
     }
