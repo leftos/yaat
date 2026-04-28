@@ -1,9 +1,22 @@
 # Changelog
 
-## Unreleased
+## v0.1.8-alpha [2026/04/27]
+
+### Added
+- "Move All to Bay" button in the YAAT Flight Strips printer's pending queue. Sorts pending strips alphabetically by callsign and dispatches each to bay rack 0 in one click. (Unique to YAAT Flight Strips — CRC has no equivalent.)
 
 ### Fixed
 - "Configure CRC Environments" no longer reports *"CRC is not installed"* when CRC is installed but its registry entry is missing. The menu (in YAAT Client and YAAT Flight Strips) and the standalone `Setup-CrcEnvironment.ps1` script now find CRC by probing its config folder — `%LOCALAPPDATA%\CRC` on Windows, `~/Library/Application Support/CRC` on macOS, `~/.config/CRC` on Linux.
+- Inline-edit cells in YAAT Flight Strips half-strips, matching CRC. The white half of a half-strip is now a 3×2 grid of editable cells — click into any cell, type, and Tab cycles 0→5 with wrap. Annotation cells in the 3×3 annotation grid Tab-cycle 1→9 the same way. Right-clicking on these cells now shows the strip context menu instead of the system text-edit flyout.
+- Inline-edit separator labels, matching CRC. Single-click a separator's label to focus it and type a new label; click-out or Tab commits. Dragging a separator now moves it to the new rack instead of duplicating it.
+- Separator bands now render at the full 69 px strip height, matching CRC's layout. Foreground is black on handwritten/white bands and white on red/green.
+- YAAT Flight Strips now auto-joins your room mid-session, not just at connect time, matching how CRC tracks room membership. Connect Flight Strips first, then join a room later from CRC or YAAT Client, and Flight Strips picks it up automatically.
+- Bay view in YAAT Flight Strips scrolls vertically when stacked strips exceed the viewport height (previously the overflow was clipped).
+- Blank strips in the YAAT Flight Strips printer carousel can now be deleted (Delete button on each strip), matching CRC.
+- "Print Blank Strip" in YAAT Flight Strips now jumps the printer carousel to the strip that was just added, so you can immediately edit or place it without scrolling — matching CRC's behavior.
+- Adding a separator or blank strip to an empty rack in YAAT Flight Strips — via right-click "Add…" or Ctrl+Shift+S — now stacks the new item at the visual top of the rack instead of the bottom, matching CRC.
+- vStrips `HSC` command parses multi-word bay names. `HSC Ground 1/2` now correctly maps to bay "GROUND 1" rack 2, instead of being misread as bay "GROUND" with a stray "1/2" line. Bay names with spaces (e.g. "GROUND 1", "LOCAL EAST") now work consistently.
+- Portable downloads now actually run. The v0.1.7-alpha portable release was a bare single-file exe that crashed at startup because the rendering DLLs that ship alongside it weren't included in the download. Releases now ship as `*-Portable.zip` containing the full app — extract into a fresh folder and run the exe. (Linux is unaffected; the AppImage already bundles everything.)
 
 ## v0.1.7-alpha [2026/04/26]
 
