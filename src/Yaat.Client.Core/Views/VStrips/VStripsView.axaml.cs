@@ -872,6 +872,24 @@ public partial class VStripsView : UserControl
         }
         menu.Items.Add(pushMenu);
 
+        // "Push all in rack to" — bulk move every strip in this strip's
+        // rack. Hidden when the rack only holds this single strip (then
+        // "Push to" already does the same job).
+        var (_, sourceRack) = FindRackContaining(vm, strip);
+        if (sourceRack is not null && sourceRack.Strips.Count > 1)
+        {
+            var pushAllMenu = new MenuItem { Header = "Push all in rack to" };
+            foreach (var bay in vm.Bays)
+            {
+                var baySnapshot = bay;
+                var rackSnapshot = sourceRack;
+                var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
+                item.Click += async (_, _) => await PushAllInRackAsync(vm, rackSnapshot, baySnapshot);
+                pushAllMenu.Items.Add(item);
+            }
+            menu.Items.Add(pushAllMenu);
+        }
+
         menu.Items.Add(new Separator());
 
         var deleteItem = new MenuItem { Header = "Delete" };
@@ -954,7 +972,61 @@ public partial class VStripsView : UserControl
         addBlank.Click += async (_, _) => await vm.CreateBlankAsync(selectedBay, rack.RackIndex, index: null);
         menu.Items.Add(addBlank);
 
+        // "Push all to" — bulk move every strip in this rack to another
+        // bay's rack 0. Only meaningful if the rack actually has strips.
+        if (rack.Strips.Count > 0)
+        {
+            var pushAllMenu = new MenuItem { Header = "Push all to" };
+            foreach (var bay in vm.Bays)
+            {
+                var baySnapshot = bay;
+                var rackSnapshot = rack;
+                var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
+                item.Click += async (_, _) => await PushAllInRackAsync(vm, rackSnapshot, baySnapshot);
+                pushAllMenu.Items.Add(item);
+            }
+            menu.Items.Add(pushAllMenu);
+        }
+
         return menu;
+    }
+
+    /// <summary>
+    /// Walks the bay/rack tree looking for the rack that owns
+    /// <paramref name="strip"/>. Used by the "Push all in rack to" submenu so
+    /// it can identify the source rack from a right-clicked strip without
+    /// touching the visual tree. Returns (null, null) if the strip lives in
+    /// the printer queue (no rack ownership).
+    /// </summary>
+    private static (StripBayViewModel? Bay, StripRackViewModel? Rack) FindRackContaining(VStripsViewModel vm, StripItemViewModel strip)
+    {
+        foreach (var bay in vm.Bays)
+        {
+            foreach (var r in bay.Racks)
+            {
+                if (r.Strips.Contains(strip))
+                {
+                    return (bay, r);
+                }
+            }
+        }
+        return (null, null);
+    }
+
+    /// <summary>
+    /// Pushes every strip currently in <paramref name="sourceRack"/> to the
+    /// tail of rack 0 in <paramref name="destBay"/>, preserving the source's
+    /// visual order. Snapshots the rack first because each
+    /// <see cref="VStripsViewModel.MoveStripAsync"/> call mutates the
+    /// collection as the canonical command echoes back as a server broadcast.
+    /// </summary>
+    private static async Task PushAllInRackAsync(VStripsViewModel vm, StripRackViewModel sourceRack, StripBayViewModel destBay)
+    {
+        var snapshot = sourceRack.Strips.ToArray();
+        foreach (var strip in snapshot)
+        {
+            await vm.MoveStripAsync(strip, destBay, rack: 0, index: null);
+        }
     }
 
     /// <summary>

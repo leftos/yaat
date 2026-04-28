@@ -150,6 +150,150 @@ public class VStripsViewInteractionTests
     }
 
     [AvaloniaFact]
+    public void StripContextMenu_RackWithMultipleStrips_HasPushAllInRackToBays()
+    {
+        // Right-click on a strip whose rack holds more than one strip exposes a
+        // "Push all in rack to" submenu with one item per bay. Hidden when the
+        // rack has only one strip (then "Push to" already does the same job).
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1", "S2", "S3"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["S1"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var headers = ExtractHeaders(menu);
+
+        Assert.Contains("Push all in rack to", headers);
+        var pushAll = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all in rack to");
+        var targets = pushAll.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
+        Assert.Equal(2, targets.Count);
+        Assert.Contains("GROUND", targets);
+        Assert.Contains("LOCAL", targets);
+    }
+
+    [AvaloniaFact]
+    public void StripContextMenu_RackWithSingleStrip_HidesPushAllInRack()
+    {
+        // With only one strip in the rack, "Push all in rack to" is redundant
+        // with "Push to" and is suppressed.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["S1"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var headers = ExtractHeaders(menu);
+
+        Assert.DoesNotContain("Push all in rack to", headers);
+    }
+
+    [AvaloniaFact]
+    public async Task StripContextMenu_PushAllInRack_EmitsOneStripCommandPerStrip()
+    {
+        // Clicking "Push all in rack to LOCAL" with three strips in rack 0 of
+        // bay-gnd emits three STRIP canonicals — one per strip — in the
+        // source's visual-bottom-to-top order so the destination preserves
+        // the same order at its visual bottom.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1", "S2", "S3"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["S1"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var pushAll = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all in rack to");
+        var localItem = pushAll.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "LOCAL");
+
+        // Click handlers are async void Click handlers; await the underlying
+        // PushAllInRackAsync indirectly by invoking the same path the click
+        // would invoke. We simulate the click via Click handlers RaiseEvent —
+        // that fires the registered async lambda, which we then drain.
+        localItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        for (var i = 0; i < 4 && captured.Count < 3; i++)
+        {
+            await Task.Yield();
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Assert.Equal(3, captured.Count);
+        Assert.All(captured, c => Assert.StartsWith("STRIP LOCAL", c.Command));
+        Assert.Equal(["S1", "S2", "S3"], captured.Select(c => c.Callsign).ToArray());
+    }
+
+    [AvaloniaFact]
+    public void EmptyRackContextMenu_RackWithStrips_HasPushAllToBays()
+    {
+        // Right-click on rack space below populated strips exposes "Push all
+        // to" with one item per bay. Behavior matches the strip context menu.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1", "S2"],
+                [],
+            ]
+        );
+        var (_, _) = BootView(vm);
+
+        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        Assert.NotNull(menu);
+        var headers = ExtractHeaders(menu!);
+
+        Assert.Contains("Push all to", headers);
+        var pushAll = menu!.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all to");
+        var targets = pushAll.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
+        Assert.Equal(2, targets.Count);
+        Assert.Contains("GROUND", targets);
+        Assert.Contains("LOCAL", targets);
+    }
+
+    [AvaloniaFact]
+    public void EmptyRackContextMenu_EmptyRack_HidesPushAllTo()
+    {
+        // No strips in the rack → no "Push all to" submenu.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, _) = BootView(vm);
+
+        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        Assert.NotNull(menu);
+        var headers = ExtractHeaders(menu!);
+
+        Assert.DoesNotContain("Push all to", headers);
+    }
+
+    [AvaloniaFact]
     public void EmptyRackContextMenu_Unlocked_OffersAllSeparatorStyles()
     {
         // Right-click on empty rack space in an unlocked facility exposes Add
