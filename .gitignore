@@ -49,3 +49,6 @@ reference/
 
 ## VS Code workspace settings
 yaat.code-workspace
+
+## Debug Logs
+debug.log
