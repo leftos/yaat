@@ -33,11 +33,12 @@ Excluded per scope rule (verbal-only, no sim state): frequency/handoff verbs, pu
 
 **`EXIT` queues without airborne/runway check.** `GroundCommandHandler.TryExitCommand` (`GroundCommandHandler.cs:1062`) sets `aircraft.Phases.RequestedExit = preference` with no validation. If a controller issues `EXIT K` during cruise, the value is silently stored and only consumed when the aircraft eventually reaches `LandingPhase` or `RunwayExitPhase`. Recommended: reject `EXIT` unless `LandingPhase` or `RunwayExitPhase` is current or pending in the phase list.
 
-**Verb-existing-but-behavior-questionable that turn out fine.** Three prior-session concerns are invalidated by fresh reads:
+**Verb-existing-but-behavior-questionable that turn out fine.** Two prior-session concerns are invalidated by fresh reads:
 
 - `GIVEWAY` semantics. `GroundCommandHandler.TryGiveWay` (`GroundCommandHandler.cs:836`) holds the aircraft (`IsHeld = true; GiveWayTarget = X`) until the target passes. `CommandDispatcher` routes both standalone `GiveWayCommand` (`CommandDispatcher.cs:1126`) and conditional dispatch (`CommandDispatcher.cs:1458`). Both forms work; the prior-session "only fires inside LV/AT" claim was wrong.
 - `RWY` validates runway existence. `GroundCommandHandler.TryAssignRunway` (`GroundCommandHandler.cs:689`) calls `CommandDispatcher.ResolveRunway` and rejects unknown designators ("Unknown runway X").
-- `CrossingRunwayPhase.OnEnd` clears speed targets. Line 116 implements `OnEnd`; line 122 zeros `IndicatedAirspeed` and `TargetSpeed` on completion.
+
+**`CrossingRunwayPhase.OnEnd` exists but kills momentum unnecessarily.** The original plan claim "lacks OnEnd clear" was wrong — `CrossingRunwayPhase.cs:116-125` implements `OnEnd` and zeros `IndicatedAirspeed` + `TargetSpeed` on `Completed`. But the implementation itself is buggy in the common path: `TaxiingPhase.cs:341` (BuildResumePhases) inserts a fresh `TaxiingPhase` after the crossing for routes that aren't done. Zeroing IAS to 0 forces a hard stop the aircraft then has to recover from. Real-world: aircraft cross runways at ~10 kts and continue smoothly into taxi. Fix: only zero when the next phase requires zero speed (HoldingShort/HoldingInPosition/AtParking) — not when TaxiingPhase will continue movement.
 
 ## 4. Tower commands — completeness
 
@@ -84,6 +85,7 @@ Under the scope rule, no behavioral completeness gaps surfaced. All controller-i
 - `ReplaceApproachEnding` silent no-op when no approach pending: return failure (`PatternCommandHandler.cs:799/818/837/856`).
 - CTO runway-route consistency check from `Taxiing` (assigned runway must match taxi route's destination).
 - `HOLD POSITION` phase-specific feedback message (`GroundCommandHandler.cs:703`).
+- `CrossingRunwayPhase.OnEnd` should not zero IAS/TargetSpeed when next phase is `TaxiingPhase` (`CrossingRunwayPhase.cs:122`).
 
 **P2 — fidelity polish.**
 - Aircraft-category-driven simple-pushback distance (`PushbackPhase.cs:20`).
@@ -96,7 +98,7 @@ Under the scope rule, no behavioral completeness gaps surfaced. All controller-i
 - ~~CTO must require LinedUpAndWaitingPhase~~ — over-restrictive vs 7110.65 §3-9-10.a Note.
 - ~~`GIVEWAY` only fires inside LV/AT~~ — standalone form works (`GroundCommandHandler.cs:836`, `CommandDispatcher.cs:1126`).
 - ~~`RWY` does not validate~~ — it does (`GroundCommandHandler.cs:689`).
-- ~~`CrossingRunwayPhase` lacks `OnEnd` clear~~ — it has one (`CrossingRunwayPhase.cs:116-125`).
+- ~~`CrossingRunwayPhase` lacks `OnEnd` clear~~ — it has one (`CrossingRunwayPhase.cs:116-125`), **but** the implementation kills momentum into a continuing TaxiingPhase. Promoted to a separate P1 fix (see §3 "kills momentum unnecessarily").
 - ~~`CTOC` doesn't actually abort mid-roll~~ — it does (`DepartureClearanceHandler.cs:1063-1071`).
 - ~~`GoAround` post-flare unsafe~~ — gated by `_canGoAround` keyed to `RejectedLandingMinSpeed` (`LandingPhase.cs:604`, `:933-959`).
 - ~~Single rotation speed per category~~ — Vr is type-aware (`AircraftPerformance.cs:253`).
