@@ -742,8 +742,12 @@ public class GroundPhaseTests
     [Fact]
     public void SimplePushbackDistance_LargerJet_PushesFartherThanLightSingle()
     {
-        // Hardcoded 0.015 nm (~91 ft) was barely enough to clear a B738's
-        // ~110-ft length. Now scales with type.
+        // Needs FaaAircraftDatabase + WakeTurbulenceData populated; otherwise every
+        // type falls back to the 0.015 nm baseline and the test sees no spread.
+        // xUnit runs collections in parallel, so we can't rely on another class
+        // having initialized first.
+        TestVnasData.EnsureInitialized();
+
         double b738 = CategoryPerformance.SimplePushbackDistanceNm("B738");
         double c172 = CategoryPerformance.SimplePushbackDistanceNm("C172");
         double a388 = CategoryPerformance.SimplePushbackDistanceNm("A388");
