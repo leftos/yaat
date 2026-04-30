@@ -1,4 +1,4 @@
-﻿namespace Yaat.Sim.Tests.Simulation;
+namespace Yaat.Sim.Tests.Simulation;
 
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -18,7 +18,7 @@ using Yaat.Sim.Tests.Helpers;
 /// </summary>
 public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/af532381c459.zip";
+    private const string RecordingPath = "TestData/5d33df162626.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

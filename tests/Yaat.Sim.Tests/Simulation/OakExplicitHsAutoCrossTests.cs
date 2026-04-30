@@ -23,7 +23,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class OakExplicitHsAutoCrossTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-explicit-hs-autocross-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/66fd6538542e.zip";
     private const string Callsign = "N7LJ";
     private const int SpawnDelaySeconds = 1060;
 

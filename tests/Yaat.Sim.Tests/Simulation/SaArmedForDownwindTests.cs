@@ -24,7 +24,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class SaArmedForDownwindTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/sa-armed-for-downwind-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/66fd6538542e.zip";
     private const string Callsign = "N805FM";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

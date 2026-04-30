@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -96,7 +96,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     [Fact]
     public void Recording_N805FM_R360_Succeeds()
     {
-        var recording = RecordingLoader.Load("TestData/r360-no-phases-recording.zip");
+        var recording = RecordingLoader.Load("TestData/f8e389804194.zip");
         var engine = BuildEngine();
         if (recording is null || engine is null)
         {

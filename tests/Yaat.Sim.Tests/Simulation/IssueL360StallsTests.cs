@@ -23,7 +23,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueL360StallsTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue-l360-stalls-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/66fd6538542e.zip";
     private const int L360DispatchTime = 1616;
     private const string Callsign = "N44444";
 

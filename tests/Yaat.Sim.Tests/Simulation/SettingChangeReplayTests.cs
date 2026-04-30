@@ -25,7 +25,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     [Fact]
     public void S2Oak4Bundle_AutoClearedToLandAndAutoCrossRunway_ApplyDuringReplay()
     {
-        const string bundlePath = "TestData/issue143-oak-erd-compound-and-ga-direction-recording.yaat-bug-report-bundle.zip";
+        const string bundlePath = "TestData/66fd6538542e.zip";
         var recording = RecordingLoader.Load(bundlePath);
         if (recording is null)
         {
@@ -63,7 +63,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     [Fact]
     public void AllFourSettingTypes_RoundTripThroughReplay()
     {
-        const string bundlePath = "TestData/issue143-oak-erd-compound-and-ga-direction-recording.yaat-bug-report-bundle.zip";
+        const string bundlePath = "TestData/66fd6538542e.zip";
         var baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
@@ -122,7 +122,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     [InlineData("-5", -1)] // anything negative → -1
     public void AutoAcceptDelay_ParsesAndClamps(string value, int expectedSeconds)
     {
-        const string bundlePath = "TestData/issue143-oak-erd-compound-and-ga-direction-recording.yaat-bug-report-bundle.zip";
+        const string bundlePath = "TestData/66fd6538542e.zip";
         var baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
@@ -164,7 +164,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     [InlineData("AfterTouchdown", "AfterTouchdown")]
     public void AutoDeleteMode_NullOrEmptyClearsOverride(string? value, string? expected)
     {
-        const string bundlePath = "TestData/issue143-oak-erd-compound-and-ga-direction-recording.yaat-bug-report-bundle.zip";
+        const string bundlePath = "TestData/66fd6538542e.zip";
         var baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {

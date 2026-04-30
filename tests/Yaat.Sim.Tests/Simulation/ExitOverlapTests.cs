@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -16,7 +16,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ExitOverlapTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue-exit-overlap-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/5d33df162626.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ElTHighSpeedExitTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/el-t-high-speed-exit-recording.zip";
+    private const string RecordingPath = "TestData/e55edd55bed7.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

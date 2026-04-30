@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -14,7 +14,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class TaxiAirborneRejectionTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/taxi-airborne-recording.zip";
+    private const string RecordingPath = "TestData/f8e389804194.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

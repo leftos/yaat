@@ -31,7 +31,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue143-oak-erd-compound-and-ga-direction-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/66fd6538542e.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

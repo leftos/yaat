@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/s2-oak-4-go-around-intent-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/66fd6538542e.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

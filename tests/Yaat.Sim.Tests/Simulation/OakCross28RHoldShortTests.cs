@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class OakCross28RHoldShortTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-cross-28r-recording.yaat-recording.zip";
+    private const string RecordingPath = "TestData/921b8c537a44.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

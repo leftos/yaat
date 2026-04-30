@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class HoldShortPositionTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/09304e0c727e.zip";
+    private const string RecordingPath = "TestData/e55edd55bed7.zip";
     private const double DefaultAircraftLengthFt = 60.0;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

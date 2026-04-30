@@ -20,7 +20,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class N2bpPatternDescentTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n2bp-pattern-descent-recording.zip";
+    private const string RecordingPath = "TestData/921b8c537a44.zip";
 
     private SimulationEngine? BuildEngine()
     {

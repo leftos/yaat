@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -17,7 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class CvaPatternEntryVeerTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/cva-pattern-entry-veer-recording.zip";
+    private const string RecordingPath = "TestData/921b8c537a44.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
