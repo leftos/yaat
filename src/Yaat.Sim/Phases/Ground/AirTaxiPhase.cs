@@ -5,7 +5,7 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
-/// Helicopter air taxi: lifts to AirTaxiAltitudeAgl (50ft AGL), flies direct
+/// Helicopter air taxi: lifts to AirTaxiAltitudeAgl (100ft AGL), flies direct
 /// to destination at AirTaxiSpeed, then hovers over destination.
 /// Per FAA 7110.65 §3-11-1.c: below 100ft AGL, above 20 KIAS.
 /// </summary>

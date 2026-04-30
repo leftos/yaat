@@ -885,26 +885,26 @@ internal static class GroundCommandHandler
 
         if (destination is null)
         {
-            return new CommandResult(false, "ATXI requires a destination (helipad, parking, or spot name)");
+            return new CommandResult(false, "ATXI requires a destination (helipad, parking, taxiway spot, or runway)");
         }
 
-        // Resolve destination to coordinates
         if (groundLayout is null)
         {
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        var spot = groundLayout.FindSpotByName(destination);
-        if (spot is null)
+        if (!TryResolveAirTaxiDestination(groundLayout, destination, out double destLat, out double destLon))
         {
-            return new CommandResult(false, $"Cannot find spot '{destination}' in airport layout");
+            return new CommandResult(
+                false,
+                $"Cannot find destination '{destination}' in airport layout (expected helipad, parking, taxiway spot, or runway)"
+            );
         }
 
-        double destLat = spot.Position.Lat;
-        double destLon = spot.Position.Lon;
         string resolvedName = destination.ToUpperInvariant();
 
-        // Clear current phases and start air taxi
+        // Clear current phases and chain air-taxi → land → at-parking so the heli
+        // lifts off, cruises to the destination, descends, and stops on the spot.
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (aircraft.Phases is not null)
         {
@@ -914,10 +914,49 @@ internal static class GroundCommandHandler
         aircraft.Ground.IsHeld = false;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
+        aircraft.Phases.Add(new HelicopterLandingPhase());
+        aircraft.Phases.Add(new AtParkingPhase());
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
+        aircraft.Ground.ParkingSpot = resolvedName;
+
         return CommandDispatcher.Ok($"Air taxi to {resolvedName}");
+    }
+
+    /// <summary>
+    /// Resolve an ATXI destination to a (lat, lon) by trying, in order:
+    ///   1. <see cref="AirportGroundLayout.FindSpotByName"/> (helipad, parking, spot node)
+    ///   2. <see cref="AirportGroundLayout.FindRunway"/> matched on either end designator,
+    ///      using the threshold of the requested end as the target point.
+    /// Returns false if neither lookup matches.
+    /// </summary>
+    private static bool TryResolveAirTaxiDestination(AirportGroundLayout layout, string destination, out double lat, out double lon)
+    {
+        var spot = layout.FindSpotByName(destination);
+        if (spot is not null)
+        {
+            lat = spot.Position.Lat;
+            lon = spot.Position.Lon;
+            return true;
+        }
+
+        var runway = layout.FindRunway(destination);
+        if (runway is not null && runway.Coordinates.Count >= 2)
+        {
+            // GroundRunway.Coordinates run from the first-named end to the second.
+            // Target the threshold of whichever end the controller named.
+            string[] ends = runway.Name.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            bool isFirstEnd = ends.Length == 2 && ends[0].Equals(destination, StringComparison.OrdinalIgnoreCase);
+            var threshold = isFirstEnd ? runway.Coordinates[0] : runway.Coordinates[^1];
+            lat = threshold.Lat;
+            lon = threshold.Lon;
+            return true;
+        }
+
+        lat = 0;
+        lon = 0;
+        return false;
     }
 
     internal static CommandResult TryLand(AircraftState aircraft, LandCommand land, AirportGroundLayout? groundLayout)

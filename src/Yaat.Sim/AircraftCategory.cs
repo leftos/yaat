@@ -816,6 +816,6 @@ public static class CategoryPerformance
     public static double AirTaxiAltitudeAgl(AircraftCategory cat)
     {
         _ = cat;
-        return 50;
+        return 100;
     }
 }

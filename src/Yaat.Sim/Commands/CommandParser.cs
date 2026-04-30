@@ -642,7 +642,7 @@ public static class CommandParser
             HoldAtFixRight => ParseHoldAtFix(arg, TurnDirection.Right),
             HoldAtFixHover => ParseHoldAtFixHover(arg),
             // Helicopter
-            AirTaxi => PR.Ok(new AirTaxiCommand(arg?.Trim().ToUpperInvariant())),
+            AirTaxi => PR.Ok(new AirTaxiCommand(NormalizeAirTaxiDestination(arg))),
             Land when arg is not null => PR.Ok(ParseLand(arg)),
             ClearedTakeoffPresent when arg is null => PR.Ok(new ClearedTakeoffPresentCommand()),
             // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
@@ -1512,6 +1512,27 @@ public static class CommandParser
         }
 
         return new LandCommand(raw.ToUpperInvariant(), noDelete, IsTaxiway: true);
+    }
+
+    /// <summary>
+    /// Normalize an ATXI destination argument: trim, uppercase, and strip a
+    /// leading '@' (parking/helipad sigil) or '$' (taxiway-spot sigil) so the
+    /// handler can do a single name lookup against helipad/parking/spot/runway.
+    /// </summary>
+    private static string? NormalizeAirTaxiDestination(string? arg)
+    {
+        if (arg is null)
+        {
+            return null;
+        }
+
+        var trimmed = arg.Trim();
+        if (trimmed.Length > 1 && (trimmed[0] == '@' || trimmed[0] == '$'))
+        {
+            trimmed = trimmed[1..];
+        }
+
+        return trimmed.ToUpperInvariant();
     }
 
     private static PR ParseFollowAirborne(string? arg)

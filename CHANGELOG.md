@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `ATXI` (helicopter air-taxi) now accepts every controller-natural destination form: parking spots and helipads with or without `@` (`ATXI @FDX1`, `ATXI HELI`), taxiway spots with or without `$` (`ATXI $7A`, `ATXI 7A`), and runway designators (`ATXI 28R` — targets the threshold of the named end). Previously, anything with a `@`/`$` sigil was passed through to the spot lookup verbatim and missed, and runways weren't searched at all.
+- `ATXI` now lands the helicopter on the destination instead of leaving it in a permanent hover. The command queues `AirTaxi → HelicopterLanding → AtParking` (the same chain `LAND` already uses), so the heli lifts off, cruises, descends, and stops on the spot in one command.
+- Helicopter air-taxi cruise altitude raised from 50 to 100 ft AGL — still inside the FAA 7110.65 §3-11-1.c "below 100 ft AGL" envelope, but with more clearance from ground vehicles and obstacles.
+
+### Fixed
+- Helicopter `LAND` no longer overshoots the destination by ~150 ft, then drifts forward another ~700 ft during the descent. The `AirTaxi` phase now decelerates smoothly as it approaches the spot (was: cruised at 40 KIAS until within 0.05 nm, then braked too late and coasted past), and the landing descent now holds horizontal position instead of bleeding altitude into forward motion (the heli previously accelerated to ~40 kt while dropping the last 50 ft). Helicopters now touch down within ~30 ft of the named spot.
+
 ## v0.1.9-alpha [2026/04/30]
 
 ### Added
