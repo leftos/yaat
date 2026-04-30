@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## v0.1.9-alpha [2026/04/30]
 
 ### Added
 - "Push all in rack to {bay}" / "Push all to {bay}" right-click options in YAAT Flight Strips. Right-click on a strip in a rack with multiple strips, or on empty rack space, to bulk-move every strip (or separator/blank) in that rack to another bay's rack 0 in one click — order preserved.
