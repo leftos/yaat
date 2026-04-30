@@ -876,4 +876,34 @@ public class GroundPhaseTests
         Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
         Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
     }
+
+    // -------------------------------------------------------------------------
+    // CrossingRunwayPhase OnEnd must preserve momentum for following TaxiingPhase
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CrossingRunwayPhase_OnEnd_Completed_PreservesMomentumForFollowingTaxi()
+    {
+        // After a runway crossing, the typical next phase is TaxiingPhase
+        // (BuildResumePhases at TaxiingPhase.cs:341). Real-world: aircraft
+        // cross runways at ~10 kts and continue into taxi without stopping.
+        // OnEnd must NOT zero IndicatedAirspeed, or the aircraft loses its
+        // crossing momentum and has to re-accelerate from zero.
+        var aircraft = MakeGroundAircraft();
+        aircraft.IndicatedAirspeed = 10; // mid-crossing speed
+        var phase = new CrossingRunwayPhase(approachNodeId: 1, targetNodeId: 2);
+
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnEnd(ctx, PhaseStatus.Completed);
+
+        Assert.Equal(10, aircraft.IndicatedAirspeed);
+    }
 }

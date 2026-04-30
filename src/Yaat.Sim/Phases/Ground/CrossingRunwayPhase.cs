@@ -116,12 +116,11 @@ public sealed class CrossingRunwayPhase : Phase
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
         Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
-
-        if (endStatus == PhaseStatus.Completed)
-        {
-            ctx.Aircraft.IndicatedAirspeed = 0;
-            ctx.Targets.TargetSpeed = 0;
-        }
+        // Speed targets are owned by the next phase. The typical successor is
+        // TaxiingPhase (TaxiingPhase.cs BuildResumePhases) — zeroing IAS here
+        // would force a stop the aircraft has to re-accelerate from. If the
+        // route ends after the crossing, the inserted HoldingInPositionPhase
+        // / AtParkingPhase will brake to zero on its own.
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
