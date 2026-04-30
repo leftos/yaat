@@ -1081,7 +1081,18 @@ internal static class DepartureClearanceHandler
         }
         if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
         {
-            // Abort takeoff during ground roll
+            // Abort takeoff during ground roll. Past V1 (≈ Vr - 5 kts) the
+            // aircraft is committed — stopping on remaining runway is no
+            // longer guaranteed, so reject the abort and let the takeoff
+            // continue. The controller has to issue a different instruction
+            // (heading/altitude override post-rotation) instead.
+            var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+            double v1 = AircraftPerformance.DecisionSpeed(aircraft.AircraftType, cat);
+            if (aircraft.IndicatedAirspeed >= v1)
+            {
+                return new CommandResult(false, $"Past V1 ({v1:F0} kts) — committed to takeoff, cannot abort");
+            }
+
             var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases?.Clear(ctx);
             aircraft.Phases = null;

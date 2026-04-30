@@ -256,6 +256,16 @@ public static class AircraftPerformance
         return p is not null ? p.RotateSpeed : CategoryPerformance.RotationSpeed(cat);
     }
 
+    /// <summary>
+    /// Decision speed (V1) — past V1, an aborted takeoff is no longer
+    /// guaranteed to stop on remaining runway, so a takeoff is "go" instead.
+    /// Approximated as Vr − 5 kts per FAA expert anchored to 14 CFR Part 25.
+    /// </summary>
+    public static double DecisionSpeed(string aircraftType, AircraftCategory cat)
+    {
+        return Math.Max(0, RotationSpeed(aircraftType, cat) - 5);
+    }
+
     public static double InitialClimbSpeed(string aircraftType, AircraftCategory cat)
     {
         var p = AircraftProfileDatabase.Get(aircraftType);

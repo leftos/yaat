@@ -983,7 +983,7 @@ public class DepartureClearanceHandlerTests
         // It does both: TakeoffPhase + IsOnGround branch clears phases and zeros TargetSpeed.
         var ac = MakeAircraft();
         ac.IsOnGround = true;
-        ac.IndicatedAirspeed = 80; // mid-roll
+        ac.IndicatedAirspeed = 80; // mid-roll, well below V1
         var takeoff = new TakeoffPhase();
         ac.Phases!.Add(takeoff);
         ac.Phases.Start(MinCtx(ac));
@@ -994,5 +994,28 @@ public class DepartureClearanceHandlerTests
         Assert.Contains("Abort takeoff", result.Message!);
         Assert.Null(ac.Phases);
         Assert.Equal(0, ac.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_PastV1_RejectsAbort()
+    {
+        // Past V1 (≈ Vr - 5 kts) the aircraft is committed to takeoff —
+        // stopping on remaining runway is no longer guaranteed. CTOC should
+        // reject and the takeoff roll continues.
+        var ac = MakeAircraft();
+        ac.IsOnGround = true;
+        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+        double v1 = AircraftPerformance.DecisionSpeed(ac.AircraftType, cat);
+        ac.IndicatedAirspeed = v1 + 5; // past V1
+        var takeoff = new TakeoffPhase();
+        ac.Phases!.Add(takeoff);
+        ac.Phases.Start(MinCtx(ac));
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff);
+
+        Assert.False(result.Success);
+        Assert.Contains("Past V1", result.Message!);
+        // Phases preserved — takeoff continues.
+        Assert.NotNull(ac.Phases);
     }
 }

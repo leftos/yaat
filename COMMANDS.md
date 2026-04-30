@@ -518,7 +518,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO MRT 28R` | Cleared for takeoff, make right traffic runway 28R (cross-runway pattern) |
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) |
 | `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) |
-| `CTOC` | Cancel takeoff clearance |
+| `CTOC` | Cancel takeoff clearance. Mid-roll abort works below V1 (≈ Vr − 5 kts); above V1 the aircraft is committed and CTOC is rejected. |
 | `CLAND` / `CL` / `FS` | Cleared to land (full stop). Requires airborne aircraft with an assigned runway; rejected with feedback otherwise. |
 | `CLAND NODEL` | Cleared to land (exempt from auto-delete after landing) |
 | `LAHSO 33` | Cleared to land, hold short of runway 33 (LAHSO). Includes landing clearance. Aircraft stops before the intersecting runway and waits for a taxi/cross command. |
