@@ -1066,6 +1066,24 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
+        // Require a landing or runway-exit context. EXIT during cruise/enroute
+        // would silently store the preference for a landing that may never
+        // happen. Real ATC issues EL/ER on short final or during rollout.
+        bool hasLandingOrExit = false;
+        foreach (var phase in aircraft.Phases.Phases)
+        {
+            if (phase is LandingPhase or HelicopterLandingPhase or RunwayExitPhase && phase.Status is PhaseStatus.Pending or PhaseStatus.Active)
+            {
+                hasLandingOrExit = true;
+                break;
+            }
+        }
+
+        if (!hasLandingOrExit)
+        {
+            return new CommandResult(false, "Exit requires a pending landing or active runway exit");
+        }
+
         aircraft.Phases.RequestedExit = preference;
         if (noDelete)
         {

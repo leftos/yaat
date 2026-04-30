@@ -1032,4 +1032,56 @@ public class GroundCommandHandlerTests
         Assert.False(result.Success);
         Assert.Contains("on the ground", result.Message!);
     }
+
+    // -------------------------------------------------------------------------
+    // TryExitCommand — landing/exit phase gate
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryExitCommand_NoLandingOrExitPhase_Fails()
+    {
+        // Silent-failure case: EXIT issued during cruise/enroute used to silently
+        // store RequestedExit for a landing that may never happen. Now requires a
+        // pending or active LandingPhase / HelicopterLandingPhase / RunwayExitPhase.
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = false;
+        ac.Phases = new PhaseList();
+
+        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Right }, noDelete: false);
+
+        Assert.False(result.Success);
+        Assert.Null(ac.Phases.RequestedExit);
+    }
+
+    [Fact]
+    public void TryExitCommand_PendingLandingPhase_Succeeds()
+    {
+        // ER/EL is normally issued on short final, before LandingPhase becomes
+        // active — the LandingPhase is pending in the list. Recording-based
+        // tests (ExitRightTaxiwaySelectionTests) exercise this path.
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = false;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new LandingPhase());
+
+        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Right, Taxiway = "D" }, noDelete: false);
+
+        Assert.True(result.Success);
+        Assert.NotNull(ac.Phases.RequestedExit);
+        Assert.Equal("D", ac.Phases.RequestedExit.Taxiway);
+    }
+
+    [Fact]
+    public void TryExitCommand_ActiveRunwayExitPhase_Succeeds()
+    {
+        // Updating exit preference mid-rollout should still work.
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new RunwayExitPhase());
+
+        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Left }, noDelete: false);
+
+        Assert.True(result.Success);
+        Assert.Equal(ExitSide.Left, ac.Phases.RequestedExit?.Side);
+    }
 }

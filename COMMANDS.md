@@ -530,9 +530,9 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft (overrides published missed approach) |
 | `GA RH` | Go around, fly runway heading explicitly (same behavior as plain `GA`) |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft (overrides published missed approach) |
-| `EL` / `EXITL` | Exit runway to the left |
-| `ER` / `EXITR` | Exit runway to the right |
-| `EXIT A3` | Exit runway at taxiway A3 |
+| `EL` / `EXITL` | Exit runway to the left. Requires a pending landing or active runway exit; rejected with feedback otherwise. |
+| `ER` / `EXITR` | Exit runway to the right. Same precondition as `EL`. |
+| `EXIT A3` | Exit runway at taxiway A3. Same precondition as `EL`. |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
 
 When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a higher rollout speed and only decelerates when kinematically necessary to reach the exit at the correct turn-off speed. High-speed exits (≤45° from runway heading) target ~30 kts; standard 90° exits target ~15 kts. Without an assigned exit, aircraft decelerate uniformly to 20 kts.
