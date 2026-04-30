@@ -16,6 +16,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Aircraft List](#aircraft-list)
   - [Ground View](#ground-view)
   - [Radar View](#radar-view)
+  - [Flight Strips](#flight-strips)
   - [Flight Plan Editor](#flight-plan-editor)
   - [Copying View Settings](#copying-view-settings)
 - [Scenarios and Weather](#scenarios-and-weather)
@@ -308,6 +309,146 @@ Video maps load automatically from the vNAS data API based on your [ARTCC](#glos
 **Per-scenario persistence** — Radar view settings (maps, center, zoom, range rings, PTL, brightness, lock) are saved independently for each scenario.
 
 When weather is loaded, wind and altimeter are displayed in the top-left corner in STARS green.
+
+### Flight Strips
+
+The **Strips** tab is a YAAT-side reimplementation of CRC's vStrips. It renders the same flight-strip bays, racks, drag/drop, and keyboard shortcuts a real vStrips client would, so an instructor can push, annotate, and manage strips without students needing CRC's vStrips open.
+
+Strip state is owned by the server and broadcast to every client in the room — including any real CRC + vStrips clients connected to the same room. Mutations from CRC, the embedded tab, and the standalone [Yaat.VStrips](tools/Yaat.VStrips/README.md) app all converge on the same authoritative state.
+
+> A standalone build of this same view ships separately as **YAAT Flight Strips** (`YaatVStrips-*`). It connects to a YAAT server in the same way and is intended for trainees who want a vStrips-equivalent without installing the full trainer. See [tools/Yaat.VStrips/USER_GUIDE.md](tools/Yaat.VStrips/USER_GUIDE.md).
+
+#### Opening the tab
+
+The Strips tab appears next to Aircraft List / Ground View / Radar View as soon as the server tells the client which strip bays the student position can access. There is one **student entry** for the position you connected as, plus optional extra entries for any other facility your position can see (commonly an ATCT and its parent TRACON).
+
+- **View → Strips → New Strips Tab…** opens a picker of accessible facilities and adds a new tab. Useful when you control a tower position and want both the local and TRACON bays visible at once.
+- **View → Strips → Pop Out Strips (X)** detaches the tab into its own window. The student entry can be popped out and re-docked but not closed. Non-student entries also get a **Close Strips (X)** action.
+- Each tab is titled `Strips (FacilityName)` so multiple strip tabs/windows can be told apart at a glance.
+
+#### Header bar
+
+Across the top of every strip view:
+
+- **Facility button** (leftmost) — shows the current facility name. Click to switch this view to another accessible facility in place. Equivalent to CRC's leftmost facility indicator.
+- **Bay buttons** — one per bay accessible from the position. **Own** bays render filled in neutral grey; **external** bays (linked from a sibling facility, e.g. a tower's parent TRACON) render with a thin outlined style and an **↗** suffix in context menus.
+- **Zoom controls** (− / % / +) — scales the racks area without affecting the header. Range 50%–150% in 10% steps; default 80% fits two racks comfortably on a 1080p screen.
+- **Trash zone** — drop a strip on the red bin to delete it.
+- **Printer** toggle — opens the printer modal (see below). Bound to **Tab** as well.
+
+#### Bays and racks
+
+Selecting a bay button shows that bay's racks side by side. Each rack is a fixed-width column and renders strips **bottom-up FIFO** — the newest strip lands at the visual bottom and older strips stack upward. Bays scroll horizontally if they overflow the window.
+
+Bay layout (number of racks per bay, which bays are own vs external, whether separators are locked, whether arrivals get a separate printer) comes from the ARTCC config. There is no client-side override.
+
+#### Strip types
+
+| Type | What it is |
+|------|------------|
+| **Departure strip** | Full-width strip printed from a filed IFR departure flight plan. 18 field slots including a 3×3 annotation grid (boxes 10–18). Auto-printed on aircraft spawn — see [Auto-printing](#auto-printing). |
+| **Arrival strip** | Full-width strip auto-printed when an airborne aircraft is within 20 minutes of destination. Same layout as departures. Only rendered if the position's ARTCC config enables arrival strips. |
+| **Half-strip** | Compact freeform note up to 6 lines, occupying either the left or right side of a rack slot. Created via the rack right-click menu, the `HSC` command, or **Ctrl+Shift+H**. |
+| **Separator** | Thin colored divider (handwritten / white / red / green) with optional freeform label. Locked facilities allow handwritten only. |
+| **Blank strip** | Empty placeholder for manual annotation. Created from the printer modal or the rack right-click menu. |
+
+#### Working with strips
+
+**Selecting:** click a strip to select it; **Esc** deselects. Plain arrow keys move selection between adjacent strips; **Ctrl+arrows** move the selected strip itself.
+
+**Drag-drop:**
+- Drag any strip onto another rack (same bay or another bay's button in the header) to move it.
+- Drag onto the **trash zone** in the header to delete.
+- A drop preview shows where the strip will land. Drops on rack padding or empty space below the last strip resolve to the rack's tail.
+
+**Right-click on a strip** — opens a context menu:
+- **Offset / Un-offset** — shifts the strip horizontally so the callsign column stays visible above the next rack
+- **Slide** (half-strip only) — toggles between left/right half-strip
+- **Edit lines** (half-strip only) — opens the inline editor with lines joined by ` / `
+- **Edit label** (separator only) — opens the inline editor for the separator's label
+- **Push to {bay}** — append to rack 1 of the chosen bay (external bays show **↗**)
+- **Push all in rack to {bay}** — bulk move every strip in the source rack
+- **Delete**
+
+**Right-click on empty rack space** — opens a creation menu:
+- **Add half-strip**
+- **Add separator** (with handwritten / white / red / green submenu, or only handwritten if separators are locked for the position)
+- **Add blank strip**
+- **Push all to {bay}** — when the rack already has strips
+
+**Editing annotations on a full strip:**
+- Click any of the nine annotation cells (boxes 10–18) to open an inline editor
+- **Tab / Shift+Tab** moves to the next / previous annotation cell
+- Typing **`?`** substitutes a checkmark **✓** live; the server normalizes any `?` on `AN` commands the same way
+- **Esc** cancels without committing
+
+#### Printer modal
+
+The printer modal is a centered overlay reachable via the **Printer** toggle, **Tab**, or **Esc** (when nothing is selected). The racks stay visible behind the modal, so dropping a strip from the printer onto a rack updates immediately without dismissing the modal.
+
+- **Request Strip** — type a callsign and click to ask the server to print that aircraft's strip
+- **Print Blank Strip** — adds a blank to the printer queue
+- **Departure printer carousel** — ❮ ❯ arrows step through queued strips, **N/M** counter shows position
+  - **Move to Bay** — opens a bay picker for the visible strip
+  - **Move All to Bay** — bulk-moves the entire queue
+  - **Delete** — discards the visible strip
+- **Arrival printer carousel** — only present when the ARTCC config enables separate arrival/departure printers (`EnableSeparateArrDepPrinters`); otherwise arrivals share the departure queue.
+
+#### Auto-printing
+
+Strip printing is driven by the server based on student position type:
+
+| Position type | Suffixes | Departure spawn | Arrival within 20 min |
+|---------------|----------|------------------|------------------------|
+| Tower | `_TWR`, `_LOC` | First own bay whose name starts with "Ground", else printer queue | Auto-prints to first matching bay if arrival strips enabled |
+| Ground / Clearance | `_GND`, `_DEL` | Departure printer queue | — |
+| Approach / Departure | `_APP`, `_DEP` | No spawn print — strip appears in the position's matching bay on takeoff roll | Bay matching position display name |
+| Center / unknown | `_CTR`, other | Departure printer queue | — |
+
+#### Keyboard shortcuts
+
+> Strips need keyboard focus. Click anywhere in the strip view first.
+
+| Key | Action |
+|-----|--------|
+| Click strip | Select |
+| Esc | Deselect → if nothing selected, toggle printer panel |
+| Arrow keys | Move selection between adjacent strips |
+| Ctrl+arrows | Move the selected strip |
+| Shift+← / → | Toggle offset on the selected strip |
+| Ctrl+Shift+← / → | Slide a half-strip; cycle separator style (handwritten → white → red → green) |
+| Enter | Edit half-strip lines / separator label |
+| Ctrl+1..9 (with full strip selected) | Edit annotation box 10..18 |
+| Tab | Toggle printer panel |
+| PageDown / PageUp | Next / previous bay |
+| Ctrl+Alt+1..9 | Push selected strip to bay N — or, if nothing selected, switch to bay N |
+| Ctrl+Alt+← / → | Cycle this view to the previous / next accessible facility |
+| Ctrl+Shift+H | Add a half-strip in the selected strip's rack (or rack 1) |
+| Ctrl+Shift+S | Add a handwritten separator (cycle styles afterwards with Ctrl+Shift+→) |
+| Delete / Backspace | Delete selected strip |
+
+#### Command surface
+
+Every strip mutation is also available as a [command](COMMANDS.md#strip--data-operations) — the UI just builds the canonical form for you. Useful when you want to script a flow, drive strips from a macro, or work without leaving the command bar.
+
+| Verb | Effect |
+|------|--------|
+| `STRIP {bay}[/{rack}[/{index}]]` | Push the selected aircraft's full strip to a bay |
+| `STRIPD` / `STRIPO` | Delete / toggle offset on the selected aircraft's strip |
+| `AN {box} [text]` | Write or clear annotation box (1–9 = boxes 10–18) |
+| `HSC {bay}[/{rack}] line\line\…` | Create a half-strip (max 6 lines) |
+| `HSA [bay[/rack]] key\new1\…` | Amend by lookup key (auto-search across bays without bay arg) |
+| `HSD [bay] key` | Delete by lookup key |
+| `HSM` / `HSO` / `HSS` | Move / toggle offset / slide |
+| `SEP H\|W\|R\|G bay[/rack[/index]] [label]` | Create separator |
+| `SEPE bay/rack/index new-label` / `SEPD bay[/rack] label-or-position` | Edit / delete separator |
+| `BLANK [bay[/rack[/index]]]` / `BLANKD bay[/rack]` | Create / delete blank |
+
+Half-strip verbs run in two modes: with no aircraft selected, every line you type goes on the strip; with an aircraft selected, the callsign becomes line 1 and the lookup key automatically. See the [Half-Strips section in COMMANDS.md](COMMANDS.md#half-strips) for the full disambiguation rules.
+
+#### Persistence
+
+Pop-out state for the student strips entry is saved in `preferences.json` under the `VStrips` key. The popped-out window's geometry is saved separately. Bay layouts, zoom level, and selection are not persisted — they're driven by the server config and reset on each scenario load.
 
 ### Flight Plan Editor
 
