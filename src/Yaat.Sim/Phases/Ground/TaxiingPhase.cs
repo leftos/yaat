@@ -29,6 +29,8 @@ public sealed class TaxiingPhase : Phase
 
     public override string Name => "Taxiing";
 
+    internal double NavMaxSpeedKts => _nav.MaxSpeedKts;
+
     public override void OnStart(PhaseContext ctx)
     {
         var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
@@ -71,6 +73,9 @@ public sealed class TaxiingPhase : Phase
             _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
             SetupCurrentSegment(ctx, route);
         }
+
+        double baseTaxiSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
+        _nav.MaxSpeedKts = ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed;
 
         if (ctx.Aircraft.Ground.IsHeld)
         {

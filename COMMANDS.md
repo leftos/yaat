@@ -184,7 +184,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Speed floor | `SPD 210+` | — | — |
 | Speed ceiling | `SPD 210-` | — | — |
 | Resume normal speed | `RNS` | `NS` | — |
-| Expedite climb/descent | `EXP [alt]` | — | — |
+| Expedite climb/descent (or taxi) | `EXP [alt]` | — | — |
 | Resume normal rate | `NORM` | — | — |
 | Reduce to final approach speed | `RFAS` | `FAS` | — |
 | Mach number | `MACH .82` | `M` | — |
@@ -802,7 +802,7 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 | `SPD 210+` | Speed floor: maintain 210 knots or greater |
 | `SPD 210-` | Speed ceiling: do not exceed 210 knots |
 | `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
-| `EXP` | Expedite climb/descent: increases vertical rate (approx 1.5x category rate) |
+| `EXP` | Expedite climb/descent: increases vertical rate (approx 1.5x category rate). On the ground with an assigned taxi route, raises the taxi speed cap by ~30% (jet 30→39 kts); cleared by next HOLD/RES/HS |
 | `EXP 50` | Expedite through 5,000 ft, then resume normal rate (requires active altitude assignment) |
 | `NORM` | Resume normal vertical rate: clears expedite and any custom vertical rate |
 | `RFAS` / `FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts) |

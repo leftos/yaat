@@ -161,7 +161,7 @@ public static class CommandRegistry
                 false,
                 ["EXP"],
                 [
-                    O(null, [], "Expedite current climb/descent"),
+                    O(null, [], "Expedite current climb/descent (or taxi when on the ground)"),
                     O("Altitude", [R("altitude", "altitude in hundreds")], "Expedite climb/descent to altitude"),
                 ]
             ),

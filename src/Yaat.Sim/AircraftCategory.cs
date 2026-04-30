@@ -446,6 +446,14 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>
+    /// Multiplier applied to <see cref="TaxiSpeed"/> when the aircraft has been
+    /// instructed to expedite taxi. Bumps the straight-line cap by ~30%
+    /// (jet 30→39, turboprop 25→32.5, piston 20→26, helo 15→19.5). Corner
+    /// speeds are unchanged — turn geometry still governs deceleration.
+    /// </summary>
+    public const double TaxiExpediteMultiplier = 1.3;
+
     /// <summary>Pushback speed (knots). All categories reverse at ~5 kts.</summary>
     public static double PushbackSpeed(AircraftCategory cat)
     {

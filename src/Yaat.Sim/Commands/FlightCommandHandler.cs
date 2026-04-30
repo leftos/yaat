@@ -235,6 +235,19 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyExpedite(ExpediteCommand cmd, AircraftState aircraft)
     {
+        // Ground-context expedite: raise taxi speed cap until next HOLD/RES/HS.
+        // Only meaningful with an active taxi route; pushback/parking are out of scope.
+        if (aircraft.IsOnGround && cmd.UntilAltitude is null)
+        {
+            if (aircraft.Ground.AssignedTaxiRoute is null)
+            {
+                return new CommandResult(false, "Expedite taxi requires an assigned taxi route");
+            }
+
+            aircraft.Ground.IsExpeditingTaxi = true;
+            return CommandDispatcher.Ok("Expedite taxi");
+        }
+
         if (aircraft.Targets.TargetAltitude is null)
         {
             return new CommandResult(false, "Expedite requires an active altitude assignment");

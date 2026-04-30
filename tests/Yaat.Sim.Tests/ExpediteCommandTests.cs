@@ -44,6 +44,50 @@ public class ExpediteCommandTests
     }
 
     [Fact]
+    public void Expedite_OnGroundWithRoute_SetsTaxiExpediting()
+    {
+        var ac = CreateAircraft();
+        ac.IsOnGround = true;
+        ac.Ground.AssignedTaxiRoute = new Yaat.Sim.Data.Airport.TaxiRoute { Segments = [], HoldShortPoints = [] };
+
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.True(ac.Ground.IsExpeditingTaxi);
+        Assert.False(ac.Procedure.IsExpediting);
+    }
+
+    [Fact]
+    public void Expedite_OnGroundWithoutRoute_Fails()
+    {
+        var ac = CreateAircraft();
+        ac.IsOnGround = true;
+        ac.Ground.AssignedTaxiRoute = null;
+
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.False(ac.Ground.IsExpeditingTaxi);
+        Assert.Contains("taxi route", result.Message!);
+    }
+
+    [Fact]
+    public void Expedite_WithUntilAltitude_StaysAirborneSemantics_EvenOnGround()
+    {
+        // EXP <alt> is unambiguously a climb/descent verb — don't intercept it
+        // for taxi context. If aircraft is on the ground, it's still an
+        // altitude verb, so it must reject without TargetAltitude.
+        var ac = CreateAircraft();
+        ac.IsOnGround = true;
+        ac.Ground.AssignedTaxiRoute = new Yaat.Sim.Data.Airport.TaxiRoute { Segments = [], HoldShortPoints = [] };
+
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(10000), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.False(ac.Ground.IsExpeditingTaxi);
+    }
+
+    [Fact]
     public void NormalRate_ClearsFlag()
     {
         var ac = CreateAircraft();

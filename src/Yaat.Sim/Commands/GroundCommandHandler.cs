@@ -709,6 +709,7 @@ internal static class GroundCommandHandler
 
         aircraft.Ground.IsHeld = true;
         aircraft.Ground.GiveWayTarget = null;
+        aircraft.Ground.IsExpeditingTaxi = false;
         return CommandDispatcher.Ok("Hold position");
     }
 
@@ -721,6 +722,7 @@ internal static class GroundCommandHandler
 
         aircraft.Ground.IsHeld = false;
         aircraft.Ground.GiveWayTarget = null;
+        aircraft.Ground.IsExpeditingTaxi = false;
         return CommandDispatcher.Ok("Resume taxi");
     }
 
@@ -796,6 +798,8 @@ internal static class GroundCommandHandler
         double aircraftLengthFt =
             FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
+
+        aircraft.Ground.IsExpeditingTaxi = false;
 
         Log.LogDebug("[HS] {Callsign}: added hold short of {Target}", aircraft.Callsign, hs.Target);
         return CommandDispatcher.Ok($"Hold short of {hs.Target}");

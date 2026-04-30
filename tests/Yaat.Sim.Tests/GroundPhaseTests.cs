@@ -912,6 +912,41 @@ public class GroundPhaseTests
     // -------------------------------------------------------------------------
 
     [Fact]
+    public void TaxiingPhase_WhenExpediting_RaisesMaxSpeed()
+    {
+        // EXPEDITE on the ground bumps the taxi cap by TaxiExpediteMultiplier
+        // (jet 30 kts → 39 kts). Verified by the navigator's MaxSpeedKts after
+        // a tick of TaxiingPhase with the flag set.
+        var layout = BuildCrossingLayout();
+        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+
+        var route = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) }],
+            HoldShortPoints = [],
+        };
+        aircraft.Ground.AssignedTaxiRoute = route;
+        aircraft.Phases = new PhaseList();
+        var taxi = new TaxiingPhase();
+        aircraft.Phases.Add(taxi);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        Assert.Equal(CategoryPerformance.TaxiSpeed(AircraftCategory.Jet), taxi.NavMaxSpeedKts, precision: 3);
+
+        aircraft.Ground.IsExpeditingTaxi = true;
+        taxi.OnTick(ctx);
+
+        double expected = CategoryPerformance.TaxiSpeed(AircraftCategory.Jet) * CategoryPerformance.TaxiExpediteMultiplier;
+        Assert.Equal(expected, taxi.NavMaxSpeedKts, precision: 3);
+
+        aircraft.Ground.IsExpeditingTaxi = false;
+        taxi.OnTick(ctx);
+
+        Assert.Equal(CategoryPerformance.TaxiSpeed(AircraftCategory.Jet), taxi.NavMaxSpeedKts, precision: 3);
+    }
+
+    [Fact]
     public void RunwayExitPhase_WhenHeld_StopsRolling()
     {
         // Concrete silent-failure case: HOLD POSITION sets Ground.IsHeld = true,

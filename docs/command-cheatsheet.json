@@ -27,7 +27,7 @@
         { "verb": "RNS", "aliases": ["ns"], "description": "Resume normal speed" },
         { "verb": "RFAS", "aliases": ["fas"], "description": "Reduce to final approach speed" },
         { "verb": "DSR", "aliases": [], "description": "Delete speed restrictions" },
-        { "verb": "EXP", "aliases": [], "description": "Expedite [alt]" },
+        { "verb": "EXP", "aliases": [], "description": "Expedite [alt] (or taxi if on ground)" },
         { "verb": "NORM", "aliases": [], "description": "Normal rate" },
         { "verb": "MACH", "aliases": ["m"], "description": "Maintain Mach number" }
       ],

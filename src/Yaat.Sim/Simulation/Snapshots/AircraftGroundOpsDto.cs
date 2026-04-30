@@ -13,4 +13,5 @@ public sealed class AircraftGroundOpsDto
     public double? SpeedLimit { get; init; }
     public double? PushbackTrueHeadingDeg { get; init; }
     public required bool HasAnnouncedReady { get; init; }
+    public bool IsExpeditingTaxi { get; init; }
 }

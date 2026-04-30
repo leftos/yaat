@@ -625,6 +625,29 @@ public class GroundCommandHandlerTests
     }
 
     [Fact]
+    public void TryHoldPosition_ClearsExpeditingTaxi()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Ground.IsExpeditingTaxi = true;
+
+        GroundCommandHandler.TryHoldPosition(ac);
+
+        Assert.False(ac.Ground.IsExpeditingTaxi);
+    }
+
+    [Fact]
+    public void TryResumeTaxi_ClearsExpeditingTaxi()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Ground.IsHeld = true;
+        ac.Ground.IsExpeditingTaxi = true;
+
+        GroundCommandHandler.TryResumeTaxi(ac);
+
+        Assert.False(ac.Ground.IsExpeditingTaxi);
+    }
+
+    [Fact]
     public void TryHoldPosition_NotOnGround_Fails()
     {
         var ac = MakeGroundAircraft();

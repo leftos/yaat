@@ -42,6 +42,13 @@ public class AircraftGroundOps
     public bool AutoDeleteExempt { get; set; }
 
     /// <summary>
+    /// When true, the active TaxiingPhase raises its straight-line speed cap by
+    /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/>. Cleared on the
+    /// next HOLD/RES/HS command — pilots resume normal taxi after any of those.
+    /// </summary>
+    public bool IsExpeditingTaxi { get; set; }
+
+    /// <summary>
     /// Remaining seconds of BREAK conflict override. While positive, the aircraft
     /// ignores ground conflict speed limits imposed by GroundConflictDetector.
     /// </summary>
@@ -81,6 +88,7 @@ public class AircraftGroundOps
             SpeedLimit = SpeedLimit,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
+            IsExpeditingTaxi = IsExpeditingTaxi,
         };
 
     public static AircraftGroundOps FromSnapshot(AircraftGroundOpsDto dto, AirportGroundLayout? layout) =>
@@ -98,5 +106,6 @@ public class AircraftGroundOps
             SpeedLimit = dto.SpeedLimit,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
+            IsExpeditingTaxi = dto.IsExpeditingTaxi,
         };
 }
