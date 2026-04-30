@@ -710,7 +710,27 @@ internal static class GroundCommandHandler
         aircraft.Ground.IsHeld = true;
         aircraft.Ground.GiveWayTarget = null;
         aircraft.Ground.IsExpeditingTaxi = false;
-        return CommandDispatcher.Ok("Hold position");
+        return CommandDispatcher.Ok(BuildHoldMessage(aircraft));
+    }
+
+    private static string BuildHoldMessage(AircraftState aircraft)
+    {
+        var phase = aircraft.Phases?.CurrentPhase;
+        string? where = phase switch
+        {
+            TaxiingPhase => aircraft.Ground.CurrentTaxiway is { } twy ? $"on taxiway {twy}" : "while taxiing",
+            CrossingRunwayPhase => "during runway crossing",
+            PushbackPhase or PushbackToSpotPhase => "during pushback",
+            LineUpPhase or LinedUpAndWaitingPhase => aircraft.Phases?.AssignedRunway?.Designator is { } rwy ? $"on runway {rwy}" : "lined up",
+            RunwayExitPhase => "during runway exit",
+            FollowingPhase => "while following",
+            HoldingShortPhase hs => hs.HoldShort.TargetName is { } target ? $"already short of {target}" : "already holding short",
+            HoldingInPositionPhase or HoldingAfterPushbackPhase or HoldingAfterExitPhase => "already in position",
+            AirTaxiPhase => "during air taxi",
+            _ => null,
+        };
+
+        return where is null ? "Hold position" : $"Hold position ({where})";
     }
 
     internal static CommandResult TryResumeTaxi(AircraftState aircraft)

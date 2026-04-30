@@ -625,6 +625,54 @@ public class GroundCommandHandlerTests
     }
 
     [Fact]
+    public void TryHoldPosition_TaxiingPhase_MentionsTaxiway()
+    {
+        // RPO-visible feedback should describe what state the sim now believes.
+        var ac = MakeGroundAircraft();
+        ac.Ground.CurrentTaxiway = "A";
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new TaxiingPhase());
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+
+        var result = GroundCommandHandler.TryHoldPosition(ac);
+
+        Assert.True(result.Success);
+        Assert.Contains("taxiway A", result.Message!);
+    }
+
+    [Fact]
+    public void TryHoldPosition_LineUpPhase_MentionsRunway()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 6) };
+        ac.Phases.Add(new LinedUpAndWaitingPhase());
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+
+        var result = GroundCommandHandler.TryHoldPosition(ac);
+
+        Assert.True(result.Success);
+        Assert.Contains("runway 28R", result.Message!);
+    }
+
+    [Fact]
     public void TryHoldPosition_ClearsExpeditingTaxi()
     {
         var ac = MakeGroundAircraft();
