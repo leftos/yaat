@@ -45,8 +45,29 @@ public static class FlightPhysics
             || (Math.Abs(aircraft.Position.Lon - cached.Lon) > DeclinationCacheThresholdDeg)
         )
         {
-            aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Position);
-            aircraft.DeclinationCachePosition = aircraft.Position;
+            // Skip declination update if position is non-finite or out of range. Geo.Coordinate's
+            // ctor would throw, crashing the tick. Logging the bad state lets the upstream cause
+            // be investigated without taking down the sim. Keep the previously cached value.
+            if (
+                !double.IsFinite(aircraft.Position.Lat)
+                || !double.IsFinite(aircraft.Position.Lon)
+                || Math.Abs(aircraft.Position.Lat) > 90
+                || Math.Abs(aircraft.Position.Lon) > 180
+            )
+            {
+                Log.LogError(
+                    "Aircraft position out of range, skipping declination update: callsign={CS} pos=({Lat},{Lon}) phase={Phase}",
+                    aircraft.Callsign,
+                    aircraft.Position.Lat,
+                    aircraft.Position.Lon,
+                    aircraft.Phases?.CurrentPhase?.Name ?? "(none)"
+                );
+            }
+            else
+            {
+                aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Position);
+                aircraft.DeclinationCachePosition = aircraft.Position;
+            }
         }
 
         // Backward compat: airborne aircraft without IAS initialized derive it from GS.
