@@ -83,9 +83,13 @@ public sealed class HoldingShortPhase : Phase
             CanonicalCommandType.HoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => _holdShort.Reason == HoldShortReason.ExplicitHoldShort
                 ? CommandAcceptance.ClearsPhase
-                : CommandAcceptance.Rejected,
+                : CommandAcceptance.Rejected(
+                    $"holding short of {_holdShort.TargetName ?? "runway"} for traffic / clearance — RES does not apply (issue CROSS, LUAW, or CTO)"
+                ),
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected(
+                $"aircraft is holding short of {_holdShort.TargetName ?? "the runway"}; only CROSS/LUAW/CTO/HSC, a new TAXI, or DEL apply"
+            ),
         };
     }
 

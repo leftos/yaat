@@ -168,7 +168,7 @@ public sealed class StopAndGoPhase : Phase
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.Go => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is in a stop-and-go on the runway; only GA, GO (once stopped), or DEL apply"),
         };
     }
 

@@ -611,7 +611,9 @@ public sealed class LineUpPhase : Phase
             CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.CancelTakeoffClearance => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected(
+                "aircraft is taxiing into position on the runway; only CM/DM, CTOC, or DEL apply until line-up completes"
+            ),
         };
     }
 }

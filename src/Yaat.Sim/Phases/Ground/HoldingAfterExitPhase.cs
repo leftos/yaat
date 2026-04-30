@@ -81,7 +81,7 @@ public sealed class HoldingAfterExitPhase : Phase
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is holding clear of the runway after exit; only HOLD or a new TAXI/ATXI/LAND apply"),
         };
     }
 

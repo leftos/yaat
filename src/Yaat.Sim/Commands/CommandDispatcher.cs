@@ -21,6 +21,15 @@ public static class CommandDispatcher
     /// Clear() mutated it in place, making restore impossible).
     /// </summary>
     private static readonly CommandResult PhaseShouldBeCleared = new(true, "__CLEAR_PHASES__");
+
+    /// <summary>
+    /// Sentinel marker for the "no dispatcher arm" message. Embedded in the user-visible
+    /// failure text so callers can detect the case via a substring check without using a
+    /// private side-channel. The full message also includes the command type and natural
+    /// description so the user (or maintainer reading a bug report) can identify the gap.
+    /// </summary>
+    private const string NoDispatcherArmMarker = "__NO_DISPATCHER_ARM__";
+
     private static readonly ILogger Log = SimLog.CreateLogger("CommandDispatcher");
 
     public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
@@ -624,7 +633,10 @@ public static class CommandDispatcher
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
             default:
-                return new CommandResult(false, "Unknown command");
+                return new CommandResult(
+                    false,
+                    $"{NoDispatcherArmMarker} no dispatcher arm for {command.GetType().Name} ({CommandDescriber.DescribeNatural(command)})"
+                );
         }
     }
 
@@ -681,7 +693,7 @@ public static class CommandDispatcher
 
         // Then try ApplyCommand — handles flight, nav, pattern entry, etc.
         var result = ApplyCommand(cmd, clone, ctx);
-        if (result.Message != "Unknown command")
+        if (result.Message is null || !result.Message.StartsWith(NoDispatcherArmMarker, StringComparison.Ordinal))
         {
             return result;
         }
@@ -904,12 +916,13 @@ public static class CommandDispatcher
         // Check standard command acceptance against the current phase
         var acceptance = currentPhase.CanAcceptCommand(cmdType);
 
-        if (acceptance == CommandAcceptance.Rejected)
+        if (acceptance.IsRejected)
         {
-            return new CommandResult(false, $"Cannot accept {CommandDescriber.DescribeNatural(firstCmd)} during {currentPhase.Name}");
+            var reason = acceptance.Reason ?? $"Cannot accept {CommandDescriber.DescribeNatural(firstCmd)} during {currentPhase.Name}";
+            return new CommandResult(false, reason);
         }
 
-        if (acceptance == CommandAcceptance.ClearsPhase)
+        if (acceptance.ClearsThePhase)
         {
             // Don't clear phases yet — return a sentinel so DispatchCompound can validate
             // the command first. If validation fails, phases stay intact.

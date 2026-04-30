@@ -528,7 +528,13 @@ public static class CommandParser
             return TryConcatenation(upper);
         }
 
-        return ParseByType(type, arg, aircraftRoute, trimmed);
+        var result = ParseByType(type, arg, aircraftRoute, trimmed);
+        if (!result.IsSuccess)
+        {
+            var expected = CommandRegistry.RenderSignature(type);
+            return PR.Fail($"\"{verb}\" {result.Reason} — expected: {expected}");
+        }
+        return result;
     }
 
     private static PR ParseByType(CanonicalCommandType type, string? arg, string? aircraftRoute, string rawInput)
@@ -820,7 +826,9 @@ public static class CommandParser
             return ParseByType(type, remainder, null, upperInput);
         }
 
-        return PR.Fail($"unknown command '{upperInput}'");
+        return PR.Fail(
+            $"unrecognized verb '{upperInput}' — type does not match any known command alias (try autocomplete or check the command reference)"
+        );
     }
 
     private static readonly Lazy<List<(string Alias, CanonicalCommandType Type)>> ConcatenationCandidates = new(BuildConcatenationCandidates);

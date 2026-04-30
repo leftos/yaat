@@ -7,6 +7,7 @@
 
 ### Fixed
 - Departure strips now auto-route based on the student's controller position. Tower students get departure strips delivered straight to their first **Ground** bay, simulating the Clearance→Ground hand-off that's invisible in local-only training. Approach students get a strip in their facility's matching bay (e.g. "Friant" for `FAT_F_APP`) when the aircraft begins its takeoff roll, mimicking the tower's "rolling call". Ground, Center, and unknown student positions keep the printer-queue behavior.
+- Command rejections now explain *why*. Typing a verb without arguments (e.g. `CM`) shows the expected signature in the status bar (`Expected: CM <altitude>`); commands issued during a phase that doesn't accept them (e.g. `FH 270` during pushback) describe the phase state (`aircraft is being pushed back; only HOLD/RES are accepted until pushback completes`) instead of the generic `Cannot accept X during Y`; and unrecognized verbs report `"is not a recognized command"` instead of falling back to `Unknown command`.
 
 ## v0.1.8-alpha [2026/04/27]
 

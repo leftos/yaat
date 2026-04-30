@@ -78,7 +78,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.Allowed,
             CanonicalCommandType.CancelTakeoffClearance => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is lined up and waiting on the runway; only CTO/CTOC, CM/DM, or DEL apply"),
         };
     }
 

@@ -194,14 +194,16 @@ public sealed class TakeoffPhase : Phase
             {
                 CanonicalCommandType.CancelTakeoffClearance => CommandAcceptance.Allowed,
                 CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-                _ => CommandAcceptance.Rejected,
+                _ => CommandAcceptance.Rejected("aircraft is on the takeoff roll; only CTOC (before V1), CM/DM, or DEL apply"),
             };
         }
 
         // Once airborne, most commands clear the phase
         return cmd switch
         {
-            CanonicalCommandType.GoAround => CommandAcceptance.Rejected,
+            CanonicalCommandType.GoAround => CommandAcceptance.Rejected(
+                "aircraft is in initial climb after takeoff; GA is not applicable (issue a new heading/altitude)"
+            ),
             _ => CommandAcceptance.ClearsPhase,
         };
     }

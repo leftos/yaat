@@ -90,7 +90,7 @@ public sealed class HelicopterLandingPhase : Phase
             return cmd switch
             {
                 CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-                _ => CommandAcceptance.Rejected,
+                _ => CommandAcceptance.Rejected("helicopter has touched down; only DEL applies until the landing completes"),
             };
         }
 
@@ -102,7 +102,7 @@ public sealed class HelicopterLandingPhase : Phase
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("helicopter is on final to a landing spot; only GA, EL/ER/EXIT, or DEL apply"),
         };
     }
 }

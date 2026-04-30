@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -1187,8 +1188,16 @@ public partial class MainViewModel : ObservableObject
         {
             if (parseFailure is not null)
             {
-                _log.LogWarning("Command '{Verb}' {Reason} in input '{Input}'", parseFailure.Verb, parseFailure.Reason, commandText);
-                StatusText = $"\"{parseFailure.Verb}\" {parseFailure.Reason}";
+                _log.LogWarning(
+                    "Command '{Verb}' {Reason} (expected: {Expected}) in input '{Input}'",
+                    parseFailure.Verb,
+                    parseFailure.Reason,
+                    parseFailure.Expected ?? "(unknown)",
+                    commandText
+                );
+                StatusText = parseFailure.Expected is { } expected
+                    ? $"\"{parseFailure.Verb}\" {parseFailure.Reason}. Expected: {expected}"
+                    : $"\"{parseFailure.Verb}\" {parseFailure.Reason}";
             }
             else
             {
@@ -1233,7 +1242,7 @@ public partial class MainViewModel : ObservableObject
 
                     if (!result.Success)
                     {
-                        StatusText = result.Message ?? "Command rejected";
+                        StatusText = ResolveRejectionText(result, "(half-strip)");
                     }
                 }
                 catch (Exception ex)
@@ -1269,7 +1278,7 @@ public partial class MainViewModel : ObservableObject
 
             if (!result.Success)
             {
-                StatusText = result.Message ?? "Command rejected";
+                StatusText = ResolveRejectionText(result, target.Callsign);
             }
         }
         catch (Exception ex)
@@ -1277,6 +1286,26 @@ public partial class MainViewModel : ObservableObject
             _log.LogError(ex, "Command failed");
             StatusText = $"Command error: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Resolves the status-line text for a failed <see cref="CommandResultDto"/>. When
+    /// <c>result.Message</c> is populated, returns it as-is. When the server returns a
+    /// failure with no message — which should never happen in healthy code — returns a
+    /// diagnostic placeholder so the user sees a recognizable bug instead of a silent
+    /// failure, and asserts in DEBUG builds so the gap is caught in dev rather than in
+    /// production.
+    /// </summary>
+    private string ResolveRejectionText(CommandResultDto result, string contextLabel)
+    {
+        if (!string.IsNullOrWhiteSpace(result.Message))
+        {
+            return result.Message;
+        }
+
+        _log.LogError("Server returned failure with empty message for {Context}", contextLabel);
+        Debug.Fail($"Command rejected with empty Message — server failure path missing reason text (context={contextLabel})");
+        return $"Command rejected with no reason supplied (context: {contextLabel}) — please file an issue";
     }
 
     private async Task HandleGlobalCommand(ParsedInput parsed)

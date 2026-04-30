@@ -299,7 +299,7 @@ public sealed class PushbackPhase : Phase
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is being pushed back; only HOLD/RES are accepted until pushback completes"),
         };
     }
 

@@ -7,7 +7,13 @@ public record ParsedInput(CanonicalCommandType Type, string? Argument);
 
 public record CompoundParseResult(string CanonicalString);
 
-public record ParseFailure(string Verb, string Reason);
+/// <summary>
+/// A parse failure produced by <see cref="CommandSchemeParser"/>. <paramref name="Verb"/> is
+/// the user-typed verb (uppercased), <paramref name="Reason"/> is a short descriptive phrase,
+/// and <paramref name="Expected"/> is the rendered command signature when the verb was
+/// recognized but its arguments did not match — null when the verb itself was unrecognized.
+/// </summary>
+public record ParseFailure(string Verb, string Reason, string? Expected = null);
 
 public static class CommandSchemeParser
 {
@@ -517,6 +523,7 @@ public static class CommandSchemeParser
         }
 
         string? verbMatchReason = null;
+        CanonicalCommandType? verbMatchType = null;
         foreach (var (type, pattern) in scheme.Patterns)
         {
             if (!MatchesAnyAlias(verb, pattern))
@@ -529,12 +536,14 @@ public static class CommandSchemeParser
             if (argMode == ArgMode.Required && arg is null)
             {
                 verbMatchReason = "requires an argument";
+                verbMatchType = type;
                 continue;
             }
 
             if (argMode == ArgMode.None && arg is not null)
             {
                 verbMatchReason = "does not accept arguments";
+                verbMatchType = type;
                 continue;
             }
 
@@ -596,7 +605,15 @@ public static class CommandSchemeParser
 
         if (verbMatchReason is not null)
         {
-            failure = new ParseFailure(verb, verbMatchReason);
+            var expected = verbMatchType is { } t ? CommandRegistry.RenderSignature(t) : null;
+            failure = new ParseFailure(verb, verbMatchReason, expected);
+        }
+        else
+        {
+            // No alias matched the verb at all and concatenation/RWY rewrite didn't apply —
+            // the verb is genuinely unrecognized. Populate ParseFailure so the UI surfaces a
+            // descriptive message instead of falling back to a generic placeholder.
+            failure = new ParseFailure(verb, "is not a recognized command — try autocomplete or check the command reference");
         }
 
         return null;

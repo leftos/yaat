@@ -77,8 +77,10 @@ public sealed class RunwayHoldingPhase : Phase
             CanonicalCommandType.ExitRight => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.GoAround => CommandAcceptance.Rejected,
-            _ => CommandAcceptance.Rejected,
+            CanonicalCommandType.GoAround => CommandAcceptance.Rejected(
+                "aircraft is on the runway holding (rejected landing); GA is not applicable on the ground"
+            ),
+            _ => CommandAcceptance.Rejected("aircraft is on the runway after a rejected landing; only CROSS, EL/ER/EXIT, a new TAXI, or DEL apply"),
         };
     }
 

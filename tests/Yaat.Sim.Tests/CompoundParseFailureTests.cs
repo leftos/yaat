@@ -33,6 +33,7 @@ public class CompoundParseFailureTests : IDisposable
         Assert.Null(result);
         Assert.NotNull(failure);
         Assert.Equal(expectedVerb, failure.Verb);
+        Assert.False(string.IsNullOrWhiteSpace(failure.Reason), "ParseFailure.Reason must be non-empty");
     }
 
     [Theory]

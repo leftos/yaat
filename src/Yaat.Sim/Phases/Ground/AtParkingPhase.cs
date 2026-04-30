@@ -62,7 +62,7 @@ public sealed class AtParkingPhase : Phase
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is parked with engines off; only PUSH/TAXI/ATXI/LAND/CTOPP/DEL apply"),
         };
     }
 

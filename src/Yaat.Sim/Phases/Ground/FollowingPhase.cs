@@ -137,7 +137,7 @@ public sealed class FollowingPhase : Phase
             CanonicalCommandType.CrossRunway => CommandAcceptance.Allowed,
             CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is following another; only HOLD/RES, CROSS, a new FOLLOWG, or a new TAXI apply"),
         };
     }
 

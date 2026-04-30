@@ -23,6 +23,57 @@ public static class CommandRegistry
     }
 
     /// <summary>
+    /// Renders the expected signature for a command suitable for inclusion in parse-error
+    /// feedback. Examples: "CM &lt;altitude&gt;", "RWY &lt;runway&gt; [TAXI &lt;path&gt;]",
+    /// "EXP | EXP &lt;altitude&gt;". Required parameters are rendered as &lt;name&gt;,
+    /// optionals as [&lt;name&gt;], literals stay uppercase. Returns the bare verb if the
+    /// command type isn't in the registry.
+    /// </summary>
+    public static string RenderSignature(CanonicalCommandType type)
+    {
+        if (!All.TryGetValue(type, out var def))
+        {
+            return type.ToString().ToUpperInvariant();
+        }
+
+        var verb = def.DefaultAliases.Length > 0 ? def.DefaultAliases[0] : def.Type.ToString().ToUpperInvariant();
+        if (def.Overloads.Length == 0)
+        {
+            return verb;
+        }
+
+        var rendered = new List<string>(def.Overloads.Length);
+        foreach (var overload in def.Overloads)
+        {
+            rendered.Add(RenderOverload(verb, overload));
+        }
+
+        return string.Join(" | ", rendered);
+    }
+
+    private static string RenderOverload(string verb, CommandOverload overload)
+    {
+        if (overload.Parameters.Length == 0)
+        {
+            return verb;
+        }
+
+        var parts = new List<string>(overload.Parameters.Length + 1) { verb };
+        foreach (var param in overload.Parameters)
+        {
+            if (param.IsLiteral)
+            {
+                parts.Add(param.IsOptional ? $"[{param.Name.ToUpperInvariant()}]" : param.Name.ToUpperInvariant());
+                continue;
+            }
+
+            parts.Add(param.IsOptional ? $"[<{param.Name}>]" : $"<{param.Name}>");
+        }
+
+        return string.Join(' ', parts);
+    }
+
+    /// <summary>
     /// Returns the set of aliases (uppercased) for commands where every overload
     /// takes exactly one required non-literal parameter. Used by ExpandMultiCommand
     /// to split concatenated verb-arg pairs like "FH 270 CM 5000" → "FH 270, CM 5000".

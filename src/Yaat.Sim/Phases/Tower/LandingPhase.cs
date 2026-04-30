@@ -942,7 +942,7 @@ public sealed class LandingPhase : Phase
                 CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
                 CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
                 CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-                _ => CommandAcceptance.Rejected,
+                _ => CommandAcceptance.Rejected("aircraft is committed to landing on stabilized approach / flare; only GA, EL/ER/EXIT, or DEL apply"),
             };
         }
 
@@ -953,8 +953,12 @@ public sealed class LandingPhase : Phase
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.GoAround => _canGoAround ? CommandAcceptance.Allowed : CommandAcceptance.Rejected,
-            _ => CommandAcceptance.Rejected,
+            CanonicalCommandType.GoAround => _canGoAround
+                ? CommandAcceptance.Allowed
+                : CommandAcceptance.Rejected("aircraft is below the go-around speed gate after touchdown; GA is no longer available"),
+            _ => CommandAcceptance.Rejected(
+                "aircraft is rolling out after touchdown; only EL/ER/EXIT or DEL apply (issue TAXI after the runway exit)"
+            ),
         };
     }
 }

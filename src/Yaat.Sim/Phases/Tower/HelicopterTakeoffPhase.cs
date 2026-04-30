@@ -113,7 +113,7 @@ public sealed class HelicopterTakeoffPhase : Phase
         // Once airborne (immediately), most commands clear the phase
         return cmd switch
         {
-            CanonicalCommandType.GoAround => CommandAcceptance.Rejected,
+            CanonicalCommandType.GoAround => CommandAcceptance.Rejected("helicopter is taking off; GA is not applicable for helicopter departure"),
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

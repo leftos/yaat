@@ -530,7 +530,7 @@ public sealed class RunwayExitPhase : Phase
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is rolling out / exiting the runway; only EL/ER/EXIT or a new TAXI apply"),
         };
     }
 

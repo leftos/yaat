@@ -228,7 +228,7 @@ public class TakeoffDepartureTests
     {
         var phase = new TakeoffPhase();
         // Before airborne, most commands are rejected
-        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
+        Assert.True(phase.CanAcceptCommand(CanonicalCommandType.FlyHeading).IsRejected);
     }
 
     [Fact]

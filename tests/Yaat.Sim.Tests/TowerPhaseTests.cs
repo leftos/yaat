@@ -100,8 +100,8 @@ public class TowerPhaseTests
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClearedForTakeoff));
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.CancelTakeoffClearance));
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Delete));
-        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
-        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.Speed));
+        Assert.True(phase.CanAcceptCommand(CanonicalCommandType.FlyHeading).IsRejected);
+        Assert.True(phase.CanAcceptCommand(CanonicalCommandType.Speed).IsRejected);
     }
 
     // -------------------------------------------------------------------------
@@ -256,7 +256,7 @@ public class TowerPhaseTests
 
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.GoAround));
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Delete));
-        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
+        Assert.True(phase.CanAcceptCommand(CanonicalCommandType.FlyHeading).IsRejected);
     }
 
     // -------------------------------------------------------------------------
@@ -321,7 +321,7 @@ public class TowerPhaseTests
 
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.GoAround));
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Delete));
-        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.Speed));
+        Assert.True(phase.CanAcceptCommand(CanonicalCommandType.Speed).IsRejected);
     }
 
     [Fact]
@@ -481,7 +481,7 @@ public class TowerPhaseTests
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ExitLeft));
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ExitRight));
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ExitTaxiway));
-        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
+        Assert.True(phase.CanAcceptCommand(CanonicalCommandType.FlyHeading).IsRejected);
     }
 
     // -------------------------------------------------------------------------
@@ -812,6 +812,6 @@ public class TowerPhaseTests
 
         phase.OnTick(ctx);
 
-        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.GoAround));
+        Assert.True(phase.CanAcceptCommand(CanonicalCommandType.GoAround).IsRejected);
     }
 }

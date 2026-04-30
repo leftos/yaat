@@ -840,9 +840,10 @@ internal static class GroundCommandHandler
         }
 
         var acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.FollowGround);
-        if (acceptance == CommandAcceptance.Rejected)
+        if (acceptance.IsRejected)
         {
-            return new CommandResult(false, $"Cannot follow during {currentPhase.Name}");
+            var reason = acceptance.Reason ?? $"Cannot follow during {currentPhase.Name}";
+            return new CommandResult(false, reason);
         }
 
         // Replace phases with FollowingPhase. Clear() marks the active phase as Skipped

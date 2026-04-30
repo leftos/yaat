@@ -158,7 +158,7 @@ public sealed class TouchAndGoPhase : Phase
         {
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("aircraft is in a touch-and-go; only GA or DEL apply until the aircraft is established in climb"),
         };
     }
 

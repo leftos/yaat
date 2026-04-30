@@ -163,7 +163,7 @@ public sealed class AirTaxiPhase : Phase
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected,
+            _ => CommandAcceptance.Rejected("helicopter is air-taxiing; only HOLD/RES, a new ATXI/LAND, or DEL apply"),
         };
     }
 
