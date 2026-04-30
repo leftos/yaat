@@ -1222,8 +1222,18 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
+        if (aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Cannot clear to land — aircraft is on the ground");
+        }
+
+        if (aircraft.Phases.AssignedRunway is null)
+        {
+            return new CommandResult(false, "Cannot clear to land — no runway assigned");
+        }
+
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
+        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway.Designator;
         aircraft.Phases.TrafficDirection = null;
         var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();

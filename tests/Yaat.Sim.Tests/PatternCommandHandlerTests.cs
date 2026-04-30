@@ -690,4 +690,50 @@ public class PatternCommandHandlerTests
 
         Assert.True(result.Success);
     }
+
+    // -------------------------------------------------------------------------
+    // TryClearedToLand — preconditions
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryClearedToLand_Airborne_WithRunway_Succeeds()
+    {
+        var ac = MakeAircraft(altitude: 1500, onGround: false);
+
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+
+        Assert.True(result.Success);
+        Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
+        Assert.Equal("28", ac.Phases.ClearedRunwayId);
+    }
+
+    [Fact]
+    public void TryClearedToLand_OnGround_Fails()
+    {
+        // Cannot clear an aircraft to land while it's on the ground (taxiing,
+        // pushed back, post-landing). Real ATC: CLAND is for inbound traffic
+        // on or being vectored to an approach.
+        var ac = MakeAircraft(altitude: 100, onGround: true);
+
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+
+        Assert.False(result.Success);
+        Assert.Contains("on the ground", result.Message!);
+        Assert.Null(ac.Phases!.LandingClearance);
+    }
+
+    [Fact]
+    public void TryClearedToLand_NoAssignedRunway_Fails()
+    {
+        // Without an assigned runway the clearance has no target — silently
+        // storing it as null was the prior bug (ClearedRunwayId would be null).
+        var ac = MakeAircraft(altitude: 1500, onGround: false);
+        ac.Phases!.AssignedRunway = null;
+
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+
+        Assert.False(result.Success);
+        Assert.Contains("no runway assigned", result.Message!, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Null(ac.Phases.LandingClearance);
+    }
 }

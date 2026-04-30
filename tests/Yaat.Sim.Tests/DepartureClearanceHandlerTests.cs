@@ -841,6 +841,11 @@ public class DepartureClearanceHandlerTests
         var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw);
         Assert.True(ctoResult.Success);
 
+        // Simulate the aircraft becoming airborne — CLAND requires airborne state
+        // (TryClearedToLand rejects on-ground aircraft).
+        ac.IsOnGround = false;
+        ac.Altitude = 1500;
+
         // Issue CLAND — should clear for the pattern runway (28R), not the takeoff runway (33)
         var clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
         Assert.True(clandResult.Success);
