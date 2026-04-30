@@ -847,4 +847,56 @@ public class DepartureClearanceHandlerTests
         Assert.Equal("28R", ac.Phases.ClearedRunwayId);
         Assert.Contains("Runway 28R", clandResult.Message);
     }
+
+    // -------------------------------------------------------------------------
+    // Regression guards for invalidated prior-session claims (review §7 "Closed")
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryDepartureClearance_FromInitialClimb_LUAW_Fails()
+    {
+        // Locks in: LUAW IS phase-gated. The plan claim "LUAW could fire mid-air"
+        // was wrong — TryDepartureClearance only accepts HoldingShort/Taxi/LineUp/
+        // HoldingInPosition. Per 7110.65 §3-9-4, LUAW positions for imminent
+        // departure and presupposes a hold-short.
+        var ac = MakeAircraft();
+        ac.Altitude = 3000;
+        ac.IsOnGround = false;
+        var initialClimb = new InitialClimbPhase();
+        ac.Phases!.Add(initialClimb);
+        ac.Phases.Start(MinCtx(ac));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            initialClimb,
+            ClearanceType.LineUpAndWait,
+            new DefaultDeparture(),
+            null,
+            Logger
+        );
+
+        Assert.False(result.Success);
+        Assert.Contains("requires aircraft to be taxiing or holding short", result.Message!);
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringTakeoffPhase_GroundRoll_ClearsPhasesAndStops()
+    {
+        // Locks in: CTOC mid-roll abort works. The plan flagged this as a question
+        // ("verify CTOC actually aborts mid-roll vs just clearing the clearance flag").
+        // It does both: TakeoffPhase + IsOnGround branch clears phases and zeros TargetSpeed.
+        var ac = MakeAircraft();
+        ac.IsOnGround = true;
+        ac.IndicatedAirspeed = 80; // mid-roll
+        var takeoff = new TakeoffPhase();
+        ac.Phases!.Add(takeoff);
+        ac.Phases.Start(MinCtx(ac));
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff);
+
+        Assert.True(result.Success);
+        Assert.Contains("Abort takeoff", result.Message!);
+        Assert.Null(ac.Phases);
+        Assert.Equal(0, ac.Targets.TargetSpeed);
+    }
 }

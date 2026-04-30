@@ -772,4 +772,46 @@ public class TowerPhaseTests
         Assert.Equal("HPP-R", new VfrHoldPhase { OrbitDirection = TurnDirection.Right }.Name);
         Assert.Equal("HPP", new VfrHoldPhase { OrbitDirection = null }.Name);
     }
+
+    // -------------------------------------------------------------------------
+    // LandingPhase rollout-state GoAround energy gate
+    // (regression guard for review §7 "Closed" — _canGoAround keyed to RejectedLandingMinSpeed)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Landing_PostTouchdown_AboveMinSpeed_AcceptsGoAround()
+    {
+        // Locks in: in Rollout state, GA is Allowed when IAS >= RejectedLandingMinSpeed
+        // (60 kts for jets per AircraftCategory.cs:417). _canGoAround is set in TickRollout.
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 80, type: "B738");
+        var phase = new LandingPhase();
+        var ctx = Ctx(ac, rwy);
+
+        phase.OnStart(ctx);
+        Assert.Equal(LandingPhase.State.Rollout, phase.CurrentState);
+
+        // First rollout tick populates _canGoAround
+        phase.OnTick(ctx);
+
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.GoAround));
+    }
+
+    [Fact]
+    public void Landing_PostTouchdown_BelowMinSpeed_RejectsGoAround()
+    {
+        // Locks in: in Rollout state, GA is Rejected when IAS < RejectedLandingMinSpeed.
+        // Below the energy threshold the aircraft cannot safely re-accelerate to Vlof.
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 30, type: "B738");
+        var phase = new LandingPhase();
+        var ctx = Ctx(ac, rwy);
+
+        phase.OnStart(ctx);
+        Assert.Equal(LandingPhase.State.Rollout, phase.CurrentState);
+
+        phase.OnTick(ctx);
+
+        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.GoAround));
+    }
 }

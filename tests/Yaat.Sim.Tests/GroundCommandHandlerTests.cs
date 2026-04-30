@@ -986,4 +986,50 @@ public class GroundCommandHandlerTests
         Assert.NotNull(hs);
         Assert.True(hs.IsCleared);
     }
+
+    // -------------------------------------------------------------------------
+    // TryGiveWay — regression guards for invalidated prior-session claims (review §7 "Closed")
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryGiveWay_OnGroundWithRoute_HoldsAircraft()
+    {
+        // Locks in: standalone GIVEWAY holds the aircraft until the target passes.
+        // The plan claim "GIVEWAY only fires inside LV/AT conditional dispatch" was wrong.
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("28R");
+
+        var result = GroundCommandHandler.TryGiveWay(ac, "UAL999");
+
+        Assert.True(result.Success);
+        Assert.Contains("Give way to UAL999", result.Message!);
+        Assert.True(ac.Ground.IsHeld);
+        Assert.Equal("UAL999", ac.Ground.GiveWayTarget);
+    }
+
+    [Fact]
+    public void TryGiveWay_NoTaxiRoute_Fails()
+    {
+        // GIVEWAY requires an assigned taxi route — without one there's no taxi to defer.
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = null;
+
+        var result = GroundCommandHandler.TryGiveWay(ac, "UAL999");
+
+        Assert.False(result.Success);
+        Assert.Contains("must have a taxi route assigned", result.Message!);
+    }
+
+    [Fact]
+    public void TryGiveWay_Airborne_Fails()
+    {
+        // GIVEWAY is a ground-only command.
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = false;
+
+        var result = GroundCommandHandler.TryGiveWay(ac, "UAL999");
+
+        Assert.False(result.Success);
+        Assert.Contains("on the ground", result.Message!);
+    }
 }
