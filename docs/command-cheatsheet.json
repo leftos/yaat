@@ -3,7 +3,25 @@
   "intro": [
     "Args concatenate: `FH270` `CM240` `S250` `HO3Y`",
     "Altitudes: `050` / `5000` = 5,000 ft   `A25` = 2,500 ft AGL",
-    "`*` = global command"
+    "`G` = global command"
+  ],
+  "profiles": [
+    { "id": "all", "label": "All categories", "cats": "*" },
+    {
+      "id": "cd",
+      "label": "GC + CD training",
+      "cats": ["flight-plan", "transponder", "ground", "helicopter", "coordination", "track", "data-strips", "broadcast", "queue", "chaining"]
+    },
+    {
+      "id": "lc",
+      "label": "LC (Tower) training",
+      "cats": ["heading", "altitude-speed", "navigation", "transponder", "tower", "pattern", "hold", "helicopter", "track", "data-strips", "broadcast", "display", "coordination", "queue", "chaining"]
+    },
+    {
+      "id": "app",
+      "label": "APP training",
+      "cats": ["heading", "altitude-speed", "navigation", "approach", "hold", "track", "coordination", "display", "data-strips", "broadcast", "transponder", "queue", "chaining"]
+    }
   ],
   "categories": [
     {
@@ -23,7 +41,7 @@
       "rows": [
         { "verb": "CM", "aliases": [], "description": "Climb and maintain alt" },
         { "verb": "DM", "aliases": [], "description": "Descend and maintain alt" },
-        { "verb": "SPD", "aliases": ["s", "sl", "slow"], "description": "Speed (knots IAS); 210+ / 210- floor/ceil" },
+        { "verb": "SPD", "aliases": ["s", "sl", "slow", "speed", "ds", "is"], "description": "Speed (knots IAS); 210+ / 210- floor/ceil" },
         { "verb": "RNS", "aliases": ["ns"], "description": "Resume normal speed" },
         { "verb": "RFAS", "aliases": ["fas"], "description": "Reduce to final approach speed" },
         { "verb": "DSR", "aliases": [], "description": "Delete speed restrictions" },
@@ -51,9 +69,9 @@
       "rows": [
         { "verb": "SQ", "aliases": ["squawk"], "description": "Squawk code (random if bare)" },
         { "verb": "SQVFR", "aliases": ["sqv"], "description": "Squawk VFR (1200)" },
-        { "verb": "SQNORM", "aliases": ["sn"], "description": "Squawk normal" },
-        { "verb": "SQSBY", "aliases": ["ss"], "description": "Squawk standby" },
-        { "verb": "IDENT", "aliases": ["id"], "description": "Ident" },
+        { "verb": "SQNORM", "aliases": ["sn", "sqa", "sqon"], "description": "Squawk normal" },
+        { "verb": "SQSBY", "aliases": ["ss", "sqs"], "description": "Squawk standby" },
+        { "verb": "IDENT", "aliases": ["id", "sqi", "sqid"], "description": "Ident" },
         { "verb": "RANDSQ", "aliases": [], "description": "Random squawk" }
       ],
       "notes": ["Global: `SQALL` `SNALL` `SSALL`"]
@@ -103,7 +121,10 @@
         { "verb": "LA", "aliases": [], "description": "Low approach [MLT / MRT]" },
         { "verb": "COPT", "aliases": [], "description": "Cleared for option [MLT / MRT]" }
       ],
-      "notes": ["CTO modes: `RH` `OC` `hdg` `LT` `RT` `MLT` `MRT` `DCT` `MRC` `MRD` `MLC` `MLD` `MR270` `ML270` `360`"]
+      "notes": [
+        "CTO modes: `RH`/`MRH`/`MSO` `H270` `RH270`/`LH270` `RT270`/`LT270` `MRC`/`MLC` `MRD`/`MLD` `MR270`/`ML270` `OC` `DCT fix` `TLDCT fix`/`TRDCT fix` `MRT [rwy]`/`MLT [rwy]`",
+        "GA modes: `GA` (rwy hdg) `GA 270` `GA 270 50` (hdg+alt) `GA MRT [alt]`/`GA MLT [alt]` (closed traffic)"
+      ]
     },
     {
       "id": "pattern",
@@ -154,7 +175,7 @@
         { "verb": "RWY", "aliases": [], "description": "Assign runway (TAXI mod avail)" },
         { "verb": "FOLLOWG", "aliases": ["folg"], "description": "Follow traffic (ground)" },
         { "verb": "GIVEWAY", "aliases": ["behind", "gw"], "description": "Give way to traffic" },
-        { "verb": "EL / ER", "aliases": [], "description": "Exit runway L/R [twy] (NODEL)" },
+        { "verb": "EL / ER", "aliases": ["exitl", "exitr"], "description": "Exit runway L/R [twy] (NODEL)" },
         { "verb": "EXIT", "aliases": [], "description": "Exit onto taxiway (NODEL)" },
         { "verb": "TAXIALL", "aliases": [], "description": "Taxi all to destination", "global": true },
         { "verb": "BREAK", "aliases": [], "description": "Break conflict" }
@@ -183,10 +204,25 @@
         { "verb": "ACCEPT", "aliases": ["a"], "description": "Accept handoff [callsign]" },
         { "verb": "CANCEL", "aliases": [], "description": "Cancel handoff" },
         { "verb": "PO", "aliases": [], "description": "Point out [position]" },
+        { "verb": "PORJ", "aliases": [], "description": "Reject pointout" },
+        { "verb": "PORT", "aliases": [], "description": "Retract pointout" },
         { "verb": "OK", "aliases": [], "description": "Acknowledge" },
         { "verb": "ONHO", "aliases": ["onh"], "description": "On handoff action" },
+        { "verb": "CAACK", "aliases": [], "description": "Acknowledge conflict alert" },
+        { "verb": "CAINH", "aliases": ["cai"], "description": "Inhibit conflict alert" },
         { "verb": "ACCEPTALL", "aliases": [], "description": "Accept all handoffs", "global": true },
-        { "verb": "HOALL", "aliases": [], "description": "Handoff all to position", "global": true }
+        { "verb": "HOALL", "aliases": [], "description": "Handoff all to position", "global": true },
+        { "verb": "GHOST", "aliases": [], "description": "Ghost track (cs rwy | cs apt rwy | cs lat lon)", "global": true }
+      ],
+      "notes": []
+    },
+    {
+      "id": "display",
+      "name": "Display",
+      "rows": [
+        { "verb": "LDR", "aliases": [], "description": "Leader line direction (1-9)" },
+        { "verb": "JRING", "aliases": [], "description": "J-Ring [radius / bare=clear]" },
+        { "verb": "CONE", "aliases": [], "description": "Cone [radius / bare=clear]" }
       ],
       "notes": []
     },
@@ -196,10 +232,14 @@
       "rows": [
         { "verb": "ANNOTATE", "aliases": ["an", "box"], "description": "Annotate strip box (box# text)" },
         { "verb": "STRIP", "aliases": [], "description": "Push strip to bay" },
+        { "verb": "HSC", "aliases": [], "description": "Create half-strip (bay lines)" },
+        { "verb": "HSA", "aliases": [], "description": "Amend half-strip (key\\new...)" },
+        { "verb": "HSD", "aliases": [], "description": "Delete half-strip (key)" },
         { "verb": "SP1", "aliases": ["sp"], "description": "Scratchpad 1 [text / bare=clear]" },
         { "verb": "SP2", "aliases": [], "description": "Scratchpad 2 [text / bare=clear]" },
         { "verb": "TEMPALT", "aliases": ["ta", "qq"], "description": "Temporary altitude" },
-        { "verb": "CRUISE", "aliases": ["qz"], "description": "Cruise altitude" }
+        { "verb": "CRUISE", "aliases": ["qz"], "description": "Cruise altitude" },
+        { "verb": "PRA", "aliases": [], "description": "Pilot reported altitude (0 = clear)" }
       ],
       "notes": []
     },
@@ -237,7 +277,8 @@
         { "verb": "FP", "aliases": [], "description": "Create IFR FP (type alt route)" },
         { "verb": "VP", "aliases": [], "description": "Create VFR FP (type alt route)" },
         { "verb": "DA", "aliases": [], "description": "Flight data / abbreviated FP" },
-        { "verb": "REMARKS", "aliases": ["rem"], "description": "Set flight plan remarks" }
+        { "verb": "REMARKS", "aliases": ["rem"], "description": "Set flight plan remarks" },
+        { "verb": "CIFR", "aliases": [], "description": "Cancel IFR (convert to VFR)" }
       ],
       "notes": []
     },
@@ -268,6 +309,7 @@
         { "verb": "PAUSE", "aliases": ["p"], "description": "Pause simulation", "global": true },
         { "verb": "UNPAUSE", "aliases": ["u", "un"], "description": "Unpause simulation", "global": true },
         { "verb": "SIMRATE", "aliases": [], "description": "Sim rate 1-8", "global": true },
+        { "verb": "TRATE", "aliases": [], "description": "Set turn rate (deg/sec, 0.5-45; bare=clear)" },
         { "verb": "WAIT", "aliases": ["delay"], "description": "Wait seconds before next cmd" },
         { "verb": "WAITD", "aliases": [], "description": "Wait until distance (nm) from fix" },
         { "verb": "ADD", "aliases": [], "description": "Add aircraft (rules wt eng brg dist alt)", "global": true },
