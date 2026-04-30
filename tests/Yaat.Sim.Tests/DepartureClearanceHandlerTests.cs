@@ -252,6 +252,97 @@ public class DepartureClearanceHandlerTests
     }
 
     [Fact]
+    public void TryDepartureClearance_FromTaxiing_RunwayMismatch_Rejects()
+    {
+        // Silent-failure case: if the controller assigned a runway via RWY but
+        // the active taxi route still terminates at a different physical runway,
+        // CTO from Taxiing used to silently overwrite AssignedRunway with the
+        // route's destination — masking the controller's RWY directive.
+        var ac = MakeAircraft();
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        ac.Phases!.AssignedRunway = rwy28R;
+        var taxiPhase = new TaxiingPhase();
+        ac.Phases.Add(taxiPhase);
+        ac.Phases.Start(MinCtx(ac));
+
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 10,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "33/15",
+                },
+            ],
+        };
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            taxiPhase,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            5000,
+            Logger
+        );
+
+        Assert.False(result.Success);
+        Assert.Contains("33", result.Message!);
+        Assert.Contains("28R", result.Message);
+        Assert.Null(ac.Phases.DepartureClearance);
+        // AssignedRunway should NOT have been silently overwritten.
+        Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
+    }
+
+    [Fact]
+    public void TryDepartureClearance_FromTaxiing_AssignedRunwayEndDifferent_PreservesAssignment()
+    {
+        // Same physical runway, different end: aircraft assigned 28R but route
+        // hold-short is named "10L/28R" (the same physical runway). This must
+        // succeed and preserve the controller's explicit end (28R), not flip
+        // back to the route name.
+        var ac = MakeAircraft();
+        var rwy28R = Runway28R();
+        ac.Phases!.AssignedRunway = rwy28R;
+        var taxiPhase = new TaxiingPhase();
+        ac.Phases.Add(taxiPhase);
+        ac.Phases.Start(MinCtx(ac));
+
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 10,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "10L/28R",
+                },
+            ],
+        };
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            taxiPhase,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            5000,
+            Logger
+        );
+
+        Assert.True(result.Success);
+        Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
+    }
+
+    [Fact]
     public void ApplyDepartureClearanceIfPending_CTO_OmitsLuawPhase()
     {
         // Rolling takeoff (taxi consumption path): when the aircraft has

@@ -216,6 +216,25 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, $"Cannot resolve runway {depHoldShort.TargetName}");
         }
 
+        // Consistency: if RWY assigned a runway that doesn't share a physical runway
+        // with the route's destination, refuse to silently overwrite. The controller
+        // gave conflicting instructions; one of them has to be revoked.
+        if (aircraft.Phases?.AssignedRunway is { } assigned && !runway.Id.Overlaps(assigned.Id))
+        {
+            return new CommandResult(
+                false,
+                $"Taxi route ends at {runway.Designator} but {assigned.Designator} is the assigned runway — re-taxi or re-assign with RWY"
+            );
+        }
+
+        // Same physical runway with a different end (e.g. assigned 28R, hold-short
+        // named "10L/28R"): preserve the controller's explicit end rather than
+        // flipping back to the joint name.
+        if (aircraft.Phases?.AssignedRunway is { } existing && runway.Id.Overlaps(existing.Id))
+        {
+            runway = existing;
+        }
+
         // Pre-clear the destination hold-short and any runway crossings for the same runway.
         // The route may cross the departure runway before reaching the destination hold-short
         // (e.g., taxiway B at OAK crosses 28L/10R before reaching the 28L threshold).
