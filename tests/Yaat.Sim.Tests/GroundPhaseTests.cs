@@ -737,6 +737,21 @@ public class GroundPhaseTests
         Assert.DoesNotContain(aircraft.Phases.Phases.Skip(1), p => p is HoldingShortPhase);
     }
 
+    // --- Pushback distance scales with aircraft length ---
+
+    [Fact]
+    public void SimplePushbackDistance_LargerJet_PushesFartherThanLightSingle()
+    {
+        // Hardcoded 0.015 nm (~91 ft) was barely enough to clear a B738's
+        // ~110-ft length. Now scales with type.
+        double b738 = CategoryPerformance.SimplePushbackDistanceNm("B738");
+        double c172 = CategoryPerformance.SimplePushbackDistanceNm("C172");
+        double a388 = CategoryPerformance.SimplePushbackDistanceNm("A388");
+
+        Assert.True(b738 > c172, $"B738 {b738} should exceed C172 {c172}");
+        Assert.True(a388 > b738, $"A388 {a388} should exceed B738 {b738}");
+    }
+
     // --- Pushback held state sets TargetSpeed to 0 ---
 
     [Fact]

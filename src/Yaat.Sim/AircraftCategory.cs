@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Faa;
+
 namespace Yaat.Sim;
 
 public enum AircraftCategory
@@ -499,6 +501,41 @@ public static class CategoryPerformance
             AircraftCategory.Piston => 0.005,
             _ => 0.008,
         };
+    }
+
+    /// <summary>
+    /// Distance (nm) for a simple pushback (no taxiway/heading target). Floors
+    /// at the prior 0.015 nm (~91 ft) baseline so small aircraft are unaffected;
+    /// scales up to ~1× aircraft length for jets so the tail clears the gate
+    /// envelope. B738 (~110 ft) pushes ~110 ft; A388 (~240 ft) pushes ~240 ft.
+    /// </summary>
+    public static double SimplePushbackDistanceNm(string aircraftType)
+    {
+        const double FtPerNm = 6076.12;
+        const double BaselineNm = 0.015;
+
+        double lengthFt;
+        var record = FaaAircraftDatabase.Get(aircraftType);
+        if (record?.LengthFt is { } len && len > 0)
+        {
+            lengthFt = len;
+        }
+        else
+        {
+            var cwt = WakeTurbulenceData.GetCwt(aircraftType);
+            lengthFt = cwt switch
+            {
+                "A" => 240, // Super (A388)
+                "B" => 230, // Upper Heavy (B744)
+                "C" => 180, // Lower Heavy (B763)
+                "D" => 110, // Upper Large (B738)
+                "E" => 95, // Lower Large (E170)
+                "F" => 50, // Upper Small (C560)
+                _ => 30, // G-I Small/Light (C172)
+            };
+        }
+
+        return Math.Max(BaselineNm, lengthFt / FtPerNm);
     }
 
     /// <summary>

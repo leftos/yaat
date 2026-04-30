@@ -9,7 +9,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// Sets AircraftState.PushbackHeading so FlightPhysics moves the aircraft
 /// backward while the nose heading stays forward (or rotates to target).
 /// Three modes:
-///   1. No target: push straight back ~80 feet.
+///   1. No target: push straight back by <see cref="CategoryPerformance.SimplePushbackDistanceNm"/>
+///      (≈1.3× aircraft length) so the aircraft clears its gate.
 ///   2. Heading only: push back along a curved arc while rotating nose to target heading.
 ///   3. Target position (taxiway): arc toward target, then optionally rotate to heading.
 /// </summary>
@@ -17,7 +18,6 @@ public sealed class PushbackPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("PushbackPhase");
 
-    private const double DefaultPushbackDistanceNm = 0.015;
     private const double TargetReachedThresholdNm = 0.0005;
     private const double HeadingReachedDeg = 0.5;
     private const double LogIntervalSeconds = 3.0;
@@ -228,6 +228,7 @@ public sealed class PushbackPhase : Phase
 
     private bool TickSimplePushback(PhaseContext ctx, double turnRate)
     {
+        double clearanceNm = CategoryPerformance.SimplePushbackDistanceNm(ctx.Aircraft.AircraftType);
         if (TargetHeading is { } tgt)
         {
             bool headingReached = TurnNoseToward(ctx, new TrueHeading(tgt), turnRate);
@@ -236,11 +237,11 @@ public sealed class PushbackPhase : Phase
             ctx.Aircraft.Ground.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
 
             double distPushed = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
-            return headingReached && distPushed >= DefaultPushbackDistanceNm;
+            return headingReached && distPushed >= clearanceNm;
         }
 
         double dist = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
-        return dist >= DefaultPushbackDistanceNm;
+        return dist >= clearanceNm;
     }
 
     private static bool TurnNoseToward(PhaseContext ctx, TrueHeading target, double turnRate)
