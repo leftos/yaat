@@ -56,6 +56,11 @@ public sealed class HelicopterLandingPhase : Phase
             return true;
         }
 
+        // Continuously enforce hover (TargetSpeed=0) so the descent doesn't
+        // bleed altitude into forward motion. Without this the heli accelerates
+        // forward as it descends and overshoots the spot by hundreds of feet.
+        ctx.Targets.TargetSpeed = 0;
+
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
         double flareAlt = CategoryPerformance.FlareAltitude(ctx.Category);
 

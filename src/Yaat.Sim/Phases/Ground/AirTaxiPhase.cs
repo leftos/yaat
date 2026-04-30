@@ -13,7 +13,8 @@ public sealed class AirTaxiPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("AirTaxiPhase");
 
-    private const double ArrivalThresholdNm = 0.05;
+    private const double ArrivalThresholdNm = 0.01;
+    private const double BrakeStartNm = 0.10;
     private const double LogIntervalSeconds = 3.0;
 
     private readonly double _targetLat;
@@ -73,18 +74,13 @@ public sealed class AirTaxiPhase : Phase
             ctx.Targets.TargetSpeed = 0;
             return false;
         }
-        else
-        {
-            double maxSpeed = CategoryPerformance.AirTaxiSpeed(ctx.Category);
-            if (ctx.Targets.TargetSpeed < maxSpeed && !_descending)
-            {
-                ctx.Targets.TargetSpeed = maxSpeed;
-            }
-        }
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
+        var target = new LatLon(_targetLat, _targetLon);
+        double maxSpeed = CategoryPerformance.AirTaxiSpeed(ctx.Category);
 
-        // Phase 1: lifting off
+        // Phase 1: lifting off — climb in place toward AirTaxiAltitudeAgl. Don't
+        // start cruise navigation or brake ramp until we're at ~80% of target alt.
         if (_liftingOff)
         {
             double agl = ctx.Aircraft.Altitude - (_targetAltitude - CategoryPerformance.AirTaxiAltitudeAgl(ctx.Category));
@@ -94,56 +90,51 @@ public sealed class AirTaxiPhase : Phase
             }
             else
             {
-                // Still climbing — don't navigate yet, just point toward destination
-                double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
+                double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, target);
                 double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
                 return false;
             }
         }
 
-        // Phase 3: arrived — hover/descend
-        if (dist <= ArrivalThresholdNm)
-        {
-            if (!_descending)
-            {
-                _descending = true;
-                ctx.Targets.TargetSpeed = 0;
-                Log.LogDebug("[AirTaxi] {Callsign}: arrived over {Dest}, hovering", ctx.Aircraft.Callsign, _destinationName ?? "destination");
-            }
+        // Distance-aware brake ramp: cruise at AirTaxiSpeed while far from the
+        // target, then linearly scale TargetSpeed to 0 across the brake zone so
+        // the heli arrives at the destination with near-zero ground speed instead
+        // of overshooting and coasting to a stop past the spot.
+        ctx.Targets.TargetSpeed = (dist >= BrakeStartNm) ? maxSpeed : maxSpeed * (dist / BrakeStartNm);
+        ctx.Targets.TargetAltitude = _targetAltitude;
 
-            // Complete when speed is near zero and hovering
-            if (ctx.Aircraft.GroundSpeed <= 2.0)
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        // Phase 2: navigate toward destination
-        double brg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
+        // Always navigate toward the target so any overshoot self-corrects.
+        double brg = GeoMath.BearingTo(ctx.Aircraft.Position, target);
         double turnRate = AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
         double maxTurnAmount = turnRate * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, brg, maxTurnAmount);
 
-        // Maintain target altitude
-        ctx.Targets.TargetAltitude = _targetAltitude;
-
-        // Periodic logging
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
             Log.LogTrace(
-                "[AirTaxi] {Callsign}: dist={Dist:F3}nm, hdg={Hdg:F0}, brg={Brg:F0}, alt={Alt:F0}, gs={Gs:F0}",
+                "[AirTaxi] {Callsign}: dist={Dist:F3}nm, hdg={Hdg:F0}, brg={Brg:F0}, alt={Alt:F0}, gs={Gs:F0}, tgtSpd={Tgt:F0}",
                 ctx.Aircraft.Callsign,
                 dist,
                 ctx.Aircraft.TrueHeading.Degrees,
                 brg,
                 ctx.Aircraft.Altitude,
-                ctx.Aircraft.GroundSpeed
+                ctx.Aircraft.GroundSpeed,
+                ctx.Targets.TargetSpeed ?? 0
             );
+        }
+
+        // Complete when at the spot AND stopped.
+        if (dist <= ArrivalThresholdNm && ctx.Aircraft.GroundSpeed <= 2.0)
+        {
+            if (!_descending)
+            {
+                _descending = true;
+                Log.LogDebug("[AirTaxi] {Callsign}: arrived over {Dest}, hovering", ctx.Aircraft.Callsign, _destinationName ?? "destination");
+            }
+            return true;
         }
 
         return false;
