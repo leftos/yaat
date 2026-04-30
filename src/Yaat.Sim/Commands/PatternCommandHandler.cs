@@ -20,6 +20,14 @@ internal static class PatternCommandHandler
         double? finalDistanceNm
     )
     {
+        // Pattern entry only makes sense airborne — on the ground it would
+        // clobber the taxi/takeoff sequence. Closed-traffic departures should
+        // come via CTO MLT/MRT (ApplyClosedTraffic), not via ERD/ELD.
+        if (aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Pattern entry requires the aircraft to be airborne");
+        }
+
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {

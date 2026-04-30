@@ -791,8 +791,11 @@ public class PatternEntryTests : IDisposable
     }
 
     [Fact]
-    public void ERD_OnGround_NoPatternEntryPhase()
+    public void ERD_OnGround_Rejected()
     {
+        // Pattern entry on the ground would clobber the taxi/takeoff sequence
+        // and doesn't match real ATC: closed traffic comes via CTO MLT/MRT
+        // (ApplyClosedTraffic), not via ERD/ELD on a ground aircraft.
         var runway = MakeOak28R();
         var aircraft = MakeAircraft(37.87, -122.22, 9, 180);
         aircraft.IsOnGround = true;
@@ -806,13 +809,8 @@ public class PatternEntryTests : IDisposable
             finalDistanceNm: null
         );
 
-        Assert.True(result.Success, result.Message);
-        DumpPhases(aircraft);
-
-        // On-ground aircraft should not get PatternEntryPhase
-        // (but may get MidfieldCrossing if on wrong side — south for right pattern)
-        // Place check on phase[0] type being either Downwind or MidfieldCrossing, not PatternEntry
-        Assert.IsNotType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
+        Assert.False(result.Success);
+        Assert.Contains("airborne", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

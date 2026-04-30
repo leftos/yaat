@@ -308,28 +308,34 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
 
     /// <summary>
     /// Test 2 — `ERD 28R` must set `Phases.TrafficDirection = Right`.
-    /// Bare ERD already builds the phase list (verified by the second N80ZU ERD at
-    /// t=2076 in the recording), but TrafficDirection stays null. This is the root
-    /// cause of the GA-flips-to-left bug.
+    /// Bare ERD already builds the phase list, but TrafficDirection used to stay
+    /// null — the root cause of the GA-flips-to-left bug. Originally observed in
+    /// the S2-OAK-4 recording where the user issued ERD on the ground (which is
+    /// no longer supported — see TryEnterPattern airborne gate); the underlying
+    /// fix applies identically for airborne ERD, which is what real ATC actually
+    /// uses.
     /// </summary>
     [Fact]
     public void BareErd28R_SetsTrafficDirectionToRight()
     {
-        var recording = LoadRecording();
         var engine = BuildEngine();
-        if (recording is null || engine is null)
+        if (engine is null)
         {
             return;
         }
 
-        // Replay to t=2078 (just after the bare `ERD 28R` at t=2076 fires).
-        engine.Replay(recording, 2078);
+        var ac = SpawnAirborneOverOak(engine, "TST001", trueHeadingDeg: 280, altFt: 2000);
+        Assert.NotNull(ac);
 
-        var ac = engine.FindAircraft("N80ZU");
+        var erdResult = engine.SendCommand("TST001", "ERD 28R");
+        output.WriteLine($"ERD 28R: {erdResult.Success} — {erdResult.Message}");
+        Assert.True(erdResult.Success, erdResult.Message);
+
+        ac = engine.FindAircraft("TST001");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
 
-        output.WriteLine($"t=2078: phases=[{string.Join(",", ac.Phases.Phases.Select(p => p.GetType().Name))}]");
+        output.WriteLine($"phases=[{string.Join(",", ac.Phases.Phases.Select(p => p.GetType().Name))}]");
         output.WriteLine($"  TrafficDirection={ac.Phases.TrafficDirection}");
         output.WriteLine($"  AssignedRunway={ac.Phases.AssignedRunway?.Designator}");
 

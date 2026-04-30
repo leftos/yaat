@@ -736,4 +736,26 @@ public class PatternCommandHandlerTests
         Assert.Contains("no runway assigned", result.Message!, System.StringComparison.OrdinalIgnoreCase);
         Assert.Null(ac.Phases.LandingClearance);
     }
+
+    // -------------------------------------------------------------------------
+    // TryEnterPattern — airborne gate
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(PatternEntryLeg.Downwind)]
+    [InlineData(PatternEntryLeg.Crosswind)]
+    [InlineData(PatternEntryLeg.Base)]
+    [InlineData(PatternEntryLeg.Final)]
+    [InlineData(PatternEntryLeg.Upwind)]
+    public void TryEnterPattern_OnGround_Fails(PatternEntryLeg entryLeg)
+    {
+        // Pattern entry only makes sense airborne. Closed-traffic departures
+        // should come via CTO MLT/MRT, not via ERD/ELD/etc on a ground aircraft.
+        var ac = MakeAircraft(altitude: 100, onGround: true);
+
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, entryLeg, null, null);
+
+        Assert.False(result.Success);
+        Assert.Contains("airborne", result.Message!, System.StringComparison.OrdinalIgnoreCase);
+    }
 }
