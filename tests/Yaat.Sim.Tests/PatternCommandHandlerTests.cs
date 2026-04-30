@@ -699,12 +699,78 @@ public class PatternCommandHandlerTests
     public void TryClearedToLand_Airborne_WithRunway_Succeeds()
     {
         var ac = MakeAircraft(altitude: 1500, onGround: false);
+        ac.Phases!.Add(new LandingPhase());
 
         var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
 
         Assert.True(result.Success);
-        Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
+        Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
         Assert.Equal("28", ac.Phases.ClearedRunwayId);
+    }
+
+    [Fact]
+    public void TryClearedToLand_NoPendingApproach_Fails()
+    {
+        // Silent-failure case: CLAND used to set the LandingClearance flag even
+        // when there was no pending LandingPhase to replace. Aircraft would never
+        // actually transition to LandingPhase.
+        var ac = MakeAircraft(altitude: 1500, onGround: false);
+        // No LandingPhase added — just an aircraft in cruise/enroute with a runway assigned.
+
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+
+        Assert.False(result.Success);
+        Assert.Contains("no pending approach", result.Message!, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Null(ac.Phases!.LandingClearance);
+    }
+
+    [Theory]
+    [InlineData("TG")]
+    [InlineData("SG")]
+    [InlineData("LA")]
+    [InlineData("COPT")]
+    public void TrySetupOption_NoPendingApproach_Fails(string verb)
+    {
+        // Silent-failure case: TG/SG/LA/COPT used to set the LandingClearance
+        // flag even when there was no pending approach phase. The aircraft would
+        // never actually fly the option.
+        var ac = MakeAircraft(altitude: 1500, onGround: false);
+
+        var result = verb switch
+        {
+            "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, null),
+            "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, null),
+            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, null),
+            "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, null),
+            _ => throw new Xunit.Sdk.XunitException($"Unknown verb: {verb}"),
+        };
+
+        Assert.False(result.Success);
+        Assert.Contains("no landing phase", result.Message!, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Null(ac.Phases!.LandingClearance);
+    }
+
+    [Theory]
+    [InlineData("TG", ClearanceType.ClearedTouchAndGo)]
+    [InlineData("SG", ClearanceType.ClearedStopAndGo)]
+    [InlineData("LA", ClearanceType.ClearedLowApproach)]
+    [InlineData("COPT", ClearanceType.ClearedForOption)]
+    public void TrySetupOption_PendingLandingPhase_Succeeds(string verb, ClearanceType expectedClearance)
+    {
+        var ac = MakeAircraft(altitude: 1500, onGround: false);
+        ac.Phases!.Add(new LandingPhase());
+
+        var result = verb switch
+        {
+            "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, null),
+            "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, null),
+            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, null),
+            "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, null),
+            _ => throw new Xunit.Sdk.XunitException($"Unknown verb: {verb}"),
+        };
+
+        Assert.True(result.Success);
+        Assert.Equal(expectedClearance, ac.Phases.LandingClearance);
     }
 
     [Fact]

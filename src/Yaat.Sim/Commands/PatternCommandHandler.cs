@@ -797,6 +797,11 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase()))
+        {
+            return new CommandResult(false, "Cleared touch-and-go requires a pending approach (no landing phase to replace)");
+        }
+
         aircraft.Phases.LandingClearance = ClearanceType.ClearedTouchAndGo;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
         if (trafficPattern is { } dir)
@@ -804,7 +809,6 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
-        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase());
 
         return CommandDispatcher.Ok($"Cleared touch-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -816,6 +820,11 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new StopAndGoPhase()))
+        {
+            return new CommandResult(false, "Cleared stop-and-go requires a pending approach (no landing phase to replace)");
+        }
+
         aircraft.Phases.LandingClearance = ClearanceType.ClearedStopAndGo;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
         if (trafficPattern is { } dir)
@@ -823,7 +832,6 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
-        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new StopAndGoPhase());
 
         return CommandDispatcher.Ok($"Cleared stop-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -835,6 +843,11 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase()))
+        {
+            return new CommandResult(false, "Cleared low approach requires a pending approach (no landing phase to replace)");
+        }
+
         aircraft.Phases.LandingClearance = ClearanceType.ClearedLowApproach;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
         if (trafficPattern is { } dir)
@@ -842,7 +855,6 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
-        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase());
 
         return CommandDispatcher.Ok($"Cleared low approach{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -854,6 +866,11 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase()))
+        {
+            return new CommandResult(false, "Cleared for the option requires a pending approach (no landing phase to replace)");
+        }
+
         aircraft.Phases.LandingClearance = ClearanceType.ClearedForOption;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
         if (trafficPattern is { } dir)
@@ -861,7 +878,6 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
-        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase());
 
         return CommandDispatcher.Ok($"Cleared for the option{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -874,18 +890,6 @@ internal static class PatternCommandHandler
             PatternDirection.Right => ", make right traffic",
             _ => "",
         };
-    }
-
-    internal static CommandResult TrySetLandingClearance(AircraftState aircraft, ClearanceType clearanceType, string message)
-    {
-        if (aircraft.Phases is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        aircraft.Phases.LandingClearance = clearanceType;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        return CommandDispatcher.Ok(message);
     }
 
     internal static CommandResult TryHoldPresentPosition(AircraftState aircraft, TurnDirection? orbitDirection)
@@ -1240,12 +1244,16 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Cannot clear to land — no runway assigned");
         }
 
+        var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl))
+        {
+            return new CommandResult(false, "Cannot clear to land — no pending approach (assign an approach or pattern entry first)");
+        }
+
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway.Designator;
         aircraft.Phases.TrafficDirection = null;
-        var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
-        Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
-        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl);
         if (ctl.NoDelete)
         {
             aircraft.Ground.AutoDeleteExempt = true;
@@ -1309,6 +1317,11 @@ internal static class PatternCommandHandler
         // Compute the hold-short lat/lon on the landing runway centerline
         var holdShortPoint = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, holdShortDistNm);
 
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LandingPhase()))
+        {
+            return new CommandResult(false, "Cannot clear LAHSO — no pending approach (assign an approach or pattern entry first)");
+        }
+
         // Set LAHSO target
         aircraft.Phases.LahsoHoldShort = new LahsoTarget
         {
@@ -1322,7 +1335,6 @@ internal static class PatternCommandHandler
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = runway.Designator;
         aircraft.Phases.TrafficDirection = null;
-        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LandingPhase());
 
         return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {lahso.CrossingRunwayId}");
     }
