@@ -906,4 +906,36 @@ public class GroundPhaseTests
 
         Assert.Equal(10, aircraft.IndicatedAirspeed);
     }
+
+    // -------------------------------------------------------------------------
+    // RunwayExitPhase respects Ground.IsHeld
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void RunwayExitPhase_WhenHeld_StopsRolling()
+    {
+        // Concrete silent-failure case: HOLD POSITION sets Ground.IsHeld = true,
+        // but RunwayExitPhase used to keep setting TargetSpeed = coastSpeed each
+        // tick — the controller saw "Hold position" success but the aircraft kept
+        // rolling. The other 6 ground-movement phases (CrossingRunwayPhase,
+        // PushbackPhase, TaxiingPhase, etc.) all honor IsHeld; RunwayExitPhase
+        // must too.
+        var aircraft = MakeGroundAircraft();
+        aircraft.Phases = new PhaseList();
+        var phase = new RunwayExitPhase();
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = NullLogger.Instance,
+        };
+        phase.OnStart(ctx);
+
+        aircraft.Ground.IsHeld = true;
+        phase.OnTick(ctx);
+
+        Assert.Equal(0, aircraft.Targets.TargetSpeed);
+    }
 }
