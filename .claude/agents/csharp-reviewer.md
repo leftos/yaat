@@ -1,6 +1,7 @@
 ---
 name: csharp-reviewer
 description: "Reviews C# code for YAAT-specific conventions and common issues"
+model: sonnet
 ---
 
 # C# Code Reviewer for YAAT

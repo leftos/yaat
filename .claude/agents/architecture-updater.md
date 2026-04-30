@@ -1,6 +1,7 @@
 ---
 name: architecture-updater
 description: "Checks if docs/architecture.md needs updating based on changed files"
+model: haiku
 ---
 
 # Architecture Doc Updater
