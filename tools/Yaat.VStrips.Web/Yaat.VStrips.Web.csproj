@@ -21,4 +21,32 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client.Core\Yaat.Client.Core.csproj" />
   </ItemGroup>
+
+  <!-- After Publish, mirror the WASM bundle into yaat-server's wwwroot so
+       running yaat-server from the sibling clone serves the live /vstrips/
+       URL. Override the YaatServer property if your checkout differs from
+       the sibling layout documented in CLAUDE.md.
+       Skipped when the property resolves to a path that doesn't exist:
+       lets CI builds without the sibling checkout still publish locally. -->
+  <PropertyGroup>
+    <YaatServer Condition="'$(YaatServer)' == ''">$(MSBuildThisFileDirectory)..\..\..\yaat-server</YaatServer>
+    <YaatServerWwwroot>$(YaatServer)\src\Yaat.Server\wwwroot\vstrips</YaatServerWwwroot>
+  </PropertyGroup>
+
+  <Target Name="CopyToServerWwwroot" AfterTargets="Publish">
+    <ItemGroup>
+      <_PublishedWasm Include="$(PublishDir)wwwroot\**\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_PublishedWasm)"
+      DestinationFiles="@(_PublishedWasm->'$(YaatServerWwwroot)\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true"
+      Condition="Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
+    <Message Importance="high"
+             Text="Yaat.VStrips.Web → $(YaatServerWwwroot)"
+             Condition="Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
+    <Message Importance="high"
+             Text="Skipped server-wwwroot copy: $(YaatServer)\src\Yaat.Server\Yaat.Server.csproj does not exist."
+             Condition="!Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
+  </Target>
 </Project>
