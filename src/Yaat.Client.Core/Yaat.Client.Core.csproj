@@ -32,6 +32,18 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Resources\icon.png" />
+    <!-- JetBrains Mono — primary monospace font for the strip view. Embedded
+         as an AvaloniaResource so Skia can find it on every platform,
+         including the Avalonia.Browser WASM bundle where Inter is the only
+         font that ships out of the box. Without this, the desktop client
+         falls back to Consolas (Windows) or Menlo (macOS) — fine — but the
+         browser tab falls all the way to Inter, which is proportional and
+         clips callsigns / breaks every column-aligned cell.
+         OFL 1.1 license at OFL.txt; ship both Regular and Bold so
+         FontWeight="Bold" maps to a real glyph instead of a faux-bold pass. -->
+    <AvaloniaResource Include="Resources\Fonts\JetBrainsMono-Regular.ttf" />
+    <AvaloniaResource Include="Resources\Fonts\JetBrainsMono-Bold.ttf" />
+    <None Include="Resources\Fonts\OFL.txt" Pack="false" />
   </ItemGroup>
 
   <ItemGroup>
