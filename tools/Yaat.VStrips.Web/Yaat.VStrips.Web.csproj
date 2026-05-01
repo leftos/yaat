@@ -29,32 +29,32 @@
        Skipped when the property resolves to a path that doesn't exist:
        lets CI builds without the sibling checkout still publish locally. -->
   <PropertyGroup>
-    <YaatServer Condition="'$(YaatServer)' == ''">$(MSBuildThisFileDirectory)..\..\..\yaat-server</YaatServer>
-    <YaatServerWwwroot>$(YaatServer)\src\Yaat.Server\wwwroot\vstrips</YaatServerWwwroot>
+    <YaatServer Condition="'$(YaatServer)' == ''">$(MSBuildThisFileDirectory)../../../yaat-server</YaatServer>
+    <YaatServerWwwroot>$(YaatServer)/src/Yaat.Server/wwwroot/vstrips</YaatServerWwwroot>
   </PropertyGroup>
 
   <Target Name="CopyToServerWwwroot" AfterTargets="Publish">
     <ItemGroup>
-      <_PublishedWasm Include="$(PublishDir)wwwroot\**\*" />
+      <_PublishedWasm Include="$(PublishDir)wwwroot/**/*" />
       <!-- WASM publish writes content-hashed assets (Avalonia.Base.{hash}.wasm,
            dotnet.native.{hash}.wasm, etc.); when a hash changes between
            publishes the prior copy doesn't get deleted. Without this Delete
            step the destination wwwroot balloons from ~35 MB to 150 MB+ after
            a few iterations as stale variants pile up. -->
-      <_StaleWwwroot Include="$(YaatServerWwwroot)\**\*" />
+      <_StaleWwwroot Include="$(YaatServerWwwroot)/**/*" />
     </ItemGroup>
     <Delete
       Files="@(_StaleWwwroot)"
-      Condition="Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
+      Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
     <Copy
       SourceFiles="@(_PublishedWasm)"
-      DestinationFiles="@(_PublishedWasm->'$(YaatServerWwwroot)\%(RecursiveDir)%(Filename)%(Extension)')"
-      Condition="Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
+      DestinationFiles="@(_PublishedWasm->'$(YaatServerWwwroot)/%(RecursiveDir)%(Filename)%(Extension)')"
+      Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
     <Message Importance="high"
              Text="Yaat.VStrips.Web → $(YaatServerWwwroot)"
-             Condition="Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
+             Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
     <Message Importance="high"
-             Text="Skipped server-wwwroot copy: $(YaatServer)\src\Yaat.Server\Yaat.Server.csproj does not exist."
-             Condition="!Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
+             Text="Skipped server-wwwroot copy: $(YaatServer)/src/Yaat.Server/Yaat.Server.csproj does not exist."
+             Condition="!Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
   </Target>
 </Project>

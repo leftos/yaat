@@ -33,7 +33,7 @@
             <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}"/>
             <Setter Property="FontStyle" Value="Italic"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="15"/>
             <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
             <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
