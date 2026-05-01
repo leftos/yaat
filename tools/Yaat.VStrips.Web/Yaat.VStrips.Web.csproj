@@ -8,6 +8,15 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RunAOTCompilation>false</RunAOTCompilation>
     <WasmBuildNative>true</WasmBuildNative>
+    <!-- Suppress WASM0001/0061/0062 from Avalonia.Win32.Automation interop:
+         Yaat.Client.Core references Avalonia.Desktop which transitively
+         pulls in Avalonia.Win32 (Windows-only). The Win32 UIA pinvokes
+         and ComVariant union types aren't blittable to WASM, but the
+         WASM linker tree-shakes them — they're never executed in browser.
+         CI's /warnaserror promotes these to errors otherwise. The proper
+         long-term fix is extracting a Yaat.Client.Strips project that
+         doesn't transitively reference Avalonia.Desktop. -->
+    <NoWarn>$(NoWarn);WASM0001;WASM0061;WASM0062</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
