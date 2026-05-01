@@ -33,10 +33,16 @@
          falls back to Consolas (Windows) or Menlo (macOS) — fine — but the
          browser tab falls all the way to Inter, which is proportional and
          clips callsigns / breaks every column-aligned cell.
-         OFL 1.1 license at OFL.txt; ship both Regular and Bold so
-         FontWeight="Bold" maps to a real glyph instead of a faux-bold pass. -->
+         OFL 1.1 license at OFL.txt; ship Regular, Bold, Italic, and
+         BoldItalic so FontWeight="Bold" + FontStyle="Italic" (used by
+         the strip annotation cells) maps to a real glyph face on WASM
+         where the system fonts (Segoe Script / Lucida Handwriting /
+         Comic Sans MS) aren't available — without BoldItalic the
+         matcher falls back to Regular and the cells render un-bold. -->
     <AvaloniaResource Include="Resources\Fonts\JetBrainsMono-Regular.ttf" />
     <AvaloniaResource Include="Resources\Fonts\JetBrainsMono-Bold.ttf" />
+    <AvaloniaResource Include="Resources\Fonts\JetBrainsMono-Italic.ttf" />
+    <AvaloniaResource Include="Resources\Fonts\JetBrainsMono-BoldItalic.ttf" />
     <None Include="Resources\Fonts\OFL.txt" Pack="false" />
   </ItemGroup>
 

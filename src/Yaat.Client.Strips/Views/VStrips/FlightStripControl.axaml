@@ -176,12 +176,16 @@
          Structure is a 7-column × 3-row grid, equal rows, fixed col widths:
            col 1: callsign / aircraft type / CID+barcode   (22%)
            col 2: beacon   / P-prop-dep   / requested alt  (8.5%)
-           col 3: departure+dest / 8A / 8B                 (13.5%)
-           col 4: route/remarks (spans 3 rows)             (37.9%)
+           col 3: departure+dest / 8A / 8B                 (16.8%)
+           col 4: route/remarks (spans 3 rows)             (34.4%)
            cols 5-7: annotation boxes 10|11|12 / 13|14|15 / 16|17|18 (3×6%)
          Col 1 exception: revision (field 2) is tucked at the bottom of row 1
          as a half-size inline line beneath the callsign, so row 1 holds both
          callsign (top) and revision (bottom-small) without the row growing.
+         Col 3 width fits a typical 4+1+4 ICAO pair ("KOAK KSTS"); when an
+         altitude string overflows col 2 (e.g. "VFR/110") it is allowed to
+         spill rightward without clipping (ClipToBounds=False up the chain),
+         matching how a paper-strip printer ignores cell boundaries.
          Col 4 exception: when remarks exist the route wraps across rows 1-2
          (MaxLines=2) and remarks anchor row 3. With no remarks the route
          wraps across all 3 rows (MaxLines=3).
@@ -195,8 +199,9 @@
             <Grid x:Name="FullStripGrid"
                   IsVisible="{Binding IsFullStrip}"
                   Width="535"
+                  ClipToBounds="False"
                   RowDefinitions="28,23,23"
-                  ColumnDefinitions="118,46,72,*,32,32,33">
+                  ColumnDefinitions="118,46,90,*,32,32,33">
 
                 <!-- Column 1, row 1: callsign (top) + revision (bottom-small).
                      DockPanel stacks them so both fit inside a single row. -->
@@ -268,14 +273,22 @@
                                VerticalAlignment="Center"
                                Foreground="{StaticResource StripPrintedBrush}"/>
                 </Border>
+                <!-- Requested altitude — Canvas wrapper measures the TextBlock
+                     with infinite width so "VFR/110" and similar strings spill
+                     rightward into the col-3 area instead of clipping at the
+                     46px column edge. Canvas.Top centers the 13pt line within
+                     the 23px row height (Canvas children ignore VerticalAlignment). -->
                 <Border Grid.Row="2" Grid.Column="1"
                         BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding ReqAltitude}"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="13" FontWeight="Bold"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
+                        BorderThickness="0,0,1,0" Padding="4,0"
+                        ClipToBounds="False">
+                    <Canvas ClipToBounds="False">
+                        <TextBlock Canvas.Left="0" Canvas.Top="3"
+                                   Text="{Binding ReqAltitude}"
+                                   FontFamily="{StaticResource MonoFont}"
+                                   FontSize="13" FontWeight="Bold"
+                                   Foreground="{StaticResource StripPrintedBrush}"/>
+                    </Canvas>
                 </Border>
 
                 <!-- Column 3 row 1: field 8 packs "KOAK KSTS" (dep + optional
