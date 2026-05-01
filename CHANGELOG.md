@@ -9,6 +9,7 @@
 
 ### Fixed
 - Helicopter `LAND` no longer overshoots the destination by ~150 ft, then drifts forward another ~700 ft during the descent. The `AirTaxi` phase now decelerates smoothly as it approaches the spot (was: cruised at 40 KIAS until within 0.05 nm, then braked too late and coasted past), and the landing descent now holds horizontal position instead of bleeding altitude into forward motion (the heli previously accelerated to ~40 kt while dropping the last 50 ft). Helicopters now touch down within ~30 ft of the named spot.
+- Aircraft on final approach no longer slow to final approach speed (FAS) earlier than needed. A slow piston that only needs to bleed a few knots used to start decelerating at a fixed 5 NM from the threshold, wasting most of final at FAS. The decel point is now computed kinematically — aircraft hold approach-cruise speed until just before short final and settle at FAS by ~2 NM (≈660 ft AGL on a 3° glideslope).
 
 ## v0.1.9-alpha [2026/04/30]
 

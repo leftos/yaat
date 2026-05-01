@@ -100,10 +100,11 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
     /// N436MS in the recording was a VFR aircraft on visual approach via ERB 28R
     /// with no CLAND yet — pre-GA terminator was LandingPhase. The recording's
     /// live session had this aircraft auto-go-around at t≈815 ("no landing
-    /// clearance"); in the deterministic replay the aircraft is on FinalApproach
-    /// at t=971 with LandingPhase pending. Inject a manual GA there to exercise
-    /// the same auto-cycle path with the aircraft's full-stop intent. After the
-    /// fix, the next auto-cycled circuit must end in LandingPhase.
+    /// clearance"); in the deterministic replay the aircraft is established on
+    /// FinalApproach by t≈800 with LandingPhase pending. Inject a manual GA
+    /// inside that window to exercise the same auto-cycle path with the
+    /// aircraft's full-stop intent. After the fix, the next auto-cycled circuit
+    /// must end in LandingPhase.
     /// </summary>
     [Fact]
     public void N436MS_GoAroundFromVisualApproach_NextCircuitEndsWithLandingPhase()
@@ -115,7 +116,7 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
             return;
         }
 
-        engine.Replay(recording, 970);
+        engine.Replay(recording, 850);
 
         var ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
@@ -133,7 +134,7 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
         Assert.NotNull(ac);
         var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
         output.WriteLine(
-            $"GA injected at t=970. GoAroundPhase: NextLandingFullStop={ga.NextLandingFullStop} "
+            $"GA injected at t=850. GoAroundPhase: NextLandingFullStop={ga.NextLandingFullStop} "
                 + $"ReenterPattern={ga.ReenterPattern} TargetAlt={ga.TargetAltitude}"
         );
 

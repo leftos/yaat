@@ -23,7 +23,22 @@ public sealed class FinalApproachPhase : Phase
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
     private const double AimPointMinNm = 0.1;
-    private const double FasTransitionDistanceNm = 5.0;
+
+    /// <summary>
+    /// Distance from threshold by which the aircraft must be settled at FAS. Anchored
+    /// between the VMC 500-ft (~1.6 NM on a 3° GS) and IMC 1000-ft (~3.2 NM) stabilized
+    /// approach gates per FAA AC 120-71 / InFO 11009. The kinematic FAS trigger is
+    /// computed as <c>FasReachGateNm + bleedDistance</c> so the aircraft hits FAS at this
+    /// distance regardless of how much speed it had to bleed.
+    /// </summary>
+    private const double FasReachGateNm = 2.0;
+
+    /// <summary>
+    /// Upper bound on the kinematic FAS trigger: never start the FAS deceleration
+    /// earlier than this. Preserves the prior fixed 5.0 NM behavior as a safety cap
+    /// for unusually fast or unusually slow-decelerating aircraft.
+    /// </summary>
+    private const double MaxFasTriggerNm = 5.0;
 
     /// <summary>
     /// Time-to-threshold (seconds) inside which the follower stops chasing the
@@ -247,10 +262,16 @@ public sealed class FinalApproachPhase : Phase
 
         double startDist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
 
-        // Only set FAS immediately when already within transition distance.
+        // Only set FAS immediately when already inside the kinematic trigger window.
         // Further out, keep the current speed (InterceptCoursePhase sets 1.3×FAS)
-        // and let OnTick() apply FAS when distance drops below the threshold.
-        if (startDist <= FasTransitionDistanceNm)
+        // and let OnTick() apply FAS when distance drops below the trigger.
+        double startTrigger = ComputeFasTriggerDistanceNm(
+            ctx.Aircraft.IndicatedAirspeed,
+            approachSpeed,
+            ctx.Aircraft.GroundSpeed,
+            AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category)
+        );
+        if (startDist <= startTrigger)
         {
             ctx.Targets.TargetSpeed = approachSpeed;
             _fasSet = true;
@@ -279,13 +300,29 @@ public sealed class FinalApproachPhase : Phase
 
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
 
-        // Decelerate to FAS when within transition distance
-        if (!_fasSet && (distNm <= FasTransitionDistanceNm) && !ctx.Targets.HasExplicitSpeedCommand)
+        // Decelerate to FAS at the latest distance that still has the aircraft settled
+        // at FAS by the stabilized-approach gate. See ComputeFasTriggerDistanceNm.
+        if (!_fasSet && !ctx.Targets.HasExplicitSpeedCommand)
         {
             double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            ctx.Targets.TargetSpeed = fas;
-            _fasSet = true;
-            Log.LogDebug("[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm", ctx.Aircraft.Callsign, fas, distNm);
+            double trigger = ComputeFasTriggerDistanceNm(
+                ctx.Aircraft.IndicatedAirspeed,
+                fas,
+                ctx.Aircraft.GroundSpeed,
+                AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category)
+            );
+            if (distNm <= trigger)
+            {
+                ctx.Targets.TargetSpeed = fas;
+                _fasSet = true;
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
+                    ctx.Aircraft.Callsign,
+                    fas,
+                    distNm,
+                    trigger
+                );
+            }
         }
 
         // Follow speed adjustment on final has three rules:
@@ -535,6 +572,35 @@ public sealed class FinalApproachPhase : Phase
         }
 
         return complete;
+    }
+
+    /// <summary>
+    /// Computes the latest distance from the threshold at which the FAS deceleration
+    /// must begin so the aircraft is settled at FAS by <see cref="FasReachGateNm"/>.
+    /// Equals <c>FasReachGateNm + bleedDistance</c>, capped at <see cref="MaxFasTriggerNm"/>.
+    /// Bleed distance uses an average of pre- and post-decel ground speeds (linear
+    /// approximation of a constant-decel kinematic integration).
+    /// </summary>
+    private static double ComputeFasTriggerDistanceNm(double ias, double fas, double groundSpeed, double decelRateKtsPerSec)
+    {
+        double speedDelta = ias - fas;
+        if (speedDelta <= 0)
+        {
+            return FasReachGateNm;
+        }
+
+        double decelRate = Math.Max(decelRateKtsPerSec, 0.1);
+        double bleedSeconds = speedDelta / decelRate;
+
+        // Approximate the post-decel ground speed by scaling current GS in proportion
+        // to the IAS reduction. Reasonable below 10k ft where TAS ≈ IAS.
+        double iasFloor = Math.Max(ias, 1.0);
+        double gsAvg = (groundSpeed + (groundSpeed * fas / iasFloor)) / 2.0;
+
+        double bleedDistanceNm = bleedSeconds * gsAvg / 3600.0;
+        double trigger = FasReachGateNm + bleedDistanceNm;
+
+        return Math.Min(trigger, MaxFasTriggerNm);
     }
 
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)
