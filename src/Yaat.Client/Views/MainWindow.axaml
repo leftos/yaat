@@ -128,6 +128,10 @@
                 <MenuItem Header="_Settings"
                           x:Name="SettingsMenuItem" />
                 <Separator />
+                <MenuItem Header="Open Strips in _Browser"
+                          Command="{Binding OpenStripsInBrowserCommand}"
+                          ToolTip.Tip="Open the connected server's web vStrips in your default browser" />
+                <Separator />
                 <MenuItem Header="Configure _CRC Environments"
                           x:Name="ConfigureCrcMenuItem" />
             </MenuItem>

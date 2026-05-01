@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -95,6 +96,59 @@ public partial class MainViewModel
     }
 
     private bool CanDisconnect() => IsConnected || IsConnecting;
+
+    /// <summary>
+    /// Tools → Open Strips in Browser. Builds <c>{server}/vstrips/?cid=&amp;
+    /// initials=&amp;artcc=&amp;room=</c> from the live connection state and
+    /// shells out to the user's default browser via
+    /// <see cref="ProcessStartInfo.UseShellExecute"/> — same pattern as
+    /// <c>Yaat.VStrips.StandaloneViewModel.OpenInBrowserAsync</c>. Lets the
+    /// instructor pop the WASM strips client into a CRC tab without juggling
+    /// extra processes. Gated on <see cref="IsConnected"/> because the URL
+    /// only points at a real server while we're connected.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenStripsInBrowser))]
+    private Task OpenStripsInBrowserAsync()
+    {
+        if (string.IsNullOrEmpty(_connectedServerUrl))
+        {
+            return Task.CompletedTask;
+        }
+
+        var baseUrl = _connectedServerUrl.TrimEnd('/');
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_preferences.VatsimCid))
+        {
+            qs.Add($"cid={Uri.EscapeDataString(_preferences.VatsimCid)}");
+        }
+        if (!string.IsNullOrWhiteSpace(_preferences.UserInitials))
+        {
+            qs.Add($"initials={Uri.EscapeDataString(_preferences.UserInitials)}");
+        }
+        if (!string.IsNullOrWhiteSpace(_preferences.ArtccId))
+        {
+            qs.Add($"artcc={Uri.EscapeDataString(_preferences.ArtccId)}");
+        }
+        if (!string.IsNullOrWhiteSpace(ActiveRoomId))
+        {
+            qs.Add($"room={Uri.EscapeDataString(ActiveRoomId)}");
+        }
+        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+        var url = $"{baseUrl}/vstrips/{query}";
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "OpenStripsInBrowser failed for {Url}", url);
+            StatusText = "Failed to open browser";
+        }
+        return Task.CompletedTask;
+    }
+
+    private bool CanOpenStripsInBrowser() => IsConnected && !string.IsNullOrEmpty(_connectedServerUrl);
 
     [RelayCommand(CanExecute = nameof(CanCreateRoom))]
     private async Task CreateRoomAsync()

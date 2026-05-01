@@ -82,6 +82,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadLiveWeatherCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenStripsInBrowserCommand))]
     private bool _isConnected;
 
     [ObservableProperty]
