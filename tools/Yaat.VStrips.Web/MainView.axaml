@@ -2,7 +2,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vstrips="using:Yaat.Client.Views.VStrips"
              x:Class="Yaat.VStrips.Web.MainView">
-    <Grid Background="#252529">
-        <vstrips:VStripsView x:Name="StripsView" />
+    <Grid Background="#252529" RowDefinitions="*,Auto">
+        <vstrips:VStripsView Grid.Row="0" x:Name="StripsView" />
+        <!-- Status footer — gives the user visible feedback on connect /
+             room state since the browser tab has no other chrome. Code-
+             behind updates StatusText as the connect + auto-join flow
+             progresses. -->
+        <Border Grid.Row="1"
+                Background="#1A1A20"
+                BorderBrush="#3A3A40"
+                BorderThickness="0,1,0,0"
+                Padding="8,3">
+            <TextBlock x:Name="StatusBar"
+                       Text="Initializing..."
+                       Foreground="#B0B0B0"
+                       FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+                       FontSize="11"/>
+        </Border>
     </Grid>
 </UserControl>

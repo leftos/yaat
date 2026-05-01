@@ -139,9 +139,19 @@
                     BorderThickness="1"
                     CornerRadius="2"
                     ToolTip.Tip="Drag here to delete">
-                <TextBlock Text="🗑" FontSize="16"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                <!-- 8-point Geometry trash glyph drawn at 16x16. Replaces the
+                     U+1F5D1 emoji which renders fine in Skia desktop (system
+                     emoji fallback) but tofus in Avalonia.Browser since the
+                     Inter font we ship has no emoji glyphs and there's no
+                     font fallback configured. Path keeps the visual without
+                     pulling in a 1MB+ emoji font. -->
+                <Path Width="14" Height="14"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Stroke="#E0C0C0"
+                      StrokeThickness="1.2"
+                      Fill="#E0C0C0"
+                      Data="M3 4 L11 4 M2 4 L12 4 L11.3 13 L2.7 13 Z M5 6 L5 11 M7 6 L7 11 M9 6 L9 11 M5 4 L5 2.5 L9 2.5 L9 4"/>
             </Border>
 
             <ToggleButton Grid.Column="4"
@@ -304,9 +314,9 @@
                             <TextBlock Text="Arrival Printer:" HorizontalAlignment="Center"
                                        FontSize="14" Foreground="White"/>
                             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-                                <Button Grid.Column="0" Content="❮"
+                                <Button Grid.Column="0" Content="‹"
                                         Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="18"
+                                        Foreground="White" FontSize="22"
                                         Click="OnArrivalPrevClick"/>
                                 <ContentControl Grid.Column="1" Content="{Binding Printer.VisibleArrivalStrip}"
                                                 HorizontalAlignment="Center">
@@ -316,9 +326,9 @@
                                         </DataTemplate>
                                     </ContentControl.ContentTemplate>
                                 </ContentControl>
-                                <Button Grid.Column="2" Content="❯"
+                                <Button Grid.Column="2" Content="›"
                                         Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="18"
+                                        Foreground="White" FontSize="22"
                                         Click="OnArrivalNextClick"/>
                             </Grid>
                             <TextBlock Text="{Binding Printer.ArrivalCounter}"
@@ -344,9 +354,9 @@
                                        HorizontalAlignment="Center"
                                        FontSize="14" Foreground="White"/>
                             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-                                <Button Grid.Column="0" Content="❮"
+                                <Button Grid.Column="0" Content="‹"
                                         Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="18"
+                                        Foreground="White" FontSize="22"
                                         Click="OnDeparturePrevClick"/>
                                 <ContentControl Grid.Column="1"
                                                 Content="{Binding Printer.VisibleDepartureStrip}"
@@ -357,9 +367,9 @@
                                         </DataTemplate>
                                     </ContentControl.ContentTemplate>
                                 </ContentControl>
-                                <Button Grid.Column="2" Content="❯"
+                                <Button Grid.Column="2" Content="›"
                                         Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="18"
+                                        Foreground="White" FontSize="22"
                                         Click="OnDepartureNextClick"/>
                             </Grid>
                             <TextBlock Text="{Binding Printer.DepartureCounter}"

@@ -31,6 +31,7 @@ public partial class MainView : UserControl
 
         if (HasIdentity())
         {
+            SetStatus("Initializing...");
             _ = ConnectAndAutoJoinAsync(vm);
         }
         else
@@ -38,7 +39,17 @@ public partial class MainView : UserControl
             // No identity in the URL — keep the offline spike fixture so the
             // page renders something demonstrable (used during the spike and
             // by anyone loading the bare URL out of curiosity).
+            SetStatus("Offline preview (no identity in URL)");
             SeedSpikeFixture(vm);
+        }
+    }
+
+    private void SetStatus(string text)
+    {
+        var bar = this.FindControl<TextBlock>("StatusBar");
+        if (bar is not null)
+        {
+            bar.Text = text;
         }
     }
 
@@ -100,17 +111,22 @@ public partial class MainView : UserControl
 
         try
         {
-            Log.LogInformation("Connecting to {Server}", string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl);
+            var what = string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl;
+            Log.LogInformation("Connecting to {Server}", what);
+            SetStatus($"Connecting to {what}...");
             await _connection.ConnectAsync(serverUrl);
+            SetStatus($"Connected to {what} — looking up room...");
         }
         catch (Exception ex)
         {
             Log.LogError(ex, "Connect failed");
+            SetStatus($"Connect failed: {ex.Message}");
             return;
         }
 
         if (!string.IsNullOrEmpty(explicitRoomId))
         {
+            SetStatus($"Joining room {explicitRoomId}...");
             await JoinRoomAsync(vm, explicitRoomId, cid, initials, artcc);
             return;
         }
@@ -118,6 +134,7 @@ public partial class MainView : UserControl
         if (string.IsNullOrEmpty(cid))
         {
             Log.LogInformation("No CID supplied; staying connected without a room");
+            SetStatus("Connected. No CID supplied — pass ?cid=<your VATSIM CID> to auto-join a room.");
             return;
         }
 
@@ -127,6 +144,7 @@ public partial class MainView : UserControl
             if (room is null)
             {
                 Log.LogInformation("No active room found for CID {Cid}; will auto-join when one becomes available", cid);
+                SetStatus($"Connected, CID {cid} — no active room yet. Waiting for one to become available...");
                 _connection.RoomAvailableForCid += async roomId =>
                 {
                     if (vm.IsConnected)
@@ -136,11 +154,13 @@ public partial class MainView : UserControl
                 };
                 return;
             }
+            SetStatus($"Connected, found room {room.RoomId} ({room.CreatorInitials}) — joining...");
             await JoinRoomAsync(vm, room.RoomId, cid, initials, artcc);
         }
         catch (Exception ex)
         {
             Log.LogWarning(ex, "Auto-join lookup failed");
+            SetStatus($"Auto-join lookup failed: {ex.Message}");
         }
     }
 
@@ -152,14 +172,31 @@ public partial class MainView : UserControl
             if (state is null)
             {
                 Log.LogWarning("JoinRoom {RoomId} returned null state", roomId);
+                SetStatus($"JoinRoom {roomId} returned null — room may have ended");
                 return;
             }
+            var bayCount = state.FlightStripsConfig?.Bays?.Length ?? 0;
+            Log.LogInformation(
+                "Joined {RoomId} as {Cid}/{Initials}; scenario={Scenario}; facility={Facility}; bays={BayCount}",
+                roomId,
+                cid,
+                initials,
+                state.ScenarioName ?? "(none)",
+                state.FlightStripsConfig?.FacilityName ?? "(none)",
+                bayCount
+            );
+            SetStatus(
+                state.FlightStripsConfig is null
+                    ? $"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — server returned no flight-strips config (no scenario loaded?)"
+                    : $"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — facility {state.FlightStripsConfig.FacilityName}, {bayCount} bay(s)"
+            );
             vm.ApplyBayConfig(state.FlightStripsConfig);
             _ = vm.RefreshAccessibleFacilitiesAsync();
         }
         catch (Exception ex)
         {
             Log.LogWarning(ex, "JoinRoom {RoomId} failed", roomId);
+            SetStatus($"JoinRoom {roomId} failed: {ex.Message}");
         }
     }
 
