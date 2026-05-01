@@ -1,15 +1,20 @@
 ﻿# Start yaat-server and yaat-client side by side.
 # Kill all processes on Ctrl-C.
 # Build sequentially first -- both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-Scenario <id>] [-Sync <url>]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-NoVStripsWeb] [-Scenario <id>] [-Sync <url>]
 #
-# -Sync <url>  Sync local yaat repo to the commit pinned by a remote server,
-#              then build and run client-only. Example:
-#                .\start.ps1 -Sync https://yaat1.leftos.dev
-# -VStrips     Also launch the standalone Yaat.VStrips client alongside the
-#              main client, autoconnecting to the same server. Combine with
-#              -ClientOnly or -Sync to launch vStrips against an existing
-#              server. Ignored with -ServerOnly.
+# -Sync <url>     Sync local yaat repo to the commit pinned by a remote server,
+#                 then build and run client-only. Example:
+#                   .\start.ps1 -Sync https://yaat1.leftos.dev
+# -VStrips        Also launch the standalone Yaat.VStrips desktop client alongside
+#                 the main client, autoconnecting to the same server. Combine with
+#                 -ClientOnly or -Sync to launch vStrips against an existing
+#                 server. Ignored with -ServerOnly.
+# -NoVStripsWeb   Skip the Yaat.VStrips.Web (WASM) publish step. By default the
+#                 web bundle is published into yaat-server\wwwroot\vstrips\ on
+#                 every server-bearing run so http://<server>/vstrips/ serves
+#                 the live web client. Skip when iterating server changes only
+#                 and the existing bundle is fine.
 
 param(
     [switch]$Pull,
@@ -17,6 +22,7 @@ param(
     [switch]$ClientOnly,
     [switch]$ServerOnly,
     [switch]$VStrips,
+    [switch]$NoVStripsWeb,
     [string]$Scenario,
     [string]$Sync
 )
@@ -124,6 +130,17 @@ if ($VStrips -and -not $ServerOnly) {
     Write-Host "Building yaat-vstrips..."
     dotnet build "$ClientDir\tools\Yaat.VStrips" -v q
     if ($LASTEXITCODE -ne 0) { Write-Error "vStrips build failed"; exit 1 }
+}
+
+# Publish the WASM web vStrips client into yaat-server\wwwroot\vstrips\ so
+# /vstrips/ serves the live bundle when the server runs. The project's
+# CopyToServerWwwroot AfterTargets="Publish" target does the cross-repo copy.
+# Skipped under -ClientOnly (no server to serve it from), -NoVStripsWeb (opt-out),
+# or -Docker (the dockerized server has its own bundle baked in via the image).
+if (-not $ClientOnly -and -not $NoVStripsWeb -and -not $Docker) {
+    Write-Host "Publishing yaat-vstrips-web..."
+    dotnet publish "$ClientDir\tools\Yaat.VStrips.Web" -c Release -v q
+    if ($LASTEXITCODE -ne 0) { Write-Error "Yaat.VStrips.Web publish failed"; exit 1 }
 }
 
 $procs = @()
