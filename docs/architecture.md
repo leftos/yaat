@@ -46,43 +46,66 @@
 Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironments.json
 ```
 
-## Yaat.Client.Core — Shared library (`src/Yaat.Client.Core/`)
+## Yaat.Client.Strips — WASM-clean strip layer (`src/Yaat.Client.Strips/`)
 
-Shared code referenced by Yaat.Client and Yaat.VStrips. No LM-Kit, PortAudio, or SharpHook dependencies. Namespace stays `Yaat.Client.*`.
+Foundation for the flight-strip view. Pure Avalonia + SignalR + CommunityToolkit.Mvvm — no Avalonia.Desktop, no Velopack, no file IO. The browser strips client (`tools/Yaat.VStrips.Web`) consumes only this assembly so its WASM publish closure stays free of Win32-only code. Yaat.Client.Core project-references Strips and exposes the shared types up to Yaat.Client / Yaat.VStrips.
 
 ```
 Logging/
-  AppLog.cs                     # Static logger factory; Initialize(logFileName) called by each app's Program.cs
-  FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log or yaat-vstrips.log)
+  ConsoleLineLoggerProvider.cs  # ILoggerProvider that writes one text line per entry to Console.Out (browser DevTools console). Used by Yaat.VStrips.Web/Program.cs and AppLog.InitializeForBrowser.
 
 Services/
-  ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
-  UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (per-app: %LOCALAPPDATA%/yaat/ for Client, /yaat-vstrips/ for VStrips)
-  UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel),
-                                # "vstrips-{platform}" for Yaat.VStrips so each app downloads its own installer from the shared GitHub release.
+  StripDtos.cs                  # StripItemType / StripItemDto / StripBayContentsDto / FlightStripsStateDto / StripBayConfigDto / FlightStripsConfigDto — wire-format records for the strip surface.
+  StripsTransportDtos.cs        # AccessibleFacilityDto (return of GetAccessibleFacilities) + CommandResultDto (return of every strip command). Both are non-strip-only on the wire but live here because the IStripsTransport surface returns them.
+  IStripsTransport.cs           # Narrow contract VStripsViewModel depends on. IsConnected + transport-state events + StripsConfigChanged + FlightStripsStateChanged + StripItemsChanged + Get/RequestStrips RPC trio. ServerConnection (Core) and BrowserStripsTransport (here) both implement it.
+  BrowserStripsTransport.cs     # WASM-side IStripsTransport. Owns its own HubConnection, wires JsonHubProtocol against YaatStripsHubJsonContext only, exposes auto-join helpers (FindRoomForMyCidAsync, JoinRoomAsync, SendCommandAsync, ConnectAsync, RoomAvailableForCid event) needed by tools/Yaat.VStrips.Web/MainView. Browser-only DTO subsets (BrowserRoomInfoDto, BrowserJoinRoomResultDto, BrowserScenarioLoadedDto) downscope the wire format so the WASM bundle ships only the fields the strip view reads.
+  YaatStripsHubJsonContext.cs   # Source-generated JsonSerializerContext for the strip DTO subset. Inserted into the JsonHubProtocol resolver chain by both ServerConnection (alongside YaatHubJsonContext) and BrowserStripsTransport (alone).
 
 ViewModels/
-  VStripsViewModel.cs           # Root vStrips VM; manages strip bays, items, rack state
+  VStripsViewModel.cs           # Root vStrips VM; manages strip bays, items, rack state. Ctor takes IStripsTransport + send-command delegate + Func<string>? getUserInitials.
   StripItemViewModel.cs         # Per-strip observable model: flight data, annotations
   StripBayViewModel.cs          # Per-bay container: list of strips, visibility state
   StripRackViewModel.cs         # Rack (visual height) management per bay
   StripPrinterViewModel.cs      # Auto-print on aircraft departure/arrival
-  ConnectViewModel.cs           # Room/identity connection flow
+  VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations
 
-Views/
-  ConnectWindow.axaml.cs        # Server/room/identity entry dialog
-  VStripsView.axaml.cs          # Embedded vStrips control
-  VStripsViewWindow.axaml.cs    # Pop-out window for vStrips view
-  VStrips/FlightStripControl.axaml.cs  # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring)
-  VStrips/InlineTextEditPopup.axaml.cs # Shared popup editor for annotations, half-strip lines, and separator labels
+Views/VStrips/
+  VStripsView.axaml(.cs)        # Embedded vStrips UserControl
+  FlightStripControl.axaml(.cs) # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring)
+  InlineTextEditPopup.axaml(.cs) # Shared popup editor for annotations, half-strip lines, separator labels
+
+Resources/Fonts/                # JetBrainsMono-Regular.ttf, JetBrainsMono-Bold.ttf, OFL.txt — embedded for cross-platform monospace consistency (Inter doesn't column-align)
+
+AppBuilderExtensions.cs         # WithJetBrainsMonoFont() — registers the embedded font collection at avares://Yaat.Client.Strips/Resources/Fonts. Called by tools/Yaat.VStrips/Program.cs and tools/Yaat.VStrips.Web/Program.cs.
+```
+
+## Yaat.Client.Core — Shared library (`src/Yaat.Client.Core/`)
+
+Code referenced by Yaat.Client and Yaat.VStrips that needs Avalonia.Desktop, Velopack, or file-system access. No LM-Kit, PortAudio, or SharpHook dependencies. Project-references Yaat.Client.Strips for the strip layer. Namespace stays `Yaat.Client.*`.
+
+```
+Logging/
+  AppLog.cs                     # Static logger factory; Initialize(logFileName) called by each desktop app's Program.cs. Wraps SimLog. WASM has its own inline init in Program.cs that wires SimLog directly.
+  FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log or yaat-vstrips.log)
 
 Services/
-  VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations
+  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings).
+  UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (per-app: %LOCALAPPDATA%/yaat/ for Client, /yaat-vstrips/ for VStrips)
+  UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel),
+                                # "vstrips-{platform}" for Yaat.VStrips so each app downloads its own installer from the shared GitHub release.
+  YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
   KeybindHelper.cs              # Keyboard shortcut resolution
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames
   GroundColorScheme.cs          # Theme/color scheme for strips
   TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
+
+ViewModels/
+  ConnectViewModel.cs           # Room/identity connection flow
+
+Views/
+  ConnectWindow.axaml.cs        # Server/room/identity entry dialog
+  VStrips/VStripsViewWindow.axaml.cs # Pop-out window wrapper for VStripsView. Stays in Core because it depends on UserPreferences + WindowGeometryHelper + KeybindHelper; only the desktop hosts open this Window.
 ```
 
 ## Yaat.Client — Avalonia desktop app (`src/Yaat.Client/`)
