@@ -2415,67 +2415,21 @@ public static class CommandParser
     // ── Half-strip move / offset / slide ──────────────────────────
 
     /// <summary>
-    /// HSM source: same optional-bay + lookup-key rule as HSA/HSD (first-token bay-spec
-    /// peel). Then the destination bay/rack/index is extracted from trailing tokens —
-    /// the last token is <c>[dest-bay[/rack[/index]]]</c> using slash-compound form to
-    /// avoid colliding with the greedy-bay-match STRIP uses. Leading tokens (everything
-    /// before the destination) are source-bay-spec + lookup-key.
+    /// HSM emits the raw token list to the handler. Bay names can be multi-word
+    /// (e.g. "Local 1"), so the destination spec spans multiple whitespace tokens
+    /// and disambiguating "src-bay vs lookup-key vs dest-bay-name-prefix" requires
+    /// the bay registry — only the handler has it. The parser only validates that
+    /// at least one token is present.
     /// </summary>
     private static PR ParseHalfStripMove(string arg)
     {
-        var trimmed = arg.Trim();
-        if (trimmed.Length == 0)
+        var tokens = SplitWhitespace(arg);
+        if (tokens.Count == 0)
         {
             return PR.Fail("HSM requires a destination bay");
         }
 
-        var parts = SplitWhitespace(trimmed);
-        if (parts.Count == 0)
-        {
-            return PR.Fail("HSM requires a destination bay");
-        }
-
-        // Last token is always the destination (slash-compound: bay[/rack[/index]]).
-        var destToken = parts[^1];
-        if (!TryParseDestSpec(destToken, out var destBay, out var destRack, out var destIndex, out var destError))
-        {
-            return PR.Fail(destError!);
-        }
-
-        // Remaining tokens (all but the last) are the optional source locator.
-        // Follow the HSA/HSD disambiguation: first token is a source bay if there's more
-        // after it, otherwise it's the lookup key (or omitted entirely).
-        string? srcBay = null;
-        int? srcRack = null;
-        string? lookupKey = null;
-
-        var remaining = parts.Count - 1;
-        if (remaining == 1)
-        {
-            lookupKey = parts[0];
-        }
-        else if (remaining >= 2)
-        {
-            if (!TryParseBaySpec(parts[0], out var parsedBay, out var parsedRack, out var bayError))
-            {
-                return PR.Fail(bayError!);
-            }
-
-            srcBay = parsedBay;
-            srcRack = parsedRack;
-
-            // Everything between source-bay and destination joins as the lookup key with
-            // whitespace preserved (bay names with spaces in the key would be rare, but
-            // we do the simple thing: one token only).
-            if (remaining > 2)
-            {
-                return PR.Fail("HSM accepts at most one lookup key between source bay and destination");
-            }
-
-            lookupKey = parts[1];
-        }
-
-        return PR.Ok(new HalfStripMoveCommand(srcBay, srcRack, lookupKey, destBay, destRack, destIndex));
+        return PR.Ok(new HalfStripMoveCommand(tokens));
     }
 
     private static PR ParseHalfStripOffsetOrSlide(string arg, bool isSlide)
@@ -2694,12 +2648,6 @@ public static class CommandParser
 
         return true;
     }
-
-    // Legacy alias retained during Phase 1 of the slash-compound migration —
-    // internal callers still reference the old name. Will be inlined away
-    // when HSM's own ParseHalfStripMove is converted to the public helper.
-    private static bool TryParseDestSpec(string token, out string bayName, out int? rack, out int? index, out string? error) =>
-        TryParseStripDest(token, out bayName, out rack, out index, out error);
 
     private static List<string> SplitWhitespace(string arg)
     {

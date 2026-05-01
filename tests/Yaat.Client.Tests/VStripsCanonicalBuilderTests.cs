@@ -94,6 +94,15 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
+    public void BuildHalfStripMove_MultiWordBay_PreservesSpaceInWire()
+    {
+        // CRC bay names contain literal spaces ("Local 1"). The canonical must
+        // round-trip through whitespace tokenization on the server (handler
+        // resolves multi-word bays via StripMutations.ResolveStripDest).
+        Assert.Equal("HSM N569SX Local 1/1/2", VStripsCanonicalBuilder.BuildHalfStripMove("N569SX", "Local 1", 0, 1));
+    }
+
+    [Fact]
     public void BuildHalfStripDeleteOffsetSlide_AreKeyed()
     {
         Assert.Equal("HSD NORDO", VStripsCanonicalBuilder.BuildHalfStripDelete("NORDO"));

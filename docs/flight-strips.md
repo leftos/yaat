@@ -384,6 +384,13 @@ aircraft-scoped modes:
 - **Aircraft-scoped**: `HSM dest-bay[/rack[/index]]` moves the
   half-strip keyed by the aircraft callsign.
 
+Bay names can be multi-word (e.g. `Local 1`). The parser emits raw
+tokens to `HandleHalfStripMoveAsync`, which walks them backward and
+resolves the destination greedily via `StripMutations.ResolveStripDest`
+against the bay registry. The same greedy match runs forward across
+the leading tokens to peel off an optional source-bay scope. Mirrors
+the STRIP token-list pattern.
+
 #### `HSO` (half-strip offset)
 
 Toggles the `IsOffset` flag on a half-strip. Dual-mode:

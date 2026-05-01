@@ -12,68 +12,69 @@ namespace Yaat.Sim.Tests;
 public class StripCommandVocabularyTests
 {
     // ── HSM (half-strip move) ─────────────────────────────────────
+    // The parser is intentionally dumb for HSM: it just emits raw tokens.
+    // Bay names can be multi-word ("Local 1"), so the destination spec spans
+    // multiple whitespace tokens and disambiguating "src-bay vs lookup-key vs
+    // dest-bay-name-prefix" requires the bay registry — only the handler has it.
 
     [Fact]
     public void Hsm_DestBayOnly_AircraftScoped()
     {
-        // With aircraft selected: lookup key = callsign (filled server-side), dest is the
-        // only token. Source bay/key omitted entirely.
         var result = CommandParser.Parse("HSM Local");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
-        Assert.Null(cmd.SourceBayName);
-        Assert.Null(cmd.SourceRack);
-        Assert.Null(cmd.LookupKey);
-        Assert.Equal("LOCAL", cmd.DestBayName);
-        Assert.Null(cmd.DestRack);
-        Assert.Null(cmd.DestIndex);
+        Assert.Equal(["Local"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_DestBayWithRack()
     {
-        // Wire rack 2 → 0-based internal rack 1.
         var result = CommandParser.Parse("HSM Local/2");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
-        Assert.Equal("LOCAL", cmd.DestBayName);
-        Assert.Equal(1, cmd.DestRack);
-        Assert.Null(cmd.DestIndex);
+        Assert.Equal(["Local/2"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_DestBayWithRackAndIndex()
     {
-        // Wire rack 2 / index 3 → 0-based rack 1 / index 2.
         var result = CommandParser.Parse("HSM Local/2/3");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
-        Assert.Equal("LOCAL", cmd.DestBayName);
-        Assert.Equal(1, cmd.DestRack);
-        Assert.Equal(2, cmd.DestIndex);
+        Assert.Equal(["Local/2/3"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_GlobalKey_Dest()
     {
-        // Two tokens: first is the lookup key (bay omitted), second is the dest.
         var result = CommandParser.Parse("HSM KEY1 Local");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
-        Assert.Null(cmd.SourceBayName);
-        Assert.Equal("KEY1", cmd.LookupKey);
-        Assert.Equal("LOCAL", cmd.DestBayName);
+        Assert.Equal(["KEY1", "Local"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_ExplicitSourceBay_Key_Dest()
     {
-        // Three tokens: src-bay, key, dest. Wire values are 1-based; parser
-        // returns 0-based internal indices.
         var result = CommandParser.Parse("HSM Ground/2 KEY1 Local/3/1");
         var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
-        Assert.Equal("GROUND", cmd.SourceBayName);
-        Assert.Equal(1, cmd.SourceRack);
-        Assert.Equal("KEY1", cmd.LookupKey);
-        Assert.Equal("LOCAL", cmd.DestBayName);
-        Assert.Equal(2, cmd.DestRack);
-        Assert.Equal(0, cmd.DestIndex);
+        Assert.Equal(["Ground/2", "KEY1", "Local/3/1"], cmd.Tokens);
+    }
+
+    [Fact]
+    public void Hsm_MultiWordDestBay_PreservesAllTokens()
+    {
+        // Drag-and-drop emits this exact wire when the dest is "Local 1".
+        // The handler resolves the multi-word bay against the registry.
+        var result = CommandParser.Parse("HSM N569SX Local 1/1/2");
+        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        Assert.Equal(["N569SX", "Local", "1/1/2"], cmd.Tokens);
+    }
+
+    [Fact]
+    public void Hsm_HstripIdForm_MultiWordDestBay()
+    {
+        // Empty half-strips have no first-line text, so the UI emits the
+        // strip's id as the lookup key.
+        var result = CommandParser.Parse("HSM HSTRIP_abc123 Local 1/1/2");
+        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        Assert.Equal(["HSTRIP_abc123", "Local", "1/1/2"], cmd.Tokens);
     }
 
     [Fact]
@@ -81,22 +82,6 @@ public class StripCommandVocabularyTests
     {
         var result = CommandParser.Parse("HSM");
         Assert.Null(result.Value);
-    }
-
-    [Fact]
-    public void Hsm_InvalidDestRack_Fails()
-    {
-        var result = CommandParser.Parse("HSM Local/-1");
-        Assert.Null(result.Value);
-        Assert.Contains("invalid destination rack", result.Reason);
-    }
-
-    [Fact]
-    public void Hsm_TooManySourceTokens_Fails()
-    {
-        var result = CommandParser.Parse("HSM Ground KEY1 EXTRA Local");
-        Assert.Null(result.Value);
-        Assert.Contains("at most one lookup key", result.Reason);
     }
 
     // ── HSO (half-strip offset toggle) ────────────────────────────
@@ -362,17 +347,26 @@ public class StripCommandVocabularyTests
     }
 
     [Fact]
-    public void Canonical_Hsm_AllFields()
+    public void Canonical_Hsm_AllTokens()
     {
-        var cmd = new HalfStripMoveCommand("GROUND", 1, "KEY1", "LOCAL", 2, 0);
-        Assert.Equal("HSM GROUND/1 KEY1 LOCAL/2/0", CommandDescriber.DescribeCommand(cmd));
+        var cmd = new HalfStripMoveCommand(["GROUND/1", "KEY1", "LOCAL/2/1"]);
+        Assert.Equal("HSM GROUND/1 KEY1 LOCAL/2/1", CommandDescriber.DescribeCommand(cmd));
     }
 
     [Fact]
     public void Canonical_Hsm_DestOnly()
     {
-        var cmd = new HalfStripMoveCommand(null, null, null, "LOCAL", null, null);
+        var cmd = new HalfStripMoveCommand(["LOCAL"]);
         Assert.Equal("HSM LOCAL", CommandDescriber.DescribeCommand(cmd));
+    }
+
+    [Fact]
+    public void Canonical_Hsm_MultiWordDestBay_PreservesSpaces()
+    {
+        // The wire form for a multi-word destination is exactly what the UI
+        // emits via VStripsCanonicalBuilder.BuildHalfStripMove("KEY","Local 1",0,1).
+        var cmd = new HalfStripMoveCommand(["KEY1", "Local", "1/1/2"]);
+        Assert.Equal("HSM KEY1 Local 1/1/2", CommandDescriber.DescribeCommand(cmd));
     }
 
     [Fact]

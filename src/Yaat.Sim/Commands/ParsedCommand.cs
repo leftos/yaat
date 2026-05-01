@@ -476,10 +476,13 @@ public record HalfStripDeleteCommand(string? BayName, int? Rack, IReadOnlyList<s
 // half-strips. Empty entries clear a slot.
 public record HalfStripEditCommand(string StripId, IReadOnlyList<string> Lines) : ParsedCommand;
 
-// HSM / HSO / HSS: same lookup model as HSA/HSD — optional source bay + first-line key.
-// HSM additionally carries the destination position.
-public record HalfStripMoveCommand(string? SourceBayName, int? SourceRack, string? LookupKey, string DestBayName, int? DestRack, int? DestIndex)
-    : ParsedCommand;
+// HSO / HSS: optional source bay + first-line key (single-word source bay only).
+//
+// HSM is structurally different: bay names can be multi-word ("Local 1") so the
+// destination spec spans multiple whitespace tokens, and the parser cannot
+// disambiguate without the bay registry. The parser emits raw tokens and the
+// handler resolves greedily — matching STRIP's pattern.
+public record HalfStripMoveCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
 public record HalfStripOffsetCommand(string? BayName, int? Rack, string? LookupKey) : ParsedCommand;
 

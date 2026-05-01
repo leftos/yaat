@@ -506,7 +506,7 @@ public static class CommandDescriber
             HalfStripCreateCommand cmd => FormatHalfStripCreateCanonical(cmd),
             HalfStripAmendCommand cmd => FormatHalfStripMutateCanonical("HSA", cmd.BayName, cmd.Rack, cmd.Tokens),
             HalfStripDeleteCommand cmd => FormatHalfStripMutateCanonical("HSD", cmd.BayName, cmd.Rack, cmd.Tokens),
-            HalfStripMoveCommand cmd => FormatHalfStripMoveCanonical(cmd),
+            HalfStripMoveCommand cmd => FormatTokenizedCanonical("HSM", cmd.Tokens),
             HalfStripOffsetCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSO", cmd.BayName, cmd.Rack, cmd.LookupKey),
             HalfStripSlideCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSS", cmd.BayName, cmd.Rack, cmd.LookupKey),
             HalfStripEditCommand cmd => FormatHalfStripEditCanonical(cmd),
@@ -524,33 +524,6 @@ public static class CommandDescriber
     {
         var list = tokens ?? [];
         return list.Count == 0 ? verb : $"{verb} {string.Join(' ', list)}";
-    }
-
-    private static string FormatHalfStripMoveCanonical(HalfStripMoveCommand cmd)
-    {
-        var dest = cmd.DestBayName ?? "";
-        if (cmd.DestRack is int dr)
-        {
-            dest += $"/{dr}";
-            if (cmd.DestIndex is int di)
-            {
-                dest += $"/{di}";
-            }
-        }
-
-        // Source locator prefix: optional bay-spec + optional lookup key.
-        var prefix = "";
-        if (cmd.SourceBayName is not null)
-        {
-            var srcBay = cmd.SourceRack is int sr ? $"{cmd.SourceBayName}/{sr}" : cmd.SourceBayName;
-            prefix = cmd.LookupKey is not null ? $"{srcBay} {cmd.LookupKey} " : $"{srcBay} ";
-        }
-        else if (cmd.LookupKey is not null)
-        {
-            prefix = $"{cmd.LookupKey} ";
-        }
-
-        return $"HSM {prefix}{dest}";
     }
 
     private static string FormatHalfStripOffsetOrSlideCanonical(string verb, string? bayName, int? rack, string? lookupKey)
