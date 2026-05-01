@@ -8,6 +8,15 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RunAOTCompilation>false</RunAOTCompilation>
     <WasmBuildNative>true</WasmBuildNative>
+    <!-- SignalR's JsonHubProtocol calls JsonSerializer.Serialize<object> on
+         every method argument, which uses reflection-based metadata. .NET 10
+         WASM publishes default to JsonSerializerIsReflectionEnabledByDefault=
+         false to keep the bundle slim and avoid trim-warning blowback, but
+         that throws JsonSerializerIsReflectionDisabled on the first JoinRoom
+         invoke. Re-enable it. The proper long-term fix is a JsonSerializer
+         source generator for every DTO crossing the hub, but that's a
+         separate refactor across both repos. -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <ItemGroup>
