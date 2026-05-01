@@ -53,6 +53,7 @@ public static class TrackEngine
     public static bool IsStripCommand(ParsedCommand? cmd) =>
         cmd
             is StripMoveCommand
+                or StripScanCommand
                 or StripAnnotateCommand
                 or StripDeleteCommand
                 or StripOffsetCommand

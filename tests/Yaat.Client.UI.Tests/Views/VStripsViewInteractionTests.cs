@@ -247,6 +247,161 @@ public class VStripsViewInteractionTests
     }
 
     [AvaloniaFact]
+    public void StripContextMenu_FullStrip_NoExternalBays_OmitsScanTo()
+    {
+        // SimpleConfig has no external bays. The "Scan to" submenu only shows
+        // when at least one external bay is accessible — without one, scanning
+        // has no destination, so the entry is suppressed.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["S1"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var headers = ExtractHeaders(menu);
+
+        Assert.DoesNotContain("Scan to", headers);
+    }
+
+    [AvaloniaFact]
+    public void StripContextMenu_FullStrip_WithExternalBays_HasScanToSubmenu()
+    {
+        // When external bays are accessible, the strip context menu surfaces
+        // "Scan to" — listing only those external bays as targets. Internal
+        // bays stay in the Push-to / Push-all-to submenus where they belong;
+        // mixing them under Scan-to would invite a wrong-destination click
+        // (server would reject anyway, but the UX should keep the surface
+        // semantically clean).
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithExternalBay());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["S1"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var headers = ExtractHeaders(menu);
+
+        Assert.Contains("Scan to", headers);
+        var scanItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Scan to");
+        var targets = scanItem.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
+
+        // Only external bays should appear; internal bays would create a
+        // confusing "scan to your own facility" affordance.
+        Assert.Single(targets);
+        Assert.Contains("NCT", targets);
+        Assert.DoesNotContain("GROUND", targets);
+        Assert.DoesNotContain("LOCAL", targets);
+    }
+
+    [AvaloniaFact]
+    public async Task StripContextMenu_ScanToBay_EmitsScanCanonical()
+    {
+        // Clicking "Scan to NCT" emits "SCAN NCT/1" — the bay-only short form,
+        // append-to-tail of rack 1 (CRC bottom-up first-available). The
+        // dispatched callsign matches the strip's AircraftId (full-strip
+        // aircraft-scoped behavior).
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, ConfigWithExternalBay());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            rackStrips:
+            [
+                ["S1"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["S1"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var scanItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Scan to");
+        var nctItem = scanItem.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "NCT");
+
+        nctItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        for (var i = 0; i < 4 && captured.Count < 1; i++)
+        {
+            await Task.Yield();
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        var emitted = Assert.Single(captured);
+        Assert.Equal("S1", emitted.Callsign);
+        Assert.Equal("SCAN NCT/1", emitted.Command);
+    }
+
+    [AvaloniaFact]
+    public void StripContextMenu_ScannedCopy_HidesCallsignKeyedItems()
+    {
+        // A scanned copy is a full strip with id "STRIP_{callsign}_{guid}" —
+        // distinguishable from the canonical "STRIP_{callsign}" form. The
+        // Offset / Push to / Push all in rack to / Delete items all dispatch
+        // callsign-keyed canonicals (STRIPO / STRIP / STRIPD) which would
+        // hit the **originator's** strip, not this copy. Hide them on copies
+        // so the receiver can't accidentally clobber the source.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithExternalBay());
+
+        // Seed a "scanned copy" — id has STRIP_ prefix but doesn't match
+        // STRIP_{AircraftId}, so the gate fires.
+        var copy = new StripItemDto(
+            "STRIP_UAL123_abcdef01",
+            "UAL123",
+            IsDisconnected: false,
+            StripItemType.DepartureStrip,
+            IsOffset: false,
+            FieldValues: ["UAL123", "", "B738/L"]
+        );
+        vm.ReconcileItems([copy]);
+        vm.ReconcileFullState(
+            new FlightStripsStateDto(
+                PrinterItems: [],
+                BayItems:
+                [
+                    new StripBayContentsDto(
+                        "bay-ext",
+                        [
+                            ["STRIP_UAL123_abcdef01"],
+                        ]
+                    ),
+                ],
+                NewItemInPrinter: false,
+                NewItemInArrivalPrinter: false,
+                NewItemInBayId: null,
+                ItemMovedOrCreatedBySessionId: null
+            )
+        );
+        var (_, view) = BootView(vm);
+
+        var strip = vm.ItemsByIdForTests["STRIP_UAL123_abcdef01"];
+        var menu = view.BuildStripContextMenu(strip, vm);
+        var headers = ExtractHeaders(menu);
+
+        Assert.DoesNotContain("Offset", headers);
+        Assert.DoesNotContain("Push to", headers);
+        Assert.DoesNotContain("Push all in rack to", headers);
+        Assert.DoesNotContain("Scan to", headers);
+        Assert.DoesNotContain("Delete", headers);
+    }
+
+    [AvaloniaFact]
     public void EmptyRackContextMenu_RackWithStrips_HasPushAllToBays()
     {
         // Right-click on rack space below populated strips exposes "Push all
@@ -394,6 +549,26 @@ public class VStripsViewInteractionTests
             FacilityId: "FAC1",
             FacilityName: "Fresno ATCT",
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
+            HasTwoPrinters: false,
+            SeparatorsLocked: false
+        );
+
+    /// <summary>
+    /// Two own bays plus one external bay (NCT) — used to exercise the
+    /// "Scan to" submenu and the scanned-copy footgun gate. External bays
+    /// flow through to <c>StripBayViewModel.IsExternal</c>, which is what
+    /// the context menu filters on.
+    /// </summary>
+    private static FlightStripsConfigDto ConfigWithExternalBay() =>
+        new(
+            FacilityId: "FAC1",
+            FacilityName: "Fresno ATCT",
+            Bays:
+            [
+                new StripBayConfigDto("bay-gnd", "GROUND", 2),
+                new StripBayConfigDto("bay-loc", "LOCAL", 2),
+                new StripBayConfigDto("bay-ext", "NCT", 5, IsExternal: true),
+            ],
             HasTwoPrinters: false,
             SeparatorsLocked: false
         );

@@ -314,7 +314,7 @@ Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Tra
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry
-Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
+Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
 Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
                                     # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports. Called from yaat-server's RoomEngine APT handler.
 
@@ -600,7 +600,7 @@ src/Yaat.Server/
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch; BroadcastToTopicSubscribersAsync
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules; STARS hysteresis (add at elev+100, remove at elev); AircraftState.IsVehicle excluded from STARS
     StarsLineNumberAssigner.cs # Per-room sequential line number assignment (1-99 wrap)
-    StripCommandHandler.cs     # Flight strip command dispatch (all 14 canonical verbs)
+    StripCommandHandler.cs     # Flight strip command dispatch (all 15 canonical verbs incl. SCAN)
     StripBroadcaster.cs        # Flight strip broadcast coordination: SignalR + CRC topic paths
     StripMutations.cs          # Stateless strip mutation helper: create/delete/amend logic
     StripCommandTranslator.cs  # Translate CRC MessagePack invocations → canonical command strings

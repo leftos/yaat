@@ -190,6 +190,7 @@ Defined in `src/Yaat.Sim/Commands/`:
 | Canonical type | Primary alias | Aliases | Record |
 |----------------|---------------|---------|--------|
 | `StripPush` | `STRIP` | — | `StripPushCommand(BayName)` |
+| `StripScan` | `SCAN` | — | `StripScanCommand(Tokens)` |
 | `Annotate` | `AN` | `ANNOTATE`, `BOX` | `StripAnnotateCommand(Box, Text)` |
 | `HalfStripCreate` | `HSC` | `HALFSTRIPCREATE` | `HalfStripCreateCommand(BayName, Rack, Lines)` |
 | `HalfStripAmend` | `HSA` | `HALFSTRIPAMEND` | `HalfStripAmendCommand(BayName, Rack, Tokens)` |
@@ -231,6 +232,44 @@ All four are aircraft-scoped (require a selected or prefix callsign):
 `HandleStripPush` resolves the bay using `GetAccessibleStripBay(artccId, positionCallsign, bayName)`,
 closing the tower-vs-TRACON facility gap. Tower students can now `STRIP`
 against all bays visible to their tower position.
+
+### `SCAN` — copy a strip into an external facility's bay
+
+`SCAN {bay}[/{rack}[/{index}]]` copies the aircraft's full strip into an
+external facility's bay while leaving the original strip in place — the
+real-paper-strip "scan to receiving controller" workflow. The destination
+**must** be marked `IsExternal=true` on the resolved `AccessibleBay`;
+internal-bay SCAN errors out (use `STRIP` for in-facility moves).
+
+Aircraft-scoped: requires a selected callsign and an existing
+`STRIP_{callsign}` record. The copy is a brand-new strip with id
+`STRIP_{callsign}_{shortGuid}` — keeping the `STRIP_` prefix means CRC
+vStrips renders it as a regular departure/arrival, and the GUID suffix
+prevents collision with the canonical `STRIP_{callsign}` record so
+multiple scans to the same bay stack as separate copies. `FieldValues`
+is deep-copied at scan time; subsequent `AN` / `STRIPO` on the originator
+do **not** propagate to the copy (and vice-versa — each facility owns its
+working copy after a scan).
+
+The destination-facility check from `HandleStripPush` carries over:
+if no connected CRC client staffs a position in the receiving facility,
+the result message includes a "no controller connected" warning so the
+sending controller knows the coordination preview has no live receiver.
+
+**Scope limits and known gaps:**
+
+- No cascade: deleting the originator (`STRIPD` or aircraft removed) does
+  **not** delete its scanned copies. Each copy is independent after the
+  scan; the receiving CRC vStrips can drop it via its own
+  `DeleteStripItem` path. There is no canonical command that addresses a
+  scanned copy directly (`STRIPD` is callsign-keyed and would target the
+  original).
+- Half-strip scan is out of scope; spec full strips first.
+- The Yaat.Client embedded Strips tab hides "Offset" / "Push to" /
+  "Push all in rack to" / "Delete" on scanned copies (id starts with
+  `STRIP_` but doesn't equal `STRIP_{callsign}`) — those items dispatch
+  callsign-keyed canonicals which would hit the **originator's** strip.
+  See `VStripsView.BuildStripContextMenu`.
 
 ### Half-strips: `HSC` / `HSA` / `HSD` / `HSM` / `HSO` / `HSS`
 

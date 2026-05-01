@@ -863,6 +863,18 @@ public static class CommandRegistry
                     O(null, [R("dest", "bay/rack/index")], "Move flight strip to specific 1-based position"),
                 ]
             ),
+            Cmd(
+                StripScan,
+                "Scan Strip to External Bay",
+                "Strip Operations",
+                false,
+                ["SCAN"],
+                [
+                    O(null, [R("dest", "external-bay")], "Copy flight strip to external bay's first rack (originator keeps its strip)"),
+                    O(null, [R("dest", "external-bay/rack")], "Copy flight strip to first-available slot in external-bay's rack"),
+                    O(null, [R("dest", "external-bay/rack/index")], "Copy flight strip to specific 1-based position in external bay"),
+                ]
+            ),
             Cmd(StripDelete, "Delete Flight Strip", "Strip Operations", false, ["STRIPD"], [O(null, [], "Delete the aircraft's flight strip")]),
             Cmd(
                 StripOffset,

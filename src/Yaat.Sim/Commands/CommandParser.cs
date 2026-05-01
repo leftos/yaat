@@ -721,6 +721,7 @@ public static class CommandParser
             // Data operations
             Annotate when arg is not null => ParseStripAnnotate(arg),
             StripMove when arg is not null => ParseStripMove(arg),
+            StripScan when arg is not null => ParseStripScan(arg),
             StripDelete when arg is null => PR.Ok(new StripDeleteCommand()),
             StripOffset when arg is null => PR.Ok(new StripOffsetCommand()),
             HalfStripCreate when arg is not null => ParseHalfStripCreate(arg),
@@ -785,6 +786,7 @@ public static class CommandParser
             or ExitTaxiway
             or Annotate
             or StripMove
+            or StripScan
             or HalfStripCreate
             or HalfStripMove
             or HalfStripEdit
@@ -2413,6 +2415,19 @@ public static class CommandParser
         }
 
         return PR.Ok(new StripMoveCommand(tokens));
+    }
+
+    // ── Full-strip scan (copy to external facility's bay) ─────────
+
+    private static PR ParseStripScan(string arg)
+    {
+        var tokens = SplitWhitespace(arg);
+        if (tokens.Count == 0)
+        {
+            return PR.Fail("SCAN requires a bay name");
+        }
+
+        return PR.Ok(new StripScanCommand(tokens));
     }
 
     // ── Half-strip move / offset / slide ──────────────────────────

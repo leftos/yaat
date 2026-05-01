@@ -37,6 +37,24 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
+    public void BuildStripScan_FormatsExternalBayDest_OneBasedSlashWire()
+    {
+        // SCAN copies a full strip into an external facility's bay; format
+        // mirrors STRIP's slash-compound dest-spec, 1-based on the wire.
+        Assert.Equal("SCAN NCT/1/1", VStripsCanonicalBuilder.BuildStripScan("NCT", 0, 0));
+        Assert.Equal("SCAN TRACON-Coord/2/4", VStripsCanonicalBuilder.BuildStripScan("TRACON-Coord", 1, 3));
+    }
+
+    [Fact]
+    public void BuildStripScan_NullIndex_OmitsIndexToken()
+    {
+        // Append-to-tail uses the bay/rack short form so the server reads
+        // it as "first-available bottom slot" — same shorthand as STRIP.
+        Assert.Equal("SCAN NCT/1", VStripsCanonicalBuilder.BuildStripScan("NCT", 0, null));
+        Assert.Equal("SCAN TRACON-Coord/2", VStripsCanonicalBuilder.BuildStripScan("TRACON-Coord", 1, null));
+    }
+
+    [Fact]
     public void BuildAnnotate_WithText_EmitsAnWithText()
     {
         Assert.Equal("AN 3 RV", VStripsCanonicalBuilder.BuildAnnotate("3", "RV"));

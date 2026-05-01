@@ -812,9 +812,28 @@ public partial class VStripsView : UserControl
         var anchor = editorAnchor ?? (Control)this;
         var menu = new MenuFlyout();
 
-        var offsetItem = new MenuItem { Header = strip.IsOffset ? "Un-offset" : "Offset" };
-        offsetItem.Click += async (_, _) => await vm.ToggleOffsetAsync(strip);
-        menu.Items.Add(offsetItem);
+        // A scanned copy is a full strip whose id has the production STRIP_
+        // prefix but doesn't match the canonical STRIP_{callsign} form — it
+        // lives in another facility's bay as a coordination preview. The
+        // Offset / Push to / Push all in rack to / Delete items all dispatch
+        // callsign-keyed canonicals (STRIPO / STRIP / STRIPD) which would
+        // target the **originator's** strip, not this copy. Hide those for
+        // copies; the receiving controller can drop the strip via CRC
+        // vStrips' own DeleteStripItem path instead. The StartsWith guard
+        // excludes test fixtures and any future synthetic ids that don't
+        // follow the production naming convention.
+        var isScannedCopy =
+            strip.IsFullStrip
+            && strip.AircraftId is string cs
+            && strip.Id.StartsWith("STRIP_", StringComparison.Ordinal)
+            && strip.Id != $"STRIP_{cs}";
+
+        if (!isScannedCopy)
+        {
+            var offsetItem = new MenuItem { Header = strip.IsOffset ? "Un-offset" : "Offset" };
+            offsetItem.Click += async (_, _) => await vm.ToggleOffsetAsync(strip);
+            menu.Items.Add(offsetItem);
+        }
 
         if (strip.IsHalfStrip)
         {
@@ -860,41 +879,72 @@ public partial class VStripsView : UserControl
             menu.Items.Add(editLabel);
         }
 
-        var pushMenu = new MenuItem { Header = "Push to" };
-        foreach (var bay in vm.Bays)
+        if (!isScannedCopy)
         {
-            var baySnapshot = bay;
-            var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
-            // "Push to <bay>" from the context menu appends to the tail of
-            // rack 0 — the new strip takes the first-available bottom slot.
-            item.Click += async (_, _) => await vm.MoveStripAsync(strip, baySnapshot, rack: 0, index: null);
-            pushMenu.Items.Add(item);
-        }
-        menu.Items.Add(pushMenu);
-
-        // "Push all in rack to" — bulk move every strip in this strip's
-        // rack. Hidden when the rack only holds this single strip (then
-        // "Push to" already does the same job).
-        var (_, sourceRack) = FindRackContaining(vm, strip);
-        if (sourceRack is not null && sourceRack.Strips.Count > 1)
-        {
-            var pushAllMenu = new MenuItem { Header = "Push all in rack to" };
+            var pushMenu = new MenuItem { Header = "Push to" };
             foreach (var bay in vm.Bays)
             {
                 var baySnapshot = bay;
-                var rackSnapshot = sourceRack;
                 var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
-                item.Click += async (_, _) => await PushAllInRackAsync(vm, rackSnapshot, baySnapshot);
-                pushAllMenu.Items.Add(item);
+                // "Push to <bay>" from the context menu appends to the tail of
+                // rack 0 — the new strip takes the first-available bottom slot.
+                item.Click += async (_, _) => await vm.MoveStripAsync(strip, baySnapshot, rack: 0, index: null);
+                pushMenu.Items.Add(item);
             }
-            menu.Items.Add(pushAllMenu);
+            menu.Items.Add(pushMenu);
+
+            // "Push all in rack to" — bulk move every strip in this strip's
+            // rack. Hidden when the rack only holds this single strip (then
+            // "Push to" already does the same job).
+            var (_, sourceRack) = FindRackContaining(vm, strip);
+            if (sourceRack is not null && sourceRack.Strips.Count > 1)
+            {
+                var pushAllMenu = new MenuItem { Header = "Push all in rack to" };
+                foreach (var bay in vm.Bays)
+                {
+                    var baySnapshot = bay;
+                    var rackSnapshot = sourceRack;
+                    var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
+                    item.Click += async (_, _) => await PushAllInRackAsync(vm, rackSnapshot, baySnapshot);
+                    pushAllMenu.Items.Add(item);
+                }
+                menu.Items.Add(pushAllMenu);
+            }
+
+            // "Scan to" — copy a full strip into an external facility's bay
+            // while keeping the originator's strip in place (coordination
+            // handoff preview). Full-strip-only; hidden when no external
+            // bays are accessible from the current position. Listed after
+            // "Push to" / "Push all in rack to" so the destructive move
+            // affordances stay nearer the top.
+            if (strip.IsFullStrip)
+            {
+                var externalBays = vm.Bays.Where(b => b.IsExternal).ToList();
+                if (externalBays.Count > 0)
+                {
+                    var scanMenu = new MenuItem { Header = "Scan to" };
+                    foreach (var bay in externalBays)
+                    {
+                        var baySnapshot = bay;
+                        // Submenu only shows external bays, so the ↗ marker
+                        // would be redundant — drop it here.
+                        var item = new MenuItem { Header = bay.Name };
+                        item.Click += async (_, _) => await vm.ScanStripAsync(strip, baySnapshot, rack: 0, index: null);
+                        scanMenu.Items.Add(item);
+                    }
+                    menu.Items.Add(scanMenu);
+                }
+            }
         }
 
-        menu.Items.Add(new Separator());
+        if (!isScannedCopy)
+        {
+            menu.Items.Add(new Separator());
 
-        var deleteItem = new MenuItem { Header = "Delete" };
-        deleteItem.Click += async (_, _) => await vm.DeleteStripAsync(strip);
-        menu.Items.Add(deleteItem);
+            var deleteItem = new MenuItem { Header = "Delete" };
+            deleteItem.Click += async (_, _) => await vm.DeleteStripAsync(strip);
+            menu.Items.Add(deleteItem);
+        }
 
         return menu;
     }

@@ -663,6 +663,34 @@ public partial class VStripsViewModel : ObservableObject
         await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
     }
 
+    /// <summary>
+    /// Copy a full strip into an external facility's bay while leaving the
+    /// originating strip in place. Aircraft-scoped (callsign required) and
+    /// only valid against external bays — non-external destinations are
+    /// rejected client-side without dispatching, mirroring the server-side
+    /// guard. The destination is the bay's first rack, append-to-tail (the
+    /// CRC bottom-up first-available slot) when called from the context
+    /// menu submenu; explicit rack/index are supported for terminal use.
+    /// </summary>
+    public async Task ScanStripAsync(StripItemViewModel strip, StripBayViewModel destBay, int rack, int? index)
+    {
+        if (!strip.IsFullStrip)
+        {
+            _log.LogWarning("ScanStripAsync: cannot scan non-full strip {Type}", strip.Type);
+            return;
+        }
+
+        if (!destBay.IsExternal)
+        {
+            _log.LogWarning("ScanStripAsync: destination bay {Bay} is not external", destBay.Name);
+            return;
+        }
+
+        var canonical = VStripsCanonicalBuilder.BuildStripScan(destBay.Name, rack, index);
+        var callsign = strip.AircraftId ?? "";
+        await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
+    }
+
     public async Task DeleteStripAsync(StripItemViewModel strip)
     {
         var (callsign, canonical) = strip.Type switch

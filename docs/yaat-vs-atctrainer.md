@@ -242,6 +242,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 |---------|-----------|------|------------|
 | Scratchpad | `SCRATCHPAD`/`SP` | `SP1`, `SP2` | YAAT has separate SP1/SP2 fields; bare `SP1`/`SP2` clears; undo/toggle on repeat |
 | Strip move | `STRIP {bay}` | `STRIP {bay}[/{rack}[/{index}]]` | YAAT extends to rack/slot positioning; slash-compound 1-based |
+| Strip scan to external bay | — | `SCAN {bay}[/{rack}[/{index}]]` | YAAT-only; copies a strip into an external facility's bay (originator keeps its strip) |
 | Strip delete | — | `STRIPD` | YAAT-only |
 | Strip offset toggle | — | `STRIPO` | YAAT-only |
 | Annotate box | — | `AN {box} [text]` | YAAT-only; annotate strip box 1-9 |

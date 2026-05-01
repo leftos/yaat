@@ -212,6 +212,7 @@ public enum CanonicalCommandType
 
     // Strip operations
     StripMove,
+    StripScan,
     StripDelete,
     StripOffset,
     HalfStripCreate,

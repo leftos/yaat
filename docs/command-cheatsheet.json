@@ -232,6 +232,7 @@
       "rows": [
         { "verb": "ANNOTATE", "aliases": ["an", "box"], "description": "Annotate strip box (box# text)" },
         { "verb": "STRIP", "aliases": [], "description": "Push strip to bay" },
+        { "verb": "SCAN", "aliases": [], "description": "Scan strip to external bay (copy)" },
         { "verb": "HSC", "aliases": [], "description": "Create half-strip (bay lines)" },
         { "verb": "HSA", "aliases": [], "description": "Amend half-strip (key\\new...)" },
         { "verb": "HSD", "aliases": [], "description": "Delete half-strip (key)" },

@@ -368,6 +368,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 |---------|---------|---------|-------------|
 | Annotate strip box | `AN 3 RV` | `ANNOTATE`, `BOX` | — |
 | Push strip to bay | `STRIP Ground/1/1` | — | Slash-compound `bay[/rack[/index]]`, 1-based |
+| Scan strip to external bay | `SCAN NCT/1` | — | Copies strip to external bay; original stays put |
 | Create half-strip | `HSC Ground/1 Hello\World` | `HALFSTRIPCREATE` | — |
 | Amend half-strip | `HSA Hello\Updated\Body` | `HALFSTRIPAMEND` | — |
 | Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | — |
@@ -894,6 +895,8 @@ Changing your active position also updates the radar display:
 | `AN 3 ?` | Writes a checkmark (✓) in strip annotation box 3. Typing `?` in the inline annotation editor substitutes live; the server also normalizes any `?` on incoming AN commands (per CRC docs/crc/vstrips.md:130). |
 | `STRIP Ground` | Push flight strip to "Ground" bay (first-available slot in rack 1) |
 | `STRIP Ground/2/3` | Push flight strip to Ground bay rack 2, slot 3 (1-based) |
+| `SCAN NCT` | Copy flight strip to external "NCT" bay; originator keeps the strip in place. External bays only — internal-bay SCAN errors. |
+| `SCAN NCT/2/1` | Copy to external NCT bay, rack 2 slot 1. Repeat scans to the same bay stack as separate copies. |
 | `HSC Ground Hello\World` | Create half-strip in Ground bay (rack defaults to 1) with two lines (`\` separates lines, max 6) |
 | `HSC Ground/2 line2` | (with aircraft selected) Create half-strip in Ground rack 2 with callsign as line 1, "line2" as line 2 |
 | `HSA Hello\Updated\Body` | Amend half-strip whose first line is "Hello" — replaces all lines with `Updated`, `Body` |

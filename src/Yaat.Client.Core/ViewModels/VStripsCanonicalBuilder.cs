@@ -37,6 +37,17 @@ public static class VStripsCanonicalBuilder
     public static string BuildStripMove(string bayName, int rack, int? index) =>
         index is int i ? $"STRIP {bayName}/{OneBased(rack)}/{OneBased(i)}" : $"STRIP {bayName}/{OneBased(rack)}";
 
+    /// <summary>
+    /// Copy a full strip (departure/arrival) into an external facility's bay
+    /// while leaving the original strip untouched. Pass <paramref name="index"/>
+    /// <c>null</c> to append to the tail of the rack. Destination must be an
+    /// external bay; the server rejects internal-bay scans (use STRIP for
+    /// in-facility moves). Each scan creates a fresh copy with its own id, so
+    /// repeated scans to the same bay stack rather than dedupe.
+    /// </summary>
+    public static string BuildStripScan(string bayName, int rack, int? index) =>
+        index is int i ? $"SCAN {bayName}/{OneBased(rack)}/{OneBased(i)}" : $"SCAN {bayName}/{OneBased(rack)}";
+
     /// <summary>Delete the full strip owned by the currently-selected aircraft.</summary>
     public static string BuildStripDelete() => "STRIPD";
 

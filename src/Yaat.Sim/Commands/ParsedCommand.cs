@@ -460,6 +460,15 @@ public record StripAnnotateCommand(string Box, string? Text) : ParsedCommand;
 // Wire verb stays "STRIP" for backward compat; internal name aligns with HSM (both "move").
 public record StripMoveCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
+// SCAN <bay>[/<rack>[/<index>]] — copies the aircraft's full strip into an external
+// facility's bay while leaving the original strip untouched. Tokens follow the same
+// slash-compound dest-spec format as STRIP (see StripMutations.ResolveStripDest).
+// Destination must be an external bay (IsExternal=true on the resolver entry); the
+// server handler rejects internal-bay destinations so STRIP stays the verb for
+// in-facility moves and SCAN's distinct semantics ("duplicate, don't relocate") are
+// preserved.
+public record StripScanCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
+
 public record StripDeleteCommand : ParsedCommand;
 
 public record StripOffsetCommand : ParsedCommand;
