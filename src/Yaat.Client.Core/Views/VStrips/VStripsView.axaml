@@ -36,6 +36,33 @@
         <vstrips:InlineTextEditPopup x:Name="InlineEditor"
                                      Grid.Row="0" Grid.RowSpan="2"/>
 
+        <!-- Disconnected banner: red strip pinned to the top of the workspace
+             whenever the SignalR transport is down. While visible, the code-
+             behind drops every input that would otherwise dispatch a command
+             (drag/drop, right-click menus, keyboard shortcuts) so a stale
+             view can't act. The bay layout itself stays — VStripsViewModel.
+             OnConnectionLost only clears strip CONTENTS, not the bay shells —
+             so the controller still sees the workspace structure. -->
+        <Border x:Name="DisconnectedBanner"
+                Grid.Row="1"
+                VerticalAlignment="Top"
+                HorizontalAlignment="Stretch"
+                Background="#992020"
+                BorderBrush="#cc4040"
+                BorderThickness="0,0,0,1"
+                ZIndex="999"
+                IsHitTestVisible="False"
+                IsVisible="{Binding !IsConnected}">
+            <TextBlock Text="DISCONNECTED — read-only until reconnect"
+                       Foreground="White"
+                       FontFamily="{StaticResource MonoFont}"
+                       FontWeight="Bold"
+                       FontSize="12"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Padding="8,4"/>
+        </Border>
+
         <!-- Header: bay buttons + trash + zoom + printer toggle -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="#252529">
 
@@ -123,6 +150,7 @@
                           Margin="4"
                           Padding="8,2"
                           IsChecked="{Binding Printer.IsOpen, Mode=TwoWay}"
+                          IsEnabled="{Binding IsConnected}"
                           FontSize="11"/>
         </Grid>
 
@@ -233,7 +261,8 @@
                         Background="#2B2D31"
                         BorderBrush="#4A4A52" BorderThickness="1"
                         CornerRadius="4"
-                        Padding="18">
+                        Padding="18"
+                        IsEnabled="{Binding IsConnected}">
                     <DockPanel>
                         <!-- Header row with Close (X) button -->
                         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">

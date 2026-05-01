@@ -508,6 +508,11 @@ public partial class VStripsView : UserControl
             return;
         }
 
+        if (!vm.IsConnected)
+        {
+            return;
+        }
+
         var stripView = hit.FindAncestorOfType<FlightStripControl>();
 
         // Right-click: strip → strip context menu; empty rack space → empty-rack
@@ -1522,6 +1527,12 @@ public partial class VStripsView : UserControl
     protected override async void OnKeyDown(KeyEventArgs e)
     {
         if (DataContext is not VStripsViewModel vm)
+        {
+            base.OnKeyDown(e);
+            return;
+        }
+
+        if (!vm.IsConnected)
         {
             base.OnKeyDown(e);
             return;

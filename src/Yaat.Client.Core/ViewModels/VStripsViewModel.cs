@@ -36,6 +36,18 @@ public partial class VStripsViewModel : ObservableObject
     public StripPrinterViewModel Printer { get; } = new();
 
     /// <summary>
+    /// Tracks the SignalR transport state. Bays render their layout when this
+    /// is true; on disconnect the live strip contents (per-rack lists, printer
+    /// queue, item dictionary, cached broadcasts) are dumped so a stale view
+    /// can't be acted on. The view binds drag/drop, right-click context menus,
+    /// and keyboard shortcuts to this flag so a disconnected client is read-
+    /// only — no command will dispatch into the void and produce a "command
+    /// failed" log noise.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isConnected;
+
+    /// <summary>
     /// Facilities the current position can open strips windows for. Populated
     /// once per scenario load by <see cref="RefreshAccessibleFacilitiesAsync"/>
     /// and drives the facility-switcher popup in the header.
@@ -119,6 +131,60 @@ public partial class VStripsViewModel : ObservableObject
         {
             _connection.ScenarioLoaded += OnScenarioLoaded;
             _connection.ScenarioUnloaded += OnScenarioUnloaded;
+        }
+
+        _isConnected = _connection.IsConnected;
+        _connection.Connected += () => Dispatcher.UIThread.Post(() => IsConnected = true);
+        _connection.Closed += _ => Dispatcher.UIThread.Post(OnConnectionLost);
+        _connection.Reconnecting += _ => Dispatcher.UIThread.Post(OnConnectionLost);
+        _connection.Reconnected += _ => Dispatcher.UIThread.Post(() => IsConnected = true);
+    }
+
+    /// <summary>
+    /// Called on the UI thread whenever the SignalR transport drops or starts
+    /// reconnecting. Clears the strip lookup, every rack's strip list, and the
+    /// printer queue so the on-screen content reflects "no live data" — the
+    /// bay layout itself stays so the user still sees the workspace shape.
+    /// Cached broadcasts are dropped too: when the connection comes back the
+    /// server will re-broadcast scenario + state, so honoring stale snapshots
+    /// would just race the fresh ones.
+    /// </summary>
+    private void OnConnectionLost()
+    {
+        IsConnected = false;
+        _items.Clear();
+        SelectedStrip = null;
+        foreach (var bay in Bays)
+        {
+            foreach (var rack in bay.Racks)
+            {
+                rack.Strips.Clear();
+            }
+            bay.HasNewItem = false;
+        }
+        Printer.Queue.Clear();
+        _lastReceivedFullState = null;
+        _lastReceivedItems = null;
+    }
+
+    /// <summary>
+    /// External hook for hosts (standalone, embedded tab) that already track
+    /// connection/room state and want the strip view-model to reflect it
+    /// without waiting for a SignalR transport event. Idempotent.
+    /// </summary>
+    public void SetConnected(bool connected)
+    {
+        if (IsConnected == connected)
+        {
+            return;
+        }
+        if (connected)
+        {
+            IsConnected = true;
+        }
+        else
+        {
+            OnConnectionLost();
         }
     }
 

@@ -19,6 +19,15 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<string?>? Reconnected;
     public event Action<Exception?>? Reconnecting;
     public event Action<Exception?>? Closed;
+
+    /// <summary>
+    /// Fires once after <see cref="ConnectAsync"/> completes a successful
+    /// initial handshake. Distinct from <see cref="Reconnected"/>, which only
+    /// fires after a transport drop. Subscribers tracking "is the SignalR
+    /// link live" need both — without this event the very first connect
+    /// goes unnoticed and dependent UI stays in its disconnected state.
+    /// </summary>
+    public event Action? Connected;
     public event Action<TerminalBroadcastDto>? TerminalEntryReceived;
     public event Action<RoomMemberChangedDto>? RoomMemberChanged;
     public event Action<CrcLobbyChangedDto>? CrcLobbyChanged;
@@ -105,6 +114,7 @@ public sealed class ServerConnection : IAsyncDisposable
 
         await _connection.StartAsync(ct);
         _log.LogInformation("Connected");
+        Connected?.Invoke();
 
         StartHeartbeat();
     }

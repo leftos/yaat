@@ -527,6 +527,58 @@ public class VStripsViewInteractionTests
         Assert.Empty(captured); // selecting an own bay does not send a canonical
     }
 
+    [AvaloniaFact]
+    public void Disconnect_ClearsRackStripsAndPrinterButKeepsBayLayout()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            [
+                ["S1", "S2"],
+                ["S3"],
+            ]
+        );
+        vm.SetConnected(true);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.IsConnected);
+        Assert.Equal(2, vm.Bays.Count);
+        Assert.Equal(2, vm.Bays[0].Racks[0].Strips.Count);
+        Assert.Single(vm.Bays[0].Racks[1].Strips);
+
+        vm.SetConnected(false);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.IsConnected);
+        Assert.Equal(2, vm.Bays.Count); // bay shells stay
+        Assert.Empty(vm.Bays[0].Racks[0].Strips);
+        Assert.Empty(vm.Bays[0].Racks[1].Strips);
+        Assert.Empty(vm.Bays[1].Racks[0].Strips);
+        Assert.Null(vm.SelectedStrip);
+    }
+
+    [AvaloniaFact]
+    public void Disconnect_BannerVisibleWhenOfflineAndHidesOnReconnect()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, view) = BootView(vm);
+
+        // Default state is disconnected; the red banner should be visible.
+        Assert.False(vm.IsConnected);
+        var banner = view.FindControl<Border>("DisconnectedBanner");
+        Assert.NotNull(banner);
+        Assert.True(banner!.IsVisible);
+
+        vm.SetConnected(true);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(banner.IsVisible);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
 
     private static (VStripsViewModel Vm, List<(string Callsign, string Command)> Captured) MakeVm()
