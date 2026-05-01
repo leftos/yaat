@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.10-alpha [2026/05/01]
 
 ### Added
 - **Browser-based YAAT Flight Strips at `<server>/vstrips/`** — a no-install web client running entirely in your browser, talking to the YAAT server over the same SignalR session as the desktop app. First-time visitors see a small form that collects VATSIM CID, initials, and ARTCC (with optional room id and server URL); values are remembered for return visits. **Tools → Open Strips in Browser** in both YAAT Client and standalone YAAT Flight Strips opens the page with identity prefilled.

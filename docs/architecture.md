@@ -212,6 +212,22 @@ Program.cs                     # Entry point. VStripsChannel constant — must m
                                # Initializes YaatPaths to %LOCALAPPDATA%/yaat-vstrips/ so settings/log don't collide with Yaat.Client.
 ```
 
+## Yaat.VStrips.Web — Browser strip client (`tools/Yaat.VStrips.Web/`)
+
+WebAssembly Avalonia client for flight strips. Hosted by yaat-server at `/vstrips/` so users open it in any browser without an install. References only Yaat.Client.Strips (no Avalonia.Desktop, no Velopack, no file IO) so the WASM publish closure stays small. Identity (CID, initials, ARTCC) flows in via URL query — first-time visitors fill a landing form that redirects with the params filled in.
+
+```
+Program.cs                       # Entry point. Wires SimLog to ConsoleLineLoggerProvider (browser DevTools console). Stores window.location.search + window.location.origin on App so MainView can decide live-connect vs. offline spike.
+App.axaml(.cs)                   # XAML app root. Holds LocationSearch/LocationOrigin static strings populated by Program.Main.
+MainView.axaml(.cs)              # Root view. Hosts VStripsView, handles auto-join via BrowserStripsTransport, surfaces the missing-identity landing form.
+wwwroot/index.html               # WASM host page; loaded by yaat-server's static-file middleware at /vstrips/.
+wwwroot/main.js                  # Boot script — passes window.location.search + origin into the WASM Main args.
+wwwroot/app.css                  # Page chrome (status footer, landing form).
+runtimeconfig.template.json      # net10.0-browser runtime config (JsonSerializerIsReflectionEnabledByDefault=true so SignalR JoinRoom works in WASM).
+test/smoke.mjs                   # Headless WASM smoke test (Playwright).
+test/live.mjs                    # Live-server smoke test against a running yaat-server instance.
+```
+
 ## Yaat.Sim — Shared simulation library (`src/Yaat.Sim/`)
 
 No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
