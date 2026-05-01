@@ -7,9 +7,9 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
-using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views.VStrips;
 
@@ -23,7 +23,7 @@ namespace Yaat.Client.Views.VStrips;
 /// </summary>
 public partial class VStripsView : UserControl
 {
-    private static readonly ILogger Log = AppLog.CreateLogger<VStripsView>();
+    private static readonly ILogger Log = SimLog.CreateLogger("VStripsView");
 
     // Application-scoped data format for drag/drop. Strip ids fit in a string so
     // the drop target can resolve the view-model through VStripsViewModel.ItemsById

@@ -26,7 +26,7 @@ public static class AppBuilderExtensions
             fontManager.AddFontCollection(
                 new EmbeddedFontCollection(
                     new Uri("fonts:JetBrainsMono", UriKind.Absolute),
-                    new Uri("avares://Yaat.Client.Core/Resources/Fonts", UriKind.Absolute)
+                    new Uri("avares://Yaat.Client.Strips/Resources/Fonts", UriKind.Absolute)
                 )
             );
         });
