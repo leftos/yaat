@@ -9,7 +9,7 @@
              System fallbacks remain for environments where the embedded
              font fails to register; "monospace" is the CSS-style generic
              that Skia honors as a last resort. -->
-        <FontFamily x:Key="MonoFont">avares://Yaat.Client.Core/Resources/Fonts#JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
+        <FontFamily x:Key="MonoFont">fonts:JetBrainsMono#JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
         <!-- CRC vStrips palette — cream-on-grey strip cells with red field numbers,
              handwriting-styled user annotations, and typed separator bands.
              Matches docs/crc/img/departure-strip.png and docs/crc/img/separators.png. -->
@@ -19,7 +19,7 @@
              Mono — loses the script feel in the browser tab but at least
              the ✓ checkmark substitution renders (Inter has no checkmark
              glyph, JBM does). -->
-        <FontFamily x:Key="StripScriptFont">Segoe Script,Lucida Handwriting,Comic Sans MS,avares://Yaat.Client.Core/Resources/Fonts#JetBrains Mono,sans-serif</FontFamily>
+        <FontFamily x:Key="StripScriptFont">Segoe Script,Lucida Handwriting,Comic Sans MS,fonts:JetBrainsMono#JetBrains Mono,sans-serif</FontFamily>
         <SolidColorBrush x:Key="StripCellBrush" Color="#EEEBE0" />
         <SolidColorBrush x:Key="StripBorderBrush" Color="#BFBBAE" />
         <SolidColorBrush x:Key="StripPrintedBrush" Color="#111111" />

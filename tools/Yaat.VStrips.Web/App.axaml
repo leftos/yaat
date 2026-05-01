@@ -13,14 +13,14 @@
              desktop. Without this the WASM bundle falls back to Inter
              (the only font in Avalonia.Browser by default), which is
              proportional and clips callsigns. -->
-        <FontFamily x:Key="MonoFont">avares://Yaat.Client.Core/Resources/Fonts#JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
+        <FontFamily x:Key="MonoFont">fonts:JetBrainsMono#JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
         <!-- WASM has neither the handwriting fonts nor anywhere to find a
              checkmark glyph in Inter, so JetBrains Mono is the only entry
              that can reliably render annotations. The OS handwriting names
              remain at the head of the chain so the desktop client (which
              references this same MonoFont through Yaat.Client) keeps its
              script feel. -->
-        <FontFamily x:Key="StripScriptFont">Segoe Script,Lucida Handwriting,Comic Sans MS,avares://Yaat.Client.Core/Resources/Fonts#JetBrains Mono,sans-serif</FontFamily>
+        <FontFamily x:Key="StripScriptFont">Segoe Script,Lucida Handwriting,Comic Sans MS,fonts:JetBrainsMono#JetBrains Mono,sans-serif</FontFamily>
         <SolidColorBrush x:Key="StripCellBrush" Color="#EEEBE0" />
         <SolidColorBrush x:Key="StripBorderBrush" Color="#BFBBAE" />
         <SolidColorBrush x:Key="StripPrintedBrush" Color="#111111" />

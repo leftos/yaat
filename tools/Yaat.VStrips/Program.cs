@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Avalonia;
 using Velopack;
+using Yaat.Client;
 using Yaat.Client.Logging;
 using Yaat.Sim;
 
@@ -62,5 +63,6 @@ public static class Program
         return 0;
     }
 
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().LogToTrace();
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().WithJetBrainsMonoFont().LogToTrace();
 }
