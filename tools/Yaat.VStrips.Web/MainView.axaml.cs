@@ -83,9 +83,16 @@ public partial class MainView : UserControl
         {
             return;
         }
+        // VStripsViewModel pulls initials from its UserPreferences argument,
+        // which we pass null in WASM (no filesystem). Fall back to whatever
+        // the URL query string carried so the server log doesn't show a
+        // bare "(from )" on every command. Same identity that's sent on
+        // JoinRoom — keeps the controller's two-letter initials consistent
+        // across the join + every subsequent action.
+        var resolvedInitials = !string.IsNullOrWhiteSpace(initials) ? initials : _queryParams.GetValueOrDefault("initials", "");
         try
         {
-            await _connection.SendCommandAsync(callsign, command, initials);
+            await _connection.SendCommandAsync(callsign, command, resolvedInitials);
         }
         catch (Exception ex)
         {
