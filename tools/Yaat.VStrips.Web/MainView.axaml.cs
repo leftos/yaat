@@ -40,11 +40,11 @@ public partial class MainView : UserControl
         }
         else
         {
-            // No identity in the URL — keep the offline spike fixture so the
-            // page renders something demonstrable (used during the spike and
-            // by anyone loading the bare URL out of curiosity).
-            SetStatus("Offline preview (no identity in URL)");
-            SeedSpikeFixture(vm);
+            // The static landing form in wwwroot/index.html gates the WASM
+            // load on having all three identity params, so this branch
+            // should never run via the normal flow. Show a recovery hint
+            // for the URL-mangled case.
+            SetStatus("Missing identity in URL — reload /vstrips/ to fill in CID, initials, and ARTCC.");
         }
     }
 
@@ -79,7 +79,10 @@ public partial class MainView : UserControl
         return dict;
     }
 
-    private bool HasIdentity() => _queryParams.ContainsKey("cid") || _queryParams.ContainsKey("initials") || _queryParams.ContainsKey("artcc");
+    private bool HasIdentity() =>
+        !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("cid"))
+        && !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("initials"))
+        && !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("artcc"));
 
     private async Task SendCommandAsync(string callsign, string command, string initials)
     {
@@ -209,65 +212,5 @@ public partial class MainView : UserControl
             Log.LogWarning(ex, "JoinRoom {RoomId} failed", roomId);
             SetStatus($"JoinRoom {roomId} failed: {ex.Message}");
         }
-    }
-
-    private static void SeedSpikeFixture(VStripsViewModel vm)
-    {
-        // ApplyBayConfig posts its work to the dispatcher; subsequent
-        // ReconcileItems/ReconcileFullState calls would otherwise race ahead
-        // and run before the bays exist (silently dropping the strip
-        // ordering). Queue the seed *after* the config so they execute in
-        // FIFO order on the same dispatcher.
-        vm.ApplyBayConfig(
-            new FlightStripsConfigDto(
-                FacilityId: "SPIKE",
-                FacilityName: "WASM SPIKE",
-                Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
-                HasTwoPrinters: false,
-                SeparatorsLocked: false
-            )
-        );
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            vm.SetConnected(true);
-            vm.ReconcileItems([
-                new StripItemDto(
-                    Id: "spike-1",
-                    AircraftId: "UAL238",
-                    IsDisconnected: false,
-                    Type: StripItemType.DepartureStrip,
-                    IsOffset: false,
-                    FieldValues: ["UAL238", "", "B738/L", "1234", "5512", "", "240", "KSFO", "DCT BERKS DCT FAIRR", ""]
-                ),
-                new StripItemDto(
-                    Id: "spike-2",
-                    AircraftId: "AAL2839",
-                    IsDisconnected: false,
-                    Type: StripItemType.ArrivalStrip,
-                    IsOffset: false,
-                    FieldValues: ["AAL2839", "", "A320/L", "5678", "6612", "", "180", "KOAK", "ALWYS3.SFO", ""]
-                ),
-            ]);
-            vm.ReconcileFullState(
-                new FlightStripsStateDto(
-                    PrinterItems: [],
-                    BayItems:
-                    [
-                        new StripBayContentsDto(
-                            "bay-gnd",
-                            [
-                                ["spike-1"],
-                                ["spike-2"],
-                            ]
-                        ),
-                    ],
-                    NewItemInPrinter: false,
-                    NewItemInArrivalPrinter: false,
-                    NewItemInBayId: null,
-                    ItemMovedOrCreatedBySessionId: null
-                )
-            );
-        });
     }
 }

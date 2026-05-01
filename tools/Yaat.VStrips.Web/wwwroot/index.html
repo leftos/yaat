@@ -13,6 +13,149 @@
     <div id="out">
         <div class="splash">Loading YAAT vStrips...</div>
     </div>
-    <script type="module" src="./main.js"></script>
+    <script type="module">
+        // Gate the WASM bundle on having all three identity fields in the
+        // query string. Missing any → render the landing form (prefilled
+        // from localStorage), redirect with completed params on submit.
+        // Avoids paying the ~5 s WASM boot just to show the user a form.
+        const params = new URLSearchParams(window.location.search);
+        const required = ['cid', 'initials', 'artcc'];
+        const haveAll = required.every(k => params.get(k));
+
+        if (haveAll) {
+            await import('./main.js');
+        } else {
+            renderLandingForm();
+        }
+
+        function renderLandingForm() {
+            const STORAGE_KEY = 'yaat-vstrips-identity';
+            let stored = {};
+            try {
+                stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+            } catch {
+                // Corrupt blob — discard rather than failing the whole page.
+                stored = {};
+            }
+            // Prefer values already in the URL (someone shared a partial link)
+            // over localStorage, so an explicit ?artcc= override wins.
+            const initial = key => params.get(key) || stored[key] || '';
+
+            const out = document.getElementById('out');
+            // Clear the splash via textContent so any pre-existing children
+            // are dropped without invoking innerHTML.
+            out.textContent = '';
+
+            // Build the form using DOM APIs only — never set innerHTML with
+            // values from URL params or localStorage. Form input values flow
+            // through the DOM `value` setter which is always plain-text.
+            const form = el('form', { id: 'connect-form', className: 'landing-form', autocomplete: 'on' });
+
+            form.appendChild(el('h1', { textContent: 'YAAT vStrips' }));
+            form.appendChild(el('p', { className: 'subtitle', textContent: 'Enter your identity to connect.' }));
+
+            form.appendChild(field('VATSIM CID', input({
+                name: 'cid', type: 'text', inputMode: 'numeric', pattern: '[0-9]+',
+                required: true, autofocus: true, value: initial('cid'),
+            })));
+            form.appendChild(field('Initials', input({
+                name: 'initials', type: 'text', maxLength: 3, pattern: '[A-Za-z]{1,3}',
+                required: true, value: initial('initials'),
+                style: 'text-transform:uppercase',
+            })));
+            form.appendChild(field('ARTCC', input({
+                name: 'artcc', type: 'text', maxLength: 4, pattern: '[A-Za-z0-9]{2,4}',
+                required: true, value: initial('artcc'),
+                style: 'text-transform:uppercase',
+            })));
+
+            const details = el('details');
+            if (initial('room') || initial('server')) {
+                details.open = true;
+            }
+            details.appendChild(el('summary', { textContent: 'Optional' }));
+            details.appendChild(field('Room ID', input({
+                name: 'room', type: 'text', placeholder: '(auto-join via CID)',
+                value: initial('room'),
+            })));
+            details.appendChild(field('Server URL', input({
+                name: 'server', type: 'text', placeholder: '(same origin)',
+                value: initial('server'),
+            })));
+            form.appendChild(details);
+
+            const submit = el('button', { type: 'submit', textContent: 'Connect' });
+            form.appendChild(submit);
+
+            form.appendChild(el('p', {
+                className: 'note',
+                textContent: 'Values are saved in your browser for next time.',
+            }));
+
+            form.addEventListener('submit', onSubmit);
+            out.appendChild(form);
+
+            function onSubmit(e) {
+                e.preventDefault();
+                const data = new FormData(form);
+                const values = {
+                    cid: (data.get('cid') || '').trim(),
+                    initials: (data.get('initials') || '').trim().toUpperCase(),
+                    artcc: (data.get('artcc') || '').trim().toUpperCase(),
+                    room: (data.get('room') || '').trim(),
+                    server: (data.get('server') || '').trim(),
+                };
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+                } catch {
+                    // Storage may be disabled (incognito + cookie blocking) —
+                    // proceed anyway; the URL still carries the values.
+                }
+                const next = new URLSearchParams();
+                next.set('cid', values.cid);
+                next.set('initials', values.initials);
+                next.set('artcc', values.artcc);
+                if (values.room) next.set('room', values.room);
+                if (values.server) next.set('server', values.server);
+                // Setting .search reloads the page with the new query string;
+                // the second pass takes the haveAll branch and boots the WASM.
+                window.location.search = '?' + next.toString();
+            }
+        }
+
+        function el(tag, props = {}) {
+            const node = document.createElement(tag);
+            for (const [k, v] of Object.entries(props)) {
+                if (v === undefined || v === null) continue;
+                if (k === 'textContent') {
+                    node.textContent = v;
+                } else if (k === 'className') {
+                    node.className = v;
+                } else if (k === 'style' && typeof v === 'string') {
+                    node.setAttribute('style', v);
+                } else if (k in node) {
+                    node[k] = v;
+                } else {
+                    node.setAttribute(k, v);
+                }
+            }
+            return node;
+        }
+
+        function input(props) {
+            const node = el('input', props);
+            // Setting .value via property is plain-text; no HTML interpretation.
+            if ('value' in props && props.value !== undefined) {
+                node.value = props.value;
+            }
+            return node;
+        }
+
+        function field(labelText, control) {
+            const label = el('label', { textContent: labelText });
+            label.appendChild(control);
+            return label;
+        }
+    </script>
 </body>
 </html>
