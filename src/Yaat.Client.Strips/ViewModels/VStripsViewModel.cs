@@ -3,8 +3,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
 
@@ -23,7 +23,7 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class VStripsViewModel : ObservableObject
 {
-    private readonly ILogger _log = AppLog.CreateLogger<VStripsViewModel>();
+    private readonly ILogger _log = SimLog.CreateLogger("VStripsViewModel");
 
     private readonly IStripsTransport _transport;
     private readonly Func<string, string, string, Task> _sendCommand;
