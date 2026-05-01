@@ -66,28 +66,28 @@ Side asks raised during the spike, both shipped together:
 
 ### Phase 2 — Web host project + transport abstraction
 
-### Phase 2 — Web host wires up the real transport
+### Phase 2 — Web host wires up the real transport (DONE — 2026-05-01)
 
-The scaffold (`tools/Yaat.VStrips.Web/`) already exists and renders `VStripsView` against a stub view-model. Phase 2 makes it talk to a real yaat-server.
+- [x] Live SignalR connect from WASM. `MainView` parses `window.location.search` for cid/initials/artcc/server/room; when identity is present, calls `ServerConnection.ConnectAsync` with the resolved server URL (defaults to `window.location.origin`, threaded in from `main.js`'s argv since `HubConnectionBuilder.WithUrl` rejects relative URLs). Verified end-to-end against `http://localhost:5130`: SignalR negotiate completes in ~300 ms, `Connected` fires ~1 s after page load (`tools/Yaat.VStrips.Web/test/live.mjs`).
+- [x] Identity bootstrap from URL query string. Sticks the WASM client in "no room" if `?cid=` is omitted; auto-joins via `FindRoomForMyCidAsync` when CID is present, mirroring `StandaloneViewModel.TryAutoJoinForCidAsync`. Listens to `RoomAvailableForCid` to pick up a sibling CRC's room as soon as it becomes available.
+- [x] Storage: passing `preferences: null` to `VStripsViewModel` is sufficient for the spike — the VM already handles the null path. A `localStorage`-backed `UserPreferences` is deferred until users actually need persisted zoom / last-facility state.
+- [x] Browser-friendly logging: `AppLog.InitializeForBrowser()` wires `ConsoleLineLoggerProvider` (writes via `Console.WriteLine`, which Mono-WASM forwards to DevTools). All `ServerConnection` and `MainView` logs surface in the browser console.
+- [x] Suppress favicon noise via `<link rel="icon" href="data:,">` in `index.html`.
+- [ ] Validate drag/drop in real chromium and CRC WebView2 (Avalonia's pointer-driven drag model differs from DOM drag-and-drop; headless can't reliably emulate). Defer to interactive test.
+- [ ] Validate inline edits (annotation, half-strip cell, separator label) in WASM. The shared `InlineTextEditPopup` needs Avalonia TextBox focus + IME + Tab/Enter/Escape working under browser-WASM. Defer to interactive test.
 
-- [ ] Connect `VStripsViewModel`'s ServerConnection to `{origin}/hubs/training` from the WASM page. Validate that the C# SignalR.Client actually opens a WebSocket from a browser-WASM context (the spike confirmed it builds; runtime connect remains unverified).
-- [ ] Identity bootstrap: parse `?cid=&initials=&artcc=&server=&room=` from `window.location.search`. If any are missing, show a small settings panel before connecting. Persist last-used values to `localStorage`.
-- [ ] Auto-join: same `RoomAvailableForCid` push as the standalone (`StandaloneViewModel.cs:79`) — when the server announces a sibling CRC bound a room to this CID, join it unless already in one.
-- [ ] Storage abstraction: `UserPreferences` writes to filesystem via `YaatPaths`. Replace with a no-op or `localStorage`-backed implementation for the web host (or just pass `null` preferences, which the strips VM already handles).
-- [ ] Validate drag/drop in real chromium and CRC WebView2 (the spike skipped this — Avalonia's pointer-driven drag model differs from DOM drag-and-drop and may need adaptation in WASM).
-- [ ] Validate inline edits (annotation, half-strip cell, separator label) — these all open the shared `InlineTextEditPopup`. Test that TextBox focus, IME input, and Tab/Enter/Escape work in WASM.
-- [ ] Update `tools/Yaat.VStrips.Web/wwwroot/index.html` to use a CRC-friendly minimal splash (no Avalonia branding).
+### Phase 3 — Server hosting (DONE — 2026-05-01)
 
-### Phase 3 — Server hosting
-
-- [ ] Add `app.UseStaticFiles()` and `app.MapFallbackToFile("vstrips/index.html")` in `src/Yaat.Server/Program.cs` (after existing endpoint mappings, before `app.Run()`).
-- [ ] MSBuild target in `Yaat.VStrips.Web.csproj` that publishes the WASM build directly into `../../../yaat-server/src/Yaat.Server/wwwroot/vstrips/` for local dev. For CI, the release workflow runs `dotnet publish` and copies output into the server's deploy bundle.
-- [ ] Server-side: confirm SignalR allows the browser origin (`http://localhost:5000`). Configure CORS only if the spike shows a browser running outside the same origin (e.g. CRC's WebView2 isolated user data folder may treat origin checks differently).
+- [x] `app.UseStaticFiles()` + `app.MapFallbackToFile("vstrips/{**path:nonfile}", "vstrips/index.html")` in yaat-server's `Program.cs`. Same-origin hosting keeps the SignalR WebSocket handshake CORS-free in CRC's WebView2 tab.
+- [x] Register WASM-runtime MIME types explicitly: `.wasm` (application/wasm), `.dat` / `.blat` / `.dll` / `.pdb` / `.br` / `.gz` (application/octet-stream). Without this, Mono fails initialization on the first ICU `.dat` fetch.
+- [x] MSBuild `CopyToServerWwwroot` `AfterTargets="Publish"` mirrors `tools/Yaat.VStrips.Web/bin/.../publish/wwwroot/` into `../../yaat-server/src/Yaat.Server/wwwroot/vstrips/`. Self-skips when the sibling checkout isn't present (CI-friendly). Override via `-p:YaatServer=...`.
+- [x] yaat-server gitignores `src/Yaat.Server/wwwroot/vstrips/` — it's a build artifact, not source.
+- [ ] Brotli/gzip auto-negotiation of the precompressed siblings. `UseStaticFiles` doesn't do this on its own; would need either `MapStaticAssets` (NET 9+) or custom middleware. Bundle currently transfers as raw 17 MB instead of the 6 MB Brotli total. Optimization deferred.
 - [ ] Update `docs/architecture.md` to reflect the new project + the wwwroot pipeline.
 
 ### Phase 4 — Distribution and docs
 
-- [ ] Optional: extend `CrcConfigService` (used by the Tools menu in standalone) to also seed a `BrowserDisplaySettings.InitialUrl` entry pointing at `http://localhost:5000/vstrips/?cid=...` in CRC's settings. If too invasive, just document the URL.
+- [ ] Optional: extend `CrcConfigService` (used by the Tools menu in standalone) to also seed a `BrowserDisplaySettings.InitialUrl` entry in CRC's settings, pointing at `http://localhost:5130/vstrips/?cid=...`. The standalone already has **Tools → Open in Browser** which opens the same URL in the user's default browser; the CRC seed is a separate convenience.
 - [ ] `tools/Yaat.VStrips/USER_GUIDE.md` — add a section "Run as a CRC browser tab" describing how to paste the URL into CRC's BrowserDisplay settings.
 - [ ] Top-level `USER_GUIDE.md` flight-strips section — link to the web variant.
 - [ ] `docs/flight-strips.md` — add a "Web client" subsection covering the new transport implementation and identity flow.
