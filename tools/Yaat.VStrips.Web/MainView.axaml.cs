@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
-using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
@@ -10,9 +9,9 @@ namespace Yaat.VStrips.Web;
 
 public partial class MainView : UserControl
 {
-    private static readonly ILogger Log = AppLog.CreateLogger("Yaat.VStrips.Web.MainView");
+    private static readonly ILogger Log = SimLog.CreateLogger("Yaat.VStrips.Web.MainView");
 
-    private readonly ServerConnection _connection = new();
+    private readonly BrowserStripsTransport _connection = new();
     private readonly Dictionary<string, string> _queryParams;
 
     public MainView()

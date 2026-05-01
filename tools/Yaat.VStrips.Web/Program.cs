@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Browser;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging;
 using Yaat.Client;
 using Yaat.Client.Logging;
+using Yaat.Sim;
 
 namespace Yaat.VStrips.Web;
 
@@ -19,7 +21,16 @@ internal static class Program
     /// </summary>
     private static Task Main(string[] args)
     {
-        AppLog.InitializeForBrowser();
+        // Wire SimLog directly to a console-line provider so transport and
+        // strip view logs land in the browser DevTools console. The
+        // desktop AppLog.InitializeForBrowser path lived in Yaat.Client.Core,
+        // which the WASM client no longer references.
+        var factory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Information);
+            builder.AddProvider(new ConsoleLineLoggerProvider());
+        });
+        SimLog.Initialize(factory);
         App.LocationSearch = args.Length > 0 ? args[0] : "";
         App.LocationOrigin = args.Length > 1 ? args[1] : "";
         return BuildAvaloniaApp().WithInterFont().WithJetBrainsMonoFont().StartBrowserAppAsync("out");
