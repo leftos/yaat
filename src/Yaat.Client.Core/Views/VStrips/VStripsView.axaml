@@ -281,9 +281,9 @@
                                        HorizontalAlignment="Center"
                                        FontSize="16" FontWeight="Bold"
                                        Foreground="White"/>
-                            <Button Grid.Column="1" Content="✕"
+                            <Button Grid.Column="1" Content="×"
                                     Background="Transparent" BorderThickness="0"
-                                    FontSize="14"
+                                    FontSize="18"
                                     Click="OnPrinterCloseClick"/>
                         </Grid>
 
