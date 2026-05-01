@@ -36,11 +36,19 @@
   <Target Name="CopyToServerWwwroot" AfterTargets="Publish">
     <ItemGroup>
       <_PublishedWasm Include="$(PublishDir)wwwroot\**\*" />
+      <!-- WASM publish writes content-hashed assets (Avalonia.Base.{hash}.wasm,
+           dotnet.native.{hash}.wasm, etc.); when a hash changes between
+           publishes the prior copy doesn't get deleted. Without this Delete
+           step the destination wwwroot balloons from ~35 MB to 150 MB+ after
+           a few iterations as stale variants pile up. -->
+      <_StaleWwwroot Include="$(YaatServerWwwroot)\**\*" />
     </ItemGroup>
+    <Delete
+      Files="@(_StaleWwwroot)"
+      Condition="Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
     <Copy
       SourceFiles="@(_PublishedWasm)"
       DestinationFiles="@(_PublishedWasm->'$(YaatServerWwwroot)\%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true"
       Condition="Exists('$(YaatServer)\src\Yaat.Server\Yaat.Server.csproj')" />
     <Message Importance="high"
              Text="Yaat.VStrips.Web → $(YaatServerWwwroot)"

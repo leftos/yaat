@@ -137,6 +137,12 @@ fi
 # (opt-out), or --docker (the dockerized server has its own bundle baked in
 # via the image).
 if ! $CLIENT_ONLY && ! $NO_VSTRIPS_WEB && ! $DOCKER; then
+    # Clean before publish so content-hashed WASM assets don't pile up across
+    # iterations (Avalonia.Base.{hash}.wasm and friends never get deleted by
+    # incremental publish; the wwwroot grows from 35 MB to 150 MB+ in a few
+    # rebuilds). Clean is fast on incremental and forces a fresh asset set.
+    echo "Cleaning yaat-vstrips-web..."
+    dotnet clean "$CLIENT_DIR/tools/Yaat.VStrips.Web" -c Release -v q
     echo "Publishing yaat-vstrips-web..."
     dotnet publish "$CLIENT_DIR/tools/Yaat.VStrips.Web" -c Release -v q
 fi

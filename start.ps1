@@ -138,6 +138,13 @@ if ($VStrips -and -not $ServerOnly) {
 # Skipped under -ClientOnly (no server to serve it from), -NoVStripsWeb (opt-out),
 # or -Docker (the dockerized server has its own bundle baked in via the image).
 if (-not $ClientOnly -and -not $NoVStripsWeb -and -not $Docker) {
+    # Clean before publish so content-hashed WASM assets don't pile up across
+    # iterations (Avalonia.Base.{hash}.wasm and friends never get deleted by
+    # incremental publish; the wwwroot grows from 35 MB to 150 MB+ in a few
+    # rebuilds). Clean is fast on incremental and forces a fresh asset set.
+    Write-Host "Cleaning yaat-vstrips-web..."
+    dotnet clean "$ClientDir\tools\Yaat.VStrips.Web" -c Release -v q
+    if ($LASTEXITCODE -ne 0) { Write-Error "Yaat.VStrips.Web clean failed"; exit 1 }
     Write-Host "Publishing yaat-vstrips-web..."
     dotnet publish "$ClientDir\tools\Yaat.VStrips.Web" -c Release -v q
     if ($LASTEXITCODE -ne 0) { Write-Error "Yaat.VStrips.Web publish failed"; exit 1 }
