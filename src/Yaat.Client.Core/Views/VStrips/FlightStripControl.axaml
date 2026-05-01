@@ -195,7 +195,7 @@
             <Grid x:Name="FullStripGrid"
                   IsVisible="{Binding IsFullStrip}"
                   Width="535"
-                  RowDefinitions="23,23,23"
+                  RowDefinitions="28,23,23"
                   ColumnDefinitions="118,46,72,*,32,32,33">
 
                 <!-- Column 1, row 1: callsign (top) + revision (bottom-small).
@@ -459,7 +459,7 @@
             <Grid x:Name="HalfStripGrid"
                   IsVisible="{Binding IsHalfStrip}"
                   Width="535"
-                  Height="69"
+                  Height="74"
                   ColumnDefinitions="*,*">
                 <Border Grid.Column="0"
                         Background="{StaticResource StripCellBrush}"
@@ -543,7 +543,7 @@
                  foreground via the styles in UserControl.Styles. -->
             <Border x:Name="HandwrittenSeparator"
                     IsVisible="{Binding IsHandwrittenSeparator}"
-                    Width="535" Height="69"
+                    Width="535" Height="74"
                     Background="{StaticResource StripSeparatorWhiteBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
@@ -555,7 +555,7 @@
             </Border>
             <Border x:Name="WhiteSeparator"
                     IsVisible="{Binding IsWhiteSeparator}"
-                    Width="535" Height="69"
+                    Width="535" Height="74"
                     Background="{StaticResource StripSeparatorWhiteBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
@@ -567,7 +567,7 @@
             </Border>
             <Border x:Name="RedSeparator"
                     IsVisible="{Binding IsRedSeparator}"
-                    Width="535" Height="69"
+                    Width="535" Height="74"
                     Background="{StaticResource StripSeparatorRedBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
@@ -579,7 +579,7 @@
             </Border>
             <Border x:Name="GreenSeparator"
                     IsVisible="{Binding IsGreenSeparator}"
-                    Width="535" Height="69"
+                    Width="535" Height="74"
                     Background="{StaticResource StripSeparatorGreenBrush}"
                     BorderBrush="{StaticResource StripBorderBrush}"
                     BorderThickness="1"
