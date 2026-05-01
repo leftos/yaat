@@ -29,4 +29,11 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(AccessibleFacilityDto))]
 [JsonSerializable(typeof(List<AccessibleFacilityDto>))]
 [JsonSerializable(typeof(CommandResultDto))]
+// Browser-side method/event payload subsets. Server still sends the
+// broader DTOs (RoomStateDto, TrainingRoomInfoDto, ScenarioLoadedDto);
+// we deserialize into these narrower records so the WASM bundle
+// doesn't have to ship the full DTO graph.
+[JsonSerializable(typeof(BrowserRoomInfoDto))]
+[JsonSerializable(typeof(BrowserJoinRoomResultDto))]
+[JsonSerializable(typeof(BrowserScenarioLoadedDto))]
 internal partial class YaatStripsHubJsonContext : JsonSerializerContext;
