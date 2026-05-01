@@ -3,6 +3,7 @@
              xmlns:vm="using:Yaat.Client.ViewModels"
              x:Class="Yaat.Client.Views.VStrips.FlightStripControl"
              x:DataType="vm:StripItemViewModel"
+             x:CompileBindings="True"
              Focusable="False"
              Background="Transparent">
 

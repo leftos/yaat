@@ -4,6 +4,7 @@
              xmlns:vstrips="using:Yaat.Client.Views.VStrips"
              x:Class="Yaat.Client.Views.VStrips.VStripsView"
              x:DataType="vm:VStripsViewModel"
+             x:CompileBindings="True"
              Focusable="True">
 
     <UserControl.Styles>
