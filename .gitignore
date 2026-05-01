@@ -6,6 +6,10 @@ obj/
 *.userosscache
 *.sln.docstates
 
+## Node (Yaat.VStrips.Web Playwright smoke harness)
+node_modules/
+package-lock.json
+
 ## Temp
 .tmp/
 

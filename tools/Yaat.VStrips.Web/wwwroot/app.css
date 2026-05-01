@@ -1,0 +1,22 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #252529;
+    color: #dddddd;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+#out {
+    width: 100vw;
+    height: 100vh;
+}
+
+.splash {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #888;
+    font-size: 14px;
+}

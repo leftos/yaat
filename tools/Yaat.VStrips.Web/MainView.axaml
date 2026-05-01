@@ -1,0 +1,8 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vstrips="using:Yaat.Client.Views.VStrips"
+             x:Class="Yaat.VStrips.Web.MainView">
+    <Grid Background="#252529">
+        <vstrips:VStripsView x:Name="StripsView" />
+    </Grid>
+</UserControl>
