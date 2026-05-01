@@ -1,7 +1,7 @@
 ﻿# Start yaat-server and yaat-client side by side.
 # Kill all processes on Ctrl-C.
 # Build sequentially first -- both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-NoVStripsWeb] [-Scenario <id>] [-Sync <url>]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-NoVStripsWeb] [-Release] [-Scenario <id>] [-Sync <url>]
 #
 # -Sync <url>     Sync local yaat repo to the commit pinned by a remote server,
 #                 then build and run client-only. Example:
@@ -15,6 +15,10 @@
 #                 every server-bearing run so http://<server>/vstrips/ serves
 #                 the live web client. Skip when iterating server changes only
 #                 and the existing bundle is fine.
+# -Release        Build and run every project in Release configuration. Default
+#                 is Debug for faster iteration. Yaat.VStrips.Web always
+#                 publishes Release regardless (its Debug bundle is huge and
+#                 the timing characteristics matter for diagnosing UI issues).
 
 param(
     [switch]$Pull,
@@ -23,9 +27,12 @@ param(
     [switch]$ServerOnly,
     [switch]$VStrips,
     [switch]$NoVStripsWeb,
+    [switch]$Release,
     [string]$Scenario,
     [string]$Sync
 )
+
+$Configuration = if ($Release) { "Release" } else { "Debug" }
 
 $ClientDir = $PSScriptRoot
 $ServerDir = Join-Path (Split-Path $ClientDir) "yaat-server"
@@ -114,21 +121,21 @@ if (-not $ClientOnly) {
         docker build -f "$ServerDir\src\Yaat.Server\Dockerfile" -t yaat-server:local "$ServerDir"
         if ($LASTEXITCODE -ne 0) { Write-Error "Docker build failed"; exit 1 }
     } else {
-        Write-Host "Building yaat-server..."
-        dotnet build "$ServerDir\src\Yaat.Server" -v q
+        Write-Host "Building yaat-server ($Configuration)..."
+        dotnet build "$ServerDir\src\Yaat.Server" -c $Configuration -v q
         if ($LASTEXITCODE -ne 0) { Write-Error "Server build failed"; exit 1 }
     }
 }
 
 if (-not $ServerOnly) {
-    Write-Host "Building yaat-client..."
-    dotnet build "$ClientDir\src\Yaat.Client" -v q
+    Write-Host "Building yaat-client ($Configuration)..."
+    dotnet build "$ClientDir\src\Yaat.Client" -c $Configuration -v q
     if ($LASTEXITCODE -ne 0) { Write-Error "Client build failed"; exit 1 }
 }
 
 if ($VStrips -and -not $ServerOnly) {
-    Write-Host "Building yaat-vstrips..."
-    dotnet build "$ClientDir\tools\Yaat.VStrips" -v q
+    Write-Host "Building yaat-vstrips ($Configuration)..."
+    dotnet build "$ClientDir\tools\Yaat.VStrips" -c $Configuration -v q
     if ($LASTEXITCODE -ne 0) { Write-Error "vStrips build failed"; exit 1 }
 }
 
@@ -157,7 +164,7 @@ if (-not $ClientOnly) {
     if ($Docker) {
         $procs += Start-Process -PassThru -NoNewWindow docker "run --rm --name yaat-server-local -p ${ServerPort}:${ServerPort} -e ASPNETCORE_URLS=http://0.0.0.0:${ServerPort} yaat-server:local"
     } else {
-        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ServerDir\src\Yaat.Server`" -- --urls http://0.0.0.0:${ServerPort}"
+        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build -c $Configuration --project `"$ServerDir\src\Yaat.Server`" -- --urls http://0.0.0.0:${ServerPort}"
     }
 }
 
@@ -170,7 +177,7 @@ if ($Sync) {
 
 if (-not $ServerOnly) {
     Write-Host "Starting yaat-client..."
-    $clientArgs = "run --no-build --project `"$ClientDir\src\Yaat.Client`""
+    $clientArgs = "run --no-build -c $Configuration --project `"$ClientDir\src\Yaat.Client`""
     $needsDashDash = $true
     if ($autoconnectUrl) {
         $clientArgs += " -- --autoconnect $autoconnectUrl"
@@ -185,7 +192,7 @@ if (-not $ServerOnly) {
 
 if ($VStrips -and -not $ServerOnly) {
     Write-Host "Starting yaat-vstrips..."
-    $vstripsArgs = "run --no-build --project `"$ClientDir\tools\Yaat.VStrips`""
+    $vstripsArgs = "run --no-build -c $Configuration --project `"$ClientDir\tools\Yaat.VStrips`""
     if ($autoconnectUrl) {
         $vstripsArgs += " -- --autoconnect $autoconnectUrl"
     }

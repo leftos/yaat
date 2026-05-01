@@ -16,6 +16,10 @@
 #                   every server-bearing run so http://<server>/vstrips/ serves
 #                   the live web client. Skip when iterating server changes only
 #                   and the existing bundle is fine.
+# --release         Build and run every project in Release configuration. Default
+#                   is Debug for faster iteration. Yaat.VStrips.Web always
+#                   publishes Release regardless (its Debug bundle is huge and
+#                   the timing characteristics matter for diagnosing UI issues).
 
 set -euo pipefail
 
@@ -25,6 +29,7 @@ CLIENT_ONLY=false
 SERVER_ONLY=false
 VSTRIPS=false
 NO_VSTRIPS_WEB=false
+RELEASE=false
 SCENARIO=""
 SYNC=""
 while [[ $# -gt 0 ]]; do
@@ -35,11 +40,18 @@ while [[ $# -gt 0 ]]; do
         --server-only) SERVER_ONLY=true; shift ;;
         --vstrips) VSTRIPS=true; shift ;;
         --no-vstrips-web) NO_VSTRIPS_WEB=true; shift ;;
+        --release) RELEASE=true; shift ;;
         --scenario) SCENARIO="$2"; shift 2 ;;
         --sync) SYNC="$2"; shift 2 ;;
         *) shift ;;
     esac
 done
+
+if $RELEASE; then
+    CONFIGURATION="Release"
+else
+    CONFIGURATION="Debug"
+fi
 
 CLIENT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$(dirname "$CLIENT_DIR")/yaat-server"
@@ -115,19 +127,19 @@ if ! $CLIENT_ONLY; then
         echo "Building yaat-server Docker image..."
         docker build -f "$SERVER_DIR/src/Yaat.Server/Dockerfile" -t yaat-server:local "$SERVER_DIR"
     else
-        echo "Building yaat-server..."
-        dotnet build "$SERVER_DIR/src/Yaat.Server" -v q
+        echo "Building yaat-server ($CONFIGURATION)..."
+        dotnet build "$SERVER_DIR/src/Yaat.Server" -c "$CONFIGURATION" -v q
     fi
 fi
 
 if ! $SERVER_ONLY; then
-    echo "Building yaat-client..."
-    dotnet build "$CLIENT_DIR/src/Yaat.Client" -v q
+    echo "Building yaat-client ($CONFIGURATION)..."
+    dotnet build "$CLIENT_DIR/src/Yaat.Client" -c "$CONFIGURATION" -v q
 fi
 
 if $VSTRIPS && ! $SERVER_ONLY; then
-    echo "Building yaat-vstrips..."
-    dotnet build "$CLIENT_DIR/tools/Yaat.VStrips" -v q
+    echo "Building yaat-vstrips ($CONFIGURATION)..."
+    dotnet build "$CLIENT_DIR/tools/Yaat.VStrips" -c "$CONFIGURATION" -v q
 fi
 
 # Publish the WASM web vStrips client into yaat-server/wwwroot/vstrips/ so
@@ -167,7 +179,7 @@ if ! $CLIENT_ONLY; then
         docker run --rm --name yaat-server-local -p "$SERVER_PORT:$SERVER_PORT" -e ASPNETCORE_URLS="http://0.0.0.0:$SERVER_PORT" yaat-server:local &
         PIDS+=($!)
     else
-        dotnet run --no-build --project "$SERVER_DIR/src/Yaat.Server" -- --urls "http://0.0.0.0:$SERVER_PORT" &
+        dotnet run --no-build -c "$CONFIGURATION" --project "$SERVER_DIR/src/Yaat.Server" -- --urls "http://0.0.0.0:$SERVER_PORT" &
         PIDS+=($!)
     fi
 fi
@@ -189,9 +201,9 @@ if ! $SERVER_ONLY; then
         CLIENT_ARGS+=(--scenario "$SCENARIO")
     fi
     if [[ ${#CLIENT_ARGS[@]} -gt 0 ]]; then
-        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" -- "${CLIENT_ARGS[@]}" &
+        dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/src/Yaat.Client" -- "${CLIENT_ARGS[@]}" &
     else
-        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" &
+        dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/src/Yaat.Client" &
     fi
     PIDS+=($!)
 fi
@@ -199,9 +211,9 @@ fi
 if $VSTRIPS && ! $SERVER_ONLY; then
     echo "Starting yaat-vstrips..."
     if [[ -n "$AUTOCONNECT_URL" ]]; then
-        dotnet run --no-build --project "$CLIENT_DIR/tools/Yaat.VStrips" -- --autoconnect "$AUTOCONNECT_URL" &
+        dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/tools/Yaat.VStrips" -- --autoconnect "$AUTOCONNECT_URL" &
     else
-        dotnet run --no-build --project "$CLIENT_DIR/tools/Yaat.VStrips" &
+        dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/tools/Yaat.VStrips" &
     fi
     PIDS+=($!)
 fi
