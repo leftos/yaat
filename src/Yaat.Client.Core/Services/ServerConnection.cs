@@ -62,15 +62,26 @@ public sealed class ServerConnection : IAsyncDisposable
             .WithAutomaticReconnect()
             .AddJsonProtocol(options =>
             {
-                // Insert the source-generated context first so SignalR resolves
-                // every DTO via compile-time metadata. Falling through to the
-                // default reflection-based resolver afterwards covers the few
-                // primitives source-gen still passes through (cancellation
-                // tokens, Guid, etc.) and lets the desktop client keep working
-                // unchanged. In WASM the chain stops at the source-gen entry
-                // for any DTO we registered, sidestepping the reflection-
-                // disabled-by-default failure that blew up JoinRoom.
-                options.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, YaatHubJsonContext.Default);
+                // Insert both source-generated contexts at the head of the
+                // chain so SignalR resolves every DTO via compile-time
+                // metadata. The Strips context owns the strip-side payloads
+                // (FlightStripsStateDto, StripItemDto, FlightStripsConfigDto,
+                // AccessibleFacilityDto, CommandResultDto) and lives in
+                // Yaat.Client.Strips so the WASM client can ship without
+                // Core. The Core context owns everything else (room state,
+                // aircraft, weather, CRC). Resolver chains are consulted per
+                // type, so each registration is self-contained.
+                //
+                // Falling through to the default reflection-based resolver
+                // afterwards covers the few primitives source-gen still
+                // passes through (cancellation tokens, Guid, etc.) and lets
+                // the desktop client keep working unchanged. In WASM the
+                // chain stops at the matching source-gen entry for any DTO
+                // we registered, sidestepping the reflection-disabled-by-
+                // default failure that blew up JoinRoom.
+                var chain = options.PayloadSerializerOptions.TypeInfoResolverChain;
+                chain.Insert(0, YaatHubJsonContext.Default);
+                chain.Insert(1, YaatStripsHubJsonContext.Default);
             })
             .Build();
 
@@ -612,10 +623,6 @@ public record LoadScenarioResultDto(
 );
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
-
-public record AccessibleFacilityDto(string FacilityId, string FacilityName, bool IsStudentFacility);
-
-public record CommandResultDto(bool Success, string? Message);
 
 public record TrainingRoomInfoDto(
     string RoomId,

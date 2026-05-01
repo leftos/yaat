@@ -47,16 +47,17 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(ScenarioLoadedDto))]
 [JsonSerializable(typeof(AircraftAssignmentsDto))]
 [JsonSerializable(typeof(SessionSettingsDto))]
-[JsonSerializable(typeof(FlightStripsStateDto))]
-[JsonSerializable(typeof(List<StripItemDto>))]
+// Strip-side broadcast payloads (FlightStripsStateDto, List<StripItemDto>)
+// live in YaatStripsHubJsonContext (Yaat.Client.Strips) so the WASM client
+// can ship without Core. The resolver chain in
+// ServerConnection.ConfigureHubJsonProtocol consults both contexts.
 // --- Hub method return types (client InvokeAsync<T>). ---
 [JsonSerializable(typeof(RoomStateDto))]
 [JsonSerializable(typeof(List<TrainingRoomInfoDto>))]
 [JsonSerializable(typeof(TrainingRoomInfoDto))]
 [JsonSerializable(typeof(LoadScenarioResultDto))]
-[JsonSerializable(typeof(List<AccessibleFacilityDto>))]
-[JsonSerializable(typeof(FlightStripsConfigDto))]
-[JsonSerializable(typeof(CommandResultDto))]
+// List<AccessibleFacilityDto>, FlightStripsConfigDto, CommandResultDto live
+// in YaatStripsHubJsonContext.
 [JsonSerializable(typeof(UnloadScenarioResultDto))]
 [JsonSerializable(typeof(RewindResultDto))]
 [JsonSerializable(typeof(TimelineInfoDto))]
@@ -69,10 +70,8 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(FlightPlanAmendmentDto))]
 // --- Nested types that appear inside lists / arrays of registered types
 //     and are also occasionally referenced bare (defensive). ---
-[JsonSerializable(typeof(StripItemDto))]
-[JsonSerializable(typeof(StripBayConfigDto))]
-[JsonSerializable(typeof(StripBayContentsDto))]
-[JsonSerializable(typeof(AccessibleFacilityDto))]
+// StripItemDto, StripBayConfigDto, StripBayContentsDto, AccessibleFacilityDto
+// are registered in YaatStripsHubJsonContext (Yaat.Client.Strips).
 [JsonSerializable(typeof(RoomMemberDto))]
 [JsonSerializable(typeof(CrcLobbyClientDto))]
 [JsonSerializable(typeof(CrcRoomMemberDto))]
