@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Browser;
 using Microsoft.AspNetCore.SignalR.Client;
+using Yaat.Client.Logging;
 
 namespace Yaat.VStrips.Web;
 
@@ -17,6 +18,7 @@ internal static class Program
     /// </summary>
     private static Task Main(string[] args)
     {
+        AppLog.InitializeForBrowser();
         App.LocationSearch = args.Length > 0 ? args[0] : "";
         App.LocationOrigin = args.Length > 1 ? args[1] : "";
         return BuildAvaloniaApp().WithInterFont().StartBrowserAppAsync("out");
