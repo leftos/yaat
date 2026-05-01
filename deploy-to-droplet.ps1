@@ -1,8 +1,16 @@
 # Deploy yaat-server to DigitalOcean droplet
-# Usage: .\deploy-to-droplet.ps1 [-NoLogs]
+# Usage: .\deploy-to-droplet.ps1 [-NoLogs] [-NoCache]
+#
+# -NoCache  Pass --no-cache to docker compose build, forcing every layer
+#           to rebuild from scratch (including the wasm-tools workload
+#           install in the Dockerfile, which adds ~1-3 minutes). Off by
+#           default — Docker's layer cache is already correctness-
+#           preserving when source files change, and the layer cache is
+#           what makes incremental deploys quick.
 
 param(
-  [switch]$NoLogs
+  [switch]$NoLogs,
+  [switch]$NoCache
 )
 
 $ErrorActionPreference = "Stop"
@@ -100,7 +108,8 @@ try {
 
   Write-Host ""
   Write-Host "[5/6] Rebuilding and starting services..." -ForegroundColor Yellow
-  Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose build --no-cache && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose up -d" | Tee-Object -Append -FilePath $logFile
+  $buildFlags = if ($NoCache) { "--no-cache " } else { "" }
+  Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose build $buildFlags&& YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose up -d" | Tee-Object -Append -FilePath $logFile
 
   Write-Host ""
   Write-Host "[6/6] Waiting for server to be ready..." -ForegroundColor Yellow
