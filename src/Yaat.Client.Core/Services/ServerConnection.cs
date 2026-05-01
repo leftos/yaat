@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 
@@ -56,7 +57,22 @@ public sealed class ServerConnection : IAsyncDisposable
         var hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
         _log.LogInformation("Connecting to {Url}", hubUrl);
 
-        _connection = new HubConnectionBuilder().WithUrl(hubUrl).WithAutomaticReconnect().Build();
+        _connection = new HubConnectionBuilder()
+            .WithUrl(hubUrl)
+            .WithAutomaticReconnect()
+            .AddJsonProtocol(options =>
+            {
+                // Insert the source-generated context first so SignalR resolves
+                // every DTO via compile-time metadata. Falling through to the
+                // default reflection-based resolver afterwards covers the few
+                // primitives source-gen still passes through (cancellation
+                // tokens, Guid, etc.) and lets the desktop client keep working
+                // unchanged. In WASM the chain stops at the source-gen entry
+                // for any DTO we registered, sidestepping the reflection-
+                // disabled-by-default failure that blew up JoinRoom.
+                options.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, YaatHubJsonContext.Default);
+            })
+            .Build();
 
         _connection.On<AircraftDto>("AircraftUpdated", dto => AircraftUpdated?.Invoke(dto));
 
