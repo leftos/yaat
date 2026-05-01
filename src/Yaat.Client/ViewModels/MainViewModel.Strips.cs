@@ -47,7 +47,7 @@ public partial class MainViewModel
         // New entry — constructed with autoBootstrapFromScenarioLoaded=false so
         // it doesn't try to auto-apply the student's scenario config. Instead
         // we switch it to the requested facility immediately via the RPC.
-        var vm = new VStripsViewModel(_connection, SendCommandForViewAsync, _preferences, autoBootstrapFromScenarioLoaded: false);
+        var vm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials, autoBootstrapFromScenarioLoaded: false);
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: false);
         StripsEntries.Add(entry);
 

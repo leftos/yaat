@@ -10,8 +10,8 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// Root view-model for the vStrips clone. Subscribes to the server's flight-strip
-/// broadcasts (<see cref="ServerConnection.FlightStripsStateChanged"/> and
-/// <see cref="ServerConnection.StripItemsChanged"/>) and reconciles an observable
+/// broadcasts (<see cref="IStripsTransport.FlightStripsStateChanged"/> and
+/// <see cref="IStripsTransport.StripItemsChanged"/>) and reconciles an observable
 /// collection of <see cref="StripBayViewModel"/> + <see cref="StripPrinterViewModel"/>
 /// instances. Every user action emits a canonical command via the injected
 /// <c>_sendCommand</c> delegate — no new RPCs. The server applies the command and
@@ -25,9 +25,9 @@ public partial class VStripsViewModel : ObservableObject
 {
     private readonly ILogger _log = AppLog.CreateLogger<VStripsViewModel>();
 
-    private readonly ServerConnection _connection;
+    private readonly IStripsTransport _transport;
     private readonly Func<string, string, string, Task> _sendCommand;
-    private readonly UserPreferences? _preferences;
+    private readonly Func<string>? _getUserInitials;
 
     private readonly Dictionary<string, StripItemViewModel> _items = new(StringComparer.Ordinal);
     private readonly Dictionary<string, StripBayViewModel> _baysById = new(StringComparer.Ordinal);
@@ -105,7 +105,7 @@ public partial class VStripsViewModel : ObservableObject
     private void ZoomOut() => ZoomScale = Math.Max(0.5, Math.Round(ZoomScale - 0.1, 2));
 
     /// <summary>
-    /// When true, this VM auto-applies <see cref="ServerConnection.ScenarioLoaded"/>
+    /// When true, this VM auto-applies <see cref="IStripsTransport.StripsConfigChanged"/>
     /// events (the student-facility bootstrap path used by the embedded tab
     /// and the standalone app's primary instance). Additional VMs opened for
     /// other facilities set this to false and get their bay config via
@@ -114,30 +114,29 @@ public partial class VStripsViewModel : ObservableObject
     private readonly bool _autoBootstrapFromScenarioLoaded;
 
     public VStripsViewModel(
-        ServerConnection connection,
+        IStripsTransport transport,
         Func<string, string, string, Task> sendCommand,
-        UserPreferences? preferences,
+        Func<string>? getUserInitials,
         bool autoBootstrapFromScenarioLoaded = true
     )
     {
-        _connection = connection;
+        _transport = transport;
         _sendCommand = sendCommand;
-        _preferences = preferences;
+        _getUserInitials = getUserInitials;
         _autoBootstrapFromScenarioLoaded = autoBootstrapFromScenarioLoaded;
 
-        _connection.FlightStripsStateChanged += OnFlightStripsStateChanged;
-        _connection.StripItemsChanged += OnStripItemsChanged;
+        _transport.FlightStripsStateChanged += OnFlightStripsStateChanged;
+        _transport.StripItemsChanged += OnStripItemsChanged;
         if (_autoBootstrapFromScenarioLoaded)
         {
-            _connection.ScenarioLoaded += OnScenarioLoaded;
-            _connection.ScenarioUnloaded += OnScenarioUnloaded;
+            _transport.StripsConfigChanged += OnStripsConfigChanged;
         }
 
-        _isConnected = _connection.IsConnected;
-        _connection.Connected += () => Dispatcher.UIThread.Post(() => IsConnected = true);
-        _connection.Closed += _ => Dispatcher.UIThread.Post(OnConnectionLost);
-        _connection.Reconnecting += _ => Dispatcher.UIThread.Post(OnConnectionLost);
-        _connection.Reconnected += _ => Dispatcher.UIThread.Post(() => IsConnected = true);
+        _isConnected = _transport.IsConnected;
+        _transport.Connected += () => Dispatcher.UIThread.Post(() => IsConnected = true);
+        _transport.Closed += _ => Dispatcher.UIThread.Post(OnConnectionLost);
+        _transport.Reconnecting += _ => Dispatcher.UIThread.Post(OnConnectionLost);
+        _transport.Reconnected += _ => Dispatcher.UIThread.Post(() => IsConnected = true);
     }
 
     /// <summary>
@@ -262,17 +261,20 @@ public partial class VStripsViewModel : ObservableObject
 
     // ── Server event handlers ────────────────────────────────────
 
-    private void OnScenarioLoaded(ScenarioLoadedDto dto)
+    private void OnStripsConfigChanged(FlightStripsConfigDto? config)
     {
-        ApplyBayConfig(dto.FlightStripsConfig);
-        _ = RefreshAccessibleFacilitiesAsync();
-    }
+        if (config is null)
+        {
+            // Scenario unloaded — drop cached broadcasts so a subsequent load
+            // can't replay stale items into a fresh bay layout.
+            _lastReceivedFullState = null;
+            _lastReceivedItems = null;
+            ApplyBayConfig(null);
+            return;
+        }
 
-    private void OnScenarioUnloaded()
-    {
-        _lastReceivedFullState = null;
-        _lastReceivedItems = null;
-        ApplyBayConfig(null);
+        ApplyBayConfig(config);
+        _ = RefreshAccessibleFacilitiesAsync();
     }
 
     private void OnFlightStripsStateChanged(FlightStripsStateDto state)
@@ -429,7 +431,7 @@ public partial class VStripsViewModel : ObservableObject
     /// <summary>
     /// Switches this VM to a different accessible facility in place. Fetches
     /// the new facility's bay layout via
-    /// <see cref="ServerConnection.GetFlightStripsConfigForFacilityAsync"/>,
+    /// <see cref="IStripsTransport.GetFlightStripsConfigForFacilityAsync"/>,
     /// then drives <see cref="ApplyBayConfig"/> with the result. The server
     /// rejects out-of-scope facility ids (returns null), in which case we
     /// leave the current config untouched.
@@ -438,7 +440,7 @@ public partial class VStripsViewModel : ObservableObject
     {
         try
         {
-            var config = await _connection.GetFlightStripsConfigForFacilityAsync(facilityId);
+            var config = await _transport.GetFlightStripsConfigForFacilityAsync(facilityId);
             if (config is null)
             {
                 _log.LogWarning("SwitchFacilityAsync: server refused facility {FacilityId} (not in accessible set)", facilityId);
@@ -455,7 +457,7 @@ public partial class VStripsViewModel : ObservableObject
     /// <summary>
     /// Populates <see cref="AccessibleFacilities"/> for the current student
     /// position. Called once on scenario load (via
-    /// <see cref="OnScenarioLoaded"/>) and any time the caller explicitly
+    /// <see cref="OnStripsConfigChanged"/>) and any time the caller explicitly
     /// refreshes. Swallows errors — an empty list just means the switcher
     /// popup has no entries.
     /// </summary>
@@ -463,7 +465,7 @@ public partial class VStripsViewModel : ObservableObject
     {
         try
         {
-            var list = await _connection.GetAccessibleFacilitiesAsync();
+            var list = await _transport.GetAccessibleFacilitiesAsync();
             Dispatcher.UIThread.Post(() =>
             {
                 AccessibleFacilities.Clear();
@@ -738,7 +740,7 @@ public partial class VStripsViewModel : ObservableObject
         }
 
         var callsign = strip.IsFullStrip ? (strip.AircraftId ?? "") : "";
-        await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -766,7 +768,7 @@ public partial class VStripsViewModel : ObservableObject
 
         var canonical = VStripsCanonicalBuilder.BuildStripScan(destBay.Name, rack, index);
         var callsign = strip.AircraftId ?? "";
-        await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task DeleteStripAsync(StripItemViewModel strip)
@@ -789,7 +791,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task ToggleOffsetAsync(StripItemViewModel strip)
@@ -806,7 +808,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -822,7 +824,7 @@ public partial class VStripsViewModel : ObservableObject
         }
 
         var canonical = VStripsCanonicalBuilder.BuildAnnotate(box, text);
-        await _sendCommand(strip.AircraftId, canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand(strip.AircraftId, canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -837,7 +839,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
         var canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.LookupKey, lines);
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -854,7 +856,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
         var canonical = VStripsCanonicalBuilder.BuildHalfStripEdit(strip.Id, slots);
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -876,7 +878,7 @@ public partial class VStripsViewModel : ObservableObject
         }
 
         var canonical = VStripsCanonicalBuilder.BuildSeparatorEditById(strip.Id, newLabel);
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task SlideHalfStripAsync(StripItemViewModel strip)
@@ -886,13 +888,13 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
         var canonical = VStripsCanonicalBuilder.BuildHalfStripSlide(strip.LookupKey);
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task CreateHalfStripAsync(StripBayViewModel bay, int rack, IReadOnlyList<string> lines)
     {
         var canonical = VStripsCanonicalBuilder.BuildHalfStripCreate(bay.Name, rack, lines);
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task CreateSeparatorAsync(SeparatorStyle style, StripBayViewModel bay, int rack, int? index, string? label)
@@ -902,13 +904,13 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
         var canonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, bay.Name, rack, index, label);
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task CreateBlankAsync(StripBayViewModel? bay, int? rack, int? index)
     {
         var canonical = VStripsCanonicalBuilder.BuildBlankCreate(bay?.Name, rack, index);
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -942,7 +944,7 @@ public partial class VStripsViewModel : ObservableObject
         var trimmed = aircraftId.Trim();
         try
         {
-            var result = await _connection.RequestFlightStripForAircraftAsync(trimmed);
+            var result = await _transport.RequestFlightStripForAircraftAsync(trimmed);
             if (result.Success)
             {
                 _log.LogInformation("RequestStripAsync({Aircraft}): {Message}", trimmed, result.Message);
@@ -1021,7 +1023,7 @@ public partial class VStripsViewModel : ObservableObject
         // and successive appends stack above — yielding ascending top-to-
         // bottom on screen, the natural reading order.
         var sorted = pending.OrderBy(s => s.AircraftId ?? "~", StringComparer.OrdinalIgnoreCase).ToList();
-        var initials = _preferences?.UserInitials ?? "";
+        var initials = _getUserInitials?.Invoke() ?? "";
         for (var i = sorted.Count - 1; i >= 0; i--)
         {
             var strip = sorted[i];
@@ -1062,7 +1064,7 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public async Task DispatchRawAsync(string canonical)
     {
-        await _sendCommand("", canonical, _preferences?.UserInitials ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>

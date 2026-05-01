@@ -72,7 +72,7 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
         Preferences = new UserPreferences();
         _connection = new ServerConnection();
 
-        VStrips = new VStripsViewModel(_connection, SendCommandForViewAsync, Preferences);
+        VStrips = new VStripsViewModel(_connection, SendCommandForViewAsync, () => Preferences.UserInitials);
 
         _connection.Reconnecting += _ => Dispatcher.UIThread.Post(() => StatusText = "Reconnecting...");
         _connection.Reconnected += _ => Dispatcher.UIThread.Post(() => StatusText = "Reconnected");

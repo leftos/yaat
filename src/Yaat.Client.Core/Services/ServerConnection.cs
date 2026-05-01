@@ -5,7 +5,7 @@ using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
 
-public sealed class ServerConnection : IAsyncDisposable
+public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
 {
     private readonly ILogger _log = AppLog.CreateLogger<ServerConnection>();
 
@@ -44,6 +44,18 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
     public event Action<List<StripItemDto>>? StripItemsChanged;
     public event Action<string>? RoomAvailableForCid;
+
+    /// <summary>
+    /// Strip-side projection of <see cref="ScenarioLoaded"/> +
+    /// <see cref="ScenarioUnloaded"/>. Fires the new
+    /// <see cref="FlightStripsConfigDto"/> on scenario load (may be
+    /// <c>null</c> if the loaded scenario has no strips support) and
+    /// <c>null</c> on scenario unload. Drives <c>VStripsViewModel</c>
+    /// without leaking the broader <see cref="ScenarioLoadedDto"/>
+    /// (which embeds <c>AircraftDto</c> and would force the
+    /// WASM-clean Strips assembly to take a runtime dep on Core).
+    /// </summary>
+    public event Action<FlightStripsConfigDto?>? StripsConfigChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -108,8 +120,22 @@ public sealed class ServerConnection : IAsyncDisposable
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
-        _connection.On<ScenarioLoadedDto>("ScenarioLoaded", dto => ScenarioLoaded?.Invoke(dto));
-        _connection.On("ScenarioUnloaded", () => ScenarioUnloaded?.Invoke());
+        _connection.On<ScenarioLoadedDto>(
+            "ScenarioLoaded",
+            dto =>
+            {
+                ScenarioLoaded?.Invoke(dto);
+                StripsConfigChanged?.Invoke(dto.FlightStripsConfig);
+            }
+        );
+        _connection.On(
+            "ScenarioUnloaded",
+            () =>
+            {
+                ScenarioUnloaded?.Invoke();
+                StripsConfigChanged?.Invoke(null);
+            }
+        );
         _connection.On<AircraftAssignmentsDto>("AircraftAssignmentsChanged", dto => AircraftAssignmentsChanged?.Invoke(dto));
         _connection.On<SessionSettingsDto>("SessionSettingsChanged", dto => SessionSettingsChanged?.Invoke(dto));
         _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));

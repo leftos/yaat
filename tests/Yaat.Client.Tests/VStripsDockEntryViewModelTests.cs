@@ -14,7 +14,7 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class VStripsDockEntryViewModelTests
 {
-    private static VStripsViewModel NewVm() => new(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: null);
+    private static VStripsViewModel NewVm() => new(new ServerConnection(), (_, _, _) => Task.CompletedTask, getUserInitials: null);
 
     [Fact]
     public void TabTitle_UsesFacilityName_WhenAvailable()

@@ -21,7 +21,12 @@ public partial class MainView : UserControl
 
         _queryParams = ParseQuery(App.LocationSearch);
 
-        var vm = new VStripsViewModel(_connection, sendCommand: SendCommandAsync, preferences: null, autoBootstrapFromScenarioLoaded: true);
+        var vm = new VStripsViewModel(
+            _connection,
+            sendCommand: SendCommandAsync,
+            getUserInitials: () => _queryParams.GetValueOrDefault("initials", ""),
+            autoBootstrapFromScenarioLoaded: true
+        );
 
         var stripsView = this.FindControl<UserControl>("StripsView");
         if (stripsView is not null)

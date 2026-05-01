@@ -591,7 +591,7 @@ public class VStripsViewInteractionTests
                 captured.Add((cs, cmd));
                 return Task.CompletedTask;
             },
-            preferences: null
+            getUserInitials: null
         );
         return (vm, captured);
     }

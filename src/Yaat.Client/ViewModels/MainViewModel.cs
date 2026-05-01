@@ -692,7 +692,7 @@ public partial class MainViewModel : ObservableObject
         Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         // Student entry is always the first strips entry. Additional
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
-        var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, _preferences);
+        var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials);
         StripsEntries.Add(new VStripsDockEntryViewModel(studentVm, isStudentEntry: true));
         // Subscribe so a strip tab being popped out / docked feeds the same
         // tab-visibility bookkeeping as the three fixed tabs (collapses the
