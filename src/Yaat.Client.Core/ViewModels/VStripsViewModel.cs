@@ -725,6 +725,18 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
+        // Optimistic local move so the strip lands in the target slot the
+        // moment the user releases the drag. Without this, the strip flashes
+        // back into its original position (the drag-source presenter unhide
+        // in HideDragGhost) and only snaps to the new slot once the SignalR
+        // round-trip + state broadcast lands — visible as a ~100-1000 ms
+        // jump depending on network. BlankStrip is a CREATE, not a move, so
+        // it has no source slot to relocate from.
+        if (strip.Type != StripItemType.BlankStrip)
+        {
+            OptimisticallyMove(strip, destBay, rack, index);
+        }
+
         var callsign = strip.IsFullStrip ? (strip.AircraftId ?? "") : "";
         await _sendCommand(callsign, canonical, _preferences?.UserInitials ?? "");
     }
@@ -1072,6 +1084,87 @@ public partial class VStripsViewModel : ObservableObject
         }
         var strips = destBay.Racks[rack].Strips;
         return index < strips.Count && ReferenceEquals(strips[index], strip);
+    }
+
+    /// <summary>
+    /// Apply the same move locally that <see cref="MoveStripAsync"/> is about
+    /// to dispatch to the server, so the strip lands in the new slot the
+    /// instant the user releases the drag instead of after the SignalR
+    /// roundtrip. The server's broadcast lands a moment later and the smart
+    /// in-place reconciler in <see cref="StripRackViewModel.ReplaceAll"/>
+    /// recognises the resulting state matches and emits no further
+    /// CollectionChanged events. Skipped when the strip can't be located in
+    /// any bay rack or in the printer queue (defensive — should never fire).
+    /// </summary>
+    private void OptimisticallyMove(StripItemViewModel strip, StripBayViewModel destBay, int rack, int? index)
+    {
+        if (rack < 0 || rack >= destBay.Racks.Count)
+        {
+            return;
+        }
+
+        StripRackViewModel? sourceRack = null;
+        var sourceIdx = -1;
+        var fromPrinter = false;
+
+        var printerIdx = Printer.Queue.IndexOf(strip);
+        if (printerIdx >= 0)
+        {
+            fromPrinter = true;
+            sourceIdx = printerIdx;
+        }
+        else
+        {
+            foreach (var bay in Bays)
+            {
+                for (var r = 0; r < bay.Racks.Count; r++)
+                {
+                    var idx = bay.Racks[r].Strips.IndexOf(strip);
+                    if (idx >= 0)
+                    {
+                        sourceRack = bay.Racks[r];
+                        sourceIdx = idx;
+                        break;
+                    }
+                }
+                if (sourceRack is not null)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (sourceRack is null && !fromPrinter)
+        {
+            return;
+        }
+
+        var destRack = destBay.Racks[rack];
+
+        if (fromPrinter)
+        {
+            Printer.Queue.RemoveAt(sourceIdx);
+            var insertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
+            destRack.Strips.Insert(insertIdx, strip);
+            return;
+        }
+
+        if (ReferenceEquals(sourceRack, destRack))
+        {
+            // Same rack: Move (single CollectionChanged event, no presenter rebuild).
+            // Removing-then-inserting in the same rack would clamp differently
+            // than the server's remove-then-insert; clamp to within-current-bounds.
+            var moveTarget = Math.Clamp(index ?? destRack!.Strips.Count - 1, 0, destRack!.Strips.Count - 1);
+            if (sourceIdx != moveTarget)
+            {
+                destRack.Strips.Move(sourceIdx, moveTarget);
+            }
+            return;
+        }
+
+        sourceRack!.Strips.RemoveAt(sourceIdx);
+        var crossInsertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
+        destRack.Strips.Insert(crossInsertIdx, strip);
     }
 
     /// <summary>
