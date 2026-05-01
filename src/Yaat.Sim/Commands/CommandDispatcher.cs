@@ -7,6 +7,8 @@ using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -448,12 +450,29 @@ public static class CommandDispatcher
                 return Ok($"Wait {cmd.Seconds} seconds");
             case WaitDistanceCommand cmd:
                 return Ok($"Wait {cmd.DistanceNm} nm");
-            case SayCommand:
-                return Ok(""); // SAY is a broadcast; handled before dispatch
+            case SayCommand sayCmd:
+                ctx.TerminalEmitter?.Invoke(new TerminalEntry("Say", aircraft.Callsign, sayCmd.Text));
+                return Ok("");
             case SaySpeedCommand:
-                return Ok(""); // SSPD is a broadcast; handled before dispatch
+                ctx.TerminalEmitter?.Invoke(new TerminalEntry("SaySpeed", aircraft.Callsign, PilotSayBuilder.BuildSpeed(aircraft)));
+                return Ok("");
             case SayMachCommand:
-                return Ok(""); // SMACH is a broadcast; handled before dispatch
+                ctx.TerminalEmitter?.Invoke(new TerminalEntry("SayMach", aircraft.Callsign, PilotSayBuilder.BuildMach(aircraft)));
+                return Ok("");
+            case SayAltitudeCommand:
+                ctx.TerminalEmitter?.Invoke(new TerminalEntry("SayAltitude", aircraft.Callsign, PilotSayBuilder.BuildAltitude(aircraft)));
+                return Ok("");
+            case SayHeadingCommand:
+                ctx.TerminalEmitter?.Invoke(new TerminalEntry("SayHeading", aircraft.Callsign, PilotSayBuilder.BuildHeading(aircraft)));
+                return Ok("");
+            case SayPositionCommand:
+                ctx.TerminalEmitter?.Invoke(new TerminalEntry("SayPosition", aircraft.Callsign, PilotSayBuilder.BuildPosition(aircraft)));
+                return Ok("");
+            case SayExpectedApproachCommand:
+                ctx.TerminalEmitter?.Invoke(
+                    new TerminalEntry("SayExpectedApproach", aircraft.Callsign, PilotSayBuilder.BuildExpectedApproach(aircraft))
+                );
+                return Ok("");
 
             // --- Navigation commands ---
             case JoinRadialOutboundCommand cmd:
@@ -648,13 +667,15 @@ public static class CommandDispatcher
     private static CommandResult? DryRunValidate(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         var clone = AircraftState.FromSnapshot(aircraft.ToSnapshot(), ctx.GroundLayout);
-        // Dry-run uses a deterministic RNG and disables DCT-fix validation and
-        // auto-cross-runway side effects to match historical behavior.
+        // Dry-run uses a deterministic RNG and disables DCT-fix validation, auto-cross-runway
+        // side effects, and terminal emission. The clone is discarded; emitting SAY broadcasts
+        // here would surface phantom pilot transmissions before the trigger actually fires.
         var dryCtx = ctx with
         {
             Rng = new Random(0),
             ValidateDctFixes = false,
             AutoCrossRunway = false,
+            TerminalEmitter = null,
         };
 
         foreach (var block in compound.Blocks)

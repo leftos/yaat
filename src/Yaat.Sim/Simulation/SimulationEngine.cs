@@ -14,12 +14,6 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Simulation;
 
 /// <summary>
-/// Terminal message emitted during tick processing (presets, spawns, triggers, generators).
-/// Drained by the server for broadcasting; discarded by client's convenience wrapper.
-/// </summary>
-public record TerminalEntry(string Kind, string Callsign, string Message);
-
-/// <summary>
 /// Result from <see cref="SimulationEngine.TickPrePhysics"/>. Lists aircraft spawned this tick
 /// so the server can broadcast spawn events.
 /// </summary>
@@ -87,6 +81,14 @@ public sealed class SimulationEngine
         _terminalEntries.Clear();
         return entries;
     }
+
+    /// <summary>
+    /// Append a terminal entry produced by an external dispatcher (e.g., the server's
+    /// RoomEngine) so it surfaces through the same drain path as engine-internal entries.
+    /// Callers wire this into <see cref="DispatchContext.TerminalEmitter"/> when they
+    /// dispatch commands outside the engine's own SendCommand/preset/replay paths.
+    /// </summary>
+    public void EmitTerminalEntry(TerminalEntry entry) => _terminalEntries.Add(entry);
 
     // --- Snapshots ---
 
@@ -856,7 +858,8 @@ public sealed class SimulationEngine
             FindAircraft,
             Scenario?.ValidateDctFixes ?? true,
             Scenario?.AutoCrossRunway ?? false,
-            Scenario?.SoloTrainingMode ?? false
+            Scenario?.SoloTrainingMode ?? false,
+            _terminalEntries.Add
         );
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
 
@@ -1085,7 +1088,8 @@ public sealed class SimulationEngine
                     FindAircraft,
                     Scenario?.ValidateDctFixes ?? true,
                     Scenario?.AutoCrossRunway ?? false,
-                    Scenario?.SoloTrainingMode ?? false
+                    Scenario?.SoloTrainingMode ?? false,
+                    _terminalEntries.Add
                 );
                 CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
             }
@@ -1382,12 +1386,6 @@ public sealed class SimulationEngine
             }
 
             var compound = timedResult.Value!;
-            // Check for single SAY command — emit as Say terminal entry, don't dispatch
-            if (compound.Blocks is [{ Commands: [SayCommand timedSay], Condition: null }])
-            {
-                EmitTerminal("Say", preset.Callsign, timedSay.Text);
-                continue;
-            }
 
             var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
             var presetCtx = new DispatchContext(
@@ -1397,7 +1395,8 @@ public sealed class SimulationEngine
                 FindAircraft,
                 scenario.ValidateDctFixes,
                 scenario.AutoCrossRunway,
-                scenario.SoloTrainingMode
+                scenario.SoloTrainingMode,
+                _terminalEntries.Add
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
@@ -1485,11 +1484,6 @@ public sealed class SimulationEngine
         }
 
         var compound = presetResult.Value!;
-        if (compound.Blocks is [{ Commands: [SayCommand say], Condition: null }])
-        {
-            EmitTerminal("Say", aircraft.Callsign, say.Text);
-            return;
-        }
 
         var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var singlePresetCtx = new DispatchContext(
@@ -1499,7 +1493,8 @@ public sealed class SimulationEngine
             FindAircraft,
             Scenario!.ValidateDctFixes,
             Scenario!.AutoCrossRunway,
-            Scenario!.SoloTrainingMode
+            Scenario!.SoloTrainingMode,
+            _terminalEntries.Add
         );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
@@ -1681,7 +1676,8 @@ public sealed class SimulationEngine
             FindAircraft,
             Scenario?.ValidateDctFixes ?? true,
             Scenario?.AutoCrossRunway ?? false,
-            Scenario?.SoloTrainingMode ?? false
+            Scenario?.SoloTrainingMode ?? false,
+            _terminalEntries.Add
         );
         CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
     }

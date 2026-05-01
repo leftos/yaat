@@ -1,6 +1,7 @@
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Helpers;
 
@@ -19,6 +20,7 @@ internal static class TestDispatch
         bool autoCrossRunway = false,
         WeatherProfile? weather = null,
         Func<string, AircraftState?>? findAircraft = null,
-        bool soloTrainingMode = false
-    ) => new(groundLayout, rng, weather, findAircraft, validateDctFixes, autoCrossRunway, soloTrainingMode);
+        bool soloTrainingMode = false,
+        Action<TerminalEntry>? terminalEmitter = null
+    ) => new(groundLayout, rng, weather, findAircraft, validateDctFixes, autoCrossRunway, soloTrainingMode, terminalEmitter);
 }

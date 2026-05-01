@@ -1087,17 +1087,27 @@ Trailing tokens are matched left-to-right against `heading → altitude → spee
 
 ### Say Commands
 
-Make an aircraft broadcast information:
+Make an aircraft broadcast information. Output uses spoken pilot phraseology per AIM 4-2-8/9/10/11 (digit-by-digit numbers, "thousand"/"hundred"/"flight level" altitudes, three-digit headings, "Mach point X").
 
 | Command | Effect |
 |---------|--------|
 | `SAY text` | Aircraft broadcasts the text verbatim (alias: `SAYF`) |
-| `SSPD` | Aircraft reports current speed (includes Mach at/above FL240) |
-| `SMACH` | Aircraft reports current Mach number |
-| `SEAPP` | Aircraft reports expected approach (or "No expected approach assigned") |
-| `SALT` | Aircraft reports altitude and vertical trend |
-| `SHDG` | Aircraft reports heading (includes direct-to fix if navigating) |
-| `SPOS` | Aircraft reports position relative to nearest fix |
+| `SSPD` | Aircraft reports current speed (e.g. `two five zero knots`; includes Mach at/above FL240) |
+| `SMACH` | Aircraft reports current Mach number (e.g. `Mach point seven eight`) |
+| `SEAPP` | Aircraft reports expected approach (e.g. `Expecting the ILS one niner left approach`) or `Negative, no approach assigned` |
+| `SALT` | Aircraft reports altitude and vertical trend (e.g. `Leaving five thousand three hundred for eight thousand`) |
+| `SHDG` | Aircraft reports heading (e.g. `Heading two seven zero, direct MENLO`) |
+| `SPOS` | Aircraft reports position relative to nearest fix (e.g. `Over WAITZ` or `one two miles east of OAK`) |
+
+**Combine with `AT` for deferred reports.** Wrap any SAY-class verb in an `AT <fix>` condition to make the aircraft transmit when overflying that fix:
+
+```
+AT WAITZ SALT
+AT MENLO SHDG
+AT RHV SAY position report
+```
+
+Triggered SAY transmissions fire when the aircraft passes within 0.5 NM of the fix (same threshold as any other `AT FIX` condition). They appear in the terminal as a `Say`-typed entry tagged to the aircraft's callsign.
 
 ---
 

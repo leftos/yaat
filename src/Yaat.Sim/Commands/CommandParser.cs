@@ -750,6 +750,9 @@ public static class CommandParser
             SaySpeed when arg is null => PR.Ok(new SaySpeedCommand()),
             SayMach when arg is null => PR.Ok(new SayMachCommand()),
             SayExpectedApproach when arg is null => PR.Ok(new SayExpectedApproachCommand()),
+            SayAltitude when arg is null => PR.Ok(new SayAltitudeCommand()),
+            SayHeading when arg is null => PR.Ok(new SayHeadingCommand()),
+            SayPosition when arg is null => PR.Ok(new SayPositionCommand()),
             // Queue
             DeleteQueuedCommands when arg is null => PR.Ok(new DeleteQueuedCommand()),
             DeleteQueuedCommands => int.TryParse(arg, out var delAtBlock)

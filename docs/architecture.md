@@ -373,6 +373,10 @@ Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given a
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; spawn check-in / "going around" live here directly
 Pilot/PilotPersonality.cs      # Enum (Verbatim) controlling readback variation; Verbatim emits the textbook form for every command
+Pilot/PilotSayBuilder.cs       # Static: pilot-style transmission text for SAY-class verbs (SALT/SHDG/SPOS/SSPD/SMACH/SEAPP).
+                               # AIM-compliant spoken phraseology (digit-by-digit, "thousand"/"hundred"/"flight level", "Mach point X").
+                               # Used by CommandDispatcher for triggered/sequenced SAY blocks AND by yaat-server's SayCommandHandler
+                               # for direct controller queries — same text, different routing layer adds the controller's initials.
 
 # Speech/ — STT + phraseology rule engine (Yaat.Sim layer)
 Speech/PhraseologyMapper.cs    # Static: transcript → canonical command (rule-based layer of the hybrid NLU).

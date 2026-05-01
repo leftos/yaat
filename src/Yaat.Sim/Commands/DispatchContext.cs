@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -17,6 +18,10 @@ namespace Yaat.Sim.Commands;
 /// commands that need them (currently RFIS / RTIS for live visual acquisition)
 /// fail gracefully when they are absent, which is the normal case for tests
 /// that don't exercise visual detection.</para>
+///
+/// <para><see cref="TerminalEmitter"/> is nullable: SAY-class verbs broadcast pilot
+/// transmissions through it. Callers running outside a simulation (parser tests,
+/// dry-run dispatch) leave it null and the broadcasts are discarded.</para>
 /// </summary>
 public sealed record DispatchContext(
     AirportGroundLayout? GroundLayout,
@@ -25,5 +30,6 @@ public sealed record DispatchContext(
     Func<string, AircraftState?>? FindAircraft,
     bool ValidateDctFixes,
     bool AutoCrossRunway,
-    bool SoloTrainingMode
+    bool SoloTrainingMode,
+    Action<TerminalEntry>? TerminalEmitter
 );

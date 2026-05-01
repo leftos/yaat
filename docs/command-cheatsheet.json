@@ -260,14 +260,14 @@
       "name": "Broadcast",
       "rows": [
         { "verb": "SAY", "aliases": ["sayf"], "description": "Broadcast pilot message (text)" },
-        { "verb": "SSPD", "aliases": [], "description": "Say speed" },
-        { "verb": "SMACH", "aliases": [], "description": "Say Mach" },
+        { "verb": "SSPD", "aliases": [], "description": "Say speed (e.g. \"two five zero knots\")" },
+        { "verb": "SMACH", "aliases": [], "description": "Say Mach (e.g. \"Mach point seven eight\")" },
         { "verb": "SEAPP", "aliases": [], "description": "Say expected approach" },
-        { "verb": "SALT", "aliases": [], "description": "Say altitude" },
-        { "verb": "SHDG", "aliases": [], "description": "Say heading" },
-        { "verb": "SPOS", "aliases": [], "description": "Say position" }
+        { "verb": "SALT", "aliases": [], "description": "Say altitude (e.g. \"Leaving five thousand for eight thousand\")" },
+        { "verb": "SHDG", "aliases": [], "description": "Say heading (e.g. \"Heading two seven zero, direct MENLO\")" },
+        { "verb": "SPOS", "aliases": [], "description": "Say position (e.g. \"Over WAITZ\" or \"one two miles east of OAK\")" }
       ],
-      "notes": []
+      "notes": ["Combine with AT for deferred reports: AT WAITZ SALT, AT MENLO SHDG, AT RHV SAY position report"]
     },
     {
       "id": "flight-plan",

@@ -130,6 +130,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Say altitude | — | `SALT` | YAAT-only — reports altitude and vertical trend |
 | Say heading | — | `SHDG` | YAAT-only — reports heading and direct-to fix |
 | Say position | — | `SPOS` | YAAT-only — reports position relative to nearest fix |
+| AT FIX SAY | — | `AT WAITZ SALT`, `AT MENLO SHDG`, `AT RHV SAY position report` | YAAT-only — defer any SAY-class report to fix overflight |
 
 ### Navigation
 
