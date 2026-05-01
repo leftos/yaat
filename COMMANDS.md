@@ -926,8 +926,11 @@ Lines are separated by a literal backslash `\` and capped at 6 lines total. The 
 | `HSA Ground key\new1` | `Ground` | `key\new1` |
 | `HSA Ground/2 key\new1` | `Ground` rack `2` | `key\new1` |
 | `HSA key` | — | `key` (single token) |
+| `HSA HSTRIP_<id> new1\new2` | — | `HSTRIP_<id>\new1\new2` (id-form lookup) |
 
 Because of this rule, a single-token global delete like `HSD Ground` is interpreted as "delete the half-strip with first line `Ground`" (auto-search), not as "delete the aircraft-scoped half-strip in bay `Ground`". Aircraft-scoped delete with no bay is just `HSD`.
+
+**Strip-id form:** if the first token starts with `HSTRIP_` it is always treated as a strip id (lookup matches by `Id`, not by first-line text), never as a bay name. This lets the embedded vStrips UI operate on empty half-strips that have no first-line text yet — `HSD HSTRIP_<id>`, `HSA HSTRIP_<id> line1\line2`, `HSO HSTRIP_<id>`, `HSS HSTRIP_<id>`. Mirrors the `SEP_<id>` and `BLANK_<id>` id-prefix handling on `SEPD` / `SEPE` / `SEPM` / `BLANKD`.
 
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |

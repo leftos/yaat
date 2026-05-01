@@ -253,4 +253,63 @@ public class HalfStripCommandParserTests
         var result = CommandParser.Parse("HALFSTRIPDEL key");
         Assert.IsType<HalfStripDeleteCommand>(result.Value);
     }
+
+    // ── Strip-id form (HSTRIP_<guid>) ──────────────────────────
+    // Empty half-strips have no first-line text, so the embedded vStrips UI
+    // falls back to emitting the strip's id (HSTRIP_<guid>) as the lookup
+    // key. Both the parser and server must recognize this form, mirroring
+    // the existing SEP_/BLANK_ id-prefix handling.
+
+    [Fact]
+    public void Hsd_StripIdForm_TreatsAsLookupKey_NotBay()
+    {
+        // Two whitespace-separated tokens would normally trigger the
+        // bay-disambiguation rule (first token = bay). The HSTRIP_ prefix
+        // must override that: it's always a strip id, never a bay name.
+        var result = CommandParser.Parse("HSD HSTRIP_abc123 unused");
+        Assert.Null(result.Value);
+        Assert.Contains("at most one", result.Reason);
+    }
+
+    [Fact]
+    public void Hsd_StripIdForm_SingleToken_KeepsId()
+    {
+        var result = CommandParser.Parse("HSD HSTRIP_abc123");
+        var cmd = Assert.IsType<HalfStripDeleteCommand>(result.Value);
+        Assert.Null(cmd.BayName);
+        Assert.Equal(["HSTRIP_abc123"], cmd.Tokens);
+    }
+
+    [Fact]
+    public void Hsa_StripIdForm_TreatsAsLookupKey_NotBay()
+    {
+        // HSA HSTRIP_abc123 line1\line2 must parse as key + payload, not as
+        // bay HSTRIP_abc123 + body.
+        var result = CommandParser.Parse(@"HSA HSTRIP_abc123 line1\line2");
+        var cmd = Assert.IsType<HalfStripAmendCommand>(result.Value);
+        Assert.Null(cmd.BayName);
+        Assert.Equal(["HSTRIP_abc123", "line1", "line2"], cmd.Tokens);
+    }
+
+    [Fact]
+    public void Hso_StripIdForm_TreatsAsLookupKey_NotBay()
+    {
+        // HSO with two tokens (first = bay) shouldn't peel HSTRIP_xxx as a bay.
+        // Parser only accepts up to "[bay] [key]" so HSTRIP_xxx alone is fine,
+        // but HSTRIP_xxx + some-other-bay-spec isn't a real call site — the
+        // single-token id form is what the embedded UI emits.
+        var result = CommandParser.Parse("HSO HSTRIP_abc123");
+        var cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
+        Assert.Null(cmd.BayName);
+        Assert.Equal("HSTRIP_abc123", cmd.LookupKey);
+    }
+
+    [Fact]
+    public void Hss_StripIdForm_TreatsAsLookupKey_NotBay()
+    {
+        var result = CommandParser.Parse("HSS HSTRIP_abc123");
+        var cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
+        Assert.Null(cmd.BayName);
+        Assert.Equal("HSTRIP_abc123", cmd.LookupKey);
+    }
 }

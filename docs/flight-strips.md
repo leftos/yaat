@@ -305,6 +305,16 @@ no bay is always just `HSD`.
 Parsing for `HSA` is capped at 7 tokens total (1 lookup key + 6 new
 lines). `HSD` is capped at 1 token.
 
+**`HSTRIP_<id>` strip-id form (HSA / HSD / HSO / HSS / HSM):** when the
+first token starts with `HSTRIP_`, the parser never treats it as a bay
+spec — it's always the lookup key. The server's `FindHalfStripMatches`
+correspondingly switches from first-line text matching to `Id` matching.
+This is required because empty half-strips (created via `HSC bay/rack`
+with no body) have no first-line text, so `StripItemViewModel.LookupKey`
+falls back to the strip id and the embedded UI emits commands like
+`HSD HSTRIP_<guid>`. Mirrors `SEP_` / `BLANK_` id-prefix handling on
+`SEPD` / `SEPE` / `SEPM` / `BLANKD`.
+
 #### Server dispatch
 
 `HandleHalfStripCreate`:

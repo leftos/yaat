@@ -2338,16 +2338,30 @@ public static class CommandParser
         var trimmed = arg.Trim();
         string? bayName = null;
         int? rack = null;
-        string body;
 
+        string[] tokens;
         if (trimmed.Length == 0)
         {
-            body = "";
+            tokens = [];
         }
         else
         {
             var spaceIdx = trimmed.IndexOf(' ');
-            if (spaceIdx > 0 && !trimmed.AsSpan(0, spaceIdx).Contains('\\'))
+            // First-token bay-spec peel does not apply when the head is an
+            // HSTRIP_<guid> strip id — empty half-strips have no first-line
+            // text, so the embedded vStrips UI emits the id as the lookup
+            // key. Mirrors SEP_/BLANK_ id-prefix handling in SEPD/BLANKD.
+            var headIsStripId = spaceIdx > 0 && trimmed.AsSpan(0, spaceIdx).StartsWith("HSTRIP_");
+            if (headIsStripId)
+            {
+                // HSTRIP_id [line1\line2\...] — id is its own token, the rest
+                // is backslash-separated payload (HSA only; HSD's cap rejects
+                // any payload below).
+                var head = trimmed[..spaceIdx];
+                var rest = trimmed[(spaceIdx + 1)..].TrimStart();
+                tokens = rest.Length == 0 ? [head] : [head, .. rest.Split('\\', StringSplitOptions.TrimEntries)];
+            }
+            else if (spaceIdx > 0 && !trimmed.AsSpan(0, spaceIdx).Contains('\\'))
             {
                 var head = trimmed[..spaceIdx];
                 var rest = trimmed[(spaceIdx + 1)..].TrimStart();
@@ -2358,22 +2372,12 @@ public static class CommandParser
 
                 bayName = parsedBay;
                 rack = parsedRack;
-                body = rest;
+                tokens = rest.Length == 0 ? [] : rest.Split('\\', StringSplitOptions.TrimEntries);
             }
             else
             {
-                body = trimmed;
+                tokens = trimmed.Split('\\', StringSplitOptions.TrimEntries);
             }
-        }
-
-        string[] tokens;
-        if (body.Length == 0)
-        {
-            tokens = [];
-        }
-        else
-        {
-            tokens = body.Split('\\', StringSplitOptions.TrimEntries);
         }
 
         if (isDelete)
