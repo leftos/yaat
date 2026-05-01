@@ -28,6 +28,11 @@
                           Command="{Binding LeaveRoomCommand}" />
             </MenuItem>
             <MenuItem Header="_Tools">
+                <MenuItem Header="_Open in Browser"
+                          Command="{Binding OpenInBrowserCommand}"
+                          IsEnabled="{Binding IsConnected}"
+                          ToolTip.Tip="Open this server's web vStrips in your default browser" />
+                <Separator />
                 <MenuItem Header="_Configure CRC Environments..."
                           x:Name="ConfigureCrcMenuItem" />
             </MenuItem>

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -39,6 +40,16 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     private string? _activeRoomId;
 
+    /// <summary>
+    /// URL the user successfully connected to (set in <see cref="AttemptConnectAsync"/>,
+    /// cleared in disconnect/close). Distinct from <c>Preferences.LastUsedServerUrl</c>
+    /// which is the historical last URL even when offline. <see cref="OpenInBrowserAsync"/>
+    /// uses this to build the live <c>/vstrips/</c> URL for whichever server is
+    /// currently feeding strips.
+    /// </summary>
+    [ObservableProperty]
+    private string? _connectedServerUrl;
+
     public ObservableCollection<TrainingRoomInfoDto> AvailableRooms { get; } = [];
 
     private readonly UpdateService _updateService = new(channel: Program.VStripsChannel);
@@ -73,6 +84,7 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
                 IsInRoom = false;
                 ActiveRoomName = null;
                 ActiveRoomId = null;
+                ConnectedServerUrl = null;
             });
         // Server pushes RoomAvailableForCid when a same-CID CRC sibling
         // gets bound to a room — auto-join unless we're already in one.
@@ -170,6 +182,7 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
             StatusText = $"Connecting to {url}...";
             await _connection.ConnectAsync(url, ct);
             IsConnected = true;
+            ConnectedServerUrl = url;
             StatusText = $"Connected to {url}";
             Preferences.SetSavedServers(Preferences.SavedServers, url);
 
@@ -220,8 +233,62 @@ public partial class StandaloneViewModel : ObservableObject, IAsyncDisposable
         IsInRoom = false;
         ActiveRoomName = null;
         ActiveRoomId = null;
+        ConnectedServerUrl = null;
         StatusText = "Disconnected";
     }
+
+    /// <summary>
+    /// Opens the user's default browser at the live web vStrips URL for the
+    /// currently-connected server, with identity (CID/initials/ARTCC) baked
+    /// into the query string. Discoverability hook for the
+    /// <c>/vstrips/</c> endpoint hosted by yaat-server — controllers who'd
+    /// rather have strips inside a CRC browser tab paste this URL into CRC's
+    /// browser-display settings instead of running the standalone app.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenInBrowser))]
+    public Task OpenInBrowserAsync()
+    {
+        if (string.IsNullOrEmpty(ConnectedServerUrl))
+        {
+            return Task.CompletedTask;
+        }
+
+        var baseUrl = ConnectedServerUrl.TrimEnd('/');
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(Preferences.VatsimCid))
+        {
+            qs.Add($"cid={Uri.EscapeDataString(Preferences.VatsimCid)}");
+        }
+        if (!string.IsNullOrWhiteSpace(Preferences.UserInitials))
+        {
+            qs.Add($"initials={Uri.EscapeDataString(Preferences.UserInitials)}");
+        }
+        if (!string.IsNullOrWhiteSpace(Preferences.ArtccId))
+        {
+            qs.Add($"artcc={Uri.EscapeDataString(Preferences.ArtccId)}");
+        }
+        if (!string.IsNullOrWhiteSpace(ActiveRoomId))
+        {
+            qs.Add($"room={Uri.EscapeDataString(ActiveRoomId)}");
+        }
+        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+        var url = $"{baseUrl}/vstrips/{query}";
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "OpenInBrowser failed for {Url}", url);
+            StatusText = "Failed to open browser";
+        }
+        return Task.CompletedTask;
+    }
+
+    private bool CanOpenInBrowser() => !string.IsNullOrEmpty(ConnectedServerUrl);
+
+    partial void OnConnectedServerUrlChanged(string? value) => OpenInBrowserCommand.NotifyCanExecuteChanged();
 
     [RelayCommand]
     public async Task RefreshRoomsAsync()
