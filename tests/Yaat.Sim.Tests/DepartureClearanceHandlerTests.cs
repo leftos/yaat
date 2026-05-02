@@ -1018,4 +1018,167 @@ public class DepartureClearanceHandlerTests
         // Phases preserved — takeoff continues.
         Assert.NotNull(ac.Phases);
     }
+
+    // -------------------------------------------------------------------------
+    // CTOC during TaxiingPhase (controller cancels stored CTO mid-taxi)
+    // -------------------------------------------------------------------------
+
+    private static AircraftState MakeTaxiingAircraftWithRoute(IEnumerable<HoldShortPoint> holdShorts)
+    {
+        var ac = MakeAircraft();
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = [], HoldShortPoints = [.. holdShorts] };
+        var taxiing = new TaxiingPhase();
+        ac.Phases!.Add(taxiing);
+        ac.Phases.Start(MinCtx(ac));
+        return ac;
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringTaxi_WithStoredCto_RevokesAndRestoresHoldShort()
+    {
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        var destHs = new HoldShortPoint
+        {
+            NodeId = 10,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "33/15",
+        };
+        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+
+        var storeResult = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
+            ac,
+            ClearanceType.ClearedForTakeoff,
+            new FlyHeadingDeparture(new MagneticHeading(80), null),
+            null
+        );
+        Assert.True(storeResult.Success);
+        Assert.True(destHs.IsCleared, "precondition: store should have pre-cleared the destination hold-short");
+        Assert.NotNull(ac.Phases.DepartureClearance);
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+
+        Assert.True(result.Success, $"expected success, got: {result.Message}");
+        Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(ac.Phases.DepartureClearance);
+        Assert.False(destHs.IsCleared, "destination hold-short should be reinstated after CTOC");
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringTaxi_PreservesIndependentlyClearedCrossings()
+    {
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        var destHs = new HoldShortPoint
+        {
+            NodeId = 10,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "28R",
+        };
+        var crossingHs = new HoldShortPoint
+        {
+            NodeId = 11,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = "10L/28R",
+            IsCleared = true,
+        };
+        var ac = MakeTaxiingAircraftWithRoute([destHs, crossingHs]);
+        var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+
+        DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
+            ac,
+            ClearanceType.ClearedForTakeoff,
+            new FlyHeadingDeparture(new MagneticHeading(80), null),
+            null
+        );
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+
+        Assert.True(result.Success);
+        Assert.False(destHs.IsCleared, "store flipped destination hold-short — CTOC must revert it");
+        Assert.True(crossingHs.IsCleared, "crossing was already cleared (LV/RC/CROSS) before CTO — CTOC must NOT touch it");
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringTaxi_WithStoredLuaw_Rejects()
+    {
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        var destHs = new HoldShortPoint
+        {
+            NodeId = 10,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "33/15",
+        };
+        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+
+        DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.LineUpAndWait, new DefaultDeparture(), null);
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+
+        Assert.False(result.Success);
+        Assert.Contains("No takeoff clearance to cancel", result.Message!);
+        Assert.NotNull(ac.Phases.DepartureClearance);
+        Assert.True(destHs.IsCleared, "LUAW remains in force; hold-short stays cleared");
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringTaxi_NoStoredClearance_Rejects()
+    {
+        var ac = MakeTaxiingAircraftWithRoute([]);
+        var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+
+        Assert.False(result.Success);
+        Assert.Contains("No takeoff clearance to cancel", result.Message!);
+    }
+
+    [Fact]
+    public void StoreDepartureClearanceDuringTaxi_RecordsOnlyHoldShortsItPreCleared()
+    {
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        var destHs = new HoldShortPoint
+        {
+            NodeId = 10,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "28R",
+        };
+        var crossingClearedAlready = new HoldShortPoint
+        {
+            NodeId = 11,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = "10L/28R",
+            IsCleared = true,
+        };
+        var crossingFresh = new HoldShortPoint
+        {
+            NodeId = 12,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = "10L/28R",
+        };
+        var ac = MakeTaxiingAircraftWithRoute([destHs, crossingClearedAlready, crossingFresh]);
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+
+        DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
+            ac,
+            ClearanceType.ClearedForTakeoff,
+            new FlyHeadingDeparture(new MagneticHeading(80), null),
+            null
+        );
+
+        var tracked = ac.Phases!.DepartureClearance!.PreClearedHoldShortNodeIds;
+        Assert.NotNull(tracked);
+        Assert.Equal([10, 12], tracked!.OrderBy(id => id).ToArray());
+    }
 }

@@ -238,16 +238,25 @@ internal static class DepartureClearanceHandler
         // Pre-clear the destination hold-short and any runway crossings for the same runway.
         // The route may cross the departure runway before reaching the destination hold-short
         // (e.g., taxiway B at OAK crosses 28L/10R before reaching the 28L threshold).
-        depHoldShort.IsCleared = true;
+        // Track which IDs we flipped so CTOC can revert exactly those, leaving crossings
+        // independently cleared by LV/RC/CROSS untouched.
+        var preClearedIds = new List<int>();
+        if (!depHoldShort.IsCleared)
+        {
+            depHoldShort.IsCleared = true;
+            preClearedIds.Add(depHoldShort.NodeId);
+        }
         foreach (var hs in route.HoldShortPoints)
         {
             if (
                 hs.Reason == HoldShortReason.RunwayCrossing
                 && hs.TargetName is not null
                 && hs.TargetName.Contains(runway.Designator, StringComparison.OrdinalIgnoreCase)
+                && !hs.IsCleared
             )
             {
                 hs.IsCleared = true;
+                preClearedIds.Add(hs.NodeId);
             }
         }
 
@@ -273,6 +282,7 @@ internal static class DepartureClearanceHandler
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             PatternRunway = patternRunway,
+            PreClearedHoldShortNodeIds = preClearedIds.Count > 0 ? preClearedIds : null,
         };
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
@@ -1078,6 +1088,28 @@ internal static class DepartureClearanceHandler
             luawCancel.Departure = null;
             luawCancel.AssignedAltitude = null;
             return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+        }
+        if (currentPhase is TaxiingPhase && aircraft.Phases?.DepartureClearance is { Type: ClearanceType.ClearedForTakeoff } stored)
+        {
+            // CTO was issued mid-taxi and stored for the taxi phase to consume
+            // at the runway. Revert the hold-shorts that storage pre-cleared
+            // (only the ones this clearance flipped — leave LV/RC/CROSS state
+            // alone) and drop the stored clearance. The aircraft will reach
+            // the runway and hold short until a fresh clearance is issued.
+            var route = aircraft.Ground.AssignedTaxiRoute;
+            if (route is not null && stored.PreClearedHoldShortNodeIds is { } ids)
+            {
+                var idSet = ids.ToHashSet();
+                foreach (var hs in route.HoldShortPoints)
+                {
+                    if (idSet.Contains(hs.NodeId))
+                    {
+                        hs.IsCleared = false;
+                    }
+                }
+            }
+            aircraft.Phases.DepartureClearance = null;
+            return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold short{CommandDispatcher.RunwayLabel(aircraft)}");
         }
         if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
         {

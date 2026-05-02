@@ -69,6 +69,14 @@ public sealed class DepartureClearanceInfo
     /// </summary>
     public RunwayInfo? PatternRunway { get; init; }
 
+    /// <summary>
+    /// Node IDs of taxi-route hold-shorts that were flipped from
+    /// IsCleared=false to true when this clearance was stored. Used by CTOC
+    /// to revert only the hold-shorts this clearance pre-cleared, leaving
+    /// crossings independently cleared by LV/RC/CROSS untouched.
+    /// </summary>
+    public IReadOnlyList<int>? PreClearedHoldShortNodeIds { get; init; }
+
     public DepartureClearanceDto ToSnapshot() =>
         new()
         {
@@ -79,6 +87,7 @@ public sealed class DepartureClearanceInfo
             DepartureSidId = DepartureSidId,
             SidDepartureHeadingMagnetic = SidDepartureHeadingMagnetic,
             PatternRunway = PatternRunway?.ToSnapshot(),
+            PreClearedHoldShortNodeIds = PreClearedHoldShortNodeIds?.ToList(),
         };
 
     public static DepartureClearanceInfo FromSnapshot(DepartureClearanceDto dto) =>
@@ -91,6 +100,7 @@ public sealed class DepartureClearanceInfo
             DepartureSidId = dto.DepartureSidId,
             SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
+            PreClearedHoldShortNodeIds = dto.PreClearedHoldShortNodeIds,
         };
 }
 

@@ -48,6 +48,7 @@ public sealed class DepartureClearanceDto
     public string? DepartureSidId { get; init; }
     public double? SidDepartureHeadingMagnetic { get; init; }
     public RunwayInfoDto? PatternRunway { get; init; }
+    public List<int>? PreClearedHoldShortNodeIds { get; init; }
 }
 
 public sealed class ApproachClearanceDto
