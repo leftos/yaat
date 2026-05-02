@@ -4,6 +4,7 @@
 
 ### Fixed
 - `--autoconnect` no longer fights manual connections. With a desktop shortcut that pre-fills a default server (e.g. `--autoconnect http://localhost:5000`), the retry loop kept ticking after you connected to a different server via File → Connect, silently disconnecting you a few seconds later. Autoconnect now stops as soon as you open File → Connect, pick File → Disconnect, or close the window.
+- Typing a callsign plus flight-data fields and pressing ENTER without clicking the scope now actually creates the STARS flight plan. Examples: `N436MS` (empty VFR plan with auto-assigned beacon), `N436MS C172` (abbreviated plan with aircraft type), `N925RC BTV C172/G 050` (VFR plan with destination and route). Previously these "implied" entries — the same gestures the F6 (DA) and F9 (VP) shortcuts trigger explicitly — were silently swallowed by the server. Discrimination matches stars.md: the second token is a destination airport (3-letter LID, or `DEP*DEST` form) for VP, otherwise DA. As before, a callsign that already has a flight plan is rejected with `DUP NEW ID` instead of being silently amended.
 
 ## v0.1.10-alpha [2026/05/01]
 
