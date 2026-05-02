@@ -269,16 +269,34 @@ The IFR-with-approach branch derives the spoken approach name from `ApproachClea
 The VFR/no-approach branch uses `Math.Round(GeoMath.DistanceNm(position, threshold))`,
 clamped to a minimum of 1 — an aircraft spawning at 0.3 nm reads back "one-mile final".
 
-### Airborne arbitrary-spawn check-ins (M10.1.2 — corpus, not yet implemented)
+### Airborne-spawn check-ins (M10.1.2)
 
-When an aircraft is first ticked airborne and `!HasMadeInitialContact`, fire a check-in
-chosen from `Scenario.StudentPositionType` × `aircraft.FlightPlan.IsVfr`. Direction comes
-from an 8-point compass quantizer over the aircraft-to-airport bearing; altitude renders
-sub-FL180 via `AltitudeToWords` and FL180+ as `"flight level X"`.
+When an aircraft is first ticked airborne and `!HasMadeInitialContact`,
+`PilotProactive.TickAirborneCheckIn` fires a one-shot check-in into
+`PendingNotifications`. Branches on `Scenario.StudentPositionType` (canonical codes:
+`TWR`/`APP`/`CTR`/`GND`) × `aircraft.FlightPlan.IsVfr` × VFR intent (inbound /
+transit / no-destination).
 
-| Student position | IFR | VFR (full-stop or transit) |
-|---|---|---|
-| Tower (Class D) | Rare. `"Tower, [callsign] runway [rwy], with information Alpha."` | `"Tower, [callsign] [N] miles [direction] at [altitude], inbound for landing, with information Alpha."` (full-stop) / `"Tower, [callsign] [N] miles [direction] at [altitude], request transition [direction]."` (overflight) |
-| Approach (TRACON) | `"Approach, [callsign] level [altitude], with information Alpha."` | `"Approach, [callsign] [N] miles [direction] at [altitude], request [landing/transition], with information Alpha."` |
-| Center (ARTCC) | `"Center, [callsign] flight level [FL]."` | `"Center, [callsign] at [altitude], [N] miles [direction] of [airport]."` |
-| Ground (rare for airborne) | skip | skip |
+**Direction** uses an 8-point compass quantizer (north / northeast / east / southeast
+/ south / southwest / west / northwest) over the bearing **from the airport to the
+aircraft** — i.e. "five miles south" means the aircraft is south of the airport.
+**Heading-bound** uses a 4-point quantizer (northbound / eastbound / southbound /
+westbound) over the aircraft's true heading. **Altitude** renders via
+`AtcNumberParser.AltitudeToWords`: sub-FL180 as "N thousand [M hundred]", FL180+ as
+"flight level X X X" (digit-by-digit). **Distance words** are single words for 1–9
+("five miles") and digit-by-digit for ≥10 ("one zero miles", "one five miles").
+**Airport** in Center templates is NATO-spelled ("KOAK" → "kilo oscar alpha kilo").
+
+| Student position | IFR | VFR inbound (dest=primary) | VFR transit (dest≠primary) | VFR no-dest (overflight) |
+|---|---|---|---|---|
+| `TWR` | Direct-to-tower (rare): `"[callsign] tower, [spoken] runway [rwy], with information Alpha."` (drops " runway [rwy]" when destination runway unknown) | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], inbound for landing, with information Alpha."` | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], request transition, with information Alpha."` | `"[callsign] tower, [spoken] [dist] miles [direction] of the field, VFR [heading]bound at [altitude], with information Alpha."` |
+| `APP` | sub-FL180: `"[callsign] approach, [spoken] level [altitude], with information Alpha."` / FL180+: `"... [spoken] flight level [FL], with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request landing, with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request transition, with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] of [airport-spelled], VFR [heading]bound at [altitude], with information Alpha."` |
+| `CTR` | FL180+: `"[callsign] center, [spoken] flight level [FL]."` (no ATIS suffix — Class A enroute) / sub-FL180: `"... [spoken] level [altitude], with information Alpha."` | falls through to "request transition" — Center doesn't naturally handle landings | `"[callsign] center, [spoken] at [altitude], [dist] miles [direction] of [airport-spelled], request transition."` | `"[callsign] center, [spoken] [dist] miles [direction] of [airport-spelled], VFR [heading]bound at [altitude]."` |
+| `GND` | skip | skip | skip | skip |
+
+The no-dest forms follow AIM 4-3-1's canonical phrase `"VFR [direction]bound at [altitude]"`
+and anchor position with `"of the field"` (Tower) or `"of [airport-spelled]"` (Approach/Center)
+so the position bearing is unambiguously separate from the direction-of-flight.
+
+Skip cases: `StudentPositionType` null or unrecognized; `HasMadeInitialContact` already set;
+`SoloTrainingMode` off; aircraft on ground; airport position lookup returns null.

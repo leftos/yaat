@@ -454,6 +454,17 @@ public sealed class SimulationEngine
     /// </summary>
     public void TickPostPhysics()
     {
+        // Airborne-spawn check-ins fire here, before the notification drain, so they emit
+        // the same tick they're produced. PilotProactive.TickAirborneCheckIn is idempotent —
+        // it sets HasMadeInitialContact on success and no-ops on subsequent ticks.
+        if (Scenario is { SoloTrainingMode: true } scenario)
+        {
+            foreach (var ac in World.GetSnapshot())
+            {
+                Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
+            }
+        }
+
         World.DrainAllWarnings();
 
         var notifications = World.DrainAllNotifications();
@@ -463,6 +474,12 @@ public sealed class SimulationEngine
         }
 
         World.DrainAllApproachScores();
+    }
+
+    private static LatLon? LookupAirportPosition(string airportId)
+    {
+        var pos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        return pos.HasValue ? new LatLon(pos.Value.Lat, pos.Value.Lon) : null;
     }
 
     /// <summary>
