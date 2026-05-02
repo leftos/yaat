@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changelog: ${{ steps.cl.outputs.changelog }}
-      highlights: ${{ steps.hl.outputs.highlights }}
+      highlights: ${{ steps.cl.outputs.highlights }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -57,7 +57,7 @@ jobs:
           # Print everything from the first "## " heading containing $VERSION
           # up to (but not including) the next "## " heading. Handles optional
           # date suffix and either "v"-prefixed or bare version headings.
-          changelog=$(awk -v ver="$VERSION" '
+          full_section=$(awk -v ver="$VERSION" '
             /^## / {
               if (in_section) exit
               line = substr($0, 4)
@@ -71,63 +71,41 @@ jobs:
             in_section { print }
           ' CHANGELOG.md)
 
-          if [[ -z "$changelog" ]]; then
+          if [[ -z "$full_section" ]]; then
             echo "::error::No CHANGELOG.md section found for version '$VERSION'."
             echo "::error::Run the prepare-release skill — it promotes the unreleased section heading to the tagged version."
             exit 1
           fi
 
-          # Trim trailing blank lines for cleaner GitHub Release rendering.
-          changelog=$(printf '%s\n' "$changelog" | awk 'NF{p=1} p' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
+          # Split out the "### Highlights" subsection (written by the prepare-release
+          # skill) into its own block, and emit the remainder as the changelog body.
+          # The release-body builder renders highlights and changelog separately.
+          highlights=$(printf '%s\n' "$full_section" | awk '
+            /^### / {
+              if (in_block) { in_block = 0 }
+              if ($0 == "### Highlights") { in_block = 1; next }
+            }
+            in_block { print }
+          ')
+          changelog=$(printf '%s\n' "$full_section" | awk '
+            /^### / {
+              if (in_block) { in_block = 0 }
+              if ($0 == "### Highlights") { in_block = 1; next }
+            }
+            !in_block
+          ')
 
-          echo "$changelog" > /tmp/changelog.md
+          # Trim leading and trailing blank lines on both blocks.
+          trim() { awk 'NF{p=1} p' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}'; }
+          highlights=$(printf '%s\n' "$highlights" | trim)
+          changelog=$(printf '%s\n' "$changelog" | trim)
+
           {
             echo "changelog<<CHANGELOG_EOF"
-            cat /tmp/changelog.md
+            printf '%s\n' "$changelog"
             echo "CHANGELOG_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Generate highlights
-        id: hl
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-            echo "highlights=" >> "$GITHUB_OUTPUT"
-            echo "No API key — skipping AI highlights"
-            exit 0
-          fi
-
-          changelog=$(cat /tmp/changelog.md)
-
-          # Skip AI summarization for small releases — when the changelog has
-          # ≤3 bullets, summarizing it into 3-4 highlight bullets adds no value
-          # over showing the changelog itself.
-          item_count=$(printf '%s\n' "$changelog" | grep -c '^- ' || true)
-          if [ "$item_count" -le 3 ]; then
-            echo "highlights=" >> "$GITHUB_OUTPUT"
-            echo "Changelog has $item_count bullets — skipping AI highlights."
-            exit 0
-          fi
-
-          response=$(curl -s --max-time 30 https://api.anthropic.com/v1/messages \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
-            -H "anthropic-version: 2023-06-01" \
-            -d "$(jq -n --arg cl "$changelog" '{
-              model: "claude-haiku-4-5-20251001",
-              max_tokens: 300,
-              messages: [{
-                role: "user",
-                content: ("Given this changelog for YAAT (an ATC training desktop app), write 3-4 concise bullet points highlighting the most notable changes for end users. The audience is instructors and RPOs running the app, NOT developers — write for them.\n\nRules:\n- Lead with the user-visible effect or capability, not the implementation.\n- Drop implementation jargon: do not name frameworks/libraries (Velopack, Avalonia, SignalR, MessagePack), class/method/property identifiers, exception types, thread/dispatcher terminology, or internal subsystems. Keep names of actual UI elements (e.g. \"Update Now\" button, command bar, Help → About).\n- For fixes, describe the symptom that is gone, not the mechanism. Users do not need to know whether a crash was a thread-affinity bug, null deref, or deadlock.\n- Be specific, not generic. No marketing language (no \"significantly\", \"robust\", \"comprehensive\").\n- No heading, just bullets.\n\nExamples:\n  Bad: \"Fixed Velopack download-progress callback marshalling to UI thread.\"\n  Good: \"Update Now button works again — auto-updates download and apply correctly.\"\n  Bad: \"OnPropertyChanged handler now checks Dispatcher access.\"\n  Good: \"Settings dialog no longer freezes the app on close.\"\n\nChangelog:\n" + $cl)
-              }]
-            }')" 2>/dev/null) || true
-
-          highlights=$(echo "$response" | jq -r '.content[0].text // empty' 2>/dev/null || true)
-
-          {
             echo "highlights<<HIGHLIGHTS_EOF"
-            echo "$highlights"
+            printf '%s\n' "$highlights"
             echo "HIGHLIGHTS_EOF"
           } >> "$GITHUB_OUTPUT"
 

@@ -70,11 +70,12 @@ Ask the user to review. Apply any requested edits to the highlights or the unrel
 Once the user approves:
 
 1. Update `<Version>` in `Directory.Build.props` to the new version.
-2. **Promote the CHANGELOG.md heading** in place — `Edit` the heading line to the chosen format (version + optional date, matching sibling sections). Do not touch the body of the section; only the heading line.
-3. Update `docs/architecture.md` if any new files were added.
-4. Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, and `docs/architecture.md` if changed.
-5. Commit: `release: v{version}`.
-6. Create tag: `git tag v{version}`.
-7. Push commit and tag: `git push origin main --tags`.
+2. **Promote the CHANGELOG.md heading** in place — `Edit` the heading line to the chosen format (version + optional date, matching sibling sections). Do not touch the body of the section yet.
+3. **Insert the approved highlights** into CHANGELOG.md as a `### Highlights` subsection at the top of the version's section, immediately after the heading and before the first existing subsection (typically `### Added` or `### Fixed`). Use the bullets verbatim as approved in Step 6 — these are what the GitHub release will surface.
+4. Update `docs/architecture.md` if any new files were added.
+5. Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, and `docs/architecture.md` if changed.
+6. Commit: `release: v{version}`.
+7. Create tag: `git tag v{version}`.
+8. Push commit and tag: `git push origin main --tags`.
 
-This triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name) and AI-generates highlights from that curated text — so what you reviewed in Step 6 is what ships, modulo the AI's tighter highlight phrasing.
+This triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 6 are exactly what ships — no AI rewriting at release time.
