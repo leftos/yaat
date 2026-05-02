@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     private bool _isMainWindowClosing;
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
+    private CancellationTokenSource? _autoConnectCts;
 
     public MainWindow()
     {
@@ -65,6 +66,12 @@ public partial class MainWindow : Window
         if (connectItem is not null)
         {
             connectItem.Click += OnConnectClick;
+        }
+
+        var disconnectItem = this.FindControl<MenuItem>("DisconnectMenuItem");
+        if (disconnectItem is not null)
+        {
+            disconnectItem.Click += OnDisconnectClick;
         }
 
         var loadItem = this.FindControl<MenuItem>("LoadScenarioMenuItem");
@@ -225,7 +232,8 @@ public partial class MainWindow : Window
 
         if (App.AutoConnectTarget is { } target)
         {
-            _ = AutoConnectAsync(vm, target);
+            _autoConnectCts = new CancellationTokenSource();
+            _ = AutoConnectAsync(vm, target, _autoConnectCts.Token);
         }
     }
 
@@ -305,7 +313,7 @@ public partial class MainWindow : Window
         );
     }
 
-    private static async Task AutoConnectAsync(MainViewModel vm, string target)
+    private static async Task AutoConnectAsync(MainViewModel vm, string target, CancellationToken ct)
     {
         var log = AppLog.CreateLogger("AutoConnect");
 
@@ -330,7 +338,21 @@ public partial class MainWindow : Window
         bool connected = false;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            var error = await vm.AttemptConnectAsync(url, CancellationToken.None);
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var error = await vm.AttemptConnectAsync(url, ct);
+
+            // User opened the Connect dialog (or otherwise took over) while we
+            // were retrying — bail silently so we don't clobber their status
+            // text or fight their manual connection on the next iteration.
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
+
             if (error is null)
             {
                 connected = true;
@@ -347,7 +369,14 @@ public partial class MainWindow : Window
             if (attempt < maxAttempts)
             {
                 vm.StatusText = $"--autoconnect: waiting for server... ({attempt}/{maxAttempts})";
-                await Task.Delay(delayMs);
+                try
+                {
+                    await Task.Delay(delayMs, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
         }
 
@@ -1614,8 +1643,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnDisconnectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        // The bound DisconnectCommand handles the actual disconnect; this
+        // handler just stops any in-flight autoconnect retry loop so it
+        // doesn't immediately reconnect us.
+        _autoConnectCts?.Cancel();
+    }
+
     private async void OnConnectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        // User is taking over connection management — stop any autoconnect
+        // retry loop so it can't disconnect the manual connection by racing
+        // ServerConnection.ConnectAsync against it.
+        _autoConnectCts?.Cancel();
+
         if (DataContext is not MainViewModel vm)
         {
             return;
@@ -1992,6 +2034,13 @@ public partial class MainWindow : Window
             hook.KeyUp -= OnGlobalKeyUp;
             hook.Dispose();
             _globalKeyHook = null;
+        }
+
+        if (_isMainWindowClosing && _autoConnectCts is { } cts)
+        {
+            cts.Cancel();
+            cts.Dispose();
+            _autoConnectCts = null;
         }
 
         base.OnClosing(e);

@@ -24,6 +24,7 @@
                 <MenuItem Header="Connect..."
                           x:Name="ConnectMenuItem" />
                 <MenuItem Header="Disconnect"
+                          x:Name="DisconnectMenuItem"
                           Command="{Binding DisconnectCommand}"
                           IsVisible="{Binding IsConnected}" />
                 <Separator />

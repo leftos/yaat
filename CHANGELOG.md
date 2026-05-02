@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `--autoconnect` no longer fights manual connections. With a desktop shortcut that pre-fills a default server (e.g. `--autoconnect http://localhost:5000`), the retry loop kept ticking after you connected to a different server via File → Connect, silently disconnecting you a few seconds later. Autoconnect now stops as soon as you open File → Connect, pick File → Disconnect, or close the window.
+
 ## v0.1.10-alpha [2026/05/01]
 
 ### Added
