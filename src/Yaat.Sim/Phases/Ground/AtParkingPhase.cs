@@ -38,15 +38,11 @@ public sealed class AtParkingPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
 
-        if (
-            ctx.SoloTrainingMode
-            && ctx.Aircraft.FlightPlan.HasFlightPlan
-            && !ctx.Aircraft.Ground.HasAnnouncedReady
-            && ElapsedSeconds >= ReadyToTaxiDelaySeconds
-        )
+        if (ctx.SoloTrainingMode && !ctx.Aircraft.Ground.HasAnnouncedReady && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
         {
             ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildReadyToTaxi(ctx.Aircraft));
             ctx.Aircraft.Ground.HasAnnouncedReady = true;
+            ctx.Aircraft.HasMadeInitialContact = true;
         }
 
         return false;

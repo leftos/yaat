@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -44,6 +45,13 @@ public sealed class LinedUpAndWaitingPhase : Phase
     /// <summary>Altitude override from CTO command.</summary>
     public int? AssignedAltitude { get; set; }
 
+    /// <summary>
+    /// Delay before the "ready, waiting on takeoff clearance" reminder fires once. Mirrors
+    /// <see cref="Ground.AtParkingPhase.ReadyToTaxiDelaySeconds"/>'s pattern but longer — the
+    /// pilot pauses a beat after hitting the runway before nudging the controller.
+    /// </summary>
+    public const double LinedUpReadyDelaySeconds = 10.0;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
@@ -66,6 +74,20 @@ public sealed class LinedUpAndWaitingPhase : Phase
     {
         // Hold position until ClearedForTakeoff is satisfied
         ctx.Targets.TargetSpeed = 0;
+
+        if (
+            ctx.SoloTrainingMode
+            && !ctx.Aircraft.HasAnnouncedLinedUpReady
+            && ctx.Aircraft.Phases?.DepartureClearance is null
+            && ElapsedSeconds >= LinedUpReadyDelaySeconds
+            && ctx.Runway is { } rwy
+        )
+        {
+            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator));
+            ctx.Aircraft.HasAnnouncedLinedUpReady = true;
+            ctx.Aircraft.HasMadeInitialContact = true;
+        }
+
         return Requirements[0].IsSatisfied;
     }
 

@@ -236,9 +236,49 @@ These don't invert from `PhraseologyRule` because no controller phrase produces 
 They live in `PilotResponder` directly as pilot-only templates, fired by phase transitions
 or proactive timers (M10.4):
 
-- **Spawn check-in (M10.1):** `"Oakland Ground, N696CL at the FBO ramp, ready to taxi."`
 - **Top-of-descent ready:** `"Center, N696CL, ready for descent."`
 - **With you / on frequency:** `"NorCal Approach, N696CL, descending to ten thousand."`
 - **Going around volunteered (M10.5):** `"Going around, N696CL."`
 - **Unable (M10.5):** `"Unable, N696CL."` / `"Unable, we're at the gate, N696CL."`
 - **Pre-handoff sign-off (M10.4):** `"Departure on 125.35, N696CL, good day."`
+
+### Spawn check-ins (M10.1 + M10.1.1)
+
+Fired by phase entry hooks (or after a short delay) when `SoloTrainingMode` is on. Both IFR
+and VFR aircraft fire these — VFR ramp departures call ground too, etc. Templates live in
+`PilotResponder` (`BuildReadyToTaxi`, `BuildHoldingShortReady`, `BuildLinedUpReady`,
+`BuildOnFinal`).
+
+Assumes ATIS information Alpha is current at all fields (real ATIS modeling deferred).
+
+| Phase | Trigger | Template |
+|---|---|---|
+| `AtParkingPhase` | 5 s after spawn | `"[N696CL] ground, november six niner six charlie lima at the FBO ramp, with information Alpha, ready to taxi."` |
+| `HoldingShortPhase` (RunwayCrossing reason) | `OnStart` | `"[N696CL] tower, november six niner six charlie lima holding short runway two eight right, ready for departure."` |
+| `LinedUpAndWaitingPhase` | 10 s after entry, no `DepartureClearance` | `"[N696CL] tower, november six niner six charlie lima runway two eight right, ready."` |
+| `FinalApproachPhase` (spawn-on-final, IFR with active approach) | `OnStart`, gated by `!HasMadeInitialContact` | `"[AAL123] tower, american one twenty three, ILS two eight right."` |
+| `FinalApproachPhase` (spawn-on-final, VFR or no approach) | `OnStart`, gated by `!HasMadeInitialContact` | `"[N696CL] tower, november six niner six charlie lima three-mile final runway two eight right, with information Alpha."` |
+
+The IFR-with-approach branch derives the spoken approach name from `ApproachClearance.ApproachId`:
+- `I28R` → "ILS two eight right"
+- `R28R-Y` → "RNAV two eight right yankee"
+- `VIS28R` → "visual approach runway two eight right"
+- `V28R` → "VOR two eight right" / `L28R` → "localizer two eight right" / `N28R` → "NDB two eight right"
+- Unrecognized prefix → NATO-spelled fallback
+
+The VFR/no-approach branch uses `Math.Round(GeoMath.DistanceNm(position, threshold))`,
+clamped to a minimum of 1 — an aircraft spawning at 0.3 nm reads back "one-mile final".
+
+### Airborne arbitrary-spawn check-ins (M10.1.2 — corpus, not yet implemented)
+
+When an aircraft is first ticked airborne and `!HasMadeInitialContact`, fire a check-in
+chosen from `Scenario.StudentPositionType` × `aircraft.FlightPlan.IsVfr`. Direction comes
+from an 8-point compass quantizer over the aircraft-to-airport bearing; altitude renders
+sub-FL180 via `AltitudeToWords` and FL180+ as `"flight level X"`.
+
+| Student position | IFR | VFR (full-stop or transit) |
+|---|---|---|
+| Tower (Class D) | Rare. `"Tower, [callsign] runway [rwy], with information Alpha."` | `"Tower, [callsign] [N] miles [direction] at [altitude], inbound for landing, with information Alpha."` (full-stop) / `"Tower, [callsign] [N] miles [direction] at [altitude], request transition [direction]."` (overflight) |
+| Approach (TRACON) | `"Approach, [callsign] level [altitude], with information Alpha."` | `"Approach, [callsign] [N] miles [direction] at [altitude], request [landing/transition], with information Alpha."` |
+| Center (ARTCC) | `"Center, [callsign] flight level [FL]."` | `"Center, [callsign] at [altitude], [N] miles [direction] of [airport]."` |
+| Ground (rare for airborne) | skip | skip |

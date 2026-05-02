@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -289,6 +290,18 @@ public sealed class FinalApproachPhase : Phase
             _fasSet,
             startXte
         );
+
+        // Pilot check-in for aircraft that spawn directly on final. Aircraft that flew the
+        // approach sequence already announced upstream (at parking, on a STAR check-in) — the
+        // HasMadeInitialContact gate excludes them.
+        if (ctx.SoloTrainingMode && !ctx.Aircraft.HasMadeInitialContact)
+        {
+            var rwyId = ctx.Runway?.Designator ?? clearance?.RunwayId ?? "the runway";
+            var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
+            var distMiles = (int)Math.Round(startDist);
+            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles));
+            ctx.Aircraft.HasMadeInitialContact = true;
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)

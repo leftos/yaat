@@ -85,7 +85,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 |---|---|---|---|
 | [x] | **M10.0** | [m10.0-tts-spike.md](m10.0-tts-spike.md) | TTS pipeline spike — sherpa-onnx + Piper LibriTTS-R + radio DSP validated |
 | [x] | **M10.1** | [m10.1-pilot-readbacks.md](m10.1-pilot-readbacks.md) | Pilot voice (text-only readbacks) + AtParking IFR spawn check-in |
-| [ ] | **M10.1.1** | [m10.1.1-ground-spawn-checkins.md](m10.1.1-ground-spawn-checkins.md) | Ground spawn check-ins (IFR + VFR): HoldingShort, LinedUp, OnFinal + drop M10.1's IFR-only gate |
+| [x] | **M10.1.1** | [m10.1.1-ground-spawn-checkins.md](m10.1.1-ground-spawn-checkins.md) | Ground spawn check-ins (IFR + VFR): HoldingShort, LinedUp, OnFinal + drop M10.1's IFR-only gate |
 | [ ] | **M10.1.2** | [m10.1.2-airborne-spawn-checkins.md](m10.1.2-airborne-spawn-checkins.md) | Airborne-spawn check-ins: VFR inbound, IFR airborne arrival, VFR overflight transition, HOO sign-off |
 | [ ] | **M10.1.3** | [m10.1.3-vfr-pattern-work.md](m10.1.3-vfr-pattern-work.md) | VFR closed-traffic: initial-call request + per-leg announcements (downwind/base/final) |
 | [ ] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |

@@ -239,6 +239,13 @@ public sealed class HoldingShortPhaseDto : PhaseDto
 {
     public required int HoldShortNodeId { get; init; }
     public required string RunwayId { get; init; }
+
+    /// <summary>
+    /// Set after this phase instance fired its solo-training pilot check-in. Per-phase-instance
+    /// — fresh phase instances default to false, so re-entering the phase at a different
+    /// hold-short re-fires the announcement. Non-required so older snapshots default to false.
+    /// </summary>
+    public bool HasAnnouncedReady { get; init; }
 }
 
 public sealed class CrossingRunwayPhaseDto : PhaseDto

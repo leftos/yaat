@@ -45,6 +45,8 @@ public class SnapshotRoundTripTests
             Stars = new AircraftStarsState { Scratchpad1 = "OA1" },
             Procedure = new AircraftProcedure { SidViaMode = true, ActiveSidId = "OAK6" },
             Voice = new AircraftVoice { Type = 1 },
+            HasMadeInitialContact = true,
+            HasAnnouncedLinedUpReady = true,
         };
 
         ac.WindComponents = (5.0, -3.0);
@@ -78,6 +80,8 @@ public class SnapshotRoundTripTests
         Assert.Equal(ac.Targets.TargetAltitude, restored.Targets.TargetAltitude);
         Assert.Equal(ac.Targets.TargetSpeed, restored.Targets.TargetSpeed);
         Assert.Equal(ac.Targets.AssignedAltitude, restored.Targets.AssignedAltitude);
+        Assert.True(restored.HasMadeInitialContact);
+        Assert.True(restored.HasAnnouncedLinedUpReady);
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }
 

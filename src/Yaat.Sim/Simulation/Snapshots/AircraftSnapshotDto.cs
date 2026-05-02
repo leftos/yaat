@@ -32,6 +32,20 @@ public sealed class AircraftSnapshotDto
 
     public required bool IsOnGround { get; init; }
 
+    /// <summary>
+    /// Cross-phase pilot-comms one-shot: set the first time the aircraft transmits anything
+    /// in solo-training mode. Non-required so older snapshots (pre-M10.1.1) deserialize
+    /// cleanly with the default <see langword="false"/>.
+    /// </summary>
+    public bool HasMadeInitialContact { get; init; }
+
+    /// <summary>
+    /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder has fired once.
+    /// Non-required so older snapshots deserialize cleanly with the default
+    /// <see langword="false"/>.
+    /// </summary>
+    public bool HasAnnouncedLinedUpReady { get; init; }
+
     public required AircraftTrackDto Track { get; init; }
     public required AircraftStarsStateDto Stars { get; init; }
 

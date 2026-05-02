@@ -61,16 +61,69 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// Pilot-initiated spawn check-in: "Ground, {callsign} at the {parking}, ready to taxi."
-    /// Fired by <c>AtParkingPhase</c> 5 seconds after spawn for IFR aircraft (with a flight plan)
-    /// in solo-training mode. No controller-side rule equivalent — this is a pure pilot
-    /// utterance, so it lives here rather than in <c>PhraseologyRules</c>.
+    /// Pilot-initiated spawn check-in fired by <c>AtParkingPhase</c> 5 seconds after spawn
+    /// in solo-training mode. Both IFR and VFR aircraft check in. Output:
+    /// <c>"[N123AB] ground, november one two three alpha bravo at the ramp, with information Alpha, ready to taxi."</c>
+    /// No controller-side rule equivalent — this is a pure pilot utterance, so it lives here
+    /// rather than in <c>PhraseologyRules</c>.
     /// </summary>
     public static string BuildReadyToTaxi(AircraftState aircraft)
     {
         var location = aircraft.Ground.ParkingSpot is { Length: > 0 } spot ? $"at {spot.ToLowerInvariant()}" : "at the ramp";
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
-        return $"[{aircraft.Callsign}] ground, {spoken} {location}, ready to taxi.";
+        return $"[{aircraft.Callsign}] ground, {spoken} {location}, with information Alpha, ready to taxi.";
+    }
+
+    /// <summary>
+    /// Pilot check-in fired by <c>HoldingShortPhase</c> on entry (RunwayCrossing reason only)
+    /// in solo-training mode. Output:
+    /// <c>"[N123AB] tower, november one two three alpha bravo holding short runway two eight right, ready for departure."</c>
+    /// </summary>
+    public static string BuildHoldingShortReady(AircraftState aircraft, string runwayId)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
+        return $"[{aircraft.Callsign}] tower, {spoken} holding short runway {rwy}, ready for departure.";
+    }
+
+    /// <summary>
+    /// Pilot reminder fired by <c>LinedUpAndWaitingPhase</c> 10 seconds after entry when no
+    /// takeoff clearance has been issued — the "did you forget me?" call. Output:
+    /// <c>"[N123AB] tower, november one two three alpha bravo runway two eight right, ready."</c>
+    /// </summary>
+    public static string BuildLinedUpReady(AircraftState aircraft, string runwayId)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
+        return $"[{aircraft.Callsign}] tower, {spoken} runway {rwy}, ready.";
+    }
+
+    /// <summary>
+    /// Pilot check-in fired by <c>FinalApproachPhase</c> on entry for aircraft that
+    /// <em>spawned</em> on final (gated by <c>!HasMadeInitialContact</c>). Two branches:
+    /// <list type="bullet">
+    ///   <item><description>IFR with active approach: <c>"[N123AB] tower, american one twenty three, ILS two eight right."</c></description></item>
+    ///   <item><description>VFR / IFR-no-approach: <c>"[N123AB] tower, american one twenty three three-mile final runway two eight right, with information Alpha."</c></description></item>
+    /// </list>
+    /// </summary>
+    public static string BuildOnFinal(
+        AircraftState aircraft,
+        string runwayId,
+        bool ifrWithActiveApproach,
+        string? approachId,
+        int distanceMilesForVfr
+    )
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        if (ifrWithActiveApproach && !string.IsNullOrEmpty(approachId))
+        {
+            var apch = SpokenApproachName(approachId, runwayId);
+            return $"[{aircraft.Callsign}] tower, {spoken}, {apch}.";
+        }
+
+        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
+        var miles = Math.Max(1, distanceMilesForVfr);
+        return $"[{aircraft.Callsign}] tower, {spoken} {SpellMiles(miles)}-mile final runway {rwy}, with information Alpha.";
     }
 
     private static string Format(AircraftState aircraft, string body)
@@ -78,6 +131,67 @@ public static class PilotResponder
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         return $"[{aircraft.Callsign}] {body}, {spoken}.";
     }
+
+    /// <summary>
+    /// CIFP-style approach id ("I28R", "R28R-Y", "VIS28R") to ATC-spoken form
+    /// ("ILS two eight right", "RNAV two eight right yankee", "visual approach runway two eight right").
+    /// Falls back to NATO-spelled prefix + spoken runway if the prefix isn't recognized.
+    /// </summary>
+    internal static string SpokenApproachName(string approachId, string runwayId)
+    {
+        if (string.IsNullOrEmpty(approachId))
+        {
+            return string.Empty;
+        }
+
+        var rwySpelled = PhraseologyVerbalizer.SpellRunway(runwayId);
+        var dashIdx = approachId.IndexOf('-');
+        var suffix = dashIdx >= 0 && dashIdx < approachId.Length - 1 ? approachId[(dashIdx + 1)..] : null;
+        var head = dashIdx >= 0 ? approachId[..dashIdx] : approachId;
+
+        // Strip the trailing runway portion off the head ("I28R" → prefix "I"; "VIS28R" → prefix "VIS").
+        var prefixEnd = 0;
+        while (prefixEnd < head.Length && !char.IsDigit(head[prefixEnd]))
+        {
+            prefixEnd++;
+        }
+
+        var prefix = head[..prefixEnd];
+        var prefixSpoken = ExpandApproachPrefix(prefix);
+        var suffixSpoken = suffix is null ? string.Empty : " " + string.Join(' ', suffix.Select(c => NatoPhoneticAlphabet.SpellChar(c)));
+        return $"{prefixSpoken} {rwySpelled}{suffixSpoken}";
+    }
+
+    private static string ExpandApproachPrefix(string prefix) =>
+        prefix.ToUpperInvariant() switch
+        {
+            "I" => "ILS",
+            "R" => "RNAV",
+            "L" => "localizer",
+            "V" => "VOR",
+            "N" => "NDB",
+            "D" => "VOR DME",
+            "B" => "localizer back course",
+            "VIS" => "visual approach runway",
+            "" => string.Empty,
+            _ => string.Join(' ', prefix.Select(c => NatoPhoneticAlphabet.SpellChar(c))),
+        };
+
+    private static string SpellMiles(int miles) =>
+        miles switch
+        {
+            1 => "one",
+            2 => "two",
+            3 => "three",
+            4 => "four",
+            5 => "five",
+            6 => "six",
+            7 => "seven",
+            8 => "eight",
+            9 => "nine",
+            10 => "ten",
+            _ => miles.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
 
     private static string? FormatCondition(BlockCondition? condition) =>
         condition switch

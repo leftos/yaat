@@ -112,6 +112,22 @@ public class AircraftState
     public List<ApproachScore> PendingApproachScores { get; } = [];
     public ApproachScore? ActiveApproachScore { get; set; }
 
+    /// <summary>
+    /// Set the first time any pilot transmission fires for this aircraft (spawn check-in,
+    /// readback, leg announcement, proactive call). Cross-phase one-shot — gates "fresh-spawn"
+    /// check-ins (FinalApproachPhase, future airborne-spawn) so they don't re-fire after the
+    /// aircraft has already been talking. Snapshot-serialized so replays produce identical
+    /// pilot output.
+    /// </summary>
+    public bool HasMadeInitialContact { get; set; }
+
+    /// <summary>
+    /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder fires once. Never
+    /// cleared — a single LUAW is one logical event, so a touch-and-go's second LUAW does
+    /// not re-fire the reminder. Snapshot-serialized.
+    /// </summary>
+    public bool HasAnnouncedLinedUpReady { get; set; }
+
     public NavTickDiag? LastNavDiag { get; set; }
 
     public AircraftTrack Track { get; set; } = new();
@@ -169,6 +185,8 @@ public class AircraftState
             Ground = AircraftGroundOps.FromSnapshot(dto.Ground, groundLayout),
             Transponder = AircraftTransponder.FromSnapshot(dto.Transponder),
             IsOnGround = dto.IsOnGround,
+            HasMadeInitialContact = dto.HasMadeInitialContact,
+            HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             Track = AircraftTrack.FromSnapshot(dto.Track),
             Stars = AircraftStarsState.FromSnapshot(dto.Stars),
             Approach = AircraftApproachState.FromSnapshot(dto.Approach),
@@ -230,6 +248,8 @@ public class AircraftState
             Ground = Ground.ToSnapshot(),
             Transponder = Transponder.ToSnapshot(),
             IsOnGround = IsOnGround,
+            HasMadeInitialContact = HasMadeInitialContact,
+            HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             Track = Track.ToSnapshot(),
             Stars = Stars.ToSnapshot(),
             Approach = Approach.ToSnapshot(),

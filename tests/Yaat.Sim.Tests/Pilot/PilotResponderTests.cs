@@ -13,14 +13,19 @@ public class PilotResponderTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static AircraftState MakeAircraft(string callsign, string? parkingSpot = null)
+    private static AircraftState MakeAircraft(string callsign, string? parkingSpot = null, bool isVfr = false)
     {
-        return new AircraftState
+        var ac = new AircraftState
         {
             Callsign = callsign,
             AircraftType = "B738",
             Ground = new AircraftGroundOps { ParkingSpot = parkingSpot },
         };
+        if (isVfr)
+        {
+            ac.FlightPlan.FlightRules = "VFR";
+        }
+        return ac;
     }
 
     private static CompoundCommand Compound(params ParsedCommand[] commands) => new([new ParsedBlock(null, commands.ToList())]);
@@ -111,7 +116,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
         var result = PilotResponder.BuildReadyToTaxi(ac);
 
-        Assert.Equal("[N123AB] ground, november one two three alpha bravo at gate b22, ready to taxi.", result);
+        Assert.Equal("[N123AB] ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result);
     }
 
     [Fact]
@@ -120,6 +125,93 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var result = PilotResponder.BuildReadyToTaxi(ac);
 
-        Assert.Equal("[AAL123] ground, american one twenty three at the ramp, ready to taxi.", result);
+        Assert.Equal("[AAL123] ground, american one twenty three at the ramp, with information Alpha, ready to taxi.", result);
+    }
+
+    // --- BuildHoldingShortReady ---
+
+    [Fact]
+    public void BuildHoldingShortReady_FormatsRunwaySpoken()
+    {
+        var ac = MakeAircraft("N123AB");
+        var result = PilotResponder.BuildHoldingShortReady(ac, "28R");
+
+        Assert.Equal("[N123AB] tower, november one two three alpha bravo holding short runway two eight right, ready for departure.", result);
+    }
+
+    [Fact]
+    public void BuildHoldingShortReady_AirlineCallsign_UsesTelephony()
+    {
+        var ac = MakeAircraft("AAL123");
+        var result = PilotResponder.BuildHoldingShortReady(ac, "9L");
+
+        Assert.Contains("american one twenty three holding short runway nine left", result);
+    }
+
+    // --- BuildLinedUpReady ---
+
+    [Fact]
+    public void BuildLinedUpReady_FormatsRunwaySpoken()
+    {
+        var ac = MakeAircraft("N123AB");
+        var result = PilotResponder.BuildLinedUpReady(ac, "28R");
+
+        Assert.Equal("[N123AB] tower, november one two three alpha bravo runway two eight right, ready.", result);
+    }
+
+    // --- BuildOnFinal ---
+
+    [Fact]
+    public void BuildOnFinal_IfrWithIlsApproach_SpellsIlsBeforeRunway()
+    {
+        var ac = MakeAircraft("AAL123");
+        var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "I28R", distanceMilesForVfr: 0);
+
+        Assert.Equal("[AAL123] tower, american one twenty three, ILS two eight right.", result);
+    }
+
+    [Fact]
+    public void BuildOnFinal_IfrWithRnavApproachAndSuffix_IncludesSuffixLetter()
+    {
+        var ac = MakeAircraft("AAL123");
+        var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "R28R-Y", distanceMilesForVfr: 0);
+
+        Assert.Equal("[AAL123] tower, american one twenty three, RNAV two eight right yankee.", result);
+    }
+
+    [Fact]
+    public void BuildOnFinal_IfrWithVisualApproach_UsesExpandedPhrasing()
+    {
+        var ac = MakeAircraft("AAL123");
+        var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "VIS28R", distanceMilesForVfr: 0);
+
+        Assert.Equal("[AAL123] tower, american one twenty three, visual approach runway two eight right.", result);
+    }
+
+    [Fact]
+    public void BuildOnFinal_VfrNoApproach_ReportsDistanceAndAtis()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 3);
+
+        Assert.Equal("[N123AB] tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.", result);
+    }
+
+    [Fact]
+    public void BuildOnFinal_VfrUnderOneMile_ClampsToOneMile()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 0);
+
+        Assert.Contains("one-mile final", result);
+    }
+
+    [Fact]
+    public void BuildOnFinal_IfrNoApproach_FallsBackToVfrTemplate()
+    {
+        var ac = MakeAircraft("AAL123");
+        var result = PilotResponder.BuildOnFinal(ac, "9", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 5);
+
+        Assert.Equal("[AAL123] tower, american one twenty three five-mile final runway nine, with information Alpha.", result);
     }
 }

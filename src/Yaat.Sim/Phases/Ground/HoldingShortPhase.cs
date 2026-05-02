@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -16,6 +17,7 @@ public sealed class HoldingShortPhase : Phase
     private static readonly ILogger Log = SimLog.CreateLogger("HoldingShortPhase");
 
     private readonly HoldShortPoint _holdShort;
+    private bool _hasAnnouncedReady;
 
     public HoldingShortPhase(HoldShortPoint holdShort)
     {
@@ -49,6 +51,18 @@ public sealed class HoldingShortPhase : Phase
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {label} at {taxiway}");
+
+        if (
+            ctx.SoloTrainingMode
+            && !_hasAnnouncedReady
+            && _holdShort.Reason != HoldShortReason.ExplicitHoldShort
+            && _holdShort.TargetName is { Length: > 0 } runwayId
+        )
+        {
+            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId));
+            _hasAnnouncedReady = true;
+            ctx.Aircraft.HasMadeInitialContact = true;
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -106,6 +120,7 @@ public sealed class HoldingShortPhase : Phase
             Requirements = SnapshotRequirements(),
             HoldShortNodeId = _holdShort.NodeId,
             RunwayId = _holdShort.TargetName ?? string.Empty,
+            HasAnnouncedReady = _hasAnnouncedReady,
         };
 
     public static HoldingShortPhase FromSnapshot(HoldingShortPhaseDto dto)
@@ -117,7 +132,7 @@ public sealed class HoldingShortPhase : Phase
             TargetName = string.IsNullOrEmpty(dto.RunwayId) ? null : dto.RunwayId,
         };
 
-        var phase = new HoldingShortPhase(holdShort);
+        var phase = new HoldingShortPhase(holdShort) { _hasAnnouncedReady = dto.HasAnnouncedReady };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
