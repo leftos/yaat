@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -130,7 +131,9 @@ public sealed class DownwindPhase : Phase
     {
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
 
-        // Midfield downwind broadcast: remind controller if no landing clearance
+        // Midfield downwind broadcast: remind controller if no landing clearance.
+        // Solo-training VFR pattern aircraft voice the reminder as pilot speech (PendingNotifications);
+        // RPO mode keeps the controller-facing warning (PendingWarnings).
         if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)
         {
             double midfieldAlongTrack = _abeamAlongTrack / 2.0;
@@ -140,7 +143,14 @@ public sealed class DownwindPhase : Phase
                 if (!HasLandingClearance(ctx))
                 {
                     string runwayId = ctx.Runway?.Designator ?? "unknown";
-                    ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}");
+                    if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)
+                    {
+                        ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId));
+                    }
+                    else
+                    {
+                        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}");
+                    }
                 }
             }
         }

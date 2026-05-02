@@ -214,4 +214,77 @@ public class PilotResponderTests
 
         Assert.Equal("[AAL123] tower, american one twenty three five-mile final runway nine, with information Alpha.", result);
     }
+
+    // --- BuildClosedTrafficRequest ---
+
+    [Fact]
+    public void BuildClosedTrafficRequest_VfrThreeMilesSouth_FormatsCanonical()
+    {
+        var airport = new LatLon(37.7212, -122.2208);
+        // 3 nm south at 1500 ft.
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        ac.Position = GeoMath.ProjectPoint(airport, new TrueHeading(180), 3);
+
+        var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1500);
+
+        Assert.Equal(
+            "[N123AB] tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha.",
+            result
+        );
+    }
+
+    [Fact]
+    public void BuildClosedTrafficRequest_AirlineCallsign_UsesTelephony()
+    {
+        var airport = new LatLon(37.7212, -122.2208);
+        var ac = MakeAircraft("AAL123", isVfr: true);
+        ac.Position = GeoMath.ProjectPoint(airport, new TrueHeading(90), 5);
+
+        var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 2000);
+
+        Assert.Equal(
+            "[AAL123] tower, american one twenty three, five miles east at two thousand, request closed traffic, with information Alpha.",
+            result
+        );
+    }
+
+    // --- BuildMidfieldDownwindReminder ---
+
+    [Fact]
+    public void BuildMidfieldDownwindReminder_FormatsRunwaySpoken()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        var result = PilotResponder.BuildMidfieldDownwindReminder(ac, "28R");
+
+        Assert.Equal("[N123AB] november one two three alpha bravo, midfield downwind runway two eight right.", result);
+    }
+
+    [Fact]
+    public void BuildMidfieldDownwindReminder_AirlineCallsign_UsesTelephony()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: true);
+        var result = PilotResponder.BuildMidfieldDownwindReminder(ac, "9L");
+
+        Assert.Equal("[AAL123] american one twenty three, midfield downwind runway nine left.", result);
+    }
+
+    // --- BuildShortFinalReminder ---
+
+    [Fact]
+    public void BuildShortFinalReminder_FormatsRunwaySpoken()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        var result = PilotResponder.BuildShortFinalReminder(ac, "28R");
+
+        Assert.Equal("[N123AB] november one two three alpha bravo, short final runway two eight right.", result);
+    }
+
+    [Fact]
+    public void BuildShortFinalReminder_NoSuffixRunway()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        var result = PilotResponder.BuildShortFinalReminder(ac, "9");
+
+        Assert.Equal("[N123AB] november one two three alpha bravo, short final runway nine.", result);
+    }
 }

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -59,6 +60,8 @@ public sealed class PatternEntryPhase : Phase
     public double? LeadInLat { get; init; }
     public double? LeadInLon { get; init; }
 
+    private bool _hasAnnouncedInitialCall;
+
     public override string Name => "Pattern Entry";
     public override bool ManagesSpeed => true;
 
@@ -105,6 +108,23 @@ public sealed class PatternEntryPhase : Phase
             ctx.Aircraft.Altitude,
             PatternAltitude
         );
+
+        // Initial-contact closed-traffic request for VFR pattern aircraft. Anchors distance/bearing
+        // to the runway threshold (closest stable airport reference available to the phase).
+        if (
+            ctx.SoloTrainingMode
+            && ctx.Aircraft.FlightPlan.IsVfr
+            && !_hasAnnouncedInitialCall
+            && !ctx.Aircraft.HasMadeInitialContact
+            && ctx.Runway is not null
+        )
+        {
+            var airportPos = new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude);
+            int altitudeFt = (int)Math.Round(ctx.Aircraft.Altitude);
+            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt));
+            _hasAnnouncedInitialCall = true;
+            ctx.Aircraft.HasMadeInitialContact = true;
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -143,6 +163,7 @@ public sealed class PatternEntryPhase : Phase
             Kind = (int)Kind,
             LeadInLat = LeadInLat,
             LeadInLon = LeadInLon,
+            HasAnnouncedInitialCall = _hasAnnouncedInitialCall,
         };
 
     public static PatternEntryPhase FromSnapshot(PatternEntryPhaseDto dto)
@@ -155,6 +176,7 @@ public sealed class PatternEntryPhase : Phase
             Kind = (PatternEntryKind)dto.Kind,
             LeadInLat = dto.LeadInLat,
             LeadInLon = dto.LeadInLon,
+            _hasAnnouncedInitialCall = dto.HasAnnouncedInitialCall,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

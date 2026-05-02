@@ -629,6 +629,7 @@ public sealed class PatternEntryPhaseDto : PhaseDto
     public required int Kind { get; init; }
     public double? LeadInLat { get; init; }
     public double? LeadInLon { get; init; }
+    public bool HasAnnouncedInitialCall { get; init; }
 }
 
 public sealed class BasePhaseDto : PhaseDto

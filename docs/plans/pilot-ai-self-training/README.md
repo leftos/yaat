@@ -87,7 +87,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.1** | [m10.1-pilot-readbacks.md](m10.1-pilot-readbacks.md) | Pilot voice (text-only readbacks) + AtParking IFR spawn check-in |
 | [x] | **M10.1.1** | [m10.1.1-ground-spawn-checkins.md](m10.1.1-ground-spawn-checkins.md) | Ground spawn check-ins (IFR + VFR): HoldingShort, LinedUp, OnFinal + drop M10.1's IFR-only gate |
 | [x] | **M10.1.2** | [m10.1.2-airborne-spawn-checkins.md](m10.1.2-airborne-spawn-checkins.md) | Airborne-spawn check-ins: VFR inbound, IFR airborne arrival, VFR overflight transition |
-| [ ] | **M10.1.3** | [m10.1.3-vfr-pattern-work.md](m10.1.3-vfr-pattern-work.md) | VFR closed-traffic: initial-call request + per-leg announcements (downwind/base/final) |
+| [x] | **M10.1.3** | [m10.1.3-vfr-pattern-work.md](m10.1.3-vfr-pattern-work.md) | VFR closed-traffic: initial-call request + uncleared-only reminders at midfield-downwind and short-final |
 | [ ] | **M10.1.4** | [m10.1.4-hoo-signoff.md](m10.1.4-hoo-signoff.md) | HOO accept / DROP sign-off speech ("Departure on 125.35, callsign, so long") |
 | [ ] | **M10.1.5** | [m10.1.5-vfr-airspace-respect.md](m10.1.5-vfr-airspace-respect.md) | VFR self-restrict outside Class B (no clearance) / Class C (no two-way comms) until gate satisfied |
 | [ ] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
@@ -105,6 +105,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 - **Pilot speech inverts `PhraseologyRules`** — single source of truth; one rule covers both controller-input parsing (M10.2) and pilot-readback generation (M10.1+).
 - **Missed approach uses warn-early-then-miss-at-DA pattern** (M10.5).
 - **First production ship was M10.1; M10.1.1 + M10.1.2 + M10.1.3 form the VFR-emphasis pull-forward** (decided 2026-05-02 — moved airborne-spawn out of M10.4 to land alongside ground-spawn).
+- **Towered-field pilot speech is no-clearance-driven, not phase-entry-driven** (decided 2026-05-02 during M10.1.3 planning). At Class D / Class C tower fields, pilots in closed traffic do **not** self-announce every leg at phase entry. They speak twice: (1) initial contact with intent (`"request closed traffic"`) on first phase activation, and (2) reminder transmissions at midfield-downwind or short-final **only if** tower hasn't cleared them yet. The existing `_midfieldBroadcastIssued` block in `DownwindPhase` already encodes the right trigger; M10.1.3 branches its output by mode. Position reports go in `OnTick` with a clearance gate; intent declarations go in `OnStart`. Output channel branches on `SoloTrainingMode`: `PendingNotifications` (pilot speech) in solo mode, `PendingWarnings` (controller nag, existing behavior) in RPO mode.
 - **The old `docs/plans/pilot-ai-architecture.md` is deleted as part of M10.6.**
 
 ## Reused infrastructure (don't reinvent these)

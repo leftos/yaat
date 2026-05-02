@@ -128,6 +128,52 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Initial-contact check-in for VFR aircraft joining a towered field's traffic pattern for
+    /// closed traffic. Fired by <c>PatternEntryPhase</c> on entry in solo-training mode, gated
+    /// by <c>!HasMadeInitialContact</c>. Output:
+    /// <c>"[N123AB] tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha."</c>
+    /// </summary>
+    public static string BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        double distNm = GeoMath.DistanceNm(airportPosition, aircraft.Position);
+        int distMiles = Math.Max(1, (int)Math.Round(distNm));
+        double bearingFromAirport = GeoMath.BearingTo(airportPosition, aircraft.Position);
+        string direction = BearingToCardinal8(bearingFromAirport);
+        string distWords = SpellDistanceDigits(distMiles);
+        string altitudeWords = AtcNumberParser.AltitudeToWords(altitudeFt);
+        return $"[{aircraft.Callsign}] tower, {spoken}, {distWords} miles {direction} at {altitudeWords}, request closed traffic, with information Alpha.";
+    }
+
+    /// <summary>
+    /// Brief uncleared-traffic reminder fired by <c>DownwindPhase</c> at midfield downwind when
+    /// the aircraft has no landing clearance, in solo-training mode for VFR pattern aircraft.
+    /// Output:
+    /// <c>"[N123AB] november one two three alpha bravo, midfield downwind runway two eight right."</c>
+    /// </summary>
+    public static string BuildMidfieldDownwindReminder(AircraftState aircraft, string runwayId)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
+        return $"[{aircraft.Callsign}] {spoken}, midfield downwind runway {rwy}.";
+    }
+
+    /// <summary>
+    /// Brief uncleared-traffic reminder fired by <c>FinalApproachPhase</c> at 1 NM from threshold
+    /// when the aircraft has no landing clearance, in solo-training mode for VFR pattern aircraft.
+    /// Uses the GA-pilot colloquial "short final" form rather than the FAA controller-canonical
+    /// "(distance) mile final" — pilot transmissions don't have to mirror 7110.65 phraseology.
+    /// Output:
+    /// <c>"[N123AB] november one two three alpha bravo, short final runway two eight right."</c>
+    /// </summary>
+    public static string BuildShortFinalReminder(AircraftState aircraft, string runwayId)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
+        return $"[{aircraft.Callsign}] {spoken}, short final runway {rwy}.";
+    }
+
+    /// <summary>
     /// Pilot airborne-spawn check-in fired by <see cref="PilotProactive.TickAirborneCheckIn"/>
     /// the first tick an aircraft is observed airborne in solo-training mode and has not
     /// yet spoken to ATC. Branches on <see cref="SimScenarioState.StudentPositionType"/>

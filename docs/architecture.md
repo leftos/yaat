@@ -410,7 +410,7 @@ HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", f
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → spoken-English readback string.
                                # Picks the first-declared rule per CanonicalCommandType (textbook form), substitutes captures via AtcNumberParser
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
-                               # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn check-in live here directly
+                               # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
 Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode.
                                # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Future home for pending-clearance reminders + DA/MDA missed-approach
 Pilot/PilotPersonality.cs      # Enum (Verbatim) controlling readback variation; Verbatim emits the textbook form for every command

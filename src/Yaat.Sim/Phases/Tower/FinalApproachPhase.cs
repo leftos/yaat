@@ -293,8 +293,10 @@ public sealed class FinalApproachPhase : Phase
 
         // Pilot check-in for aircraft that spawn directly on final. Aircraft that flew the
         // approach sequence already announced upstream (at parking, on a STAR check-in) — the
-        // HasMadeInitialContact gate excludes them.
-        if (ctx.SoloTrainingMode && !ctx.Aircraft.HasMadeInitialContact)
+        // HasMadeInitialContact gate excludes them. Pattern traffic is also excluded:
+        // PatternEntryPhase fires its own initial-call (closed-traffic request), and the
+        // uncleared short-final reminder below handles the mid-final pilot speech.
+        if (ctx.SoloTrainingMode && !ctx.Aircraft.HasMadeInitialContact && !_isPatternTraffic)
         {
             var rwyId = ctx.Runway?.Designator ?? clearance?.RunwayId ?? "the runway";
             var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
@@ -529,11 +531,21 @@ public sealed class FinalApproachPhase : Phase
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);
 
-        // Warn at 1nm if no landing clearance (only when auto-CTL is off)
+        // Warn at 1nm if no landing clearance (only when auto-CTL is off).
+        // Solo-training VFR pattern aircraft voice the reminder as pilot speech (PendingNotifications);
+        // every other aircraft (IFR, non-pattern, RPO mode) keeps the controller-facing warning.
         if ((distNm <= NoClearanceWarningDistNm) && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
         {
             _noClearanceWarningIssued = true;
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance");
+            if (ctx.SoloTrainingMode && _isPatternTraffic && ctx.Aircraft.FlightPlan.IsVfr)
+            {
+                string runwayId = ctx.Runway?.Designator ?? "the runway";
+                ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId));
+            }
+            else
+            {
+                ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance");
+            }
         }
 
         // Auto go-around if no landing clearance by 200ft AGL
