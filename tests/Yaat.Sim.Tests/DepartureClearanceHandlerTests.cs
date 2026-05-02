@@ -1181,4 +1181,88 @@ public class DepartureClearanceHandlerTests
         Assert.NotNull(tracked);
         Assert.Equal([10, 12], tracked!.OrderBy(id => id).ToArray());
     }
+
+    // -------------------------------------------------------------------------
+    // CTOC during LineUpPhase (controller cancels CTO while aircraft is taxiing
+    // into position on the runway, before takeoff roll begins)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryCancelTakeoff_DuringLineUp_NonRolling_UnsatisfiesUpcomingLuaw()
+    {
+        // CTO at hold-short with non-rolling aircraft (heavy/super) inserts:
+        //   [LineUpPhase, LinedUpAndWaitingPhase (CTO pre-satisfied), TakeoffPhase, ...]
+        // CTOC mid-line-up must reach forward to the pending LUAW and unsatisfy
+        // its CTO requirement so the aircraft holds on the runway when the
+        // line-up completes, instead of rolling.
+        var ac = MakeAircraft();
+        var lineup = new LineUpPhase { Status = PhaseStatus.Active };
+        var luaw = new LinedUpAndWaitingPhase { Departure = new RunwayHeadingDeparture(), AssignedAltitude = 5000 };
+        // Pre-satisfy the LUAW's CTO requirement, mirroring InsertTowerPhasesAfterCurrent.
+        luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+        ac.Phases!.Add(lineup);
+        ac.Phases.Add(luaw);
+        ac.Phases.Add(new TakeoffPhase());
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+
+        Assert.True(result.Success, $"expected success, got: {result.Message}");
+        Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.False(luaw.Requirements.First(r => r.Type == ClearanceType.ClearedForTakeoff).IsSatisfied);
+        Assert.Null(luaw.Departure);
+        Assert.Null(luaw.AssignedAltitude);
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringLineUp_Rolling_FlipsRollingModeAndInsertsLuaw()
+    {
+        // Rolling-CTO insertion shape:
+        //   [LineUpPhase (RollingMode=true), TakeoffPhase, ...]
+        // CTOC must (1) revert RollingMode so the rollout brakes to a stop,
+        // (2) insert a fresh unsatisfied LinedUpAndWaitingPhase between
+        // LineUpPhase and TakeoffPhase so the aircraft holds when line-up ends.
+        var ac = MakeAircraft();
+        var lineup = new LineUpPhase { Status = PhaseStatus.Active, RollingMode = true };
+        var takeoff = new TakeoffPhase();
+        ac.Phases!.Add(lineup);
+        ac.Phases.Add(takeoff);
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+
+        Assert.True(result.Success, $"expected success, got: {result.Message}");
+        Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.False(lineup.RollingMode, "rolling must be reverted so rollout brakes to stop");
+
+        // A fresh LUAW must sit between LineUpPhase and TakeoffPhase
+        int lineupIdx = ac.Phases.Phases.IndexOf(lineup);
+        int takeoffIdx = ac.Phases.Phases.IndexOf(takeoff);
+        Assert.Equal(lineupIdx + 2, takeoffIdx);
+        var inserted = ac.Phases.Phases[lineupIdx + 1] as LinedUpAndWaitingPhase;
+        Assert.NotNull(inserted);
+        Assert.False(
+            inserted!.Requirements.First(r => r.Type == ClearanceType.ClearedForTakeoff).IsSatisfied,
+            "inserted LUAW must NOT have CTO pre-satisfied"
+        );
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringLineUp_Rolling_HelicopterTakeoffNext()
+    {
+        // Same as the previous test, but the next phase is HelicopterTakeoffPhase
+        // (rolling helicopter). The LUAW must still be inserted before it.
+        var ac = MakeAircraft();
+        var lineup = new LineUpPhase { Status = PhaseStatus.Active, RollingMode = true };
+        var heliTakeoff = new HelicopterTakeoffPhase();
+        ac.Phases!.Add(lineup);
+        ac.Phases.Add(heliTakeoff);
+
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+
+        Assert.True(result.Success);
+        Assert.False(lineup.RollingMode);
+        int lineupIdx = ac.Phases.Phases.IndexOf(lineup);
+        int heliIdx = ac.Phases.Phases.IndexOf(heliTakeoff);
+        Assert.Equal(lineupIdx + 2, heliIdx);
+        Assert.IsType<LinedUpAndWaitingPhase>(ac.Phases.Phases[lineupIdx + 1]);
+    }
 }

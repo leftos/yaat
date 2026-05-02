@@ -1089,6 +1089,10 @@ internal static class DepartureClearanceHandler
             luawCancel.AssignedAltitude = null;
             return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
         }
+        if (currentPhase is LineUpPhase lineup)
+        {
+            return CancelTakeoffDuringLineUp(aircraft, lineup);
+        }
         if (currentPhase is TaxiingPhase && aircraft.Phases?.DepartureClearance is { Type: ClearanceType.ClearedForTakeoff } stored)
         {
             // CTO was issued mid-taxi and stored for the taxi phase to consume
@@ -1131,6 +1135,66 @@ internal static class DepartureClearanceHandler
             aircraft.Targets.TargetSpeed = 0;
             return CommandDispatcher.Ok("Abort takeoff, hold position");
         }
+        return new CommandResult(false, "No takeoff clearance to cancel");
+    }
+
+    /// <summary>
+    /// Cancel a takeoff clearance while the aircraft is in <see cref="LineUpPhase"/>.
+    /// Two phase-list shapes possible:
+    /// <list type="bullet">
+    ///   <item><b>Non-rolling</b> (heavy/super or non-rolling-eligible): the upcoming
+    ///         pending <see cref="LinedUpAndWaitingPhase"/> has its CTO requirement
+    ///         pre-satisfied. Cancel by un-satisfying it; the aircraft completes
+    ///         line-up and then holds.</item>
+    ///   <item><b>Rolling</b>: no LUAW phase exists between line-up and takeoff.
+    ///         Flip <see cref="LineUpPhase.RollingMode"/> to false (so the rollout
+    ///         brakes to a stop instead of cruising into TakeoffPhase) and insert
+    ///         a fresh unsatisfied <see cref="LinedUpAndWaitingPhase"/> ahead of
+    ///         the takeoff phase.</item>
+    /// </list>
+    /// </summary>
+    private static CommandResult CancelTakeoffDuringLineUp(AircraftState aircraft, LineUpPhase lineup)
+    {
+        var phases = aircraft.Phases?.Phases;
+        if (phases is null)
+        {
+            return new CommandResult(false, "No takeoff clearance to cancel");
+        }
+
+        int selfIdx = phases.IndexOf(lineup);
+        if (selfIdx < 0)
+        {
+            return new CommandResult(false, "No takeoff clearance to cancel");
+        }
+
+        // Look for an upcoming pending LUAW (non-rolling shape) before any takeoff phase.
+        for (int i = selfIdx + 1; i < phases.Count; i++)
+        {
+            var p = phases[i];
+            if (p is LinedUpAndWaitingPhase upcomingLuaw && p.Status == PhaseStatus.Pending)
+            {
+                foreach (var req in upcomingLuaw.Requirements)
+                {
+                    if (req.Type == ClearanceType.ClearedForTakeoff)
+                    {
+                        req.IsSatisfied = false;
+                    }
+                }
+                upcomingLuaw.Departure = null;
+                upcomingLuaw.AssignedAltitude = null;
+                return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+            }
+            if (p is TakeoffPhase or HelicopterTakeoffPhase)
+            {
+                // Rolling shape: no LUAW between line-up and takeoff. Demote
+                // line-up out of rolling mode and insert a fresh unsatisfied
+                // LUAW so the aircraft holds when the line-up brake completes.
+                lineup.RollingMode = false;
+                phases.Insert(i, new LinedUpAndWaitingPhase());
+                return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+            }
+        }
+
         return new CommandResult(false, "No takeoff clearance to cancel");
     }
 

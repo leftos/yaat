@@ -125,9 +125,10 @@ public sealed class LineUpPhase : Phase
     /// phase completes at the stop point for handoff to <see cref="TakeoffPhase"/>.
     /// Derived at <see cref="OnStart"/> from the phase list shape (next pending
     /// phase is TakeoffPhase ⇒ rolling) and mutable mid-phase via
-    /// <see cref="TryUpgradeToRolling"/>.
+    /// <see cref="TryUpgradeToRolling"/> (upgrade) or
+    /// <see cref="DepartureClearanceHandler.TryCancelTakeoff"/> (revert via CTOC).
     /// </summary>
-    public bool RollingMode { get; private set; }
+    public bool RollingMode { get; internal set; }
 
     /// <summary>Working copy of the arc/slow-turn playback state. Valid during Arc, PivotTurn1, PivotTurn2.</summary>
     private LineUpArcPlayback _arcState;
