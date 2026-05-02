@@ -46,11 +46,12 @@ public sealed class LinedUpAndWaitingPhase : Phase
     public int? AssignedAltitude { get; set; }
 
     /// <summary>
-    /// Delay before the "ready, waiting on takeoff clearance" reminder fires once. Mirrors
-    /// <see cref="Ground.AtParkingPhase.ReadyToTaxiDelaySeconds"/>'s pattern but longer — the
-    /// pilot pauses a beat after hitting the runway before nudging the controller.
+    /// Delay before the "ready, waiting on takeoff clearance" reminder fires once. Anchored at
+    /// 90 seconds — the FAA's recommended interval after which the controller should reassert
+    /// to a holding pilot why they are still waiting. A real pilot held silent through that
+    /// window typically pings the tower right around the same threshold.
     /// </summary>
-    public const double LinedUpReadyDelaySeconds = 10.0;
+    public const double LinedUpReadyDelaySeconds = 90.0;
 
     public override void OnStart(PhaseContext ctx)
     {

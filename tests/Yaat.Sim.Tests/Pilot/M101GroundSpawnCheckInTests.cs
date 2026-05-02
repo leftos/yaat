@@ -219,7 +219,7 @@ public class M101GroundSpawnCheckInTests
         var ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
-        TickElapsed(phase, ctx, 9.9);
+        TickElapsed(phase, ctx, 89.9);
 
         Assert.Empty(ac.PendingNotifications);
     }
@@ -233,7 +233,7 @@ public class M101GroundSpawnCheckInTests
         var ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
-        TickElapsed(phase, ctx, 10.0);
+        TickElapsed(phase, ctx, 90.0);
 
         Assert.Single(ac.PendingNotifications);
         Assert.Contains("runway two eight right, ready", ac.PendingNotifications[0]);
@@ -241,8 +241,8 @@ public class M101GroundSpawnCheckInTests
         Assert.True(ac.HasMadeInitialContact);
 
         // Subsequent ticks must not re-fire.
-        TickElapsed(phase, ctx, 11.0);
-        TickElapsed(phase, ctx, 30.0);
+        TickElapsed(phase, ctx, 95.0);
+        TickElapsed(phase, ctx, 180.0);
         Assert.Single(ac.PendingNotifications);
     }
 
@@ -256,7 +256,7 @@ public class M101GroundSpawnCheckInTests
         var ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
-        TickElapsed(phase, ctx, 30.0);
+        TickElapsed(phase, ctx, 120.0);
 
         Assert.Empty(ac.PendingNotifications);
         Assert.False(ac.HasAnnouncedLinedUpReady);
