@@ -35,7 +35,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 30,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Vehicle",
@@ -73,7 +74,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 30,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Vehicle",
@@ -111,7 +113,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 30,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Vehicle",
@@ -149,7 +152,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 30,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Vehicle",
@@ -187,7 +191,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 30,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Vehicle",
@@ -225,7 +230,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 30,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Vehicle",
@@ -263,7 +269,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 30,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Bell",
@@ -301,7 +308,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 39,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Robinson",
@@ -339,7 +347,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 96,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "Robinson",
@@ -377,7 +386,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 38,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "AIRBUS",
@@ -415,7 +425,8 @@
     "patternSpeed": 150,
     "holdingSpeed": 220,
     "length": 175,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 29800
   },
   {
     "manufacturer": "AIRBUS",
@@ -453,7 +464,8 @@
     "patternSpeed": 150,
     "holdingSpeed": 220,
     "length": 177,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "AIRBUS",
@@ -491,7 +503,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 153,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34000
   },
   {
     "manufacturer": "AIRBUS",
@@ -529,7 +542,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 103,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 33200
   },
   {
     "manufacturer": "AIRBUS",
@@ -567,7 +581,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 111,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 33200
   },
   {
     "manufacturer": "AIRBUS",
@@ -605,7 +620,8 @@
     "patternSpeed": 157,
     "holdingSpeed": 220,
     "length": 123,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "AIRBUS",
@@ -643,7 +659,8 @@
     "patternSpeed": 154,
     "holdingSpeed": 220,
     "length": 146,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "AIRBUS",
@@ -681,7 +698,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 192,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "AIRBUS",
@@ -719,7 +737,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 208,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "AIRBUS",
@@ -757,7 +776,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 194,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "AIRBUS",
@@ -795,7 +815,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 208,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "AIRBUS",
@@ -833,7 +854,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 222,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "AIRBUS",
@@ -871,7 +893,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 247,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "ATR",
@@ -909,7 +932,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 74,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "ATR",
@@ -947,7 +971,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 74,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20800
   },
   {
     "manufacturer": "ATR",
@@ -985,7 +1010,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 89,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "RAYTHEON",
@@ -1023,7 +1049,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 57,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "NORTHROP",
@@ -1061,7 +1088,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 68,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 42500
   },
   {
     "manufacturer": "RAYTHEON",
@@ -1099,7 +1127,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 46,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 28000
   },
   {
     "manufacturer": "RAYTHEON",
@@ -1137,7 +1166,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 46,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 28000
   },
   {
     "manufacturer": "BRITISH AEROSPACE",
@@ -1175,7 +1205,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 85,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 26400
   },
   {
     "manufacturer": "BRITISH AEROSPACE",
@@ -1213,7 +1244,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 93,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 26400
   },
   {
     "manufacturer": "BRITISH AEROSPACE",
@@ -1251,7 +1283,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 101,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 26400
   },
   {
     "manufacturer": "BOEING",
@@ -1289,7 +1322,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 152,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 33200
   },
   {
     "manufacturer": "BOEING",
@@ -1327,7 +1361,8 @@
     "patternSpeed": 159,
     "holdingSpeed": 220,
     "length": 124,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "BOEING",
@@ -1365,7 +1400,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 153,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34000
   },
   {
     "manufacturer": "BOEING",
@@ -1403,7 +1439,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 100,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "BOEING",
@@ -1441,7 +1478,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 109,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "BOEING",
@@ -1479,7 +1517,8 @@
     "patternSpeed": 157,
     "holdingSpeed": 220,
     "length": 119,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "BOEING",
@@ -1517,7 +1556,8 @@
     "patternSpeed": 147,
     "holdingSpeed": 220,
     "length": 101,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "BOEING",
@@ -1555,7 +1595,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 102,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "BOEING",
@@ -1593,7 +1634,8 @@
     "patternSpeed": 157,
     "holdingSpeed": 220,
     "length": 110,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "BOEING",
@@ -1631,7 +1673,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 128,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "BOEING",
@@ -1669,7 +1712,8 @@
     "patternSpeed": 166,
     "holdingSpeed": 220,
     "length": 138,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "BOEING",
@@ -1707,7 +1751,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 231,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -1745,7 +1790,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 231,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -1783,7 +1829,8 @@
     "patternSpeed": 184,
     "holdingSpeed": 220,
     "length": 231,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -1821,7 +1868,8 @@
     "patternSpeed": 184,
     "holdingSpeed": 220,
     "length": 231,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -1859,7 +1907,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 184,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -1897,7 +1946,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 155,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 35700
   },
   {
     "manufacturer": "BOEING",
@@ -1935,7 +1985,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 178,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "BOEING",
@@ -1973,7 +2024,8 @@
     "patternSpeed": 175,
     "holdingSpeed": 220,
     "length": 159,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -2011,7 +2063,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 180,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -2049,7 +2102,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 201,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -2087,7 +2141,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 208,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 36600
   },
   {
     "manufacturer": "BOEING",
@@ -2125,7 +2180,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 242,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BOEING",
@@ -2163,7 +2219,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 186,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 36600
   },
   {
     "manufacturer": "BEECH",
@@ -2201,7 +2258,8 @@
     "patternSpeed": 114,
     "holdingSpeed": 220,
     "length": 40,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20800
   },
   {
     "manufacturer": "RAYTHEON",
@@ -2239,7 +2297,8 @@
     "patternSpeed": 114,
     "holdingSpeed": 220,
     "length": 43,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 28000
   },
   {
     "manufacturer": "BEECH",
@@ -2277,7 +2336,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 120,
     "length": 25,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 13600
   },
   {
     "manufacturer": "RAYTHEON",
@@ -2315,7 +2375,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 90,
     "length": 26,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 14400
   },
   {
     "manufacturer": "RAYTHEON",
@@ -2353,7 +2414,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 48,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "BEECH",
@@ -2391,7 +2453,8 @@
     "patternSpeed": 92,
     "holdingSpeed": 120,
     "length": 31,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 16000
   },
   {
     "manufacturer": "RAYTHEON",
@@ -2429,7 +2492,8 @@
     "patternSpeed": 109,
     "holdingSpeed": 105,
     "length": 29,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 16000
   },
   {
     "manufacturer": "BEECH",
@@ -2467,7 +2531,8 @@
     "patternSpeed": 109,
     "holdingSpeed": 165,
     "length": 33,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24000
   },
   {
     "manufacturer": "BEECH",
@@ -2505,7 +2570,8 @@
     "patternSpeed": 97,
     "holdingSpeed": 82,
     "length": 29,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 16000
   },
   {
     "manufacturer": "LOCKHEED",
@@ -2543,7 +2609,8 @@
     "patternSpeed": 155,
     "holdingSpeed": 220,
     "length": 247,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 28000
   },
   {
     "manufacturer": "BOEING",
@@ -2581,7 +2648,8 @@
     "patternSpeed": 132,
     "holdingSpeed": 220,
     "length": 173,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "LOCKHEED",
@@ -2619,7 +2687,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 97,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24000
   },
   {
     "manufacturer": "BOEING",
@@ -2657,7 +2726,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 168,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "LOCKHEED",
@@ -2695,7 +2765,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 168,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CESSNA",
@@ -2733,7 +2804,8 @@
     "patternSpeed": 63,
     "holdingSpeed": 60,
     "length": 21,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 7700
   },
   {
     "manufacturer": "CESSNA",
@@ -2771,7 +2843,8 @@
     "patternSpeed": 63,
     "holdingSpeed": 60,
     "length": 23,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 8100
   },
   {
     "manufacturer": "CESSNA",
@@ -2809,7 +2882,8 @@
     "patternSpeed": 74,
     "holdingSpeed": 82,
     "length": 26,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 7200
   },
   {
     "manufacturer": "CESSNA",
@@ -2847,7 +2921,8 @@
     "patternSpeed": 74,
     "holdingSpeed": 82,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 14400
   },
   {
     "manufacturer": "CESSNA",
@@ -2885,7 +2960,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 90,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 13600
   },
   {
     "manufacturer": "CESSNA",
@@ -2923,7 +2999,8 @@
     "patternSpeed": 86,
     "holdingSpeed": 220,
     "length": 37,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20800
   },
   {
     "manufacturer": "CESSNA",
@@ -2961,7 +3038,8 @@
     "patternSpeed": 86,
     "holdingSpeed": 127,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 21600
   },
   {
     "manufacturer": "CESSNA",
@@ -2999,7 +3077,8 @@
     "patternSpeed": 132,
     "holdingSpeed": 220,
     "length": 46,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "CESSNA",
@@ -3037,7 +3116,8 @@
     "patternSpeed": 114,
     "holdingSpeed": 220,
     "length": 39,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24800
   },
   {
     "manufacturer": "CESSNA",
@@ -3075,7 +3155,8 @@
     "patternSpeed": 114,
     "holdingSpeed": 220,
     "length": 39,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24800
   },
   {
     "manufacturer": "CESSNA",
@@ -3113,7 +3194,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 43,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CESSNA",
@@ -3151,7 +3233,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 43,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CESSNA",
@@ -3189,7 +3272,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 42,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CESSNA",
@@ -3227,7 +3311,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 47,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 36600
   },
   {
     "manufacturer": "CESSNA",
@@ -3265,7 +3350,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 48,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "CESSNA",
@@ -3303,7 +3389,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 51,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "CESSNA",
@@ -3341,7 +3428,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 55,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 43400
   },
   {
     "manufacturer": "CESSNA",
@@ -3379,7 +3467,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 63,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 55200
   },
   {
     "manufacturer": "BOMBARDIER",
@@ -3417,7 +3506,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 68,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CANADAIR",
@@ -3455,7 +3545,8 @@
     "patternSpeed": 155,
     "holdingSpeed": 220,
     "length": 87,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CANADAIR",
@@ -3493,7 +3584,8 @@
     "patternSpeed": 155,
     "holdingSpeed": 220,
     "length": 87,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CANADAIR",
@@ -3531,7 +3623,8 @@
     "patternSpeed": 155,
     "holdingSpeed": 220,
     "length": 106,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "CANADAIR",
@@ -3569,7 +3662,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 118,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "FAIRCHILD-DORNIER",
@@ -3607,7 +3701,8 @@
     "patternSpeed": 97,
     "holdingSpeed": 220,
     "length": 54,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 22400
   },
   {
     "manufacturer": "FAIRCHILD-DORNIER",
@@ -3645,7 +3740,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 69,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24800
   },
   {
     "manufacturer": "DOUGLAS",
@@ -3683,7 +3779,8 @@
     "patternSpeed": 146,
     "holdingSpeed": 220,
     "length": 119,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "MCDONNELL DOUGLAS",
@@ -3721,7 +3818,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 180,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "DE HAVILLAND CANADA",
@@ -3759,7 +3857,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 220,
     "length": 49,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20800
   },
   {
     "manufacturer": "DE HAVILLAND CANADA",
@@ -3797,7 +3896,8 @@
     "patternSpeed": 103,
     "holdingSpeed": 220,
     "length": 80,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 16800
   },
   {
     "manufacturer": "DE HAVILLAND CANADA",
@@ -3835,7 +3935,8 @@
     "patternSpeed": 114,
     "holdingSpeed": 220,
     "length": 73,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "BOMBARDIER",
@@ -3873,7 +3974,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 84,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "EMBRAER",
@@ -3911,7 +4013,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 65,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 23200
   },
   {
     "manufacturer": "EMBRAER",
@@ -3949,7 +4052,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 86,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "EMBRAER",
@@ -3987,7 +4091,8 @@
     "patternSpeed": 155,
     "holdingSpeed": 220,
     "length": 97,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "EMBRAER",
@@ -4025,7 +4130,8 @@
     "patternSpeed": 142,
     "holdingSpeed": 220,
     "length": 98,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "EMBRAER",
@@ -4063,7 +4169,8 @@
     "patternSpeed": 142,
     "holdingSpeed": 220,
     "length": 118,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "FOKKER",
@@ -4101,7 +4208,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 82,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "FOKKER",
@@ -4139,7 +4247,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 101,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 29800
   },
   {
     "manufacturer": "FOKKER",
@@ -4177,7 +4286,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 116,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 29800
   },
   {
     "manufacturer": "BOMBARDIER",
@@ -4215,7 +4325,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 99,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 43400
   },
   {
     "manufacturer": "GULFSTREAM AEROSPACE",
@@ -4253,7 +4364,8 @@
     "patternSpeed": 155,
     "holdingSpeed": 220,
     "length": 83,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "GULFSTREAM AEROSPACE",
@@ -4291,7 +4403,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 96,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 43400
   },
   {
     "manufacturer": "Scottish Aviation Ltd.",
@@ -4329,7 +4442,8 @@
     "patternSpeed": 126,
     "holdingSpeed": 220,
     "length": 47,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "BAE SYSTEMS",
@@ -4367,7 +4481,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 47,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "BAE SYSTEMS",
@@ -4405,7 +4520,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 47,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "BAE SYSTEMS",
@@ -4443,7 +4559,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 63,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20800
   },
   {
     "manufacturer": "BOEING",
@@ -4481,7 +4598,8 @@
     "patternSpeed": 155,
     "holdingSpeed": 220,
     "length": 136,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 30600
   },
   {
     "manufacturer": "LOCKHEED",
@@ -4519,7 +4637,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 178,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 30600
   },
   {
     "manufacturer": "LEAR JET",
@@ -4557,7 +4676,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 47,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 43400
   },
   {
     "manufacturer": "LEARJET",
@@ -4595,7 +4715,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 48,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "LEARJET",
@@ -4633,7 +4754,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 57,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 38200
   },
   {
     "manufacturer": "LEARJET",
@@ -4671,7 +4793,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 55,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 43400
   },
   {
     "manufacturer": "LEARJET",
@@ -4709,7 +4832,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 58,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 43400
   },
   {
     "manufacturer": "MOONEY",
@@ -4747,7 +4871,8 @@
     "patternSpeed": 69,
     "holdingSpeed": 112,
     "length": 26,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "MOONEY",
@@ -4785,7 +4910,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 127,
     "length": 26,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "MCDONNELL DOUGLAS",
@@ -4823,7 +4949,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 200,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 34800
   },
   {
     "manufacturer": "McDonnell Douglas Corporation (United States)",
@@ -4861,7 +4988,8 @@
     "patternSpeed": 143,
     "holdingSpeed": 220,
     "length": 147,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "MCDONNELL DOUGLAS",
@@ -4899,7 +5027,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 147,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "MCDONNELL DOUGLAS",
@@ -4937,7 +5066,8 @@
     "patternSpeed": 172,
     "holdingSpeed": 220,
     "length": 147,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "MCDONNELL DOUGLAS",
@@ -4975,7 +5105,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 130,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "McDonnell Douglas Corporation (United States)",
@@ -5013,7 +5144,8 @@
     "patternSpeed": 149,
     "holdingSpeed": 220,
     "length": 147,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "BOEING",
@@ -5051,7 +5183,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 152,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 31400
   },
   {
     "manufacturer": "PIAGGIO",
@@ -5089,7 +5222,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 47,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 32800
   },
   {
     "manufacturer": "PIPER",
@@ -5127,7 +5261,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 127,
     "length": 31,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 13600
   },
   {
     "manufacturer": "PIPER",
@@ -5165,7 +5300,8 @@
     "patternSpeed": 74,
     "holdingSpeed": 82,
     "length": 23,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 6600
   },
   {
     "manufacturer": "PIPER",
@@ -5203,7 +5339,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 90,
     "length": 24,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 6600
   },
   {
     "manufacturer": "PIPER",
@@ -5241,7 +5378,8 @@
     "patternSpeed": 80,
     "holdingSpeed": 105,
     "length": 27,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 16000
   },
   {
     "manufacturer": "PIPER",
@@ -5279,7 +5417,8 @@
     "patternSpeed": 92,
     "holdingSpeed": 90,
     "length": 27,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 12800
   },
   {
     "manufacturer": "PIPER",
@@ -5317,7 +5456,8 @@
     "patternSpeed": 86,
     "holdingSpeed": 120,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 16000
   },
   {
     "manufacturer": "PIPER",
@@ -5355,7 +5495,8 @@
     "patternSpeed": 92,
     "holdingSpeed": 105,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 15200
   },
   {
     "manufacturer": "PIPER",
@@ -5393,7 +5534,8 @@
     "patternSpeed": 69,
     "holdingSpeed": 56,
     "length": 22,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 6100
   },
   {
     "manufacturer": "PIPER",
@@ -5431,7 +5573,8 @@
     "patternSpeed": 92,
     "holdingSpeed": 120,
     "length": 27,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 14400
   },
   {
     "manufacturer": "PIPER",
@@ -5469,7 +5612,8 @@
     "patternSpeed": 86,
     "holdingSpeed": 120,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "PIPER",
@@ -5507,7 +5651,8 @@
     "patternSpeed": 86,
     "holdingSpeed": 220,
     "length": 29,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24000
   },
   {
     "manufacturer": "PIPER",
@@ -5545,7 +5690,8 @@
     "patternSpeed": 114,
     "holdingSpeed": 220,
     "length": 34,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 23200
   },
   {
     "manufacturer": "PIPER",
@@ -5583,7 +5729,8 @@
     "patternSpeed": 120,
     "holdingSpeed": 220,
     "length": 43,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 28000
   },
   {
     "manufacturer": "PIPER",
@@ -5621,7 +5768,8 @@
     "patternSpeed": 138,
     "holdingSpeed": 220,
     "length": 43,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 32800
   },
   {
     "manufacturer": "PILATUS",
@@ -5659,7 +5807,8 @@
     "patternSpeed": 97,
     "holdingSpeed": 220,
     "length": 47,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24000
   },
   {
     "manufacturer": "SAAB",
@@ -5697,7 +5846,8 @@
     "patternSpeed": 132,
     "holdingSpeed": 220,
     "length": 64,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 20000
   },
   {
     "manufacturer": "TBM",
@@ -5735,7 +5885,8 @@
     "patternSpeed": 92,
     "holdingSpeed": 220,
     "length": 34,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 24000
   },
   {
     "manufacturer": "BOEING",
@@ -5773,7 +5924,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 56,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 42500
   },
   {
     "manufacturer": "GENERAL DYNAMICS",
@@ -5811,7 +5963,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 50,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 42500
   },
   {
     "manufacturer": "MCDONNELL DOUGLAS",
@@ -5849,7 +6002,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 60,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 42500
   },
   {
     "manufacturer": "LOCKHEED",
@@ -5887,7 +6041,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 50,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 42500
   },
   {
     "manufacturer": "CIRRUS",
@@ -5925,7 +6080,8 @@
     "patternSpeed": 74,
     "holdingSpeed": 82,
     "length": 28,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 14400
   },
   {
     "manufacturer": "ROCKWELL",
@@ -5963,7 +6119,8 @@
     "patternSpeed": 110,
     "holdingSpeed": 160,
     "length": 43,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 22400
   },
   {
     "manufacturer": "CESSNA",
@@ -6001,7 +6158,8 @@
     "patternSpeed": 86,
     "holdingSpeed": 127,
     "length": 32,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 16000
   },
   {
     "manufacturer": "PIPER",
@@ -6039,7 +6197,8 @@
     "patternSpeed": 92,
     "holdingSpeed": 105,
     "length": 32,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 19200
   },
   {
     "manufacturer": "Sikorsky",
@@ -6077,7 +6236,8 @@
     "patternSpeed": 90,
     "holdingSpeed": 110,
     "length": 65,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 0
   },
   {
     "manufacturer": "DASSAULT",
@@ -6115,7 +6275,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 56,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 35700
   },
   {
     "manufacturer": "DASSAULT",
@@ -6153,7 +6314,8 @@
     "patternSpeed": 161,
     "holdingSpeed": 220,
     "length": 61,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 41600
   },
   {
     "manufacturer": "Lockheed",
@@ -6191,6 +6353,7 @@
     "patternSpeed": 155,
     "holdingSpeed": 200,
     "length": 117,
-    "standardTurnRateOverride": 0
+    "standardTurnRateOverride": 0,
+    "cruiseAltitude": 23800
   }
 ]

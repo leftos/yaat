@@ -77,6 +77,14 @@ public sealed record AircraftProfile
     [JsonPropertyName("cruiseSpeed")]
     public double CruiseSpeed { get; init; }
 
+    /// <summary>
+    /// Reference altitude (ft MSL) at which <see cref="CruiseSpeed"/> was measured. Used to
+    /// convert the stored TAS value to a constant cruise IAS via <c>TasToIas(cruiseSpeed, cruiseAltitude)</c>.
+    /// Helicopters and ground vehicles use 0 (their values are already IAS-equivalent at sea level).
+    /// </summary>
+    [JsonPropertyName("cruiseAltitude")]
+    public double CruiseAltitude { get; init; }
+
     [JsonPropertyName("ceiling")]
     public double Ceiling { get; init; }
 

@@ -138,10 +138,40 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void DefaultSpeed_Level_UsesCruise()
     {
-        // B738 profile cruise = 460 KTAS. At FL350 the IAS conversion lands ~270 KIAS.
+        // B738 profile cruise = 460 KTAS at cruiseAltitude=34800 ft → ~272 KIAS.
         // DefaultSpeed must return KIAS — every caller assigns the result to IndicatedAirspeed.
         double speed = AircraftPerformance.DefaultSpeed("B738", AircraftCategory.Jet, 35000, null);
-        Assert.True(speed is > 240 and < 300, $"B738 at FL350 in level cruise should resolve to ~270 KIAS, got {speed:F1}");
+        Assert.True(speed is > 240 and < 300, $"B738 at FL350 in level cruise should resolve to ~272 KIAS, got {speed:F1}");
+    }
+
+    [Fact]
+    public void DefaultSpeed_Level_ConstantAcrossAltitudes()
+    {
+        // Cruise IAS comes from TasToIas(cruiseSpeed, cruiseAltitude) — the reference altitude
+        // is intrinsic to the profile, so the result is altitude-independent (modulo the 250
+        // KIAS clamp below 10k). This proves we're not implicitly using `altitudeFt`.
+        double atFL150 = AircraftPerformance.DefaultSpeed("M20P", AircraftCategory.Piston, 15000, null);
+        double atFL200 = AircraftPerformance.DefaultSpeed("M20P", AircraftCategory.Piston, 20000, null);
+        Assert.Equal(atFL150, atFL200, precision: 1);
+    }
+
+    [Fact]
+    public void DefaultSpeed_M20P_LevelAtLowAlt_BelowVmo()
+    {
+        // M20P profile cruise = 237 KTAS at cruiseAltitude=20000 → ~175 KIAS.
+        // Vmo for the M20 series is ~196 KIAS — assert below that and well below the
+        // pre-fix value of 232 KIAS that prompted the bug report.
+        double speed = AircraftPerformance.DefaultSpeed("M20P", AircraftCategory.Piston, 1400, null);
+        Assert.True(speed is > 150 and < 195, $"M20P at 1400ft in level cruise should be ~175 KIAS (well below Vmo 196), got {speed:F1}");
+    }
+
+    [Fact]
+    public void DefaultSpeed_R22_LevelAtSeaLevel_HoldsHelicopterCruise()
+    {
+        // Helicopters use cruiseAltitude=0, so cruiseSpeed is treated as IAS at SL.
+        // R22 profile cruise = 96 → ~96 KIAS at sea level.
+        double speed = AircraftPerformance.DefaultSpeed("R22", AircraftCategory.Helicopter, 1000, null);
+        Assert.True(speed is > 90 and < 100, $"R22 at 1000ft in level cruise should be ~96 KIAS, got {speed:F1}");
     }
 
     [Fact]

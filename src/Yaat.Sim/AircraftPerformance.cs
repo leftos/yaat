@@ -222,9 +222,11 @@ public static class AircraftPerformance
             return isClimbing ? ClimbSpeed(aircraftType, cat, altitudeFt) : DescentSpeed(aircraftType, cat, altitudeFt);
         }
 
-        // Level flight: cruise speed. Profile stores TAS in knots (e.g. CL60 = 460 KTAS)
-        // or Mach when < 1.0. Convert to IAS at the current altitude — every caller
-        // assigns this value to IndicatedAirspeed.
+        // Level flight: cruise speed. Profile stores TAS in knots (e.g. CL60 = 460 KTAS at
+        // its reference altitude p.CruiseAltitude) or Mach when < 1.0. Aircraft cruise at
+        // roughly constant IAS, so resolve TAS once at the reference altitude and use the
+        // resulting IAS at every altitude. Mach is altitude-dependent by definition and stays
+        // resolved against the current altitude.
         double cruise = p.CruiseSpeed;
         if (cruise > 0 && cruise < 1.0)
         {
@@ -232,7 +234,7 @@ public static class AircraftPerformance
         }
         else if (cruise > 0)
         {
-            cruise = WindInterpolator.TasToIas(cruise, altitudeFt);
+            cruise = WindInterpolator.TasToIas(cruise, p.CruiseAltitude);
         }
 
         if (altitudeFt < 10000 && !p.IsSpeedLimitWaived)
