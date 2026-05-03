@@ -248,6 +248,25 @@ A bug is *not* localized when the fix touches turn rate, thrust response, latera
 
 Aircraft with `WAIT` preset commands are sensitive to dispatch timing (see Rules). If your fix touches WAIT behavior or anything that affects when a WAIT fires, full replay from t=0 will dispatch the aircraft at a different time — every downstream event shifts, and any assertion tied to a specific time `t` is now pointing at the wrong moment. Hybrid replay with a snapshot captured after the WAIT already fired is the right tool here.
 
+#### Diagnosing why full replay diverges from the recorded snapshot
+
+When `engine.Replay(recording, T)` lands on different state than the snapshot at `T`, use the snapshot-diff verification API to pinpoint the *first* tick where divergence began (rather than guessing at the symptom):
+
+```csharp
+using var archive = RecordingLoader.OpenArchive(RecordingPath);
+var recording = archive!.ToBaseSessionRecording();
+var engine = BuildEngine();
+engine.Replay(recording, 0);
+
+var result = engine.ReplayRangeWithVerification(0, 1300, recording.Actions, archive);
+foreach (var (ts, drift) in result.Drifts.Select(d => (d.ElapsedSeconds, d)).Take(5))
+{
+    output.WriteLine($"t={ts:F0}s drifts: {drift.AircraftDrifts.Count}");
+}
+```
+
+`SnapshotDiff` checks position (0.5 nm), heading (5°), altitude (100 ft), IAS (10 kt), `NavigationRoute` (exact), `AssignedAltitude/Heading/Speed`, current phase type, and `Track.Owner/HandoffPeer` at every snapshot timestamp. Empty `Drifts` ⇒ replay matches; any earlier divergence usually pinpoints the actual cause (engine-version drift, missed action, RNG change). Track commands and AS-prefixed compounds are processed during replay (see `ReplayTrackApplier`); coordination commands (RD/RDH/RDR/RDACK/RDAUTO) are skipped with a debug log because they have no Sim-side handler.
+
 #### How to do hybrid replay
 
 ```csharp

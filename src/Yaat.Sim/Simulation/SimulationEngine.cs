@@ -9,6 +9,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation;
@@ -31,6 +32,12 @@ public sealed class SimulationEngine
     // Replay cursor state — set by Replay(), consumed by ReplayOneSecond()
     private List<RecordedAction>? _replayActions;
     private int _replayActionCursor;
+
+    // Replay-time track applier: routes track commands and AS-prefixed compounds through
+    // the shared Sim helpers (TrackEngine.Dispatch + TrackResolver) during Replay/ReplayRange
+    // so in-engine replay reaches the same state captured in recorded snapshots. Reset at the
+    // start of each fresh Replay/ReplayRange call (startSeconds == 0).
+    private readonly ReplayTrackApplier _replayTrackApplier = new();
 
     // Holds the set of hold-short node IDs currently occupied by aircraft.
     // Built at the start of each TickPhysics, used by PreTick to prevent stacking.
@@ -541,7 +548,56 @@ public sealed class SimulationEngine
     /// </summary>
     public void ReplayRange(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
     {
+        ReplayRangeCore(startSeconds, targetSeconds, actions, actionApplier, archiveForVerification: null, drifts: null);
+    }
+
+    /// <summary>
+    /// Replay variant that compares engine state against snapshots in the supplied
+    /// <paramref name="archive"/> at every snapshot timestamp the range covers.
+    /// Returns a <see cref="ReplayResult"/> listing the per-snapshot drifts. Empty
+    /// drifts list ⇒ every checked snapshot matched within tolerance. Useful for
+    /// pinpointing the first tick where replay diverges from a recorded session.
+    /// </summary>
+    public ReplayResult ReplayRangeWithVerification(
+        int startSeconds,
+        int targetSeconds,
+        List<RecordedAction> actions,
+        RecordingArchive archive,
+        Action<RecordedAction>? actionApplier = null
+    )
+    {
+        var drifts = new List<SnapshotDriftReport>();
+        ReplayRangeCore(startSeconds, targetSeconds, actions, actionApplier, archive, drifts);
+        return new ReplayResult(drifts);
+    }
+
+    private void ReplayRangeCore(
+        int startSeconds,
+        int targetSeconds,
+        List<RecordedAction> actions,
+        Action<RecordedAction>? actionApplier,
+        RecordingArchive? archiveForVerification,
+        List<SnapshotDriftReport>? drifts
+    )
+    {
+        if (startSeconds == 0)
+        {
+            _replayTrackApplier.Reset();
+        }
         actionApplier ??= ApplyRecordedAction;
+
+        var verifyByTimestamp = new Dictionary<int, int>();
+        if (archiveForVerification is not null && drifts is not null)
+        {
+            for (int i = 0; i < archiveForVerification.SnapshotTimestamps.Count; i++)
+            {
+                int ts = (int)archiveForVerification.SnapshotTimestamps[i].ElapsedSeconds;
+                if (ts > startSeconds && ts <= targetSeconds && !verifyByTimestamp.ContainsKey(ts))
+                {
+                    verifyByTimestamp[ts] = i;
+                }
+            }
+        }
 
         int actionCursor = 0;
 
@@ -596,6 +652,16 @@ public sealed class SimulationEngine
             {
                 actionApplier(actions[actionCursor]);
                 actionCursor++;
+            }
+
+            if (archiveForVerification is not null && drifts is not null && verifyByTimestamp.TryGetValue(t, out var snapIdx))
+            {
+                var snap = archiveForVerification.ReadSnapshot(snapIdx);
+                var report = SnapshotDiff.Compare(t, snap, World.GetSnapshot());
+                if (report.AircraftDrifts.Count > 0)
+                {
+                    drifts.Add(report);
+                }
             }
 
             FireTickCompleted(t);
@@ -1634,6 +1700,22 @@ public sealed class SimulationEngine
 
     private void ReplayCommand(RecordedCommand cmd)
     {
+        // Track and AS-prefix commands run before the aircraft-exists guard so per-connection
+        // active-position state still updates when the addressed aircraft hasn't spawned yet
+        // (e.g. auto-accept sims firing for delayed-spawn aircraft). The applier safely no-ops
+        // any per-aircraft mutation when aircraft is null.
+        var asPrefixCheck = TrackResolver.ExtractAsPrefix(cmd.Command);
+        var firstParse = CommandParser.Parse(asPrefixCheck.Remainder);
+        if (
+            firstParse.IsSuccess
+            && firstParse.Value is not null
+            && (TrackEngine.IsTrackCommand(firstParse.Value) || asPrefixCheck.AsOverrideTcp is not null)
+        )
+        {
+            _replayTrackApplier.Apply(cmd.Command, FindAircraft(cmd.Callsign), cmd.ConnectionId, Scenario);
+            return;
+        }
+
         // Single-command parse handles type-specific shortcuts (DEL, track, spawn,
         // global squawk, etc.) that bypass the compound dispatch path. Compound
         // commands like "DCT VPCOL; ERD 28R" intentionally fail this parse — they
@@ -1668,16 +1750,12 @@ public sealed class SimulationEngine
 
         if (simpleParsed is not null)
         {
-            // Skip track commands (server-only: ownership, handoffs, scratchpads, etc.)
-            // For complete snapshots, use ReplayWithSnapshots with the server's action applier.
-            if (IsTrackCommand(simpleParsed))
-            {
-                return;
-            }
-
-            // Skip coordination commands (server-only)
+            // Coordination commands have no Sim-side handlers (RD/RDH/RDR/RDACK/RDAUTO
+            // mutate state owned by yaat-server only). Skip with a debug log so
+            // recordings that depend on them surface visibly during replay.
             if (IsCoordinationCommand(simpleParsed))
             {
+                _logger.LogDebug("Replay: skipping coordination command {Cmd} for {Callsign} (no Sim-side handler)", cmd.Command, cmd.Callsign);
                 return;
             }
 

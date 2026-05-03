@@ -352,6 +352,11 @@ Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, push
 Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
+                                    # Dispatch(parsed, ac, identity, scenario, ?artccConfig): top-level switch routing any track ParsedCommand to
+                                    # the right HandleX/ApplyX. Server's TrackCommandHandler delegates to this for the pure cases; replay applier uses it.
+Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" → "ACCEPT" + "3Y" override), scenario-first TCP→TrackOwner
+                                    # resolution with optional ARTCC-config fallback, owner→TCP lookup. Shared by yaat-server's live track path
+                                    # and Sim's replay applier.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry
 Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
 Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
@@ -489,6 +494,13 @@ VnasConfig.cs                  # Config API DTO
 CacheManifest.cs               # Cache manifest tracking serials
 AircraftSpecEntry.cs           # VNAS aircraft specs model
 AircraftCwtEntry.cs            # VNAS aircraft CWT model
+ArtccConfig.cs                 # ARTCC config models (ArtccConfigRoot, FacilityConfig, PositionConfig, TcpConfig, StarsConfig, etc.)
+ArtccConfigResolver.cs         # Pure-function resolvers as extension methods on ArtccConfigRoot:
+                               # ResolvePosition / ResolveTcpCode / ResolveEramCode / FindPositionByCallsign / FindTcpByCode /
+                               # ExpandTcpShorthand / GetCoordinationChannels / GetAllAsdexAirports / GetAllTowerCabAirports /
+                               # GetAllAccessibleStripBays / GetAccessibleFacilities / GetConsolidationItems / GetConsolidationOwner / etc.
+                               # Server's ArtccConfigService delegates to these; replay applier uses them via TrackResolver.
+ArtccAccessRecords.cs          # AccessibleBay, AccessibleFacility, AsdexAirportInfo, TowerCabAirportInfo records used by the resolvers.
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
 CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E); FAF fixes, terminal waypoints
                                # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix resolution
@@ -507,17 +519,25 @@ AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn g
 SpawnRequest.cs                # Spawn descriptor
 
 # Simulation/
-SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayTo, ReplayRange, ReplayWithSnapshots)
+SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayTo, ReplayRange, ReplayWithSnapshots,
+                               # ReplayRangeWithVerification — diff-against-bundled-snapshots);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore
-SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination
-SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; Version, Snapshots fields
+SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
+SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle
 RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
 RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout reading, seek API
-                               # ToBaseSessionRecording (no snapshots), FindNearestSnapshotIndex, ReadSnapshotAt
-RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated ground layouts
-RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, metadata
+                               # ToBaseSessionRecording (no snapshots), FindNearestSnapshotIndex, ReadSnapshotAt, ReadArtccConfigJson
+RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated ground layouts + bundled ArtccConfig
+RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, HasArtccConfig, metadata
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
+
+# Simulation/Replay/
+ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix commands. Maintains per-connection active-position map;
+                               # routes parsed commands through TrackEngine.Dispatch with identity resolved via TrackResolver.
+SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
+                               # Used by ReplayRangeWithVerification to surface drift between replay and recorded snapshots.
+ReplayResult.cs                # ReplayResult / SnapshotDriftReport / AircraftDrift / FieldDrift records.
 ScenarioQueues.cs              # DelayedSpawn, ScheduledTrigger, ScheduledPreset, GeneratorState, DelayedHandoff
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 
@@ -673,10 +693,10 @@ src/Yaat.Server/
     TopicFormatter.cs          # Topic subscription/message formatting
   Data/
     AirportGroundDataService.cs  # IAirportGroundData impl; fetches GeoJSON from vNAS training API
-    ArtccConfig.cs             # VNAS ARTCC config deserialization models (VideoMapConfig, StarsAreaConfig, etc.)
-    ArtccConfigService.cs      # Downloads + caches ARTCC config; position/TCP resolution
-    ArtccConfigService.Consolidation.cs  # Partial: STARS consolidation hierarchy + manual override integration
-    ArtccConfigService.VideoMaps.cs      # Partial: video map extraction + position display config resolution
+    ArtccConfig.cs             # VNAS ARTCC config deserialization models (VideoMapConfig, StarsAreaConfig, etc.) — lives in Yaat.Sim/Data/Vnas/
+    ArtccConfigService.cs      # Loader: downloads + caches ARTCC config from vNAS; resolution methods delegate to ArtccConfigResolver in Sim
+    ArtccConfigService.Consolidation.cs  # Partial: thin facade over Sim's ArtccConfigResolver consolidation methods
+    ArtccConfigService.VideoMaps.cs      # Partial: facility video maps + position display DTO builders (CRC wire-format, kept server-side)
     PositionRegistry.cs        # Thread-safe CRC + RPO position tracking
     NexradBoundsLoader.cs      # Parses Data/Nexrad/NexradBoundingBoxes.geojson (24 ARTCCs) → per-ARTCC NexradBounds (N/S/E/W)
   Udp/UdpStubServer.cs        # UDP port 6809 stub (CRC keepalive/registration)
