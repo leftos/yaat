@@ -28,6 +28,13 @@ public class AircraftFlightPlan
     public string FlightRules { get; set; } = "IFR";
     public bool IsVfr => FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
     public int CruiseAltitude { get; set; }
+
+    /// <summary>
+    /// Filed cruise speed, parsed from the flight plan and round-tripped through DTOs/snapshots,
+    /// but NOT consumed by physics. Controllers don't act on filed cruise speed in real ops, so
+    /// the simulation drives target speed off <see cref="AircraftPerformance.DefaultSpeed"/>
+    /// (profile-derived) instead. Kept as a flight plan field for display/scenario fidelity.
+    /// </summary>
     public int CruiseSpeed { get; set; }
 
     /// <summary>
