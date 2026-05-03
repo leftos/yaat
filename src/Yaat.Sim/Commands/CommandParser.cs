@@ -398,27 +398,72 @@ public static class CommandParser
 
     private static (BlockCondition Condition, string Remainder)? ParseAtCondition(string input)
     {
-        // "AT 5000 CM 190" → condition=LevelCondition(5000), remainder="CM 190"
-        // "AT SUNOL FH 090" → condition=AtFixCondition(SUNOL, lat, lon), remainder="FH 090"
-        // "AT BRIXX" → condition=AtFixCondition(BRIXX, lat, lon), remainder=""
+        // "AT 5000 CM 190" → LevelCondition(5000), remainder="CM 190"
+        // "AT SUNOL FH 090" → AtFixCondition(SUNOL, lat, lon), remainder="FH 090"
+        // "AT BRIXX"        → AtFixCondition(BRIXX, lat, lon), remainder=""
+        // "AT $5 ..."       → AtGroundEntityCondition(Spot, "5")
+        // "AT @TERM2 ..."   → AtGroundEntityCondition(Parking, "TERM2")
+        // "AT A/B ..."      → AtGroundEntityCondition(Intersection, "A", "B")
+        // "AT A ..."        → bare token, falls through to taxiway after fix lookup misses
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2)
         {
-            _lastBlockFailure = "AT requires a fix name or altitude";
+            _lastBlockFailure = "AT requires a fix name, ground entity, or altitude";
             return null;
         }
 
         var token = parts[1].ToUpperInvariant();
         var remainder = parts.Length >= 3 ? string.Join(' ', parts.Skip(2)) : "";
 
-        // Try altitude first — "AT 5000 ..." means "when reaching altitude 5000"
+        // Sigil-prefixed ground entities — resolved layout-side in CommandDispatcher.
+        if (token.StartsWith('$'))
+        {
+            var name = token[1..];
+            if (name.Length == 0)
+            {
+                _lastBlockFailure = "AT $ requires a spot name";
+                return null;
+            }
+            return (new AtGroundEntityCondition(GroundEntityKind.Spot, name), remainder);
+        }
+
+        if (token.StartsWith('@'))
+        {
+            var name = token[1..];
+            if (name.Length == 0)
+            {
+                _lastBlockFailure = "AT @ requires a parking name";
+                return null;
+            }
+            return (new AtGroundEntityCondition(GroundEntityKind.Parking, name), remainder);
+        }
+
+        if (token.Contains('/'))
+        {
+            var pair = token.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (pair.Length != 2 || pair[0].Length == 0 || pair[1].Length == 0)
+            {
+                _lastBlockFailure = $"AT intersection requires two taxiway names separated by '/' (got '{token}')";
+                return null;
+            }
+            if (string.Equals(pair[0], pair[1], StringComparison.OrdinalIgnoreCase))
+            {
+                _lastBlockFailure = $"AT intersection requires two distinct taxiways (got '{token}')";
+                return null;
+            }
+            return (new AtGroundEntityCondition(GroundEntityKind.Intersection, pair[0], pair[1]), remainder);
+        }
+
+        // Try altitude — "AT 5000 ..." means "when reaching altitude 5000".
+        // Bare digits stay altitudes; numeric spot names (e.g. SFO "5") require the $ sigil.
         int? altitude = AltitudeResolver.Resolve(token);
         if (altitude is not null)
         {
             return (new LevelCondition(altitude.Value), remainder);
         }
 
-        // Try direct fix lookup
+        // Try direct airborne-fix lookup. Wins over taxiway on collision so all existing
+        // AT <fix> behavior is preserved unchanged.
         var navDb = NavigationDatabase.Instance;
         var pos = navDb.GetFixPosition(token);
         if (pos is not null)
@@ -426,27 +471,24 @@ public static class CommandParser
             return (new AtFixCondition(token, pos.Value.Lat, pos.Value.Lon), remainder);
         }
 
-        // Try FRD/FR parse to preserve radial/distance info
+        // Try FRD parse — only succeeds if the embedded fix name resolves.
         var parsed = FrdResolver.ParseFrd(token);
-        if (parsed is not null)
+        if (parsed is { Radial: not null } frdWithRadial)
         {
-            var (fixName, radial, distance) = parsed.Value;
+            var (fixName, radial, distance) = frdWithRadial;
             var fixPos = navDb.GetFixPosition(fixName);
             if (fixPos is not null)
             {
                 return (new AtFixCondition(fixName, fixPos.Value.Lat, fixPos.Value.Lon, radial, distance), remainder);
             }
 
-            // Bare name (no radial/distance) = same as direct fix lookup — use simple message
-            // FRD with radial/distance = mention the FRD context
-            _lastBlockFailure = radial is not null
-                ? $"fix '{fixName}' not found (from FRD '{token}')"
-                : $"'{token}' is not a known fix or valid altitude";
+            _lastBlockFailure = $"fix '{fixName}' not found (from FRD '{token}')";
             return null;
         }
 
-        _lastBlockFailure = $"'{token}' is not a known fix or valid altitude";
-        return null;
+        // Final fallback: treat as a taxiway name. Layout existence is verified by
+        // CommandDispatcher.ConvertCondition; the parser stays layout-stateless.
+        return (new AtGroundEntityCondition(GroundEntityKind.Taxiway, token), remainder);
     }
 
     private static bool IsGiveWayConditionVerb(string token)

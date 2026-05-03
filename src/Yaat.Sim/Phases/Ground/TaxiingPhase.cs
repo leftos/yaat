@@ -97,7 +97,14 @@ public sealed class TaxiingPhase : Phase
         // Update current taxiway name
         if (route.CurrentSegment is { } seg)
         {
+            var prev = ctx.Aircraft.Ground.CurrentTaxiway;
             ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
+
+            // Fire AT-taxiway triggers on transition only (avoid per-tick storm).
+            if (!string.Equals(prev, seg.TaxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                FlightPhysics.NotifyGroundEntityReached(ctx.Aircraft, arrivedNodeId: null, newTaxiwayName: seg.TaxiwayName);
+            }
         }
 
         LogPeriodic(ctx, route);
@@ -218,10 +225,16 @@ public sealed class TaxiingPhase : Phase
         );
 
         // Update taxiway name from the segment that brought us here
+        string? arrivedTaxiway = null;
         if (route.CurrentSegment is { } arrivedSeg)
         {
             ctx.Aircraft.Ground.CurrentTaxiway = arrivedSeg.TaxiwayName;
+            arrivedTaxiway = arrivedSeg.TaxiwayName;
         }
+
+        // Fire AT-ground triggers for spot/parking/intersection (node match) and taxiway
+        // (newTaxiwayName match). Idempotent against already-applied blocks.
+        FlightPhysics.NotifyGroundEntityReached(ctx.Aircraft, arrivedNodeId: _nav.TargetNodeId, newTaxiwayName: arrivedTaxiway);
 
         // Check if this node is a hold-short point
         var holdShort = route.GetHoldShortAt(_nav.TargetNodeId);

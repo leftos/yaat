@@ -659,6 +659,51 @@ public sealed class AirportGroundLayout
         return null;
     }
 
+    /// <summary>
+    /// Find the node where two named taxiways cross. Scans nodes on
+    /// <paramref name="taxiA"/> and returns one whose adjacent edges include at least one
+    /// matching <paramref name="taxiB"/>. When multiple candidates exist and
+    /// <paramref name="near"/> is provided, returns the closest by great-circle distance;
+    /// otherwise returns the lowest node id for determinism.
+    /// </summary>
+    public GroundNode? FindIntersectionNode(string taxiA, string taxiB, LatLon? near = null)
+    {
+        if (string.IsNullOrEmpty(taxiA) || string.IsNullOrEmpty(taxiB))
+        {
+            return null;
+        }
+
+        var candidates = GetNodesOnTaxiway(taxiA);
+        GroundNode? best = null;
+        double bestMetric = double.MaxValue;
+
+        foreach (var node in candidates)
+        {
+            bool matchesB = false;
+            foreach (var edge in node.Edges)
+            {
+                if (edge.MatchesTaxiway(taxiB))
+                {
+                    matchesB = true;
+                    break;
+                }
+            }
+            if (!matchesB)
+            {
+                continue;
+            }
+
+            double metric = near is { } pos ? GeoMath.DistanceNm(pos, node.Position) : node.Id;
+            if (metric < bestMetric)
+            {
+                bestMetric = metric;
+                best = node;
+            }
+        }
+
+        return best;
+    }
+
     public GroundNode? FindNearestNode(double lat, double lon)
     {
         GroundNode? best = null;

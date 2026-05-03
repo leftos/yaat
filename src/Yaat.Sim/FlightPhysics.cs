@@ -13,6 +13,7 @@ public static class FlightPhysics
     private const double SpeedSnapKts = 2.0;
     private const double NavArrivalNm = 0.5;
     private const double FrdArrivalNm = 1.5;
+    private const double GroundArrivalNm = 0.05;
     private const double RadialInterceptDeg = 3.0;
     private const double FrdMissThresholdNm = 5.0;
     private const double FrdMissDepartureNm = 0.5;
@@ -1234,8 +1235,27 @@ public static class FlightPhysics
             BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
             BlockTriggerType.DistanceFinal => IsDistanceFinalMet(aircraft, trigger),
             BlockTriggerType.OnHandoff => aircraft.Track.HandoffAccepted,
+            BlockTriggerType.AtGroundEntity => IsGroundEntityReached(aircraft, trigger),
             _ => true,
         };
+    }
+
+    private static bool IsGroundEntityReached(AircraftState aircraft, BlockTrigger trigger)
+    {
+        // Taxiway-only triggers fire from TaxiingPhase via NotifyGroundEntityReached;
+        // there's no per-tick "am I on taxiway X" check here. The route cursor is the
+        // source of truth and only the phase callback knows when it transitions.
+        if (trigger.GroundKind == GroundEntityKind.Taxiway)
+        {
+            return false;
+        }
+
+        if (!trigger.FixLat.HasValue || !trigger.FixLon.HasValue)
+        {
+            return false;
+        }
+
+        return GeoMath.DistanceNm(aircraft.Position, new LatLon(trigger.FixLat.Value, trigger.FixLon.Value)) < GroundArrivalNm;
     }
 
     internal static bool IsGiveWayMet(AircraftState aircraft, BlockTrigger trigger, Func<string, AircraftState?>? aircraftLookup)
@@ -1437,6 +1457,66 @@ public static class FlightPhysics
             }
 
             Log.LogDebug("[AtFix] {Callsign}: fix {Fix} sequenced from route, firing block {Idx}", aircraft.Callsign, fixName, i);
+
+            block.TriggerMet = true;
+            ApplyBlock(aircraft, block);
+        }
+    }
+
+    /// <summary>
+    /// Called by <see cref="Phases.Ground.TaxiingPhase"/> on segment transitions and node
+    /// arrivals. Scans the command queue for any pending AT ground-entity block whose
+    /// node id matches <paramref name="arrivedNodeId"/> or whose taxiway name matches
+    /// <paramref name="newTaxiwayName"/> and fires it immediately. Mirrors
+    /// <see cref="NotifyFixSequenced"/> — required because <see cref="UpdateCommandQueue"/>
+    /// is skipped while a phase is active, and ground aircraft are essentially always in
+    /// a phase. Idempotent: already-applied blocks are skipped, so double-calls are safe.
+    /// </summary>
+    public static void NotifyGroundEntityReached(AircraftState aircraft, int? arrivedNodeId, string? newTaxiwayName)
+    {
+        if (arrivedNodeId is null && string.IsNullOrEmpty(newTaxiwayName))
+        {
+            return;
+        }
+
+        var queue = aircraft.Queue;
+        if (queue.IsComplete)
+        {
+            return;
+        }
+
+        for (int i = 0; i < queue.Blocks.Count; i++)
+        {
+            var block = queue.Blocks[i];
+            if (block.IsApplied)
+            {
+                continue;
+            }
+
+            if (block.Trigger is not { Type: BlockTriggerType.AtGroundEntity } trigger)
+            {
+                continue;
+            }
+
+            bool nodeMatch = arrivedNodeId.HasValue && trigger.GroundNodeId == arrivedNodeId.Value;
+            bool taxiwayMatch =
+                !string.IsNullOrEmpty(newTaxiwayName)
+                && !string.IsNullOrEmpty(trigger.GroundTaxiwayName)
+                && string.Equals(trigger.GroundTaxiwayName, newTaxiwayName, StringComparison.OrdinalIgnoreCase);
+
+            if (!nodeMatch && !taxiwayMatch)
+            {
+                continue;
+            }
+
+            Log.LogDebug(
+                "[AtGround] {Callsign}: ground entity reached (kind={Kind}, node={Node}, taxiway={Taxi}), firing block {Idx}",
+                aircraft.Callsign,
+                trigger.GroundKind,
+                arrivedNodeId,
+                newTaxiwayName,
+                i
+            );
 
             block.TriggerMet = true;
             ApplyBlock(aircraft, block);

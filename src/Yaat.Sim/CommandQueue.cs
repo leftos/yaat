@@ -12,6 +12,7 @@ public enum BlockTriggerType
     GiveWay,
     DistanceFinal,
     OnHandoff,
+    AtGroundEntity,
 }
 
 public class BlockTrigger
@@ -34,6 +35,11 @@ public class BlockTrigger
     /// <summary>Distance from runway threshold in nm for DistanceFinal triggers.</summary>
     public double? DistanceFinalNm { get; init; }
 
+    public Commands.GroundEntityKind? GroundKind { get; init; }
+    public int? GroundNodeId { get; init; }
+    public string? GroundTaxiwayName { get; init; }
+    public string? GroundEntityToken { get; init; }
+
     public BlockTriggerDto ToSnapshot() =>
         new()
         {
@@ -48,6 +54,10 @@ public class BlockTrigger
             TargetLon = TargetLon,
             TargetCallsign = TargetCallsign,
             DistanceFinalNm = DistanceFinalNm,
+            GroundKind = GroundKind is null ? null : (int)GroundKind.Value,
+            GroundNodeId = GroundNodeId,
+            GroundTaxiwayName = GroundTaxiwayName,
+            GroundEntityToken = GroundEntityToken,
         };
 
     public static BlockTrigger FromSnapshot(BlockTriggerDto dto) =>
@@ -64,6 +74,10 @@ public class BlockTrigger
             TargetLon = dto.TargetLon,
             TargetCallsign = dto.TargetCallsign,
             DistanceFinalNm = dto.DistanceFinalNm,
+            GroundKind = dto.GroundKind is null ? null : (Commands.GroundEntityKind)dto.GroundKind.Value,
+            GroundNodeId = dto.GroundNodeId,
+            GroundTaxiwayName = dto.GroundTaxiwayName,
+            GroundEntityToken = dto.GroundEntityToken,
         };
 }
 

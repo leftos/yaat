@@ -74,7 +74,7 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   ```
   When reaching 5,000 ft, turn to heading 270.
 
-- **AT** — triggers when the aircraft reaches a fix, intercepts a radial, or reaches an [FRD](#fix-radial-distance-frd) point:
+- **AT** — triggers when the aircraft reaches a fix, intercepts a radial, reaches an [FRD](#fix-radial-distance-frd) point, or arrives at a ground entity (taxiway, named spot, parking, or two-taxiway intersection):
   ```
   AT SUNOL FH 180
   ```
@@ -91,6 +91,17 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   When reaching 20 NM on the 090 radial from SUNOL (within 1.5 NM), turn to heading 270. (Fix-Radial-Distance format: `{fix}{radial:3}{distance:3}`)
 
   If an aircraft passes through an FRD point without triggering (misses by more than 1.5 NM but came within 5 NM), a warning message appears in the terminal: `Missed condition at SUNOL R090 D020 (closest: 2.3 NM)`.
+
+  **Ground entities** (only fire while taxiing — the same `$` and `@` sigils used by `TAXI`/`PUSH`):
+
+  | Form | Meaning | Example |
+  |------|---------|---------|
+  | `AT <taxiway>` | Fires the first time the aircraft turns onto that taxiway | `AT B SPD 10` |
+  | `AT $<spot>` | Fires when the aircraft reaches the named spot/intersection node | `AT $5 RNS` |
+  | `AT @<parking>` | Fires when the aircraft reaches the named parking spot | `AT @TERM2 FREQ 121.7` |
+  | `AT <t1>/<t2>` | Fires at the node where two named taxiways meet (closest to the aircraft when issued) | `AT B/C SPD 5` |
+
+  **Disambiguation order:** sigils win first (`$` spot, `@` parking, `/` intersection), then bare digits stay altitudes (so `AT 30` is still 3,000 ft — to target SFO spot `30` use `AT $30`), then bare names try airborne fixes (`AT SUNOL`) before falling back to a taxiway. If the resolved entity is not present in the airport layout, the block is rejected with a `AT ground entity not found` warning.
 
 - **GIVEWAY** / **BEHIND** — triggers when the named aircraft no longer conflicts (ground only):
   ```

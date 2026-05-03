@@ -42,6 +42,11 @@ public sealed class BlockTriggerDto
     public double? TargetLon { get; init; }
     public string? TargetCallsign { get; init; }
     public double? DistanceFinalNm { get; init; }
+
+    public int? GroundKind { get; init; }
+    public int? GroundNodeId { get; init; }
+    public string? GroundTaxiwayName { get; init; }
+    public string? GroundEntityToken { get; init; }
 }
 
 public sealed class DeferredDispatchDto

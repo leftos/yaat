@@ -1489,6 +1489,12 @@ public static class CommandDispatcher
                 blockDesc = $"at {atLabel}: {blockDesc}";
                 blockMsg = $"At {atLabel}: {blockMsg}";
             }
+            else if (parsedBlock.Condition is AtGroundEntityCondition ge)
+            {
+                var geLabel = FormatGroundLabel(ge);
+                blockDesc = $"at {geLabel}: {blockDesc}";
+                blockMsg = $"At {geLabel}: {blockMsg}";
+            }
             else if (parsedBlock.Condition is GiveWayCondition gw)
             {
                 blockDesc = $"giveway {gw.TargetCallsign}: {blockDesc}";
@@ -1503,9 +1509,15 @@ public static class CommandDispatcher
             var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
             var waitDist = parsedBlock.Commands.OfType<WaitDistanceCommand>().FirstOrDefault();
             bool isWait = waitTime is not null || waitDist is not null;
+            var trigger = ConvertCondition(parsedBlock.Condition, aircraft, ctx);
+            if (trigger is null && parsedBlock.Condition is AtGroundEntityCondition unresolved)
+            {
+                aircraft.PendingWarnings.Add($"AT ground entity not found: {FormatGroundLabel(unresolved)}");
+                continue;
+            }
             var commandBlock = new CommandBlock
             {
-                Trigger = ConvertCondition(parsedBlock.Condition),
+                Trigger = trigger,
                 ApplyAction = BuildApplyAction(parsedBlock.Commands, ctx),
                 ParsedCommands = parsedBlock.Commands.ToList(),
                 Description = blockDesc,
@@ -1622,7 +1634,7 @@ public static class CommandDispatcher
         }
     }
 
-    private static BlockTrigger? ConvertCondition(BlockCondition? condition)
+    private static BlockTrigger? ConvertCondition(BlockCondition? condition, AircraftState aircraft, DispatchContext ctx)
     {
         return condition switch
         {
@@ -1643,11 +1655,97 @@ public static class CommandDispatcher
                 FixLat = at.Lat,
                 FixLon = at.Lon,
             },
+            AtGroundEntityCondition ge => ConvertGroundEntityCondition(ge, aircraft, ctx),
             GiveWayCondition gw => new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = gw.TargetCallsign },
             DistanceFinalCondition df => new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = df.DistanceNm },
             OnHandoffCondition => new BlockTrigger { Type = BlockTriggerType.OnHandoff },
             _ => null,
         };
+    }
+
+    private static BlockTrigger? ConvertGroundEntityCondition(AtGroundEntityCondition ge, AircraftState aircraft, DispatchContext ctx)
+    {
+        var layout = aircraft.Ground.Layout ?? ctx.GroundLayout;
+        if (layout is null)
+        {
+            return null;
+        }
+
+        switch (ge.Kind)
+        {
+            case GroundEntityKind.Spot:
+            {
+                var node = layout.FindSpotNodeByName(ge.Token) ?? layout.FindSpotByName(ge.Token);
+                if (node is null)
+                {
+                    return null;
+                }
+                return new BlockTrigger
+                {
+                    Type = BlockTriggerType.AtGroundEntity,
+                    GroundKind = ge.Kind,
+                    GroundNodeId = node.Id,
+                    FixLat = node.Position.Lat,
+                    FixLon = node.Position.Lon,
+                    GroundEntityToken = ge.Token,
+                };
+            }
+            case GroundEntityKind.Parking:
+            {
+                var node = layout.FindParkingByName(ge.Token);
+                if (node is null)
+                {
+                    return null;
+                }
+                return new BlockTrigger
+                {
+                    Type = BlockTriggerType.AtGroundEntity,
+                    GroundKind = ge.Kind,
+                    GroundNodeId = node.Id,
+                    FixLat = node.Position.Lat,
+                    FixLon = node.Position.Lon,
+                    GroundEntityToken = ge.Token,
+                };
+            }
+            case GroundEntityKind.Intersection:
+            {
+                if (ge.SecondTaxiway is null)
+                {
+                    return null;
+                }
+                var node = layout.FindIntersectionNode(ge.Token, ge.SecondTaxiway, aircraft.Position);
+                if (node is null)
+                {
+                    return null;
+                }
+                return new BlockTrigger
+                {
+                    Type = BlockTriggerType.AtGroundEntity,
+                    GroundKind = ge.Kind,
+                    GroundNodeId = node.Id,
+                    FixLat = node.Position.Lat,
+                    FixLon = node.Position.Lon,
+                    GroundTaxiwayName = ge.Token,
+                    GroundEntityToken = $"{ge.Token}/{ge.SecondTaxiway}",
+                };
+            }
+            case GroundEntityKind.Taxiway:
+            {
+                if (layout.GetNodesOnTaxiway(ge.Token).Count == 0)
+                {
+                    return null;
+                }
+                return new BlockTrigger
+                {
+                    Type = BlockTriggerType.AtGroundEntity,
+                    GroundKind = ge.Kind,
+                    GroundTaxiwayName = ge.Token,
+                    GroundEntityToken = ge.Token,
+                };
+            }
+            default:
+                return null;
+        }
     }
 
     private static BlockTrigger ConvertFrdCondition(AtFixCondition at, int radial, int dist)
@@ -1680,6 +1778,16 @@ public static class CommandDispatcher
 
         return at.FixName;
     }
+
+    private static string FormatGroundLabel(AtGroundEntityCondition ge) =>
+        ge.Kind switch
+        {
+            GroundEntityKind.Taxiway => $"taxi {ge.Token}",
+            GroundEntityKind.Spot => $"spot {ge.Token}",
+            GroundEntityKind.Parking => $"parking {ge.Token}",
+            GroundEntityKind.Intersection => $"intersection {ge.Token}/{ge.SecondTaxiway}",
+            _ => ge.Token,
+        };
 
     private static CommandResult TryAirborneFollow(AircraftState aircraft, FollowCommand follow)
     {

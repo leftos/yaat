@@ -400,6 +400,23 @@ public record DistanceFinalCondition(double DistanceNm) : BlockCondition;
 
 public record OnHandoffCondition : BlockCondition;
 
+public enum GroundEntityKind
+{
+    Taxiway,
+    Spot,
+    Parking,
+    Intersection,
+}
+
+/// <summary>
+/// AT condition that targets a ground entity rather than an airborne fix or altitude.
+/// The parser captures the raw user token only (e.g. "A", "5", "TERM2", "A/B"); resolution
+/// to a node id, lat/lon, or canonical taxiway name happens in
+/// <see cref="CommandDispatcher"/> where the aircraft's ground layout is reachable.
+/// SecondTaxiway is set only for <see cref="GroundEntityKind.Intersection"/>.
+/// </summary>
+public record AtGroundEntityCondition(GroundEntityKind Kind, string Token, string? SecondTaxiway = null) : BlockCondition;
+
 // Track operations commands
 public record SetActivePositionCommand(string TcpCode) : ParsedCommand;
 
