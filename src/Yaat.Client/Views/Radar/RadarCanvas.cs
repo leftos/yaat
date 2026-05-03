@@ -353,11 +353,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>True while a heading-vector interaction is in progress (cursor preview drawing).</summary>
     public bool IsHeadingModeActive => _renderer.HeadingPreview is not null;
 
-    /// <summary>Enter EuroScope-style heading mode for the named aircraft. Cursor moves drive the preview; left-click confirms.</summary>
-    public void EnterHeadingMode(string callsign)
+    /// <summary>
+    /// Enter EuroScope-style heading mode for the named aircraft. Cursor moves drive the preview.
+    /// Two confirm paths exist: drag past <see cref="Flyouts.HeadingModeState.DragThresholdPxSq"/>
+    /// then release, or release-without-drag and then left-click the map.
+    /// </summary>
+    public void EnterHeadingMode(string callsign, Point dragOrigin)
     {
         var (lat, lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
-        _renderer.HeadingPreview = new Flyouts.HeadingModeState { Callsign = callsign, CursorPos = new LatLon(lat, lon) };
+        _renderer.HeadingPreview = new Flyouts.HeadingModeState
+        {
+            Callsign = callsign,
+            CursorPos = new LatLon(lat, lon),
+            DragOrigin = dragOrigin,
+        };
         Cursor = new Cursor(StandardCursorType.Cross);
         Focus();
         MarkDirty();
@@ -372,6 +381,25 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         _renderer.HeadingPreview = null;
         Cursor = Cursor.Default;
         MarkDirty();
+    }
+
+    private void ConfirmHeadingAt(Point pos)
+    {
+        var headingState = _renderer.HeadingPreview;
+        if (headingState is null)
+        {
+            return;
+        }
+        var ac = Aircraft?.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
+        if (ac is null)
+        {
+            return;
+        }
+        var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+        double trueBearing = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, lat, lon);
+        double magBearing = MagneticDeclination.TrueToMagnetic(trueBearing, ac.Position);
+        int hdg = ((int)Math.Round(magBearing) + 359) % 360 + 1;
+        HeadingModeConfirmed?.Invoke(ac.Callsign, hdg);
     }
 
     /// <summary>Raised when the user clicks the map to confirm a heading vector. Heading is in magnetic degrees [1, 360].</summary>
@@ -720,21 +748,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
 
-        // Heading mode: left-click confirms, right-click cancels. Field is short-circuited
-        // so the click does NOT also trigger normal selection / data-block surfacing.
-        if (_renderer.HeadingPreview is { } headingState)
+        // Heading mode: click-to-confirm path (only relevant after the user released the
+        // initial button without dragging). When the button is still held from entry we let
+        // OnPointerReleased handle the drag-style confirm, so we only react here if the
+        // button has been released since entry.
+        if (_renderer.HeadingPreview is { } headingState && !headingState.ButtonHeld)
         {
             if (props.IsLeftButtonPressed)
             {
-                var ac = Aircraft?.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
-                if (ac is not null)
-                {
-                    var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
-                    double trueBearing = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, lat, lon);
-                    double magBearing = MagneticDeclination.TrueToMagnetic(trueBearing, ac.Position);
-                    int hdg = ((int)Math.Round(magBearing) + 359) % 360 + 1;
-                    HeadingModeConfirmed?.Invoke(ac.Callsign, hdg);
-                }
+                ConfirmHeadingAt(pos);
                 ExitHeadingMode();
                 e.Handled = true;
                 return;
@@ -941,6 +963,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             var (lat, lon) = Viewport.ScreenToLatLon((float)currentPos.X, (float)currentPos.Y);
             headingState.CursorPos = new LatLon(lat, lon);
+            if (headingState.ButtonHeld && !headingState.DraggedPastThreshold)
+            {
+                double dx = currentPos.X - headingState.DragOrigin.X;
+                double dy = currentPos.Y - headingState.DragOrigin.Y;
+                if ((dx * dx) + (dy * dy) > Flyouts.HeadingModeState.DragThresholdPxSq)
+                {
+                    headingState.DraggedPastThreshold = true;
+                }
+            }
             MarkDirty();
         }
 
@@ -964,6 +995,24 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        // Heading mode: if we entered via mouse-down and the user dragged past the threshold,
+        // a release confirms the heading (drag-style EuroScope flow). If they released without
+        // dragging, transition to click-to-confirm (button up but mode still active).
+        if (_renderer.HeadingPreview is { } headingState && headingState.ButtonHeld && e.InitialPressMouseButton == MouseButton.Left)
+        {
+            if (headingState.DraggedPastThreshold)
+            {
+                ConfirmHeadingAt(e.GetPosition(this));
+                ExitHeadingMode();
+            }
+            else
+            {
+                headingState.ButtonHeld = false;
+            }
+            e.Handled = true;
+            return;
+        }
+
         if (_isDraggingDataBlock)
         {
             _isDraggingDataBlock = false;

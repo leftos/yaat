@@ -10,13 +10,31 @@ namespace Yaat.Client.Views.Radar.Flyouts;
 /// clicks the AHDG field of a EuroScope tag. The cursor position is updated on every
 /// PointerMoved while the mode is active. RadarRenderer reads this on every frame to paint
 /// the live preview (turn arc + line + label).
+///
+/// Two confirm paths coexist:
+///   - Drag-style: mouse-down on AHDG, drag past <see cref="DragThresholdPxSq"/> while held,
+///     release confirms. <see cref="DraggedPastThreshold"/> tracks the threshold crossing.
+///   - Click-style: mouse-down on AHDG, release without dragging (sets <see cref="ButtonHeld"/>
+///     to false). Subsequent left-click on the map confirms.
 /// </summary>
 public sealed class HeadingModeState
 {
+    /// <summary>Pixel² movement before a button-held interaction becomes a drag.</summary>
+    public const double DragThresholdPxSq = 16;
+
     public required string Callsign { get; init; }
 
     /// <summary>Current cursor position in lat/lon (updated as the mouse moves).</summary>
     public LatLon CursorPos { get; set; }
+
+    /// <summary>Screen position where AHDG was clicked. Reference for drag-threshold detection.</summary>
+    public required Avalonia.Point DragOrigin { get; init; }
+
+    /// <summary>True while the mouse button has been held since heading-mode entry.</summary>
+    public bool ButtonHeld { get; set; } = true;
+
+    /// <summary>True once the cursor has moved past <see cref="DragThresholdPxSq"/> while held.</summary>
+    public bool DraggedPastThreshold { get; set; }
 }
 
 /// <summary>

@@ -117,7 +117,7 @@ public partial class RadarView : UserControl
                 ShowContextMenu(AltitudeFlyout.Build(ac, mainVm.Radar, initials));
                 break;
             case TagFieldId.AssignedHeading:
-                _canvas?.EnterHeadingMode(ac.Callsign);
+                _canvas?.EnterHeadingMode(ac.Callsign, pos);
                 break;
             case TagFieldId.AssignedSpeed:
             case TagFieldId.CurrentSpeed:
