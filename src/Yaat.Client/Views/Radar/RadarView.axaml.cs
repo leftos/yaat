@@ -123,6 +123,21 @@ public partial class RadarView : UserControl
             case TagFieldId.CurrentSpeed:
                 ShowContextMenu(SpeedFlyout.Build(ac, mainVm.Radar, initials));
                 break;
+            case TagFieldId.Scratchpad1:
+                ShowContextMenu(ScratchpadFlyout.Build(ac, mainVm.Radar, initials, slot: 1));
+                break;
+            case TagFieldId.Scratchpad2:
+                ShowContextMenu(ScratchpadFlyout.Build(ac, mainVm.Radar, initials, slot: 2));
+                break;
+            case TagFieldId.Squawk:
+                ShowContextMenu(SquawkFlyout.Build(ac, mainVm.Radar, initials));
+                break;
+            case TagFieldId.AssignedRunway:
+                ShowContextMenu(RunwayFlyout.Build(ac, mainVm.Radar, initials));
+                break;
+            case TagFieldId.Handoff:
+                ShowContextMenu(HandoffFlyout.Build(ac, mainVm.Radar, initials));
+                break;
         }
     }
 
