@@ -73,6 +73,7 @@ public sealed record AircraftProfile
     [JsonPropertyName("climbRateFinal")]
     public double ClimbRateFinal { get; init; }
 
+    /// <summary>Cruise speed: TAS in knots (typical jet cruise ~460 KTAS), or Mach when &lt; 1.0.</summary>
     [JsonPropertyName("cruiseSpeed")]
     public double CruiseSpeed { get; init; }
 

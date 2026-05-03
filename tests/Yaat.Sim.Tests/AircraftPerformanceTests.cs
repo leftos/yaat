@@ -138,9 +138,10 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void DefaultSpeed_Level_UsesCruise()
     {
+        // B738 profile cruise = 460 KTAS. At FL350 the IAS conversion lands ~270 KIAS.
+        // DefaultSpeed must return KIAS — every caller assigns the result to IndicatedAirspeed.
         double speed = AircraftPerformance.DefaultSpeed("B738", AircraftCategory.Jet, 35000, null);
-        // B738 cruise = 460
-        Assert.Equal(460, speed);
+        Assert.True(speed is > 240 and < 300, $"B738 at FL350 in level cruise should resolve to ~270 KIAS, got {speed:F1}");
     }
 
     [Fact]
