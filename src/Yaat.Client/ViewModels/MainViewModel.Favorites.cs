@@ -32,7 +32,9 @@ public partial class MainViewModel
         var fullCommand = string.IsNullOrEmpty(currentText) ? favorite.CommandText : $"{currentText} {favorite.CommandText}";
 
         var savedText = CommandText;
+        var savedCaret = CommandCaretIndex;
         CommandText = fullCommand;
+        CommandCaretIndex = fullCommand.Length;
 
         try
         {
@@ -42,20 +44,16 @@ public partial class MainViewModel
         {
             _log.LogError(ex, "Favorite command execution failed");
             CommandText = savedText;
+            CommandCaretIndex = Math.Min(savedCaret, savedText.Length);
         }
     }
 
     public void AppendFavoriteToInput(FavoriteCommand favorite)
     {
         var current = CommandText.TrimEnd();
-        if (string.IsNullOrEmpty(current))
-        {
-            CommandText = favorite.CommandText;
-        }
-        else
-        {
-            CommandText = $"{current}, {favorite.CommandText}";
-        }
+        var newText = string.IsNullOrEmpty(current) ? favorite.CommandText : $"{current}, {favorite.CommandText}";
+        CommandText = newText;
+        CommandCaretIndex = newText.Length;
     }
 
     public void AddFavorite(FavoriteCommand favorite)

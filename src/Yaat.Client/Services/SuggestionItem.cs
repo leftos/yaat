@@ -15,4 +15,5 @@ public sealed class SuggestionItem
     public required string Text { get; init; }
     public required string Description { get; init; }
     public required string InsertText { get; init; }
+    public required int CaretAfterInsert { get; init; }
 }

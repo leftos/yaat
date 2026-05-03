@@ -36,33 +36,16 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        var wordsAfterVerb = parsed.Tokens.Length - parsed.VerbIndex - 1;
-        var isAfterVerb = parsed.HasTrailingSpace || wordsAfterVerb > 0;
-
-        if (!isAfterVerb)
+        if (parsed.ParameterIndex < 0)
         {
             return false;
         }
 
-        return AddRegistrySuggestions(
-            parsed.Definition,
-            parsed.Tokens,
-            parsed.VerbIndex,
-            parsed.HasTrailingSpace,
-            fullText,
-            targetAircraft,
-            aircraft,
-            suggestions,
-            primaryAirportId,
-            maxSuggestions
-        );
+        return AddRegistrySuggestions(parsed, fullText, targetAircraft, aircraft, suggestions, primaryAirportId, maxSuggestions);
     }
 
     private static bool AddRegistrySuggestions(
-        CommandDefinition def,
-        string[] words,
-        int verbIndex,
-        bool hasTrailingSpace,
+        CommandInputParseResult parsed,
         string fullText,
         AircraftModel? targetAircraft,
         IReadOnlyCollection<AircraftModel> aircraft,
@@ -71,23 +54,24 @@ internal static class ArgumentSuggester
         int maxSuggestions
     )
     {
-        var wordsAfterVerb = words.Length - verbIndex - 1;
-        // Parameter index: which positional arg the user is currently typing
-        // If trailing space, they've completed wordsAfterVerb args and are starting the next
-        int paramIndex = hasTrailingSpace ? wordsAfterVerb : Math.Max(0, wordsAfterVerb - 1);
-        var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
-        var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
+        var def = parsed.Definition!;
+        var paramIndex = parsed.ParameterIndex;
+        var partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
 
         // CVA has a custom parser path (LEFT|RIGHT|FOLLOW <cs>) that isn't declared via
         // Overloads or CompoundModifiers, so we handle its callsign flyout here.
-        if (def.Type == CanonicalCommandType.ClearedVisualApproach && wordsAfterVerb >= 1)
+        if (def.Type == CanonicalCommandType.ClearedVisualApproach && paramIndex >= 1)
         {
-            // Find the token immediately before the position being typed. When hasTrailingSpace
-            // is true the last word itself is "previous"; otherwise it is the second-to-last.
-            int prevIdx = hasTrailingSpace ? words.Length - 1 : words.Length - 2;
-            if (prevIdx > verbIndex && string.Equals(words[prevIdx], "FOLLOW", StringComparison.OrdinalIgnoreCase))
+            // The token immediately before the active position. We look at the token at
+            // paramIndex - 1 within typedArgs.
+            int prevTypedIndex = paramIndex - 1;
+            if (
+                prevTypedIndex >= 0
+                && prevTypedIndex < parsed.TypedArgs.Length
+                && string.Equals(parsed.TypedArgs[prevTypedIndex], "FOLLOW", StringComparison.OrdinalIgnoreCase)
+            )
             {
-                AddCallsignSuggestions(partial, prefix, aircraft, suggestions, maxSuggestions);
+                AddCallsignSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, aircraft, suggestions, maxSuggestions);
                 return true;
             }
         }
@@ -107,7 +91,7 @@ internal static class ArgumentSuggester
             }
 
             // Check that any earlier literal params match what the user actually typed
-            if (!OverloadMatchesPrecedingArgs(overload, words, verbIndex, paramIndex))
+            if (!OverloadMatchesPrecedingArgs(overload, parsed.Tokens, parsed.VerbIndex, paramIndex))
             {
                 continue;
             }
@@ -151,36 +135,42 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        // Add literal options from overloads at this param position
         if (hasLiterals)
         {
-            AddOverloadLiteralSuggestions(def, words, verbIndex, paramIndex, partial, prefix, suggestions, maxSuggestions);
+            AddOverloadLiteralSuggestions(def, parsed, fullText, partial, suggestions, maxSuggestions);
         }
 
-        // Add contextual suggestions based on TypeHint
         if (hasRunway)
         {
-            AddRunwaySuggestions(partial, prefix, suggestions, primaryAirportId, maxSuggestions);
+            AddRunwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);
         }
 
         if (hasApproach)
         {
-            AddApproachSuggestions(partial, prefix, targetAircraft, suggestions, maxSuggestions);
+            AddApproachSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, targetAircraft, suggestions, maxSuggestions);
         }
 
         if (hasFix)
         {
-            FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, maxSuggestions);
+            FixSuggester.AddFixSuggestionsForActiveToken(
+                fullText,
+                parsed.ActiveTokenStart,
+                parsed.ActiveTokenEnd,
+                partial,
+                targetAircraft,
+                suggestions,
+                maxSuggestions
+            );
         }
 
         if (hasCallsign)
         {
-            AddCallsignSuggestions(partial, prefix, aircraft, suggestions, maxSuggestions);
+            AddCallsignSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, aircraft, suggestions, maxSuggestions);
         }
 
         if (hasModifiers)
         {
-            AddCompoundModifierSuggestions(def, words, verbIndex, partial, prefix, suggestions, maxSuggestions);
+            AddCompoundModifierSuggestions(def, parsed, fullText, partial, suggestions, maxSuggestions);
         }
 
         return true;
@@ -213,15 +203,14 @@ internal static class ArgumentSuggester
 
     private static void AddOverloadLiteralSuggestions(
         CommandDefinition def,
-        string[] words,
-        int verbIndex,
-        int paramIndex,
+        CommandInputParseResult parsed,
+        string fullText,
         string partial,
-        string prefix,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
     )
     {
+        var paramIndex = parsed.ParameterIndex;
         // Track which literal values we've already added to avoid duplicates
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -237,7 +226,7 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            if (!OverloadMatchesPrecedingArgs(overload, words, verbIndex, paramIndex))
+            if (!OverloadMatchesPrecedingArgs(overload, parsed.Tokens, parsed.VerbIndex, paramIndex))
             {
                 continue;
             }
@@ -254,25 +243,29 @@ internal static class ArgumentSuggester
             }
 
             var description = overload.UsageHint ?? overload.VariantLabel ?? "";
-            AddOption(param.Name, description, partial, prefix, suggestions, maxSuggestions);
+            AddOption(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, param.Name, description, partial, suggestions, maxSuggestions);
         }
     }
 
     private static void AddCompoundModifierSuggestions(
         CommandDefinition def,
-        string[] words,
-        int verbIndex,
+        CommandInputParseResult parsed,
+        string fullText,
         string partial,
-        string prefix,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
     )
     {
         // Collect already-typed modifier keywords so we don't re-suggest non-repeatable ones
         var typedModifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (int i = verbIndex + 1; i < words.Length; i++)
+        for (int i = parsed.VerbIndex + 1; i < parsed.Tokens.Length; i++)
         {
-            typedModifiers.Add(words[i]);
+            // Skip the active token itself (the user is editing it)
+            if (i == parsed.ActiveTokenIndex)
+            {
+                continue;
+            }
+            typedModifiers.Add(parsed.Tokens[i]);
         }
 
         foreach (var mod in def.CompoundModifiers!)
@@ -289,7 +282,7 @@ internal static class ArgumentSuggester
             }
 
             var description = mod.ArgHint is not null ? $"+ {mod.ArgHint}" : "modifier";
-            AddOption(mod.Keyword, description, partial, prefix, suggestions, maxSuggestions);
+            AddOption(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, mod.Keyword, description, partial, suggestions, maxSuggestions);
         }
     }
 
@@ -314,8 +307,10 @@ internal static class ArgumentSuggester
     }
 
     private static void AddCallsignSuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
-        string prefix,
         IReadOnlyCollection<AircraftModel> aircraft,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
@@ -334,21 +329,25 @@ internal static class ArgumentSuggester
             }
 
             var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, ac.Callsign);
             suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Callsign,
                     Text = ac.Callsign,
                     Description = desc,
-                    InsertText = prefix + ac.Callsign + " ",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
                 }
             );
         }
     }
 
     private static void AddRunwaySuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
-        string prefix,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
         int maxSuggestions
@@ -376,13 +375,15 @@ internal static class ArgumentSuggester
                     continue;
                 }
 
+                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, designator);
                 suggestions.Add(
                     new SuggestionItem
                     {
                         Kind = SuggestionKind.Command,
                         Text = designator,
                         Description = "Runway",
-                        InsertText = prefix + designator + " ",
+                        InsertText = insertText,
+                        CaretAfterInsert = caret,
                     }
                 );
             }
@@ -390,8 +391,10 @@ internal static class ArgumentSuggester
     }
 
     private static void AddApproachSuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
-        string prefix,
         AircraftModel? targetAircraft,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
@@ -415,23 +418,27 @@ internal static class ArgumentSuggester
                 continue;
             }
 
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, approach.ApproachId);
             suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Command,
                     Text = approach.ApproachId,
                     Description = approach.ApproachTypeName,
-                    InsertText = prefix + approach.ApproachId + " ",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
                 }
             );
         }
     }
 
     private static void AddOption(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string value,
         string description,
         string partial,
-        string prefix,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
     )
@@ -446,13 +453,15 @@ internal static class ArgumentSuggester
             return;
         }
 
+        var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
         suggestions.Add(
             new SuggestionItem
             {
                 Kind = SuggestionKind.Command,
                 Text = value,
                 Description = description,
-                InsertText = prefix + value + " ",
+                InsertText = insertText,
+                CaretAfterInsert = caret,
             }
         );
     }

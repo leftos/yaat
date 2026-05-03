@@ -38,22 +38,44 @@ public partial class CommandInputController : ObservableObject
     private string _savedInput = "";
     private string _historyFilter = "";
     private bool _isNavigatingHistory;
-    private bool _suppressNextUpdate;
+    private int _pendingSuppressions;
 
     public bool NavDbReady { get; set; }
     public string? PrimaryAirportId { get; set; }
     public IReadOnlyList<MacroDefinition>? Macros { get; set; }
 
+    public bool IsNavigatingHistory => _isNavigatingHistory;
+
+    /// <summary>
+    /// Builds the new text and post-insert caret position when a suggestion replaces
+    /// the active token at the cursor. Preserves the suffix after the active token,
+    /// guarantees exactly one space between the inserted value and the next token,
+    /// and matches the legacy "trailing space" behavior at end-of-text.
+    /// </summary>
+    internal static (string Text, int Caret) BuildTokenReplacement(string fullText, int activeTokenStart, int activeTokenEnd, string value)
+    {
+        var prefix = fullText[..activeTokenStart];
+        var suffix = fullText[activeTokenEnd..];
+        if (suffix.Length == 0)
+        {
+            return (prefix + value + " ", prefix.Length + value.Length + 1);
+        }
+        var hasLeadingSpace = suffix[0] == ' ';
+        var newText = hasLeadingSpace ? (prefix + value + suffix) : (prefix + value + " " + suffix);
+        return (newText, prefix.Length + value.Length + 1);
+    }
+
     public void UpdateSuggestions(
         string text,
+        int caretIndex,
         IReadOnlyCollection<AircraftModel> aircraft,
         CommandScheme scheme,
         AircraftModel? selectedAircraft = null
     )
     {
-        if (_suppressNextUpdate)
+        if (_pendingSuppressions > 0)
         {
-            _suppressNextUpdate = false;
+            _pendingSuppressions--;
             Suggestions.Clear();
             SelectedSuggestionIndex = -1;
             IsSuggestionsVisible = false;
@@ -68,7 +90,7 @@ public partial class CommandInputController : ObservableObject
         Suggestions.Clear();
         SelectedSuggestionIndex = -1;
 
-        var parsed = ParseCommandInput(text, scheme);
+        var parsed = ParseCommandInput(text, caretIndex, scheme);
         if (parsed is null)
         {
             IsSuggestionsVisible = false;
@@ -78,69 +100,74 @@ public partial class CommandInputController : ObservableObject
         // If still typing a condition argument (empty stripped fragment)
         if (string.IsNullOrWhiteSpace(parsed.StrippedFragment))
         {
+            // Active-token bounds describe the partial condition arg under the cursor.
+            var argPartial = text[parsed.ActiveTokenStart..parsed.CaretIndex];
             if (string.Equals(parsed.ConditionVerb, "AT", StringComparison.OrdinalIgnoreCase))
             {
-                var atArg = GetConditionArgFragment(parsed.CurrentFragment);
-                var atPrefix = FixSuggester.GetTextBeforeLastWord(text);
-                FixSuggester.AddFixSuggestions(atArg, atPrefix, selectedAircraft, Suggestions, MaxSuggestions);
+                FixSuggester.AddFixSuggestionsForActiveToken(
+                    text,
+                    parsed.ActiveTokenStart,
+                    parsed.ActiveTokenEnd,
+                    argPartial,
+                    selectedAircraft,
+                    Suggestions,
+                    MaxSuggestions
+                );
             }
             else if (
                 string.Equals(parsed.ConditionVerb, "GIVEWAY", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(parsed.ConditionVerb, "BEHIND", StringComparison.OrdinalIgnoreCase)
             )
             {
-                var callsignArg = GetConditionArgFragment(parsed.CurrentFragment, isGiveWay: true);
-                var callsignPrefix = FixSuggester.GetTextBeforeLastWord(text);
-                AddCallsignSuggestionsWithPrefix(callsignArg, callsignPrefix, aircraft);
+                AddCallsignSuggestionsForActiveToken(text, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, argPartial, aircraft);
             }
 
             IsSuggestionsVisible = Suggestions.Count > 0;
             return;
         }
 
-        var fragmentForSuggestion = parsed.StrippedFragment;
-        var parts = fragmentForSuggestion.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        var firstToken = parts[0];
-        var hasSpace = fragmentForSuggestion.Contains(' ');
-
-        // First token is a verb if the parse result found the verb at index 0
+        // First token of fragment used for callsign-vs-verb resolution
+        var firstToken = parsed.Tokens[0];
         bool firstTokenIsVerb = parsed.VerbIndex == 0;
+        bool fragmentHasMultipleTokens = parsed.Tokens.Length > 1 || parsed.HasTrailingSpace;
+        var targetAircraft = ResolveTargetAircraft(firstToken, fragmentHasMultipleTokens, firstTokenIsVerb, aircraft, selectedAircraft);
 
-        // Resolve the target aircraft for filtering commands.
-        // If the first token is a callsign (not a verb), find it in the list.
-        var targetAircraft = ResolveTargetAircraft(firstToken, hasSpace, firstTokenIsVerb, aircraft, selectedAircraft);
+        var activeTokenText =
+            (parsed.ActiveTokenIndex >= 0 && parsed.ActiveTokenIndex < parsed.Tokens.Length) ? parsed.Tokens[parsed.ActiveTokenIndex] : "";
+        var activePartial = text[parsed.ActiveTokenStart..parsed.CaretIndex];
 
-        // Check if the trailing token is a macro reference (!NAME) at any position
-        var trailingToken = hasSpace ? GetTrailingToken(fragmentForSuggestion) : null;
+        // Suppress the "flood of all options" case: cursor placed at position 0 of a
+        // non-empty token without any typed prefix. Only show callsign/verb/condition
+        // floods when the user has typed something into the token (partial non-empty)
+        // or is at an empty insertion point (trailing space, ActiveTokenStart == End).
+        bool isInsertionPoint = parsed.ActiveTokenStart == parsed.ActiveTokenEnd;
+        bool hasUserPartial = activePartial.Length > 0 || isInsertionPoint;
 
-        if (!hasSpace)
+        // Macro check on the active token at the cursor
+        if (activeTokenText.StartsWith('!'))
         {
-            if (firstToken.StartsWith('!'))
-            {
-                AddMacroSuggestions(firstToken, text);
-            }
-            else
-            {
-                // Single token: could be callsign or command verb
-                AddCallsignSuggestions(firstToken, aircraft);
-                AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
-                AddConditionSuggestions(firstToken);
-            }
+            AddMacroSuggestions(activeTokenText, text, parsed);
         }
-        else if (trailingToken is not null && trailingToken.StartsWith('!'))
+        // Cursor on the first token, with no callsign prefix (verbIndex ∈ {-1, 0})
+        else if (parsed.ActiveTokenIndex == 0 && parsed.VerbIndex <= 0 && hasUserPartial)
         {
-            AddMacroSuggestions(trailingToken, text);
+            // Single-token context: could be callsign, command verb, or condition
+            AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
+            AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
+            AddConditionSuggestions(activeTokenText, text, parsed);
+        }
+        // Cursor on first token (the callsign) when verb is at index 1
+        else if (parsed.ActiveTokenIndex == 0 && parsed.VerbIndex == 1 && hasUserPartial)
+        {
+            AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
+        }
+        // Cursor on the verb position (index 1 after callsign)
+        else if (parsed.ActiveTokenIndex == 1 && !firstTokenIsVerb && hasUserPartial)
+        {
+            AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
         }
         else if (
-            AddCommandSuggester.TryAddAddArgumentSuggestions(
-                fragmentForSuggestion,
-                text,
-                scheme,
-                targetAircraft,
-                Suggestions,
-                PrimaryAirportId,
-                MaxSuggestions
-            )
+            AddCommandSuggester.TryAddAddArgumentSuggestions(parsed, text, scheme, targetAircraft, Suggestions, PrimaryAirportId, MaxSuggestions)
         )
         {
             // ADD command positional argument suggestions
@@ -149,34 +176,15 @@ public partial class CommandInputController : ObservableObject
         {
             // Command-specific argument suggestions (CTO modifiers, runways, fixes, callsigns)
         }
-        else if (FixSuggester.TryAddFixSuggestions(fragmentForSuggestion, text, targetAircraft, scheme, Suggestions, MaxSuggestions))
+        else if (FixSuggester.TryAddFixSuggestions(parsed, text, targetAircraft, scheme, Suggestions, MaxSuggestions))
         {
             // Fix suggestions were added (DCT or callsign+DCT context)
-        }
-        else if (parts.Length >= 2)
-        {
-            // After first token + space + partial second token
-            // Only suggest verbs if the first token is NOT a known verb (i.e., it's a callsign)
-            if (!firstTokenIsVerb)
-            {
-                AddCommandVerbSuggestions(parts[1].TrimStart(), text, scheme, targetAircraft);
-            }
-        }
-        else if (hasSpace && parts.Length == 1)
-        {
-            // Token + trailing space, no second token yet
-            // If it's a known verb, argument is expected — no suggestions
-            // If it's not a verb, it's a callsign — show all command verbs
-            if (!firstTokenIsVerb)
-            {
-                AddCommandVerbSuggestions("", text, scheme, targetAircraft);
-            }
         }
 
         IsSuggestionsVisible = Suggestions.Count > 0;
     }
 
-    public string? AcceptSuggestion(string currentText)
+    public (string Text, int Caret)? AcceptSuggestion(string currentText)
     {
         if (SelectedSuggestionIndex < 0 || SelectedSuggestionIndex >= Suggestions.Count)
         {
@@ -184,9 +192,10 @@ public partial class CommandInputController : ObservableObject
         }
 
         var item = Suggestions[SelectedSuggestionIndex];
-        _suppressNextUpdate = true;
+        // Two suppressions: one for the Text change, one for the CaretIndex change.
+        _pendingSuppressions = 2;
         DismissSuggestions();
-        return item.InsertText;
+        return (item.InsertText, item.CaretAfterInsert);
     }
 
     public void DismissSuggestions()
@@ -195,9 +204,9 @@ public partial class CommandInputController : ObservableObject
         SelectedSuggestionIndex = -1;
     }
 
-    public void UpdateSignatureHelp(string text, CommandScheme scheme)
+    public void UpdateSignatureHelp(string text, int caretIndex, CommandScheme scheme)
     {
-        var parsed = ParseCommandInput(text, scheme);
+        var parsed = ParseCommandInput(text, caretIndex, scheme);
         if (parsed is null || parsed.Definition is null || parsed.VerbIndex < 0)
         {
             SignatureHelp.Dismiss();
@@ -222,29 +231,102 @@ public partial class CommandInputController : ObservableObject
 
     /// <summary>
     /// Single parse pass over the command input text. Both autocomplete and signature help
-    /// consume this result instead of parsing independently.
+    /// consume this result instead of parsing independently. The result describes the token
+    /// at the cursor (caretIndex), not the trailing token of the text.
     /// </summary>
-    internal static CommandInputParseResult? ParseCommandInput(string text, CommandScheme scheme)
+    internal static CommandInputParseResult? ParseCommandInput(string text, int caretIndex, CommandScheme scheme)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrEmpty(text))
         {
             return null;
         }
 
-        var fragment = GetCurrentFragment(text);
+        // Clamp caret to text bounds
+        if (caretIndex < 0)
+        {
+            caretIndex = 0;
+        }
+        if (caretIndex > text.Length)
+        {
+            caretIndex = text.Length;
+        }
+
+        // Locate the fragment containing the cursor (delimited by ; or ,)
+        int fragmentStart = 0;
+        for (int i = caretIndex - 1; i >= 0; i--)
+        {
+            if (text[i] is ';' or ',')
+            {
+                fragmentStart = i + 1;
+                break;
+            }
+        }
+        int fragmentEnd = text.Length;
+        for (int i = caretIndex; i < text.Length; i++)
+        {
+            if (text[i] is ';' or ',')
+            {
+                fragmentEnd = i;
+                break;
+            }
+        }
+
+        // Skip leading whitespace inside the fragment
+        int contentStart = fragmentStart;
+        while (contentStart < fragmentEnd && text[contentStart] == ' ')
+        {
+            contentStart++;
+        }
+
+        // The fragment span (without leading whitespace) preserved for analysis.
+        var fragment = text[contentStart..fragmentEnd];
         if (string.IsNullOrWhiteSpace(fragment))
         {
             return null;
         }
 
-        var strippedFragment = StripConditionPrefix(fragment, out var conditionVerb);
-        if (string.IsNullOrWhiteSpace(strippedFragment))
+        // Strip condition prefix from the fragment, tracking how many characters of the
+        // fragment were consumed by the prefix so we can map cursor positions correctly.
+        var strippedFragment = StripConditionPrefix(fragment, out var conditionVerb, out var conditionPrefixLen, out var strippedStartInFragment);
+        int strippedStartInText = contentStart + strippedStartInFragment;
+        bool fragmentHasTrailingSpace = fragmentEnd > contentStart && text[fragmentEnd - 1] == ' ';
+
+        // Cursor in the condition prefix region (before the stripped portion begins)
+        bool cursorInConditionRegion = conditionPrefixLen > 0 && caretIndex < strippedStartInText;
+
+        if (string.IsNullOrWhiteSpace(strippedFragment) || cursorInConditionRegion)
         {
-            // Still typing condition argument — return partial result with condition info
-            return new CommandInputParseResult(fragment, conditionVerb, "", [], -1, null, null, null, [], -1, [], fragment.EndsWith(' '));
+            // Still typing condition argument or the prefix itself — return partial result.
+            // ActiveToken bounds describe the partial condition arg under the cursor:
+            // the contiguous non-space run that contains the caret (or insertion point).
+            (int conditionTokenStart, int conditionTokenEnd, bool conditionHasTrailing) = FindActiveTokenBounds(
+                text,
+                caretIndex,
+                contentStart,
+                fragmentEnd
+            );
+            return new CommandInputParseResult(
+                fragment,
+                conditionVerb,
+                "",
+                [],
+                -1,
+                null,
+                null,
+                null,
+                [],
+                -1,
+                [],
+                conditionHasTrailing,
+                caretIndex,
+                conditionTokenStart,
+                conditionTokenEnd,
+                0
+            );
         }
 
-        var tokens = strippedFragment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // Tokenize the stripped fragment, tracking each token's bounds in full-text coords.
+        var (tokens, tokenBounds) = TokenizeWithBounds(strippedFragment, strippedStartInText);
         if (tokens.Length == 0)
         {
             return null;
@@ -280,19 +362,63 @@ public partial class CommandInputController : ObservableObject
             }
         }
 
-        // Calculate parameter index and typed args
-        bool hasTrailingSpace = strippedFragment.EndsWith(' ');
+        // TypedArgs = all tokens after the verb (regardless of cursor position) so signature
+        // help has full information for overload scoring.
         string[] typedArgs = [];
-        int paramIndex = -1;
-
         if (verbIndex >= 0)
         {
             int argStartIndex = verbIndex + 1;
             typedArgs = tokens.Skip(argStartIndex).ToArray();
-            paramIndex = typedArgs.Length;
-            if (!hasTrailingSpace && paramIndex > 0)
+        }
+
+        // Find the active token at the cursor.
+        int activeTokenIndex;
+        int activeTokenStart;
+        int activeTokenEnd;
+        bool hasTrailingSpaceAtCursor;
+
+        int onTokenIndex = -1;
+        for (int i = 0; i < tokenBounds.Length; i++)
+        {
+            var (s, e) = tokenBounds[i];
+            if (s <= caretIndex && caretIndex <= e)
             {
-                paramIndex--;
+                onTokenIndex = i;
+                break;
+            }
+        }
+
+        if (onTokenIndex >= 0)
+        {
+            activeTokenIndex = onTokenIndex;
+            (activeTokenStart, activeTokenEnd) = tokenBounds[onTokenIndex];
+            hasTrailingSpaceAtCursor = false;
+        }
+        else
+        {
+            // Cursor is in whitespace — find the next-token slot index.
+            int nextSlot = tokens.Length;
+            for (int i = 0; i < tokenBounds.Length; i++)
+            {
+                if (tokenBounds[i].Start > caretIndex)
+                {
+                    nextSlot = i;
+                    break;
+                }
+            }
+            activeTokenIndex = nextSlot;
+            activeTokenStart = caretIndex;
+            activeTokenEnd = caretIndex;
+            hasTrailingSpaceAtCursor = true;
+        }
+
+        int paramIndex = -1;
+        if (verbIndex >= 0)
+        {
+            paramIndex = activeTokenIndex - verbIndex - 1;
+            if (paramIndex < -1)
+            {
+                paramIndex = -1;
             }
         }
 
@@ -308,8 +434,59 @@ public partial class CommandInputController : ObservableObject
             aliases,
             paramIndex,
             typedArgs,
-            hasTrailingSpace
+            hasTrailingSpaceAtCursor || fragmentHasTrailingSpace && activeTokenIndex >= tokens.Length,
+            caretIndex,
+            activeTokenStart,
+            activeTokenEnd,
+            activeTokenIndex
         );
+    }
+
+    private static (string[] Tokens, (int Start, int End)[] Bounds) TokenizeWithBounds(string strippedFragment, int strippedStartInText)
+    {
+        var tokens = new List<string>();
+        var bounds = new List<(int Start, int End)>();
+        int i = 0;
+        while (i < strippedFragment.Length)
+        {
+            while (i < strippedFragment.Length && strippedFragment[i] == ' ')
+            {
+                i++;
+            }
+            if (i >= strippedFragment.Length)
+            {
+                break;
+            }
+            int tokenStart = i;
+            while (i < strippedFragment.Length && strippedFragment[i] != ' ')
+            {
+                i++;
+            }
+            tokens.Add(strippedFragment[tokenStart..i]);
+            bounds.Add((strippedStartInText + tokenStart, strippedStartInText + i));
+        }
+        return (tokens.ToArray(), bounds.ToArray());
+    }
+
+    private static (int Start, int End, bool HasTrailingSpace) FindActiveTokenBounds(string text, int caretIndex, int searchStart, int searchEnd)
+    {
+        // Find the contiguous non-space run containing the caret. If the caret is in
+        // whitespace, the bounds collapse to the caret position with HasTrailingSpace=true.
+        int s = caretIndex;
+        while (s > searchStart && s > 0 && text[s - 1] != ' ')
+        {
+            s--;
+        }
+        int e = caretIndex;
+        while (e < searchEnd && e < text.Length && text[e] != ' ')
+        {
+            e++;
+        }
+        if (s == e)
+        {
+            return (caretIndex, caretIndex, true);
+        }
+        return (s, e, false);
     }
 
     private static CanonicalCommandType? ResolveVerbToType(string verb, CommandScheme scheme)
@@ -378,7 +555,7 @@ public partial class CommandInputController : ObservableObject
             }
 
             _historyIndex = next;
-            _suppressNextUpdate = true;
+            _pendingSuppressions = 1;
             return history[_historyIndex];
         }
         else
@@ -388,7 +565,7 @@ public partial class CommandInputController : ObservableObject
             {
                 _isNavigatingHistory = false;
                 _historyIndex = -1;
-                _suppressNextUpdate = true;
+                _pendingSuppressions = 1;
                 return _savedInput;
             }
 
@@ -397,12 +574,12 @@ public partial class CommandInputController : ObservableObject
             {
                 _isNavigatingHistory = false;
                 _historyIndex = -1;
-                _suppressNextUpdate = true;
+                _pendingSuppressions = 1;
                 return _savedInput;
             }
 
             _historyIndex = next;
-            _suppressNextUpdate = true;
+            _pendingSuppressions = 1;
             return history[_historyIndex];
         }
     }
@@ -481,191 +658,136 @@ public partial class CommandInputController : ObservableObject
         return token.Length >= 3 && token[0] is 'T' or 't' && char.IsDigit(token[1]) && token[^1] is 'L' or 'l' or 'R' or 'r';
     }
 
-    private static string GetCurrentFragment(string text)
-    {
-        // Find the last ; or , separator and return everything after it
-        var lastSemicolon = text.LastIndexOf(';');
-        var lastComma = text.LastIndexOf(',');
-        var lastSep = Math.Max(lastSemicolon, lastComma);
-
-        if (lastSep < 0)
-        {
-            return text;
-        }
-
-        return text[(lastSep + 1)..].TrimStart();
-    }
-
     internal static string StripConditionPrefix(string fragment, out string? conditionVerb)
     {
+        return StripConditionPrefix(fragment, out conditionVerb, out _, out _);
+    }
+
+    /// <summary>
+    /// Strips a condition prefix (LV/AT/AS/GIVEWAY/BEHIND + arg + space) from the fragment.
+    /// Reports the prefix length consumed and the offset where the stripped portion starts
+    /// within the original fragment, so callers can map cursor positions correctly.
+    /// </summary>
+    internal static string StripConditionPrefix(
+        string fragment,
+        out string? conditionVerb,
+        out int conditionPrefixLen,
+        out int strippedStartInFragment
+    )
+    {
         conditionVerb = null;
+        conditionPrefixLen = 0;
+        strippedStartInFragment = 0;
 
-        // Check for "LV <arg> " or "AT <arg> " prefix (fully typed condition keyword + space)
-        var upper = fragment.TrimStart().ToUpperInvariant();
-        if (upper.StartsWith("LV ", StringComparison.Ordinal) || upper.StartsWith("AT ", StringComparison.Ordinal))
+        var upper = fragment.ToUpperInvariant();
+        string? keyword = null;
+        int keywordLen = 0;
+
+        if (upper.StartsWith("LV ", StringComparison.Ordinal))
         {
-            conditionVerb = upper[..2];
-            var afterPrefix = fragment[3..].TrimStart();
-            var spaceIdx = afterPrefix.IndexOf(' ');
-            if (spaceIdx >= 0)
-            {
-                return afterPrefix[(spaceIdx + 1)..].TrimStart();
-            }
-
-            // Still typing the condition argument (e.g., "LV 05" or "AT SUN")
-            return "";
+            keyword = "LV";
+            keywordLen = 3;
+        }
+        else if (upper.StartsWith("AT ", StringComparison.Ordinal))
+        {
+            keyword = "AT";
+            keywordLen = 3;
+        }
+        else if (upper.StartsWith("AS ", StringComparison.Ordinal))
+        {
+            keyword = "AS";
+            keywordLen = 3;
+        }
+        else if (upper.StartsWith("GIVEWAY ", StringComparison.Ordinal))
+        {
+            keyword = "GIVEWAY";
+            keywordLen = 8;
+        }
+        else if (upper.StartsWith("BEHIND ", StringComparison.Ordinal))
+        {
+            keyword = "BEHIND";
+            keywordLen = 7;
         }
 
-        // Check for "AS <position> " prefix (compound prefix like LV/AT)
-        if (upper.StartsWith("AS ", StringComparison.Ordinal))
+        if (keyword is null)
         {
-            conditionVerb = "AS";
-            var afterPrefix = fragment[3..].TrimStart();
-            var spaceIdx = afterPrefix.IndexOf(' ');
-            if (spaceIdx >= 0)
-            {
-                return afterPrefix[(spaceIdx + 1)..].TrimStart();
-            }
-
-            // Still typing the position identifier (e.g., "AS 4U")
-            return "";
+            return fragment;
         }
 
-        // Check for "GIVEWAY <arg> " or "BEHIND <arg> " prefix (8 and 7 chars respectively)
-        if (upper.StartsWith("GIVEWAY ", StringComparison.Ordinal))
+        conditionVerb = keyword;
+        // Skip leading whitespace after the keyword
+        int afterPrefixStart = keywordLen;
+        while (afterPrefixStart < fragment.Length && fragment[afterPrefixStart] == ' ')
         {
-            conditionVerb = "GIVEWAY";
-            var afterPrefix = fragment[8..].TrimStart();
-            var spaceIdx = afterPrefix.IndexOf(' ');
-            if (spaceIdx >= 0)
-            {
-                return afterPrefix[(spaceIdx + 1)..].TrimStart();
-            }
-
-            // Still typing the callsign (e.g., "GIVEWAY SWA")
+            afterPrefixStart++;
+        }
+        // Find the space terminating the condition argument
+        int argEnd = fragment.IndexOf(' ', afterPrefixStart);
+        if (argEnd < 0)
+        {
+            // Still typing the condition argument
+            conditionPrefixLen = afterPrefixStart;
+            strippedStartInFragment = afterPrefixStart;
             return "";
         }
-
-        if (upper.StartsWith("BEHIND ", StringComparison.Ordinal))
+        // Skip whitespace after the condition argument
+        int strippedStart = argEnd + 1;
+        while (strippedStart < fragment.Length && fragment[strippedStart] == ' ')
         {
-            conditionVerb = "BEHIND";
-            var afterPrefix = fragment[7..].TrimStart();
-            var spaceIdx = afterPrefix.IndexOf(' ');
-            if (spaceIdx >= 0)
-            {
-                return afterPrefix[(spaceIdx + 1)..].TrimStart();
-            }
-
-            // Still typing the callsign (e.g., "BEHIND SWA")
-            return "";
+            strippedStart++;
         }
-
-        return fragment;
+        conditionPrefixLen = argEnd + 1;
+        strippedStartInFragment = strippedStart;
+        return fragment[strippedStart..];
     }
 
-    private static string GetConditionArgFragment(string fragment, bool isGiveWay = false)
+    private void AddConditionSuggestions(string activeTokenText, string text, CommandInputParseResult parsed)
     {
-        // Extract the partial argument after the condition keyword
-        // "AT SUN" → "SUN", "AT " → ""
-        // "GIVEWAY SWA" → "SWA", "GIVEWAY " → ""
-        // "BEHIND SWA" → "SWA", "BEHIND " → ""
-        int skipLen = 3;
-        if (isGiveWay)
+        var partial = text[parsed.ActiveTokenStart..parsed.CaretIndex].TrimStart().ToUpperInvariant();
+        if (partial.Length == 0)
         {
-            // Check which form we have
-            var upper = fragment.TrimStart().ToUpperInvariant();
-            skipLen = upper.StartsWith("GIVEWAY ") ? 8 : (upper.StartsWith("BEHIND ") ? 7 : 3);
+            return;
         }
 
-        var afterKeyword = fragment[skipLen..].TrimStart();
-        return afterKeyword;
+        TryAddCondition("LV", "Level at {altitude} — trigger at altitude", partial, text, parsed);
+        TryAddCondition("AT", "At {fix/FR/FRD} — trigger at fix, radial, or FRD point", partial, text, parsed);
+        TryAddCondition("GIVEWAY", "Give way to {callsign} — delay until target passes", partial, text, parsed);
+        TryAddCondition("BEHIND", "Behind {callsign} — alias for give way", partial, text, parsed);
     }
 
-    private void AddConditionSuggestions(string token)
+    private void TryAddCondition(string keyword, string description, string partial, string text, CommandInputParseResult parsed)
     {
         if (Suggestions.Count >= MaxSuggestions)
         {
             return;
         }
 
-        var upper = token.TrimStart().ToUpperInvariant();
-        if ("LV".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
-        {
-            Suggestions.Add(
-                new SuggestionItem
-                {
-                    Kind = SuggestionKind.Command,
-                    Text = "LV",
-                    Description = "Level at {altitude} — trigger at altitude",
-                    InsertText = "LV ",
-                }
-            );
-        }
-
-        if (Suggestions.Count >= MaxSuggestions)
+        if (!keyword.StartsWith(partial, StringComparison.Ordinal))
         {
             return;
         }
 
-        if ("AT".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
-        {
-            Suggestions.Add(
-                new SuggestionItem
-                {
-                    Kind = SuggestionKind.Command,
-                    Text = "AT",
-                    Description = "At {fix/FR/FRD} — trigger at fix, radial, or FRD point",
-                    InsertText = "AT ",
-                }
-            );
-        }
-
-        if (Suggestions.Count >= MaxSuggestions)
-        {
-            return;
-        }
-
-        if ("GIVEWAY".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
-        {
-            Suggestions.Add(
-                new SuggestionItem
-                {
-                    Kind = SuggestionKind.Command,
-                    Text = "GIVEWAY",
-                    Description = "Give way to {callsign} — delay until target passes",
-                    InsertText = "GIVEWAY ",
-                }
-            );
-        }
-
-        if (Suggestions.Count >= MaxSuggestions)
-        {
-            return;
-        }
-
-        if ("BEHIND".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
-        {
-            Suggestions.Add(
-                new SuggestionItem
-                {
-                    Kind = SuggestionKind.Command,
-                    Text = "BEHIND",
-                    Description = "Behind {callsign} — alias for give way",
-                    InsertText = "BEHIND ",
-                }
-            );
-        }
+        var (insertText, caret) = BuildTokenReplacement(text, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, keyword);
+        Suggestions.Add(
+            new SuggestionItem
+            {
+                Kind = SuggestionKind.Command,
+                Text = keyword,
+                Description = description,
+                InsertText = insertText,
+                CaretAfterInsert = caret,
+            }
+        );
     }
 
-    private void AddMacroSuggestions(string token, string fullText)
+    private void AddMacroSuggestions(string activeTokenText, string text, CommandInputParseResult parsed)
     {
         if (Macros is null || Macros.Count == 0)
         {
             return;
         }
 
-        var namePrefix = token[1..]; // strip !
-        var prefix = GetTextBeforeCurrentToken(fullText);
+        var namePrefix = activeTokenText.StartsWith('!') ? activeTokenText[1..] : activeTokenText;
 
         foreach (var macro in Macros)
         {
@@ -683,13 +805,15 @@ public partial class CommandInputController : ObservableObject
             var paramNames = macro.ParameterNames;
             var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"&{n}")) : "";
 
+            var (insertText, caret) = BuildTokenReplacement(text, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, "!" + baseName);
             Suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Macro,
                     Text = $"!{baseName}{paramHint}",
                     Description = BuildMacroDescription(macro),
-                    InsertText = prefix + "!" + baseName + " ",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
                 }
             );
         }
@@ -700,61 +824,49 @@ public partial class CommandInputController : ObservableObject
         return macro.Expansion;
     }
 
-    private void AddCallsignSuggestions(string token, IReadOnlyCollection<AircraftModel> aircraft)
+    private void AddCallsignSuggestions(
+        string activeTokenText,
+        IReadOnlyCollection<AircraftModel> aircraft,
+        string text,
+        CommandInputParseResult parsed
+    )
     {
-        var count = 0;
-        foreach (var ac in aircraft)
-        {
-            if (count >= MaxSuggestions)
-            {
-                break;
-            }
-
-            if (!ac.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
-            Suggestions.Add(
-                new SuggestionItem
-                {
-                    Kind = SuggestionKind.Callsign,
-                    Text = ac.Callsign,
-                    Description = desc,
-                    InsertText = ac.Callsign + " ",
-                }
-            );
-            count++;
-        }
+        var partial = text[parsed.ActiveTokenStart..parsed.CaretIndex];
+        AddCallsignSuggestionsForActiveToken(text, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, aircraft);
     }
 
-    private void AddCallsignSuggestionsWithPrefix(string token, string prefix, IReadOnlyCollection<AircraftModel> aircraft)
+    private void AddCallsignSuggestionsForActiveToken(
+        string text,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string partial,
+        IReadOnlyCollection<AircraftModel> aircraft
+    )
     {
-        var count = 0;
         foreach (var ac in aircraft)
         {
-            if (count >= MaxSuggestions)
+            if (Suggestions.Count >= MaxSuggestions)
             {
                 break;
             }
 
-            if (!ac.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase))
+            if (partial.Length > 0 && !ac.Callsign.Contains(partial, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
+            var (insertText, caret) = BuildTokenReplacement(text, activeTokenStart, activeTokenEnd, ac.Callsign);
             Suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Callsign,
                     Text = ac.Callsign,
                     Description = desc,
-                    InsertText = prefix + ac.Callsign + " ",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
                 }
             );
-            count++;
         }
     }
 
@@ -765,9 +877,16 @@ public partial class CommandInputController : ObservableObject
         CanonicalCommandType.Delete,
     ];
 
-    private void AddCommandVerbSuggestions(string token, string fullText, CommandScheme scheme, AircraftModel? targetAircraft = null)
+    private void AddCommandVerbSuggestions(
+        string activeTokenText,
+        string text,
+        CommandScheme scheme,
+        AircraftModel? targetAircraft,
+        CommandInputParseResult parsed
+    )
     {
         var isDelayed = targetAircraft?.IsDelayed == true;
+        var partial = text[parsed.ActiveTokenStart..parsed.CaretIndex];
 
         // Collect candidates with match quality so exact alias matches sort first.
         // 0 = exact alias match, 1 = alias prefix match, 2 = label substring match
@@ -788,13 +907,13 @@ public partial class CommandInputController : ObservableObject
             int bestRank = int.MaxValue;
             foreach (var alias in schemePattern.Aliases)
             {
-                if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(alias, partial, StringComparison.OrdinalIgnoreCase))
                 {
                     bestRank = 0;
                     break;
                 }
 
-                if (alias.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+                if (alias.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
                 {
                     bestRank = Math.Min(bestRank, 1);
                 }
@@ -802,15 +921,15 @@ public partial class CommandInputController : ObservableObject
 
             // Also match syntax patterns (e.g. "T{n}L" matches when user types "T")
             // Skip if the token already looks like a complete T{n}L/R command
-            if (bestRank > 1 && def.SyntaxPatterns is { Length: > 0 } && !IsCompleteSyntaxPattern(token))
+            if (bestRank > 1 && def.SyntaxPatterns is { Length: > 0 } && !IsCompleteSyntaxPattern(partial))
             {
                 foreach (var sp in def.SyntaxPatterns)
                 {
-                    var prefix = sp[..sp.IndexOf('{')];
+                    var spPrefix = sp[..sp.IndexOf('{')];
                     if (
-                        prefix.Length > 0
-                        && token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                        && (token.Length <= prefix.Length || char.IsDigit(token[prefix.Length]))
+                        spPrefix.Length > 0
+                        && partial.StartsWith(spPrefix, StringComparison.OrdinalIgnoreCase)
+                        && (partial.Length <= spPrefix.Length || char.IsDigit(partial[spPrefix.Length]))
                     )
                     {
                         bestRank = Math.Min(bestRank, 1);
@@ -818,7 +937,7 @@ public partial class CommandInputController : ObservableObject
                 }
             }
 
-            if (bestRank == int.MaxValue && def.Label.Contains(token, StringComparison.OrdinalIgnoreCase))
+            if (bestRank == int.MaxValue && def.Label.Contains(partial, StringComparison.OrdinalIgnoreCase))
             {
                 bestRank = 2;
             }
@@ -831,10 +950,9 @@ public partial class CommandInputController : ObservableObject
 
         candidates.Sort((a, b) => a.Rank.CompareTo(b.Rank));
 
-        var count = Suggestions.Count;
         foreach (var (_, def, schemePattern) in candidates)
         {
-            if (count >= MaxSuggestions)
+            if (Suggestions.Count >= MaxSuggestions)
             {
                 break;
             }
@@ -844,9 +962,7 @@ public partial class CommandInputController : ObservableObject
             var desc = $"{def.Label}{argHint}";
             var allDisplayAliases = def.SyntaxPatterns is { Length: > 0 } ? schemePattern.Aliases.Concat(def.SyntaxPatterns) : schemePattern.Aliases;
             var aliasText = string.Join(", ", allDisplayAliases);
-            var needsArg = def.ArgMode != ArgMode.None;
-            var prefix = GetTextBeforeCurrentToken(fullText);
-            var insertText = prefix + schemePattern.PrimaryVerb + (needsArg ? " " : "");
+            var (insertText, caret) = BuildTokenReplacement(text, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, schemePattern.PrimaryVerb);
 
             Suggestions.Add(
                 new SuggestionItem
@@ -855,45 +971,10 @@ public partial class CommandInputController : ObservableObject
                     Text = aliasText,
                     Description = desc,
                     InsertText = insertText,
+                    CaretAfterInsert = caret,
                 }
             );
-            count++;
         }
-    }
-
-    private static string? GetTrailingToken(string fragment)
-    {
-        var lastSpace = fragment.LastIndexOf(' ');
-        if (lastSpace < 0)
-        {
-            return null;
-        }
-
-        var token = fragment[(lastSpace + 1)..];
-        return token.Length > 0 ? token : null;
-    }
-
-    private static string GetTextBeforeCurrentToken(string text)
-    {
-        // Find the last separator and return text up to and including it
-        var lastSemicolon = text.LastIndexOf(';');
-        var lastComma = text.LastIndexOf(',');
-        var lastSep = Math.Max(lastSemicolon, lastComma);
-
-        if (lastSep < 0)
-        {
-            // No separator — check if there's a space (callsign prefix)
-            var lastSpace = text.LastIndexOf(' ');
-            if (lastSpace >= 0)
-            {
-                // Keep everything up to and including the last space
-                return text[..(lastSpace + 1)];
-            }
-
-            return "";
-        }
-
-        return text[..(lastSep + 1)] + " ";
     }
 
     private static int FindNextHistoryMatch(IReadOnlyList<string> history, int startIndex, string filter)

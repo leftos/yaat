@@ -177,11 +177,11 @@ public partial class CommandInputView : UserControl
                         input.SelectedSuggestionIndex = 0;
                     }
 
-                    var text = input.AcceptSuggestion(vm.CommandText);
-                    if (text is not null)
+                    var accepted = input.AcceptSuggestion(vm.CommandText);
+                    if (accepted is not null)
                     {
-                        vm.CommandText = text;
-                        MoveCaret(cmdInput, text.Length);
+                        vm.CommandText = accepted.Value.Text;
+                        MoveCaret(cmdInput, accepted.Value.Caret);
                     }
                 }
                 e.Handled = true;
@@ -193,8 +193,8 @@ public partial class CommandInputView : UserControl
                     var expanded = input.AcceptSuggestion(vm.CommandText);
                     if (expanded is not null)
                     {
-                        vm.CommandText = expanded;
-                        MoveCaret(cmdInput, expanded.Length);
+                        vm.CommandText = expanded.Value.Text;
+                        MoveCaret(cmdInput, expanded.Value.Caret);
                     }
                 }
                 input.DismissSuggestions();
@@ -215,12 +215,12 @@ public partial class CommandInputView : UserControl
             return;
         }
 
-        var text = vm.CommandInput.AcceptSuggestion(vm.CommandText);
-        if (text is not null)
+        var accepted = vm.CommandInput.AcceptSuggestion(vm.CommandText);
+        if (accepted is not null)
         {
-            vm.CommandText = text;
+            vm.CommandText = accepted.Value.Text;
             var cmdInput = this.FindControl<TextBox>("CommandInput");
-            MoveCaret(cmdInput, text.Length);
+            MoveCaret(cmdInput, accepted.Value.Caret);
             cmdInput?.Focus();
         }
     }

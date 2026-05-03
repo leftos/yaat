@@ -9,7 +9,7 @@ namespace Yaat.Client.Services;
 internal static class AddCommandSuggester
 {
     internal static bool TryAddAddArgumentSuggestions(
-        string fragment,
+        CommandInputParseResult parsed,
         string fullText,
         CommandScheme scheme,
         AircraftModel? selectedAircraft,
@@ -23,22 +23,27 @@ internal static class AddCommandSuggester
             return false;
         }
 
-        var words = fragment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length < 1 || !MatchesAnyAlias(words[0], addPattern))
+        if (parsed.Tokens.Length < 1 || !MatchesAnyAlias(parsed.Tokens[0], addPattern))
         {
             return false;
         }
 
-        var hasTrailingSpace = fragment.EndsWith(' ');
-        var completedArgs = hasTrailingSpace ? words.Length - 1 : words.Length - 2;
-        var partial = hasTrailingSpace ? "" : (words.Length > 1 ? words[^1] : "");
-        var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
+        // Cursor-aware view of typed args. ADD always lives at index 0; completedArgs is the
+        // 0-based position the user is currently editing (relative to ADD's args).
+        var completedArgs = parsed.ParameterIndex;
+        if (completedArgs < 0)
+        {
+            return false;
+        }
+        var partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
 
         switch (completedArgs)
         {
             case 0:
                 AddAddOptions(
-                    prefix,
+                    fullText,
+                    parsed.ActiveTokenStart,
+                    parsed.ActiveTokenEnd,
                     partial,
                     suggestions,
                     maxSuggestions,
@@ -49,7 +54,9 @@ internal static class AddCommandSuggester
 
             case 1:
                 AddAddOptions(
-                    prefix,
+                    fullText,
+                    parsed.ActiveTokenStart,
+                    parsed.ActiveTokenEnd,
                     partial,
                     suggestions,
                     maxSuggestions,
@@ -61,16 +68,38 @@ internal static class AddCommandSuggester
 
             case 2:
             {
-                var weight = ParseWeightToken(words[2]);
-                if (weight is not null)
+                if (parsed.Tokens.Length > 2)
                 {
-                    AddEngineOptions(prefix, partial, weight.Value, suggestions, maxSuggestions);
+                    var weight = ParseWeightToken(parsed.Tokens[2]);
+                    if (weight is not null)
+                    {
+                        AddEngineOptions(
+                            fullText,
+                            parsed.ActiveTokenStart,
+                            parsed.ActiveTokenEnd,
+                            partial,
+                            weight.Value,
+                            suggestions,
+                            maxSuggestions
+                        );
+                    }
                 }
                 break;
             }
 
             case >= 3:
-                AddPositionSuggestions(words, prefix, partial, completedArgs, selectedAircraft, suggestions, primaryAirportId, maxSuggestions);
+                AddPositionSuggestions(
+                    parsed.Tokens,
+                    fullText,
+                    parsed.ActiveTokenStart,
+                    parsed.ActiveTokenEnd,
+                    partial,
+                    completedArgs,
+                    selectedAircraft,
+                    suggestions,
+                    primaryAirportId,
+                    maxSuggestions
+                );
                 break;
         }
 
@@ -78,7 +107,9 @@ internal static class AddCommandSuggester
     }
 
     internal static void AddAddOptions(
-        string prefix,
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions,
@@ -97,13 +128,15 @@ internal static class AddCommandSuggester
                 continue;
             }
 
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
             suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Command,
                     Text = value,
                     Description = desc,
-                    InsertText = prefix + value + " ",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
                 }
             );
         }
@@ -132,7 +165,9 @@ internal static class AddCommandSuggester
     }
 
     private static void AddEngineOptions(
-        string prefix,
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
         WeightClass weight,
         ObservableCollection<SuggestionItem> suggestions,
@@ -155,7 +190,7 @@ internal static class AddCommandSuggester
             _ => [],
         };
 
-        AddAddOptions(prefix, partial, suggestions, maxSuggestions, options);
+        AddAddOptions(fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions, options);
     }
 
     private static string FormatTypes(WeightClass weight, EngineKind engine)
@@ -166,7 +201,9 @@ internal static class AddCommandSuggester
 
     private static void AddPositionSuggestions(
         string[] words,
-        string prefix,
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
         int completedArgs,
         AircraftModel? selectedAircraft,
@@ -181,20 +218,30 @@ internal static class AddCommandSuggester
             {
                 // User is typing @fixname — show fix suggestions
                 var fixPartial = partial.Length > 1 ? partial[1..] : "";
-                FixSuggester.AddAtFixSuggestions(fixPartial, prefix, selectedAircraft, suggestions, maxSuggestions);
+                FixSuggester.AddAtFixSuggestionsForActiveToken(
+                    fullText,
+                    activeTokenStart,
+                    activeTokenEnd,
+                    fixPartial,
+                    selectedAircraft,
+                    suggestions,
+                    maxSuggestions
+                );
             }
             else
             {
                 // Show all position variant hints + runway suggestions
                 AddAddOptions(
-                    prefix,
+                    fullText,
+                    activeTokenStart,
+                    activeTokenEnd,
                     partial,
                     suggestions,
                     maxSuggestions,
                     ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"),
                     ("@", "At fix — @{fix_or_FRD} {alt_ft}, or at parking — @{spot}")
                 );
-                AddRunwaySuggestions(prefix, partial, suggestions, primaryAirportId, maxSuggestions);
+                AddRunwaySuggestions(fullText, activeTokenStart, activeTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);
             }
             return;
         }
@@ -207,14 +254,14 @@ internal static class AddCommandSuggester
         {
             if (completedArgs >= 6)
             {
-                AddTypeAndAirlineOverrides(words, prefix, partial, suggestions, maxSuggestions);
+                AddTypeAndAirlineOverrides(words, fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions);
             }
         }
         else if (isFixVariant)
         {
             if (completedArgs >= 5)
             {
-                AddTypeAndAirlineOverrides(words, prefix, partial, suggestions, maxSuggestions);
+                AddTypeAndAirlineOverrides(words, fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions);
             }
         }
         else
@@ -222,18 +269,28 @@ internal static class AddCommandSuggester
             // Runway variant: after runway, next arg is either a distance (nm) or a type/airline override
             if (completedArgs == 4)
             {
-                AddAddOptions(prefix, partial, suggestions, maxSuggestions, ("{distance}", "Distance in nm — spawns on final (e.g. 5, 10)"));
-                AddTypeAndAirlineOverrides(words, prefix, partial, suggestions, maxSuggestions);
+                AddAddOptions(
+                    fullText,
+                    activeTokenStart,
+                    activeTokenEnd,
+                    partial,
+                    suggestions,
+                    maxSuggestions,
+                    ("{distance}", "Distance in nm — spawns on final (e.g. 5, 10)")
+                );
+                AddTypeAndAirlineOverrides(words, fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions);
             }
             else if (completedArgs >= 5)
             {
-                AddTypeAndAirlineOverrides(words, prefix, partial, suggestions, maxSuggestions);
+                AddTypeAndAirlineOverrides(words, fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions);
             }
         }
     }
 
     private static void AddRunwaySuggestions(
-        string prefix,
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
@@ -263,13 +320,15 @@ internal static class AddCommandSuggester
                     continue;
                 }
 
+                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, designator);
                 suggestions.Add(
                     new SuggestionItem
                     {
                         Kind = SuggestionKind.Command,
                         Text = designator,
                         Description = "Runway — lined up, or add distance for final",
-                        InsertText = prefix + designator + " ",
+                        InsertText = insertText,
+                        CaretAfterInsert = caret,
                     }
                 );
             }
@@ -278,7 +337,9 @@ internal static class AddCommandSuggester
 
     private static void AddTypeAndAirlineOverrides(
         string[] words,
-        string prefix,
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string partial,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
@@ -306,13 +367,15 @@ internal static class AddCommandSuggester
                     continue;
                 }
 
+                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, type);
                 suggestions.Add(
                     new SuggestionItem
                     {
                         Kind = SuggestionKind.Command,
                         Text = type,
                         Description = "Aircraft type override",
-                        InsertText = prefix + type + " ",
+                        InsertText = insertText,
+                        CaretAfterInsert = caret,
                     }
                 );
             }
@@ -334,13 +397,15 @@ internal static class AddCommandSuggester
                 }
 
                 var display = $"*{airline}";
+                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, display);
                 suggestions.Add(
                     new SuggestionItem
                     {
                         Kind = SuggestionKind.Command,
                         Text = display,
                         Description = "Airline callsign override",
-                        InsertText = prefix + display + " ",
+                        InsertText = insertText,
+                        CaretAfterInsert = caret,
                     }
                 );
             }

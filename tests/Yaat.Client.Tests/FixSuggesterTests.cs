@@ -127,8 +127,10 @@ public class FixSuggesterTests
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
         var scheme = new CommandScheme { Patterns = new Dictionary<CanonicalCommandType, CommandPattern>() };
+        var parsed = CommandInputController.ParseCommandInput("DCT SUN", "DCT SUN".Length, CommandScheme.Default());
+        Assert.NotNull(parsed);
 
-        var result = FixSuggester.TryAddFixSuggestions("DCT SUN", "DCT SUN", null, scheme, suggestions, 10);
+        var result = FixSuggester.TryAddFixSuggestions(parsed, "DCT SUN", null, scheme, suggestions, 10);
 
         Assert.False(result);
     }
@@ -138,14 +140,16 @@ public class FixSuggesterTests
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
         var scheme = CommandScheme.Default();
+        var parsed = CommandInputController.ParseCommandInput("FH 180", "FH 180".Length, scheme);
+        Assert.NotNull(parsed);
 
-        var result = FixSuggester.TryAddFixSuggestions("FH 180", "FH 180", null, scheme, suggestions, 10);
+        var result = FixSuggester.TryAddFixSuggestions(parsed, "FH 180", null, scheme, suggestions, 10);
 
         Assert.False(result);
     }
 
     // -------------------------------------------------------------------------
-    // AddFixSuggestions — empty NavigationDatabase, no aircraft
+    // AddFixSuggestionsForActiveToken — empty NavigationDatabase, no aircraft
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -153,7 +157,7 @@ public class FixSuggesterTests
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
 
-        FixSuggester.AddFixSuggestions("SUN", "", null, suggestions, 10);
+        FixSuggester.AddFixSuggestionsForActiveToken("SUN", 0, 3, "SUN", null, suggestions, 10);
 
         Assert.Empty(suggestions);
     }

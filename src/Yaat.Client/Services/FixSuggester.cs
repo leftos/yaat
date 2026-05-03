@@ -12,7 +12,7 @@ internal static class FixSuggester
     /// Returns true if fix suggestions were added.
     /// </summary>
     internal static bool TryAddFixSuggestions(
-        string fragmentWithSpaces,
+        CommandInputParseResult parsed,
         string fullText,
         AircraftModel? selectedAircraft,
         CommandScheme scheme,
@@ -25,20 +25,18 @@ internal static class FixSuggester
             return false;
         }
 
-        var words = fragmentWithSpaces.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length < 1)
+        if (parsed.Tokens.Length < 1)
         {
             return false;
         }
 
-        // Pattern 1: "DCT ..." — first word is a DCT alias
-        // Pattern 2: "UAL123 DCT ..." — first word is callsign, second is DCT alias
+        // DCT can be at index 0 (DCT FIX) or index 1 (CALLSIGN DCT FIX)
         int dctIndex;
-        if (MatchesAnyAlias(words[0], dctPattern))
+        if (MatchesAnyAlias(parsed.Tokens[0], dctPattern))
         {
             dctIndex = 0;
         }
-        else if (words.Length >= 2 && MatchesAnyAlias(words[1], dctPattern))
+        else if (parsed.Tokens.Length >= 2 && MatchesAnyAlias(parsed.Tokens[1], dctPattern))
         {
             dctIndex = 1;
         }
@@ -47,76 +45,93 @@ internal static class FixSuggester
             return false;
         }
 
-        // The partial fix token is the last word after DCT (if any), or empty if trailing space
-        var hasTrailingSpace = fragmentWithSpaces.EndsWith(' ');
-        var lastWordAfterDct = words.Length > dctIndex + 1 ? words[^1] : "";
-        var fixToken = hasTrailingSpace ? "" : lastWordAfterDct;
+        // Only suggest fixes when the cursor is past the DCT verb token.
+        if (parsed.ActiveTokenIndex <= dctIndex)
+        {
+            return false;
+        }
 
-        var prefix = GetTextBeforeLastWord(fullText);
-        AddFixSuggestions(fixToken, prefix, selectedAircraft, suggestions, maxSuggestions);
+        var partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
+        AddFixSuggestionsForActiveToken(
+            fullText,
+            parsed.ActiveTokenStart,
+            parsed.ActiveTokenEnd,
+            partial,
+            selectedAircraft,
+            suggestions,
+            maxSuggestions
+        );
         return suggestions.Count > 0;
     }
 
-    internal static void AddFixSuggestions(
-        string token,
-        string prefix,
+    /// <summary>
+    /// Adds fix suggestions filtered by `partial` (text from active token start up to cursor).
+    /// InsertText replaces the active token in `fullText` while preserving the suffix.
+    /// </summary>
+    internal static void AddFixSuggestionsForActiveToken(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string partial,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
     )
     {
-        var count = suggestions.Count;
-
         // Tier 1: Route fixes from selected aircraft's FMS
         if (selectedAircraft is not null)
         {
             var routeFixes = CollectRouteFixNames(selectedAircraft);
             foreach (var fix in routeFixes)
             {
-                if (count >= maxSuggestions)
+                if (suggestions.Count >= maxSuggestions)
                 {
                     break;
                 }
 
-                if (token.Length > 0 && !fix.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+                if (partial.Length > 0 && !fix.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
+                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, fix);
                 suggestions.Add(
                     new SuggestionItem
                     {
                         Kind = SuggestionKind.RouteFix,
                         Text = fix,
                         Description = "Route",
-                        InsertText = prefix + fix + " ",
+                        InsertText = insertText,
+                        CaretAfterInsert = caret,
                     }
                 );
-                count++;
             }
         }
 
         // Tier 2: All navdata fixes
-        AddNavdataFixSuggestions(token, prefix, suggestions, NavigationDatabase.Instance, maxSuggestions, ref count);
+        AddNavdataFixSuggestions(fullText, activeTokenStart, activeTokenEnd, partial, "", suggestions, NavigationDatabase.Instance, maxSuggestions);
     }
 
-    internal static void AddAtFixSuggestions(
+    /// <summary>
+    /// Adds @fix suggestions (used by AT condition and ADD @fix variant). The displayed
+    /// text and InsertText include the leading "@" character.
+    /// </summary>
+    internal static void AddAtFixSuggestionsForActiveToken(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string fixPartial,
-        string prefix,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
     )
     {
-        var count = suggestions.Count;
-
-        // Tier 1: Route fixes from selected aircraft
         if (selectedAircraft is not null)
         {
             var routeFixes = CollectRouteFixNames(selectedAircraft);
             foreach (var fix in routeFixes)
             {
-                if (count >= maxSuggestions)
+                if (suggestions.Count >= maxSuggestions)
                 {
                     break;
                 }
@@ -126,30 +141,31 @@ internal static class FixSuggester
                     continue;
                 }
 
+                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, "@" + fix);
                 suggestions.Add(
                     new SuggestionItem
                     {
                         Kind = SuggestionKind.RouteFix,
                         Text = $"@{fix}",
                         Description = "Route",
-                        InsertText = prefix + $"@{fix} ",
+                        InsertText = insertText,
+                        CaretAfterInsert = caret,
                     }
                 );
-                count++;
             }
         }
 
-        // Tier 2: All navdata fixes
         if (fixPartial.Length > 0)
         {
-            AddNavdataFixSuggestionsWithBinarySearch(
+            AddNavdataFixSuggestions(
+                fullText,
+                activeTokenStart,
+                activeTokenEnd,
                 fixPartial,
-                prefix,
-                fixTextPrefix: "@",
+                "@",
                 suggestions,
                 NavigationDatabase.Instance,
-                maxSuggestions,
-                ref count
+                maxSuggestions
             );
         }
     }
@@ -194,6 +210,10 @@ internal static class FixSuggester
         return fixes;
     }
 
+    /// <summary>
+    /// Returns the substring of <paramref name="text"/> up to and including the last space.
+    /// Retained for non-cursor-aware callers (CallsignArgumentResolver tests).
+    /// </summary>
     internal static string GetTextBeforeLastWord(string text)
     {
         var lastSpace = text.LastIndexOf(' ');
@@ -206,12 +226,14 @@ internal static class FixSuggester
     }
 
     private static void AddNavdataFixSuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
         string token,
-        string prefix,
+        string fixTextPrefix,
         ObservableCollection<SuggestionItem> suggestions,
         NavigationDatabase fixDb,
-        int maxSuggestions,
-        ref int count
+        int maxSuggestions
     )
     {
         if (token.Length == 0)
@@ -220,19 +242,6 @@ internal static class FixSuggester
             return;
         }
 
-        AddNavdataFixSuggestionsWithBinarySearch(token, prefix, fixTextPrefix: "", suggestions, fixDb, maxSuggestions, ref count);
-    }
-
-    private static void AddNavdataFixSuggestionsWithBinarySearch(
-        string token,
-        string prefix,
-        string fixTextPrefix,
-        ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase fixDb,
-        int maxSuggestions,
-        ref int count
-    )
-    {
         var allNames = fixDb.AllFixNames;
 
         // Binary search for the first name matching the prefix
@@ -262,7 +271,7 @@ internal static class FixSuggester
             }
         }
 
-        for (int i = lo; i < allNames.Length && count < maxSuggestions; i++)
+        for (int i = lo; i < allNames.Length && suggestions.Count < maxSuggestions; i++)
         {
             var name = allNames[i];
             if (!name.StartsWith(token, StringComparison.OrdinalIgnoreCase))
@@ -276,16 +285,17 @@ internal static class FixSuggester
             }
 
             var displayText = fixTextPrefix + name;
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, displayText);
             suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Fix,
                     Text = displayText,
                     Description = "",
-                    InsertText = prefix + displayText + " ",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
                 }
             );
-            count++;
         }
     }
 

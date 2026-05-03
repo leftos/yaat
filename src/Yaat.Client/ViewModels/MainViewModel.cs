@@ -99,6 +99,9 @@ public partial class MainViewModel : ObservableObject
     private string _commandText = "";
 
     [ObservableProperty]
+    private int _commandCaretIndex;
+
+    [ObservableProperty]
     private AircraftModel? _selectedAircraft;
 
     [ObservableProperty]
@@ -1024,12 +1027,11 @@ public partial class MainViewModel : ObservableObject
                 source = "raw-transcript";
             }
 
-            // Log the exact string the user will see in the input box. Debugging STT regressions
-            // is much easier when the log shows the final post-prepend text alongside the
-            // earlier "Rule engine mapped transcript to: ..." line — without this, you have to
-            // reconstruct the prepended form mentally from separate log entries.
             if (populatedCommandText)
             {
+                // Reset caret to end of populated text so cursor-aware suggestions work on the
+                // newly populated string, not against a stale caret from an earlier entry.
+                CommandCaretIndex = CommandText.Length;
                 _log.LogInformation("Speech populated command box ({Source}): {CommandText}", source, CommandText);
             }
 
@@ -1054,8 +1056,25 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnCommandTextChanged(string value)
     {
-        _commandInput.UpdateSuggestions(value, Aircraft, _preferences.CommandScheme, SelectedAircraft);
-        _commandInput.UpdateSignatureHelp(value, _preferences.CommandScheme);
+        // Clamp caret to new text length so the controller never sees a stale out-of-range index.
+        if (CommandCaretIndex > value.Length)
+        {
+            CommandCaretIndex = value.Length;
+        }
+        _commandInput.UpdateSuggestions(value, CommandCaretIndex, Aircraft, _preferences.CommandScheme, SelectedAircraft);
+        _commandInput.UpdateSignatureHelp(value, CommandCaretIndex, _preferences.CommandScheme);
+    }
+
+    partial void OnCommandCaretIndexChanged(int value)
+    {
+        // Skip caret-only updates while navigating history — the controller dismissed
+        // suggestions and we don't want a follow-up MoveCaret to revive them.
+        if (_commandInput.IsNavigatingHistory)
+        {
+            return;
+        }
+        _commandInput.UpdateSuggestions(CommandText, value, Aircraft, _preferences.CommandScheme, SelectedAircraft);
+        _commandInput.UpdateSignatureHelp(CommandText, value, _preferences.CommandScheme);
     }
 
     // --- Commands ---
