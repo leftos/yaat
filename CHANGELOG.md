@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.1.11-alpha [2026/05/03]
+
+### Highlights
+- Airborne aircraft check in on first contact in solo mode — IFR with callsign and altitude, VFR with position and intent.
+- `CAPP` flies the published procedure turn at PT-anchor fixes (e.g. CCR for KCCR S19R).
+- Type a callsign plus flight-data fields into STARS to create a DA or VP flight plan — auto-acquires the track once it squawks the assigned code.
+- Cruise IAS is realistic at every altitude — a Mooney leveling at 1,400 ft holds ~175 KIAS instead of accelerating to 240.
 
 ### Added
 - `AT` conditions also fire on ground entities — taxiways (`AT B`), named spots (`AT $5`), parking (`AT @TERM2`), and two-taxiway intersections (`AT B/C`).
