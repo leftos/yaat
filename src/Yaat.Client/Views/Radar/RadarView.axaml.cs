@@ -119,6 +119,10 @@ public partial class RadarView : UserControl
             case TagFieldId.AssignedHeading:
                 _canvas?.EnterHeadingMode(ac.Callsign);
                 break;
+            case TagFieldId.AssignedSpeed:
+            case TagFieldId.CurrentSpeed:
+                ShowContextMenu(SpeedFlyout.Build(ac, mainVm.Radar, initials));
+                break;
         }
     }
 
