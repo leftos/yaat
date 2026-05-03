@@ -19,6 +19,7 @@
 
 ### Fixed
 - ASDE-X suspend/terminate/inhibit-alerts/tag commands from CRC now take effect on the display.
+- The CTO inline signature hint matches the typed arguments — `CTO 020 150` shows the heading overload, not `CTO RH [altitude?]`.
 
 ## v0.1.11-alpha [2026/05/03]
 

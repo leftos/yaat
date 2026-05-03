@@ -197,6 +197,99 @@ public class SignatureHelpStateTests
         Assert.Equal(1, state.SelectedOverloadIndex);
     }
 
+    private static CommandSignatureSet MakeCtoSet()
+    {
+        // Mirrors the registry overload shapes for CTO that participate in the bug:
+        // 0 Bare, 1 RH+alt, 2 OC+alt, 3 Heading+alt, 4 LT+heading+alt
+        var bareSig = new CommandSignature(CanonicalCommandType.ClearedForTakeoff, "CTO", ["CTO"], [], "Bare");
+        var rhSig = new CommandSignature(
+            CanonicalCommandType.ClearedForTakeoff,
+            "CTO RH",
+            ["CTO"],
+            [Lit("RH"), new CommandParameter("altitude", "alt", true)],
+            "Runway heading"
+        );
+        var ocSig = new CommandSignature(
+            CanonicalCommandType.ClearedForTakeoff,
+            "CTO OC",
+            ["CTO"],
+            [Lit("OC"), new CommandParameter("altitude", "alt", true)],
+            "On course"
+        );
+        var hdgSig = new CommandSignature(
+            CanonicalCommandType.ClearedForTakeoff,
+            "CTO Heading",
+            ["CTO"],
+            [new CommandParameter("heading", "0-360", false), new CommandParameter("altitude", "alt", true)],
+            "Fly heading"
+        );
+        var ltSig = new CommandSignature(
+            CanonicalCommandType.ClearedForTakeoff,
+            "CTO LT",
+            ["CTO"],
+            [Lit("LT"), new CommandParameter("heading", "0-360", false), new CommandParameter("altitude", "alt", true)],
+            "Turn left to heading"
+        );
+        return MakeSet(bareSig, rhSig, ocSig, hdgSig, ltSig);
+    }
+
+    [Fact]
+    public void AutoSelect_NumericArg_PrefersHeadingOverloadOverLiteralOverloads()
+    {
+        // Reproduces the CTO 020 150 bug: "020" is a heading, not a literal RH/OC/LT, so
+        // signature help must show the Heading overload, not the first registered literal one.
+        var state = new SignatureHelpState();
+        var set = MakeCtoSet();
+
+        // "CTO 020 150" with no trailing space → typedArgs=["020","150"], paramIndex=1
+        state.Show(set, 1, ["020", "150"]);
+
+        Assert.Equal("CTO Heading", state.CurrentSignature?.Label);
+    }
+
+    [Fact]
+    public void AutoSelect_CommittedLiteralMismatch_EliminatesOverload()
+    {
+        // With "020" committed as the first arg, all literal-prefixed overloads must be
+        // eliminated regardless of how they would otherwise score.
+        var state = new SignatureHelpState();
+        var set = MakeCtoSet();
+
+        state.Show(set, 1, ["020", "150"]);
+
+        // Should not pick RH (idx 1), OC (idx 2), or LT (idx 4) — only Heading (idx 3) survives.
+        Assert.Equal(3, state.SelectedOverloadIndex);
+    }
+
+    [Fact]
+    public void AutoSelect_InProgressLiteralPrefix_KeepsMatchingLiterals()
+    {
+        // Regression guard: while typing "R", the user might be heading toward "RH"; signature
+        // help must keep the RH overload eligible (prefix match), not eliminate it for not
+        // exactly equaling "RH".
+        var state = new SignatureHelpState();
+        var set = MakeCtoSet();
+
+        // "CTO R" with no trailing space → typedArgs=["R"], paramIndex=0
+        state.Show(set, 0, ["R"]);
+
+        Assert.Equal("CTO RH", state.CurrentSignature?.Label);
+    }
+
+    [Fact]
+    public void AutoSelect_InProgressLiteralPrefixOnNumeric_StillPicksHeading()
+    {
+        // While typing the heading "020" (no trailing space), Heading overload should be
+        // picked because "RH"/"OC"/"LT" don't start with "0".
+        var state = new SignatureHelpState();
+        var set = MakeCtoSet();
+
+        // "CTO 020" with no trailing space → typedArgs=["020"], paramIndex=0
+        state.Show(set, 0, ["020"]);
+
+        Assert.Equal("CTO Heading", state.CurrentSignature?.Label);
+    }
+
     [Fact]
     public void ActiveParameterDescription_ShowsTypeHint()
     {

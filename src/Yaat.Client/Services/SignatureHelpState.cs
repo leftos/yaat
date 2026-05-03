@@ -166,6 +166,43 @@ public partial class SignatureHelpState : ObservableObject
         for (int i = 0; i < set.Signatures.Count; i++)
         {
             var sig = set.Signatures[i];
+
+            // Eliminate overloads where a literal-position parameter contradicts what the user
+            // typed. For args the user has finished (j < paramIndex) require an exact match;
+            // for the in-progress arg (j == paramIndex, no trailing space) require the literal
+            // to start with the typed prefix so "CTO R" still keeps RH/RT eligible.
+            bool eliminated = false;
+            for (int j = 0; j < Math.Min(typedArgs.Length, sig.Parameters.Count); j++)
+            {
+                var litParam = sig.Parameters[j];
+                if (!litParam.IsLiteral)
+                {
+                    continue;
+                }
+
+                if (j < paramIndex)
+                {
+                    if (!string.Equals(typedArgs[j], litParam.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        eliminated = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    if (!litParam.Name.StartsWith(typedArgs[j], StringComparison.OrdinalIgnoreCase))
+                    {
+                        eliminated = true;
+                        break;
+                    }
+                }
+            }
+
+            if (eliminated)
+            {
+                continue;
+            }
+
             int score = 0;
 
             // Prefer overloads that still have a parameter slot at the cursor's current
