@@ -632,7 +632,7 @@ src/Yaat.Server/
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
-    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept, coordination timers)
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
     CoordinationCommandHandler.cs # Stateless coordination logic (RD, RDH, RDR, RDACK, RDAUTO)
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic

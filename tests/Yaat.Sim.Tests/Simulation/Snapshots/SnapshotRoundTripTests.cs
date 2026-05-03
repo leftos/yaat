@@ -335,7 +335,7 @@ public class SnapshotRoundTripTests
     }
 
     [Fact]
-    public void SnapshotSchemaMigrator_V1ToV2_Succeeds()
+    public void SnapshotSchemaMigrator_LegacyV1_MigratesToCurrent()
     {
         var snapshot = new StateSnapshotDto
         {
@@ -361,7 +361,7 @@ public class SnapshotRoundTripTests
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
-        Assert.Equal(2, snapshot.SchemaVersion);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
         Assert.Null(snapshot.Server);
     }
 

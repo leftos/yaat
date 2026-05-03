@@ -12,4 +12,5 @@ public sealed class AircraftFlightPlanDto
     public required string FlightRules { get; init; }
     public required int CruiseAltitude { get; init; }
     public required int CruiseSpeed { get; init; }
+    public TrackOwnerDto? CreatedByOwner { get; init; }
 }

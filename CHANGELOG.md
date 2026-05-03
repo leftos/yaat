@@ -14,6 +14,7 @@
 - ASDE-X destinations show CONUS airports in FAA form (`SFO`) instead of ICAO (`KSFO`), matching real CRC; fix-rule patterns accept either form.
 - `--autoconnect` stops retrying as soon as you open File → Connect, pick File → Disconnect, or close the window — no more silent disconnects.
 - Typing a callsign plus flight-data fields and pressing ENTER creates a STARS flight plan (DA or VP, discriminated by destination); duplicates return `DUP NEW ID`.
+- Creating a STARS flight plan via VP or DA auto-acquires the aircraft's track to your scope once it's squawking the assigned code.
 
 ## v0.1.10-alpha [2026/05/01]
 

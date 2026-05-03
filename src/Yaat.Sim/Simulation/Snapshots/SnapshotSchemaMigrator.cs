@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -52,6 +52,9 @@ public static class SnapshotSchemaMigrator
         // V1→V2: Added ServerSnapshotDto (consolidation, conflicts, beacon pool).
         //   No data transformation — V1 snapshots have Server = null, which
         //   RestoreFromSnapshot handles gracefully by clearing state.
+        // V2→V3: Added AircraftFlightPlanDto.CreatedByOwner. No data transformation —
+        //   legacy snapshots default to null, which makes ProcessFlightPlanCreatorAutoTrack
+        //   a no-op for those aircraft (preserving prior replay behavior).
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

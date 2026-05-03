@@ -30,6 +30,15 @@ public class AircraftFlightPlan
     public int CruiseAltitude { get; set; }
     public int CruiseSpeed { get; set; }
 
+    /// <summary>
+    /// TCP that originally created this flight plan via a CRC STARS command (DA / VP / implied
+    /// forms). Populated by <c>RoomEngine.RecordAndDispatchFlightPlanAsync</c>; null for plans
+    /// created any other way (scenario-spawned, scenario JSON, recordings predating this field).
+    /// Used by <c>TickProcessor.ProcessFlightPlanCreatorAutoTrack</c> to auto-acquire the track
+    /// to the creating TCP once the pilot is squawking the assigned beacon code.
+    /// </summary>
+    public TrackOwner? CreatedByOwner { get; set; }
+
     public AircraftFlightPlanDto ToSnapshot() =>
         new()
         {
@@ -43,6 +52,7 @@ public class AircraftFlightPlan
             FlightRules = FlightRules,
             CruiseAltitude = CruiseAltitude,
             CruiseSpeed = CruiseSpeed,
+            CreatedByOwner = CreatedByOwner?.ToSnapshot(),
         };
 
     public static AircraftFlightPlan FromSnapshot(AircraftFlightPlanDto dto) =>
@@ -58,5 +68,6 @@ public class AircraftFlightPlan
             FlightRules = dto.FlightRules,
             CruiseAltitude = dto.CruiseAltitude,
             CruiseSpeed = dto.CruiseSpeed,
+            CreatedByOwner = dto.CreatedByOwner is not null ? TrackOwner.FromSnapshot(dto.CreatedByOwner) : null,
         };
 }
