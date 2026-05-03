@@ -1621,8 +1621,15 @@ public sealed class SimulationEngine
 
         PresetOverride?.Invoke(loaded);
 
-        // Ensure destination is set from scenario primary airport for arrivals
-        if (string.IsNullOrWhiteSpace(loaded.State.FlightPlan.Destination) && !string.IsNullOrWhiteSpace(scenario.PrimaryAirportId))
+        // Backstop for filed flight plans missing a destination: fall back to the
+        // scenario's primary airport so arrivals show up in STARS arrival lists.
+        // Skipped for cold-call aircraft (HasFlightPlan == false) — those must
+        // remain destination-less until a controller files via DA / VP.
+        if (
+            loaded.State.FlightPlan.HasFlightPlan
+            && string.IsNullOrWhiteSpace(loaded.State.FlightPlan.Destination)
+            && !string.IsNullOrWhiteSpace(scenario.PrimaryAirportId)
+        )
         {
             loaded.State.FlightPlan.Destination = scenario.PrimaryAirportId;
         }

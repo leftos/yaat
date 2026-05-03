@@ -31,6 +31,16 @@ public class AircraftState
     public string? ScenarioId { get; set; }
     public string Cid { get; set; } = "";
 
+    /// <summary>
+    /// Operational airport context (e.g. "OAK"). Set from the scenario aircraft's
+    /// <c>airportId</c>, the scenario primary airport, or the ADD command's
+    /// primary airport. Used by airport-relative commands (pattern entry, ERD)
+    /// when <see cref="Phases.AssignedRunway"/> isn't yet set and the aircraft
+    /// has no filed flight plan to provide a destination — typical for VFR
+    /// cold-call aircraft.
+    /// </summary>
+    public string AirportId { get; set; } = "";
+
     /// <summary>Geographic position in degrees.</summary>
     public LatLon Position { get; set; }
 
@@ -173,6 +183,7 @@ public class AircraftState
             AircraftType = dto.AircraftType,
             ScenarioId = dto.ScenarioId,
             Cid = dto.Cid,
+            AirportId = dto.AirportId,
             Position = dto.Position,
             TrueHeading = new TrueHeading(dto.TrueHeadingDeg),
             TrueTrack = new TrueHeading(dto.TrueTrackDeg),
@@ -234,6 +245,7 @@ public class AircraftState
             AircraftType = AircraftType,
             ScenarioId = ScenarioId,
             Cid = Cid,
+            AirportId = AirportId,
             Position = Position,
             TrueHeadingDeg = TrueHeading.Degrees,
             TrueTrackDeg = TrueTrack.Degrees,

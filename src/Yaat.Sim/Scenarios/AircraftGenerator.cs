@@ -37,26 +37,83 @@ public static class AircraftGenerator
 
         var callsign = GenerateCallsign(request, existingAircraft, r);
         var category = AircraftCategorization.Categorize(aircraftType);
-        var beaconCode = SimulationWorld.GenerateBeaconCode(r);
         var transponderMode = request.Rules == FlightRulesKind.Vfr ? "A" : "C";
         var flightRules = request.Rules == FlightRulesKind.Ifr ? "IFR" : "VFR";
+
+        // VFR ADD spawns are cold calls: no AssignedCode, squawking 1200 (FAA
+        // VFR conspicuity code). Controller files later via DA / VP, which
+        // assigns a discrete beacon. IFR ADD spawns get a discrete code at
+        // spawn so they're trackable immediately.
+        uint assignedCode;
+        uint activeCode;
+        if (request.Rules == FlightRulesKind.Vfr)
+        {
+            assignedCode = 0;
+            activeCode = 1200;
+        }
+        else
+        {
+            var code = SimulationWorld.GenerateBeaconCode(r);
+            assignedCode = code;
+            activeCode = code;
+        }
 
         switch (request.PositionType)
         {
             case SpawnPositionType.Bearing:
-                return GenerateBearing(request, primaryAirportId, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
+                return GenerateBearing(
+                    request,
+                    primaryAirportId,
+                    callsign,
+                    aircraftType,
+                    category,
+                    assignedCode,
+                    activeCode,
+                    transponderMode,
+                    flightRules
+                );
 
             case SpawnPositionType.Runway:
-                return GenerateOnRunway(request, primaryAirportId, callsign, aircraftType, beaconCode, transponderMode, flightRules);
+                return GenerateOnRunway(request, primaryAirportId, callsign, aircraftType, assignedCode, activeCode, transponderMode, flightRules);
 
             case SpawnPositionType.OnFinal:
-                return GenerateOnFinal(request, primaryAirportId, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
+                return GenerateOnFinal(
+                    request,
+                    primaryAirportId,
+                    callsign,
+                    aircraftType,
+                    category,
+                    assignedCode,
+                    activeCode,
+                    transponderMode,
+                    flightRules
+                );
 
             case SpawnPositionType.AtFix:
-                return GenerateAtFix(request, primaryAirportId, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
+                return GenerateAtFix(
+                    request,
+                    primaryAirportId,
+                    callsign,
+                    aircraftType,
+                    category,
+                    assignedCode,
+                    activeCode,
+                    transponderMode,
+                    flightRules
+                );
 
             case SpawnPositionType.Parking:
-                return GenerateAtParking(request, primaryAirportId, groundLayout, callsign, aircraftType, beaconCode, transponderMode, flightRules);
+                return GenerateAtParking(
+                    request,
+                    primaryAirportId,
+                    groundLayout,
+                    callsign,
+                    aircraftType,
+                    assignedCode,
+                    activeCode,
+                    transponderMode,
+                    flightRules
+                );
 
             default:
                 return (null, $"Unknown position type: {request.PositionType}");
@@ -69,7 +126,8 @@ public static class AircraftGenerator
         string callsign,
         string aircraftType,
         AircraftCategory category,
-        uint beaconCode,
+        uint assignedCode,
+        uint activeCode,
         string transponderMode,
         string flightRules
     )
@@ -95,6 +153,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
+            AirportId = primaryAirportId ?? "",
             Position = new LatLon(lat, lon),
             TrueHeading = trueHeading,
             TrueTrack = trueHeading,
@@ -103,8 +162,8 @@ public static class AircraftGenerator
             Transponder = new AircraftTransponder
             {
                 Mode = transponderMode,
-                AssignedCode = beaconCode,
-                Code = beaconCode,
+                AssignedCode = assignedCode,
+                Code = activeCode,
             },
             FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
         };
@@ -118,7 +177,8 @@ public static class AircraftGenerator
         string callsign,
         string aircraftType,
         AircraftCategory category,
-        uint beaconCode,
+        uint assignedCode,
+        uint activeCode,
         string transponderMode,
         string flightRules
     )
@@ -147,6 +207,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
+            AirportId = primaryAirportId ?? "",
             Position = resolved.Value,
             TrueHeading = trueHeading,
             TrueTrack = trueHeading,
@@ -155,8 +216,8 @@ public static class AircraftGenerator
             Transponder = new AircraftTransponder
             {
                 Mode = transponderMode,
-                AssignedCode = beaconCode,
-                Code = beaconCode,
+                AssignedCode = assignedCode,
+                Code = activeCode,
             },
             FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
         };
@@ -169,7 +230,8 @@ public static class AircraftGenerator
         string? primaryAirportId,
         string callsign,
         string aircraftType,
-        uint beaconCode,
+        uint assignedCode,
+        uint activeCode,
         string transponderMode,
         string flightRules
     )
@@ -193,6 +255,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
+            AirportId = primaryAirportId ?? "",
             Position = init.Position,
             TrueHeading = init.TrueHeading,
             TrueTrack = init.TrueHeading,
@@ -202,8 +265,8 @@ public static class AircraftGenerator
             Transponder = new AircraftTransponder
             {
                 Mode = transponderMode,
-                AssignedCode = beaconCode,
-                Code = beaconCode,
+                AssignedCode = assignedCode,
+                Code = activeCode,
             },
             FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
             Phases = init.Phases,
@@ -218,7 +281,8 @@ public static class AircraftGenerator
         string callsign,
         string aircraftType,
         AircraftCategory category,
-        uint beaconCode,
+        uint assignedCode,
+        uint activeCode,
         string transponderMode,
         string flightRules
     )
@@ -244,6 +308,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
+            AirportId = primaryAirportId ?? "",
             Position = init.Position,
             TrueHeading = init.TrueHeading,
             TrueTrack = init.TrueHeading,
@@ -253,8 +318,8 @@ public static class AircraftGenerator
             Transponder = new AircraftTransponder
             {
                 Mode = transponderMode,
-                AssignedCode = beaconCode,
-                Code = beaconCode,
+                AssignedCode = assignedCode,
+                Code = activeCode,
             },
             FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
             Phases = init.Phases,
@@ -269,7 +334,8 @@ public static class AircraftGenerator
         AirportGroundLayout? groundLayout,
         string callsign,
         string aircraftType,
-        uint beaconCode,
+        uint assignedCode,
+        uint activeCode,
         string transponderMode,
         string flightRules
     )
@@ -293,6 +359,7 @@ public static class AircraftGenerator
         {
             Callsign = callsign,
             AircraftType = aircraftType,
+            AirportId = primaryAirportId ?? "",
             Position = init.Position,
             TrueHeading = init.TrueHeading,
             TrueTrack = init.TrueHeading,
@@ -303,8 +370,8 @@ public static class AircraftGenerator
             Transponder = new AircraftTransponder
             {
                 Mode = transponderMode,
-                AssignedCode = beaconCode,
-                Code = beaconCode,
+                AssignedCode = assignedCode,
+                Code = activeCode,
             },
             FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
             Phases = init.Phases,

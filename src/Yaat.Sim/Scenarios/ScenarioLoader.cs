@@ -123,6 +123,7 @@ public static class ScenarioLoader
         {
             Callsign = ac.AircraftId,
             AircraftType = equipType,
+            AirportId = ac.AirportId ?? primaryAirportId ?? "",
             Transponder = new AircraftTransponder { Mode = ac.TransponderMode },
             FlightPlan = new AircraftFlightPlan
             {
@@ -153,6 +154,24 @@ public static class ScenarioLoader
         }
 
         return "IFR";
+    }
+
+    // Aircraft with a filed scenario flight plan get a discrete beacon code at
+    // spawn. Cold-call aircraft (no flightplan field in the scenario JSON) get
+    // no AssignedCode and squawk 1200 (FAA VFR conspicuity code) — controllers
+    // file via DA / VP later, which assigns the discrete code.
+    private static void AssignSpawnBeacon(AircraftState state, ScenarioAircraft ac, Random rng)
+    {
+        if (ac.FlightPlan is not null)
+        {
+            var code = SimulationWorld.GenerateBeaconCode(rng);
+            state.Transponder.AssignedCode = code;
+            state.Transponder.Code = code;
+        }
+        else
+        {
+            state.Transponder.Code = 1200;
+        }
     }
 
     private static string NormalizeAirportCode(string code)
@@ -236,9 +255,7 @@ public static class ScenarioLoader
         state.Position = new LatLon(lat, lon);
         state.Altitude = alt;
         state.IndicatedAirspeed = speed;
-        var code = SimulationWorld.GenerateBeaconCode(rng);
-        state.Transponder.AssignedCode = code;
-        state.Transponder.Code = code;
+        AssignSpawnBeacon(state, ac, rng);
 
         // Ground detection: near field elevation + zero speed = on the ground
         var agl = alt - fieldElevation;
@@ -343,9 +360,7 @@ public static class ScenarioLoader
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
-        var rwyCode = SimulationWorld.GenerateBeaconCode(rng);
-        state.Transponder.AssignedCode = rwyCode;
-        state.Transponder.Code = rwyCode;
+        AssignSpawnBeacon(state, ac, rng);
         state.Phases = init.Phases;
         state.Ground.Layout = groundData?.GetLayout(airportId);
 
@@ -400,9 +415,7 @@ public static class ScenarioLoader
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
-        var finalCode = SimulationWorld.GenerateBeaconCode(rng);
-        state.Transponder.AssignedCode = finalCode;
-        state.Transponder.Code = finalCode;
+        AssignSpawnBeacon(state, ac, rng);
         state.Phases = init.Phases;
 
         // Arriving aircraft: use destination airport layout for runway exit after landing
@@ -474,9 +487,7 @@ public static class ScenarioLoader
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
-        var parkCode = SimulationWorld.GenerateBeaconCode(rng);
-        state.Transponder.AssignedCode = parkCode;
-        state.Transponder.Code = parkCode;
+        AssignSpawnBeacon(state, ac, rng);
         state.Phases = init.Phases;
         state.Ground.AutoDeleteExempt = true;
         state.Ground.Layout = layout;

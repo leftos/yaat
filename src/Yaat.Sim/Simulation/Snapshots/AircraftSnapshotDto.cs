@@ -13,6 +13,12 @@ public sealed class AircraftSnapshotDto
     public string? ScenarioId { get; init; }
     public required string Cid { get; init; }
 
+    /// <summary>
+    /// Operational airport context (e.g. "OAK"). Non-required so older snapshots
+    /// deserialize cleanly with the default empty string.
+    /// </summary>
+    public string AirportId { get; init; } = "";
+
     // Position & Physics
     public required LatLon Position { get; init; }
     public required double TrueHeadingDeg { get; init; }

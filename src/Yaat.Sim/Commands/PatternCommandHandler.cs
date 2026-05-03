@@ -12,6 +12,25 @@ internal static class PatternCommandHandler
 {
     private static readonly ILogger Log = SimLog.CreateLogger("PatternCommandHandler");
 
+    // Falls back through assigned runway → filed destination → spawn-time airport
+    // context. The last fallback covers VFR cold-call aircraft that have neither
+    // a flight plan filed nor a runway assignment yet.
+    private static string ResolveAirportContext(AircraftState aircraft)
+    {
+        var assigned = aircraft.Phases?.AssignedRunway?.AirportId;
+        if (!string.IsNullOrEmpty(assigned))
+        {
+            return assigned;
+        }
+
+        if (!string.IsNullOrEmpty(aircraft.FlightPlan.Destination))
+        {
+            return aircraft.FlightPlan.Destination;
+        }
+
+        return aircraft.AirportId;
+    }
+
     internal static CommandResult TryEnterPattern(
         AircraftState aircraft,
         PatternDirection direction,
@@ -31,8 +50,8 @@ internal static class PatternCommandHandler
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
-            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.FlightPlan.Destination;
-            if (airportId is null)
+            var airportId = ResolveAirportContext(aircraft);
+            if (string.IsNullOrEmpty(airportId))
             {
                 return new CommandResult(false, "No airport context to resolve runway");
             }
@@ -378,8 +397,8 @@ internal static class PatternCommandHandler
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
-            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.FlightPlan.Destination;
-            if (airportId is null)
+            var airportId = ResolveAirportContext(aircraft);
+            if (string.IsNullOrEmpty(airportId))
             {
                 return new CommandResult(false, "No airport context to resolve runway");
             }

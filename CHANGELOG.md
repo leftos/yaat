@@ -20,6 +20,8 @@
 ### Fixed
 - ASDE-X suspend/terminate/inhibit-alerts/tag commands from CRC now take effect on the display.
 - The CTO inline signature hint matches the typed arguments — `CTO 020 150` shows the heading overload, not `CTO RH [altitude?]`.
+- Scenario VFR aircraft with no `flightplan` field spawn squawking 1200 with no destination, so `DA`/`VP` file them like a real cold call.
+- `ADD VFR` spawns squawk 1200 with no assigned beacon — file with `DA`/`VP` to assign a discrete code.
 
 ## v0.1.11-alpha [2026/05/03]
 
