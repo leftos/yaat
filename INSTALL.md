@@ -145,6 +145,16 @@ dotnet --version
 
 You should see a version starting with `10.`.
 
+Then install the **wasm-tools** workload — `start.ps1`/`start.sh` publishes the in-browser flight strips bundle (`Yaat.VStrips.Web`) into the server's `wwwroot/vstrips/` on every server-bearing run, and that publish step needs the WebAssembly tooling:
+
+```
+dotnet workload install wasm-tools
+```
+
+On Windows this needs an elevated PowerShell ("Run as administrator"). On Linux/macOS you may need `sudo` depending on how you installed .NET. Verify with `dotnet workload list` — you should see `wasm-tools` in the table.
+
+You can skip this step if you'll always run the start script with `-NoVStripsWeb` / `--no-vstrips-web`, but the default flow needs it.
+
 ### Step 3: Download the code
 
 You need two repositories (code projects): the client and the server.
@@ -300,6 +310,16 @@ Close and reopen your terminal after installing Git. Same as above — a restart
 ### Build errors mentioning .NET version (source builds only)
 
 Make sure you installed the **.NET 10 SDK**, not an older version or just the Runtime. Run `dotnet --list-sdks` to check.
+
+### `NETSDK1147: the following workloads must be installed: wasm-tools` (source builds only)
+
+The start script publishes the in-browser flight strips bundle (`tools/Yaat.VStrips.Web`) into the server's wwwroot on every server-bearing run. That step needs the WebAssembly workload. Install it with:
+
+```
+dotnet workload install wasm-tools
+```
+
+On Windows this needs an elevated PowerShell. On Linux/macOS you may need `sudo` depending on how you installed .NET. If you don't need the in-browser strips, re-run the start script with `-NoVStripsWeb` (PowerShell) or `--no-vstrips-web` (bash) to skip the step.
 
 ### Execution policy error on start.ps1 (Windows, source builds only)
 

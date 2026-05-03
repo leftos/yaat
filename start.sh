@@ -149,6 +149,30 @@ fi
 # (opt-out), or --docker (the dockerized server has its own bundle baked in
 # via the image).
 if ! $CLIENT_ONLY && ! $NO_VSTRIPS_WEB && ! $DOCKER; then
+    # Yaat.VStrips.Web is a Microsoft.NET.Sdk.WebAssembly project with
+    # WasmBuildNative=true, which needs the wasm-tools workload. There's no
+    # global.json manifest pinning it, so `dotnet workload restore` is a no-op
+    # — probe explicitly and bail with an actionable message rather than
+    # letting publish fail with NETSDK1147.
+    if ! dotnet workload list 2>/dev/null | grep -qE '^[[:space:]]*wasm-tools[[:space:]]'; then
+        cat >&2 <<'EOF'
+Error: missing required .NET workload: wasm-tools.
+
+It's needed to publish the WebAssembly vStrips bundle into the server's
+wwwroot (tools/Yaat.VStrips.Web -> yaat-server/src/Yaat.Server/wwwroot/vstrips/).
+Install it with:
+
+    dotnet workload install wasm-tools
+
+(may require sudo on Linux/macOS depending on how dotnet was installed).
+Then re-run start.sh.
+
+To skip the WASM publish entirely, re-run with --no-vstrips-web (useful when
+iterating server changes only and the existing bundle is fine).
+EOF
+        exit 1
+    fi
+
     # Clean before publish so content-hashed WASM assets don't pile up across
     # iterations (Avalonia.Base.{hash}.wasm and friends never get deleted by
     # incremental publish; the wwwroot grows from 35 MB to 150 MB+ in a few
