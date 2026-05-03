@@ -615,6 +615,30 @@ MainWindow.axaml{,.cs}         # TabControl host with two tabs: STT pipeline (ex
 TtsSandboxView.axaml{,.cs}     # TTS tab: sherpa-onnx + Piper LibriTTS-R + tunable radio FX (band-pass/Q/drive/squelch); auto-detects voice pack at .tmp/voices/, plays through PortAudio
 ```
 
+## Yaat.GuideCapture — CLI tool (`tools/Yaat.GuideCapture/`)
+
+Headless screenshot harness for `USER_GUIDE.md`. Boots an in-process `yaat-server` on a free loopback port, runs `Yaat.Client` under `Avalonia.Headless` with the real Skia backend (`UseHeadlessDrawing = false` + `UseSkia()`), then drives every Scene in `SceneCatalog.All` through `HeadlessUnitTestSession.Dispatch`. Each scene captures one PNG via `Window.CaptureRenderedFrame()`. Rerun whenever a UI surface in the guide changes.
+
+```
+Program.cs                     # Entry: parses --scene/--out, starts InProcessServer, dispatches scenes; calls Environment.Exit so headless threads don't keep the process alive
+ModuleInit.cs                  # Redirects YAAT_APPDATA_DIR to a temp folder + seeds preferences.json (CID/initials/ARTCC) so MainViewModel.AttemptConnectAsync passes its identity gates
+Server/InProcessServer.cs      # Port allocation (TcpListener trick) + YaatHost.BuildAsync + StartAsync/StopAsync lifecycle
+Capture/Scene.cs               # Abstract scene: BeforeWindowAsync, CreateWindow, AfterShowAsync, GetCaptureTarget for popout children
+Capture/Runner.cs              # Per-scene flow: setup → show → settle → capture PNG; Width/Height of 0 means "use the window's natural size"
+Capture/CaptureContext.cs      # Per-run state: ServerUrl, RepoRoot (walks up to yaat.slnx)
+Capture/SceneActions.cs        # WaitUntilAsync + WaitForConnectionAsync / CreateRoomAsync / LoadScenarioAsync helpers shared by scenarios
+Capture/SceneCatalog.cs        # Static catalog of every scene
+Scenes/                        # ScenarioSceneBase (connect → room → load → tab) + per-scene subclasses
+                               # MainWindow*Scene — empty / connected-empty / overview / popped-out
+                               # AircraftListScene / GroundViewScene / RadarViewScene / FlightStripsScene
+                               # GroundViewPopoutScene / RadarViewPopoutScene
+                               # FlightPlanEditorScene
+                               # StandaloneWindowSceneBase + Settings/LoadScenario/LoadWeather/Weather/About/CommandCheatsheet
+Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePickerService against the headless Window which is fine)
+```
+
+The OAK clearances scenario `docs/atctrainer-scenario-examples/01H06NVK7VN8BS7MCDXHKJZ7MQ.json` is the canonical fixture for every "scenario loaded" scene.
+
 ## Yaat.ScenarioValidator — CLI tool (`tools/Yaat.ScenarioValidator/`)
 
 Standalone console app for validating ARTCC scenario preset commands. Downloads NavData from vNAS for procedure version validation, then fetches and validates scenarios from the vNAS API or local files.

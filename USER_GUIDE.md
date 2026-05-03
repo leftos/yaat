@@ -50,6 +50,8 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
 
 ### Main Window
 
+![Main YAAT window with the OAK Clearances Intro scenario loaded](docs/user-guide/img/main-window-overview.png)
+
 The YAAT window has three areas:
 
 1. **Tab area** (top) — three views: Aircraft List, Ground View, Radar View
@@ -59,6 +61,8 @@ The YAAT window has three areas:
 The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather), Room (members/students), View (pop-out windows), and Settings.
 
 ### Tabs and Pop-Out
+
+![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
 Each view can be popped out into its own window via **View > Pop Out Aircraft List / Ground View / Radar View**. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
 
@@ -141,6 +145,8 @@ The command bar at the bottom is where you type and send commands. See [Commands
 ## Views
 
 ### Aircraft List
+
+![Aircraft List with the OAK scenario's 18 aircraft](docs/user-guide/img/aircraft-list.png)
 
 The default view. Shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Reset Aircraft List Layout** to restore defaults.
 
@@ -238,6 +244,8 @@ To change the reference fix, **middle-click** the "Dist" column header. A flyout
 
 ### Ground View
 
+![Ground View showing OAK ramp with scenario aircraft tagged at parking](docs/user-guide/img/ground-view.png)
+
 An interactive airport surface map showing taxiways, runways, and aircraft positions. Useful for tower operations.
 
 - **Pan**: right-click and drag
@@ -275,6 +283,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 When weather is loaded, wind direction/speed and altimeter setting are displayed in the top-left corner.
 
 ### Radar View
+
+![Radar View with the STARS-style DCB toolbar and range rings](docs/user-guide/img/radar-view.png)
 
 A simplified [STARS](#glossary)-style radar display showing aircraft targets, video maps, and navigation fixes. Useful for approach/departure operations.
 
@@ -347,6 +357,8 @@ Video maps load automatically from the vNAS data API based on your [ARTCC](#glos
 When weather is loaded, wind and altimeter are displayed in the top-left corner in STARS green.
 
 ### Flight Strips
+
+![Flight Strips tab showing the Oakland Intl ATCT bays](docs/user-guide/img/flight-strips.png)
 
 The **Strips** tab is a YAAT-side reimplementation of CRC's vStrips. It renders the same flight-strip bays, racks, drag/drop, and keyboard shortcuts a real vStrips client would, so an instructor can push, annotate, and manage strips without students needing CRC's vStrips open.
 
@@ -488,6 +500,8 @@ Pop-out state for the student strips entry is saved in `preferences.json` under 
 
 ### Flight Plan Editor
 
+![Flight Plan Editor for SWA5456 (KOAK to KDEN)](docs/user-guide/img/flight-plan-editor.png)
+
 Double-click an aircraft row in the Aircraft List to open its Flight Plan Editor (FPE). You can also **Ctrl+Left-Click** an aircraft symbol or datablock in the Ground View or Radar View.
 
 The FPE shows editable flight plan fields: beacon code, aircraft type, equipment suffix, departure, destination, cruise speed, altitude, route, and remarks. The ALT field accepts 3-digit altitude codes (e.g., `035` for 3,500ft) or prefixed formats: `VFR`, `VFR/035`, `OTP/035`.
@@ -504,6 +518,8 @@ Use **View > Copy View Settings From...** to apply another scenario's Ground and
 
 ### Loading a Scenario
 
+![Load Scenario dialog](docs/user-guide/img/load-scenario-dialog.png)
+
 **Scenario > Load Scenario...** opens a dialog with two tabs:
 
 - **ARTCC Scenarios** (default) — lists training scenarios from the [vNAS](#glossary) data API for your configured ARTCC. Use the Airport filter to narrow by primary airport. Requires an ARTCC ID set in Settings.
@@ -518,6 +534,8 @@ Both API and local scenarios appear in the **Scenario > Load Recent Scenario** m
 **Scenario > Unload Scenario** removes all aircraft from the current scenario. A confirmation dialog appears if multiple clients are connected.
 
 ### Loading a Weather Profile
+
+![Load Weather dialog](docs/user-guide/img/load-weather-dialog.png)
 
 **Scenario > Load Weather...** opens a dialog with two tabs:
 
@@ -541,6 +559,8 @@ Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data 
 **Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file.
 
 ### Weather Editor
+
+![Weather Timeline Editor](docs/user-guide/img/weather-editor.png)
 
 **Scenario > New Weather...** opens the weather editor with a single empty period.
 
@@ -607,6 +627,8 @@ YAAT supports a **v2 weather JSON format** that defines time-based weather evolu
 ---
 
 ## Commands
+
+![Command Cheatsheet window](docs/user-guide/img/command-cheatsheet.png)
 
 YAAT has a comprehensive command system for controlling aircraft. Commands are typed in the command bar and sent with **Enter**.
 
@@ -863,6 +885,8 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 - If you type something first, only history entries starting with that text are shown
 
 ### Settings
+
+![Settings window, Identity tab](docs/user-guide/img/settings-window.png)
 
 Open **Settings** to configure:
 
