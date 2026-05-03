@@ -744,6 +744,21 @@ public sealed class SimulationEngine
             ApplyWeatherJson(recording.WeatherJson);
         }
 
+        // Deserialize the bundled ARTCC config so TrackResolver's TCP/ERAM fallback works
+        // for AS commands targeting positions outside the scenario's StudentTcp/AtcPositions.
+        // Older recordings without the bundle leave this as null; callers can set it manually.
+        if (Scenario is not null && recording.ArtccConfigJson is { } artccJson)
+        {
+            try
+            {
+                Scenario.ArtccConfig = JsonSerializer.Deserialize<Yaat.Sim.Data.Vnas.ArtccConfigRoot>(artccJson, RecordingJsonOptions.Default);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to deserialize bundled ArtccConfig; replay will fall back to scenario-only resolution");
+            }
+        }
+
         ReplayTo((int)targetSeconds, recording.Actions);
 
         // Store replay cursor so ReplayOneSecond() can continue from here
