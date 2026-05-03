@@ -9,6 +9,9 @@ namespace Yaat.GuideCapture.Scenes;
 // USER_GUIDE.md > Views > Radar View (popped out). Setting IsRadarViewPoppedOut
 // on the MainViewModel triggers MainWindow to spawn a RadarViewWindow with the
 // shared Radar VM. We capture that secondary window via GetCaptureTarget.
+//
+// Mirrors RadarViewScene's NCT C + LO-W_S + 120 NM setup so the popped-out
+// window shows the same useful airspace view, just sans MainWindow chrome.
 internal sealed class RadarViewPopoutScene : ScenarioSceneBase
 {
     public override string Name => "radar-view-window";
@@ -17,8 +20,12 @@ internal sealed class RadarViewPopoutScene : ScenarioSceneBase
     // a value. Aircraft List is a sensible fallback for the (now empty) main.
     protected override int TabIndex => 0;
 
-    protected override Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
+    protected override string ScenarioFile => "01J02M96SPYP4JV55R5RMVCQBS.json";
+
+    protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
+        await RadarViewScene.EnableLoWestSectorAsync(vm);
+
         vm.IsRadarViewPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
 
@@ -29,7 +36,6 @@ internal sealed class RadarViewPopoutScene : ScenarioSceneBase
         Dispatcher.UIThread.RunJobs();
         radar.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
-        return Task.CompletedTask;
     }
 
     public override Window GetCaptureTarget(Window primary)

@@ -25,8 +25,10 @@ internal static class ModuleInit
             """
             {
               "vatsimCid": "9999999",
-              "userInitials": "GC",
-              "artccId": "ZOA"
+              "userInitials": "1M",
+              "artccId": "ZOA",
+              "assignmentTintEnabled": true,
+              "assignmentTintColor": "#0080FF"
             }
             """
         );

@@ -13,11 +13,15 @@ namespace Yaat.GuideCapture.Scenes;
 // tab index, and any extra UI tweaks via OnSceneReadyAsync.
 internal abstract class ScenarioSceneBase : Scene
 {
-    private const string ScenarioFile = "01H06NVK7VN8BS7MCDXHKJZ7MQ.json";
-
     public override TimeSpan SettleAfterShow => TimeSpan.FromSeconds(2);
 
     protected abstract int TabIndex { get; }
+
+    // Default fixture: S1-OAK-1 Clearances Intro (18 aircraft on OAK parking).
+    // Override per-scene when a different scenario fits better — e.g. radar
+    // scenes use S3-NCTC-3 because it has 59 airborne aircraft in NCT TRACON
+    // airspace, not 18 stopped on a ramp.
+    protected virtual string ScenarioFile => "01H06NVK7VN8BS7MCDXHKJZ7MQ.json";
 
     public override Task BeforeWindowAsync(CaptureContext ctx)
     {

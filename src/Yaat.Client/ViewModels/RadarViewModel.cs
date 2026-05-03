@@ -230,6 +230,12 @@ public partial class RadarViewModel : ObservableObject
     /// </summary>
     public Dictionary<string, string> BrightnessLookup { get; } = [];
 
+    // Test/tooling accessor: lets Yaat.GuideCapture poll for video-map download
+    // completion before flipping a MapToggle.IsEnabled. Without this, enabling
+    // a toggle before LoadMapsAsync finishes leaves UpdateActiveMaps with a
+    // null cache hit and the map silently fails to draw.
+    internal bool IsMapDataCached(string mapId) => _videoMapService.GetCached(mapId) is not null;
+
     public RadarViewModel(
         ServerConnection connection,
         VideoMapService videoMapService,
