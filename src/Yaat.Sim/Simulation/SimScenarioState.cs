@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -69,6 +70,13 @@ public sealed class SimScenarioState
     public Tcp? StudentTcp { get; set; }
     public string? StudentPositionType { get; set; }
     public List<ResolvedAtcPosition> AtcPositions { get; set; } = [];
+
+    // ARTCC config — populated by the server's ArtccConfigService at scenario load time, or
+    // by SimulationEngine.Replay when the recording bundle includes a config snapshot.
+    // Used by TrackResolver as a fallback when a TCP code isn't in StudentTcp/AtcPositions.
+    // Not snapshotted — set by the loader / replay entry point and preserved across snapshot
+    // restores (RestoreFromSnapshot leaves this field untouched).
+    public ArtccConfigRoot? ArtccConfig { get; set; }
 
     // Timing and settings
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);

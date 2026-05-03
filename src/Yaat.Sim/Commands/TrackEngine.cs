@@ -1,3 +1,6 @@
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Simulation;
+
 namespace Yaat.Sim.Commands;
 
 /// <summary>
@@ -333,4 +336,165 @@ public static class TrackEngine
         ac.Stars.TpaType = enable ? TpaCone : null;
         return new CommandResult(true, $"Cone {(enable ? "on" : "off")} for {ac.Callsign}");
     }
+
+    /// <summary>
+    /// Mirrors yaat-server's <c>TrackCommandHandler.HandleHandoff</c> mutation step
+    /// (without the consolidation-redirect logic, which depends on the live
+    /// PositionRegistry attendance map). Resolves the target TCP via the scenario,
+    /// then writes <c>Track.HandoffPeer</c>.
+    /// </summary>
+    public static CommandResult ApplyHandoff(
+        AircraftState ac,
+        TrackOwner identity,
+        SimScenarioState scenario,
+        string? tcpCode,
+        ArtccConfigRoot? artccConfig = null
+    )
+    {
+        if (ac.Track.Owner is null || !ac.Track.Owner.MatchesPosition(identity))
+        {
+            return NotOwnedError(ac, identity);
+        }
+
+        TrackOwner? target;
+        if (tcpCode is null)
+        {
+            target = scenario.StudentPosition;
+            if (target is null)
+            {
+                return new CommandResult(false, "No student position configured");
+            }
+        }
+        else
+        {
+            target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, artccConfig);
+            if (target is null)
+            {
+                return new CommandResult(false, $"Unknown position: {tcpCode}");
+            }
+        }
+
+        ac.Track.HandoffPeer = target;
+        ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+        return new CommandResult(true, $"Handoff {ac.Callsign} to {tcpCode ?? FormatOwner(target)}");
+    }
+
+    /// <summary>
+    /// Mirrors yaat-server's <c>TrackCommandHandler.HandleForceHandoff</c>: transfer
+    /// ownership to the target TCP without the standard ownership check.
+    /// </summary>
+    public static CommandResult ApplyForceHandoff(AircraftState ac, SimScenarioState scenario, string tcpCode, ArtccConfigRoot? artccConfig = null)
+    {
+        var target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, artccConfig);
+        if (target is null)
+        {
+            return new CommandResult(false, $"Unknown position: {tcpCode}");
+        }
+
+        ac.Track.Owner = target;
+        ac.Track.HandoffPeer = null;
+        ac.Track.HandoffInitiatedAt = null;
+        ac.Track.HandoffRedirectedBy = null;
+        return new CommandResult(true, $"Force handoff {ac.Callsign} to {tcpCode}");
+    }
+
+    /// <summary>
+    /// Mirrors yaat-server's <c>TrackCommandHandler.HandlePointOut(... tcpCode)</c>:
+    /// resolves the target and sender TCPs, then delegates to <see cref="HandlePointOut(AircraftState, TrackOwner, Tcp, Tcp)"/>.
+    /// </summary>
+    public static CommandResult ApplyPointOut(
+        AircraftState ac,
+        TrackOwner identity,
+        SimScenarioState scenario,
+        string tcpCode,
+        ArtccConfigRoot? artccConfig = null
+    )
+    {
+        var targetTcp = TrackResolver.FindTcpByCode(scenario, tcpCode, artccConfig);
+        if (targetTcp is null)
+        {
+            return new CommandResult(false, $"Unknown position: {tcpCode}");
+        }
+
+        var senderTcp = TrackResolver.FindTcpForOwner(identity, scenario);
+        if (senderTcp is null)
+        {
+            return new CommandResult(false, "Cannot determine sender TCP");
+        }
+
+        return HandlePointOut(ac, identity, targetTcp, senderTcp);
+    }
+
+    /// <summary>
+    /// Top-level dispatch for any <see cref="ParsedCommand"/> classified as a track
+    /// command (see <see cref="IsTrackCommand"/>). Routes to the appropriate
+    /// <c>HandleX</c> / <c>ApplyX</c> with the resolved identity.
+    ///
+    /// Excludes server-only branches (consolidation-redirect handoff, conflict-alert
+    /// state on the engine, ghost-track aircraft creation) — those stay in
+    /// yaat-server's <c>TrackCommandHandler</c> and dispatch around this method.
+    /// Returns <see langword="null"/> when the parsed command is not a recognised
+    /// pure-Sim track command, so callers can fall through to their own logic.
+    /// </summary>
+    public static CommandResult? Dispatch(
+        ParsedCommand parsed,
+        AircraftState ac,
+        TrackOwner? identity,
+        SimScenarioState scenario,
+        ArtccConfigRoot? artccConfig = null
+    )
+    {
+        if (identity is null && RequiresIdentity(parsed))
+        {
+            return new CommandResult(false, "No active position — use AS to set one");
+        }
+
+        return parsed switch
+        {
+            TrackAircraftCommand => HandleTrack(ac, identity!),
+            DropTrackCommand => HandleDrop(ac, identity!),
+            InitiateHandoffCommand ho => ApplyHandoff(ac, identity!, scenario, ho.TcpCode, artccConfig),
+            ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode, artccConfig),
+            AcceptHandoffCommand => HandleAccept(ac, identity!),
+            CancelHandoffCommand => HandleCancel(ac, identity!),
+            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, identity!, scenario, po.TcpCode, artccConfig),
+            PointOutCommand => HandlePointOutNoArgs(ac, identity!),
+            AcknowledgeCommand => HandleAcknowledge(ac, identity!),
+            RejectPointoutCommand => HandleRejectPointout(ac, identity!),
+            RetractPointoutCommand => HandleRetractPointout(ac, identity!),
+            PilotReportedAltitudeCommand pra => HandlePilotReportedAltitude(ac, pra.AltitudeHundreds),
+            LeaderDirectionCommand ldr => HandleLeaderDirection(ac, ldr.Direction),
+            JRingCommand jr => HandleJRing(ac, jr.Enable),
+            ConeCommand cone => HandleCone(ac, cone.Enable),
+            Scratchpad1Command sp1 => HandleScratchpad1(ac, sp1.Text),
+            Scratchpad2Command sp2 => HandleScratchpad2(ac, sp2.Text),
+            TemporaryAltitudeCommand ta => HandleTemporaryAltitude(ac, ta.AltitudeHundreds),
+            CruiseCommand cr => HandleCruise(ac, cr.AltitudeHundreds),
+            OnHandoffCommand => HandleOnHandoff(ac),
+            InhibitConflictAlertCommand => HandleInhibitConflictAlert(ac),
+            // Server-only branches: caller dispatches before reaching Dispatch
+            // (AcknowledgeConflictAlertCommand mutates engine-level ConflictAlerts).
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Track commands that operate purely on aircraft state without the issuer's identity.
+    /// Used by <see cref="Dispatch"/> to skip the no-active-position guard.
+    /// </summary>
+    private static bool RequiresIdentity(ParsedCommand parsed) =>
+        parsed
+            is not (
+                Scratchpad1Command
+                or Scratchpad2Command
+                or TemporaryAltitudeCommand
+                or CruiseCommand
+                or PilotReportedAltitudeCommand
+                or LeaderDirectionCommand
+                or JRingCommand
+                or ConeCommand
+                or OnHandoffCommand
+                or InhibitConflictAlertCommand
+                or AcknowledgeConflictAlertCommand
+            );
 }
