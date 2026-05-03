@@ -31,7 +31,15 @@ public static class Program
             return 2;
         }
 
-        return MainAsync(sceneFilter, outDir).GetAwaiter().GetResult();
+        var exitCode = MainAsync(sceneFilter, outDir).GetAwaiter().GetResult();
+
+        // Force-terminate. The Avalonia headless dispatcher and ASP.NET Core
+        // hosted services leave non-background threads alive after Main
+        // returns, which prevents the process from exiting cleanly. The
+        // server.DisposeAsync + session.Dispose paths inside MainAsync have
+        // already run, so this only cuts off the dispatcher loop.
+        Environment.Exit(exitCode);
+        return exitCode;
     }
 
     private static async Task<int> MainAsync(string? sceneFilter, string outDir)

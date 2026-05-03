@@ -61,8 +61,16 @@ internal static class Runner
         var window = scene.CreateWindow(ctx);
         try
         {
-            window.Width = scene.Width;
-            window.Height = scene.Height;
+            // Width/Height of 0 means "use the window's declared default" — for
+            // dialog windows whose layout assumes a specific size set in XAML.
+            if (scene.Width > 0)
+            {
+                window.Width = scene.Width;
+            }
+            if (scene.Height > 0)
+            {
+                window.Height = scene.Height;
+            }
             window.Show();
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();

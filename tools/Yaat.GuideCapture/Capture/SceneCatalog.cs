@@ -8,11 +8,20 @@ internal static class SceneCatalog
     // populates the full list (~28 scenes — see plan).
     public static IReadOnlyList<Scene> All { get; } =
     [
+        // Interface Overview
         new MainWindowEmptyScene(),
         new MainWindowConnectedEmptyScene(),
         new MainWindowWithScenarioScene(),
+        // Views
         new AircraftListScene(),
         new GroundViewScene(),
         new RadarViewScene(),
+        // Standalone dialogs / windows
+        new SettingsWindowScene(),
+        new LoadScenarioDialogScene(),
+        new LoadWeatherDialogScene(),
+        new WeatherEditorScene(),
+        new AboutWindowScene(),
+        new CommandCheatsheetScene(),
     ];
 }
