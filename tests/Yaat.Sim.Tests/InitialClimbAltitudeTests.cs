@@ -317,6 +317,25 @@ public class InitialClimbAltitudeTests
     }
 
     [Fact]
+    public void Vfr_LowFiledCruiseAlt_CompletesAtCruiseAlt_NotSelfClear()
+    {
+        // VFR aircraft filed at a cruise altitude below the 1500 AGL self-clear (e.g.,
+        // M20P short hop KOAK→KSQL at 1400 ft). Without clamping the self-clear to
+        // _targetAltitude, the phase loops: aircraft levels at filed cruise (1400),
+        // never reaches self-clear (1600), and InitialClimbPhase keeps re-evaluating
+        // DefaultSpeed until the auto-cruise branch pushes IAS toward profile cruise.
+        var (phase, ac, ctx) = SetUpPhase(new DefaultDeparture(), assignedAltitude: null, cruiseAltitude: 1400, isVfr: true);
+
+        // Climbing, well below filed cruise alt (1400)
+        ac.Altitude = 800;
+        Assert.False(phase.OnTick(ctx), "Below filed cruise altitude");
+
+        // Leveled at filed cruise altitude — must complete even though below 1500 AGL
+        ac.Altitude = 1400;
+        Assert.True(phase.OnTick(ctx), "At filed cruise altitude (below self-clear) — should still complete");
+    }
+
+    [Fact]
     public void DefaultDeparture_WithAltitude_CompletesAtAssignedAltitude()
     {
         var (phase, ac, ctx) = SetUpPhase(new DefaultDeparture(), assignedAltitude: 5000, cruiseAltitude: 35000);

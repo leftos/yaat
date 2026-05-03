@@ -9,6 +9,7 @@
 
 ### Fixed
 - Aircraft cruise IAS is now realistic at every altitude — Mooney M20P leveling at 1,400 ft holds ~175 KIAS instead of accelerating to 240, CL60 spawning at FL280 starts at ~270 KIAS instead of 460.
+- VFR departures filed below 1,500 AGL (short low hops) now exit the initial climb phase cleanly when they reach their filed cruise altitude, instead of being stuck in initial climb indefinitely.
 - Students joining a room or activating/deactivating mid-session appear in the instructor's controller list immediately — peers see each other's state changes too.
 - CRC lobby clients no longer receive controller, position, or consolidation data from other rooms — data lands the moment they're pulled into a room.
 - `CTOC` after a mid-taxi `CTO` revokes the stored clearance and reinstates the destination hold-short; previously cleared crossings (`LV`/`RC`/`CROSS`) are left untouched.

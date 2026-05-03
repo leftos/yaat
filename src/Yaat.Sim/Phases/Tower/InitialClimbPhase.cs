@@ -122,8 +122,12 @@ public sealed class InitialClimbPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
-        _selfClearAltitude = _fieldElevation + DefaultSelfClearAgl;
         _targetAltitude = ResolveTargetAltitude(ctx);
+        // Self-clear at 1500 AGL OR the resolved target, whichever is lower. Without the
+        // clamp, a VFR aircraft with a filed cruise altitude below 1500 AGL (short low
+        // hops, e.g. M20P at 1400 ft) levels at cruise but never reaches self-clear, so
+        // the phase loops forever and DefaultSpeed eventually pushes IAS toward cruise.
+        _selfClearAltitude = Math.Min(_fieldElevation + DefaultSelfClearAgl, _targetAltitude);
         _departureHeading = ResolveDepartureHeading(ctx);
         _phaseCompletionAltitude = AssignedAltitude.HasValue ? (double)AssignedAltitude.Value : null;
 
