@@ -28,6 +28,7 @@
 - Typing a callsign plus flight-data fields and pressing ENTER creates a STARS flight plan (DA or VP, discriminated by destination); duplicates return `DUP NEW ID`.
 - Creating a STARS flight plan via VP or DA auto-acquires the aircraft's track to your scope once it's squawking the assigned code.
 - `.AUTOTRACK <airport>` from CRC now grants you departure ownership even when the scenario default assigned the airport elsewhere; `.AUTOTRACK -<airport>` removes it from autotracking entirely.
+- Departures spawning later in the scenario (delayed queue, generators) auto-print into the Ground bay or printer queue, matching the initial-spawn behavior.
 
 ## v0.1.10-alpha [2026/05/01]
 
