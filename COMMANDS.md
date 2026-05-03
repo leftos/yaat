@@ -316,7 +316,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 
 ### Pattern
 
-> **VFR only:** Pattern commands, traffic direction, VFR holds, touch-and-go, stop-and-go, low approach, and cleared-for-option are restricted to VFR aircraft. IFR aircraft must first be given `CIFR` (Cancel IFR) to become VFR. Visual approaches (`CVA`) and report commands (`RFIS`/`RTIS`) are available to both IFR and VFR aircraft.
+> **VFR only:** Pattern commands, traffic direction, VFR holds, touch-and-go, stop-and-go, low approach, and cleared-for-option are restricted to VFR aircraft. IFR aircraft must first be given `CIFR` (Cancel IFR) to become VFR. The report commands `RFIS`/`RTIS` are available to both IFR and VFR aircraft. **Visual approaches (`CVA`) are IFR only** — VFR pattern aircraft join the pattern via the pattern-entry commands (`ELD`/`ERD`/`SI` etc.) above.
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
@@ -719,7 +719,7 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 
 **Force direct to:** `DCTF` works like `DCT` but bypasses the check that the target fix must be on or ahead of the current route.
 
-**Visual approach:** `CVA 28R` clears the aircraft for a visual approach to runway 28R. No CIFP procedure is required — the aircraft navigates visually. Options:
+**Visual approach:** `CVA 28R` clears the aircraft for a visual approach to runway 28R. No CIFP procedure is required — the aircraft navigates visually. **Requires an IFR flight plan**; VFR pattern entry uses `ELD`/`ERD`/`SI`. Pattern-entry geometry is sized for an IFR aircraft being vectored from cruise: downwind altitude is held at 2000 ft AGL above the field (clear of standard 1000 ft VFR pattern traffic), and parallel-runway pattern deconfliction does not apply. Options:
 
 | Command | Effect |
 |---------|--------|

@@ -156,6 +156,22 @@ public class VisualApproachCommandTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
+    // Error: VFR aircraft (CVA is for IFR only)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Cva_VfrAircraft_Rejected()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.FlightPlan.FlightRules = "VFR";
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+
+        Assert.False(result.Success);
+        Assert.Contains("IFR", result.Message);
+    }
+
+    // -------------------------------------------------------------------------
     // Error: unknown runway
     // -------------------------------------------------------------------------
 

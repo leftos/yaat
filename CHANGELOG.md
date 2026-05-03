@@ -8,6 +8,9 @@
 - `CTOPP` takes departure modifiers like `CTO`: heading, `LT`/`RT`, `OC`, and `DCT`/`TLDCT`/`TRDCT FIX`, all with optional climb altitude.
 
 ### Fixed
+- `CVA` joins downwind on the side the aircraft is already on, no longer routing it across the field through the departure corridor.
+- Aircraft on visual approach short final no longer report "lost sight of the field" as the airport reference passes behind the nose.
+- `CVA` is IFR only and uses a wider pattern at 2000 ft AGL with no parallel-runway deconfliction; VFR pattern entry uses `ELD`/`ERD`/`SI`.
 - Aircraft cruise IAS is now realistic at every altitude — Mooney M20P leveling at 1,400 ft holds ~175 KIAS instead of accelerating to 240, CL60 spawning at FL280 starts at ~270 KIAS instead of 460.
 - VFR departures filed below 1,500 AGL (short low hops) now exit the initial climb phase cleanly when they reach their filed cruise altitude, instead of being stuck in initial climb indefinitely.
 - Students joining a room or activating/deactivating mid-session appear in the instructor's controller list immediately — peers see each other's state changes too.

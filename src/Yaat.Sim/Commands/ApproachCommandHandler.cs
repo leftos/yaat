@@ -9,6 +9,13 @@ namespace Yaat.Sim.Commands;
 
 public static class ApproachCommandHandler
 {
+    /// <summary>
+    /// Downwind altitude (feet AGL) for an IFR visual approach pattern entry.
+    /// 2000 ft AGL keeps the IFR aircraft 1000+ ft above standard 1000-ft VFR
+    /// pattern traffic and 500 ft above 1500-ft VFR-jet pattern traffic.
+    /// </summary>
+    private const double IfrVisualDownwindAltAglFt = 2000.0;
+
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
         var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
@@ -307,6 +314,15 @@ public static class ApproachCommandHandler
 
     public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft)
     {
+        // CVA is for IFR arrivals being vectored to a visual approach (7110.65 §7-4-3).
+        // VFR pattern entry uses a different command set (TPAT etc.) and a different
+        // pattern geometry (low altitude, deconflicted). Reject VFR aircraft up front
+        // so they don't end up on an IFR-shaped pattern.
+        if (aircraft.FlightPlan.IsVfr)
+        {
+            return new CommandResult(false, "CVA requires an IFR flight plan");
+        }
+
         // RTIS gate: when following traffic, pilot must have reported traffic in sight.
         // RPO can force this with RTISF command.
         if ((cmd.FollowCallsign is not null) && !aircraft.Approach.HasReportedTrafficInSight)
@@ -393,17 +409,25 @@ public static class ApproachCommandHandler
         }
         else
         {
-            // Pattern entry: downwind → base → final → landing
+            // Pattern entry: downwind → base → final → landing.
+            //
+            // IFR visual approach geometry: downwind at ≥2000 ft AGL (separates from
+            // standard 1000 ft VFR pattern by 1000+ ft and from 1500 ft VFR-jet pattern
+            // by 500 ft). Pattern shape is unconstrained — at altitude there's no
+            // conflict with low approaches / departures / arrivals on parallel runways,
+            // so we skip the runway-deconfliction step that VFR pattern entry uses.
+            // Authored size/altitude overrides also bypassed: those are tuned for VFR.
             var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
 
-            var airportRunways = NavigationDatabase.Instance.GetRunways(approachRunway.AirportId);
-            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            double ifrPatternAltMsl = approachRunway.ElevationFt + IfrVisualDownwindAltAglFt;
+            var waypoints = PatternGeometry.Compute(
                 approachRunway,
-                aircraft.Ground.Layout?.FindRunway(approachRunway.Designator),
-                aircraft.Pattern.SizeOverrideNm,
-                aircraft.Pattern.AltitudeOverrideFt
+                category,
+                direction,
+                sizeOverrideNm: null,
+                ifrPatternAltMsl,
+                airportRunways: null
             );
-            var waypoints = PatternGeometry.Compute(approachRunway, category, direction, sizeOv, altOv, airportRunways);
 
             var circuitPhases = PatternBuilder.BuildCircuit(
                 approachRunway,
@@ -412,9 +436,9 @@ public static class ApproachCommandHandler
                 PatternEntryLeg.Downwind,
                 false,
                 null,
-                sizeOv,
-                altOv,
-                airportRunways
+                patternSizeNm: null,
+                ifrPatternAltMsl,
+                airportRunways: null
             );
 
             // Check if the aircraft is already established on the downwind leg.
@@ -477,15 +501,20 @@ public static class ApproachCommandHandler
 
     private static PatternDirection DeterminePatternDirection(AircraftState aircraft, RunwayInfo runway)
     {
-        // Determine which side of the runway the aircraft is on
+        // Determine which side of the runway the aircraft is on. SignedCrossTrack
+        // is positive when the aircraft is right of the runway heading direction.
+        // Match the pattern to the aircraft's current side: aircraft on the right
+        // → right traffic (all right turns, downwind on the right side of the
+        // extended centerline); aircraft on the left → left traffic. Picking the
+        // opposite side would route the aircraft through the runway centerline
+        // (and any active departure corridor) on its way to the downwind.
         double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
             aircraft.Position,
             new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             runway.TrueHeading
         );
 
-        // Positive = right of runway heading → right downwind; negative → left downwind
-        return crossTrack >= 0 ? PatternDirection.Left : PatternDirection.Right;
+        return crossTrack >= 0 ? PatternDirection.Right : PatternDirection.Left;
     }
 
     // --- Shared helpers ---

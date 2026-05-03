@@ -351,7 +351,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 
 ### IFR/VFR Command Gating (YAAT-only)
 
-VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds, touch-and-go, stop-and-go, low approach, cleared-for-option) are restricted to VFR aircraft. IFR aircraft receive an error with a hint to use `CIFR`. Visual approaches (`CVA`) and report commands (`RFIS`/`RTIS`) are available to both IFR and VFR aircraft — IFR aircraft can be cleared for a visual approach.
+VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds, touch-and-go, stop-and-go, low approach, cleared-for-option) are restricted to VFR aircraft. IFR aircraft receive an error with a hint to use `CIFR`. The report commands `RFIS`/`RTIS` are available to both IFR and VFR aircraft. Visual approaches (`CVA`) are IFR only and use IFR pattern geometry — wide pattern at 2000 ft AGL with no parallel-runway deconfliction; VFR pattern entry uses `ELD`/`ERD`/`SI` instead.
 
 ### Auto Go-Around (YAAT-only)
 

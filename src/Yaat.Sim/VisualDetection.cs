@@ -149,6 +149,47 @@ public static class VisualDetection
     }
 
     /// <summary>
+    /// Maintained-contact check for the airport, used after the pilot has already
+    /// reported the field in sight. Runs ONLY weather-driven obstructions (Class A
+    /// floor, BKN/OVC layer above the aircraft); skips geometric checks
+    /// (BehindOwnship, OutOfRange, OppositeSideOfRunway, OccludedByBank).
+    ///
+    /// Rationale: the airport is a multi-acre polygon the pilot is approaching or
+    /// overflying. Once acquired, only weather can realistically obscure it. The
+    /// initial-acquisition geometric checks (which use the airport reference point
+    /// — a single lat/lon — as a proxy) produce false "lost sight of the field"
+    /// reports as the aircraft crosses the threshold and the ARP falls behind the
+    /// nose, even though the runway is directly under the cockpit.
+    ///
+    /// DistanceNm/MaxRangeNm in the result are zero (not meaningful for this
+    /// regime). Callers should read <see cref="VisualAcquisitionResult.Acquired"/>,
+    /// <see cref="VisualAcquisitionResult.Reason"/>, and <see cref="VisualAcquisitionResult.BindingLayer"/>.
+    /// </summary>
+    public static VisualAcquisitionResult TryMaintainAirportContact(
+        AircraftState aircraft,
+        double airportElevation,
+        IReadOnlyList<MetarParser.CloudLayer>? layers
+    )
+    {
+        // Class A: no visual approaches at or above FL180 (7110.65 §7-2-1.a).
+        // An aircraft that climbs back into Class A on a visual is a procedural
+        // bust and should drop the visual clearance.
+        if (aircraft.Altitude >= ClassAFloorFt)
+        {
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.InClassA, 0.0, 0.0);
+        }
+
+        // BKN/OVC layer between aircraft and ground obscures the field.
+        var binding = FindBindingCeilingAbove(aircraft.Altitude, airportElevation, layers);
+        if (binding is { } above)
+        {
+            return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.AboveCeiling, 0.0, 0.0, above);
+        }
+
+        return VisualAcquisitionResult.Success(0.0, 0.0);
+    }
+
+    /// <summary>
     /// Attempts to visually acquire another aircraft. No FL180 gate — pilots can see
     /// traffic in Class A; only visual separation is prohibited (7110.65 §7-1-1).
     /// Pass <paramref name="bankAngleDeg"/> for initial acquisition checks; pass 0 for
