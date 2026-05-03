@@ -12,6 +12,15 @@ public sealed class RecordingManifest
     public required int ActionCount { get; init; }
     public bool HasWeather { get; init; }
 
+    /// <summary>
+    /// True when the archive bundles the ARTCC configuration (entry
+    /// <c>artcc-config.json.br</c>) used at record time. Self-contained recordings
+    /// can replay without consulting the live server config — important for
+    /// long-lived bug bundles whose ARTCC structure may have drifted since.
+    /// Bundles written before the bundle-config feature deserialize as false.
+    /// </summary>
+    public bool HasArtccConfig { get; init; }
+
     public string? ScenarioName { get; init; }
     public string? ScenarioId { get; init; }
     public string? ArtccId { get; init; }

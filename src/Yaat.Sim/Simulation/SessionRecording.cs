@@ -12,6 +12,15 @@ public sealed class SessionRecording
     public required string ScenarioJson { get; init; }
     public required int RngSeed { get; init; }
     public string? WeatherJson { get; init; }
+
+    /// <summary>
+    /// JSON-serialized ARTCC configuration captured at record time. Bundled into the
+    /// archive as <c>artcc-config.json.br</c>; replay deserializes it into
+    /// <c>SimScenarioState.ArtccConfig</c> so TCP/ERAM resolution works without a live
+    /// ArtccConfigService. Null for older bundles that don't carry the config.
+    /// </summary>
+    public string? ArtccConfigJson { get; init; }
+
     public required List<RecordedAction> Actions { get; init; }
     public required double TotalElapsedSeconds { get; init; }
 

@@ -23,6 +23,7 @@ V4 bundle layout (ZIP at root):
     snapshots/NNN.json.br       one Brotli-compressed snapshot per index
     layouts/<airport>.json.br   deduplicated ground layouts (optional)
     weather.json                plain JSON (optional; HasWeather in manifest)
+    artcc-config.json.br        Brotli-compressed ARTCC config (optional; HasArtccConfig in manifest)
     yaat-client.log             plain text (bug bundles only)
     yaat-server.log             plain text (bug bundles only, local server)
 
@@ -178,6 +179,13 @@ class BundleReader:
             return None
         return self.read_plain("weather.json").decode("utf-8")
 
+    def read_artcc_config(self) -> str | None:
+        if not self.manifest.get("HasArtccConfig"):
+            return None
+        if "artcc-config.json.br" not in self.archive_entries:
+            return None
+        return self.read_brotli_text("artcc-config.json.br")
+
     def read_layout(self, airport_id: str) -> str:
         return self.read_brotli_text(f"layouts/{airport_id}.json.br")
 
@@ -259,6 +267,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines.append(f"  RecordedAtUtc:       {m.get('RecordedAtUtc')}")
         lines.append(f"  RecordedBy:          {m.get('RecordedBy')}")
         lines.append(f"  HasWeather:          {m.get('HasWeather')}")
+        lines.append(f"  HasArtccConfig:      {m.get('HasArtccConfig', False)}")
         lines.append(f"  Layouts ({len(layouts)}):         {', '.join(layouts) if layouts else '(none)'}")
         lines.append(f"  Logs ({len(logs)}):            {', '.join(logs) if logs else '(none)'}")
         if callsign_err:
@@ -516,6 +525,16 @@ def cmd_weather(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_artcc_config(args: argparse.Namespace) -> int:
+    with BundleReader(args.bundle) as reader:
+        cfg = reader.read_artcc_config()
+        if cfg is None:
+            print("bundle has no artcc-config.json.br (HasArtccConfig=false)", file=sys.stderr)
+            return 1
+        write_output(cfg, args.out)
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Subcommand: layouts
 # ---------------------------------------------------------------------------
@@ -759,6 +778,15 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
     if m.get("HasWeather") and "weather.json" not in reader.archive_entries:
         yield "manifest HasWeather=true but weather.json missing"
 
+    if m.get("HasArtccConfig"):
+        if "artcc-config.json.br" not in reader.archive_entries:
+            yield "manifest HasArtccConfig=true but artcc-config.json.br missing"
+        else:
+            try:
+                reader.read_brotli_text("artcc-config.json.br")
+            except Exception as e:
+                yield f"failed to decompress artcc-config.json.br: {e}"
+
 
 def cmd_validate(args: argparse.Namespace) -> int:
     with BundleReader(args.bundle) as reader:
@@ -835,6 +863,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_bundle_arg(p_wx)
     _add_out_arg(p_wx)
     p_wx.set_defaults(func=cmd_weather)
+
+    p_artcc = sub.add_parser("artcc-config", help="print artcc-config.json.br (if present)")
+    _add_bundle_arg(p_artcc)
+    _add_out_arg(p_artcc)
+    p_artcc.set_defaults(func=cmd_artcc_config)
 
     p_lay = sub.add_parser("layouts", help="list/dump ground layouts")
     _add_bundle_arg(p_lay)

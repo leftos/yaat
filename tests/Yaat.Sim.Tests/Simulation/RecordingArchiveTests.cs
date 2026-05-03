@@ -185,6 +185,71 @@ public class RecordingArchiveTests
     }
 
     [Fact]
+    public void ReadArtccConfigJson_RoundTrips()
+    {
+        var configJson = """{"id":"ZOA","facility":{"id":"ZOA","name":"Oakland ARTCC","positions":[]}}""";
+        var basis = CreateTestRecording(snapshotCount: 1);
+        var recording = new SessionRecording
+        {
+            Version = basis.Version,
+            ScenarioJson = basis.ScenarioJson,
+            RngSeed = basis.RngSeed,
+            WeatherJson = basis.WeatherJson,
+            ArtccConfigJson = configJson,
+            Actions = basis.Actions,
+            TotalElapsedSeconds = basis.TotalElapsedSeconds,
+            Snapshots = basis.Snapshots,
+            ScenarioName = basis.ScenarioName,
+            ScenarioId = basis.ScenarioId,
+            ArtccId = basis.ArtccId,
+            RecordedAtUtc = basis.RecordedAtUtc,
+            RecordedBy = basis.RecordedBy,
+        };
+
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.True(archive.Manifest.HasArtccConfig);
+        Assert.Equal(configJson, archive.ReadArtccConfigJson());
+    }
+
+    [Fact]
+    public void NoArtccConfig_ReturnsNullAndManifestFlagFalse()
+    {
+        var recording = CreateTestRecording(snapshotCount: 1);
+
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.False(archive.Manifest.HasArtccConfig);
+        Assert.Null(archive.ReadArtccConfigJson());
+    }
+
+    [Fact]
+    public void OldBundleManifest_WithoutHasArtccConfigField_DeserializesAsFalse()
+    {
+        // Older bundles predate the HasArtccConfig field; their manifests have no such
+        // property. System.Text.Json should default the bool to false on deserialization.
+        var oldStyleManifest = """
+            {
+              "Version": 4,
+              "RngSeed": 42,
+              "TotalElapsedSeconds": 0,
+              "ActionCount": 0,
+              "HasWeather": false,
+              "Snapshots": []
+            }
+            """;
+        var manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        Assert.NotNull(manifest);
+        Assert.False(manifest!.HasArtccConfig);
+    }
+
+    [Fact]
     public void NoWeather_ReturnsNull()
     {
         var recording = new SessionRecording

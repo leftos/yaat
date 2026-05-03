@@ -18,6 +18,7 @@ public sealed class RecordingArchiveWriter : IDisposable
     private bool _finished;
     private int _actionCount;
     private bool _hasWeather;
+    private bool _hasArtccConfig;
 
     public RecordingArchiveWriter(Stream output)
     {
@@ -38,6 +39,23 @@ public sealed class RecordingArchiveWriter : IDisposable
 
         _hasWeather = true;
         WriteUtf8Entry("weather.json", weatherJson);
+    }
+
+    /// <summary>
+    /// Writes the ARTCC configuration JSON used at record time. Bundling the
+    /// config makes recordings self-contained — replay no longer depends on the
+    /// live ArtccConfigService having the same ARTCC version loaded. No-op
+    /// when <paramref name="artccConfigJson"/> is null.
+    /// </summary>
+    public void WriteArtccConfig(string? artccConfigJson)
+    {
+        if (artccConfigJson is null)
+        {
+            return;
+        }
+
+        _hasArtccConfig = true;
+        WriteBrotliEntry("artcc-config.json.br", artccConfigJson);
     }
 
     public void WriteActions(List<RecordedAction> actions)
@@ -106,6 +124,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             TotalElapsedSeconds = totalElapsedSeconds,
             ActionCount = _actionCount,
             HasWeather = _hasWeather,
+            HasArtccConfig = _hasArtccConfig,
             ScenarioName = scenarioName,
             ScenarioId = scenarioId,
             ArtccId = artccId,
@@ -132,6 +151,7 @@ public sealed class RecordingArchiveWriter : IDisposable
         {
             writer.WriteScenario(recording.ScenarioJson);
             writer.WriteWeather(recording.WeatherJson);
+            writer.WriteArtccConfig(recording.ArtccConfigJson);
             writer.WriteActions(recording.Actions);
 
             if (recording.Snapshots is { } snapshots)

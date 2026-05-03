@@ -66,6 +66,43 @@ public sealed class RecordingArchive : IDisposable
         return ReadUtf8Entry(entry);
     }
 
+    /// <summary>
+    /// Reads the bundled ARTCC configuration JSON, or null when the archive does
+    /// not include one (older bundles or recordings made before bundle-config
+    /// support).
+    /// </summary>
+    public string? ReadArtccConfigJson()
+    {
+        if (!Manifest.HasArtccConfig)
+        {
+            return null;
+        }
+
+        var entry = _zip.GetEntry("artcc-config.json.br");
+        if (entry is null)
+        {
+            return null;
+        }
+
+        return ReadBrotliEntry("artcc-config.json.br");
+    }
+
+    /// <summary>
+    /// Convenience: reads <see cref="ReadArtccConfigJson"/> and deserializes into
+    /// an <see cref="Yaat.Sim.Data.Vnas.ArtccConfigRoot"/>. Returns null when the
+    /// archive doesn't include a config or deserialization fails.
+    /// </summary>
+    public Yaat.Sim.Data.Vnas.ArtccConfigRoot? DeserializeArtccConfig()
+    {
+        var json = ReadArtccConfigJson();
+        if (json is null)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Deserialize<Yaat.Sim.Data.Vnas.ArtccConfigRoot>(json, RecordingJsonOptions.Default);
+    }
+
     public List<RecordedAction> ReadActions()
     {
         var json = ReadBrotliEntry("actions.json.br");
@@ -200,6 +237,7 @@ public sealed class RecordingArchive : IDisposable
             ScenarioJson = ReadScenarioJson(),
             RngSeed = Manifest.RngSeed,
             WeatherJson = ReadWeatherJson(),
+            ArtccConfigJson = ReadArtccConfigJson(),
             Actions = actions,
             TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
             Snapshots = null,
@@ -239,6 +277,7 @@ public sealed class RecordingArchive : IDisposable
             ScenarioJson = ReadScenarioJson(),
             RngSeed = Manifest.RngSeed,
             WeatherJson = ReadWeatherJson(),
+            ArtccConfigJson = ReadArtccConfigJson(),
             Actions = actions,
             TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
             Snapshots = snapshots,
