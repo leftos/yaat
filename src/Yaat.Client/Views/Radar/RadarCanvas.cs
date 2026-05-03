@@ -753,6 +753,22 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return;
         }
 
+        // EuroScope mode: try per-field hit test first. When a specific field is hit AND
+        // somebody is subscribed to handle it, we fire the event and short-circuit the
+        // normal data-block left-click flow. With no subscriber (or no field hit), fall
+        // through so existing behaviour (selection, drag, context menu) keeps working.
+        if (EuroScopeMode && props.IsLeftButtonPressed && !Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
+        {
+            var (fieldAc, field) = FindTagFieldAtPoint(pos);
+            if (fieldAc is not null && field != TagFieldId.None && EuroScopeFieldClicked is not null)
+            {
+                SurfaceDataBlock(fieldAc.Callsign);
+                EuroScopeFieldClicked.Invoke(fieldAc, field, pos);
+                e.Handled = true;
+                return;
+            }
+        }
+
         var dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
@@ -911,6 +927,54 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         base.OnPointerReleased(e);
     }
 
+    /// <summary>
+    /// EuroScope per-field hit test: returns the aircraft and field whose rect contains
+    /// the cursor, or (null, None) if the cursor is not over a field. Only meaningful when
+    /// <see cref="EuroScopeMode"/> is on.
+    /// </summary>
+    public (AircraftModel? Aircraft, TagFieldId Field) FindTagFieldAtPoint(Point screenPos)
+    {
+        if (!EuroScopeMode)
+        {
+            return (null, TagFieldId.None);
+        }
+
+        var tags = LastEuroScopeTags;
+        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown), _dataBlockZOrder);
+        AircraftModel? bestAc = null;
+        var bestField = TagFieldId.None;
+
+        foreach (var ac in sorted)
+        {
+            if (!tags.TryGetValue(ac.Callsign, out var result))
+            {
+                continue;
+            }
+            if (!result.Bounds.Contains((float)screenPos.X, (float)screenPos.Y))
+            {
+                continue;
+            }
+            // Iterate fields to find the most specific hit. Last write wins for overlapping rects
+            // (which shouldn't happen but defensive).
+            foreach (var f in result.Fields)
+            {
+                if (f.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
+                {
+                    bestAc = ac;
+                    bestField = f.Field;
+                }
+            }
+        }
+
+        return (bestAc, bestField);
+    }
+
+    /// <summary>
+    /// Raised when the user left-clicks an interactive EuroScope tag field. Subscribers
+    /// dispatch the appropriate flyout/mode (see Flyouts/ folder, added in later phases).
+    /// </summary>
+    public event Action<AircraftModel, TagFieldId, Point>? EuroScopeFieldClicked;
+
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -936,6 +1000,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     private SKRect ComputeDataBlockRect(AircraftModel ac)
     {
+        // EuroScope path uses the bounds the renderer cached during the last frame so
+        // hit testing always matches what's actually on screen.
+        if (EuroScopeMode && !_minifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var esResult))
+        {
+            return esResult.Bounds;
+        }
+
         var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
         SKPoint offset = DefaultDataBlockOffset;
