@@ -83,13 +83,22 @@ public sealed class FinalApproachPhase : Phase
     private const double MagVarRampEndAgl = 100.0;
 
     /// <summary>
-    /// AGL at which the visual-alignment ramp begins for a genuine offset approach
-    /// (LDA, RNAV with offset CF leg, VOR offset, SOIA). Published Decision Altitude
-    /// would be ideal; default to 1000 ft AGL pending DA extraction from CIFP. The ramp
-    /// must END at the Stabilized Approach Point (500 ft AGL per AIM 5-4-16.7.4 — aircraft
-    /// must be on extended runway centerline BY 500 ft, not start the maneuver there).
+    /// Buffer (ft) added above the published MAP-altitude AGL to derive the genuine-offset
+    /// ramp start. For non-precision approaches the MAP altitude is the published MDA — a
+    /// reasonable DA proxy. The buffer puts the ramp start ~300 ft above DA so the
+    /// alignment maneuver overlaps the visual segment per AIM 5-4-16.7.4 (stabilized BY
+    /// SAP). FAACIFP18 doesn't publish actual DA on procedure continuation records, so
+    /// MAP-altitude + buffer is the closest we can get without commercial NavData.
     /// </summary>
-    private const double OffsetRampStartAgl = 1000.0;
+    private const double OffsetRampStartBufferAgl = 300.0;
+
+    /// <summary>
+    /// Floor for the genuine-offset ramp start AGL when MAP altitude is unavailable, very
+    /// low (precision approach with MAP at threshold), or otherwise produces a too-narrow
+    /// window above SAP. 700 ft AGL guarantees at least 200 ft of ramp window above
+    /// <see cref="OffsetRampEndAgl"/>.
+    /// </summary>
+    private const double MinOffsetRampStartAgl = 700.0;
 
     /// <summary>
     /// AGL at which the offset-approach alignment ramp completes — the Stabilized
@@ -405,8 +414,9 @@ public sealed class FinalApproachPhase : Phase
 
         if (facVsRunwayDeg >= FacRampMinOffsetDeg)
         {
-            double rampStart = facVsRunwayDeg >= OffsetApproachThresholdDeg ? OffsetRampStartAgl : MagVarRampStartAgl;
-            double rampEnd = facVsRunwayDeg >= OffsetApproachThresholdDeg ? OffsetRampEndAgl : MagVarRampEndAgl;
+            bool genuineOffset = facVsRunwayDeg >= OffsetApproachThresholdDeg;
+            double rampStart = genuineOffset ? ComputeOffsetRampStartAgl(ctx.Aircraft.Phases?.ActiveApproach?.MapAltitudeFt) : MagVarRampStartAgl;
+            double rampEnd = genuineOffset ? OffsetRampEndAgl : MagVarRampEndAgl;
 
             double linearT;
             if (agl >= rampStart)
@@ -629,6 +639,20 @@ public sealed class FinalApproachPhase : Phase
         double trigger = FasReachGateNm + bleedDistanceNm;
 
         return Math.Min(trigger, MaxFasTriggerNm);
+    }
+
+    /// <summary>
+    /// Genuine-offset (≥ <see cref="OffsetApproachThresholdDeg"/>) ramp-start AGL derived
+    /// from the published MAP altitude as a DA proxy. For non-precision approaches the MAP
+    /// altitude is the published MDA — close to the controlling minimums. For precision
+    /// approaches the MAP is at threshold (essentially 0 AGL), so the floor
+    /// <see cref="MinOffsetRampStartAgl"/> dominates. Returns the floor when MAP altitude
+    /// isn't extracted (visual approaches, non-CIFP cases).
+    /// </summary>
+    private double ComputeOffsetRampStartAgl(int? mapAltitudeFtMsl)
+    {
+        double mapAgl = mapAltitudeFtMsl is { } mslFt ? Math.Max(mslFt - _thresholdElevation, 0.0) : 0.0;
+        return Math.Max(mapAgl + OffsetRampStartBufferAgl, MinOffsetRampStartAgl);
     }
 
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)
