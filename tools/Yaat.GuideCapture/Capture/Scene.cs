@@ -3,8 +3,8 @@ using Avalonia.Controls;
 namespace Yaat.GuideCapture.Capture;
 
 // One screenshot. Subclasses build the target window and optionally seed live
-// state (scenario load, aircraft selection, flyout open) via SetupAsync before
-// the runner shows the window and calls CaptureRenderedFrame.
+// state (App.AutoConnectTarget for autoconnect, scenario load via SignalR,
+// flyout open) by overriding BeforeWindowAsync / AfterShowAsync.
 internal abstract class Scene
 {
     public abstract string Name { get; }
@@ -15,7 +15,14 @@ internal abstract class Scene
 
     public virtual TimeSpan SettleAfterShow => TimeSpan.FromMilliseconds(250);
 
+    // Runs on the UI thread BEFORE CreateWindow. Use it to set process-wide
+    // state the window constructor will read (e.g. App.AutoConnectTarget).
+    public virtual Task BeforeWindowAsync(CaptureContext ctx) => Task.CompletedTask;
+
     public abstract Window CreateWindow(CaptureContext ctx);
 
-    public virtual Task SetupAsync(CaptureContext ctx) => Task.CompletedTask;
+    // Runs on the UI thread AFTER the window is shown and laid out, before the
+    // settle delay and capture. Use it to wait for connection state, scenario
+    // load completion, etc.
+    public virtual Task AfterShowAsync(Window window, CaptureContext ctx) => Task.CompletedTask;
 }

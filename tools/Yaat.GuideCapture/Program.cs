@@ -3,13 +3,15 @@ using Avalonia.Headless;
 using Velopack;
 using Yaat.Client;
 using Yaat.GuideCapture.Capture;
+using Yaat.GuideCapture.Server;
 
 namespace Yaat.GuideCapture;
 
-// Entry point for the User Guide screenshot harness. Boots Yaat.Client under
-// Avalonia's headless platform with the real Skia backend (UseHeadlessDrawing
-// = false), then runs every Scene in Scenes.All — or a single one named via
-// --scene — and writes a PNG per scene to --out (default docs/user-guide/img/).
+// Entry point for the User Guide screenshot harness. Boots a yaat-server
+// in-process on a free loopback port, then runs Yaat.Client under Avalonia's
+// headless platform with the real Skia backend (UseHeadlessDrawing = false)
+// driven by HeadlessUnitTestSession. Scenes opt into autoconnect by setting
+// App.AutoConnectTarget in their BeforeWindowAsync hook.
 //
 //   dotnet run --project tools/Yaat.GuideCapture
 //   dotnet run --project tools/Yaat.GuideCapture -- --scene main-window-empty --out .tmp/guide
@@ -17,6 +19,8 @@ namespace Yaat.GuideCapture;
 // Run from the repo root so the default --out resolves correctly.
 public static class Program
 {
+    private static int _velopackInitialized;
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -27,19 +31,34 @@ public static class Program
             return 2;
         }
 
-        // MainViewModel constructs UpdateService eagerly, which requires
-        // VelopackLocator initialization. Build().Run() is idempotent here
-        // because we don't pass install-hook args.
-        VelopackApp.Build().Run();
+        return MainAsync(sceneFilter, outDir).GetAwaiter().GetResult();
+    }
 
-        AppBuilder
-            .Configure<App>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
-            .UseSkia()
-            .WithInterFont()
-            .SetupWithoutStarting();
+    private static async Task<int> MainAsync(string? sceneFilter, string outDir)
+    {
+        await using var server = new InProcessServer();
+        Console.WriteLine("Starting in-process yaat-server ...");
+        await server.StartAsync();
+        Console.WriteLine($"  Server listening on {server.Url}");
 
-        return Runner.Run(outDir, sceneFilter, SceneCatalog.All);
+        using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
+        var ctx = new CaptureContext { ServerUrl = server.Url };
+
+        return await session.Dispatch(() => Runner.RunAsync(outDir, sceneFilter, SceneCatalog.All, ctx), CancellationToken.None);
+    }
+
+    // Discovered by HeadlessUnitTestSession via reflection (same pattern xUnit's
+    // AvaloniaTestApplicationAttribute uses). VelopackApp.Build().Run() must run
+    // before AppBuilder is consumed because MainViewModel constructs an
+    // UpdateService eagerly that requires VelopackLocator initialization.
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        if (Interlocked.CompareExchange(ref _velopackInitialized, 1, 0) == 0)
+        {
+            VelopackApp.Build().Run();
+        }
+
+        return AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).UseSkia().WithInterFont();
     }
 
     private static bool TryParseArgs(string[] args, out string? sceneFilter, out string outDir, out string error)

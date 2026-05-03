@@ -1,12 +1,13 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
+using Yaat.Client;
 
 namespace Yaat.GuideCapture.Capture;
 
 internal static class Runner
 {
-    public static int Run(string outDir, string? sceneFilter, IReadOnlyList<Scene> allScenes)
+    public static async Task<int> RunAsync(string outDir, string? sceneFilter, IReadOnlyList<Scene> allScenes, CaptureContext ctx)
     {
         Directory.CreateDirectory(outDir);
 
@@ -25,13 +26,12 @@ internal static class Runner
             return 1;
         }
 
-        var ctx = new CaptureContext();
         var failed = 0;
         foreach (var scene in scenes)
         {
             try
             {
-                CaptureOne(scene, ctx, outDir);
+                await CaptureOneAsync(scene, ctx, outDir);
             }
             catch (Exception ex)
             {
@@ -46,14 +46,17 @@ internal static class Runner
         return failed == 0 ? 0 : 1;
     }
 
-    private static void CaptureOne(Scene scene, CaptureContext ctx, string outDir)
+    private static async Task CaptureOneAsync(Scene scene, CaptureContext ctx, string outDir)
     {
         Console.WriteLine($"Capturing {scene.Name} ({scene.Width}x{scene.Height}) ...");
 
-        // Phase A: SetupAsync is a no-op for every scene, so awaiting on the
-        // dispatcher thread is safe (no continuations queued back to it). Phase
-        // B will add a proper sync-over-async pump once scenes need server I/O.
-        scene.SetupAsync(ctx).GetAwaiter().GetResult();
+        // Reset process-wide state that scenes opt into. Without this,
+        // App.AutoConnectTarget set by an earlier connected scene would leak
+        // into a later "disconnected" scene's MainWindow constructor.
+        App.AutoConnectTarget = null;
+        App.AutoLoadScenarioId = null;
+
+        await scene.BeforeWindowAsync(ctx);
 
         var window = scene.CreateWindow(ctx);
         try
@@ -65,12 +68,10 @@ internal static class Runner
             window.UpdateLayout();
             Dispatcher.UIThread.RunJobs();
 
-            var settleEnd = DateTime.UtcNow + scene.SettleAfterShow;
-            while (DateTime.UtcNow < settleEnd)
-            {
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(10);
-            }
+            await scene.AfterShowAsync(window, ctx);
+
+            await Task.Delay(scene.SettleAfterShow);
+            Dispatcher.UIThread.RunJobs();
 
             var bitmap =
                 window.CaptureRenderedFrame()

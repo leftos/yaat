@@ -7,6 +7,13 @@
     <RootNamespace>Yaat.GuideCapture</RootNamespace>
   </PropertyGroup>
 
+  <!-- yaat-server is an ASP.NET Core app; hosting it in-process needs the
+       ASP.NET Core shared framework (WebApplication, Kestrel, etc.) which the
+       default Microsoft.NET.Sdk doesn't pull in. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.13" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.13" />
@@ -18,5 +25,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
+  </ItemGroup>
+
+  <!-- yaat-server lives in a sibling repo. Load conditionally so the project
+       still loads in a yaat-only clone (the tool just won't be runnable
+       without the in-process server, which is by design). -->
+  <ItemGroup Condition="Exists('..\..\..\yaat-server\src\Yaat.Server\Yaat.Server.csproj')">
+    <ProjectReference Include="..\..\..\yaat-server\src\Yaat.Server\Yaat.Server.csproj" />
   </ItemGroup>
 </Project>
