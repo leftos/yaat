@@ -28,9 +28,18 @@
   </ItemGroup>
 
   <!-- yaat-server lives in a sibling repo. Load conditionally so the project
-       still loads in a yaat-only clone (the tool just won't be runnable
-       without the in-process server, which is by design). -->
+       still builds in a yaat-only clone (CI, fresh checkouts). When the
+       sibling isn't present, drop the in-process-server source files and
+       define a constant so Program.cs falls back to a stub Main that prints
+       an error and exits. The tool is only actually runnable when both repos
+       are checked out side by side. -->
+  <PropertyGroup Condition="Exists('..\..\..\yaat-server\src\Yaat.Server\Yaat.Server.csproj')">
+    <DefineConstants>$(DefineConstants);HAS_YAAT_SERVER</DefineConstants>
+  </PropertyGroup>
   <ItemGroup Condition="Exists('..\..\..\yaat-server\src\Yaat.Server\Yaat.Server.csproj')">
     <ProjectReference Include="..\..\..\yaat-server\src\Yaat.Server\Yaat.Server.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('..\..\..\yaat-server\src\Yaat.Server\Yaat.Server.csproj')">
+    <Compile Remove="Server\**\*.cs" />
   </ItemGroup>
 </Project>

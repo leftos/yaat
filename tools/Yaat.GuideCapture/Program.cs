@@ -3,7 +3,9 @@ using Avalonia.Headless;
 using Velopack;
 using Yaat.Client;
 using Yaat.GuideCapture.Capture;
+#if HAS_YAAT_SERVER
 using Yaat.GuideCapture.Server;
+#endif
 
 namespace Yaat.GuideCapture;
 
@@ -24,6 +26,11 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+#if !HAS_YAAT_SERVER
+        Console.Error.WriteLine("Yaat.GuideCapture requires the yaat-server sibling repo at ../yaat-server.");
+        Console.Error.WriteLine("This build was produced without it; the tool cannot run.");
+        return 2;
+#else
         if (!TryParseArgs(args, out var sceneFilter, out var outDir, out var error))
         {
             Console.Error.WriteLine(error);
@@ -40,8 +47,10 @@ public static class Program
         // already run, so this only cuts off the dispatcher loop.
         Environment.Exit(exitCode);
         return exitCode;
+#endif
     }
 
+#if HAS_YAAT_SERVER
     private static async Task<int> MainAsync(string? sceneFilter, string outDir)
     {
         await using var server = new InProcessServer();
@@ -54,6 +63,7 @@ public static class Program
 
         return await session.Dispatch(() => Runner.RunAsync(outDir, sceneFilter, SceneCatalog.All, ctx), CancellationToken.None);
     }
+#endif
 
     // Discovered by HeadlessUnitTestSession via reflection (same pattern xUnit's
     // AvaloniaTestApplicationAttribute uses). VelopackApp.Build().Run() must run
