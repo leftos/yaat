@@ -108,6 +108,7 @@ public sealed class UserPreferences
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
+    public bool EuroScopeMode => _data.EuroScopeMode;
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -312,6 +313,12 @@ public sealed class UserPreferences
     public void SetValidateDctFixes(bool validate)
     {
         _data.ValidateDctFixes = validate;
+        Save();
+    }
+
+    public void SetEuroScopeMode(bool enabled)
+    {
+        _data.EuroScopeMode = enabled;
         Save();
     }
 
@@ -706,6 +713,7 @@ public sealed class UserPreferences
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
+            EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             AutoClearedToLandGnd = GetFieldOr(obj, "autoClearedToLandGnd", true),
             AutoClearedToLandTwr = GetFieldOr(obj, "autoClearedToLandTwr", false),
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
@@ -907,6 +915,7 @@ public sealed class UserPreferences
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
         public bool ValidateDctFixes { get; set; }
+        public bool EuroScopeMode { get; set; }
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

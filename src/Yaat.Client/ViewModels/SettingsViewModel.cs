@@ -141,6 +141,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _validateDctFixes;
 
     [ObservableProperty]
+    private bool _euroScopeMode;
+
+    [ObservableProperty]
     private bool _autoClearedToLandGnd;
 
     [ObservableProperty]
@@ -407,6 +410,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoAcceptDelaySeconds = _preferences.AutoAcceptDelaySeconds;
         _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
         _validateDctFixes = _preferences.ValidateDctFixes;
+        _euroScopeMode = _preferences.EuroScopeMode;
         _autoClearedToLandGnd = _preferences.AutoClearedToLandGnd;
         _autoClearedToLandTwr = _preferences.AutoClearedToLandTwr;
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
@@ -495,6 +499,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         _preferences.SetValidateDctFixes(ValidateDctFixes);
+        _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
