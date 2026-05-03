@@ -353,8 +353,13 @@ public sealed class LandingPhase : Phase
     {
         double agl = ctx.Aircraft.Altitude - plan.FieldElevation;
 
-        // Write approach targets: runway heading + target altitude stays at field elevation.
-        ctx.Targets.TargetTrueHeading = plan.RunwayHeading;
+        // Write approach targets: runway heading + bounded XTE crab toward centerline,
+        // mirroring TickRollout. Without this crab, the aircraft commits to runway heading
+        // alone — fine if it crossed the threshold exactly on centerline, but for offset
+        // approaches the FAC-to-centerline lateral convergence is still completing in
+        // FinalApproachPhase. Picking up its bearing-derived crab here keeps the heading
+        // continuous across the handoff, avoiding a snap that trips the bank-stab gate.
+        ctx.Targets.TargetTrueHeading = ComputeCenterlineSteeringTarget(ctx, plan);
         // Speed: don't accelerate above current IAS. FinalApproachPhase handles the
         // approach deceleration profile; if the aircraft arrives at the flare window
         // at 126 kts after a continuous-descent approach, targeting Vref (140) would
@@ -393,7 +398,7 @@ public sealed class LandingPhase : Phase
         // clamp has no time-dependent state — still effectively closed-form.
         double rampTarget = plan.Vref - ((plan.Vref - plan.Vtd) * fraction);
         ctx.Targets.TargetSpeed = Math.Min(rampTarget, ctx.Aircraft.IndicatedAirspeed);
-        ctx.Targets.TargetTrueHeading = plan.RunwayHeading;
+        ctx.Targets.TargetTrueHeading = ComputeCenterlineSteeringTarget(ctx, plan);
 
         // Still monitor stabilization — a sudden disqualification in the flare
         // triggers a balked-landing go-around if speed allows.
@@ -450,13 +455,7 @@ public sealed class LandingPhase : Phase
         // Steer along runway centerline with a bounded proportional XTE bias.
         // Safe from the FlightPhysics.StationaryGroundSpeedKts guard because
         // rollout hands off at coastSpeed ≥ 15 kt, never approaching 0.1 kt.
-        double signedXte = GeoMath.SignedCrossTrackDistanceNm(
-            ctx.Aircraft.Position,
-            new LatLon(plan.ThresholdLat, plan.ThresholdLon),
-            plan.RunwayHeading
-        );
-        double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
-        ctx.Targets.TargetTrueHeading = new TrueHeading(plan.RunwayHeading.Degrees - correction);
+        ctx.Targets.TargetTrueHeading = ComputeCenterlineSteeringTarget(ctx, plan);
         // Use ground turn rate so XTE corrections apply at taxi cadence, not
         // airborne cadence. Cleared when the phase hands off to RunwayExitPhase.
         ctx.Targets.TurnRateOverride = CategoryPerformance.GroundTurnRate(ctx.Category);
@@ -724,6 +723,26 @@ public sealed class LandingPhase : Phase
     }
 
     // --- Helpers ---
+
+    /// <summary>
+    /// Runway centerline steering target = runway heading + bounded proportional XTE
+    /// correction. Shared by StabilizedApproach, Flare, and Rollout so the heading
+    /// command is continuous across the FinalApproach→LandingPhase handoff and across
+    /// flare/touchdown — for an aircraft still converging laterally onto the centerline
+    /// (offset approach), the bearing-derived crab in <see cref="FinalApproachPhase"/>
+    /// matches the runway-heading-plus-correction computed here, avoiding a snap that
+    /// would trip the bank-angle stabilization gate.
+    /// </summary>
+    private static TrueHeading ComputeCenterlineSteeringTarget(PhaseContext ctx, LandingPlan plan)
+    {
+        double signedXte = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Position,
+            new LatLon(plan.ThresholdLat, plan.ThresholdLon),
+            plan.RunwayHeading
+        );
+        double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
+        return new TrueHeading(plan.RunwayHeading.Degrees - correction);
+    }
 
     private void CheckStabilizationGate(PhaseContext ctx, LandingPlan plan)
     {

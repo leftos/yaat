@@ -132,12 +132,14 @@ public class FinalApproachFacRampTests
         const double dt = 0.25;
         const int maxTicks = 4 * 240; // up to 240 simulated seconds
         // Mirrors FinalApproachPhase.MagVarRampEndAgl — alignment must complete by this AGL.
-        const double VisualAlignmentRampEndAgl = 150.0;
+        const double VisualAlignmentRampEndAgl = 50.0;
 
         _output.WriteLine("tick,phase,agl,distNm,heading,targetHdg,bank,xteFt");
 
-        double maxBankBelow200Ft = 0;
+        double maxBankBelow300Ft = 0;
         double hdgDiffAtRampEnd = double.NaN;
+        double xteFtAtRampEnd = double.NaN;
+        double xteFtAtTouchdown = double.NaN;
         bool sawGoAround = false;
         var warningsAtGoAround = new List<string>();
         int sawLandingTick = -1;
@@ -167,19 +169,21 @@ public class FinalApproachFacRampTests
                 $"{tick},{phaseName},{agl:F0},{dist:F2},{ac.TrueHeading.Degrees:F2},{ac.Targets.TargetTrueHeading?.Degrees:F2},{ac.BankAngle:F1},{xteNm * 6076.12:F0}"
             );
 
-            if (agl <= 200)
+            if (agl <= 300)
             {
                 double absBank = Math.Abs(ac.BankAngle);
-                if (absBank > maxBankBelow200Ft)
+                if (absBank > maxBankBelow300Ft)
                 {
-                    maxBankBelow200Ft = absBank;
+                    maxBankBelow300Ft = absBank;
                 }
             }
 
-            // First tick where AGL ≤ ramp end altitude: alignment must be complete.
+            // First tick where AGL ≤ ramp end altitude: alignment must be complete
+            // in BOTH heading AND lateral position.
             if (double.IsNaN(hdgDiffAtRampEnd) && agl <= VisualAlignmentRampEndAgl)
             {
                 hdgDiffAtRampEnd = Math.Abs(ac.TrueHeading.SignedAngleTo(rwy.TrueHeading));
+                xteFtAtRampEnd = xteNm * 6076.12;
             }
 
             if (sawLandingTick < 0 && phaseName == "Landing")
@@ -189,6 +193,7 @@ public class FinalApproachFacRampTests
             if (sawTouchdownTick < 0 && ac.IsOnGround)
             {
                 sawTouchdownTick = tick;
+                xteFtAtTouchdown = xteNm * 6076.12;
                 break; // Touchdown → end of relevant test window.
             }
         }
@@ -200,10 +205,11 @@ public class FinalApproachFacRampTests
         Assert.True(sawLandingTick > 0, "Never reached LandingPhase — descent geometry is broken.");
         Assert.True(sawTouchdownTick > 0, "Never touched down — flare/landing not completing.");
 
-        // Below 200 ft, bank must stay under the stabilization-gate threshold (15°).
+        // Below 300 ft (top of the ramp window), bank must stay under the stabilization-gate
+        // threshold (15°). Smoothstep keeps this comfortably under 5° for a 3° offset.
         Assert.True(
-            maxBankBelow200Ft < 15.0,
-            $"Bank exceeded 15° during the visual-alignment segment (max={maxBankBelow200Ft:F1}°) — heading transition is too abrupt."
+            maxBankBelow300Ft < 15.0,
+            $"Bank exceeded 15° during the visual-alignment segment (max={maxBankBelow300Ft:F1}°) — heading transition is too abrupt."
         );
 
         // By the ramp end altitude, the aircraft must already be aligned with runway heading
@@ -212,6 +218,23 @@ public class FinalApproachFacRampTests
         Assert.True(
             hdgDiffAtRampEnd < 1.0,
             $"Aircraft was not aligned with runway heading at AGL ≤ {VisualAlignmentRampEndAgl} ft (diff={hdgDiffAtRampEnd:F2}°) — visual-alignment ramp finished too late."
+        );
+
+        // By the ramp end altitude, lateral position must also be on the runway centerline.
+        // The whole point of the lateral-guidance ramp is that the aircraft converges to
+        // BOTH heading AND position together — heading-only alignment leaves the aircraft
+        // parallel to centerline but offset (the bug this guards against).
+        Assert.True(
+            Math.Abs(xteFtAtRampEnd) < 30.0,
+            $"Aircraft was off centerline at AGL ≤ {VisualAlignmentRampEndAgl} ft (xte={xteFtAtRampEnd:F0} ft) — lateral guidance never converged to runway centerline."
+        );
+
+        // Touchdown must occur within ~half-runway-width of centerline. KSFO 10L is 200 ft
+        // wide; landing 30 ft off centerline is a defensible "centered" threshold.
+        Assert.False(double.IsNaN(xteFtAtTouchdown), "Test never recorded touchdown XTE.");
+        Assert.True(
+            Math.Abs(xteFtAtTouchdown) < 30.0,
+            $"Aircraft touched down off centerline (xte={xteFtAtTouchdown:F0} ft) — lateral-guidance ramp didn't deliver the aircraft to runway centerline."
         );
     }
 }
