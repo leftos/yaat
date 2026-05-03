@@ -40,6 +40,14 @@ public static class ApproachCommandHandler
         bool hasDctFix = cmd.DctFix is not null;
         bool isOnAssignedHeading = aircraft.Targets.AssignedMagneticHeading is not null;
 
+        // A transition that ends with HF/HM/HA carries a hold-in-lieu of procedure turn at
+        // the IAF. The deferred path stores fixes in NavigationRoute as a plain sequence,
+        // which cannot express a holding pattern, so we force immediate activation and let
+        // the immediate path insert a HoldingPatternPhase (mirroring JAPP).
+        bool transitionHasHilpt =
+            transition is not null
+            && transition.Legs.Any(l => l.PathTerminator is CifpPathTerminator.HF or CifpPathTerminator.HM or CifpPathTerminator.HA);
+
         // Deferred approach: when the STAR delivers to a transition connecting fix,
         // store the clearance as pending and append approach fixes to the nav route.
         // The aircraft continues flying its STAR; approach phases activate when the
@@ -47,7 +55,7 @@ public static class ApproachCommandHandler
         // "AT <fix> CAPP" defers the same way when the AT fix is already in the nav route
         // — the AT is redundant since the STAR already delivers there.
         // DCT always activates immediately (it implies leaving the STAR route).
-        if (transition is not null && !hasDctFix && !isOnAssignedHeading)
+        if (transition is not null && !hasDctFix && !isOnAssignedHeading && !transitionHasHilpt)
         {
             var trimmedFixes = TrimToNavRouteConnection(approachFixes, aircraft);
             string connectingFix = trimmedFixes.Count > 0 ? trimmedFixes[0].Name : "";
@@ -137,6 +145,20 @@ public static class ApproachCommandHandler
             aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = approachFixes });
         }
 
+        // Hold-in-lieu of procedure turn: when the chosen transition includes a hold leg
+        // (HF/HM/HA), insert a one-circuit HoldingPatternPhase at the IAF after the
+        // navigation phase. The aircraft flies the entry fixes (e.g. MOD → ZELAT), then
+        // the hold phase takes over (one circuit course-reversal), then FinalApproachPhase
+        // captures the FAC inbound. Mirrors the JAPP HILPT block at TryJoinApproach above.
+        if (transitionHasHilpt && procedure.HoldInLieuLeg is { } cappHoldLeg)
+        {
+            var holdPhase = BuildHoldInLieuPhase(cappHoldLeg, approachFixes, finalCourse);
+            if (holdPhase is not null)
+            {
+                aircraft.Phases.Add(holdPhase);
+            }
+        }
+
         aircraft.Phases.Add(new FinalApproachPhase());
         var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
@@ -202,24 +224,10 @@ public static class ApproachCommandHandler
         // Insert hold-in-lieu if needed
         if (needsHold && procedure.HoldInLieuLeg is { } holdLeg)
         {
-            var holdFix = trimmedFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
-            if (holdFix is not null)
+            var holdPhase = BuildHoldInLieuPhase(holdLeg, trimmedFixes, finalCourse);
+            if (holdPhase is not null)
             {
-                int inboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : (int)finalCourse.Degrees;
-
-                aircraft.Phases.Add(
-                    new HoldingPatternPhase
-                    {
-                        FixName = holdFix.Name,
-                        FixLat = holdFix.Latitude,
-                        FixLon = holdFix.Longitude,
-                        InboundCourse = inboundCourse,
-                        LegLength = holdLeg.LegDistanceNm ?? 1.0,
-                        IsMinuteBased = holdLeg.LegDistanceNm is null,
-                        Direction = holdLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
-                        MaxCircuits = 1,
-                    }
-                );
+                aircraft.Phases.Add(holdPhase);
             }
         }
 
@@ -1156,19 +1164,56 @@ public static class ApproachCommandHandler
         return bestTransition;
     }
 
+    /// <summary>
+    /// Build a one-circuit HoldingPatternPhase from the procedure's HILPT leg, anchored
+    /// at whichever fix in <paramref name="approachFixes"/> matches the leg's identifier.
+    /// Returns null if the matching fix isn't present (e.g. user prepended a DCT/AT that
+    /// trimmed past it). Used by both CAPP (when transition contains HF/HM/HA) and JAPP
+    /// (when procedure.HasHoldInLieu and not straight-in).
+    /// </summary>
+    private static HoldingPatternPhase? BuildHoldInLieuPhase(CifpLeg holdLeg, IReadOnlyList<ApproachFix> approachFixes, TrueHeading finalCourse)
+    {
+        var holdFix = approachFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
+        if (holdFix is null)
+        {
+            return null;
+        }
+
+        int inboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : (int)finalCourse.Degrees;
+
+        return new HoldingPatternPhase
+        {
+            FixName = holdFix.Name,
+            FixLat = holdFix.Latitude,
+            FixLon = holdFix.Longitude,
+            InboundCourse = inboundCourse,
+            LegLength = holdLeg.LegDistanceNm ?? 1.0,
+            IsMinuteBased = holdLeg.LegDistanceNm is null,
+            Direction = holdLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
+            MaxCircuits = 1,
+        };
+    }
+
     private static List<ApproachFix> BuildApproachFixesWithTransition(CifpTransition transition, CifpApproachProcedure procedure)
     {
         var transitionFixes = BuildFixesFromLegs(transition.Legs, stopAtMahp: false);
         var commonFixes = BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
 
-        // Deduplicate boundary: if last transition fix == first common fix, drop the duplicate from common
-        if (
-            transitionFixes.Count > 0
-            && commonFixes.Count > 0
-            && transitionFixes[^1].Name.Equals(commonFixes[0].Name, StringComparison.OrdinalIgnoreCase)
-        )
+        // Trim common-leg fixes that the transition has already passed. Standard case
+        // (e.g. FRA transition ending at DLRAY, common starts at DLRAY): drop the index-0
+        // duplicate. HILPT case (e.g. MOD transition ending at ZELAT(HF), common is
+        // [DLRAY, ZELAT(FAF), RW28R]): the transition's HF leg establishes the aircraft
+        // inbound at the FAF, so drop everything in common up to and including ZELAT —
+        // DLRAY is the IAF for a different feeder (FRA/PXN) and would route the aircraft
+        // ~13 nm past the IAF on the wrong side of the FAC.
+        if (transitionFixes.Count > 0 && commonFixes.Count > 0)
         {
-            commonFixes.RemoveAt(0);
+            string transitionEndFix = transitionFixes[^1].Name;
+            int idxInCommon = commonFixes.FindIndex(f => f.Name.Equals(transitionEndFix, StringComparison.OrdinalIgnoreCase));
+            if (idxInCommon >= 0)
+            {
+                commonFixes.RemoveRange(0, idxInCommon + 1);
+            }
         }
 
         transitionFixes.AddRange(commonFixes);

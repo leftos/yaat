@@ -8,6 +8,7 @@
 - `CTOPP` takes departure modifiers like `CTO`: heading, `LT`/`RT`, `OC`, and `DCT`/`TLDCT`/`TRDCT FIX`, all with optional climb altitude.
 
 ### Fixed
+- `CAPP` for an approach with a hold-in-lieu of procedure turn executes the published hold at the IAF instead of flying past to a downstream feeder fix.
 - `CVA` joins downwind on the side the aircraft is already on, no longer routing it across the field through the departure corridor.
 - Aircraft on visual approach short final no longer report "lost sight of the field" as the airport reference passes behind the nose.
 - `CVA` is IFR only and uses a wider pattern at 2000 ft AGL with no parallel-runway deconfliction; VFR pattern entry uses `ELD`/`ERD`/`SI`.
