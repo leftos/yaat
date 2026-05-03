@@ -72,15 +72,13 @@ public sealed class FinalApproachPhase : Phase
     private const double MagVarRampStartAgl = 300.0;
 
     /// <summary>
-    /// AGL at which the small-offset alignment ramp completes. Set above the FinalApproach
-    /// handoff altitude (the phase advances when <c>distNm &lt; 0.05 || agl &lt; 5</c> — at
-    /// dist 0.05 nm the AGL on a 3° glideslope is ~16 ft, but in practice the handoff can
-    /// occur as high as ~55 ft AGL when the aircraft is high on the glideslope at
-    /// threshold). 100 ft AGL keeps the ramp complete before LandingPhase takes over —
-    /// otherwise FinalApproach hands off mid-lerp and LandingPhase snaps to runway heading,
-    /// tripping the bank-angle stabilization gate. Still well above flare entry.
+    /// AGL at which the small-offset alignment ramp completes. Anchored at 50 ft AGL —
+    /// above the AGL-primary FinalApproach handoff (now <c>agl &lt; 30 || (distNm &lt;
+    /// 0.05 &amp;&amp; agl &lt; 50)</c>) so the lerp finishes before LandingPhase takes
+    /// over, and close to the AIM 5-4-20.3 visual-segment guidance (transition to visual
+    /// reference around 50 ft AGL on a 3° glideslope).
     /// </summary>
-    private const double MagVarRampEndAgl = 100.0;
+    private const double MagVarRampEndAgl = 50.0;
 
     /// <summary>
     /// Buffer (ft) added above the published MAP-altitude AGL to derive the genuine-offset
@@ -596,8 +594,13 @@ public sealed class FinalApproachPhase : Phase
             }
         }
 
-        // Phase complete at threshold
-        bool complete = distNm < 0.05 || agl < 5;
+        // Phase complete at threshold. AGL-primary so the FAC-to-runway alignment ramp
+        // (MagVarRampEndAgl, OffsetRampEndAgl) reliably completes before LandingPhase
+        // takes over. The distance term still fires for aircraft that happen to be high
+        // on glideslope at the threshold, but only once they've also descended below
+        // 50 ft AGL — preventing the pre-fix case where dist&lt;0.05 fired at AGL ~55 ft
+        // and forced the small-offset ramp end to 100 ft (vs the AIM-aligned ~50 ft).
+        bool complete = (agl < 30) || ((distNm < 0.05) && (agl < 50));
         if (complete)
         {
             Log.LogDebug(
