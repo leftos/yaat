@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 
 namespace Yaat.Client.Views.Radar;
@@ -57,6 +58,7 @@ public partial class RadarView : UserControl
         _canvas.RouteWaypointRightClicked += OnRouteWaypointRightClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.RangeRingPlaced += OnRangeRingPlaced;
+        _canvas.EuroScopeFieldClicked += OnEuroScopeFieldClicked;
 
         var filteredText = this.FindControl<TextBox>("FilteredListText");
         if (filteredText is not null)
@@ -93,6 +95,28 @@ public partial class RadarView : UserControl
             _canvas.RouteWaypointRightClicked -= OnRouteWaypointRightClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.RangeRingPlaced -= OnRangeRingPlaced;
+            _canvas.EuroScopeFieldClicked -= OnEuroScopeFieldClicked;
+        }
+    }
+
+    private void OnEuroScopeFieldClicked(AircraftModel ac, TagFieldId field, Point pos)
+    {
+        var mainVm = FindMainViewModel();
+        if (mainVm is null)
+        {
+            return;
+        }
+        var initials = mainVm.Preferences.UserInitials;
+
+        ContextMenu? menu = field switch
+        {
+            TagFieldId.AssignedAltitude or TagFieldId.CurrentAltitude => AltitudeFlyout.Build(ac, mainVm.Radar, initials),
+            _ => null,
+        };
+
+        if (menu is not null)
+        {
+            ShowContextMenu(menu);
         }
     }
 
