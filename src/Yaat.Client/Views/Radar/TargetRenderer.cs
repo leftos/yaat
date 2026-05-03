@@ -76,6 +76,17 @@ public sealed class TargetRenderer : IDisposable
     /// <summary>Brightness factor (0-1) for history trail dots. Driven by BRITE HST control.</summary>
     public float HistoryBrightness { get; set; } = 1.0f;
 
+    /// <summary>When true, render aircraft tags using the EuroScope-style layout instead of STARS.</summary>
+    public bool EuroScopeMode { get; set; }
+
+    /// <summary>
+    /// Per-aircraft layout result captured during the last Render(). Populated only when
+    /// <see cref="EuroScopeMode"/> is on. Consumed by RadarCanvas hit-testing.
+    /// </summary>
+    public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _lastEuroScopeTags;
+
+    private readonly Dictionary<string, EuroScopeTagResult> _lastEuroScopeTags = [];
+
     private const float SymbolSize = 5f;
 
     public void Render(
@@ -98,6 +109,8 @@ public sealed class TargetRenderer : IDisposable
         {
             DrawHistoryTrails(canvas, vp, aircraft, historyCount);
         }
+
+        _lastEuroScopeTags.Clear();
 
         foreach (var ac in aircraft)
         {
@@ -192,6 +205,13 @@ public sealed class TargetRenderer : IDisposable
         float blockY = cy + offset.Y;
 
         _dataBlockPaint.Color = color;
+
+        if (EuroScopeMode && !isMinified)
+        {
+            DrawEuroScopeBlock(canvas, cx, cy, blockX, blockY, ac, color, isSelected);
+            return;
+        }
+
         float lineH = _dataBlockPaint.TextSize + 2;
 
         var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
@@ -264,6 +284,27 @@ public sealed class TargetRenderer : IDisposable
             {
                 canvas.DrawText(line3, blockX, blockY + 2 * lineH, _dataBlockPaint);
             }
+        }
+    }
+
+    private void DrawEuroScopeBlock(SKCanvas canvas, float cx, float cy, float blockX, float blockY, AircraftModel ac, SKColor color, bool isSelected)
+    {
+        var result = EuroScopeTagLayout.Layout(ac, blockX, blockY, _dataBlockPaint, LocalUserInitials);
+        _lastEuroScopeTags[ac.Callsign] = result;
+
+        if (isSelected)
+        {
+            canvas.DrawRect(result.Bounds, _selectedBorderPaint);
+        }
+
+        var leaderEnd = ClampToBlockEdge(cx, cy, result.Bounds);
+        _leaderPaint.Color = color;
+        canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
+
+        foreach (var f in result.Fields)
+        {
+            // Anchor at baseline (= rect.Bottom) so the text aligns with how STARS draws elsewhere.
+            canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
         }
     }
 

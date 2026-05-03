@@ -338,6 +338,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public bool EuroScopeMode
+    {
+        get => _renderer.EuroScopeMode;
+        set
+        {
+            _renderer.EuroScopeMode = value;
+            MarkDirty();
+        }
+    }
+
+    public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _renderer.LastEuroScopeTags;
+
     public string? LocalUserInitials
     {
         get => _renderer.LocalUserInitials;

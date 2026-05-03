@@ -221,6 +221,14 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.HistoryBrightness = value;
     }
 
+    public bool EuroScopeMode
+    {
+        get => _targetRenderer.EuroScopeMode;
+        set => _targetRenderer.EuroScopeMode = value;
+    }
+
+    public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _targetRenderer.LastEuroScopeTags;
+
     public void Render(
         SKCanvas canvas,
         MapViewport vp,

@@ -398,6 +398,7 @@ public partial class RadarView : UserControl
         _canvas.AssignmentTintColor = prefs.AssignmentTintEnabled ? ParseHexColor(prefs.AssignmentTintColor) : null;
         _canvas.UnassignedTintColor = prefs.UnassignedTintEnabled ? ParseHexColor(prefs.UnassignedTintColor) : null;
         _canvas.SelectedOverrideColor = ParseHexColor(prefs.SelectedColor);
+        _canvas.EuroScopeMode = prefs.EuroScopeMode;
     }
 
     private static SKColor? ParseHexColor(string hex)
