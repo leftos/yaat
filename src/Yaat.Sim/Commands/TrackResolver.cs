@@ -41,9 +41,8 @@ public static class TrackResolver
     /// Resolves a TCP code (e.g. "3Y") to a TrackOwner. Checks the scenario's student
     /// TCP first (CRC registers as the student position; multiple positions can share
     /// a TCP, e.g. OAK_TWR and OAK_GND both use 3O), then falls through to ATC positions
-    /// in the scenario. The <paramref name="artccConfig"/> parameter is reserved for the
-    /// ARTCC-wide TCP/ERAM fallback once the resolver methods land in Sim (currently
-    /// owned by yaat-server's ArtccConfigService).
+    /// in the scenario. When <paramref name="artccConfig"/> is supplied, falls back to
+    /// ARTCC-wide TCP/ERAM resolution.
     /// </summary>
     public static TrackOwner? ResolveTcpToOwner(SimScenarioState scenario, string tcpCode, ArtccConfigRoot? artccConfig = null)
     {
@@ -64,14 +63,24 @@ public static class TrackResolver
             }
         }
 
-        _ = artccConfig;
-        return null;
+        if (artccConfig is null)
+        {
+            return null;
+        }
+
+        var facilityId = scenario.StudentPosition?.FacilityId;
+        if (string.IsNullOrEmpty(facilityId))
+        {
+            return null;
+        }
+
+        return artccConfig.ResolveTcpCode(facilityId, tcpCode) ?? artccConfig.ResolveEramCode(tcpCode);
     }
 
     /// <summary>
     /// Resolves a TCP code to a <see cref="Tcp"/> by searching the scenario's ATC
-    /// positions. The <paramref name="artccConfig"/> parameter is reserved for the
-    /// ARTCC-wide fallback once the resolver methods land in Sim.
+    /// positions, then the ARTCC-wide TCP table when <paramref name="artccConfig"/>
+    /// is supplied.
     /// </summary>
     public static Tcp? FindTcpByCode(SimScenarioState scenario, string tcpCode, ArtccConfigRoot? artccConfig = null)
     {
@@ -83,8 +92,18 @@ public static class TrackResolver
             }
         }
 
-        _ = artccConfig;
-        return null;
+        if (artccConfig is null)
+        {
+            return null;
+        }
+
+        var facilityId = scenario.StudentPosition?.FacilityId;
+        if (string.IsNullOrEmpty(facilityId))
+        {
+            return null;
+        }
+
+        return artccConfig.FindTcpByCode(facilityId, tcpCode);
     }
 
     /// <summary>
