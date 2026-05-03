@@ -20,6 +20,9 @@ internal static class SceneCatalog
         new MainWindowPoppedOutScene(),
         new GroundViewPopoutScene(),
         new RadarViewPopoutScene(),
+        // Strips + flight plan editor
+        new FlightStripsScene(),
+        new FlightPlanEditorScene(),
         // Standalone dialogs / windows
         new SettingsWindowScene(),
         new LoadScenarioDialogScene(),
