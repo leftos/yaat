@@ -81,8 +81,9 @@ internal static class Runner
             await Task.Delay(scene.SettleAfterShow);
             Dispatcher.UIThread.RunJobs();
 
+            var captureTarget = scene.GetCaptureTarget(window);
             var bitmap =
-                window.CaptureRenderedFrame()
+                captureTarget.CaptureRenderedFrame()
                 ?? throw new InvalidOperationException("CaptureRenderedFrame returned null. UseHeadlessDrawing must be false.");
 
             var path = Path.Combine(outDir, $"{scene.Name}.png");

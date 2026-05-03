@@ -15,6 +15,7 @@
     <InternalsVisibleTo Include="Yaat.Client.Tests" />
     <InternalsVisibleTo Include="Yaat.Client.UI.Tests" />
     <InternalsVisibleTo Include="Yaat.SpeechSandbox" />
+    <InternalsVisibleTo Include="Yaat.GuideCapture" />
   </ItemGroup>
 
   <!-- LM-Kit license key, injected at publish time by the release workflow (see release.yml,

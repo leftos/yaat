@@ -25,4 +25,9 @@ internal abstract class Scene
     // settle delay and capture. Use it to wait for connection state, scenario
     // load completion, etc.
     public virtual Task AfterShowAsync(Window window, CaptureContext ctx) => Task.CompletedTask;
+
+    // Override to capture a different window than the one CreateWindow returned
+    // (e.g. a popped-out child window that the primary spawned in response to
+    // a state change in AfterShowAsync).
+    public virtual Window GetCaptureTarget(Window primary) => primary;
 }
