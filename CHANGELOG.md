@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Highlights
+- **EuroScope-style interactive tags** — opt-in radar tag mode where every field is clickable. Click altitude/speed for a flyout picker, drag from `AHDG` to a point on the map for a live elastic-vector heading, click scratchpad/handoff for a text-entry popup. Enable in **Settings > Display > Radar Display**. See [USER_GUIDE.md](USER_GUIDE.md#euroscope-style-interactive-tags) and [docs/euroscope/pseudopilot.md](docs/euroscope/pseudopilot.md) for the full reference.
+
+### Added
+- Radar tags get a 4-line EuroScope-style layout when EuroScope mode is on: callsign, type/destination, current+assigned alt/spd/hdg, and runway+scratchpads.
+- Altitude flyout dispatches `CM`/`DM` based on whether the picked FL is above or below the aircraft's current altitude.
+- Speed flyout dispatches `SPD` or `RNS` (Resume Normal Speed).
+- Heading mode supports drag-to-confirm (press `AHDG`, drag past 4 px, release on the target point) and click-to-confirm (release without dragging, then left-click the map). Right-click or Esc cancels.
+- Heading-mode preview draws a standard-rate turn arc plus straight-line vector and a `275M  3.2nm  0:48` label (heading magnetic / distance / ETA).
+- Runway flyout lists every runway end at the relevant airport (departure if on ground, destination if airborne) sorted numerically; dispatches `RWY <designator>`.
+- Scratchpad and handoff fields open text-entry popups with focused TextBox (Enter submits, Esc cancels) plus EuroScope-convention preset chips and an "Accept handoff" action when applicable.
+- Squawk field opens a quick-action menu (VFR / Standby / Normal / Ident / Random Squawk).
+
 ## v0.1.11-alpha [2026/05/03]
 
 ### Highlights
