@@ -1,53 +1,44 @@
 using Avalonia.Controls;
-using Avalonia.Media;
+using Avalonia.Controls.Primitives;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views.Radar.Flyouts;
 
 /// <summary>
-/// Handoff quick-action picker. Accept inbound handoff if one is pending; otherwise the
-/// user must type 'HO &lt;position&gt;' in the command bar to initiate.
+/// Handoff text-entry popup. Focused TextBox accepts a position alias (Enter to dispatch
+/// HO &lt;position&gt;, Esc to cancel). Includes an "Accept handoff" action button when an
+/// inbound handoff is pending.
 /// </summary>
 internal static class HandoffFlyout
 {
-    public static ContextMenu Build(AircraftModel aircraft, RadarViewModel radarVm, string initials)
+    public static Popup Build(Control anchor, AircraftModel aircraft, RadarViewModel radarVm, string initials)
     {
-        var menu = new ContextMenu();
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = $"Handoff — {aircraft.Callsign}",
-                IsEnabled = false,
-                FontWeight = FontWeight.Bold,
-            }
-        );
+        var subtitle = string.IsNullOrEmpty(aircraft.HandoffDisplay) ? null : $"Pending: {aircraft.HandoffDisplay}";
+
+        var actions = new List<(string Label, Func<Task> Action)>();
         if (!string.IsNullOrEmpty(aircraft.HandoffDisplay))
         {
-            menu.Items.Add(
-                new MenuItem
-                {
-                    Header = $"Pending: {aircraft.HandoffDisplay}",
-                    IsEnabled = false,
-                    FontStyle = FontStyle.Italic,
-                }
-            );
+            actions.Add(("Accept handoff", () => radarVm.AcceptHandoffAsync(aircraft.Callsign, initials)));
         }
-        menu.Items.Add(new Separator());
 
-        var accept = new MenuItem { Header = "Accept handoff" };
-        accept.Click += async (_, _) => await radarVm.AcceptHandoffAsync(aircraft.Callsign, initials);
-        menu.Items.Add(accept);
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(
-            new MenuItem
+        return TextEntryPopup.Build(
+            anchor,
+            title: $"Handoff — {aircraft.Callsign}",
+            subtitle: subtitle,
+            initialText: "",
+            watermark: "Position alias",
+            presets: [],
+            extraActions: actions,
+            onSubmit: async value =>
             {
-                Header = "(To initiate: type 'HO <position>' in the command bar)",
-                IsEnabled = false,
-                FontStyle = FontStyle.Italic,
+                var trimmed = value.Trim();
+                if (trimmed.Length == 0)
+                {
+                    return;
+                }
+                await radarVm.InitiateHandoffAsync(aircraft.Callsign, initials, trimmed);
             }
         );
-        return menu;
     }
 }

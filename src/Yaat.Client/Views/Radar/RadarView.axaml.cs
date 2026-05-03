@@ -17,6 +17,7 @@ public partial class RadarView : UserControl
 {
     private RadarCanvas? _canvas;
     private ContextMenu? _activeContextMenu;
+    private Popup? _activeFieldPopup;
     private Func<string, Task>? _pendingInputAction;
     private Func<object, Task>? _pendingListAction;
     private bool _listPopupInitializing;
@@ -124,10 +125,16 @@ public partial class RadarView : UserControl
                 ShowContextMenu(SpeedFlyout.Build(ac, mainVm.Radar, initials));
                 break;
             case TagFieldId.Scratchpad1:
-                ShowContextMenu(ScratchpadFlyout.Build(ac, mainVm.Radar, initials, slot: 1));
+                if (_canvas is not null)
+                {
+                    OpenFieldPopup(ScratchpadFlyout.Build(_canvas, ac, mainVm.Radar, initials, slot: 1));
+                }
                 break;
             case TagFieldId.Scratchpad2:
-                ShowContextMenu(ScratchpadFlyout.Build(ac, mainVm.Radar, initials, slot: 2));
+                if (_canvas is not null)
+                {
+                    OpenFieldPopup(ScratchpadFlyout.Build(_canvas, ac, mainVm.Radar, initials, slot: 2));
+                }
                 break;
             case TagFieldId.Squawk:
                 ShowContextMenu(SquawkFlyout.Build(ac, mainVm.Radar, initials));
@@ -136,7 +143,10 @@ public partial class RadarView : UserControl
                 ShowContextMenu(RunwayFlyout.Build(ac, mainVm.Radar, initials));
                 break;
             case TagFieldId.Handoff:
-                ShowContextMenu(HandoffFlyout.Build(ac, mainVm.Radar, initials));
+                if (_canvas is not null)
+                {
+                    OpenFieldPopup(HandoffFlyout.Build(_canvas, ac, mainVm.Radar, initials));
+                }
                 break;
         }
     }
@@ -672,6 +682,50 @@ public partial class RadarView : UserControl
             _activeContextMenu.Close();
             _activeContextMenu = null;
         }
+        CloseActiveFieldPopup();
+    }
+
+    private void CloseActiveFieldPopup()
+    {
+        if (_activeFieldPopup is not null)
+        {
+            _activeFieldPopup.Close();
+            _activeFieldPopup = null;
+        }
+    }
+
+    /// <summary>
+    /// Open a EuroScope tag-field popup (text entry for scratchpad/handoff). The popup is
+    /// attached to the canvas's overlay layer so it floats above other UI; we track it in
+    /// _activeFieldPopup so the next outside click or canvas press closes it.
+    /// </summary>
+    private void OpenFieldPopup(Popup popup)
+    {
+        if (_canvas is null)
+        {
+            return;
+        }
+        CloseActiveContextMenu();
+
+        var overlay = OverlayLayer.GetOverlayLayer(_canvas);
+        if (overlay is null)
+        {
+            return;
+        }
+        overlay.Children.Add(popup);
+        _activeFieldPopup = popup;
+        popup.Closed += (s, _) =>
+        {
+            if (s is Popup p)
+            {
+                overlay.Children.Remove(p);
+            }
+            if (_activeFieldPopup == popup)
+            {
+                _activeFieldPopup = null;
+            }
+        };
+        popup.IsOpen = true;
     }
 
     private void ShowContextMenu(ContextMenu menu)
