@@ -217,6 +217,71 @@ internal static class DepartureCommandParser
     }
 
     /// <summary>
+    /// Parses CTOPP modifier grammar — same shape as CTO but rejects runway-only forms
+    /// (RH/MRH/MSO/MLT/MRT and relative turns) since vertical liftoff has no runway.
+    /// Supported: bare, heading, LT/RT heading, OC, DCT/TLDCT/TRDCT fix, all with optional altitude.
+    /// </summary>
+    internal static PR ParseCtoppArg(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new ClearedTakeoffPresentCommand(new DefaultDeparture()));
+        }
+
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return PR.Ok(new ClearedTakeoffPresentCommand(new DefaultDeparture()));
+        }
+
+        var mod = tokens[0].ToUpperInvariant();
+        var secondToken = tokens.Length > 1 ? tokens[1] : null;
+
+        if (mod is "TLDCT")
+        {
+            return ToCtopp(ParseCtoDct(tokens, TurnDirection.Left));
+        }
+        if (mod is "TRDCT")
+        {
+            return ToCtopp(ParseCtoDct(tokens, TurnDirection.Right));
+        }
+        if (mod is "DCT")
+        {
+            return ToCtopp(ParseCtoDct(tokens, null));
+        }
+
+        var departure = ParseCtoModifier(mod);
+
+        if (departure is RunwayHeadingDeparture or ClosedTrafficDeparture or RelativeTurnDeparture)
+        {
+            return PR.Fail($"CTOPP does not accept '{mod}' — runway-relative modifiers are not valid for vertical liftoff");
+        }
+
+        if (departure is OnCourseDeparture)
+        {
+            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
+            return PR.Ok(new ClearedTakeoffPresentCommand(departure, alt));
+        }
+
+        if (departure is FlyHeadingDeparture fh)
+        {
+            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
+            return PR.Ok(new ClearedTakeoffPresentCommand(fh, alt));
+        }
+
+        if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
+        {
+            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
+            return PR.Ok(new ClearedTakeoffPresentCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt));
+        }
+
+        return PR.Fail($"CTOPP does not understand '{arg}'");
+    }
+
+    private static PR ToCtopp(ParsedCommand cto) =>
+        cto is ClearedForTakeoffCommand c ? PR.Ok(new ClearedTakeoffPresentCommand(c.Departure, c.AssignedAltitude)) : PR.Ok(cto);
+
+    /// <summary>
     /// Disambiguates a single argument as runway or no-arg for ELD/ERD/EF.
     /// </summary>
     internal static PR ParsePatternRunwayEntry(string? arg, Func<string?, ParsedCommand> factory)

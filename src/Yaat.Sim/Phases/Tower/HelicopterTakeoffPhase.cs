@@ -105,6 +105,10 @@ public sealed class HelicopterTakeoffPhase : Phase
                 ctx.Targets.TargetTrueHeading = fh.MagneticHeading.ToTrue(ctx.Aircraft.Declination);
                 ctx.Targets.PreferredTurnDirection = fh.Direction;
                 break;
+
+            case DirectFixDeparture { Direction: not null } dfd:
+                ctx.Targets.PreferredTurnDirection = dfd.Direction;
+                break;
         }
     }
 

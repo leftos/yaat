@@ -686,7 +686,7 @@ public static class CommandParser
             // Helicopter
             AirTaxi => PR.Ok(new AirTaxiCommand(NormalizeAirTaxiDestination(arg))),
             Land when arg is not null => PR.Ok(ParseLand(arg)),
-            ClearedTakeoffPresent when arg is null => PR.Ok(new ClearedTakeoffPresentCommand()),
+            ClearedTakeoffPresent => DepartureCommandParser.ParseCtoppArg(arg),
             // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
             Pushback => GroundCommandParser.ParsePushback(arg),
             Taxi => GroundCommandParser.ParseTaxi(arg),

@@ -5,6 +5,7 @@
 ### Added
 - `AT` conditions also fire on ground entities — taxiways (`AT B`), named spots (`AT $5`), parking (`AT @TERM2`), and two-taxiway intersections (`AT B/C`).
 - Airborne aircraft check in on first contact in solo-training mode — IFR with callsign/altitude, VFR with position-from-field plus intent (AIM 4-3-1).
+- `CTOPP` takes departure modifiers like `CTO`: heading, `LT`/`RT`, `OC`, and `DCT`/`TLDCT`/`TRDCT FIX`, all with optional climb altitude.
 
 ### Fixed
 - Students joining a room or activating/deactivating mid-session appear in the instructor's controller list immediately — peers see each other's state changes too.

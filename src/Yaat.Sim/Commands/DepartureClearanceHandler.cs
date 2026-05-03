@@ -1198,7 +1198,11 @@ internal static class DepartureClearanceHandler
         return new CommandResult(false, "No takeoff clearance to cancel");
     }
 
-    internal static CommandResult TryClearedTakeoffPresent(AircraftState aircraft, AirportGroundLayout? groundLayout)
+    internal static CommandResult TryClearedTakeoffPresent(
+        ClearedTakeoffPresentCommand ctopp,
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout
+    )
     {
         var ctoppCat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (ctoppCat != AircraftCategory.Helicopter)
@@ -1220,8 +1224,16 @@ internal static class DepartureClearanceHandler
 
         aircraft.Ground.IsHeld = false;
         aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new HelicopterTakeoffPhase());
-        aircraft.Phases.Add(new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.CruiseAltitude });
+
+        var helo = new HelicopterTakeoffPhase();
+        helo.SetAssignedDeparture(ctopp.Departure);
+        aircraft.Phases.Add(helo);
+
+        var climb = new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.CruiseAltitude };
+        aircraft.Phases.Add(climb);
+
+        var routeResult = ResolveDepartureRoute(ctopp.Departure, aircraft);
+        SetInitialClimbProperties(climb, ctopp.Departure, ctopp.AssignedAltitude, routeResult, aircraft);
 
         // Field elevation = current altitude (on ground)
         ctoppCtx = new PhaseContext
@@ -1237,6 +1249,12 @@ internal static class DepartureClearanceHandler
         };
         aircraft.Phases.Start(ctoppCtx);
 
-        return CommandDispatcher.Ok("Cleared for takeoff, present position");
+        var msg = "Cleared for takeoff, present position";
+        msg += FormatDepartureInstructionSuffix(ctopp.Departure);
+        if (ctopp.AssignedAltitude is not null)
+        {
+            msg += $", climb and maintain {ctopp.AssignedAltitude:N0}";
+        }
+        return CommandDispatcher.Ok(msg);
     }
 }

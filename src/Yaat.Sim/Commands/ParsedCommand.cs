@@ -299,7 +299,7 @@ public record AirTaxiCommand(string? Destination) : ParsedCommand;
 
 public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway = false) : ParsedCommand;
 
-public record ClearedTakeoffPresentCommand : ParsedCommand;
+public record ClearedTakeoffPresentCommand(DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand;
 
 // Ground commands
 public record PushbackCommand(

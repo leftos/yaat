@@ -251,6 +251,9 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Takeoff present pos | `CTOPP` | — | — |
+| Takeoff present pos heading | `CTOPP 270` | `CTOPP H270`, `CTOPP LT270`, `CTOPP RT270` | — |
+| Takeoff present pos on course | `CTOPP OC` | — | — |
+| Takeoff present pos direct | `CTOPP DCT FIX` | `CTOPP TLDCT FIX`, `CTOPP TRDCT FIX` | — |
 | Air taxi | `ATXI H1` | — | — |
 | Land | `LAND H1` | — | — |
 
@@ -495,6 +498,10 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 | Command | Effect |
 |---------|--------|
 | `CTOPP` | Cleared for takeoff, present position — vertical liftoff from ramp, helipad, or parking |
+| `CTOPP 270 050` | CTOPP, fly heading 270 after liftoff, climb to 5000 ft. Optional altitude on every form. |
+| `CTOPP LT270 050` / `CTOPP RT090` | CTOPP with explicit turn direction to heading after liftoff |
+| `CTOPP OC [alt]` | CTOPP, fly direct to flight-plan destination after liftoff |
+| `CTOPP DCT FIX [alt]` / `CTOPP TLDCT FIX` / `CTOPP TRDCT FIX` | CTOPP, proceed direct to fix after liftoff (optionally turning left/right) |
 | `ATXI H1` | Air taxi to spot H1 — airborne below 100ft AGL, ~40 KIAS |
 | `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
 | `LAND H1 NODEL` | Land at H1, exempt from auto-delete |

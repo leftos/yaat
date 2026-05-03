@@ -188,7 +188,7 @@
       "rows": [
         { "verb": "ATXI", "aliases": [], "description": "Air taxi [helipad]" },
         { "verb": "LAND", "aliases": [], "description": "Land at helipad (NODEL)" },
-        { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position" }
+        { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position [heading|OC|DCT fix] [altitude]" }
       ],
       "notes": []
     },

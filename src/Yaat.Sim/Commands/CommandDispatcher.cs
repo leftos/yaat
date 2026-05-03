@@ -596,8 +596,8 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryPlan270(aircraft);
 
             // Helicopter commands
-            case ClearedTakeoffPresentCommand:
-                return DepartureClearanceHandler.TryClearedTakeoffPresent(aircraft, aircraft.Ground.Layout);
+            case ClearedTakeoffPresentCommand ctopp:
+                return DepartureClearanceHandler.TryClearedTakeoffPresent(ctopp, aircraft, aircraft.Ground.Layout);
             case AirTaxiCommand atxi:
                 return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, aircraft.Ground.Layout);
             case LandCommand land:
@@ -1137,8 +1137,8 @@ public static class CommandDispatcher
             case LandCommand land:
                 return GroundCommandHandler.TryLand(aircraft, land, groundLayout);
 
-            case ClearedTakeoffPresentCommand:
-                return DepartureClearanceHandler.TryClearedTakeoffPresent(aircraft, groundLayout);
+            case ClearedTakeoffPresentCommand ctopp:
+                return DepartureClearanceHandler.TryClearedTakeoffPresent(ctopp, aircraft, groundLayout);
 
             // Ground commands
             case PushbackCommand push:

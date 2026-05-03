@@ -449,7 +449,7 @@ public static class CommandDescriber
             WaitDistanceCommand cmd => $"WAITD {cmd.DistanceNm}",
             AirTaxiCommand atxi => atxi.Destination is not null ? $"ATXI {atxi.Destination}" : "ATXI",
             LandCommand land => land.IsTaxiway ? $"LAND {land.SpotName}" : $"LAND @{land.SpotName}",
-            ClearedTakeoffPresentCommand => "CTOPP",
+            ClearedTakeoffPresentCommand ctopp => FormatCtoppCanonical(ctopp),
             PushbackCommand push => FormatPushCanonical(push),
             TaxiCommand taxi => FormatTaxiCanonical(taxi),
             HoldPositionCommand => "HOLD",
@@ -687,7 +687,7 @@ public static class CommandDescriber
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
             AirTaxiCommand atxi => atxi.Destination is not null ? $"Air taxi to {atxi.Destination}" : "Air taxi",
             LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}" : $"Land at {land.SpotName}",
-            ClearedTakeoffPresentCommand => "Cleared for takeoff, present position",
+            ClearedTakeoffPresentCommand ctopp => DescribeCtoppNatural(ctopp),
             PushbackCommand push => FormatPushNatural(push),
             TaxiCommand taxi => FormatTaxiNatural(taxi),
             HoldPositionCommand => "Hold position",
@@ -1075,6 +1075,48 @@ public static class CommandDescriber
         if (cto.AssignedAltitude is not null)
         {
             msg += $", climb and maintain {cto.AssignedAltitude:N0}";
+        }
+        return msg;
+    }
+
+    private static string FormatCtoppCanonical(ClearedTakeoffPresentCommand ctopp)
+    {
+        var suffix = ctopp.Departure switch
+        {
+            DefaultDeparture => "",
+            FlyHeadingDeparture { Direction: TurnDirection.Right } fh => $" RH{fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture { Direction: TurnDirection.Left } fh => $" LH{fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture fh => $" H{fh.MagneticHeading.Degrees:000}",
+            OnCourseDeparture => " OC",
+            DirectFixDeparture { Direction: TurnDirection.Left } dfd => $" TLDCT {dfd.FixName}",
+            DirectFixDeparture { Direction: TurnDirection.Right } dfd => $" TRDCT {dfd.FixName}",
+            DirectFixDeparture dfd => $" DCT {dfd.FixName}",
+            _ => "",
+        };
+
+        var alt = ctopp.AssignedAltitude is not null ? $" {ctopp.AssignedAltitude}" : "";
+
+        return $"CTOPP{suffix}{alt}";
+    }
+
+    private static string DescribeCtoppNatural(ClearedTakeoffPresentCommand ctopp)
+    {
+        var msg = "Cleared for takeoff, present position";
+        msg += ctopp.Departure switch
+        {
+            DefaultDeparture => "",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture fh => $", fly heading {fh.MagneticHeading.Degrees:000}",
+            OnCourseDeparture => ", on course",
+            DirectFixDeparture { Direction: TurnDirection.Left } dfd => $", turn left direct {dfd.FixName}",
+            DirectFixDeparture { Direction: TurnDirection.Right } dfd => $", turn right direct {dfd.FixName}",
+            DirectFixDeparture dfd => $", direct {dfd.FixName}",
+            _ => "",
+        };
+        if (ctopp.AssignedAltitude is not null)
+        {
+            msg += $", climb and maintain {ctopp.AssignedAltitude:N0}";
         }
         return msg;
     }

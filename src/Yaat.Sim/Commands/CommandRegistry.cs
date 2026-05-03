@@ -558,7 +558,23 @@ public static class CommandRegistry
                 [O(null, [R("helipad", "helipad/gate ID")], "Land at helipad")],
                 [Mod("NODEL", null, false)]
             ),
-            Bare(ClearedTakeoffPresent, "Cleared Takeoff Present Position", "Helicopter", false, ["CTOPP"]),
+            Cmd(
+                ClearedTakeoffPresent,
+                "Cleared Takeoff Present Position",
+                "Helicopter",
+                false,
+                ["CTOPP"],
+                [
+                    O(null, [], "Cleared takeoff, present position (vertical liftoff, current heading)"),
+                    O("OC", [L("OC"), Opt("altitude", "alt")], "Fly on course after liftoff"),
+                    O("Heading", [R("heading", "0-360"), Opt("altitude", "alt")], "Fly heading after liftoff"),
+                    O("LT", [L("LT"), R("heading", "0-360"), Opt("altitude", "alt")], "Turn left to heading after liftoff"),
+                    O("RT", [L("RT"), R("heading", "0-360"), Opt("altitude", "alt")], "Turn right to heading after liftoff"),
+                    O("DCT", [L("DCT"), R("fix", "fix name"), Opt("altitude", "alt")], "Proceed direct to fix after liftoff"),
+                    O("TLDCT", [L("TLDCT"), R("fix", "fix name"), Opt("altitude", "alt")], "Turn left direct to fix after liftoff"),
+                    O("TRDCT", [L("TRDCT"), R("fix", "fix name"), Opt("altitude", "alt")], "Turn right direct to fix after liftoff"),
+                ]
+            ),
         ];
 
     private static CommandDefinition[] GroundCommands() =>
