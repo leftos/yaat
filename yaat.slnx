@@ -12,6 +12,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Yaat.CifpInspector/Yaat.CifpInspector.csproj" />
+    <Project Path="tools/Yaat.GuideCapture/Yaat.GuideCapture.csproj" />
     <Project Path="tools/Yaat.LayoutInspector/Yaat.LayoutInspector.csproj" />
     <Project Path="tools/Yaat.ScenarioValidator/Yaat.ScenarioValidator.csproj" />
     <Project Path="tools/Yaat.RecordingConsolidator/Yaat.RecordingConsolidator.csproj" />
