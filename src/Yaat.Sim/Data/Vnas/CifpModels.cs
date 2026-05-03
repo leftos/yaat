@@ -70,7 +70,18 @@ public sealed record CifpLeg(
     bool IsFlyOver = false
 );
 
-public sealed record CifpTransition(string Name, IReadOnlyList<CifpLeg> Legs);
+public sealed record CifpTransition(string Name, IReadOnlyList<CifpLeg> Legs)
+{
+    /// <summary>
+    /// True when the transition contains no course-reversal legs (PI/HM/HF/HA), i.e. it
+    /// delivers the aircraft to the inbound segment without requiring a procedure turn or
+    /// hold-in-lieu. Equivalent to a "NoPT" feeder route depicted on FAA charts: when an
+    /// aircraft enters via a NoPT transition, AIM 5-4-9.1 exempts it from the procedure
+    /// turn even when one is published for the approach.
+    /// </summary>
+    public bool IsNoPt =>
+        !Legs.Any(l => l.PathTerminator is CifpPathTerminator.PI or CifpPathTerminator.HM or CifpPathTerminator.HF or CifpPathTerminator.HA);
+}
 
 public sealed record CifpSidProcedure(
     string Airport,
@@ -98,5 +109,6 @@ public sealed record CifpApproachProcedure(
     IReadOnlyDictionary<string, CifpTransition> Transitions,
     IReadOnlyList<CifpLeg> MissedApproachLegs,
     bool HasHoldInLieu,
-    CifpLeg? HoldInLieuLeg
+    CifpLeg? HoldInLieuLeg,
+    CifpLeg? ProcedureTurnLeg = null
 );

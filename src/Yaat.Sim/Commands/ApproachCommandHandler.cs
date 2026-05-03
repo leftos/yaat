@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -9,6 +10,8 @@ namespace Yaat.Sim.Commands;
 
 public static class ApproachCommandHandler
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("ApproachCommandHandler");
+
     /// <summary>
     /// Downwind altitude (feet AGL) for an IFR visual approach pattern entry.
     /// 2000 ft AGL keeps the IFR aircraft 1000+ ft above standard 1000-ft VFR
@@ -18,6 +21,18 @@ public static class ApproachCommandHandler
 
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
+        Log.LogDebug(
+            "[CAPP] {Callsign} cmd=({Apch} apt={Apt} dct={Dct} at={At}) nav=[{Route}] hdg={Hdg:F1} assignedHdg={Assigned}",
+            aircraft.Callsign,
+            cmd.ApproachId,
+            cmd.AirportCode,
+            cmd.DctFix,
+            cmd.AtFix,
+            string.Join(",", aircraft.Targets.NavigationRoute.Select(n => n.Name)),
+            aircraft.TrueHeading.Degrees,
+            aircraft.Targets.AssignedMagneticHeading?.Degrees.ToString("F0") ?? "null"
+        );
+
         var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
         if (!resolved.Success)
         {
@@ -48,6 +63,28 @@ public static class ApproachCommandHandler
             transition is not null
             && transition.Legs.Any(l => l.PathTerminator is CifpPathTerminator.HF or CifpPathTerminator.HM or CifpPathTerminator.HA);
 
+        // Procedure turn (PI leg) — engage per AIM 5-4-9.1 unless an exclusion applies.
+        // Three positive triggers:
+        //   (1) selected transition contains the PI leg — aircraft is naturally entering
+        //       the published course-reversal route (e.g. arriving at CCR after DCT or via
+        //       a STAR that drops the aircraft at the PT anchor).
+        //   (2) controller's DCT fix matches the PT anchor — explicit "go to the PT fix
+        //       and shoot the approach" intent in compound CAPP-DCT form.
+        //   (3) intercept angle > 90° — geometry forces it (no straight-in possible).
+        // Negative exclusion: NoPT transition. AIM 5-4-9.1 exempts aircraft on a published
+        // NoPT feeder (the chart guarantees the geometry); skip PT and let approach
+        // navigation deliver the aircraft inbound naturally.
+        bool transitionContainsPi = transition is not null && transition.Legs.Any(l => l.PathTerminator == CifpPathTerminator.PI);
+        bool transitionIsNoPt = transition is not null && transition.IsNoPt;
+        bool dctMatchesPtAnchor =
+            cmd.DctFix is not null
+            && procedure.ProcedureTurnLeg is not null
+            && procedure.ProcedureTurnLeg.FixIdentifier.Equals(cmd.DctFix, StringComparison.OrdinalIgnoreCase);
+        double interceptAngleDeg = aircraft.TrueHeading.AbsAngleTo(finalCourse);
+        bool interceptTooSteep = interceptAngleDeg > 90.0;
+        bool needsProcedureTurn =
+            procedure.ProcedureTurnLeg is not null && !transitionIsNoPt && (transitionContainsPi || dctMatchesPtAnchor || interceptTooSteep);
+
         // Deferred approach: when the STAR delivers to a transition connecting fix,
         // store the clearance as pending and append approach fixes to the nav route.
         // The aircraft continues flying its STAR; approach phases activate when the
@@ -55,7 +92,7 @@ public static class ApproachCommandHandler
         // "AT <fix> CAPP" defers the same way when the AT fix is already in the nav route
         // — the AT is redundant since the STAR already delivers there.
         // DCT always activates immediately (it implies leaving the STAR route).
-        if (transition is not null && !hasDctFix && !isOnAssignedHeading && !transitionHasHilpt)
+        if (transition is not null && !hasDctFix && !isOnAssignedHeading && !transitionHasHilpt && !needsProcedureTurn)
         {
             var trimmedFixes = TrimToNavRouteConnection(approachFixes, aircraft);
             string connectingFix = trimmedFixes.Count > 0 ? trimmedFixes[0].Name : "";
@@ -91,9 +128,13 @@ public static class ApproachCommandHandler
         aircraft.Targets.AssignedMagneticHeading = null;
 
         bool hasAtOrDctFix = cmd.AtFix is not null || hasDctFix;
+        bool hasNavRoute = aircraft.Targets.NavigationRoute.Count > 0;
 
-        // Implied PTAC: no AT/DCT fix and aircraft was on an assigned heading → intercept on present heading
-        if (!hasAtOrDctFix && isOnAssignedHeading)
+        // Implied PTAC: no AT/DCT fix, aircraft is on vectors (no nav route, on assigned
+        // heading) → intercept on present heading. Aircraft with a navigation route are
+        // not vectored — they're navigating direct to a fix, so CAPP must build the
+        // published procedure (and engage course reversal if needed).
+        if (!hasAtOrDctFix && isOnAssignedHeading && !hasNavRoute)
         {
             aircraft.Targets.NavigationRoute.Clear();
 
@@ -139,6 +180,20 @@ public static class ApproachCommandHandler
             aircraft.Targets.AssignedAltitude = cxAlt;
         }
 
+        // Procedure turn: insert PT phase BEFORE approach navigation, and trim approach fixes
+        // through the PT anchor (post-PT, the aircraft is established inbound at/near the
+        // anchor — typically the FAF — so only post-anchor fixes remain to navigate).
+        ProcedureTurnPhase? cappProcedureTurn = null;
+        if (needsProcedureTurn && procedure.ProcedureTurnLeg is { } cappPiLeg)
+        {
+            cappProcedureTurn = BuildProcedureTurnPhase(cappPiLeg, aircraft, finalCourse);
+            if (cappProcedureTurn is not null)
+            {
+                approachFixes = TrimFixesPastProcedureTurnAnchor(approachFixes, cappProcedureTurn.FixName);
+                aircraft.Phases.Add(cappProcedureTurn);
+            }
+        }
+
         // Build phase sequence
         if (approachFixes.Count > 0)
         {
@@ -150,7 +205,9 @@ public static class ApproachCommandHandler
         // navigation phase. The aircraft flies the entry fixes (e.g. MOD → ZELAT), then
         // the hold phase takes over (one circuit course-reversal), then FinalApproachPhase
         // captures the FAC inbound. Mirrors the JAPP HILPT block at TryJoinApproach above.
-        if (transitionHasHilpt && procedure.HoldInLieuLeg is { } cappHoldLeg)
+        // Skipped when a PI procedure turn is already engaged (PT and HILPT are mutually
+        // exclusive on real procedures).
+        if (cappProcedureTurn is null && transitionHasHilpt && procedure.HoldInLieuLeg is { } cappHoldLeg)
         {
             var holdPhase = BuildHoldInLieuPhase(cappHoldLeg, approachFixes, finalCourse);
             if (holdPhase is not null)
@@ -195,6 +252,25 @@ public static class ApproachCommandHandler
         // Hold-in-lieu: if procedure has one and NOT straight-in, insert hold
         bool needsHold = procedure.HasHoldInLieu && !straightIn;
 
+        // Procedure turn (PI). For non-straight-in joins, engage per AIM 5-4-9.1 when the
+        // published procedure has a PT and the aircraft is entering via the PI-bearing
+        // transition or the geometry forces it — unless on a NoPT feeder. For straight-in
+        // (CAPPSI/JAPPSI), reject when the intercept is too steep AND a course reversal is
+        // published — controller asked to skip a maneuver the geometry actually requires.
+        bool jappTransitionContainsPi = transition is not null && transition.Legs.Any(l => l.PathTerminator == CifpPathTerminator.PI);
+        bool jappTransitionIsNoPt = transition is not null && transition.IsNoPt;
+        double japInterceptAngle = aircraft.TrueHeading.AbsAngleTo(finalCourse);
+        bool japInterceptTooSteep = japInterceptAngle > 90.0;
+        if (straightIn && japInterceptTooSteep && (procedure.ProcedureTurnLeg is not null || procedure.HasHoldInLieu))
+        {
+            return new CommandResult(
+                false,
+                $"Unable straight-in {procedure.ApproachId}: intercept angle {japInterceptAngle:F0}° exceeds 90° and a course reversal is published. Request vectors to final or clear for full approach."
+            );
+        }
+        bool jappNeedsProcedureTurn =
+            !straightIn && procedure.ProcedureTurnLeg is not null && !jappTransitionIsNoPt && (jappTransitionContainsPi || japInterceptTooSteep);
+
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
 
@@ -221,8 +297,20 @@ public static class ApproachCommandHandler
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
         aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
-        // Insert hold-in-lieu if needed
-        if (needsHold && procedure.HoldInLieuLeg is { } holdLeg)
+        // Insert procedure turn (PI) if needed — trim approach fixes through the PT anchor.
+        ProcedureTurnPhase? jappProcedureTurn = null;
+        if (jappNeedsProcedureTurn && procedure.ProcedureTurnLeg is { } japPiLeg)
+        {
+            jappProcedureTurn = BuildProcedureTurnPhase(japPiLeg, aircraft, finalCourse);
+            if (jappProcedureTurn is not null)
+            {
+                trimmedFixes = TrimFixesPastProcedureTurnAnchor(trimmedFixes, jappProcedureTurn.FixName);
+                aircraft.Phases.Add(jappProcedureTurn);
+            }
+        }
+
+        // Insert hold-in-lieu if needed (skipped when a PT is already engaged)
+        if (jappProcedureTurn is null && needsHold && procedure.HoldInLieuLeg is { } holdLeg)
         {
             var holdPhase = BuildHoldInLieuPhase(holdLeg, trimmedFixes, finalCourse);
             if (holdPhase is not null)
@@ -1078,6 +1166,28 @@ public static class ApproachCommandHandler
                 continue;
             }
 
+            // If the matched fix anchors a course-reversal leg (PI/HM/HF/HA) in any transition,
+            // prefer that transition even if the fix also lives in CommonLegs. The controller
+            // said "DCT <fix>" implying entry at <fix> with the published course reversal.
+            foreach (var transition in procedure.Transitions.Values)
+            {
+                foreach (var leg in transition.Legs)
+                {
+                    if (string.IsNullOrEmpty(leg.FixIdentifier))
+                    {
+                        continue;
+                    }
+                    if (!leg.FixIdentifier.Equals(navTarget.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    if (leg.PathTerminator is CifpPathTerminator.PI or CifpPathTerminator.HM or CifpPathTerminator.HF or CifpPathTerminator.HA)
+                    {
+                        return transition;
+                    }
+                }
+            }
+
             // CommonLegs first: boundary fixes (e.g. BERKS in both CCR transition and CommonLegs)
             // must NOT trigger transition selection — aircraft is already heading to the common segment.
             bool isInCommonLegs = procedure.CommonLegs.Any(leg =>
@@ -1192,6 +1302,64 @@ public static class ApproachCommandHandler
             Direction = holdLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
             MaxCircuits = 1,
         };
+    }
+
+    /// <summary>
+    /// Build a <see cref="ProcedureTurnPhase"/> from the procedure's PI leg. The PT anchor
+    /// fix must already be loadable from the navdata (CCR for KCCR S19R). The CIFP outbound
+    /// course is published as magnetic; convert to true using the aircraft's local declination.
+    /// </summary>
+    private static ProcedureTurnPhase? BuildProcedureTurnPhase(CifpLeg piLeg, AircraftState aircraft, TrueHeading finalCourse)
+    {
+        var navDb = NavigationDatabase.Instance;
+        var pos = navDb.GetFixPosition(piLeg.FixIdentifier);
+        if (pos is null)
+        {
+            return null;
+        }
+
+        double publishedPtMagDeg = piLeg.OutboundCourse ?? finalCourse.ToMagnetic(aircraft.Declination).Degrees;
+        var ptOutboundTrue = new MagneticHeading(publishedPtMagDeg).ToTrue(aircraft.Declination);
+
+        int minAlt = piLeg.Altitude is { } restriction ? restriction.Altitude1Ft : 0;
+
+        return new ProcedureTurnPhase
+        {
+            FixName = piLeg.FixIdentifier,
+            FixLat = pos.Value.Lat,
+            FixLon = pos.Value.Lon,
+            InboundCourseDeg = finalCourse.Degrees,
+            PtOutboundCourseDeg = ptOutboundTrue.Degrees,
+            MaxOutboundDistanceNm = piLeg.LegDistanceNm ?? 10.0,
+            OneEightyTurnDirection = piLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
+            MinAltitudeFt = minAlt,
+        };
+    }
+
+    /// <summary>
+    /// When a <see cref="ProcedureTurnPhase"/> is being inserted ahead of the approach navigation,
+    /// trim approach fixes through the LAST occurrence of the PT anchor fix. Anything before/at
+    /// the anchor is consumed by the PT (it ends established inbound at/near the anchor); only
+    /// post-PT fixes remain for <see cref="ApproachNavigationPhase"/>.
+    /// </summary>
+    private static List<ApproachFix> TrimFixesPastProcedureTurnAnchor(List<ApproachFix> fixes, string anchorName)
+    {
+        int lastIdx = -1;
+        for (int i = fixes.Count - 1; i >= 0; i--)
+        {
+            if (fixes[i].Name.Equals(anchorName, StringComparison.OrdinalIgnoreCase))
+            {
+                lastIdx = i;
+                break;
+            }
+        }
+
+        if (lastIdx < 0)
+        {
+            return fixes;
+        }
+
+        return fixes.GetRange(lastIdx + 1, fixes.Count - lastIdx - 1);
     }
 
     private static List<ApproachFix> BuildApproachFixesWithTransition(CifpTransition transition, CifpApproachProcedure procedure)

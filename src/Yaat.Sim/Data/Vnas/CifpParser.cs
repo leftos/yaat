@@ -646,6 +646,7 @@ public static partial class CifpParser
         var missedLegs = new List<CifpLeg>();
         bool pastMap = false;
         CifpLeg? holdInLieuLeg = null;
+        CifpLeg? procedureTurnLeg = null;
 
         // Sort by route type then sequence for deterministic ordering
         rawLegs.Sort(
@@ -676,6 +677,12 @@ public static partial class CifpParser
                 {
                     holdInLieuLeg = leg;
                 }
+
+                // Capture the first PI (procedure turn) leg from any transition.
+                if (procedureTurnLeg is null && raw.PathTerminatorRaw == "PI")
+                {
+                    procedureTurnLeg = leg;
+                }
             }
             else
             {
@@ -703,6 +710,12 @@ public static partial class CifpParser
                 {
                     holdInLieuLeg = leg;
                 }
+
+                // Capture PI in common legs too (rare, but allowed by ARINC 424).
+                if (procedureTurnLeg is null && raw.PathTerminatorRaw == "PI")
+                {
+                    procedureTurnLeg = leg;
+                }
             }
         }
 
@@ -722,7 +735,8 @@ public static partial class CifpParser
             transitions,
             missedLegs,
             holdInLieuLeg is not null,
-            holdInLieuLeg
+            holdInLieuLeg,
+            procedureTurnLeg
         );
     }
 

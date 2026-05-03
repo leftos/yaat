@@ -6,8 +6,11 @@
 - `AT` conditions also fire on ground entities — taxiways (`AT B`), named spots (`AT $5`), parking (`AT @TERM2`), and two-taxiway intersections (`AT B/C`).
 - Airborne aircraft check in on first contact in solo-training mode — IFR with callsign/altitude, VFR with position-from-field plus intent (AIM 4-3-1).
 - `CTOPP` takes departure modifiers like `CTO`: heading, `LT`/`RT`, `OC`, and `DCT`/`TLDCT`/`TRDCT FIX`, all with optional climb altitude.
+- `CAPP` flies the published procedure turn at PT-anchor fixes (e.g. CCR for KCCR S19R) — outbound radial, 45°/180° course reversal, intercept inbound.
 
 ### Fixed
+- `CAPPSI` rejects when the intercept angle exceeds 90° and a course reversal is published; request vectors or use `CAPP` for the full procedure.
+- DCT-fix validation toggle persists in recordings — replays use the session's setting instead of the scenario default.
 - `CAPP` for an approach with a hold-in-lieu of procedure turn executes the published hold at the IAF instead of flying past to a downstream feeder fix.
 - `CVA` joins downwind on the side the aircraft is already on, no longer routing it across the field through the departure corridor.
 - Aircraft on visual approach short final no longer report "lost sight of the field" as the airport reference passes behind the nose.

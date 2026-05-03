@@ -219,6 +219,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(UpwindPhaseDto), "Upwind")]
 [JsonDerivedType(typeof(VfrFollowPhaseDto), "VfrFollow")]
 [JsonDerivedType(typeof(HoldingPatternPhaseDto), "HoldingPattern")]
+[JsonDerivedType(typeof(ProcedureTurnPhaseDto), "ProcedureTurn")]
 [JsonDerivedType(typeof(ApproachNavigationPhaseDto), "ApproachNavigation")]
 [JsonDerivedType(typeof(InterceptCoursePhaseDto), "InterceptCourse")]
 public abstract class PhaseDto
@@ -700,6 +701,20 @@ public sealed class HoldingPatternPhaseDto : PhaseDto
     public required double CorrectedOutboundHeadingDeg { get; init; }
     public required double LegTimerSeconds { get; init; }
     public required int CircuitsCompleted { get; init; }
+}
+
+public sealed class ProcedureTurnPhaseDto : PhaseDto
+{
+    public required string FixName { get; init; }
+    public required double FixLat { get; init; }
+    public required double FixLon { get; init; }
+    public required double InboundCourseDeg { get; init; }
+    public required double PtOutboundCourseDeg { get; init; }
+    public required double MaxOutboundDistanceNm { get; init; }
+    public required int OneEightyTurnDirection { get; init; }
+    public required int MinAltitudeFt { get; init; }
+    public required int State { get; init; }
+    public required double PtOutboundTimerSeconds { get; init; }
 }
 
 public sealed class ApproachNavigationPhaseDto : PhaseDto

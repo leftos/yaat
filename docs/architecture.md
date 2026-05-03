@@ -392,6 +392,7 @@ VfrHoldPhase.cs                # VFR hold: orbit at current position (HPP) or na
 ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions + next-fix speed look-ahead
 InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course; detects bust-through (sign flip or 180s timeout) and notifies RPO. ForcedIntercept (PTACF, CAPPF implied-PTAC) bypasses the 30° capture gate — forces capture on steep cuts, overshoots expected
 HoldingPatternPhase.cs         # AIM 5-3-8 holding with entry determination; MaxCircuits for hold-in-lieu
+ProcedureTurnPhase.cs          # AIM 5-4-9 procedure turn (PI leg): outbound on FAC reciprocal → 45° offset → 180° turn back → intercept inbound. Engaged by CAPP when DCT matches PT anchor or intercept angle > 90°
 ApproachClearance.cs           # Record on PhaseList storing active approach state + pre-built MAP fixes
 
 # Phases/Pattern/

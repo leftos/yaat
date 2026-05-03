@@ -719,8 +719,24 @@ public sealed class SimulationEngine
 
     public void Replay(SessionRecording recording, double targetSeconds)
     {
+        ReplayWithScenarioOverride(recording, targetSeconds, configureAfterLoad: static _ => { });
+    }
+
+    /// <summary>
+    /// Replay variant that runs <paramref name="configureAfterLoad"/> on the freshly loaded
+    /// scenario before any actions or weather are applied. Useful for tests that need to
+    /// override scenario state (e.g. <c>ValidateDctFixes</c>) when replaying older recordings
+    /// that predate a setting being persisted in the action log.
+    /// </summary>
+    public void ReplayWithScenarioOverride(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
+    {
         TickTimings.Clear();
         LoadScenario(recording.ScenarioJson, recording.RngSeed);
+
+        if (Scenario is not null)
+        {
+            configureAfterLoad(Scenario);
+        }
 
         // Apply weather if present
         if (recording.WeatherJson is not null)
@@ -1766,6 +1782,12 @@ public sealed class SimulationEngine
                 // Null/empty string is a valid value: it means "clear the override and
                 // fall back to the scenario default".
                 scenario.ClientAutoDeleteOverride = string.IsNullOrEmpty(setting.Value) ? null : setting.Value;
+                break;
+            case "ValidateDctFixes":
+                if (bool.TryParse(setting.Value, out var validate))
+                {
+                    scenario.ValidateDctFixes = validate;
+                }
                 break;
         }
     }

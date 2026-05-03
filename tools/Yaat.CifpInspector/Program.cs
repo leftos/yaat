@@ -246,6 +246,12 @@ public static class Program
             Console.WriteLine();
             Console.WriteLine($"Hold-in-lieu leg: {a.HoldInLieuLeg.FixIdentifier} {a.HoldInLieuLeg.PathTerminator}");
         }
+
+        if (a.ProcedureTurnLeg is not null)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Procedure-turn leg: {a.ProcedureTurnLeg.FixIdentifier} {a.ProcedureTurnLeg.PathTerminator}");
+        }
     }
 
     private static void PrintLegTable(IReadOnlyList<CifpLeg> legs, string indent = "  ")

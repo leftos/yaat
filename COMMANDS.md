@@ -707,13 +707,15 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 
 **CFIX altitude prefixes:** `A034` = at or above 3,400, `B034` = at or below 3,400, `034` = at 3,400.
 
-**Heading intercept (implied PTAC):** When an aircraft is being vectored (has an assigned heading) and you issue a bare `CAPP` (no AT/DCT fix), the aircraft maintains its present heading and intercepts the final approach course — equivalent to an implied PTAC. If the aircraft has no assigned heading, CAPP navigates through approach fixes as usual. AT/DCT fixes always override heading intercept.
+**Heading intercept (implied PTAC):** When an aircraft is being vectored (has an assigned heading **and no nav route**) and you issue a bare `CAPP` (no AT/DCT fix), the aircraft maintains its present heading and intercepts the final approach course — equivalent to an implied PTAC. If the aircraft has a nav route (e.g. you previously issued `DCT FIX`), CAPP builds the published procedure instead. AT/DCT fixes always override heading intercept.
 
 **Intercept angle validation:** Approach clearances validate the intercept angle per 7110.65 §5-9-2 — max 20° within 2nm of the approach gate, max 30° beyond. Use force variants (`CAPPF`/`JAPPF`) to override.
 
 **Localizer bust-through detection:** When an aircraft on a heading intercept crosses the final approach course but its heading is too far off to capture (>30°), the approach is cancelled automatically. The aircraft continues on its current heading and a terminal broadcast notifies the RPO.
 
 **Hold-in-lieu:** When a procedure includes a hold-in-lieu of procedure turn (e.g., at an IAF), `JAPP` automatically executes one holding circuit before proceeding. Use `CAPPSI`/`JAPPSI` to skip it.
+
+**Procedure turn (PI):** When the published approach has a charted procedure turn (e.g. KCCR S19R via the COLLI transition), `CAPP` automatically engages it per AIM 5-4-9.1 when **any** of the following is true: (a) the aircraft is entering via the PI-bearing transition (e.g. CCR is in the nav route as the PT anchor), (b) you issued `DCT <fix>` to the PT anchor as part of CAPP, or (c) the aircraft's heading vs the inbound FAC exceeds 90° (no straight-in possible). The aircraft crosses the fix, flies the published outbound radial, executes the 45°/180° course reversal at/above the published PT altitude (capped at 200 KIAS, AIM 5-4-9.a.3), and intercepts inbound on the FAC. The PT is **not** engaged when the aircraft is on a NoPT transition (a published feeder marked NoPT — modeled in YAAT as any transition without a PI/HM/HF/HA leg) — the chart guarantees the geometry, so CAPP just navigates the inbound. `CAPPSI`/`JAPPSI` skip the PT but reject with an error when the intercept angle exceeds 90° and a course reversal is published — vector to final or use `CAPP` to fly the published procedure.
 
 **Expect approach:** `EAPP I28R` tells the pilot to expect the ILS 28R approach. This sets the expected approach on the aircraft state (visible in the data grid) and programs the approach fix names for display. Does not clear the aircraft for the approach.
 
