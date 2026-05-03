@@ -229,6 +229,13 @@ public sealed class RadarRenderer : IDisposable
 
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _targetRenderer.LastEuroScopeTags;
 
+    /// <summary>
+    /// When non-null, the radar draws an active heading-vector preview for the named aircraft
+    /// (turn arc + line + label). Set by RadarCanvas while a EuroScope heading-mode interaction
+    /// is in progress; cleared on confirm/cancel.
+    /// </summary>
+    public Flyouts.HeadingModeState? HeadingPreview { get; set; }
+
     public void Render(
         SKCanvas canvas,
         MapViewport vp,
@@ -305,6 +312,16 @@ public sealed class RadarRenderer : IDisposable
             showTopDown,
             historyCount
         );
+
+        // EuroScope heading-mode preview overlay (above aircraft, below drawn route).
+        if (HeadingPreview is { } headingState)
+        {
+            var ac = aircraft.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
+            if (ac is not null)
+            {
+                Flyouts.HeadingPreviewRenderer.Render(canvas, vp, ac, headingState);
+            }
+        }
 
         // Drawn route overlay
         if (drawnWaypoints is { Count: > 0 })

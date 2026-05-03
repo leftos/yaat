@@ -59,6 +59,7 @@ public partial class RadarView : UserControl
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.RangeRingPlaced += OnRangeRingPlaced;
         _canvas.EuroScopeFieldClicked += OnEuroScopeFieldClicked;
+        _canvas.HeadingModeConfirmed += OnHeadingModeConfirmed;
 
         var filteredText = this.FindControl<TextBox>("FilteredListText");
         if (filteredText is not null)
@@ -96,6 +97,7 @@ public partial class RadarView : UserControl
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.RangeRingPlaced -= OnRangeRingPlaced;
             _canvas.EuroScopeFieldClicked -= OnEuroScopeFieldClicked;
+            _canvas.HeadingModeConfirmed -= OnHeadingModeConfirmed;
         }
     }
 
@@ -108,16 +110,26 @@ public partial class RadarView : UserControl
         }
         var initials = mainVm.Preferences.UserInitials;
 
-        ContextMenu? menu = field switch
+        switch (field)
         {
-            TagFieldId.AssignedAltitude or TagFieldId.CurrentAltitude => AltitudeFlyout.Build(ac, mainVm.Radar, initials),
-            _ => null,
-        };
-
-        if (menu is not null)
-        {
-            ShowContextMenu(menu);
+            case TagFieldId.AssignedAltitude:
+            case TagFieldId.CurrentAltitude:
+                ShowContextMenu(AltitudeFlyout.Build(ac, mainVm.Radar, initials));
+                break;
+            case TagFieldId.AssignedHeading:
+                _canvas?.EnterHeadingMode(ac.Callsign);
+                break;
         }
+    }
+
+    private async void OnHeadingModeConfirmed(string callsign, int magneticHeading)
+    {
+        var mainVm = FindMainViewModel();
+        if (mainVm is null)
+        {
+            return;
+        }
+        await mainVm.Radar.FlyHeadingAsync(callsign, mainVm.Preferences.UserInitials, magneticHeading);
     }
 
     // --- DCB button handlers ---

@@ -350,6 +350,33 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _renderer.LastEuroScopeTags;
 
+    /// <summary>True while a heading-vector interaction is in progress (cursor preview drawing).</summary>
+    public bool IsHeadingModeActive => _renderer.HeadingPreview is not null;
+
+    /// <summary>Enter EuroScope-style heading mode for the named aircraft. Cursor moves drive the preview; left-click confirms.</summary>
+    public void EnterHeadingMode(string callsign)
+    {
+        var (lat, lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+        _renderer.HeadingPreview = new Flyouts.HeadingModeState { Callsign = callsign, CursorPos = new LatLon(lat, lon) };
+        Cursor = new Cursor(StandardCursorType.Cross);
+        Focus();
+        MarkDirty();
+    }
+
+    public void ExitHeadingMode()
+    {
+        if (_renderer.HeadingPreview is null)
+        {
+            return;
+        }
+        _renderer.HeadingPreview = null;
+        Cursor = Cursor.Default;
+        MarkDirty();
+    }
+
+    /// <summary>Raised when the user clicks the map to confirm a heading vector. Heading is in magnetic degrees [1, 360].</summary>
+    public event Action<string, int>? HeadingModeConfirmed;
+
     public string? LocalUserInitials
     {
         get => _renderer.LocalUserInitials;
@@ -693,6 +720,33 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
 
+        // Heading mode: left-click confirms, right-click cancels. Field is short-circuited
+        // so the click does NOT also trigger normal selection / data-block surfacing.
+        if (_renderer.HeadingPreview is { } headingState)
+        {
+            if (props.IsLeftButtonPressed)
+            {
+                var ac = Aircraft?.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
+                if (ac is not null)
+                {
+                    var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+                    double trueBearing = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, lat, lon);
+                    double magBearing = MagneticDeclination.TrueToMagnetic(trueBearing, ac.Position);
+                    int hdg = ((int)Math.Round(magBearing) + 359) % 360 + 1;
+                    HeadingModeConfirmed?.Invoke(ac.Callsign, hdg);
+                }
+                ExitHeadingMode();
+                e.Handled = true;
+                return;
+            }
+            if (props.IsRightButtonPressed)
+            {
+                ExitHeadingMode();
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (IsDrawingRoute)
         {
             if (props.IsLeftButtonPressed)
@@ -882,6 +936,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         var currentPos = e.GetPosition(this);
         _lastPointerPos = currentPos;
+
+        if (_renderer.HeadingPreview is { } headingState)
+        {
+            var (lat, lon) = Viewport.ScreenToLatLon((float)currentPos.X, (float)currentPos.Y);
+            headingState.CursorPos = new LatLon(lat, lon);
+            MarkDirty();
+        }
 
         if (ShowFixes || IsDrawingRoute)
         {
@@ -1185,6 +1246,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (_renderer.HeadingPreview is not null && e.Key == Key.Escape)
+        {
+            ExitHeadingMode();
+            e.Handled = true;
+            return;
+        }
+
         if (IsDrawingRoute)
         {
             if (e.Key == Key.Enter)
