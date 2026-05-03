@@ -12,6 +12,7 @@
 - `CAPPSI` rejects when the intercept angle exceeds 90° and a course reversal is published; request vectors or use `CAPP` for the full procedure.
 - DCT-fix validation toggle persists in recordings — replays use the session's setting instead of the scenario default.
 - `CAPP` for an approach with a hold-in-lieu of procedure turn executes the published hold at the IAF instead of flying past to a downstream feeder fix.
+- `CAPP` no longer routes an aircraft already at a common-leg IAF backwards to a transition IAF (e.g. an aircraft at FAWNE getting `CAPP S19R` no longer turns ~64° right and flies 9 nm east toward REJOY).
 - `CVA` joins downwind on the side the aircraft is already on, no longer routing it across the field through the departure corridor.
 - Aircraft on visual approach short final no longer report "lost sight of the field" as the airport reference passes behind the nose.
 - `CVA` is IFR only and uses a wider pattern at 2000 ft AGL with no parallel-runway deconfliction; VFR pattern entry uses `ELD`/`ERD`/`SI`.

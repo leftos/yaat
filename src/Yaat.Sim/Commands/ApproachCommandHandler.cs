@@ -70,7 +70,13 @@ public static class ApproachCommandHandler
         //       a STAR that drops the aircraft at the PT anchor).
         //   (2) controller's DCT fix matches the PT anchor — explicit "go to the PT fix
         //       and shoot the approach" intent in compound CAPP-DCT form.
-        //   (3) intercept angle > 90° — geometry forces it (no straight-in possible).
+        //   (3) instantaneous intercept angle > 90° AND the aircraft is on a transition path
+        //       (not following the full published common-leg sequence). When transition is
+        //       null the aircraft flies the common legs from the start — the published
+        //       feeder course delivers alignment regardless of current heading, so the
+        //       instantaneous-heading check would be a false positive (e.g. an aircraft
+        //       crossing the IAF heading away from the FAF will turn back through HUKVI
+        //       on the published 191° leg long before reaching the FAF).
         // Negative exclusion: NoPT transition. AIM 5-4-9.1 exempts aircraft on a published
         // NoPT feeder (the chart guarantees the geometry); skip PT and let approach
         // navigation deliver the aircraft inbound naturally.
@@ -81,7 +87,7 @@ public static class ApproachCommandHandler
             && procedure.ProcedureTurnLeg is not null
             && procedure.ProcedureTurnLeg.FixIdentifier.Equals(cmd.DctFix, StringComparison.OrdinalIgnoreCase);
         double interceptAngleDeg = aircraft.TrueHeading.AbsAngleTo(finalCourse);
-        bool interceptTooSteep = interceptAngleDeg > 90.0;
+        bool interceptTooSteep = interceptAngleDeg > 90.0 && transition is not null;
         bool needsProcedureTurn =
             procedure.ProcedureTurnLeg is not null && !transitionIsNoPt && (transitionContainsPi || dctMatchesPtAnchor || interceptTooSteep);
 
@@ -1228,9 +1234,16 @@ public static class ApproachCommandHandler
             }
         }
 
-        // Fallback: pick nearest transition IAF ahead of aircraft (within ±90° of heading)
+        // Fallback: pick the nearest IAF/IF ahead of the aircraft (within ±90° of heading),
+        // considering BOTH each transition's first fix AND every common-leg IAF/IF. If the
+        // winner lives in CommonLegs, return null so the caller starts the approach at that
+        // fix directly via BuildApproachFixes — picking a transition just because it's the
+        // nearest *transition* IAF would route an aircraft already on top of a common-leg IAF
+        // backwards to the transition entry. Mirrors TrimToNearestEntry's logic at the
+        // transition-selection layer.
         var navDb = NavigationDatabase.Instance;
         CifpTransition? bestTransition = null;
+        bool bestIsCommonLeg = false;
         double bestDist = double.MaxValue;
 
         foreach (var transition in procedure.Transitions.Values)
@@ -1268,10 +1281,44 @@ public static class ApproachCommandHandler
             {
                 bestDist = dist;
                 bestTransition = transition;
+                bestIsCommonLeg = false;
             }
         }
 
-        return bestTransition;
+        foreach (var leg in procedure.CommonLegs)
+        {
+            if (leg.FixRole is not (CifpFixRole.IAF or CifpFixRole.IF))
+            {
+                continue;
+            }
+            if (string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(pos.Value.Lat, pos.Value.Lon));
+            double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
+            if (angleDiff > 90)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(pos.Value.Lat, pos.Value.Lon));
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestTransition = null;
+                bestIsCommonLeg = true;
+            }
+        }
+
+        return bestIsCommonLeg ? null : bestTransition;
     }
 
     /// <summary>
