@@ -51,7 +51,9 @@ public static class TrackEngine
                 or TemporaryAltitudeCommand
                 or CruiseCommand
                 or OnHandoffCommand
-                or SetActivePositionCommand;
+                or SetActivePositionCommand
+                or AsdexEditCommand
+                or AsdexVerbCommand;
 
     public static bool IsStripCommand(ParsedCommand? cmd) =>
         cmd
@@ -226,6 +228,70 @@ public static class TrackEngine
         ac.Stars.Scratchpad1 = text;
         ac.Stars.WasScratchpad1Cleared = isClearing;
         return new CommandResult(true, $"SP1: {text}");
+    }
+
+    /// <summary>
+    /// Apply an ASDE-X display-field override to <c>AircraftStarsState</c>. An empty
+    /// <paramref name="text"/> clears the override (DTO falls back to scenario/derived value).
+    /// </summary>
+    public static CommandResult HandleAsdexEdit(AircraftState ac, AsdexEditField field, string text)
+    {
+        var value = string.IsNullOrEmpty(text) ? null : text;
+        switch (field)
+        {
+            case AsdexEditField.Scratchpad1:
+                ac.Stars.AsdexScratchpad1 = value;
+                return new CommandResult(true, $"ASDX SP1: {value ?? "(cleared)"}");
+            case AsdexEditField.Scratchpad2:
+                ac.Stars.AsdexScratchpad2 = value;
+                return new CommandResult(true, $"ASDX SP2: {value ?? "(cleared)"}");
+            case AsdexEditField.Callsign:
+                ac.Stars.AsdexCallsignOverride = value;
+                return new CommandResult(true, $"ASDX CS: {value ?? "(cleared)"}");
+            case AsdexEditField.BeaconCode:
+                ac.Stars.AsdexBeaconCodeOverride = value;
+                return new CommandResult(true, $"ASDX BCN: {value ?? "(cleared)"}");
+            case AsdexEditField.Category:
+                ac.Stars.AsdexCategoryOverride = value;
+                return new CommandResult(true, $"ASDX CAT: {value ?? "(cleared)"}");
+            case AsdexEditField.AircraftType:
+                ac.Stars.AsdexAircraftTypeOverride = value;
+                return new CommandResult(true, $"ASDX TYPE: {value ?? "(cleared)"}");
+            case AsdexEditField.Fix:
+                ac.Stars.AsdexFixOverride = value;
+                return new CommandResult(true, $"ASDX FIX: {value ?? "(cleared)"}");
+            default:
+                return new CommandResult(false, $"Unknown ASDE-X field '{field}'");
+        }
+    }
+
+    /// <summary>
+    /// Apply an ASDE-X per-aircraft verb (Tag/Terminate/Suspend/Unsuspend/InhibitAlerts) to
+    /// <c>AircraftStarsState</c>. Tag clears the terminated bit (CRC's untermination path).
+    /// Server-side <c>CrcBroadcastService</c> reads these bits to filter visibility / status.
+    /// </summary>
+    public static CommandResult HandleAsdexVerb(AircraftState ac, AsdexVerb verb)
+    {
+        switch (verb)
+        {
+            case AsdexVerb.Tag:
+                ac.Stars.AsdexTerminated = false;
+                return new CommandResult(true, $"ASDX TAG: {ac.Callsign}");
+            case AsdexVerb.Terminate:
+                ac.Stars.AsdexTerminated = true;
+                return new CommandResult(true, $"ASDX TERM: {ac.Callsign}");
+            case AsdexVerb.Suspend:
+                ac.Stars.AsdexSuspended = true;
+                return new CommandResult(true, $"ASDX SUSP: {ac.Callsign}");
+            case AsdexVerb.Unsuspend:
+                ac.Stars.AsdexSuspended = false;
+                return new CommandResult(true, $"ASDX UNSUSP: {ac.Callsign}");
+            case AsdexVerb.InhibitAlerts:
+                ac.Stars.AsdexAlertsInhibited = true;
+                return new CommandResult(true, $"ASDX INHIB: {ac.Callsign}");
+            default:
+                return new CommandResult(false, $"Unknown ASDE-X verb '{verb}'");
+        }
     }
 
     public static CommandResult HandleScratchpad2(AircraftState ac, string text)
@@ -468,6 +534,8 @@ public static class TrackEngine
             ConeCommand cone => HandleCone(ac, cone.Enable),
             Scratchpad1Command sp1 => HandleScratchpad1(ac, sp1.Text),
             Scratchpad2Command sp2 => HandleScratchpad2(ac, sp2.Text),
+            AsdexEditCommand asdexEdit => HandleAsdexEdit(ac, asdexEdit.Field, asdexEdit.Text),
+            AsdexVerbCommand asdexVerb => HandleAsdexVerb(ac, asdexVerb.Verb),
             TemporaryAltitudeCommand ta => HandleTemporaryAltitude(ac, ta.AltitudeHundreds),
             CruiseCommand cr => HandleCruise(ac, cr.AltitudeHundreds),
             OnHandoffCommand => HandleOnHandoff(ac),
@@ -496,5 +564,7 @@ public static class TrackEngine
                 or OnHandoffCommand
                 or InhibitConflictAlertCommand
                 or AcknowledgeConflictAlertCommand
+                or AsdexEditCommand
+                or AsdexVerbCommand
             );
 }

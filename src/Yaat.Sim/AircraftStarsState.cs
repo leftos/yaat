@@ -16,6 +16,14 @@ public class AircraftStarsState
     public string? PreviousScratchpad2 { get; set; }
     public string? AsdexScratchpad1 { get; set; }
     public string? AsdexScratchpad2 { get; set; }
+    public string? AsdexCallsignOverride { get; set; }
+    public string? AsdexBeaconCodeOverride { get; set; }
+    public string? AsdexCategoryOverride { get; set; }
+    public string? AsdexAircraftTypeOverride { get; set; }
+    public string? AsdexFixOverride { get; set; }
+    public bool AsdexSuspended { get; set; }
+    public bool AsdexTerminated { get; set; }
+    public bool AsdexAlertsInhibited { get; set; }
     public int? TemporaryAltitude { get; set; }
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
@@ -38,6 +46,14 @@ public class AircraftStarsState
             PreviousScratchpad2 = PreviousScratchpad2,
             AsdexScratchpad1 = AsdexScratchpad1,
             AsdexScratchpad2 = AsdexScratchpad2,
+            AsdexCallsignOverride = AsdexCallsignOverride,
+            AsdexBeaconCodeOverride = AsdexBeaconCodeOverride,
+            AsdexCategoryOverride = AsdexCategoryOverride,
+            AsdexAircraftTypeOverride = AsdexAircraftTypeOverride,
+            AsdexFixOverride = AsdexFixOverride,
+            AsdexSuspended = AsdexSuspended,
+            AsdexTerminated = AsdexTerminated,
+            AsdexAlertsInhibited = AsdexAlertsInhibited,
             TemporaryAltitude = TemporaryAltitude,
             PilotReportedAltitude = PilotReportedAltitude,
             IsAnnotated = IsAnnotated,
@@ -61,6 +77,14 @@ public class AircraftStarsState
             PreviousScratchpad2 = dto.PreviousScratchpad2,
             AsdexScratchpad1 = dto.AsdexScratchpad1,
             AsdexScratchpad2 = dto.AsdexScratchpad2,
+            AsdexCallsignOverride = dto.AsdexCallsignOverride,
+            AsdexBeaconCodeOverride = dto.AsdexBeaconCodeOverride,
+            AsdexCategoryOverride = dto.AsdexCategoryOverride,
+            AsdexAircraftTypeOverride = dto.AsdexAircraftTypeOverride,
+            AsdexFixOverride = dto.AsdexFixOverride,
+            AsdexSuspended = dto.AsdexSuspended,
+            AsdexTerminated = dto.AsdexTerminated,
+            AsdexAlertsInhibited = dto.AsdexAlertsInhibited,
             TemporaryAltitude = dto.TemporaryAltitude,
             PilotReportedAltitude = dto.PilotReportedAltitude,
             IsAnnotated = dto.IsAnnotated,

@@ -224,6 +224,9 @@ public class SnapshotRoundTripTests
                         IsModeCInhibited = false,
                         IsMsawInhibited = false,
                         IsDuplicateBeaconInhibited = false,
+                        AsdexSuspended = false,
+                        AsdexTerminated = false,
+                        AsdexAlertsInhibited = false,
                     },
                     Approach = new AircraftApproachStateDto { HasReportedFieldInSight = false, HasReportedTrafficInSight = false },
                     Procedure = new AircraftProcedureDto

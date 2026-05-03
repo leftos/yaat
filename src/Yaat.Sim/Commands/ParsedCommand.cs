@@ -687,6 +687,42 @@ public record SetTurnRateCommand(double DegreesPerSecond) : ParsedCommand;
 
 public record ClearTurnRateCommand : ParsedCommand;
 
+public enum AsdexEditField
+{
+    Scratchpad1,
+    Scratchpad2,
+    Callsign,
+    BeaconCode,
+    Category,
+    AircraftType,
+    Fix,
+}
+
+public enum AsdexVerb
+{
+    Tag,
+    Terminate,
+    Suspend,
+    Unsuspend,
+    InhibitAlerts,
+}
+
+/// <summary>
+/// ASDE-X display field override issued from the YAAT terminal.
+/// <see cref="Field"/> selects which override slot on <c>AircraftStarsState</c> to write.
+/// </summary>
+public record AsdexEditCommand(AsdexEditField Field, string Text) : ParsedCommand;
+
+/// <summary>
+/// ASDE-X per-aircraft verb command (suspend/terminate/etc.).
+/// </summary>
+public record AsdexVerbCommand(AsdexVerb Verb) : ParsedCommand;
+
+/// <summary>
+/// Room-wide ASDE-X command to clear all alert inhibits. No aircraft target.
+/// </summary>
+public record AsdexEnableAllAlertsCommand : ParsedCommand;
+
 // Server/global commands
 public record DeleteCommand : ParsedCommand;
 

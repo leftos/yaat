@@ -231,4 +231,19 @@ public enum CanonicalCommandType
 
     // Turn rate
     SetTurnRate,
+
+    // ASDE-X display state (CRC-equivalent mutations issued from the YAAT terminal)
+    AsdexScratchpad1,
+    AsdexScratchpad2,
+    AsdexCallsign,
+    AsdexBeaconCode,
+    AsdexCategory,
+    AsdexAircraftType,
+    AsdexFix,
+    AsdexTagTarget,
+    AsdexTerminate,
+    AsdexSuspend,
+    AsdexUnsuspend,
+    AsdexInhibitAlerts,
+    AsdexEnableAllAlerts,
 }

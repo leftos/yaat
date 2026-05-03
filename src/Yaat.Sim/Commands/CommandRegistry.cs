@@ -1109,6 +1109,68 @@ public static class CommandRegistry
                 [O(null, [R("altitude", "altitude in hundreds")], "Set cruise altitude")]
             ),
             Bare(OnHandoff, "On Handoff", "Track Operations", false, ["ONHO", "ONH"]),
+            Cmd(
+                AsdexScratchpad1,
+                "ASDE-X Scratchpad 1",
+                "ASDE-X",
+                false,
+                ["ASDXSP1"],
+                [O(null, [], "Clear ASDE-X scratchpad 1"), O(null, [R("text", "display text")], "Set ASDE-X scratchpad 1")]
+            ),
+            Cmd(
+                AsdexScratchpad2,
+                "ASDE-X Scratchpad 2",
+                "ASDE-X",
+                false,
+                ["ASDXSP2"],
+                [O(null, [], "Clear ASDE-X scratchpad 2"), O(null, [R("text", "display text")], "Set ASDE-X scratchpad 2")]
+            ),
+            Cmd(
+                AsdexCallsign,
+                "ASDE-X Callsign Override",
+                "ASDE-X",
+                false,
+                ["ASDXCS"],
+                [O(null, [], "Clear ASDE-X callsign override"), O(null, [R("text", "display callsign")], "Override ASDE-X callsign")]
+            ),
+            Cmd(
+                AsdexBeaconCode,
+                "ASDE-X Beacon Code Override",
+                "ASDE-X",
+                false,
+                ["ASDXBCN"],
+                [O(null, [], "Clear ASDE-X beacon override"), O(null, [R("code", "beacon code")], "Override ASDE-X beacon code")]
+            ),
+            Cmd(
+                AsdexCategory,
+                "ASDE-X Category Override",
+                "ASDE-X",
+                false,
+                ["ASDXCAT"],
+                [O(null, [], "Clear ASDE-X category override"), O(null, [R("cat", "wake category")], "Override ASDE-X category")]
+            ),
+            Cmd(
+                AsdexAircraftType,
+                "ASDE-X Aircraft Type Override",
+                "ASDE-X",
+                false,
+                ["ASDXTYPE"],
+                [O(null, [], "Clear ASDE-X type override"), O(null, [R("type", "aircraft type")], "Override ASDE-X aircraft type")]
+            ),
+            Cmd(
+                AsdexFix,
+                "ASDE-X Fix Override",
+                "ASDE-X",
+                false,
+                ["ASDXFIX"],
+                [O(null, [], "Clear ASDE-X fix override"), O(null, [R("fix", "fix identifier")], "Override ASDE-X fix")]
+            ),
+            Bare(AsdexTagTarget, "ASDE-X Tag Target (untermination)", "ASDE-X", false, ["ASDXTAG"]),
+            Bare(AsdexTerminate, "ASDE-X Terminate Track", "ASDE-X", false, ["ASDXTERM"]),
+            Bare(AsdexSuspend, "ASDE-X Suspend Track", "ASDE-X", false, ["ASDXSUSP"]),
+            Bare(AsdexUnsuspend, "ASDE-X Unsuspend Track", "ASDE-X", false, ["ASDXUSUS"]),
+            Bare(AsdexInhibitAlerts, "ASDE-X Inhibit Alerts", "ASDE-X", false, ["ASDXINHIB"]),
+            Bare(AsdexEnableAllAlerts, "ASDE-X Enable All Alerts", "ASDE-X", true, ["ASDXALERTS"]),
         ];
 
     private static CommandDefinition[] CoordinationCommands() =>

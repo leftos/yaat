@@ -14,6 +14,11 @@
 - Runway flyout lists every runway end at the relevant airport (departure if on ground, destination if airborne) sorted numerically; dispatches `RWY <designator>`.
 - Scratchpad and handoff fields open text-entry popups with focused TextBox (Enter submits, Esc cancels) plus EuroScope-convention preset chips and an "Accept handoff" action when applicable.
 - Squawk field opens a quick-action menu (VFR / Standby / Normal / Ident / Random Squawk).
+- ASDE-X data block fields from CRC (`Y`/`H` scratchpads, callsign, beacon, category, type, fix) edit only the ASDE-X display, not STARS or scenario state.
+- `ASDX*` commands let the RPO terminal and scenarios drive ASDE-X display state — scratchpads, suspend/terminate, alert inhibit, DB-field overrides.
+
+### Fixed
+- ASDE-X suspend/terminate/inhibit-alerts/tag commands from CRC now take effect on the display.
 
 ## v0.1.11-alpha [2026/05/03]
 

@@ -184,6 +184,27 @@ public static class CommandDescriber
             BlankDeleteCommand => CanonicalCommandType.BlankDelete,
             Scratchpad1Command => CanonicalCommandType.Scratchpad1,
             Scratchpad2Command => CanonicalCommandType.Scratchpad2,
+            AsdexEditCommand asdexEdit => asdexEdit.Field switch
+            {
+                AsdexEditField.Scratchpad1 => CanonicalCommandType.AsdexScratchpad1,
+                AsdexEditField.Scratchpad2 => CanonicalCommandType.AsdexScratchpad2,
+                AsdexEditField.Callsign => CanonicalCommandType.AsdexCallsign,
+                AsdexEditField.BeaconCode => CanonicalCommandType.AsdexBeaconCode,
+                AsdexEditField.Category => CanonicalCommandType.AsdexCategory,
+                AsdexEditField.AircraftType => CanonicalCommandType.AsdexAircraftType,
+                AsdexEditField.Fix => CanonicalCommandType.AsdexFix,
+                _ => throw new InvalidOperationException($"Unhandled AsdexEditField: {asdexEdit.Field}"),
+            },
+            AsdexVerbCommand asdexVerb => asdexVerb.Verb switch
+            {
+                AsdexVerb.Tag => CanonicalCommandType.AsdexTagTarget,
+                AsdexVerb.Terminate => CanonicalCommandType.AsdexTerminate,
+                AsdexVerb.Suspend => CanonicalCommandType.AsdexSuspend,
+                AsdexVerb.Unsuspend => CanonicalCommandType.AsdexUnsuspend,
+                AsdexVerb.InhibitAlerts => CanonicalCommandType.AsdexInhibitAlerts,
+                _ => throw new InvalidOperationException($"Unhandled AsdexVerb: {asdexVerb.Verb}"),
+            },
+            AsdexEnableAllAlertsCommand => CanonicalCommandType.AsdexEnableAllAlerts,
             TemporaryAltitudeCommand => CanonicalCommandType.TemporaryAltitude,
             CruiseCommand => CanonicalCommandType.Cruise,
             OnHandoffCommand => CanonicalCommandType.OnHandoff,

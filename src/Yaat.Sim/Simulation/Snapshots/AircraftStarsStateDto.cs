@@ -9,6 +9,14 @@ public sealed class AircraftStarsStateDto
     public string? PreviousScratchpad2 { get; init; }
     public string? AsdexScratchpad1 { get; init; }
     public string? AsdexScratchpad2 { get; init; }
+    public string? AsdexCallsignOverride { get; init; }
+    public string? AsdexBeaconCodeOverride { get; init; }
+    public string? AsdexCategoryOverride { get; init; }
+    public string? AsdexAircraftTypeOverride { get; init; }
+    public string? AsdexFixOverride { get; init; }
+    public required bool AsdexSuspended { get; init; }
+    public required bool AsdexTerminated { get; init; }
+    public required bool AsdexAlertsInhibited { get; init; }
     public int? TemporaryAltitude { get; init; }
     public int? PilotReportedAltitude { get; init; }
     public required bool IsAnnotated { get; init; }

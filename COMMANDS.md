@@ -393,6 +393,26 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Pilot reported altitude | `PRA 250` / `PRA 0` (clear) | — | — |
 | On-handoff | `ONHO` | `ONH` | — |
 
+### ASDE-X Display State
+
+These mutate ASDE-X display state only; they never change the underlying scenario callsign, transponder code, aircraft type, or filed destination. CRC's ASDE-X DB editor (`Y`/`H` keys, F3/F4/F5/F12) sends the same mutations from the controller side.
+
+| Command | Primary | Aliases | Notes |
+|---------|---------|---------|-------|
+| ASDE-X Scratchpad 1 | `ASDXSP1 OUT` / `ASDXSP1` (clear) | — | Independent of STARS `SP1`. |
+| ASDE-X Scratchpad 2 | `ASDXSP2 R` / `ASDXSP2` (clear) | — | Independent of STARS `SP2`. |
+| ASDE-X Callsign override | `ASDXCS UAL238` / `ASDXCS` (clear) | — | Display only; sim callsign unchanged. |
+| ASDE-X Beacon override | `ASDXBCN 4321` / `ASDXBCN` (clear) | — | Empty clears beacon on display; unparseable falls back to sim transponder. |
+| ASDE-X Category override | `ASDXCAT B` / `ASDXCAT` (clear) | — | Wake category. Falls back to derived CWT when cleared. |
+| ASDE-X Aircraft type override | `ASDXTYPE B738` / `ASDXTYPE` (clear) | — | Display only. |
+| ASDE-X Fix override | `ASDXFIX SEGUL` / `ASDXFIX` (clear) | — | Display only; falls back to AsdexConfig fix rules when cleared. |
+| Tag (untermination) | `ASDXTAG` | — | Clears terminated bit so the per-tick reconciliation re-emits. |
+| Terminate | `ASDXTERM` | — | Hides track on ASDE-X; emits one-shot delete to clients. |
+| Suspend | `ASDXSUSP` | — | Sets `Status=Suspended` on ASDE-X track DTO. |
+| Unsuspend | `ASDXUSUS` | — | Restores `Status=Associated`. |
+| Inhibit alerts | `ASDXINHIB` | — | Suppresses safety-logic alerts for this aircraft on ASDE-X. |
+| Enable all alerts (global) | `ASDXALERTS` | — | Clears alert inhibits across all aircraft in the room. |
+
 ### Flight Plan
 
 | Command | Primary | Aliases | Notes |
