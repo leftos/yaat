@@ -1,0 +1,22 @@
+{
+  "airportId": "KOAK",
+  "routes": [
+    {
+      "name": "DEP 30 via W",
+      "path": "W",
+      "destinationRunway": "30",
+      "tags": ["dep", "30"]
+    },
+    {
+      "name": "DEP 28L via K-W",
+      "path": "K W",
+      "destinationRunway": "28L",
+      "tags": ["dep", "28L"]
+    },
+    {
+      "name": "Bogus route (taxiway does not exist)",
+      "path": "ZZZ",
+      "tags": ["test"]
+    }
+  ]
+}

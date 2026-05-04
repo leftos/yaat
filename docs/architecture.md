@@ -460,6 +460,9 @@ Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways
                                # Access via NavigationDatabase.Instance (initialized at startup, SetInstance for tests).
 Data/RouteExpander.cs          # Static: expands route strings (SID/STAR/airway/fix tokens) into ordered fix lists
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading
+Data/TaxiRouteDefinition.cs / TaxiRouteLoader.cs / TaxiRouteCatalog.cs  # Per-airport preset taxi routes loaded from Data/TaxiRoutes/{ARTCC}/*.json
+                               # Validation against airport graph is lazy at menu-build time via TaxiPathfinder.ResolveExplicitPath.
+                               # Right-click "Preset taxi route" submenu in GroundView surfaces applicable routes per aircraft.
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model

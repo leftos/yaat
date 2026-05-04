@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Right-click an aircraft on the ground → **Preset taxi route** submenu issues per-airport SOP taxi commands in one click; ships with FLL's `T-T3-B → 10R` and OAK starters.
 - Datablock now shows a struck-through `ModeC` line when an aircraft is squawking standby — radar full datablock, EuroScope tag, and ground datablock — to flag aircraft whose transponder isn't replying to Mode C interrogations.
 - Right-click the command input → **Save as favorite…** to capture the current command text without re-typing; the existing add dialog opens with the command pre-filled.
 - Speed flyout (EuroScope tag click + right-click menu) gains a "FAS - N kt" entry at the bottom (where N is the aircraft-specific final approach speed); selection dispatches `RFAS`.

@@ -7,6 +7,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Ground;
@@ -442,6 +443,12 @@ public partial class GroundView : UserControl
         )
         {
             menu.Items.Add(new Separator());
+            var presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, callsign, initials);
+            if (presetSubmenu is not null)
+            {
+                menu.Items.Add(presetSubmenu);
+            }
+
             menu.Items.Add(
                 CreateMenuItem(
                     "Draw taxi route...",
@@ -485,6 +492,70 @@ public partial class GroundView : UserControl
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
         ShowContextMenu(menu);
+    }
+
+    /// <summary>
+    /// Builds the "Preset taxi route" submenu — one click per route from the loaded
+    /// per-ARTCC catalog. Routes are filtered against the aircraft's current ground node:
+    /// any route whose path can't be walked from here is silently dropped. Returns null
+    /// when no routes are applicable so the caller can omit the empty submenu.
+    /// </summary>
+    private static MenuItem? BuildPresetTaxiSubmenu(GroundViewModel vm, AircraftModel? ac, string callsign, string initials)
+    {
+        if (ac is null)
+        {
+            return null;
+        }
+
+        var layout = vm.DomainLayout;
+        if (layout is null)
+        {
+            return null;
+        }
+
+        TaxiRouteCatalog catalog;
+        try
+        {
+            catalog = NavigationDatabase.Instance.TaxiRoutes;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+
+        var routes = catalog.GetRoutesForAirport(layout.AirportId);
+        if (routes.Count == 0)
+        {
+            return null;
+        }
+
+        int? fromNodeId = vm.GetAircraftNearestNodeId(ac);
+        if (fromNodeId is null)
+        {
+            return null;
+        }
+
+        var submenu = new MenuItem { Header = "Preset taxi route" };
+
+        foreach (var route in routes)
+        {
+            var resolved = TaxiPathfinder.ResolveExplicitPath(
+                layout,
+                fromNodeId.Value,
+                route.GetPathTokens(),
+                out _,
+                new ExplicitPathOptions { DestinationRunway = route.DestinationRunway, AirportId = layout.AirportId }
+            );
+            if (resolved is null)
+            {
+                continue;
+            }
+
+            string command = route.ToCanonicalCommand();
+            submenu.Items.Add(CreateMenuItem(route.Name, () => vm.SendRawCommandAsync(callsign, initials, command)));
+        }
+
+        return submenu.Items.Count > 0 ? submenu : null;
     }
 
     private void OnEmptySpaceClicked()

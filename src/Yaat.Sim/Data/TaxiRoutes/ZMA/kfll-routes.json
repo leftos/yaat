@@ -1,0 +1,11 @@
+{
+  "airportId": "KFLL",
+  "routes": [
+    {
+      "name": "DEP 10R via T-T3-B",
+      "path": "T T3 B",
+      "destinationRunway": "10R",
+      "tags": ["dep", "10R"]
+    }
+  ]
+}

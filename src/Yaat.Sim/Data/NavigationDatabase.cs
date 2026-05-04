@@ -91,7 +91,13 @@ public sealed class NavigationDatabase
         public void Dispose() => _scopedInstance.Value = null;
     }
 
-    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null, string? fixPronunciationsBaseDir = null)
+    public NavigationDatabase(
+        NavDataSet navData,
+        string cifpFilePath,
+        string? customFixesBaseDir = null,
+        string? fixPronunciationsBaseDir = null,
+        string? taxiRoutesBaseDir = null
+    )
     {
         _cifpFilePath = cifpFilePath;
         BuildIndex(navData);
@@ -99,6 +105,7 @@ public sealed class NavigationDatabase
         LoadCifpNavaids(cifpFilePath);
         LoadCustomFixes(customFixesBaseDir);
         LoadFixPronunciations(fixPronunciationsBaseDir);
+        TaxiRoutes = LoadTaxiRoutes(taxiRoutesBaseDir);
         AllFixNames = BuildSortedNames();
     }
 
@@ -108,8 +115,16 @@ public sealed class NavigationDatabase
     private NavigationDatabase()
     {
         _cifpFilePath = "";
+        TaxiRoutes = TaxiRouteCatalog.Empty;
         AllFixNames = [];
     }
+
+    /// <summary>
+    /// Per-ARTCC custom taxi route presets, indexed by airport ICAO. Loaded from
+    /// <c>Data/TaxiRoutes/{ARTCC}/*.json</c> at construction; consumed by the client's
+    /// aircraft right-click menu to surface SOP-aligned taxi routes per airport.
+    /// </summary>
+    public TaxiRouteCatalog TaxiRoutes { get; }
 
     /// <summary>
     /// Creates a NavigationDatabase pre-populated with test data. Intended only for unit tests.
@@ -1332,6 +1347,22 @@ public sealed class NavigationDatabase
             _fixPronunciations.Count,
             loadResult.Definitions.Count
         );
+    }
+
+    private static TaxiRouteCatalog LoadTaxiRoutes(string? baseDir)
+    {
+        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "TaxiRoutes");
+
+        var loadResult = TaxiRouteLoader.LoadAll(baseDir);
+
+        foreach (var warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Taxi route: {Warning}", warning);
+        }
+
+        Log.LogInformation("Taxi routes: {Count} loaded from {BaseDir}", loadResult.Routes.Count, baseDir);
+
+        return new TaxiRouteCatalog(loadResult.Routes);
     }
 
     private string[] BuildSortedNames()

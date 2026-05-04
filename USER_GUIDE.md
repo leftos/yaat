@@ -262,6 +262,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
   - *Holding Short*: "Resume taxi", "Cross {rwy}", "Line up and wait", "Cleared for takeoff", plus nearby runway crossings
   - *Holding After Exit*: "Resume taxi"
   - *Lined Up*: "Cleared for takeoff", "Cancel takeoff clearance"
+  - *On the ground (most phases)*: "Preset taxi route" submenu listing per-airport SOP routes when applicable, "Draw taxi route..."
   - *Takeoff*: "Cancel takeoff clearance"
   - *Final Approach*: "Cleared to land", "Touch and go", "Stop and go", "Low approach", "Cleared for the option", "Go around", "Cancel landing clearance"
   - *Landing*: "Exit left", "Exit right"
@@ -269,6 +270,24 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 - **On empty space**: left-click to deselect the current aircraft
 
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route..." to enter draw mode. Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. Hover shows a dashed preview. Right-click to finish. Backspace undoes the last waypoint, Escape cancels.
+
+**Preset taxi routes:** Right-click an aircraft on the ground and select "Preset taxi route" to issue an SOP-aligned taxi command in one click. Routes are loaded from per-airport JSON files bundled with YAAT under `Data/TaxiRoutes/{ARTCC}/{airport}-routes.json` — for example, FLL's "DEP 10R via T-T3-B" lives at `Data/TaxiRoutes/ZMA/kfll-routes.json`. Each route has a display name, a whitespace-separated path of taxiway names (whatever you'd type after `TAXI` in the command bar), and an optional destination (runway hold-short, parking, or spot):
+
+```jsonc
+{
+  "airportId": "KFLL",
+  "routes": [
+    {
+      "name": "DEP 10R via T-T3-B",
+      "path": "T T3 B",
+      "destinationRunway": "10R",
+      "tags": ["dep", "10R"]
+    }
+  ]
+}
+```
+
+Selecting a preset is identical to typing the equivalent `TAXI` command (`TAXI T T3 B RWY 10R` in the example above). Routes that aren't reachable from the aircraft's current position are silently dropped from the menu — for example, an OAK departure route won't appear when right-clicking an aircraft at SFO. Restart YAAT to pick up edits to the route JSONs.
 
 **Debug overlay:** Press **Ctrl+D** to toggle node IDs, names, types, and edge labels on the ground map. Useful for finding node IDs for manual `#nodeId` taxi commands.
 

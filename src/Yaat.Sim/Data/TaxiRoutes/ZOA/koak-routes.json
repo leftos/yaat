@@ -1,0 +1,16 @@
+{
+  "airportId": "KOAK",
+  "routes": [
+    {
+      "name": "TERMINAL to 30",
+      "path": "T U W",
+      "destinationRunway": "30",
+      "tags": ["dep", "30"]
+    },
+    {
+      "name": "30 to TERMINAL",
+      "path": "W V T",
+      "tags": ["arr", "30"]
+    }
+  ]
+}
