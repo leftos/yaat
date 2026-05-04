@@ -1738,6 +1738,11 @@ public partial class MainViewModel : ObservableObject
         var token = parts[0];
         var remainder = parts[1].Trim();
 
+        if (!Callsign.IsValid(token))
+        {
+            return null;
+        }
+
         // Only consider this a callsign if the remainder parses as a valid command
         var remainderParsed = CommandSchemeParser.ParseCompound(remainder, scheme);
         if (remainderParsed is null)
@@ -1768,6 +1773,11 @@ public partial class MainViewModel : ObservableObject
 
         // Use the first token as a callsign candidate
         var token = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+        if (!Callsign.IsValid(token))
+        {
+            StatusText = $"\"{token}\" is not a valid callsign";
+            return;
+        }
         var match = ResolveAircraft(token);
         if (match is not null)
         {

@@ -14,6 +14,7 @@
 - CRC STARS shows aircraft inbound from high-elevation departure airports (e.g. KBLU at 5,284 ft).
 - `ADD` spawning an IFR aircraft on final auto-fills the flight-plan destination with the scenario's primary airport.
 - `RES` releases any taxi hold-short, including auto-added runway crossings — destination runway holds still require `CTO` or `LUAW`.
+- STARS `DA`/`FP` reject callsigns with invalid characters or longer than 7 chars — `*T <fix>` and similar typos no longer create stray flight plans.
 
 ## v0.1.12-alpha [2026/05/03]
 

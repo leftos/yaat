@@ -1044,6 +1044,12 @@ public sealed class SimulationEngine
 
     public void AmendFlightPlan(string callsign, FlightPlanAmendment amendment)
     {
+        if (!Callsign.IsValid(callsign))
+        {
+            _logger.LogWarning("AmendFlightPlan rejected invalid callsign '{Callsign}'", callsign);
+            return;
+        }
+
         var ac = FindAircraft(callsign);
         if (ac is null)
         {
