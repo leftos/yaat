@@ -29,6 +29,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///     tests/Yaat.Sim.Tests/TestData/sfo.geojson \
 ///     --ticks .tmp/skw3078-after.json --html .tmp/skw3078-after.html
 /// </summary>
+[Collection("NavDbMutator")]
 public class Skw3078FixComparisonCapture(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/sfo-s1-ground-control-28-01-recording.yaat-bug-report-bundle.zip";
