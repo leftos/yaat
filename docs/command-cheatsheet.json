@@ -186,11 +186,13 @@
       "id": "helicopter",
       "name": "Helicopter",
       "rows": [
-        { "verb": "ATXI", "aliases": [], "description": "Air taxi [helipad]" },
+        { "verb": "ATXI", "aliases": [], "description": "Air taxi [helipad/spot/runway]" },
         { "verb": "LAND", "aliases": [], "description": "Land at helipad (NODEL)" },
-        { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position [heading|OC|DCT fix] [altitude]" }
+        { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position [heading|OC|DCT fix] [altitude]" },
+        { "verb": "HPP", "aliases": [], "description": "Hover present position (no orbit)" },
+        { "verb": "HFIX", "aliases": [], "description": "Hover at fix (no orbit)" }
       ],
-      "notes": []
+      "notes": ["ATXI dest: bare or `@helipad`, bare or `$spot`, runway threshold"]
     },
     {
       "id": "track",

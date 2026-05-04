@@ -522,11 +522,15 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 | `CTOPP LT270 050` / `CTOPP RT090` | CTOPP with explicit turn direction to heading after liftoff |
 | `CTOPP OC [alt]` | CTOPP, fly direct to flight-plan destination after liftoff |
 | `CTOPP DCT FIX [alt]` / `CTOPP TLDCT FIX` / `CTOPP TRDCT FIX` | CTOPP, proceed direct to fix after liftoff (optionally turning left/right) |
-| `ATXI H1` | Air taxi to spot H1 — airborne below 100ft AGL, ~40 KIAS |
+| `ATXI H1` / `ATXI @H1` | Air-taxi to helipad/parking spot H1 — airborne at 100 ft AGL, ~40 KIAS, descends and lands at the spot. `@` prefix optional. |
+| `ATXI $M1` / `ATXI M1` | Air-taxi to taxiway spot M1. `$` prefix optional. |
+| `ATXI 28L` | Air-taxi to the threshold of runway 28L. |
 | `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
 | `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
 
 Helicopters can also use all standard tower commands (`CTO`, `CLAND`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
+
+For hovering in place or at a fix, use `HPP` and `HFIX <fix>` (see [Hold Commands](#hold-commands) below — both are no-orbit variants intended for helicopters).
 
 **Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `@` prefix for helipad/parking spawn: `ADD V S P @H1 H60`.
 

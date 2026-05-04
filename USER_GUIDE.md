@@ -646,10 +646,27 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `TAXI S T U` | Taxi via taxiways S, T, U |
 | `CLAND` | Cleared to land |
 | `CAPP ILS28R` | Cleared ILS Runway 28R approach |
+| `ATXI @H1` | Helicopter air-taxi to helipad H1 |
 
 Commands support chaining (`;` sequential, `,` parallel), conditional triggers (`LV` at altitude, `AT` at fix), and aliases from both ATCTrainer and VICE.
 
 **See the [Command Reference](COMMANDS.md) for the complete list of every command, alias, syntax detail, and example.**
+
+### Helicopter operations
+
+Helicopters are detected automatically from the ICAO type designator (`H60`, `EC35`, `R44`, etc.) and get a dedicated set of commands for vertical takeoff, hover, and air-taxi:
+
+| Command | Effect |
+|---------|--------|
+| `ATXI @H1` | Air-taxi to helipad/parking spot H1 — single command lifts off, cruises at 100 ft AGL / 40 KIAS, lands |
+| `LAND H1` | Land at named spot H1 (helipad, parking, ramp) without the cruise leg |
+| `CTOPP` | Cleared for takeoff, present position — vertical liftoff from current spot |
+| `HPP` | Hover in place (no orbit, no movement) |
+| `HFIX SUNOL` | Navigate to fix SUNOL and hover (no orbit) |
+
+`ATXI` accepts every destination form: bare or `@`-prefixed parking/helipad IDs, bare or `$`-prefixed taxiway spots, and runway designators (targets the named threshold). Helicopters can also use the standard tower commands (`CTO`, `CLAND`, `LUAW`, etc.) when assigned to a runway — typical for IFR ops.
+
+**See [Helicopter Commands in COMMANDS.md](COMMANDS.md#helicopter-commands)** for all departure modifiers, spawning helicopter aircraft, and the full command list.
 
 ---
 
@@ -843,6 +860,16 @@ Macros let you define reusable command shortcuts. A macro maps a `!NAME` to a co
 
 Open **Settings > Macros** to create, edit, and manage macros. Each macro has a **Name** (e.g., `BAYTOUR`, `HC`) and an **Expansion** (the commands to expand to).
 
+**Worked example — a one-key OAK terminal taxi route:**
+
+1. Open **Tools > Settings > Macros**.
+2. Click **Add Macro**. A new row appears.
+3. Set **Name** to `OAK30TRM` and **Expansion** to `TAXI W V T`.
+4. Close the Settings window.
+5. Select an aircraft on the OAK ramp, then type `!OAK30TRM` and press Enter — the aircraft is cleared to taxi via W, V, T.
+
+Macros are well suited to multi-step procedures that you want to invoke as a single token. Use favorites (below) for one-click presets that don't require typing.
+
 #### Parameters
 
 | Style | Expansion | Invocation | Result |
@@ -875,8 +902,11 @@ The favorites bar sits below the command input and provides quick-access buttons
 - **Ctrl+Click** a favorite to append its command text without sending (joined with `,`).
 - **Right-click** a favorite to edit its label, command text, or delete it.
 - Click **+** to add a new favorite.
+- **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.
 
 Each favorite has a **label** (displayed on the button) and **command text** (the command to execute). Favorites can be **scenario-specific** — check "Scenario-specific" when adding/editing to make it visible only when that scenario is loaded.
+
+**Scenario-specific favorites** are useful for airport- or position-specific presets that don't apply elsewhere. For example, while running a FLL departure scenario you can save `T T3 B` as a favorite labeled "T3 B" with **Scenario-specific** ticked — that button only appears when the FLL scenario is loaded, keeping the bar uncluttered for other scenarios. Unscoped favorites (the default) appear in every scenario.
 
 ### Command History
 
