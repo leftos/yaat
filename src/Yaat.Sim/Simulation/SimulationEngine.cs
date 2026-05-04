@@ -1045,7 +1045,9 @@ public sealed class SimulationEngine
 
         if (amendment.AircraftType is not null)
         {
-            ac.AircraftType = amendment.AircraftType;
+            // Filed FP type only — never the actual physical type. Tower Cab (out-the-window)
+            // keeps reading AircraftState.AircraftType, which is fixed at spawn.
+            ac.FlightPlan.AircraftType = amendment.AircraftType;
         }
         if (amendment.EquipmentSuffix is not null)
         {

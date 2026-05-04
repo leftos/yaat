@@ -165,7 +165,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
         };
 
         return (state, null);
@@ -219,7 +219,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
         };
 
         return (state, null);
@@ -268,7 +268,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
             Phases = init.Phases,
         };
 
@@ -321,7 +321,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
             Phases = init.Phases,
         };
 
@@ -373,7 +373,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules },
+            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
             Phases = init.Phases,
         };
 

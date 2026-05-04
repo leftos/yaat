@@ -457,6 +457,7 @@ public partial class MainViewModel : ObservableObject
 
         return Contains(ac.Callsign, filter)
             || Contains(ac.AircraftType, filter)
+            || Contains(ac.FiledAircraftType, filter)
             || ac.BeaconCode.ToString("D4").Contains(filter, StringComparison.OrdinalIgnoreCase)
             || Contains(ac.Departure, filter)
             || Contains(ac.Destination, filter)

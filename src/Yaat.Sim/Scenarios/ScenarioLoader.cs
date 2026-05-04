@@ -97,10 +97,15 @@ public static class ScenarioLoader
         };
     }
 
-    private static AircraftState CreateBaseState(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach)
+    internal static AircraftState CreateBaseState(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach)
     {
-        var fpType = ac.FlightPlan?.AircraftType;
-        var equipType = !string.IsNullOrEmpty(fpType) ? fpType : ac.AircraftType;
+        // Top-level wins for the actual physical type. Filed FP type is opt-in: only set when
+        // the scenario explicitly populates FlightPlan.aircraftType. EquipmentSuffix derives
+        // from the filed string when present, else from the actual type so legacy scenarios
+        // without a filed type still surface a sensible suffix on strips.
+        var actualType = ac.AircraftType;
+        var filedType = ac.FlightPlan?.AircraftType ?? "";
+        var suffixSource = !string.IsNullOrEmpty(filedType) ? filedType : actualType;
 
         // primaryApproach is only intended for the scenario's primary airport.
         // Aircraft destined elsewhere must not inherit it — even if the same approach ID
@@ -122,19 +127,20 @@ public static class ScenarioLoader
         return new AircraftState
         {
             Callsign = ac.AircraftId,
-            AircraftType = equipType,
+            AircraftType = actualType,
             AirportId = ac.AirportId ?? primaryAirportId ?? "",
             Transponder = new AircraftTransponder { Mode = ac.TransponderMode },
             FlightPlan = new AircraftFlightPlan
             {
                 FlightRules = InferFlightRules(ac.FlightPlan),
+                AircraftType = filedType,
                 CruiseAltitude = ac.FlightPlan?.CruiseAltitude ?? 0,
                 CruiseSpeed = ac.FlightPlan?.CruiseSpeed ?? 0,
                 Departure = ac.FlightPlan?.Departure ?? "",
                 Destination = ac.FlightPlan?.Destination ?? "",
                 Route = ac.FlightPlan?.Route ?? "",
                 Remarks = ac.FlightPlan?.Remarks ?? "",
-                EquipmentSuffix = ExtractSuffix(equipType),
+                EquipmentSuffix = ExtractSuffix(suffixSource),
                 HasFlightPlan = ac.FlightPlan is not null,
             },
             Approach = new AircraftApproachState { Expected = effectiveApproach },

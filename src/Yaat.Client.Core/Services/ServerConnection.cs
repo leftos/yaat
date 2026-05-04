@@ -626,7 +626,8 @@ public record AircraftDto(
     List<double[]>? PositionHistory = null,
     string? PatternEntryKind = null,
     string? FollowingCallsign = null,
-    string? ExitingRunwayId = null
+    string? ExitingRunwayId = null,
+    string FiledAircraftType = ""
 );
 
 public record LoadScenarioResultDto(

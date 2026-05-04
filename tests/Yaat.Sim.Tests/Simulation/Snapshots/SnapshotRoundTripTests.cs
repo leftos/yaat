@@ -191,6 +191,7 @@ public class SnapshotRoundTripTests
                     FlightPlan = new AircraftFlightPlanDto
                     {
                         HasFlightPlan = true,
+                        AircraftType = "B738/L",
                         Departure = "KOAK",
                         Destination = "KLAX",
                         Route = "",

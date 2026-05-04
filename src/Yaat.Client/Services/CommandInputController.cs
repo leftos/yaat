@@ -855,7 +855,7 @@ public partial class CommandInputController : ObservableObject
                 continue;
             }
 
-            var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
+            var desc = $"{ac.FiledAircraftType} {ac.Departure}-{ac.Destination}".Trim();
             var (insertText, caret) = BuildTokenReplacement(text, activeTokenStart, activeTokenEnd, ac.Callsign);
             Suggestions.Add(
                 new SuggestionItem

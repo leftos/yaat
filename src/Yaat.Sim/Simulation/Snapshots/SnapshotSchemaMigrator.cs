@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -55,6 +55,20 @@ public static class SnapshotSchemaMigrator
         // V2→V3: Added AircraftFlightPlanDto.CreatedByOwner. No data transformation —
         //   legacy snapshots default to null, which makes ProcessFlightPlanCreatorAutoTrack
         //   a no-op for those aircraft (preserving prior replay behavior).
+        // V3→V4: Split actual vs filed aircraft type — added AircraftFlightPlanDto.AircraftType.
+        //   Legacy snapshots default the new field to "". Seed it from the parent aircraft's
+        //   AircraftType so STARS/ASDE-X/FP-Editor still display a type when replaying old
+        //   recordings (where filed and actual were always the same single field).
+        if (snapshot.SchemaVersion < 4)
+        {
+            foreach (var ac in snapshot.Aircraft)
+            {
+                if (string.IsNullOrEmpty(ac.FlightPlan.AircraftType))
+                {
+                    ac.FlightPlan.AircraftType = ac.AircraftType;
+                }
+            }
+        }
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

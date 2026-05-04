@@ -328,7 +328,7 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
+            var desc = $"{ac.FiledAircraftType} {ac.Departure}-{ac.Destination}".Trim();
             var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, ac.Callsign);
             suggestions.Add(
                 new SuggestionItem

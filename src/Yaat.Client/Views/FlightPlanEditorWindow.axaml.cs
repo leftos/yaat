@@ -56,7 +56,7 @@ public partial class FlightPlanEditorWindow : Window
         Title = $"{aircraft.Callsign} - Flight Plan";
 
         _origBcn = aircraft.BeaconCode.ToString("D4");
-        _origTyp = aircraft.AircraftType;
+        _origTyp = aircraft.FiledAircraftType;
         _origEq = aircraft.EquipmentSuffix;
         _origDep = aircraft.Departure;
         _origDest = aircraft.Destination;

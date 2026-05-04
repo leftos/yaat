@@ -243,7 +243,7 @@ public sealed class TargetRenderer : IDisposable
             bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
             string line1 = isVfr ? $"{ac.Callsign}*" : ac.Callsign;
             var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-            var cwtType = FormatCwtType(cwt, ac.AircraftType);
+            var cwtType = FormatCwtType(cwt, ac.FiledAircraftType);
             string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
 
             float w1 = _dataBlockPaint.MeasureText(line1);

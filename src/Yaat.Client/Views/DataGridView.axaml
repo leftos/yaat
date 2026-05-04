@@ -133,7 +133,7 @@
             <DataGridTextColumn Header="Rwy" Binding="{Binding AssignedRunway}" Width="Auto" />
             <DataGridTextColumn Header="Apch" Binding="{Binding ActiveApproachId}" Width="Auto" />
             <DataGridTextColumn Header="EApch" Binding="{Binding ExpectedApproachDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="Auto" />
+            <DataGridTextColumn Header="Type" Binding="{Binding FiledAircraftType}" Width="Auto" />
             <DataGridTextColumn Header="Rules" Binding="{Binding FlightRules}" Width="Auto" />
             <DataGridTextColumn Header="Dep" Binding="{Binding Departure}" Width="Auto" />
             <DataGridTextColumn Header="Dest" Binding="{Binding Destination}" Width="Auto" />

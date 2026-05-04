@@ -17,9 +17,25 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string _callsign = "";
 
+    /// <summary>
+    /// Actual aircraft type — what's physically flying. Read by Tower Cab (out-the-window
+    /// datablock) and physics/performance lookups. Fixed at spawn and never changed by FP
+    /// amendments. Other surfaces (STARS, ASDE-X, EuroScope tag, FP Editor, flight strips,
+    /// data grid) read <see cref="FiledAircraftType"/> instead.
+    /// </summary>
+    [ObservableProperty]
+    private string _aircraftType = "";
+
+    /// <summary>
+    /// Filed aircraft type — what the flight plan currently records. Read by STARS, ASDE-X,
+    /// the EuroScope tag, the Flight Plan Editor, flight strips, and the data grid. Mutated
+    /// by FP amendments and may be empty when an instructor blanks the field. Tower Cab is
+    /// driven by <see cref="AircraftType"/> instead so blanking the FP type does not blank
+    /// the tower's "out the window" view.
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
-    private string _aircraftType = "";
+    private string _filedAircraftType = "";
 
     [ObservableProperty]
     private LatLon _position;
@@ -329,9 +345,9 @@ public partial class AircraftModel : ObservableObject
         {
             var parts = new List<string>(4);
 
-            if (!string.IsNullOrEmpty(FlightRules) || !string.IsNullOrEmpty(AircraftType))
+            if (!string.IsNullOrEmpty(FlightRules) || !string.IsNullOrEmpty(FiledAircraftType))
             {
-                parts.Add($"{FlightRules} {AircraftType}".Trim());
+                parts.Add($"{FlightRules} {FiledAircraftType}".Trim());
             }
 
             if (!string.IsNullOrEmpty(Departure) || !string.IsNullOrEmpty(Destination))
@@ -549,6 +565,7 @@ public partial class AircraftModel : ObservableObject
         {
             Callsign = dto.Callsign,
             AircraftType = dto.AircraftType,
+            FiledAircraftType = dto.FiledAircraftType,
             Position = new LatLon(dto.Latitude, dto.Longitude),
             Heading = dto.Heading,
             Altitude = dto.Altitude,
@@ -614,6 +631,7 @@ public partial class AircraftModel : ObservableObject
 
     public void UpdateFromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
+        FiledAircraftType = dto.FiledAircraftType;
         Position = new LatLon(dto.Latitude, dto.Longitude);
         Heading = dto.Heading;
         Altitude = dto.Altitude;

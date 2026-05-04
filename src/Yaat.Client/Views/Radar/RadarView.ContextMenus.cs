@@ -69,7 +69,7 @@ public partial class RadarView
         var initials = GetInitials();
         var menu = new ContextMenu();
 
-        var typeText = ac is not null ? $"{callsign} - {ac.AircraftType}" : callsign;
+        var typeText = ac is not null ? $"{callsign} - {ac.FiledAircraftType}" : callsign;
         menu.Items.Add(
             new MenuItem
             {

@@ -10,6 +10,23 @@ namespace Yaat.Sim;
 public class AircraftFlightPlan
 {
     public bool HasFlightPlan { get; set; }
+
+    /// <summary>
+    /// Filed aircraft type — the type as recorded in the flight plan, displayed by STARS,
+    /// ASDE-X, the EuroScope tag, the Flight Plan Editor, and flight strips. Distinct from
+    /// <see cref="AircraftState.AircraftType"/>, which is the actual physical type that drives
+    /// physics/performance and the Tower Cab "out the window" datablock. May differ from the
+    /// physical type (instructor amendments, scenario fidelity), and may be empty when an
+    /// instructor blanks the field.
+    /// </summary>
+    public string AircraftType { get; set; } = "";
+
+    /// <summary>
+    /// Filed aircraft type with the wake-turbulence prefix stripped (e.g., "H/B763/L" → "B763").
+    /// Mirrors <see cref="AircraftState.BaseAircraftType"/> for the filed string so STARS,
+    /// ASDE-X, and FP-driven displays can show the bare ICAO designator.
+    /// </summary>
+    public string BaseAircraftType => AircraftState.StripTypePrefix(AircraftType);
     public string Departure { get; set; } = "";
     public string Destination { get; set; } = "";
     public string Route { get; set; } = "";
@@ -50,6 +67,7 @@ public class AircraftFlightPlan
         new()
         {
             HasFlightPlan = HasFlightPlan,
+            AircraftType = AircraftType,
             Departure = Departure,
             Destination = Destination,
             Route = Route,
@@ -66,6 +84,7 @@ public class AircraftFlightPlan
         new()
         {
             HasFlightPlan = dto.HasFlightPlan,
+            AircraftType = dto.AircraftType,
             Departure = dto.Departure,
             Destination = dto.Destination,
             Route = dto.Route,

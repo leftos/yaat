@@ -172,7 +172,7 @@ public partial class DataGridView : UserControl
         menu.Items.Add(
             new MenuItem
             {
-                Header = $"{callsign} — {ac.AircraftType}",
+                Header = $"{callsign} — {ac.FiledAircraftType}",
                 IsEnabled = false,
                 FontWeight = Avalonia.Media.FontWeight.Bold,
             }
