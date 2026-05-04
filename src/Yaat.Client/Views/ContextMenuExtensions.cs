@@ -25,10 +25,6 @@ internal static class ContextMenuExtensions
                     await onSubmit(text);
                 }
             }
-            else if (e.Key != Key.Escape)
-            {
-                e.Handled = true;
-            }
         };
         menu.Items.Add(textBox);
     }

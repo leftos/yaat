@@ -17,6 +17,7 @@
 - EuroScope altitude flyout extended to FL400.
 
 ### Fixed
+- Right-click "Command" textbox now accepts typed input on radar, ground, and data-grid right-click menus — typing letters had been silently swallowed.
 - Ground View auto-fits the airport on first scenario load with a fresh profile — no longer shows an empty view until you click RESET.
 - Ground View saved per-scenario pan/zoom now actually persists across reconnects; previously the auto-fit on layout load silently snapped you back to the centroid every time.
 - CRC controller list and STARS consolidation now scope to the room you joined; controllers from other rooms no longer appear in your list or in consolidation views.
