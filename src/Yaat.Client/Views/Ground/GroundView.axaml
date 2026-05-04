@@ -80,7 +80,8 @@
                              ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"
                              ViewCenterLon="{Binding ViewCenterLon, Mode=TwoWay}"
                              ViewZoom="{Binding ViewZoom, Mode=TwoWay}"
-                             ViewRotation="{Binding ViewRotation, Mode=TwoWay}" />
+                             ViewRotation="{Binding ViewRotation, Mode=TwoWay}"
+                             HasSavedView="{Binding HasSavedView, Mode=OneWay}" />
 
         <!-- Label filter bar -->
         <StackPanel Orientation="Horizontal" Spacing="2"

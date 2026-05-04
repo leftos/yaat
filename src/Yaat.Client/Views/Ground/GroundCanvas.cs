@@ -147,6 +147,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     );
     public static readonly StyledProperty<double> ViewRotationProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewRotation));
 
+    public static readonly StyledProperty<bool> HasSavedViewProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(HasSavedView));
+
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
     private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = PlatformHelper.MonospaceTypefaceBold };
@@ -171,7 +173,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
     }
     private int? _hoveredNodeId;
-    private bool _hasFitBounds;
+    private bool _initialFitDone;
     private bool _suppressViewSync;
     private bool _isDraggingDataBlock;
     private string? _dragCallsign;
@@ -359,6 +361,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(ViewRotationProperty, value);
     }
 
+    public bool HasSavedView
+    {
+        get => GetValue(HasSavedViewProperty);
+        set => SetValue(HasSavedViewProperty, value);
+    }
+
     public TaxiRoute? DrawnRoutePreview
     {
         get => GetValue(DrawnRoutePreviewProperty);
@@ -464,12 +472,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (change.Property == LayoutProperty)
         {
-            _hasFitBounds = false;
+            _initialFitDone = false;
             _dataBlockOffsets.Clear();
             _highlightedCallsigns.Clear();
             _hiddenDataBlockCallsigns.Clear();
             _shownDataBlockCallsigns.Clear();
-            FitToLayout();
+            TryInitialView();
             InvalidateVisual();
         }
         else if (
@@ -510,6 +518,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
         else if (
             !_suppressViewSync
+            && _initialFitDone
             && (
                 change.Property == ViewCenterLatProperty
                 || change.Property == ViewCenterLonProperty
@@ -987,29 +996,51 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     private void ApplyViewToViewport()
     {
-        if (ViewCenterLat == 0 && ViewCenterLon == 0)
-        {
-            return;
-        }
-
         Viewport.CenterLat = ViewCenterLat;
         Viewport.CenterLon = ViewCenterLon;
         Viewport.Zoom = ViewZoom;
         Viewport.RotationDeg = ViewRotation;
-        _hasFitBounds = true;
+        _initialFitDone = true;
         InvalidateVisual();
     }
 
     public void ResetView()
     {
-        _hasFitBounds = false;
+        _initialFitDone = false;
         Viewport.RotationDeg = 0;
         FitToLayout();
     }
 
+    private void TryInitialView()
+    {
+        if (_initialFitDone)
+        {
+            return;
+        }
+
+        if (Layout is null || Layout.Nodes.Count == 0)
+        {
+            return;
+        }
+
+        if (Viewport.PixelWidth < 1 || Viewport.PixelHeight < 1)
+        {
+            return;
+        }
+
+        if (HasSavedView)
+        {
+            ApplyViewToViewport();
+        }
+        else
+        {
+            FitToLayout();
+        }
+    }
+
     private void FitToLayout()
     {
-        if (_hasFitBounds || Layout is null || Layout.Nodes.Count == 0)
+        if (_initialFitDone || Layout is null || Layout.Nodes.Count == 0)
         {
             return;
         }
@@ -1035,12 +1066,21 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         var savedRotation = Viewport.RotationDeg;
         Viewport.FitBounds(minLat, maxLat, minLon, maxLon);
         Viewport.RotationDeg = savedRotation;
-        _hasFitBounds = true;
+        _initialFitDone = true;
         OnViewportChanged();
     }
 
     protected override void OnViewportChanged()
     {
+        // Before the viewport has been initialised (by FitToLayout or ApplyViewToViewport),
+        // its CenterLat/Lon/Zoom are still defaults (0,0,1.0). Syncing those back to the
+        // bound styled properties would clobber the saved-view values that the viewmodel
+        // already pushed in but the canvas hasn't applied yet.
+        if (!_initialFitDone)
+        {
+            return;
+        }
+
         _suppressViewSync = true;
         ViewCenterLat = Viewport.CenterLat;
         ViewCenterLon = Viewport.CenterLon;
@@ -1067,9 +1107,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
-        if (!_hasFitBounds)
+        if (!_initialFitDone)
         {
-            FitToLayout();
+            TryInitialView();
         }
     }
 

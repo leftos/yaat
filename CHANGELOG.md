@@ -14,6 +14,10 @@
 - EuroScope altitude/speed flyouts open scrolled to the current value with a smaller visible window (~±5,000 ft / ±60 kt); the rest of the range is reachable by mouse-wheel/keyboard scrolling.
 - EuroScope altitude flyout extended to FL400.
 
+### Fixed
+- Ground View auto-fits the airport on first scenario load with a fresh profile — no longer shows an empty view until you click RESET.
+- Ground View saved per-scenario pan/zoom now actually persists across reconnects; previously the auto-fit on layout load silently snapped you back to the centroid every time.
+
 ## v0.1.13-alpha [2026/05/04]
 
 ### Highlights

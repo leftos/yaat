@@ -126,6 +126,9 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private double _viewRotation;
 
+    [ObservableProperty]
+    private bool _hasSavedView;
+
     private static readonly SKColor[] TaxiRouteColors =
     [
         SKColor.Parse("#FF6B6B"),
@@ -396,6 +399,7 @@ public partial class GroundViewModel : ObservableObject
     public void SetScenarioId(string? scenarioId)
     {
         _activeScenarioId = scenarioId;
+        HasSavedView = false;
         if (scenarioId is not null)
         {
             RestoreSettings();
@@ -470,6 +474,7 @@ public partial class GroundViewModel : ObservableObject
         ShowHoldShort = saved.ShowHoldShort;
         ShowParking = saved.ShowParking;
         ShowSpot = saved.ShowSpot;
+        HasSavedView = true;
 
         _isRestoring = false;
     }
@@ -481,10 +486,7 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        if (ViewCenterLat == 0 && ViewCenterLon == 0)
-        {
-            return;
-        }
+        HasSavedView = true;
 
         var settings = new SavedGroundSettings
         {
