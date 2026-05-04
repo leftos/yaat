@@ -21,11 +21,11 @@ namespace Yaat.Sim.Tests.Simulation;
 /// transition IAFs and ignores the common-leg IAF (FAWNE). The aircraft turns ~64°
 /// right and starts flying back to REJOY.
 ///
-/// Recording: tests/Yaat.Sim.Tests/TestData/n182ak-ccr-s19r-fawne-iaf-recording.yaat-bug-report-bundle.zip
+/// Recording: tests/Yaat.Sim.Tests/TestData/b143fc615682.zip
 /// </summary>
 public class N182akCcrS19RFawneIafEndToEndTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n182ak-ccr-s19r-fawne-iaf-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/b143fc615682.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

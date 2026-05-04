@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// (a transition IAF 9.2 nm east) was selected even though FAWNE — a common-leg IAF —
 /// was 0.33 nm away. The aircraft turned ~64° right and started flying back to REJOY.
 ///
-/// Recording: tests/Yaat.Sim.Tests/TestData/n182ak-ccr-s19r-fawne-iaf-recording.yaat-bug-report-bundle.zip
+/// Recording: tests/Yaat.Sim.Tests/TestData/b143fc615682.zip
 ///
 /// CIFP shape (verified via Yaat.CifpInspector):
 ///   Common: FAWNE (IAF, IF) → HUKVI (CF, 190.6°) → CCR (FAF, CF, 190.6°) → RW19R (MAP, 171.7°)

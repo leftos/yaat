@@ -36,7 +36,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue148FollowOnFinalTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue148-follow-final-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/a67670e50d58.zip";
     private const string Follower = "N294MG";
     private const string Leader = "N10194";
 

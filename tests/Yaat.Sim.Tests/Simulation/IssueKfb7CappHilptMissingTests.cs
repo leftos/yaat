@@ -44,7 +44,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/kfb7-capp-hilpt-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/b143fc615682.zip";
 
     /// <summary>
     /// Hybrid replay setup: load the scenario shell (engine.Replay(recording, 0)),

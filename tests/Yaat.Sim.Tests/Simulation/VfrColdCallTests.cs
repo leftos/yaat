@@ -28,7 +28,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class VfrColdCallTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/vfr-cold-call-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/a67670e50d58.zip";
     private const string Callsign = "N2BP";
     private const int SpawnDelaySeconds = 1811;
     private const int AssertAtSeconds = 1815;

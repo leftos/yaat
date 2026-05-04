@@ -31,7 +31,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/skw3422-cva-pattern-and-lost-sight-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/b143fc615682.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

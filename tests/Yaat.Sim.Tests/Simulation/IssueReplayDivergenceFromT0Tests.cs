@@ -27,7 +27,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueReplayDivergenceFromT0Tests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/kfb7-capp-hilpt-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/b143fc615682.zip";
 
     /// <summary>
     /// Direct check on the ReplayTrackApplier shim: an "AS 3Y ACCEPT" command for

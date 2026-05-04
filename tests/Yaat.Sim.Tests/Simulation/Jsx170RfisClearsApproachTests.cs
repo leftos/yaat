@@ -17,7 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Jsx170RfisClearsApproachTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/jsx170-rfis-clears-approach-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/a67670e50d58.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

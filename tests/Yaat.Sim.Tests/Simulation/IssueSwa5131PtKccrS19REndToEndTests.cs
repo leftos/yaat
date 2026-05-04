@@ -18,11 +18,11 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Bug: today the aircraft routes to FAWNE (NE of CCR) and bypasses the course reversal
 /// because PI legs are silently dropped in BuildFixesFromLegs.
 ///
-/// Recording: tests/Yaat.Sim.Tests/TestData/swa5131-ccr-s19r-pt-recording.yaat-bug-report-bundle.zip
+/// Recording: tests/Yaat.Sim.Tests/TestData/b143fc615682.zip
 /// </summary>
 public class IssueSwa5131PtKccrS19REndToEndTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/swa5131-ccr-s19r-pt-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/b143fc615682.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

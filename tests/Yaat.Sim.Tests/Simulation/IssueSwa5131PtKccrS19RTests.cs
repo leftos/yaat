@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// in CommonLegs (it is — CCR is the FAF). Result: the aircraft flies straight to
 /// FAWNE (NE of CCR) and bypasses the course reversal entirely.
 ///
-/// Recording: tests/Yaat.Sim.Tests/TestData/swa5131-ccr-s19r-pt-recording.yaat-bug-report-bundle.zip
+/// Recording: tests/Yaat.Sim.Tests/TestData/b143fc615682.zip
 ///
 /// CIFP shape (verified via Yaat.CifpInspector):
 ///   Common: FAWNE → HUKVI → CCR (FAF) → RW19R (MAP)

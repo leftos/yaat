@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
 {
-    private const string BundlePath = "TestData/rpo-pilot-speech-recording.yaat-bug-report-bundle.zip";
+    private const string BundlePath = "TestData/a67670e50d58.zip";
 
     private SimulationEngine? BuildEngine()
     {

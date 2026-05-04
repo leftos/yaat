@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class CL60SpawnSupersonicTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/cl60-spawn-supersonic-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/b143fc615682.zip";
 
     private SimulationEngine? BuildEngine()
     {

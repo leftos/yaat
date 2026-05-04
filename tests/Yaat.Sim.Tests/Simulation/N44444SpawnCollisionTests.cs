@@ -24,7 +24,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class N44444SpawnCollisionTests(ITestOutputHelper output)
 {
-    private const string BundlePath = "TestData/n44444-spawn-collision-recording.yaat-bug-report-bundle.zip";
+    private const string BundlePath = "TestData/a67670e50d58.zip";
     private const string Callsign = "N44444";
 
     /// <summary>

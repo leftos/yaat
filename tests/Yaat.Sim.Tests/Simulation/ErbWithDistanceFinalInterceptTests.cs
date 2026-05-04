@@ -22,7 +22,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ErbWithDistanceFinalInterceptTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/erb-distance-final-intercept-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/a67670e50d58.zip";
     private const string Callsign = "N10194";
     private const int ErbDispatchTime = 466;
     private const double RequestedFinalDistanceNm = 3.0;

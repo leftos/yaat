@@ -29,7 +29,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n7lj-res-explicit-holdshort-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/a67670e50d58.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

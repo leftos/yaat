@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
 {
-    private const string BundlePath = "TestData/towercab-actual-type-recording.yaat-bug-report-bundle.zip";
+    private const string BundlePath = "TestData/a67670e50d58.zip";
 
     private static SimulationEngine NewEngine() => new(new TestAirportGroundData());
 
