@@ -399,7 +399,7 @@ public partial class GroundView : UserControl
             AddNearbyRunwayCrossings(menu, vm, ac, callsign, initials, rwyId);
         }
 
-        if (phase is "Holding After Exit" or "Holding After Pushback")
+        if (phase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position")
         {
             menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
         }
