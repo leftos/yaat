@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.1.12-alpha [2026/05/03]
 
 ### Highlights
 - **EuroScope-style interactive tags** — opt-in radar tag mode where every field is clickable. Click altitude/speed for a flyout picker, drag from `AHDG` to a point on the map for a live elastic-vector heading, click scratchpad/handoff for a text-entry popup. Enable in **Settings > Display > Radar Display**. See [USER_GUIDE.md](USER_GUIDE.md#euroscope-style-interactive-tags) and [docs/euroscope/pseudopilot.md](docs/euroscope/pseudopilot.md) for the full reference.
+- Sim-initiated pilot transmissions (check-in, hold-short, going-around, midfield/short-final) can render as green pilot speech in the RPO terminal, with an optional audible chime.
+- Terminal window has a Filter text box plus Shift+Click solo on category toggles.
+- **Help → Command Cheatsheet** opens an HTML cheatsheet in your default browser — filterable, searchable, bundled next to the EXE for offline use.
 
 ### Added
 - Radar tags get a 4-line EuroScope-style layout when EuroScope mode is on: callsign, type/destination, current+assigned alt/spd/hdg, and runway+scratchpads.
