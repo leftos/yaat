@@ -526,19 +526,151 @@ public partial class MainViewModel : ObservableObject
 
     public event Action? TerminalFilterChanged;
 
-    partial void OnShowCommandEntriesChanged(bool value) => PersistTerminalFilters();
+    /// <summary>
+    /// Ephemeral case-insensitive substring filter applied on top of the kind toggles.
+    /// Empty string disables the filter. Not persisted.
+    /// </summary>
+    [ObservableProperty]
+    private string _terminalSearchText = "";
 
-    partial void OnShowResponseEntriesChanged(bool value) => PersistTerminalFilters();
+    /// <summary>
+    /// When non-null, exactly one category is currently solo'd (Shift+Click).
+    /// </summary>
+    private TerminalEntryKind? _terminalSoloKind;
 
-    partial void OnShowSystemEntriesChanged(bool value) => PersistTerminalFilters();
+    /// <summary>
+    /// The set of kinds that were visible immediately before the current solo started.
+    /// Used to restore on Shift+Click of the solo'd category.
+    /// </summary>
+    private HashSet<TerminalEntryKind> _terminalSoloSnapshot = [];
 
-    partial void OnShowSayEntriesChanged(bool value) => PersistTerminalFilters();
+    /// <summary>
+    /// Set true while <see cref="ApplyVisibilityProgrammatic"/> is mutating Show*Entries
+    /// during enter/switch/restore solo. The partial change handlers consult this to
+    /// skip persistence and the cancel-solo side effect.
+    /// </summary>
+    private bool _isProgrammaticTerminalToggle;
 
-    partial void OnShowWarningEntriesChanged(bool value) => PersistTerminalFilters();
+    partial void OnShowCommandEntriesChanged(bool value) => OnTerminalToggleChanged();
 
-    partial void OnShowErrorEntriesChanged(bool value) => PersistTerminalFilters();
+    partial void OnShowResponseEntriesChanged(bool value) => OnTerminalToggleChanged();
 
-    partial void OnShowChatEntriesChanged(bool value) => PersistTerminalFilters();
+    partial void OnShowSystemEntriesChanged(bool value) => OnTerminalToggleChanged();
+
+    partial void OnShowSayEntriesChanged(bool value) => OnTerminalToggleChanged();
+
+    partial void OnShowWarningEntriesChanged(bool value) => OnTerminalToggleChanged();
+
+    partial void OnShowErrorEntriesChanged(bool value) => OnTerminalToggleChanged();
+
+    partial void OnShowChatEntriesChanged(bool value) => OnTerminalToggleChanged();
+
+    partial void OnTerminalSearchTextChanged(string value) => TerminalFilterChanged?.Invoke();
+
+    private void OnTerminalToggleChanged()
+    {
+        if (_isProgrammaticTerminalToggle)
+        {
+            return;
+        }
+
+        if (_terminalSoloKind is not null)
+        {
+            _terminalSoloKind = null;
+            _terminalSoloSnapshot = [];
+        }
+
+        PersistTerminalFilters();
+    }
+
+    /// <summary>
+    /// Shift+Click on a category toggle. Enters, switches, or exits solo mode.
+    /// Snapshot is captured on entry and preserved across switches; restored on exit.
+    /// </summary>
+    public void OnTerminalCategoryShiftClicked(TerminalEntryKind kind)
+    {
+        if (_terminalSoloKind == kind)
+        {
+            // Exit solo: restore the snapshot.
+            var snapshot = _terminalSoloSnapshot;
+            _terminalSoloKind = null;
+            _terminalSoloSnapshot = [];
+            ApplyVisibilityProgrammatic(snapshot);
+            return;
+        }
+
+        if (_terminalSoloKind is null)
+        {
+            // Enter solo: capture currently-visible kinds.
+            _terminalSoloSnapshot = CurrentVisibleKinds();
+        }
+
+        // Either entering or switching — same end state.
+        _terminalSoloKind = kind;
+        ApplyVisibilityProgrammatic([kind]);
+    }
+
+    private HashSet<TerminalEntryKind> CurrentVisibleKinds()
+    {
+        var visible = new HashSet<TerminalEntryKind>();
+        if (ShowCommandEntries)
+        {
+            visible.Add(TerminalEntryKind.Command);
+        }
+
+        if (ShowResponseEntries)
+        {
+            visible.Add(TerminalEntryKind.Response);
+        }
+
+        if (ShowSystemEntries)
+        {
+            visible.Add(TerminalEntryKind.System);
+        }
+
+        if (ShowSayEntries)
+        {
+            visible.Add(TerminalEntryKind.Say);
+        }
+
+        if (ShowWarningEntries)
+        {
+            visible.Add(TerminalEntryKind.Warning);
+        }
+
+        if (ShowErrorEntries)
+        {
+            visible.Add(TerminalEntryKind.Error);
+        }
+
+        if (ShowChatEntries)
+        {
+            visible.Add(TerminalEntryKind.Chat);
+        }
+
+        return visible;
+    }
+
+    private void ApplyVisibilityProgrammatic(HashSet<TerminalEntryKind> visible)
+    {
+        _isProgrammaticTerminalToggle = true;
+        try
+        {
+            ShowCommandEntries = visible.Contains(TerminalEntryKind.Command);
+            ShowResponseEntries = visible.Contains(TerminalEntryKind.Response);
+            ShowSystemEntries = visible.Contains(TerminalEntryKind.System);
+            ShowSayEntries = visible.Contains(TerminalEntryKind.Say);
+            ShowWarningEntries = visible.Contains(TerminalEntryKind.Warning);
+            ShowErrorEntries = visible.Contains(TerminalEntryKind.Error);
+            ShowChatEntries = visible.Contains(TerminalEntryKind.Chat);
+        }
+        finally
+        {
+            _isProgrammaticTerminalToggle = false;
+        }
+
+        TerminalFilterChanged?.Invoke();
+    }
 
     private void PersistTerminalFilters()
     {
@@ -595,7 +727,25 @@ public partial class MainViewModel : ObservableObject
             _ => true,
         };
 
-    public IEnumerable<TerminalEntry> GetFilteredTerminalEntries() => TerminalEntries.Where(e => IsEntryVisible(e.Kind));
+    public bool IsEntryVisible(TerminalEntry entry)
+    {
+        if (!IsEntryVisible(entry.Kind))
+        {
+            return false;
+        }
+
+        var query = TerminalSearchText;
+        if (string.IsNullOrEmpty(query))
+        {
+            return true;
+        }
+
+        return Contains(entry.Callsign, query) || Contains(entry.Initials, query) || Contains(entry.Message, query);
+
+        static bool Contains(string? value, string query) => value is not null && value.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public IEnumerable<TerminalEntry> GetFilteredTerminalEntries() => TerminalEntries.Where(IsEntryVisible);
 
     public ObservableCollection<string> CommandHistory { get; } = [];
 

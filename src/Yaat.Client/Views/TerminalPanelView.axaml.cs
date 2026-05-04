@@ -3,6 +3,9 @@ using System.Linq;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Yaat.Client.Models;
@@ -37,6 +40,13 @@ public partial class TerminalPanelView : UserControl
             _scrollViewer.ScrollChanged += OnScrollChanged;
         }
 
+        foreach (var (toggle, _) in EnumerateCategoryToggles())
+        {
+            // Tunnel routing fires before ToggleButton's built-in click handling so we
+            // can suppress the IsChecked toggle when the user is Shift+Clicking to solo.
+            toggle.AddHandler(PointerPressedEvent, OnTogglePointerPressed, RoutingStrategies.Tunnel);
+        }
+
         if (DataContext is MainViewModel vm)
         {
             vm.TerminalEntries.CollectionChanged += OnEntriesChanged;
@@ -51,6 +61,11 @@ public partial class TerminalPanelView : UserControl
 
     protected override void OnUnloaded(Avalonia.Interactivity.RoutedEventArgs e)
     {
+        foreach (var (toggle, _) in EnumerateCategoryToggles())
+        {
+            toggle.RemoveHandler(PointerPressedEvent, OnTogglePointerPressed);
+        }
+
         if (DataContext is MainViewModel vm)
         {
             vm.TerminalEntries.CollectionChanged -= OnEntriesChanged;
@@ -72,6 +87,44 @@ public partial class TerminalPanelView : UserControl
         base.OnUnloaded(e);
     }
 
+    private IEnumerable<(ToggleButton Button, TerminalEntryKind Kind)> EnumerateCategoryToggles()
+    {
+        yield return (CmdToggle, TerminalEntryKind.Command);
+        yield return (RspToggle, TerminalEntryKind.Response);
+        yield return (SysToggle, TerminalEntryKind.System);
+        yield return (SayToggle, TerminalEntryKind.Say);
+        yield return (WrnToggle, TerminalEntryKind.Warning);
+        yield return (ErrToggle, TerminalEntryKind.Error);
+        yield return (ChatToggle, TerminalEntryKind.Chat);
+    }
+
+    private void OnTogglePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return;
+        }
+
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (sender is not ToggleButton btn)
+        {
+            return;
+        }
+
+        var match = EnumerateCategoryToggles().FirstOrDefault(t => ReferenceEquals(t.Button, btn));
+        if (match.Button is null)
+        {
+            return;
+        }
+
+        vm.OnTerminalCategoryShiftClicked(match.Kind);
+        e.Handled = true;
+    }
+
     private void OnFilterChanged()
     {
         if (DataContext is MainViewModel vm)
@@ -90,7 +143,7 @@ public partial class TerminalPanelView : UserControl
             case NotifyCollectionChangedAction.Add when e.NewItems is { Count: > 0 }:
             {
                 var entry = (TerminalEntry)e.NewItems[0]!;
-                if (vm is not null && !vm.IsEntryVisible(entry.Kind))
+                if (vm is not null && !vm.IsEntryVisible(entry))
                 {
                     break;
                 }

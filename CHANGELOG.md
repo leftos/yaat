@@ -17,6 +17,8 @@
 - ASDE-X data block fields from CRC (`Y`/`H` scratchpads, callsign, beacon, category, type, fix) edit only the ASDE-X display, not STARS or scenario state.
 - `ASDX*` commands let the RPO terminal and scenarios drive ASDE-X display state — scratchpads, suspend/terminate, alert inhibit, DB-field overrides.
 - Optional Settings toggle renders sim-initiated pilot transmissions (RTIS/RFIS, hold-short, clear-of-runway, going-around, midfield/short-final reminders) as green pilot speech in RPO mode, with optional audible chime.
+- Terminal window has a Filter text box that narrows entries by callsign, initials, or message substring.
+- Shift+Click a Terminal category toggle to solo it; Shift+Click again restores the previous selection.
 
 ### Changed
 - **Help → Command Cheatsheet** opens an HTML cheatsheet in your default browser — filterable, searchable, bundled next to the EXE for offline use.
