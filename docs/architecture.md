@@ -633,7 +633,7 @@ Scenes/                        # ScenarioSceneBase (connect → room → load �
                                # AircraftListScene / GroundViewScene / RadarViewScene / FlightStripsScene
                                # GroundViewPopoutScene / RadarViewPopoutScene
                                # FlightPlanEditorScene
-                               # StandaloneWindowSceneBase + Settings/LoadScenario/LoadWeather/Weather/About/CommandCheatsheet
+                               # StandaloneWindowSceneBase + Settings/LoadScenario/LoadWeather/Weather/About
 Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePickerService against the headless Window which is fine)
 ```
 

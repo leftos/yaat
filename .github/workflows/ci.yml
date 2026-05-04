@@ -18,6 +18,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: "22"
+
+      # Fail fast if docs/command-cheatsheet.json was edited without regenerating
+      # docs/command-cheatsheet.html. The HTML ships next to Yaat.Client.exe and
+      # Help → Command Cheatsheet opens it in the user's browser; a stale HTML
+      # would show users an out-of-date command list.
+      - name: Check command cheatsheet HTML is in sync with JSON
+        run: node tools/build-cheatsheet.mjs --check
+
       - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
         with:
           dotnet-version: "10.0.x"

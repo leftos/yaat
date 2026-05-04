@@ -29,6 +29,5 @@ internal static class SceneCatalog
         new LoadWeatherDialogScene(),
         new WeatherEditorScene(),
         new AboutWindowScene(),
-        new CommandCheatsheetScene(),
     ];
 }

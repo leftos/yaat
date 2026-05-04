@@ -1708,15 +1708,10 @@ public partial class MainWindow : Window
         await about.ShowDialog(this);
     }
 
-    private async void OnCommandCheatsheetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnCommandCheatsheetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        var window = new CommandCheatsheetWindow(vm.Preferences);
-        await window.ShowDialog(this);
+        var local = Path.Combine(AppContext.BaseDirectory, "command-cheatsheet.html");
+        UrlLauncher.OpenInBrowser(File.Exists(local) ? local : DocLinks.CommandCheatsheet);
     }
 
     private void WireUrlMenuItem(string name, string url)

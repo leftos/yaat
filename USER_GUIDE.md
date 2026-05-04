@@ -628,9 +628,7 @@ YAAT supports a **v2 weather JSON format** that defines time-based weather evolu
 
 ## Commands
 
-![Command Cheatsheet window](docs/user-guide/img/command-cheatsheet.png)
-
-YAAT has a comprehensive command system for controlling aircraft. Commands are typed in the command bar and sent with **Enter**.
+YAAT has a comprehensive command system for controlling aircraft. Commands are typed in the command bar and sent with **Enter**. **Help → Command Cheatsheet** opens [`docs/command-cheatsheet.html`](docs/command-cheatsheet.html) in your default browser — a filterable, searchable reference covering every verb.
 
 **Quick examples:**
 

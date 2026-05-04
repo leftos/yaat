@@ -20,4 +20,7 @@ public static class DocLinks
     public static string Commands => $"{RepoUrl}/blob/{Ref}/COMMANDS.md";
     public static string Changelog => $"{RepoUrl}/blob/{Ref}/CHANGELOG.md";
     public static string Install => $"{RepoUrl}/blob/{Ref}/INSTALL.md";
+
+    // Fallback for Help → Command Cheatsheet when the bundled HTML next to the EXE is missing.
+    public static string CommandCheatsheet => $"{RepoUrl}/blob/{Ref}/docs/command-cheatsheet.html";
 }
