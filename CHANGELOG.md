@@ -26,6 +26,7 @@
 - Command input autocomplete and signature help follow the cursor; Tab-accepting a suggestion mid-edit replaces the active token and preserves the suffix.
 - `VP`/`FP`/`DA` accept destination-only routes (`VP C172 5500 MOD` files KMOD), split equipment suffix from the type, and canonicalize FAA codes to ICAO.
 - CRC's FP form popup matches typed STARS — same equipment-suffix split and FAA→ICAO canonicalization.
+- Instructor terminal shows the raw STARS keystrokes a student typed for `DA`/`VP` and surfaces failed `DA`/`VP` attempts.
 
 ## v0.1.11-alpha [2026/05/03]
 
