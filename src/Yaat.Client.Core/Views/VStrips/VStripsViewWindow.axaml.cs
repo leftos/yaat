@@ -29,8 +29,20 @@ public partial class VStripsViewWindow : Window
         InitializeComponent();
 
         var geometryKey = !string.IsNullOrEmpty(facilityIdForGeometry) ? $"VStripsView:{facilityIdForGeometry}" : "VStripsView";
+        var hasSavedGeometry = preferences.GetWindowGeometry(geometryKey) is not null;
         _geometryHelper = new WindowGeometryHelper(this, preferences, geometryKey, 1000, 600);
         _geometryHelper.Restore();
+
+        // First-time per-facility window: inherit Topmost from the global "VStripsView" default
+        // so the Settings checkbox affects newly opened facility-scoped windows too.
+        if (!hasSavedGeometry && !string.IsNullOrEmpty(facilityIdForGeometry))
+        {
+            var globalGeometry = preferences.GetWindowGeometry("VStripsView");
+            if (globalGeometry?.IsTopmost == true)
+            {
+                Topmost = true;
+            }
+        }
 
         if (!string.IsNullOrEmpty(baseTitle))
         {

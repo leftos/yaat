@@ -192,6 +192,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _terminalTopmost;
 
     [ObservableProperty]
+    private bool _vStripsTopmost;
+
+    [ObservableProperty]
     private bool _assignmentTintEnabled;
 
     [ObservableProperty]
@@ -463,6 +466,7 @@ public partial class SettingsViewModel : ObservableObject
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
         _dataGridTopmost = _preferences.DataGridWindowGeometry?.IsTopmost ?? false;
         _terminalTopmost = _preferences.TerminalWindowGeometry?.IsTopmost ?? false;
+        _vStripsTopmost = _preferences.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
@@ -545,6 +549,12 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
         _preferences.SetWindowTopmost("DataGrid", DataGridTopmost);
         _preferences.SetWindowTopmost("Terminal", TerminalTopmost);
+        _preferences.SetWindowTopmost("VStripsView", VStripsTopmost);
+        var perFacilityStripsKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith("VStripsView:"));
+        foreach (var key in perFacilityStripsKeys)
+        {
+            _preferences.SetWindowTopmost(key, VStripsTopmost);
+        }
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
         _preferences.SetSelectedColor(SelectedColor);

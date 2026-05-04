@@ -94,6 +94,23 @@ public sealed class UserPreferences
         };
     }
 
+    /// <summary>
+    /// Returns all dictionary-stored window-geometry keys whose names start
+    /// with the given prefix. Used to apply a single Settings toggle to
+    /// every multi-instance window of one kind (e.g. all popped-out Flight
+    /// Strips windows, which use keys "VStripsView" and "VStripsView:{facility}").
+    /// </summary>
+    public IEnumerable<string> GetWindowGeometryKeysStartingWith(string prefix)
+    {
+        foreach (var key in _data.WindowGeometries.Keys)
+        {
+            if (key.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                yield return key;
+            }
+        }
+    }
+
     public SavedGridLayout? GridLayout => _data.GridLayout;
     public bool AutoAcceptEnabled => _data.AutoAcceptEnabled;
     public int AutoAcceptDelaySeconds => _data.AutoAcceptDelaySeconds;

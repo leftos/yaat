@@ -7,6 +7,7 @@
 - EuroScope tag owner cell: **left-click** takes RPO control (assigns the aircraft to you); **right-click** opens the RPO assignment menu (Take control / Give up control / Give control to *(submenu of room members)* / Unassign).
 - EuroScope tag Destination field is now a click target — clicking enters draw-route mode (same flow as right-click "Draw route").
 - **Settings > Display > Font Sizes** group: separate font-size knobs for radar datablock, radar tag flyouts, ground datablock, and ground labels (taxi/runway/node), alongside the existing aircraft-list font size.
+- **Settings > Misc > Windows > Always on Top** gains a "Flight Strips" checkbox that pins all popped-out flight-strip windows above other windows.
 
 ### Changed
 - EuroScope heading-mode drag snaps to the nearest 5° — the live arc, the cursor label, and the dispatched `FH` value all use the same snapped heading.

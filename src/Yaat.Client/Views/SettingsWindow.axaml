@@ -273,6 +273,7 @@
                                 <CheckBox Content="Radar View" IsChecked="{Binding RadarViewTopmost}" Margin="0,0,16,4" />
                                 <CheckBox Content="Aircraft List" IsChecked="{Binding DataGridTopmost}" Margin="0,0,16,4" />
                                 <CheckBox Content="Terminal" IsChecked="{Binding TerminalTopmost}" Margin="0,0,16,4" />
+                                <CheckBox Content="Flight Strips" IsChecked="{Binding VStripsTopmost}" Margin="0,0,16,4" />
                             </WrapPanel>
                         </StackPanel>
                     </StackPanel>
