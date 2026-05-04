@@ -12,21 +12,32 @@ public static class TaxiRouteLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public static TaxiRouteLoadResult LoadAll(string baseDir)
+    /// <summary>
+    /// Scans <c>{artccsBaseDir}/{ARTCC}/TaxiRoutes/*.json</c> across every ARTCC
+    /// subdirectory and loads route definitions from each.
+    /// </summary>
+    public static TaxiRouteLoadResult LoadAll(string artccsBaseDir)
     {
         var result = new TaxiRouteLoadResult();
 
-        if (!Directory.Exists(baseDir))
+        if (!Directory.Exists(artccsBaseDir))
         {
-            result.Warnings.Add($"Taxi routes directory not found: {baseDir}");
+            result.Warnings.Add($"ARTCCs directory not found: {artccsBaseDir}");
             return result;
         }
 
-        var files = Directory.GetFiles(baseDir, "*.json", SearchOption.AllDirectories);
-
-        foreach (var file in files)
+        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir))
         {
-            LoadFile(file, result);
+            string categoryDir = Path.Combine(artccDir, "TaxiRoutes");
+            if (!Directory.Exists(categoryDir))
+            {
+                continue;
+            }
+
+            foreach (var file in Directory.GetFiles(categoryDir, "*.json"))
+            {
+                LoadFile(file, result);
+            }
         }
 
         return result;

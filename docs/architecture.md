@@ -459,10 +459,11 @@ Speech/Data/                   # Static reference data: airlines.tsv (OpenFlight
 Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways/airways/SID/STAR indexes + lazy CIFP procedures.
                                # Access via NavigationDatabase.Instance (initialized at startup, SetInstance for tests).
 Data/RouteExpander.cs          # Static: expands route strings (SID/STAR/airway/fix tokens) into ordered fix lists
-Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading
-Data/TaxiRouteDefinition.cs / TaxiRouteLoader.cs / TaxiRouteCatalog.cs  # Per-airport preset taxi routes loaded from Data/TaxiRoutes/{ARTCC}/*.json
+Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading from Data/ARTCCs/{ARTCC}/CustomFixes/*.json
+Data/TaxiRouteDefinition.cs / TaxiRouteLoader.cs / TaxiRouteCatalog.cs  # Per-airport preset taxi routes from Data/ARTCCs/{ARTCC}/TaxiRoutes/*.json
                                # Validation against airport graph is lazy at menu-build time via TaxiPathfinder.ResolveExplicitPath.
                                # Right-click "Preset taxi route" submenu in GroundView surfaces applicable routes per aircraft.
+Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, TaxiRoutes — see Data/ARTCCs/README.md).
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model

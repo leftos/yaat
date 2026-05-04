@@ -25,7 +25,7 @@ public class TaxiRouteLoaderTests
     [Fact]
     public void LoadAll_BundledTestData_LoadsKoakRoutes()
     {
-        string baseDir = Path.Combine(AppContext.BaseDirectory, "TestData", "TaxiRoutes");
+        string baseDir = Path.Combine(AppContext.BaseDirectory, "TestData", "ARTCCs");
 
         var result = TaxiRouteLoader.LoadAll(baseDir);
 
@@ -49,7 +49,7 @@ public class TaxiRouteLoaderTests
     [Fact]
     public void LoadAll_AirportIdStampedFromFile()
     {
-        string baseDir = Path.Combine(AppContext.BaseDirectory, "TestData", "TaxiRoutes");
+        string baseDir = Path.Combine(AppContext.BaseDirectory, "TestData", "ARTCCs");
 
         var result = TaxiRouteLoader.LoadAll(baseDir);
 
@@ -61,12 +61,13 @@ public class TaxiRouteLoaderTests
     public void LoadAll_MalformedJson_AddsWarningAndContinues()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "yaat-taxi-routes-test-" + Guid.NewGuid());
-        Directory.CreateDirectory(tempDir);
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "TaxiRoutes");
+        Directory.CreateDirectory(categoryDir);
         try
         {
-            File.WriteAllText(Path.Combine(tempDir, "broken.json"), "{ this is not valid json");
+            File.WriteAllText(Path.Combine(categoryDir, "broken.json"), "{ this is not valid json");
             File.WriteAllText(
-                Path.Combine(tempDir, "good.json"),
+                Path.Combine(categoryDir, "good.json"),
                 """
                 {
                   "airportId": "KSFO",
@@ -94,11 +95,12 @@ public class TaxiRouteLoaderTests
     public void LoadAll_MissingAirportId_AddsWarning()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "yaat-taxi-routes-test-" + Guid.NewGuid());
-        Directory.CreateDirectory(tempDir);
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "TaxiRoutes");
+        Directory.CreateDirectory(categoryDir);
         try
         {
             File.WriteAllText(
-                Path.Combine(tempDir, "no-airport.json"),
+                Path.Combine(categoryDir, "no-airport.json"),
                 """
                 {
                   "routes": [{ "name": "x", "path": "A" }]
@@ -122,11 +124,12 @@ public class TaxiRouteLoaderTests
     public void LoadAll_RouteWithEmptyPath_SkippedWithWarning()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "yaat-taxi-routes-test-" + Guid.NewGuid());
-        Directory.CreateDirectory(tempDir);
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "TaxiRoutes");
+        Directory.CreateDirectory(categoryDir);
         try
         {
             File.WriteAllText(
-                Path.Combine(tempDir, "kxxx.json"),
+                Path.Combine(categoryDir, "kxxx.json"),
                 """
                 {
                   "airportId": "KXXX",
@@ -157,11 +160,12 @@ public class TaxiRouteLoaderTests
     public void LoadAll_RouteWithMissingName_SkippedWithWarning()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "yaat-taxi-routes-test-" + Guid.NewGuid());
-        Directory.CreateDirectory(tempDir);
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "TaxiRoutes");
+        Directory.CreateDirectory(categoryDir);
         try
         {
             File.WriteAllText(
-                Path.Combine(tempDir, "kxxx.json"),
+                Path.Combine(categoryDir, "kxxx.json"),
                 """
                 {
                   "airportId": "KXXX",
@@ -188,11 +192,12 @@ public class TaxiRouteLoaderTests
     public void LoadAll_RouteWithConflictingDestinations_SkippedWithWarning()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "yaat-taxi-routes-test-" + Guid.NewGuid());
-        Directory.CreateDirectory(tempDir);
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "TaxiRoutes");
+        Directory.CreateDirectory(categoryDir);
         try
         {
             File.WriteAllText(
-                Path.Combine(tempDir, "kxxx.json"),
+                Path.Combine(categoryDir, "kxxx.json"),
                 """
                 {
                   "airportId": "KXXX",
@@ -221,27 +226,57 @@ public class TaxiRouteLoaderTests
     }
 
     [Fact]
-    public void LoadAll_RecursiveScanFindsNestedFiles()
+    public void LoadAll_DiscoversRoutesAcrossMultipleArtccs()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "yaat-taxi-routes-test-" + Guid.NewGuid());
-        string artccDir = Path.Combine(tempDir, "ZAB");
-        Directory.CreateDirectory(artccDir);
+        string zabDir = Path.Combine(tempDir, "ZAB", "TaxiRoutes");
+        string zlaDir = Path.Combine(tempDir, "ZLA", "TaxiRoutes");
+        Directory.CreateDirectory(zabDir);
+        Directory.CreateDirectory(zlaDir);
         try
         {
             File.WriteAllText(
-                Path.Combine(artccDir, "kabq-routes.json"),
-                """
-                {
-                  "airportId": "KABQ",
-                  "routes": [{ "name": "test", "path": "A" }]
-                }
-                """
+                Path.Combine(zabDir, "kabq-routes.json"),
+                """{ "airportId": "KABQ", "routes": [{ "name": "ABQ test", "path": "A" }] }"""
+            );
+            File.WriteAllText(
+                Path.Combine(zlaDir, "klax-routes.json"),
+                """{ "airportId": "KLAX", "routes": [{ "name": "LAX test", "path": "B" }] }"""
             );
 
             var result = TaxiRouteLoader.LoadAll(tempDir);
 
+            Assert.Equal(2, result.Routes.Count);
+            Assert.Contains(result.Routes, r => r.AirportId == "KABQ");
+            Assert.Contains(result.Routes, r => r.AirportId == "KLAX");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void LoadAll_IgnoresFilesOutsideTaxiRoutesSubfolder()
+    {
+        // Files in sibling category folders (CustomFixes, FixPronunciations) under the same ARTCC
+        // must not be scanned by TaxiRouteLoader — each loader sticks to its own subdirectory.
+        string tempDir = Path.Combine(Path.GetTempPath(), "yaat-taxi-routes-test-" + Guid.NewGuid());
+        string customFixesDir = Path.Combine(tempDir, "ZTEST", "CustomFixes");
+        string taxiRoutesDir = Path.Combine(tempDir, "ZTEST", "TaxiRoutes");
+        Directory.CreateDirectory(customFixesDir);
+        Directory.CreateDirectory(taxiRoutesDir);
+        try
+        {
+            // A custom-fix-shaped JSON in the wrong folder — TaxiRouteLoader must skip this entirely.
+            File.WriteAllText(Path.Combine(customFixesDir, "fixes.json"), """[{"name": "X", "aliases": ["X"], "lat": 0, "lon": 0}]""");
+            File.WriteAllText(Path.Combine(taxiRoutesDir, "real.json"), """{ "airportId": "KZZZ", "routes": [{ "name": "real", "path": "A" }] }""");
+
+            var result = TaxiRouteLoader.LoadAll(tempDir);
+
             Assert.Single(result.Routes);
-            Assert.Equal("KABQ", result.Routes[0].AirportId);
+            Assert.Equal("KZZZ", result.Routes[0].AirportId);
+            Assert.Empty(result.Warnings);
         }
         finally
         {

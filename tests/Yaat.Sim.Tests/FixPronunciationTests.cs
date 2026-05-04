@@ -15,7 +15,7 @@ public class FixPronunciationTests
     [Fact]
     public void FixPronunciationLoader_LoadsZoaAmbiguousFromDataDir()
     {
-        string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "FixPronunciations");
+        string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
 
         var result = FixPronunciationLoader.LoadAll(baseDir);
 
@@ -34,11 +34,12 @@ public class FixPronunciationTests
     public void FixPronunciationLoader_MalformedFile_ReportsWarningAndContinues()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
+        var categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
+        Directory.CreateDirectory(categoryDir);
         try
         {
-            File.WriteAllText(Path.Combine(tempDir, "bad.json"), "{ this is not valid json ]");
-            File.WriteAllText(Path.Combine(tempDir, "good.json"), """[{"fix": "TESTA", "pronunciations": ["test ay"]}]""");
+            File.WriteAllText(Path.Combine(categoryDir, "bad.json"), "{ this is not valid json ]");
+            File.WriteAllText(Path.Combine(categoryDir, "good.json"), """[{"fix": "TESTA", "pronunciations": ["test ay"]}]""");
 
             var result = FixPronunciationLoader.LoadAll(tempDir);
 
@@ -58,7 +59,8 @@ public class FixPronunciationTests
     public void FixPronunciationLoader_EntriesWithoutFixOrPronunciations_AreSkipped()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
+        var categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
+        Directory.CreateDirectory(categoryDir);
         try
         {
             var json = """
@@ -68,7 +70,7 @@ public class FixPronunciationTests
                     {"fix": "GOODFIX", "pronunciations": ["good fix"]}
                 ]
                 """;
-            File.WriteAllText(Path.Combine(tempDir, "mixed.json"), json);
+            File.WriteAllText(Path.Combine(categoryDir, "mixed.json"), json);
 
             var result = FixPronunciationLoader.LoadAll(tempDir);
 
@@ -88,10 +90,11 @@ public class FixPronunciationTests
     public void NavigationDatabase_GetFixPronunciations_CaseInsensitive()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-nav-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
+        var categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
+        Directory.CreateDirectory(categoryDir);
         try
         {
-            File.WriteAllText(Path.Combine(tempDir, "test.json"), """[{"fix": "SYRAH", "pronunciations": ["see rah"]}]""");
+            File.WriteAllText(Path.Combine(categoryDir, "test.json"), """[{"fix": "SYRAH", "pronunciations": ["see rah"]}]""");
 
             var db = NavigationDatabase.ForTesting();
             // Reflection-free path: use the real constructor via a synthetic empty navdata set.

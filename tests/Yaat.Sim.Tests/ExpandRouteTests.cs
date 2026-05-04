@@ -38,7 +38,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("OAK6 OAK SYRAH", "OAK");
 
@@ -78,7 +78,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("CNDEL5 PORTE FFOIL", null);
 
@@ -109,7 +109,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("OAK SYRAH V244 SUNOL", null);
 
@@ -130,7 +130,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("SUNOL 050", null);
 
@@ -166,7 +166,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         var result = db.ExpandRoute("OAK6 SYRAH");
 
@@ -183,7 +183,7 @@ public class ExpandRouteTests
         // Published SID with ordered body
         var navData = BuildNavData(sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }]);
 
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         var result = db.ExpandRoute("CNDEL5");
 
@@ -194,7 +194,7 @@ public class ExpandRouteTests
     public void ExpandRouteForNavigation_EmptyRoute_ReturnsEmpty()
     {
         var navData = BuildNavData();
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         Assert.Empty(db.ExpandRouteForNavigation("", null));
         Assert.Empty(db.ExpandRouteForNavigation("  ", null));
@@ -221,7 +221,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
+        var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("SUNOL BDEGA4", null);
 

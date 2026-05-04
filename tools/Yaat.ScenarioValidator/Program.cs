@@ -160,7 +160,7 @@ public static class Program
         }
 
         Console.Error.WriteLine(" OK");
-        NavigationDatabase.Initialize(navData!, cifpService.CifpFilePath!, customFixesBaseDir: "");
+        NavigationDatabase.Initialize(navData!, cifpService.CifpFilePath!, artccsBaseDir: "");
     }
 
     private static async Task<int> ValidateMultipleAsync(string[] artccs, bool jsonOutput)

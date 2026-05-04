@@ -5,7 +5,7 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// Integration test for TaxiRouteCatalog wiring on NavigationDatabase. Confirms the
-/// constructor's taxiRoutesBaseDir parameter loads routes from the supplied path and
+/// constructor's artccsBaseDir parameter loads routes from the supplied path and
 /// exposes them via the TaxiRoutes property.
 /// </summary>
 public class NavigationDatabaseTaxiRoutesTests
@@ -37,15 +37,9 @@ public class NavigationDatabaseTaxiRoutesTests
 
         // Point at the test fixture directory so we don't depend on the production
         // bundled JSONs (which may not exist at the time this test is written).
-        string taxiRoutesDir = Path.Combine(AppContext.BaseDirectory, "TestData", "TaxiRoutes");
+        string artccsDir = Path.Combine(AppContext.BaseDirectory, "TestData", "ARTCCs");
 
-        var db = new NavigationDatabase(
-            navData,
-            cifpPath,
-            customFixesBaseDir: null,
-            fixPronunciationsBaseDir: null,
-            taxiRoutesBaseDir: taxiRoutesDir
-        );
+        var db = new NavigationDatabase(navData, cifpPath, artccsBaseDir: artccsDir);
 
         var koakRoutes = db.TaxiRoutes.GetRoutesForAirport("KOAK");
         Assert.Equal(3, koakRoutes.Count);

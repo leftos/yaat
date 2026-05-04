@@ -22,13 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Data\CustomFixes\**\*.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Data\FixPronunciations\**\*.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Data\TaxiRoutes\**\*.json">
+    <Content Include="Data\ARTCCs\**\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Data\AircraftProfiles.json">

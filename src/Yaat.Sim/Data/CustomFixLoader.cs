@@ -12,21 +12,32 @@ public static class CustomFixLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public static CustomFixLoadResult LoadAll(string baseDir)
+    /// <summary>
+    /// Scans <c>{artccsBaseDir}/{ARTCC}/CustomFixes/*.json</c> across every ARTCC
+    /// subdirectory and loads custom fix definitions from each.
+    /// </summary>
+    public static CustomFixLoadResult LoadAll(string artccsBaseDir)
     {
         var result = new CustomFixLoadResult();
 
-        if (!Directory.Exists(baseDir))
+        if (!Directory.Exists(artccsBaseDir))
         {
-            result.Warnings.Add($"Custom fixes directory not found: {baseDir}");
+            result.Warnings.Add($"ARTCCs directory not found: {artccsBaseDir}");
             return result;
         }
 
-        var files = Directory.GetFiles(baseDir, "*.json", SearchOption.AllDirectories);
-
-        foreach (var file in files)
+        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir))
         {
-            LoadFile(file, result);
+            string categoryDir = Path.Combine(artccDir, "CustomFixes");
+            if (!Directory.Exists(categoryDir))
+            {
+                continue;
+            }
+
+            foreach (var file in Directory.GetFiles(categoryDir, "*.json"))
+            {
+                LoadFile(file, result);
+            }
         }
 
         return result;

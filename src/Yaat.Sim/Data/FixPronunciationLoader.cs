@@ -9,30 +9,40 @@ public sealed class FixPronunciationLoadResult
 }
 
 /// <summary>
-/// Loads fix pronunciation hint JSON from a directory tree (typically
-/// <c>Data/FixPronunciations/{ARTCC}/*.json</c>). Each file is a JSON array of
-/// <see cref="FixPronunciationDefinition"/> records. Malformed files are skipped with a warning —
-/// the loader never throws.
+/// Loads fix pronunciation hint JSON from <c>{artccsBaseDir}/{ARTCC}/FixPronunciations/*.json</c>.
+/// Each file is a JSON array of <see cref="FixPronunciationDefinition"/> records. Malformed files
+/// are skipped with a warning — the loader never throws.
 /// </summary>
 public static class FixPronunciationLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public static FixPronunciationLoadResult LoadAll(string baseDir)
+    /// <summary>
+    /// Scans <c>{artccsBaseDir}/{ARTCC}/FixPronunciations/*.json</c> across every ARTCC
+    /// subdirectory and loads pronunciation definitions from each.
+    /// </summary>
+    public static FixPronunciationLoadResult LoadAll(string artccsBaseDir)
     {
         var result = new FixPronunciationLoadResult();
 
-        if (!Directory.Exists(baseDir))
+        if (!Directory.Exists(artccsBaseDir))
         {
-            result.Warnings.Add($"Fix pronunciations directory not found: {baseDir}");
+            result.Warnings.Add($"ARTCCs directory not found: {artccsBaseDir}");
             return result;
         }
 
-        var files = Directory.GetFiles(baseDir, "*.json", SearchOption.AllDirectories);
-
-        foreach (var file in files)
+        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir))
         {
-            LoadFile(file, result);
+            string categoryDir = Path.Combine(artccDir, "FixPronunciations");
+            if (!Directory.Exists(categoryDir))
+            {
+                continue;
+            }
+
+            foreach (var file in Directory.GetFiles(categoryDir, "*.json"))
+            {
+                LoadFile(file, result);
+            }
         }
 
         return result;

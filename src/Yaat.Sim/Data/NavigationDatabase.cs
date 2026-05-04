@@ -61,10 +61,12 @@ public sealed class NavigationDatabase
 
     /// <summary>
     /// Initializes the global singleton with NavData + CIFP. Both are required.
+    /// <paramref name="artccsBaseDir"/> overrides the per-ARTCC user-data root (custom fixes,
+    /// fix pronunciations, taxi route presets); pass an empty string to skip loading entirely.
     /// </summary>
-    public static void Initialize(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null)
+    public static void Initialize(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null)
     {
-        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, customFixesBaseDir);
+        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir);
     }
 
     /// <summary>
@@ -91,21 +93,23 @@ public sealed class NavigationDatabase
         public void Dispose() => _scopedInstance.Value = null;
     }
 
-    public NavigationDatabase(
-        NavDataSet navData,
-        string cifpFilePath,
-        string? customFixesBaseDir = null,
-        string? fixPronunciationsBaseDir = null,
-        string? taxiRoutesBaseDir = null
-    )
+    /// <summary>
+    /// Constructs a NavigationDatabase from NavData + CIFP plus an optional override path
+    /// for the per-ARTCC user-data root. <paramref name="artccsBaseDir"/> defaults to
+    /// <c>{AppContext.BaseDirectory}/Data/ARTCCs</c>; pass an empty string to skip loading
+    /// per-ARTCC data entirely.
+    /// </summary>
+    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null)
     {
         _cifpFilePath = cifpFilePath;
+        artccsBaseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
+
         BuildIndex(navData);
         BuildProcedureIndex(navData);
         LoadCifpNavaids(cifpFilePath);
-        LoadCustomFixes(customFixesBaseDir);
-        LoadFixPronunciations(fixPronunciationsBaseDir);
-        TaxiRoutes = LoadTaxiRoutes(taxiRoutesBaseDir);
+        LoadCustomFixes(artccsBaseDir);
+        LoadFixPronunciations(artccsBaseDir);
+        TaxiRoutes = LoadTaxiRoutes(artccsBaseDir);
         AllFixNames = BuildSortedNames();
     }
 
@@ -1226,10 +1230,8 @@ public sealed class NavigationDatabase
         Log.LogInformation("Procedure index: {Sids} SIDs, {Stars} STARs", _sidBodies.Count, _starBodies.Count);
     }
 
-    private void LoadCustomFixes(string? baseDir)
+    private void LoadCustomFixes(string baseDir)
     {
-        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "CustomFixes");
-
         var loadResult = CustomFixLoader.LoadAll(baseDir);
 
         foreach (var warning in loadResult.Warnings)
@@ -1314,10 +1316,8 @@ public sealed class NavigationDatabase
         );
     }
 
-    private void LoadFixPronunciations(string? baseDir)
+    private void LoadFixPronunciations(string baseDir)
     {
-        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "FixPronunciations");
-
         var loadResult = FixPronunciationLoader.LoadAll(baseDir);
 
         foreach (var warning in loadResult.Warnings)
@@ -1349,10 +1349,8 @@ public sealed class NavigationDatabase
         );
     }
 
-    private static TaxiRouteCatalog LoadTaxiRoutes(string? baseDir)
+    private static TaxiRouteCatalog LoadTaxiRoutes(string baseDir)
     {
-        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "TaxiRoutes");
-
         var loadResult = TaxiRouteLoader.LoadAll(baseDir);
 
         foreach (var warning in loadResult.Warnings)
