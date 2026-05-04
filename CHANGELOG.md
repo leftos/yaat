@@ -23,6 +23,8 @@
 - Scenario VFR aircraft with no `flightplan` field spawn squawking 1200 with no destination, so `DA`/`VP` file them like a real cold call.
 - `ADD VFR` spawns squawk 1200 with no assigned beacon — file with `DA`/`VP` to assign a discrete code.
 - Command input autocomplete and signature help follow the cursor; Tab-accepting a suggestion mid-edit replaces the active token and preserves the suffix.
+- `VP`/`FP`/`DA` accept destination-only routes (`VP C172 5500 MOD` files KMOD), split equipment suffix from the type, and canonicalize FAA codes to ICAO.
+- CRC's FP form popup matches typed STARS — same equipment-suffix split and FAA→ICAO canonicalization.
 
 ## v0.1.11-alpha [2026/05/03]
 
