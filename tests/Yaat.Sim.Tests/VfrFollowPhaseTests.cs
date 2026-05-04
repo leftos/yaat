@@ -517,4 +517,131 @@ public class VfrFollowPhaseTests : IDisposable
         // Any vector command not in the explicit allow-list should clear the phase.
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
     }
+
+    /// <summary>
+    /// Issue #148 regression: when the lead is already on FinalApproach (still
+    /// airborne), VfrFollowPhase must extract the pattern waypoints from a
+    /// completed earlier leg (Base/Downwind) — not return null and fall through
+    /// to free pursuit. The pattern-leg phases share the same Waypoints object
+    /// built by PatternBuilder.BuildCircuit, so the waypoints are still on
+    /// the Base/Downwind even after they completed.
+    /// </summary>
+    [Fact]
+    public void VfrFollowPhase_LeadOnFinalApproach_LooksBackForWaypoints_Joins()
+    {
+        var runway = DefaultRunway();
+        var waypoints = PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            PatternDirection.Left,
+            sizeOverrideNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: [runway]
+        );
+
+        // Place follower 0.5 nm past the abeam point along the downwind heading
+        // — they're already on the leg.
+        var followerPos = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, waypoints.DownwindHeading, 0.5);
+        var follower = MakeVfrAircraft(
+            "FOLL",
+            "C172",
+            lat: followerPos.Lat,
+            lon: followerPos.Lon,
+            heading: waypoints.DownwindHeading.Degrees,
+            altitude: 1000,
+            ias: 90,
+            onGround: false
+        );
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        // Lead on short final, airborne, runway 28 left pattern. Phase list:
+        // [Base (completed, carries waypoints), FinalApproach (active)].
+        var lead = MakeVfrAircraft(
+            "LEAD",
+            "C172",
+            lat: runway.ThresholdLatitude + 0.005,
+            lon: runway.ThresholdLongitude + 0.005,
+            heading: runway.TrueHeading.Degrees,
+            altitude: 400,
+            ias: 65,
+            onGround: false
+        );
+        lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
+        lead.Phases.Add(new BasePhase { Waypoints = waypoints });
+        lead.Phases.Add(new FinalApproachPhase());
+        var leadCtx = CommandDispatcher.BuildMinimalContext(lead);
+        lead.Phases.Start(leadCtx);
+        // Advance past Base so FinalApproach is current.
+        lead.Phases.AdvanceToNext(leadCtx);
+        Assert.IsType<FinalApproachPhase>(lead.Phases.CurrentPhase);
+
+        var phase = new VfrFollowPhase("LEAD");
+        follower.Phases!.Add(phase);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        follower.Phases.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        // VfrFollowPhase should have swapped itself out for a pattern circuit
+        // copying the lead's runway/direction.
+        Assert.IsNotType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+        Assert.Equal(runway.Designator, follower.Phases.AssignedRunway?.Designator);
+        Assert.Equal(PatternDirection.Left, follower.Phases.TrafficDirection);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// Lead has landed (IsOnGround=true) — don't auto-join behind it. The
+    /// look-back guard requires the lead to still be airborne.
+    /// </summary>
+    [Fact]
+    public void VfrFollowPhase_LeadLandedOnGround_DoesNotLookBackForWaypoints()
+    {
+        var runway = DefaultRunway();
+        var waypoints = PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            PatternDirection.Left,
+            sizeOverrideNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: [runway]
+        );
+
+        var followerPos = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, waypoints.DownwindHeading, 0.5);
+        var follower = MakeVfrAircraft(
+            "FOLL",
+            "C172",
+            lat: followerPos.Lat,
+            lon: followerPos.Lon,
+            heading: waypoints.DownwindHeading.Degrees,
+            altitude: 1000,
+            ias: 90,
+            onGround: false
+        );
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        // Lead is on the ground — already landed. VfrFollowPhase.OnTick will
+        // bail out before ever calling ExtractPatternWaypoints because the
+        // lead.IsOnGround guard fires earlier.
+        var lead = MakeVfrAircraft(
+            "LEAD",
+            "C172",
+            lat: runway.ThresholdLatitude,
+            lon: runway.ThresholdLongitude,
+            heading: runway.TrueHeading.Degrees,
+            altitude: runway.ElevationFt,
+            ias: 0,
+            onGround: true
+        );
+
+        var phase = new VfrFollowPhase("LEAD");
+        follower.Phases!.Add(phase);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        follower.Phases.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        // OnTick clears FollowingCallsign when lead is on ground.
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
 }

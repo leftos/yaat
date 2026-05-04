@@ -41,6 +41,7 @@
 - Instructor terminal shows the raw STARS keystrokes a student typed for `DA`/`VP` and surfaces failed `DA`/`VP` attempts.
 - STARS `DA`/`VP` flight plans for callsigns with no spawned aircraft no longer appear as "No altitude asgn" rows in the Aircraft List.
 - `RFIS`/`RTIS` no longer pulls an aircraft off final approach — the in-sight flag updates without clearing the active phase.
+- `FOLLOW` on a leader who's already on short final now sequences the follower behind in the leader's pattern instead of pointing it directly at the leader's position over the runway.
 
 ## v0.1.11-alpha [2026/05/03]
 

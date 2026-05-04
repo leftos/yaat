@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -229,19 +230,24 @@ public sealed class VfrFollowPhase : Phase
             airportRunways: airportRunways
         );
 
-        // Insert a PatternEntryPhase to navigate to the downwind abeam point.
-        TrueHeading reverseDownwind = leadWaypoints.DownwindHeading.ToReciprocal();
-        var leadIn = GeoMath.ProjectPoint(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon, reverseDownwind, 1.0);
-
-        var entry = new PatternEntryPhase
-        {
-            EntryLat = leadWaypoints.DownwindAbeamLat,
-            EntryLon = leadWaypoints.DownwindAbeamLon,
-            PatternAltitude = leadWaypoints.PatternAltitude,
-            Kind = PatternEntryPhase.ClassifyDownwindEntry(ctx.Aircraft.TrueTrack, leadWaypoints.DownwindHeading),
-            LeadInLat = leadIn.Lat,
-            LeadInLon = leadIn.Lon,
-        };
+        // If the follower is already established on the downwind leg (track
+        // aligned with downwind heading and past the abeam point), skip
+        // PatternEntryPhase and engage the circuit's DownwindPhase directly.
+        // Routing such a follower through PatternEntryPhase would command a
+        // turn toward the lead-in waypoint (which sits behind the aircraft on
+        // the reciprocal heading), making it fly backward.
+        double trackToDownwindDelta = ctx.Aircraft.TrueTrack.AbsAngleTo(leadWaypoints.DownwindHeading);
+        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
+            ctx.Aircraft.Position,
+            new LatLon(leadWaypoints.ThresholdLat, leadWaypoints.ThresholdLon),
+            leadWaypoints.DownwindHeading
+        );
+        double abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
+            new LatLon(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon),
+            new LatLon(leadWaypoints.ThresholdLat, leadWaypoints.ThresholdLon),
+            leadWaypoints.DownwindHeading
+        );
+        bool alreadyOnDownwind = trackToDownwindDelta <= 30.0 && aircraftAlongTrack >= abeamAlongTrack;
 
         // Replace the follower's phase list entirely.
         var phases = ctx.Aircraft.Phases ?? new PhaseList();
@@ -252,7 +258,21 @@ public sealed class VfrFollowPhase : Phase
             TrafficDirection = leadWaypoints.Direction,
             PatternRunway = leadRunway,
         };
-        ctx.Aircraft.Phases.Add(entry);
+        if (!alreadyOnDownwind)
+        {
+            TrueHeading reverseDownwind = leadWaypoints.DownwindHeading.ToReciprocal();
+            var leadIn = GeoMath.ProjectPoint(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon, reverseDownwind, 1.0);
+            var entry = new PatternEntryPhase
+            {
+                EntryLat = leadWaypoints.DownwindAbeamLat,
+                EntryLon = leadWaypoints.DownwindAbeamLon,
+                PatternAltitude = leadWaypoints.PatternAltitude,
+                Kind = PatternEntryPhase.ClassifyDownwindEntry(ctx.Aircraft.TrueTrack, leadWaypoints.DownwindHeading),
+                LeadInLat = leadIn.Lat,
+                LeadInLon = leadIn.Lon,
+            };
+            ctx.Aircraft.Phases.Add(entry);
+        }
         foreach (var p in circuit)
         {
             ctx.Aircraft.Phases.Add(p);
@@ -274,6 +294,11 @@ public sealed class VfrFollowPhase : Phase
     /// the real circuit begins — the waypoints already exist on the next
     /// pattern-leg phase in the phase list (populated by
     /// <see cref="PatternBuilder.BuildCircuit"/>), so we look ahead.
+    /// When the lead is on <see cref="FinalApproachPhase"/> or
+    /// <see cref="LandingPhase"/> (still airborne), we look back through the
+    /// completed pattern legs — all pattern-leg phases share the same
+    /// <see cref="PatternWaypoints"/> instance, so the most recent completed
+    /// Base/Downwind still carries it.
     /// </summary>
     private static PatternWaypoints? ExtractPatternWaypoints(AircraftState lead)
     {
@@ -284,9 +309,28 @@ public sealed class VfrFollowPhase : Phase
             return fromCurrent;
         }
 
-        if (current is PatternEntryPhase && lead.Phases is { } phases)
+        if (lead.Phases is not { } phases)
+        {
+            return null;
+        }
+
+        if (current is PatternEntryPhase)
         {
             for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+            {
+                var waypoints = WaypointsOf(phases.Phases[i]);
+                if (waypoints is not null)
+                {
+                    return waypoints;
+                }
+            }
+        }
+
+        // Lead on final or rolling out (still airborne) — look back for the
+        // most recent pattern leg whose waypoints are still attached.
+        if ((current is FinalApproachPhase || current is LandingPhase) && !lead.IsOnGround)
+        {
+            for (int i = phases.CurrentIndex - 1; i >= 0; i--)
             {
                 var waypoints = WaypointsOf(phases.Phases[i]);
                 if (waypoints is not null)
