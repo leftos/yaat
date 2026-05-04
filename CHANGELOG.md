@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- Datablock now shows a struck-through `ModeC` line when an aircraft is squawking standby — radar full datablock, EuroScope tag, and ground datablock — to flag aircraft whose transponder isn't replying to Mode C interrogations.
+- Right-click the command input → **Save as favorite…** to capture the current command text without re-typing; the existing add dialog opens with the command pre-filled.
 - Speed flyout (EuroScope tag click + right-click menu) gains a "FAS - N kt" entry at the bottom (where N is the aircraft-specific final approach speed); selection dispatches `RFAS`.
 - EuroScope tag owner cell: **left-click** takes RPO control (assigns the aircraft to you); **right-click** opens the RPO assignment menu (Take control / Give up control / Give control to *(submenu of room members)* / Unassign).
 - EuroScope tag Destination field is now a click target — clicking enters draw-route mode (same flow as right-click "Draw route").

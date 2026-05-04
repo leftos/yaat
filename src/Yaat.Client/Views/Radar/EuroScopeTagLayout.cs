@@ -24,6 +24,7 @@ public enum TagFieldId
     Scratchpad2,
     Squawk,
     Handoff,
+    ModeC,
 }
 
 /// <summary>One field's text and its bounding rect in canvas coordinates.</summary>
@@ -110,6 +111,11 @@ public static class EuroScopeTagLayout
         bool hasSp1 = !string.IsNullOrEmpty(ac.Scratchpad1);
         bool hasSp2 = !string.IsNullOrEmpty(ac.Scratchpad2);
         bool hasHandoff = !string.IsNullOrEmpty(ac.HandoffDisplay);
+
+        // Tracks the y-top of the last line that actually emitted, so an optional
+        // ModeC line below can sit directly under whatever the bottom line ended up being.
+        float lastLineYTop = y3Top;
+
         if (hasRwy || hasSp1 || hasSp2 || hasHandoff)
         {
             float y4Top = y3Top + lineH;
@@ -138,6 +144,19 @@ public static class EuroScopeTagLayout
             }
             maxWidth = MathF.Max(maxWidth, x - originX);
             lineCount = 4;
+            lastLineYTop = y4Top;
+        }
+
+        // ModeC line: aircraft squawking standby — STARS would not be receiving Mode C.
+        // Renderer draws a strikethrough through the literal "ModeC" text.
+        if (ac.TransponderMode == "Standby")
+        {
+            float yTop = lastLineYTop + lineH;
+            float yBot = yTop + paint.TextSize;
+            x = originX;
+            x = AddField(fields, TagFieldId.ModeC, "ModeC", x, yTop, yBot, paint);
+            maxWidth = MathF.Max(maxWidth, x - originX);
+            lineCount++;
         }
 
         var bounds = new SKRect(

@@ -61,6 +61,13 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
+    private readonly SKPaint _strikethroughPaint = new()
+    {
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
     /// <summary>Local user's initials for assignment tint matching.</summary>
     public string? LocalUserInitials { get; set; }
 
@@ -219,14 +226,11 @@ public sealed class TargetRenderer : IDisposable
             return;
         }
 
-        float lineH = _dataBlockPaint.TextSize + 2;
-
-        var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
-        var cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
-
         if (isMinified)
         {
             // Minified: single line with altitude + CWT
+            string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
+            string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
             string miniLine = cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
             float miniW = _dataBlockPaint.MeasureText(miniLine);
 
@@ -246,52 +250,50 @@ public sealed class TargetRenderer : IDisposable
         }
         else
         {
-            // Full datablock: line1 = callsign (+ * for VFR), line2 = alt speed CWT/TYPE, line3 = owner + scratchpads
-            bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-            string line1 = isVfr ? $"{ac.Callsign}*" : ac.Callsign;
-            var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-            var cwtType = FormatCwtType(cwt, ac.FiledAircraftType);
-            string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
-
-            float w1 = _dataBlockPaint.MeasureText(line1);
-            float w2 = _dataBlockPaint.MeasureText(line2);
-            float textW = MathF.Max(w1, w2);
-            int lineCount = 2;
-
-            // Line 3: [assigned] + owner TCP + handoff indicator + scratchpads on same line
-            string? line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.HandoffDisplay, ac.Scratchpad1, ac.Scratchpad2, ac.AssignedTo);
-            if (line3 is not null)
-            {
-                float w3 = _dataBlockPaint.MeasureText(line3);
-                textW = MathF.Max(textW, w3);
-                lineCount = 3;
-            }
-
-            const float pad = 3f;
-            var blockRect = new SKRect(
-                blockX - pad,
-                blockY - _dataBlockPaint.TextSize - pad,
-                blockX + textW + pad,
-                blockY + (lineCount - 1) * lineH + pad
-            );
+            var layout = RadarDatablockLayout.Compute(ac, blockX, blockY, _dataBlockPaint);
 
             if (isSelected)
             {
-                canvas.DrawRect(blockRect, _selectedBorderPaint);
+                canvas.DrawRect(layout.Rect, _selectedBorderPaint);
             }
 
-            var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
+            var leaderEnd = ClampToBlockEdge(cx, cy, layout.Rect);
             _leaderPaint.Color = color;
             canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
 
-            canvas.DrawText(line1, blockX, blockY, _dataBlockPaint);
-            canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockPaint);
+            canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockPaint);
+            canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, _dataBlockPaint);
 
-            if (line3 is not null)
+            int row = 2;
+            if (layout.Line3.Length > 0)
             {
-                canvas.DrawText(line3, blockX, blockY + 2 * lineH, _dataBlockPaint);
+                canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+                row++;
+            }
+
+            if (layout.Line4.Length > 0)
+            {
+                float modeCBaseline = layout.TextY + row * layout.LineHeight;
+                canvas.DrawText(layout.Line4, layout.TextX, modeCBaseline, _dataBlockPaint);
+                DrawStrikethrough(canvas, layout.TextX, modeCBaseline, layout.Line4, _dataBlockPaint, color);
             }
         }
+    }
+
+    private void DrawStrikethrough(SKCanvas canvas, float textX, float textBaseline, string text, SKPaint textPaint, SKColor color)
+    {
+        textPaint.GetFontMetrics(out var metrics);
+        // StrikeoutPosition is negative (above baseline). Some fonts report null/0 — fall back to one-third of cap height.
+        float strikeOffset = metrics.StrikeoutPosition.GetValueOrDefault();
+        if (strikeOffset == 0)
+        {
+            strikeOffset = -textPaint.TextSize / 3f;
+        }
+        float strikeY = textBaseline + strikeOffset;
+        _strikethroughPaint.Color = color;
+        _strikethroughPaint.StrokeWidth = MathF.Max(1f, metrics.StrikeoutThickness.GetValueOrDefault());
+        float w = textPaint.MeasureText(text);
+        canvas.DrawLine(textX, strikeY, textX + w, strikeY, _strikethroughPaint);
     }
 
     private void DrawEuroScopeBlock(SKCanvas canvas, float cx, float cy, float blockX, float blockY, AircraftModel ac, SKColor color, bool isSelected)
@@ -312,69 +314,11 @@ public sealed class TargetRenderer : IDisposable
         {
             // Anchor at baseline (= rect.Bottom) so the text aligns with how STARS draws elsewhere.
             canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
-        }
-    }
-
-    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? handoffDisplay, string? sp1, string? sp2, string? assignedTo = null)
-    {
-        bool hasAssigned = !string.IsNullOrEmpty(assignedTo);
-        bool hasOwner = !string.IsNullOrEmpty(ownerDisplay);
-        bool hasHandoff = !string.IsNullOrEmpty(handoffDisplay);
-        bool hasSp1 = !string.IsNullOrEmpty(sp1);
-        bool hasSp2 = !string.IsNullOrEmpty(sp2);
-
-        if (!hasAssigned && !hasOwner && !hasHandoff && !hasSp1 && !hasSp2)
-        {
-            return null;
-        }
-
-        var parts = new List<string>(5);
-        if (hasAssigned)
-        {
-            parts.Add($"[{assignedTo}]");
-        }
-        if (hasOwner)
-        {
-            // Flash handoff indicator: 500ms on/off cycle (all flash in sync, STARS behavior)
-            bool showHandoff = hasHandoff && Environment.TickCount64 / 500 % 2 == 0;
-            parts.Add(showHandoff ? $"{ownerDisplay} >{handoffDisplay}" : ownerDisplay!);
-        }
-        else if (hasHandoff)
-        {
-            bool showHandoff = Environment.TickCount64 / 500 % 2 == 0;
-            if (showHandoff)
+            if (f.Field == TagFieldId.ModeC)
             {
-                parts.Add($">{handoffDisplay}");
+                DrawStrikethrough(canvas, f.Rect.Left, f.Rect.Bottom, f.Text, _dataBlockPaint, color);
             }
         }
-
-        if (hasSp1)
-        {
-            parts.Add($".{sp1}");
-        }
-
-        if (hasSp2)
-        {
-            parts.Add($"+{sp2}");
-        }
-
-        return parts.Count > 0 ? string.Join(" ", parts) : null;
-    }
-
-    private static string FormatCwtType(string cwt, string aircraftType)
-    {
-        var baseType = aircraftType.Trim();
-        if (cwt.Length > 0 && baseType.Length > 0)
-        {
-            return $"{cwt}/{baseType}";
-        }
-
-        if (cwt.Length > 0)
-        {
-            return cwt;
-        }
-
-        return baseType;
     }
 
     private static SKPoint ClampToBlockEdge(float pointX, float pointY, SKRect rect)
@@ -421,5 +365,6 @@ public sealed class TargetRenderer : IDisposable
         _historyPaint.Dispose();
         _selectedBorderPaint.Dispose();
         _ptlPaint.Dispose();
+        _strikethroughPaint.Dispose();
     }
 }

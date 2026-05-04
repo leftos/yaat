@@ -24,8 +24,9 @@ internal readonly struct DataBlockLayout
     public readonly string Line1;
     public readonly string Line2;
     public readonly string Line3;
+    public readonly string Line4;
 
-    private DataBlockLayout(SKRect rect, float textX, float textY, float lineHeight, string line1, string line2, string line3)
+    private DataBlockLayout(SKRect rect, float textX, float textY, float lineHeight, string line1, string line2, string line3, string line4)
     {
         Rect = rect;
         TextX = textX;
@@ -34,6 +35,7 @@ internal readonly struct DataBlockLayout
         Line1 = line1;
         Line2 = line2;
         Line3 = line3;
+        Line4 = line4;
     }
 
     public static DataBlockLayout Compute(AircraftModel ac, float screenX, float screenY, SKPoint offset, SKPaint textPaint, bool isAirborne)
@@ -45,17 +47,27 @@ internal readonly struct DataBlockLayout
         string dest = ac.Destination.StartsWith('K') ? ac.Destination[1..] : ac.Destination;
         string line2 = string.IsNullOrEmpty(dest) ? ac.AircraftType : $"{ac.AircraftType} {dest}";
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
+        string line4 = ac.TransponderMode == "Standby" ? "ModeC" : "";
 
         float w1 = textPaint.MeasureText(line1);
         float w2 = textPaint.MeasureText(line2);
         float w3 = line3.Length > 0 ? textPaint.MeasureText(line3) : 0;
-        float textW = MathF.Max(w1, MathF.Max(w2, w3));
+        float w4 = line4.Length > 0 ? textPaint.MeasureText(line4) : 0;
+        float textW = MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4));
         float lineH = textPaint.TextSize + 2;
-        int lineCount = line3.Length > 0 ? 3 : 2;
+        int lineCount = 2;
+        if (line3.Length > 0)
+        {
+            lineCount++;
+        }
+        if (line4.Length > 0)
+        {
+            lineCount++;
+        }
 
         var rect = new SKRect(blockX - Pad, blockY - textPaint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
-        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3);
+        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4);
     }
 
     public static readonly SKPoint DefaultOffset = new(30, -25);
@@ -219,6 +231,13 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
         SubpixelText = true,
         Typeface = PlatformHelper.MonospaceTypefaceBold,
+    };
+
+    private readonly SKPaint _strikethroughPaint = new()
+    {
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
     };
 
     /// <summary>
@@ -1728,9 +1747,28 @@ public sealed class GroundRenderer : IDisposable
 
             canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockTextPaint);
             canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, _dataBlockTextPaint);
+            int row = 2;
             if (layout.Line3.Length > 0)
             {
-                canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + layout.LineHeight * 2, _dataBlockTextPaint);
+                canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
+                row++;
+            }
+
+            if (layout.Line4.Length > 0)
+            {
+                float modeCBaseline = layout.TextY + layout.LineHeight * row;
+                canvas.DrawText(layout.Line4, layout.TextX, modeCBaseline, _dataBlockTextPaint);
+                _dataBlockTextPaint.GetFontMetrics(out var metrics);
+                float strikeOffset = metrics.StrikeoutPosition.GetValueOrDefault();
+                if (strikeOffset == 0)
+                {
+                    strikeOffset = -_dataBlockTextPaint.TextSize / 3f;
+                }
+                float strikeY = modeCBaseline + strikeOffset;
+                _strikethroughPaint.Color = dbColor;
+                _strikethroughPaint.StrokeWidth = MathF.Max(1f, metrics.StrikeoutThickness.GetValueOrDefault());
+                float w = _dataBlockTextPaint.MeasureText(layout.Line4);
+                canvas.DrawLine(layout.TextX, strikeY, layout.TextX + w, strikeY, _strikethroughPaint);
             }
         }
     }
@@ -1851,6 +1889,7 @@ public sealed class GroundRenderer : IDisposable
         _dataBlockLeaderPaint.Dispose();
         _dataBlockTextPaint.Dispose();
         _dataBlockBgPaint.Dispose();
+        _strikethroughPaint.Dispose();
         _labelBgPaint.Dispose();
         _bgPaint.Dispose();
         _debugLabelPaint.Dispose();
