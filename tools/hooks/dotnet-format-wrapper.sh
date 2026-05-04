@@ -27,4 +27,9 @@ if [ "$#" -eq 0 ]; then
 fi
 
 # `--include` must come last so its variadic file list consumes to end-of-args.
-exec dotnet format "$subcommand" --no-restore --include "$@"
+dotnet format "$subcommand" --no-restore --include "$@"
+
+# Re-stage formatter modifications so prek doesn't fail the commit on "files were
+# modified by this hook". The dotnet-build hook runs last and gates the commit on
+# the formatted result still compiling.
+git add -- "$@"
