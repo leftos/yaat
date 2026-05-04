@@ -350,7 +350,7 @@ public partial class GroundView : UserControl
             }
         );
         menu.Items.Add(new Separator());
-        AddCommandTextBox(menu, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+        menu.AddCommandTextBox(cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
         menu.Items.Add(new Separator());
 
         if (phase == "At Parking")
@@ -807,34 +807,6 @@ public partial class GroundView : UserControl
         }
 
         menu.Items.Add(parent);
-    }
-
-    private static void AddCommandTextBox(ContextMenu menu, Func<string, Task> onSubmit)
-    {
-        var textBox = new TextBox
-        {
-            Watermark = "Command",
-            FontSize = 12,
-            MinWidth = 160,
-        };
-        textBox.KeyDown += async (_, e) =>
-        {
-            if (e.Key == Key.Enter)
-            {
-                e.Handled = true;
-                var text = textBox.Text?.Trim();
-                if (!string.IsNullOrEmpty(text))
-                {
-                    menu.Close();
-                    await onSubmit(text);
-                }
-            }
-            else if (e.Key != Key.Escape)
-            {
-                e.Handled = true;
-            }
-        };
-        menu.Items.Add(textBox);
     }
 
     private static MenuItem CreateMenuItem(string header, Func<Task> action)

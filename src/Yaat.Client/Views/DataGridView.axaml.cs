@@ -179,7 +179,7 @@ public partial class DataGridView : UserControl
         );
         menu.Items.Add(new Separator());
 
-        AddCommandTextBox(menu, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        menu.AddCommandTextBox(cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
 
         menu.Items.Add(new Separator());
         var editItem = new MenuItem { Header = "Edit flight plan" };
@@ -232,33 +232,5 @@ public partial class DataGridView : UserControl
             vm.DataGridScale = 1.0;
             e.Handled = true;
         }
-    }
-
-    private static void AddCommandTextBox(ContextMenu menu, Func<string, Task> onSubmit)
-    {
-        var textBox = new TextBox
-        {
-            Watermark = "Command",
-            FontSize = 12,
-            MinWidth = 160,
-        };
-        textBox.KeyDown += async (_, e) =>
-        {
-            if (e.Key == Key.Enter)
-            {
-                e.Handled = true;
-                var text = textBox.Text?.Trim();
-                if (!string.IsNullOrEmpty(text))
-                {
-                    menu.Close();
-                    await onSubmit(text);
-                }
-            }
-            else if (e.Key != Key.Escape)
-            {
-                e.Handled = true;
-            }
-        };
-        menu.Items.Add(textBox);
     }
 }
