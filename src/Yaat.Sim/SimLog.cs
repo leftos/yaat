@@ -5,13 +5,22 @@ namespace Yaat.Sim;
 
 public static class SimLog
 {
-    // AsyncLocal so each test's async context gets its own factory. A plain static field
-    // races between parallel tests: test A sets factory F_A, test B sets F_B, and when A's
-    // still-running engine ticks try to log they resolve via whichever F_X is current —
-    // which may belong to a completed test whose xUnit output helper has been disposed.
-    private static readonly AsyncLocal<ILoggerFactory?> _factory = new();
+    // AsyncLocal: per-context factory so parallel tests do not cross-contaminate each
+    // other's xunit output helpers. Test A sets F_A in its async context, test B sets
+    // F_B in its own; resolution sees the right one as long as ExecutionContext flows.
+    //
+    // Static fallback: ASP.NET Core dispatches requests onto thread-pool workers whose
+    // ExecutionContext may not carry the AsyncLocal value set during host startup. The
+    // static field is the unconditional fallback for production servers — set once at
+    // startup, visible from every thread regardless of context flow.
+    private static ILoggerFactory? _staticFactory;
+    private static readonly AsyncLocal<ILoggerFactory?> _scopedFactory = new();
 
-    public static void Initialize(ILoggerFactory factory) => _factory.Value = factory;
+    public static void Initialize(ILoggerFactory factory)
+    {
+        _staticFactory = factory;
+        _scopedFactory.Value = factory;
+    }
 
     public static ILogger CreateLogger<T>() => new DeferredLogger(typeof(T).Name);
 
@@ -21,14 +30,17 @@ public static class SimLog
     /// Logger that defers to whatever <see cref="ILoggerFactory"/> is current at call time.
     /// Static fields using <c>SimLog.CreateLogger</c> are initialized before tests call
     /// <see cref="Initialize"/>. A deferred logger ensures those fields pick up the
-    /// test-configured factory when it's set, rather than capturing a null factory at
-    /// class-load time. Resolves the factory via AsyncLocal so parallel tests do not
-    /// cross-contaminate each other's output helpers.
+    /// configured factory when it's set, rather than capturing a null factory at
+    /// class-load time. Resolves AsyncLocal first (test scoping), then the process-wide
+    /// static (production), then falls back to <see cref="NullLoggerFactory"/>.
     /// </summary>
     private sealed class DeferredLogger(string category) : ILogger
     {
-        private ILogger Resolve() =>
-            _factory.Value is { } current ? current.CreateLogger(category) : NullLoggerFactory.Instance.CreateLogger(category);
+        private ILogger Resolve()
+        {
+            var factory = _scopedFactory.Value ?? _staticFactory ?? NullLoggerFactory.Instance;
+            return factory.CreateLogger(category);
+        }
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => Resolve().BeginScope(state);
