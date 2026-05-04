@@ -21,6 +21,7 @@
 - **Help → Command Cheatsheet** opens an HTML cheatsheet in your default browser — filterable, searchable, bundled next to the EXE for offline use.
 
 ### Fixed
+- `ERB <runway> <distance>` rolls the aircraft onto final at the specified distance from threshold.
 - CRC Tower Cab keeps showing the aircraft type after an instructor blanks or changes it in the flight plan editor — Tower Cab is the out-the-window view, so it tracks the actual physical type. STARS, ASDE-X, the FP editor and flight strips still follow the filed FP.
 - ASDE-X suspend/terminate/inhibit-alerts/tag commands from CRC now take effect on the display.
 - The CTO inline signature hint matches the typed arguments — `CTO 020 150` shows the heading overload, not `CTO RH [altitude?]`.

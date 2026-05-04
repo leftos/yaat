@@ -1084,13 +1084,24 @@ internal static class PatternCommandHandler
     {
         if (leg == PatternEntryLeg.Base && finalDistanceNm is not null)
         {
-            // Compute a base entry point at the custom final distance
+            // Place the entry on the base leg perpendicular to the extended
+            // centerline at finalDistanceNm out, at pattern width on the
+            // pattern side. BasePhase fires the final turn when cross-track
+            // ≤ turn radius, so the entry's along-track is what determines
+            // where the aircraft rolls onto centerline. A diagonal offset
+            // would carry pattern-length into the along-track and shift the
+            // rollout outbound past the requested distance.
             TrueHeading reciprocal = wp.FinalHeading.ToReciprocal();
             var finalPoint = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, finalDistanceNm.Value);
-            // Offset laterally by the pattern width (same direction as BaseTurn from threshold)
-            double baseOffset = GeoMath.DistanceNm(wp.ThresholdLat, wp.ThresholdLon, wp.BaseTurnLat, wp.BaseTurnLon);
-            double lateralBearing = GeoMath.BearingTo(wp.ThresholdLat, wp.ThresholdLon, wp.BaseTurnLat, wp.BaseTurnLon);
-            var entryPoint = GeoMath.ProjectPointRaw(finalPoint.Lat, finalPoint.Lon, lateralBearing, baseOffset);
+            double patternWidth = Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(
+                    new LatLon(wp.BaseTurnLat, wp.BaseTurnLon),
+                    new LatLon(wp.ThresholdLat, wp.ThresholdLon),
+                    wp.FinalHeading
+                )
+            );
+            TrueHeading perpBearing = wp.BaseHeading.ToReciprocal();
+            var entryPoint = GeoMath.ProjectPoint(finalPoint.Lat, finalPoint.Lon, perpBearing, patternWidth);
             return (entryPoint.Lat, entryPoint.Lon);
         }
 

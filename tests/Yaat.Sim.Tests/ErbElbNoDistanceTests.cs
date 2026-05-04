@@ -225,6 +225,93 @@ public class ErbElbNoDistanceTests : IDisposable
     }
 
     // ───────────────────────────────────────────────────────────────────────
+    // ERB/ELB with distance: entry-point geometry
+    //
+    // The entry point must place the aircraft at along-track = finalDistanceNm
+    // (not finalDistanceNm + pattern-length) and offset perpendicularly by the
+    // pattern width on the correct side. BasePhase.OnTick triggers the final
+    // turn when cross-track ≤ turn radius, regardless of along-track, so the
+    // entry's along-track determines where the aircraft rolls onto centerline.
+    // ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ERB_WithDistance3nm_EntryPointAtAlong3nmCrossOnRightPatternSide()
+    {
+        var runway = MakeOak28R();
+
+        // Far enough out to take the PatternEntryPhase path (distToEntry > 1nm).
+        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 7.0, crossTrackRightNm: 3.0);
+        var aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
+        aircraft.Phases!.AssignedRunway = runway;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: 3.0
+        );
+
+        Assert.True(result.Success, result.Message);
+        var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
+
+        // Decompose entry against runway threshold/heading.
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var entryPos = new LatLon(entry.EntryLat, entry.EntryLon);
+        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
+        double along = GeoMath.AlongTrackDistanceNm(entryPos, threshold, reciprocal);
+        double crossSigned = GeoMath.SignedCrossTrackDistanceNm(entryPos, threshold, runway.TrueHeading);
+
+        _output.WriteLine(
+            $"Right base entry: along={along:F3}nm crossSigned={crossSigned:F3}nm (expected along≈3.0, cross>0 for right pattern on 28R)"
+        );
+
+        Assert.True(Math.Abs(along - 3.0) < 0.05, $"Entry along-track should be ≈3.0nm, got {along:F3}nm");
+        // Right-traffic on 28R = north of runway. SignedCrossTrack is positive
+        // to the right of FinalHeading (292°); right of 292° = 22° (NNE/north),
+        // so the right-pattern side is *positive*.
+        Assert.True(crossSigned > 0.3, $"Entry should be on right-pattern (north) side, got crossSigned={crossSigned:F3}nm");
+    }
+
+    [Fact]
+    public void ELB_WithDistance3nm_EntryPointAtAlong3nmCrossOnLeftPatternSide()
+    {
+        var runway = MakeOak28R();
+
+        // Position aircraft on the LEFT pattern side (south of centerline) so
+        // it isn't flagged as wrong-side and the explicit-distance branch runs.
+        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 7.0, crossTrackRightNm: -3.0);
+        var aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
+        aircraft.Phases!.AssignedRunway = runway;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: 3.0
+        );
+
+        Assert.True(result.Success, result.Message);
+        var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var entryPos = new LatLon(entry.EntryLat, entry.EntryLon);
+        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
+        double along = GeoMath.AlongTrackDistanceNm(entryPos, threshold, reciprocal);
+        double crossSigned = GeoMath.SignedCrossTrackDistanceNm(entryPos, threshold, runway.TrueHeading);
+
+        _output.WriteLine(
+            $"Left base entry: along={along:F3}nm crossSigned={crossSigned:F3}nm (expected along≈3.0, cross<0 for left pattern on 28R)"
+        );
+
+        Assert.True(Math.Abs(along - 3.0) < 0.05, $"Entry along-track should be ≈3.0nm, got {along:F3}nm");
+        // Left-traffic on 28R = south of runway = negative SignedCrossTrack
+        // (left of FinalHeading 292°).
+        Assert.True(crossSigned < -0.3, $"Entry should be on left-pattern (south) side, got crossSigned={crossSigned:F3}nm");
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
     // Past-threshold rejection
     // ───────────────────────────────────────────────────────────────────────
 
