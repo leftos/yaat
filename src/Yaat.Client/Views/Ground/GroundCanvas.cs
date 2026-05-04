@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 // ReSharper disable MemberCanBePrivate.Global — Avalonia styled properties must be public
@@ -457,6 +458,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when empty space is left-clicked (deselect).</summary>
     public event Action? EmptySpaceClicked;
 
+    /// <summary>
+    /// Fired when a runway-threshold marker is left-clicked while an aircraft is selected.
+    /// Args: runway-end designator (e.g. <c>"28L"</c>), screen position of the click.
+    /// </summary>
+    public event Action<string, Point>? RunwayThresholdClicked;
+
     /// <summary>Fired when a node is left-clicked during draw mode.</summary>
     public event Action<int>? DrawNodeClicked;
 
@@ -852,6 +859,17 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 return;
             }
 
+            if (SelectedAircraft is not null)
+            {
+                var threshold = FindRunwayThresholdAtPoint(pos);
+                if (threshold is { } hit)
+                {
+                    RunwayThresholdClicked?.Invoke(hit.RunwayEnd, pos);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             EmptySpaceClicked?.Invoke();
         }
 
@@ -917,6 +935,56 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         return closest;
+    }
+
+    /// <summary>
+    /// Hit-tests the runway-threshold markers (one per runway end). Returns the
+    /// closest threshold within hit radius, with its end designator
+    /// (e.g. <c>"28L"</c>) and the lat/lon of the threshold point.
+    /// Slightly tighter radius than <see cref="FindNodeAtPoint"/> so the marker
+    /// doesn't steal clicks from nearby hold-short nodes.
+    /// </summary>
+    public (string RunwayEnd, LatLon Position)? FindRunwayThresholdAtPoint(Point screenPos)
+    {
+        if (Layout?.Runways is not { } runways)
+        {
+            return null;
+        }
+
+        const float hitRadius = 18f;
+        (string RunwayEnd, LatLon Position)? best = null;
+        float bestDist = hitRadius;
+
+        foreach (var rwy in runways)
+        {
+            if (rwy.Coordinates.Count < 2)
+            {
+                continue;
+            }
+
+            var ids = RunwayIdentifier.Parse(rwy.Name);
+            (string End, double Lat, double Lon)[] thresholds =
+            [
+                (ids.End1, rwy.Coordinates[0][0], rwy.Coordinates[0][1]),
+                (ids.End2, rwy.Coordinates[^1][0], rwy.Coordinates[^1][1]),
+            ];
+
+            foreach (var (end, lat, lon) in thresholds)
+            {
+                var (sx, sy) = Viewport.LatLonToScreen(lat, lon);
+                var dx = (float)screenPos.X - sx;
+                var dy = (float)screenPos.Y - sy;
+                var dist = MathF.Sqrt(dx * dx + dy * dy);
+
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = (end, new LatLon(lat, lon));
+                }
+            }
+        }
+
+        return best;
     }
 
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)

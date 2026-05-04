@@ -355,6 +355,17 @@ public partial class GroundViewModel : ObservableObject
         Preferences?.SetGroundPanZoomLocked(IsPanZoomLocked);
     }
 
+    /// <summary>
+    /// Test-only hook: install a layout DTO directly, bypassing the server fetch.
+    /// Mirrors the relevant slice of <see cref="LoadLayoutAsync"/> so tests
+    /// exercise the same reconstruction path production code uses.
+    /// </summary>
+    internal void SetLayoutForTesting(GroundLayoutDto dto)
+    {
+        Layout = dto;
+        _domainLayout = ReconstructLayout(dto);
+    }
+
     public async Task LoadLayoutAsync(string airportId)
     {
         try
@@ -1072,6 +1083,64 @@ public partial class GroundViewModel : ObservableObject
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Finds the lowest-cost <c>RunwayHoldShort</c> node for <paramref name="runwayEnd"/>
+    /// (e.g. <c>"28L"</c>) reachable from <paramref name="ac"/>'s current nearest node.
+    /// Returns null if no route exists or the runway has no hold-short nodes.
+    /// Used by the runway-end click target to pick a representative HS node for the
+    /// existing taxi-to-runway submenu — equivalent to what the trainer would have
+    /// picked manually if they right-clicked the closest HS on that end.
+    /// </summary>
+    public int? FindNearestHoldShortNodeForRunwayEnd(AircraftModel ac, string runwayEnd)
+    {
+        if (_domainLayout is null)
+        {
+            return null;
+        }
+
+        var fromNodeId = GetAircraftNearestNodeId(ac);
+        if (fromNodeId is null)
+        {
+            return null;
+        }
+
+        int? bestNodeId = null;
+        double bestCostNm = double.MaxValue;
+
+        foreach (var node in _domainLayout.Nodes.Values)
+        {
+            if (node.Type != GroundNodeType.RunwayHoldShort)
+            {
+                continue;
+            }
+
+            if (node.RunwayId is not { } hsRwyId || !hsRwyId.Contains(runwayEnd))
+            {
+                continue;
+            }
+
+            var route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id);
+            if (route is null)
+            {
+                continue;
+            }
+
+            double costNm = 0;
+            foreach (var seg in route.Segments)
+            {
+                costNm += seg.Edge.DistanceNm;
+            }
+
+            if (costNm < bestCostNm)
+            {
+                bestCostNm = costNm;
+                bestNodeId = node.Id;
+            }
+        }
+
+        return bestNodeId;
     }
 
     public TaxiRoute? FindHoldShortPreviewRoute(AircraftModel ac, string target)

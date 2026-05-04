@@ -269,6 +269,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
   - All phases include "Delete"
 - **On empty space**: left-click to deselect the current aircraft
 
+**Runway-end click target:** When an aircraft is selected, a small amber dot appears at every runway threshold. Left-click a dot to open the same "Taxi to runway" submenu produced by right-clicking a hold-short node — but anchored at the threshold, so you don't have to hunt for the right hold-short node. The submenu still offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants.
+
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route..." to enter draw mode. Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. Hover shows a dashed preview. Right-click to finish. Backspace undoes the last waypoint, Escape cancels.
 
 **Preset taxi routes:** Right-click an aircraft on the ground and select "Preset taxi route" to issue an SOP-aligned taxi command in one click. Routes are loaded from per-airport JSON files bundled with YAAT under `Data/TaxiRoutes/{ARTCC}/{airport}-routes.json` — for example, FLL's "DEP 10R via T-T3-B" lives at `Data/TaxiRoutes/ZMA/kfll-routes.json`. Each route has a display name, a whitespace-separated path of taxiway names (whatever you'd type after `TAXI` in the command bar), and an optional destination (runway hold-short, parking, or spot):

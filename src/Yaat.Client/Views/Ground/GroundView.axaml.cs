@@ -44,6 +44,7 @@ public partial class GroundView : UserControl
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
         _canvas.AircraftCtrlClicked += OnAircraftCtrlClicked;
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
+        _canvas.RunwayThresholdClicked += OnRunwayThresholdClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
@@ -76,6 +77,7 @@ public partial class GroundView : UserControl
             _canvas.AircraftLeftClicked -= OnAircraftLeftClicked;
             _canvas.AircraftCtrlClicked -= OnAircraftCtrlClicked;
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
+            _canvas.RunwayThresholdClicked -= OnRunwayThresholdClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
@@ -564,6 +566,38 @@ public partial class GroundView : UserControl
         {
             vm.SelectedAircraft = null;
         }
+    }
+
+    private void OnRunwayThresholdClicked(string runwayEnd, Point screenPos)
+    {
+        if (DataContext is not GroundViewModel vm || vm.SelectedAircraft is null)
+        {
+            return;
+        }
+
+        var callsign = vm.SelectedAircraft.Callsign;
+        var initials = GetInitials();
+        var fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
+        if (fromNodeId is null)
+        {
+            return;
+        }
+
+        var holdShortNodeId = vm.FindNearestHoldShortNodeForRunwayEnd(vm.SelectedAircraft, runwayEnd);
+        if (holdShortNodeId is null)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu();
+        AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, holdShortNodeId.Value, spot: null, destRunway: runwayEnd);
+
+        if (menu.Items.Count == 0)
+        {
+            return;
+        }
+
+        ShowContextMenu(menu);
     }
 
     private void OnDrawNodeHovered(int? nodeId)

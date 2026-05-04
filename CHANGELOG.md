@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Ground View shows a small amber dot at every runway threshold when an aircraft is selected — left-click the dot to open the same "Taxi to runway" submenu produced by right-clicking a hold-short node, without hunting for the right node first.
 - Ground View right-click menu now offers **Resume taxi** for aircraft in the "Holding In Position" phase (previously available only for "Holding After Pushback" / "Holding After Exit"; for HIP you had to type `RES`).
 - Right-click an aircraft on the ground → **Preset taxi route** submenu issues per-airport SOP taxi commands in one click; ships with FLL's `T-T3-B → 10R` and OAK starters.
 - Datablock now shows a struck-through `ModeC` line when an aircraft is squawking standby — radar full datablock, EuroScope tag, and ground datablock — to flag aircraft whose transponder isn't replying to Mode C interrogations.

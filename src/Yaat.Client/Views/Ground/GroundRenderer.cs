@@ -152,6 +152,21 @@ public sealed class GroundRenderer : IDisposable
         StrokeCap = SKStrokeCap.Round,
     };
 
+    private readonly SKPaint _runwayThresholdMarkerPaint = new()
+    {
+        Color = new SKColor(255, 200, 80),
+        Style = SKPaintStyle.Fill,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _runwayThresholdMarkerOutlinePaint = new()
+    {
+        Color = new SKColor(0, 0, 0, 200),
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 1.5f,
+        IsAntialias = true,
+    };
+
     private readonly SKPaint _taxiwayPaint = new()
     {
         Color = SKColor.Parse(GroundColorScheme.DefaultTaxiway),
@@ -484,7 +499,7 @@ public sealed class GroundRenderer : IDisposable
         // Runways render when GND or MAP is on (video map overlays may not include them)
         if (showYaatLayout || showVideoMapOverlay)
         {
-            DrawRunways(canvas, vp, layout, showRunwayLabels && showYaatLayout);
+            DrawRunways(canvas, vp, layout, showRunwayLabels && showYaatLayout, drawThresholdMarkers: showYaatLayout && selectedAircraft is not null);
         }
 
         // Layer 3: YAAT ground layout (conditionally rendered with brightness)
@@ -735,7 +750,7 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showLabels)
+    private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showLabels, bool drawThresholdMarkers)
     {
         if (layout.Runways is null)
         {
@@ -794,6 +809,15 @@ public sealed class GroundRenderer : IDisposable
             {
                 string label = rwy.Name.Replace(" - ", "/");
                 _labelCandidates.Add(new LabelCandidate([label], mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
+            }
+
+            if (drawThresholdMarkers)
+            {
+                const float markerRadius = 5f;
+                canvas.DrawCircle(cx1, cy1, markerRadius, _runwayThresholdMarkerPaint);
+                canvas.DrawCircle(cx1, cy1, markerRadius, _runwayThresholdMarkerOutlinePaint);
+                canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerPaint);
+                canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerOutlinePaint);
             }
         }
     }
