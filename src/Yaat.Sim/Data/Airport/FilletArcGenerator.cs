@@ -146,11 +146,12 @@ public static class FilletArcGenerator
         int redundant = RemoveRedundantPreserveEdges(layout);
         int duplicateCornerArcs = RemoveDuplicateCornerArcs(layout);
         int parallelBypassEdges = RemoveParallelBypassEdges(layout);
+        int directShortensAdded = AddDirectShortensFromArcAnchors(layout);
 
         layout.RebuildAdjacencyLists();
 
         Log.LogInformation(
-            "Fillet arcs: {FilletedNodes} filleted, {Arcs} arcs, {Merged} merged, {NodesMerged} coincident merged, {Rescued} rescued, {Redundant} redundant preserve edges removed, {DupCorners} duplicate corner arcs removed, {Bypasses} parallel bypass edges removed",
+            "Fillet arcs: {FilletedNodes} filleted, {Arcs} arcs, {Merged} merged, {NodesMerged} coincident merged, {Rescued} rescued, {Redundant} redundant preserve edges removed, {DupCorners} duplicate corner arcs removed, {Bypasses} parallel bypass edges removed, {DirectShortens} direct shortens added",
             filletedCount,
             arcCount,
             mergedCount,
@@ -158,7 +159,8 @@ public static class FilletArcGenerator
             rescued,
             redundant,
             duplicateCornerArcs,
-            parallelBypassEdges
+            parallelBypassEdges,
+            directShortensAdded
         );
     }
 
@@ -464,6 +466,294 @@ public static class FilletArcGenerator
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Post-fillet cleanup: when fillet generation creates multiple tangent nodes
+    /// for the SAME direction at the SAME intersection (one per fillet pair processed —
+    /// e.g. T4-T east, T4-T west, and T4-C all create their own tangent on the
+    /// T4-toward-#57 line), each chain member has its own corner arc but only ONE end
+    /// of the chain hosts the shorten edge to the next T4 segment. Walkers entering
+    /// the chain at the "wrong" end traverse the chain to reach the shorten anchor,
+    /// producing a U-turn against the direction they exited the corner arc.
+    ///
+    /// <para>
+    /// Fix: for each tangent chain, find every arc-anchored chain node (a chain
+    /// member with a <c>Fillet:phase-c-arc@</c> arc edge) and every external
+    /// shorten target (a node connected to a chain member via a <c>Fillet:phase-d-shorten@</c>
+    /// edge). Add a direct phase-d-shorten edge from every arc-anchored node to every
+    /// shorten target if one does not already exist. After this pass, walkers exiting
+    /// any corner arc reach the next external segment in a single straight edge with
+    /// no detour through the chain.
+    /// </para>
+    ///
+    /// <para>
+    /// Conservative: this pass only ADDS edges. Existing edges (tangent-links,
+    /// arcs, original shortens) are preserved unchanged so other paths through
+    /// the chain are not broken.
+    /// </para>
+    /// </summary>
+    private static int AddDirectShortensFromArcAnchors(AirportGroundLayout layout)
+    {
+        layout.RebuildAdjacencyLists();
+
+        // Group tangent nodes by (intersectionId, taxiway, destinationNodeId).
+        // The grouping key is parsed from origin tags of the form
+        // "Fillet:tangent-node@<intId> on-<twy>(→<destId>)".
+        var groups = new Dictionary<(int IntId, string Twy, int DestId), List<GroundNode>>();
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (!TryParseTangentNodeOrigin(node.Origin, out int intId, out string twy, out int destId))
+            {
+                continue;
+            }
+            var key = (intId, twy, destId);
+            if (!groups.TryGetValue(key, out var list))
+            {
+                list = [];
+                groups[key] = list;
+            }
+            list.Add(node);
+        }
+
+        int addedTotal = 0;
+
+        foreach (var (key, members) in groups)
+        {
+            if (members.Count < 2)
+            {
+                continue;
+            }
+
+            // BFS within members along phase-d-tangent-link@<intId> edges to find
+            // each connected chain. Process each chain independently.
+            string tangentLinkPrefix = $"Fillet:phase-d-tangent-link@{key.IntId} ";
+            string arcPrefix = $"Fillet:phase-c-arc@{key.IntId} ";
+            string shortenPrefix = $"Fillet:phase-d-shorten@{key.IntId} ";
+            var memberIds = members.Select(n => n.Id).ToHashSet();
+
+            var visited = new HashSet<int>();
+            foreach (var seed in members)
+            {
+                if (visited.Contains(seed.Id))
+                {
+                    continue;
+                }
+
+                var chain = new List<GroundNode>();
+                var queue = new Queue<GroundNode>();
+                queue.Enqueue(seed);
+                visited.Add(seed.Id);
+
+                while (queue.Count > 0)
+                {
+                    var n = queue.Dequeue();
+                    chain.Add(n);
+                    foreach (var iedge in n.Edges)
+                    {
+                        if (iedge is not GroundEdge edge)
+                        {
+                            continue;
+                        }
+                        if (edge.Origin?.StartsWith(tangentLinkPrefix, StringComparison.Ordinal) != true)
+                        {
+                            continue;
+                        }
+                        var other = edge.OtherNode(n);
+                        if (!memberIds.Contains(other.Id) || visited.Contains(other.Id))
+                        {
+                            continue;
+                        }
+                        visited.Add(other.Id);
+                        queue.Enqueue(other);
+                    }
+                }
+
+                if (chain.Count < 2)
+                {
+                    continue;
+                }
+
+                // Identify arc anchors: chain members with at least one phase-c-arc edge.
+                var arcAnchors = chain.Where(n => n.Edges.Any(e => e.Origin?.StartsWith(arcPrefix, StringComparison.Ordinal) == true)).ToList();
+                if (arcAnchors.Count < 2)
+                {
+                    continue;
+                }
+
+                // Identify chain endpoints (members with exactly one tangent-link neighbor
+                // inside the chain). For a linear chain there will be two endpoints.
+                var chainEndpoints = chain
+                    .Where(n =>
+                        n.Edges.Count(e =>
+                            e is GroundEdge ge
+                            && ge.Origin?.StartsWith(tangentLinkPrefix, StringComparison.Ordinal) == true
+                            && memberIds.Contains(ge.OtherNode(n).Id)
+                        ) <= 1
+                    )
+                    .ToHashSet();
+
+                // Pair each shorten edge with its anchor (chain member) and target (external).
+                // Only chains where the existing shorten anchor sits at a chain ENDPOINT
+                // qualify for the U-turn fix — that's the FLL pattern: arc lands at one
+                // endpoint, shorten anchors at the opposite endpoint, walking the chain
+                // crosses its full length opposite to the arc's exit. Symmetric chains
+                // (shorten anchor same node as arc anchor, or shorten in chain interior)
+                // do not produce U-turns and are skipped.
+                var shortenPairs = new List<(GroundNode Anchor, GroundNode Target)>();
+                foreach (var n in chain)
+                {
+                    foreach (var iedge in n.Edges)
+                    {
+                        if (iedge is not GroundEdge edge)
+                        {
+                            continue;
+                        }
+                        if (edge.Origin?.StartsWith(shortenPrefix, StringComparison.Ordinal) != true)
+                        {
+                            continue;
+                        }
+                        if (!edge.MatchesTaxiway(key.Twy))
+                        {
+                            continue;
+                        }
+                        var other = edge.OtherNode(n);
+                        if (memberIds.Contains(other.Id))
+                        {
+                            continue;
+                        }
+                        shortenPairs.Add((n, other));
+                    }
+                }
+
+                if (shortenPairs.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (var (existingAnchor, target) in shortenPairs)
+                {
+                    if (!chainEndpoints.Contains(existingAnchor))
+                    {
+                        continue;
+                    }
+
+                    // Add direct shortens only for arc anchors at the OPPOSITE chain
+                    // endpoint from the existing shorten anchor.
+                    foreach (var anchor in arcAnchors)
+                    {
+                        if (anchor.Id == existingAnchor.Id)
+                        {
+                            continue;
+                        }
+                        if (!chainEndpoints.Contains(anchor))
+                        {
+                            continue;
+                        }
+
+                        bool exists = anchor.Edges.Any(e =>
+                            e is GroundEdge ge && ge.MatchesTaxiway(key.Twy) && (ge.Nodes[0].Id == target.Id || ge.Nodes[1].Id == target.Id)
+                        );
+                        if (exists)
+                        {
+                            continue;
+                        }
+
+                        double dist = GeoMath.DistanceNm(anchor.Position, target.Position);
+                        var newEdge = new GroundEdge
+                        {
+                            Nodes = [anchor, target],
+                            TaxiwayName = key.Twy,
+                            DistanceNm = dist,
+                            Origin = $"Fillet:phase-d-shorten-direct@{key.IntId} {key.Twy} #{anchor.Id}↔#{target.Id}",
+                        };
+                        layout.Edges.Add(newEdge);
+                        addedTotal++;
+
+                        Log.LogDebug(
+                            "[DirectShorten@{IntId}] Added {Twy} #{Anchor}↔#{Target} ({Dist:F0}ft) — bypass tangent chain (chain size {ChainSize})",
+                            key.IntId,
+                            key.Twy,
+                            anchor.Id,
+                            target.Id,
+                            dist * GeoMath.FeetPerNm,
+                            chain.Count
+                        );
+                    }
+                }
+            }
+        }
+
+        if (addedTotal > 0)
+        {
+            layout.RebuildAdjacencyLists();
+        }
+
+        return addedTotal;
+    }
+
+    /// <summary>
+    /// Parse origin of the form "Fillet:tangent-node@&lt;intId&gt; on-&lt;twy&gt;(→&lt;destId&gt;)".
+    /// </summary>
+    private static bool TryParseTangentNodeOrigin(string? origin, out int intId, out string twy, out int destId)
+    {
+        intId = 0;
+        twy = "";
+        destId = 0;
+        if (string.IsNullOrEmpty(origin))
+        {
+            return false;
+        }
+
+        const string prefix = "Fillet:tangent-node@";
+        if (!origin.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        int spaceIdx = origin.IndexOf(' ', prefix.Length);
+        if (spaceIdx <= prefix.Length)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(origin.AsSpan(prefix.Length, spaceIdx - prefix.Length), out intId))
+        {
+            return false;
+        }
+
+        // Expect " on-<twy>(→<destId>)" after the int id
+        const string onPrefix = "on-";
+        int onStart = spaceIdx + 1;
+        if (onStart + onPrefix.Length > origin.Length)
+        {
+            return false;
+        }
+        if (!origin.AsSpan(onStart, onPrefix.Length).SequenceEqual(onPrefix.AsSpan()))
+        {
+            return false;
+        }
+
+        int twyStart = onStart + onPrefix.Length;
+        int parenIdx = origin.IndexOf('(', twyStart);
+        if (parenIdx < 0)
+        {
+            return false;
+        }
+        twy = origin[twyStart..parenIdx];
+
+        // Look for the arrow → followed by digits and ')'
+        int arrowIdx = origin.IndexOf('→', parenIdx);
+        if (arrowIdx < 0)
+        {
+            return false;
+        }
+        int closeIdx = origin.IndexOf(')', arrowIdx);
+        if (closeIdx < 0)
+        {
+            return false;
+        }
+        return int.TryParse(origin.AsSpan(arrowIdx + 1, closeIdx - arrowIdx - 1), out destId);
     }
 
     /// <summary>

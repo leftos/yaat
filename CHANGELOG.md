@@ -27,6 +27,7 @@
 - Ground View saved per-scenario pan/zoom now actually persists across reconnects; previously the auto-fit on layout load silently snapped you back to the centroid every time.
 - CRC controller list and STARS consolidation now scope to the room you joined; controllers from other rooms no longer appear in your list or in consolidation views.
 - Conditional compounds (`AT`, `LV`, `ATFN`, `ONHO`, `GW`) show autocomplete and signature help when typed after a callsign (e.g. `SWA123 AT SUNOL FH `).
+- Ground taxi at multi-corner fillets (e.g. FLL T/T4/C junction) no longer routes the aircraft through an embedded U-turn when the fillet's tangent chain has the existing "shorten" edge anchored at one end and the corner arc landing at the other. The fillet pass adds direct shorten edges from each opposite-end arc anchor, so the walker exits any corner and reaches the next segment without doubling back.
 
 ## v0.1.13-alpha [2026/05/04]
 
