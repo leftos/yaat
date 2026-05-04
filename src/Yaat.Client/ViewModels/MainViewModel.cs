@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -1265,10 +1264,7 @@ public partial class MainViewModel : ObservableObject
                     _commandInput.ResetHistoryNavigation();
                     CommandText = "";
 
-                    if (!result.Success)
-                    {
-                        StatusText = ResolveRejectionText(result, "(half-strip)");
-                    }
+                    StatusText = CommandStatusResolver.Resolve(result, "(half-strip)");
                 }
                 catch (Exception ex)
                 {
@@ -1301,36 +1297,13 @@ public partial class MainViewModel : ObservableObject
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
 
-            if (!result.Success)
-            {
-                StatusText = ResolveRejectionText(result, target.Callsign);
-            }
+            StatusText = CommandStatusResolver.Resolve(result, target.Callsign);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Command failed");
             StatusText = $"Command error: {ex.Message}";
         }
-    }
-
-    /// <summary>
-    /// Resolves the status-line text for a failed <see cref="CommandResultDto"/>. When
-    /// <c>result.Message</c> is populated, returns it as-is. When the server returns a
-    /// failure with no message — which should never happen in healthy code — returns a
-    /// diagnostic placeholder so the user sees a recognizable bug instead of a silent
-    /// failure, and asserts in DEBUG builds so the gap is caught in dev rather than in
-    /// production.
-    /// </summary>
-    private string ResolveRejectionText(CommandResultDto result, string contextLabel)
-    {
-        if (!string.IsNullOrWhiteSpace(result.Message))
-        {
-            return result.Message;
-        }
-
-        _log.LogError("Server returned failure with empty message for {Context}", contextLabel);
-        Debug.Fail($"Command rejected with empty Message — server failure path missing reason text (context={contextLabel})");
-        return $"Command rejected with no reason supplied (context: {contextLabel}) — please file an issue";
     }
 
     private async Task HandleGlobalCommand(ParsedInput parsed)
@@ -1395,10 +1368,7 @@ public partial class MainViewModel : ObservableObject
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory(canonical);
-                if (!string.IsNullOrEmpty(result.Message))
-                {
-                    StatusText = result.Message;
-                }
+                StatusText = CommandStatusResolver.Resolve(result, "ADD");
             }
             catch (Exception ex)
             {
@@ -1423,10 +1393,7 @@ public partial class MainViewModel : ObservableObject
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory(canonical);
-                if (!string.IsNullOrEmpty(result.Message))
-                {
-                    StatusText = result.Message;
-                }
+                StatusText = CommandStatusResolver.Resolve(result, verb);
             }
             catch (Exception ex)
             {
@@ -1458,10 +1425,7 @@ public partial class MainViewModel : ObservableObject
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory(canonical);
-                if (!string.IsNullOrEmpty(result.Message))
-                {
-                    StatusText = result.Message;
-                }
+                StatusText = CommandStatusResolver.Resolve(result, verb);
             }
             catch (Exception ex)
             {
@@ -1479,10 +1443,7 @@ public partial class MainViewModel : ObservableObject
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory(canonical);
-                if (!string.IsNullOrEmpty(result.Message))
-                {
-                    StatusText = result.Message;
-                }
+                StatusText = CommandStatusResolver.Resolve(result, "TAXIALL");
             }
             catch (Exception ex)
             {
