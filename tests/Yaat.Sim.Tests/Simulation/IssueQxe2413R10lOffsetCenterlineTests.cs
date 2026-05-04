@@ -39,7 +39,7 @@ public class IssueQxe2413R10lOffsetCenterlineTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData();
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Information));
-        SimLog.Initialize(loggerFactory);
+        SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
     }

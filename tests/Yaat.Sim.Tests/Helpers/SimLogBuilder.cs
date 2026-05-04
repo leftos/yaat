@@ -73,7 +73,9 @@ public sealed class SimLogBuilder
     }
 
     /// <summary>
-    /// Build the factory and initialize <see cref="SimLog"/> in one call.
+    /// Build the factory and wire it into <see cref="SimLog"/> for the current test
+    /// only. Uses <see cref="SimLog.InitializeForTest"/> so the test's
+    /// <c>ITestOutputHelper</c> doesn't leak into the process-wide static fallback.
     /// </summary>
-    public void InitializeSimLog() => SimLog.Initialize(Build());
+    public void InitializeSimLog() => SimLog.InitializeForTest(Build());
 }

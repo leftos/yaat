@@ -734,7 +734,7 @@ public class PhraseologyMapperTests
         }
 
         // Reset SimLog to the null factory so subsequent tests don't inherit this capture.
-        SimLog.Initialize(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
+        SimLog.InitializeForTest(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
     }
 
     // xUnit 2.x ITestOutputHelper shim that captures all output into a single string so the

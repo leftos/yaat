@@ -12,7 +12,7 @@ public class FilletArcGeneratorTests
     public FilletArcGeneratorTests(ITestOutputHelper output)
     {
         _output = output;
-        SimLog.Initialize(LoggerFactory.Create(b => b.AddXUnit(output).SetMinimumLevel(LogLevel.Debug)));
+        SimLog.InitializeForTest(LoggerFactory.Create(b => b.AddXUnit(output).SetMinimumLevel(LogLevel.Debug)));
     }
 
     /// <summary>

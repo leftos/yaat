@@ -37,7 +37,7 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData();
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
     }

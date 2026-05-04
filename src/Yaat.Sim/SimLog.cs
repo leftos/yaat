@@ -22,6 +22,18 @@ public static class SimLog
         _scopedFactory.Value = factory;
     }
 
+    /// <summary>
+    /// Sets only the AsyncLocal scoped factory — does NOT touch the process-wide static.
+    /// Use this from tests to wire xunit output without leaking the test's
+    /// ITestOutputHelper into the static fallback (which would survive past the
+    /// test's lifetime and cause NREs in unrelated parallel tests when the helper
+    /// is disposed). Production startup calls <see cref="Initialize"/> instead.
+    /// </summary>
+    public static void InitializeForTest(ILoggerFactory factory)
+    {
+        _scopedFactory.Value = factory;
+    }
+
     public static ILogger CreateLogger<T>() => new DeferredLogger(typeof(T).Name);
 
     public static ILogger CreateLogger(string category) => new DeferredLogger(category);
