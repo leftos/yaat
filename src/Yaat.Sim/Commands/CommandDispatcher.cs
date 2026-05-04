@@ -917,6 +917,14 @@ public static class CommandDispatcher
 
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
+        // Phase-transparent commands: pure status-flag setters (RFIS/RTIS and their forced
+        // variants) with no navigation/altitude/speed effect. They must never clear a phase.
+        // Returning null routes them through normal dispatch (NavigationCommandHandler).
+        if (IsPhaseTransparentCommand(cmdType))
+        {
+            return null;
+        }
+
         // Try tower/ground-specific handling first (phase-interactive commands)
         var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx);
         if (towerResult is not null)
@@ -953,6 +961,16 @@ public static class CommandDispatcher
         // Allowed but not a tower command — shouldn't normally reach here
         return null;
     }
+
+    private static bool IsPhaseTransparentCommand(CanonicalCommandType cmd) =>
+        cmd switch
+        {
+            CanonicalCommandType.ReportFieldInSight => true,
+            CanonicalCommandType.ReportFieldInSightForced => true,
+            CanonicalCommandType.ReportTrafficInSight => true,
+            CanonicalCommandType.ReportTrafficInSightForced => true,
+            _ => false,
+        };
 
     private static CommandResult? TryApplyTowerCommand(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {

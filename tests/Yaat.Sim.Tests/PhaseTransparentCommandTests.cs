@@ -2,7 +2,9 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
@@ -172,5 +174,134 @@ public class PhaseTransparentCommandTests
         Assert.True(result.Success);
         Assert.Equal(5678u, ac.Transponder.Code);
         Assert.Null(ac.Phases);
+    }
+
+    /// <summary>
+    /// Bug: RFIS (Report Field In Sight) — a pure status-flag setter — was hitting the
+    /// `_ => ClearsPhase` default in every phase's CanAcceptCommand override and nuking
+    /// FinalApproach mid-approach. Fix: phase-transparent pre-screen in DispatchWithPhase.
+    /// These tests exercise the forced variants (no NavigationDatabase needed) across a
+    /// representative set of phases — Pattern, Tower, and Approach — so a future refactor
+    /// that moves the pre-screen per-phase can't silently regress on a forgotten phase.
+    /// </summary>
+    [Fact]
+    public void RfisForcedDuringPattern_PreservesPhases()
+    {
+        var ac = MakeAircraftInUpwind();
+        Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
+
+        var result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
+
+        Assert.True(result.Success);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void RtisForcedDuringPattern_PreservesPhases()
+    {
+        var ac = MakeAircraftInUpwind();
+
+        var result = DispatchSingle(ac, new ReportTrafficInSightForcedCommand("N99XY"));
+
+        Assert.True(result.Success);
+        Assert.True(ac.Approach.HasReportedTrafficInSight);
+        Assert.Equal("N99XY", ac.Approach.LastReportedTrafficCallsign);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void RfisForcedDuringFinalApproach_PreservesPhase()
+    {
+        var ac = MakeAircraftOnFinalApproach();
+        Assert.IsType<FinalApproachPhase>(ac.Phases!.CurrentPhase);
+
+        var result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
+
+        Assert.True(result.Success);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void RfisForcedDuringInterceptCourse_PreservesPhase()
+    {
+        var ac = MakeAircraftOnInterceptCourse();
+        Assert.IsType<InterceptCoursePhase>(ac.Phases!.CurrentPhase);
+
+        var result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
+
+        Assert.True(result.Success);
+        Assert.True(ac.Approach.HasReportedFieldInSight);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<InterceptCoursePhase>(ac.Phases.CurrentPhase);
+    }
+
+    private static AircraftState MakeAircraftOnFinalApproach()
+    {
+        var rwy = DefaultRunway();
+        var ac = new AircraftState
+        {
+            Callsign = "JSX170",
+            AircraftType = "E145",
+            Position = new LatLon(rwy.ThresholdLatitude + 0.05, rwy.ThresholdLongitude + 0.05),
+            TrueHeading = rwy.TrueHeading,
+            Altitude = 2500,
+            IndicatedAirspeed = 180,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Transponder = new AircraftTransponder { AssignedCode = 2407, Code = 2407 },
+        };
+
+        var phase = new FinalApproachPhase { SkipInterceptCheck = true };
+        var phases = new PhaseList { AssignedRunway = rwy };
+        phases.Add(phase);
+        phase.Status = PhaseStatus.Active;
+        ac.Phases = phases;
+
+        return ac;
+    }
+
+    private static AircraftState MakeAircraftOnInterceptCourse()
+    {
+        var rwy = DefaultRunway();
+        var ac = new AircraftState
+        {
+            Callsign = "N123",
+            AircraftType = "B738",
+            Position = new LatLon(rwy.ThresholdLatitude + 0.05, rwy.ThresholdLongitude + 0.10),
+            TrueHeading = new TrueHeading(rwy.TrueHeading.Degrees - 30),
+            Altitude = 3000,
+            IndicatedAirspeed = 200,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+        };
+
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = rwy.TrueHeading,
+            ThresholdLat = rwy.ThresholdLatitude,
+            ThresholdLon = rwy.ThresholdLongitude,
+            ApproachId = "I28R",
+        };
+        var phases = new PhaseList
+        {
+            AssignedRunway = rwy,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = rwy.Designator,
+                FinalApproachCourse = rwy.TrueHeading,
+            },
+        };
+        phases.Add(phase);
+        phase.Status = PhaseStatus.Active;
+        ac.Phases = phases;
+
+        return ac;
     }
 }

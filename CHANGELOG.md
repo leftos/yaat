@@ -37,6 +37,7 @@
 - CRC's FP form popup matches typed STARS — same equipment-suffix split and FAA→ICAO canonicalization.
 - Instructor terminal shows the raw STARS keystrokes a student typed for `DA`/`VP` and surfaces failed `DA`/`VP` attempts.
 - STARS `DA`/`VP` flight plans for callsigns with no spawned aircraft no longer appear as "No altitude asgn" rows in the Aircraft List.
+- `RFIS`/`RTIS` no longer pulls an aircraft off final approach — the in-sight flag updates without clearing the active phase.
 
 ## v0.1.11-alpha [2026/05/03]
 
