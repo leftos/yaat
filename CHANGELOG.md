@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- CRC STARS shows aircraft inbound from high-elevation departure airports (e.g. KBLU at 5,284 ft).
+
 ## v0.1.12-alpha [2026/05/03]
 
 ### Highlights
