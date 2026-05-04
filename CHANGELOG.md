@@ -18,6 +18,7 @@
 ### Fixed
 - Ground View auto-fits the airport on first scenario load with a fresh profile — no longer shows an empty view until you click RESET.
 - Ground View saved per-scenario pan/zoom now actually persists across reconnects; previously the auto-fit on layout load silently snapped you back to the centroid every time.
+- CRC controller list and STARS consolidation now scope to the room you joined; controllers from other rooms no longer appear in your list or in consolidation views.
 
 ## v0.1.13-alpha [2026/05/04]
 
