@@ -17,6 +17,7 @@
 - STARS `DA`/`FP` reject callsigns with invalid characters or longer than 7 chars — `*T <fix>` and similar typos no longer create stray flight plans.
 - Aircraft list no longer flickers when a scenario aircraft spawns with the same callsign as a manually-typed STARS flight plan (`VP`/`DA`).
 - CRC STARS `DA` typed with a delta-prefix primary scratchpad (e.g. `` `OAK ``) now sets the field on the new flight plan.
+- CRC STARS "DB" duplicate-beacon indicator no longer appears for VFR (1200) or special-purpose (7500/7600/7700) squawks; only shared discrete codes are flagged.
 
 ## v0.1.12-alpha [2026/05/03]
 
