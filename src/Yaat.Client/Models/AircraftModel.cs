@@ -109,6 +109,16 @@ public partial class AircraftModel : ObservableObject
 
     public bool IsDelayed => Status.StartsWith("Delayed", StringComparison.Ordinal);
 
+    /// <summary>
+    /// True for STARS unsupported data blocks created by CRC <c>DA</c> / <c>VP</c> typing
+    /// for callsigns with no real aircraft body. The Aircraft List filters these out
+    /// (see <c>MainViewModel.IsAircraftVisible</c>); STARS scope and flight strips still
+    /// render them via their own DTO paths. Clears when the ghost is upgraded to a real
+    /// aircraft, at which point the row reappears in the list automatically.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isUnsupported;
+
     private static string FormatStatus(string status)
     {
         if (status.StartsWith("Delayed (", StringComparison.Ordinal) && status.EndsWith("s)", StringComparison.Ordinal))
@@ -623,6 +633,7 @@ public partial class AircraftModel : ObservableObject
             PatternEntryKind = dto.PatternEntryKind,
             FollowingCallsign = dto.FollowingCallsign,
             ExitingRunwayId = dto.ExitingRunwayId,
+            IsUnsupported = dto.IsUnsupported,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.ComputeSmartStatus();
@@ -689,6 +700,7 @@ public partial class AircraftModel : ObservableObject
         PatternEntryKind = dto.PatternEntryKind;
         FollowingCallsign = dto.FollowingCallsign;
         ExitingRunwayId = dto.ExitingRunwayId;
+        IsUnsupported = dto.IsUnsupported;
         DistanceFromFix = computeDistance?.Invoke(this);
         ComputeSmartStatus();
     }

@@ -633,7 +633,8 @@ public record AircraftDto(
     string? PatternEntryKind = null,
     string? FollowingCallsign = null,
     string? ExitingRunwayId = null,
-    string FiledAircraftType = ""
+    string FiledAircraftType = "",
+    bool IsUnsupported = false
 );
 
 public record LoadScenarioResultDto(

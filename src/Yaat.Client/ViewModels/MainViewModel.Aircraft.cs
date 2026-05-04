@@ -79,9 +79,10 @@ public partial class MainViewModel
             if (existing is not null)
             {
                 var wasDelayed = existing.IsDelayed;
+                var wasUnsupported = existing.IsUnsupported;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
-                if (existing.IsDelayed != wasDelayed)
+                if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported)
                 {
                     RefreshAircraftView();
                 }
@@ -121,9 +122,10 @@ public partial class MainViewModel
             if (existing is not null)
             {
                 var wasDelayed = existing.IsDelayed;
+                var wasUnsupported = existing.IsUnsupported;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
-                if (existing.IsDelayed != wasDelayed)
+                if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported)
                 {
                     RefreshAircraftView();
                 }

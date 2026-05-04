@@ -451,6 +451,28 @@ public partial class MainViewModel : ObservableObject
         RefreshAircraftView();
     }
 
+    /// <summary>
+    /// Predicate backing <see cref="AircraftView"/>'s filter. STARS unsupported data
+    /// blocks created by CRC <c>DA</c>/<c>VP</c> typing (<see cref="AircraftModel.IsUnsupported"/>)
+    /// are always hidden from the operator-facing list — they have no real aircraft
+    /// body and would otherwise display "No altitude asgn". Delayed-spawn aircraft are
+    /// hidden only when the "Show only active" toggle is on.
+    /// </summary>
+    public static bool IsAircraftVisible(AircraftModel ac, bool showOnlyActive, string filter)
+    {
+        if (ac.IsUnsupported)
+        {
+            return false;
+        }
+
+        if (showOnlyActive && ac.IsDelayed)
+        {
+            return false;
+        }
+
+        return MatchesFilter(ac, filter);
+    }
+
     private static bool MatchesFilter(AircraftModel ac, string filter)
     {
         if (string.IsNullOrEmpty(filter))
@@ -828,8 +850,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         AircraftView = new DataGridCollectionView(Aircraft);
-        AircraftView.Filter = obj =>
-            obj is not AircraftModel ac || (!_showOnlyActiveAircraft || !ac.IsDelayed) && MatchesFilter(ac, _aircraftFilterText);
+        AircraftView.Filter = obj => obj is not AircraftModel ac || IsAircraftVisible(ac, _showOnlyActiveAircraft, _aircraftFilterText);
         _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
         _showTimelineBar = _preferences.ShowTimelineBar;
 
