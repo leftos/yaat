@@ -285,14 +285,35 @@ public partial class CommandInputController : ObservableObject
             return null;
         }
 
+        // Optional leading callsign before a condition keyword: "<callsign> AT <fix> <verb> ..."
+        // When detected, peel off the callsign first so StripConditionPrefix sees the bare condition.
+        // After tokenizing the post-condition portion, prepend the callsign synthetically so the
+        // verb-finder picks the post-condition verb at index 1.
+        int callsignEndInFragment = FindLeadingCallsignEnd(fragment, scheme);
+        string leadingCallsign = "";
+        int callsignStartInText = contentStart;
+        int conditionStartInText = contentStart;
+        var fragmentForCondition = fragment;
+        if (callsignEndInFragment > 0)
+        {
+            leadingCallsign = fragment[..(callsignEndInFragment - 1)];
+            conditionStartInText = contentStart + callsignEndInFragment;
+            fragmentForCondition = fragment[callsignEndInFragment..];
+        }
+
         // Strip condition prefix from the fragment, tracking how many characters of the
         // fragment were consumed by the prefix so we can map cursor positions correctly.
-        var strippedFragment = StripConditionPrefix(fragment, out var conditionVerb, out var conditionPrefixLen, out var strippedStartInFragment);
-        int strippedStartInText = contentStart + strippedStartInFragment;
+        var strippedFragment = StripConditionPrefix(
+            fragmentForCondition,
+            out var conditionVerb,
+            out var conditionPrefixLen,
+            out var strippedStartInConditionFragment
+        );
+        int strippedStartInText = conditionStartInText + strippedStartInConditionFragment;
         bool fragmentHasTrailingSpace = fragmentEnd > contentStart && text[fragmentEnd - 1] == ' ';
 
-        // Cursor in the condition prefix region (before the stripped portion begins)
-        bool cursorInConditionRegion = conditionPrefixLen > 0 && caretIndex < strippedStartInText;
+        // Cursor in the condition prefix region (between the callsign and the stripped portion).
+        bool cursorInConditionRegion = conditionPrefixLen > 0 && caretIndex >= conditionStartInText && caretIndex < strippedStartInText;
 
         if (string.IsNullOrWhiteSpace(strippedFragment) || cursorInConditionRegion)
         {
@@ -326,7 +347,24 @@ public partial class CommandInputController : ObservableObject
         }
 
         // Tokenize the stripped fragment, tracking each token's bounds in full-text coords.
-        var (tokens, tokenBounds) = TokenizeWithBounds(strippedFragment, strippedStartInText);
+        var (postConditionTokens, postConditionBounds) = TokenizeWithBounds(strippedFragment, strippedStartInText);
+        string[] tokens;
+        (int Start, int End)[] tokenBounds;
+        if (leadingCallsign.Length > 0)
+        {
+            // Prepend the callsign so the verb-finder sees [callsign, verb, args...] at indices [0, 1, 2+].
+            tokens = new string[postConditionTokens.Length + 1];
+            tokenBounds = new (int Start, int End)[postConditionBounds.Length + 1];
+            tokens[0] = leadingCallsign;
+            tokenBounds[0] = (callsignStartInText, callsignStartInText + leadingCallsign.Length);
+            postConditionTokens.CopyTo(tokens, 1);
+            postConditionBounds.CopyTo(tokenBounds, 1);
+        }
+        else
+        {
+            tokens = postConditionTokens;
+            tokenBounds = postConditionBounds;
+        }
         if (tokens.Length == 0)
         {
             return null;
@@ -664,6 +702,79 @@ public partial class CommandInputController : ObservableObject
     }
 
     /// <summary>
+    /// Detects when the fragment starts with "&lt;callsign&gt; &lt;CONDITION-KEYWORD&gt; ..." so the caller
+    /// can skip the leading callsign before stripping the condition prefix. Returns the offset
+    /// of the first non-callsign character within <paramref name="fragment"/> (always one past
+    /// the space following the callsign), or 0 if no callsign-skip should happen.
+    /// </summary>
+    internal static int FindLeadingCallsignEnd(string fragment, CommandScheme scheme)
+    {
+        int firstSpace = fragment.IndexOf(' ');
+        if (firstSpace <= 0)
+        {
+            return 0;
+        }
+
+        var firstToken = fragment[..firstSpace];
+
+        // First token must not itself be a condition keyword — that's handled by StripConditionPrefix.
+        if (IsConditionKeyword(firstToken))
+        {
+            return 0;
+        }
+
+        // First token must not be a known verb — otherwise this is a normal "verb args" parse.
+        if (IsKnownVerb(firstToken, scheme))
+        {
+            return 0;
+        }
+
+        // What follows the space must be a recognized condition keyword + space.
+        int afterSpace = firstSpace + 1;
+        while (afterSpace < fragment.Length && fragment[afterSpace] == ' ')
+        {
+            afterSpace++;
+        }
+        if (afterSpace >= fragment.Length)
+        {
+            return 0;
+        }
+
+        var remainder = fragment[afterSpace..];
+        if (!HasConditionPrefix(remainder))
+        {
+            return 0;
+        }
+
+        return afterSpace;
+    }
+
+    private static bool IsConditionKeyword(string token)
+    {
+        return string.Equals(token, "LV", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(token, "AT", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(token, "AS", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(token, "ATFN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(token, "ONHO", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(token, "GIVEWAY", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(token, "BEHIND", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(token, "GW", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasConditionPrefix(string fragment)
+    {
+        var upper = fragment.ToUpperInvariant();
+        return upper.StartsWith("LV ", StringComparison.Ordinal)
+            || upper.StartsWith("AT ", StringComparison.Ordinal)
+            || upper.StartsWith("AS ", StringComparison.Ordinal)
+            || upper.StartsWith("ATFN ", StringComparison.Ordinal)
+            || upper.StartsWith("ONHO ", StringComparison.Ordinal)
+            || upper.StartsWith("GIVEWAY ", StringComparison.Ordinal)
+            || upper.StartsWith("BEHIND ", StringComparison.Ordinal)
+            || upper.StartsWith("GW ", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Strips a condition prefix (LV/AT/AS/GIVEWAY/BEHIND + arg + space) from the fragment.
     /// Reports the prefix length consumed and the offset where the stripped portion starts
     /// within the original fragment, so callers can map cursor positions correctly.
@@ -682,6 +793,7 @@ public partial class CommandInputController : ObservableObject
         var upper = fragment.ToUpperInvariant();
         string? keyword = null;
         int keywordLen = 0;
+        bool keywordHasArg = true;
 
         if (upper.StartsWith("LV ", StringComparison.Ordinal))
         {
@@ -698,6 +810,11 @@ public partial class CommandInputController : ObservableObject
             keyword = "AS";
             keywordLen = 3;
         }
+        else if (upper.StartsWith("ATFN ", StringComparison.Ordinal))
+        {
+            keyword = "ATFN";
+            keywordLen = 5;
+        }
         else if (upper.StartsWith("GIVEWAY ", StringComparison.Ordinal))
         {
             keyword = "GIVEWAY";
@@ -708,6 +825,17 @@ public partial class CommandInputController : ObservableObject
             keyword = "BEHIND";
             keywordLen = 7;
         }
+        else if (upper.StartsWith("GW ", StringComparison.Ordinal))
+        {
+            keyword = "GIVEWAY";
+            keywordLen = 3;
+        }
+        else if (upper.StartsWith("ONHO ", StringComparison.Ordinal))
+        {
+            keyword = "ONHO";
+            keywordLen = 5;
+            keywordHasArg = false;
+        }
 
         if (keyword is null)
         {
@@ -715,6 +843,20 @@ public partial class CommandInputController : ObservableObject
         }
 
         conditionVerb = keyword;
+
+        if (!keywordHasArg)
+        {
+            // Zero-arg condition (ONHO): the post-condition portion starts right after the keyword + space.
+            int strippedStart = keywordLen;
+            while (strippedStart < fragment.Length && fragment[strippedStart] == ' ')
+            {
+                strippedStart++;
+            }
+            conditionPrefixLen = keywordLen;
+            strippedStartInFragment = strippedStart;
+            return fragment[strippedStart..];
+        }
+
         // Skip leading whitespace after the keyword
         int afterPrefixStart = keywordLen;
         while (afterPrefixStart < fragment.Length && fragment[afterPrefixStart] == ' ')
@@ -731,14 +873,14 @@ public partial class CommandInputController : ObservableObject
             return "";
         }
         // Skip whitespace after the condition argument
-        int strippedStart = argEnd + 1;
-        while (strippedStart < fragment.Length && fragment[strippedStart] == ' ')
+        int argStrippedStart = argEnd + 1;
+        while (argStrippedStart < fragment.Length && fragment[argStrippedStart] == ' ')
         {
-            strippedStart++;
+            argStrippedStart++;
         }
         conditionPrefixLen = argEnd + 1;
-        strippedStartInFragment = strippedStart;
-        return fragment[strippedStart..];
+        strippedStartInFragment = argStrippedStart;
+        return fragment[argStrippedStart..];
     }
 
     private void AddConditionSuggestions(string activeTokenText, string text, CommandInputParseResult parsed)
@@ -751,6 +893,8 @@ public partial class CommandInputController : ObservableObject
 
         TryAddCondition("LV", "Level at {altitude} — trigger at altitude", partial, text, parsed);
         TryAddCondition("AT", "At {fix/FR/FRD} — trigger at fix, radial, or FRD point", partial, text, parsed);
+        TryAddCondition("ATFN", "At fix nautical miles {distance} — trigger at distance from fix", partial, text, parsed);
+        TryAddCondition("ONHO", "On handoff — trigger when handoff is accepted", partial, text, parsed);
         TryAddCondition("GIVEWAY", "Give way to {callsign} — delay until target passes", partial, text, parsed);
         TryAddCondition("BEHIND", "Behind {callsign} — alias for give way", partial, text, parsed);
     }

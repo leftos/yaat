@@ -8,6 +8,7 @@
 - EuroScope tag Destination field is now a click target — clicking enters draw-route mode (same flow as right-click "Draw route").
 - **Settings > Display > Font Sizes** group: separate font-size knobs for radar datablock, radar tag flyouts, ground datablock, and ground labels (taxi/runway/node), alongside the existing aircraft-list font size.
 - **Settings > Misc > Windows > Always on Top** gains a "Flight Strips" checkbox that pins all popped-out flight-strip windows above other windows.
+- Condition autocomplete dropdown now lists `ATFN` and `ONHO` alongside `AT`/`LV`/`GIVEWAY`/`BEHIND`.
 
 ### Changed
 - EuroScope heading-mode drag snaps to the nearest 5° — the live arc, the cursor label, and the dispatched `FH` value all use the same snapped heading.
@@ -19,6 +20,7 @@
 - Ground View auto-fits the airport on first scenario load with a fresh profile — no longer shows an empty view until you click RESET.
 - Ground View saved per-scenario pan/zoom now actually persists across reconnects; previously the auto-fit on layout load silently snapped you back to the centroid every time.
 - CRC controller list and STARS consolidation now scope to the room you joined; controllers from other rooms no longer appear in your list or in consolidation views.
+- Conditional compounds (`AT`, `LV`, `ATFN`, `ONHO`, `GW`) show autocomplete and signature help when typed after a callsign (e.g. `SWA123 AT SUNOL FH `).
 
 ## v0.1.13-alpha [2026/05/04]
 

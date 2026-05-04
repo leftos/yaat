@@ -98,4 +98,64 @@ public class StripConditionPrefixTests
         Assert.Equal("AS", result);
         Assert.Null(verb);
     }
+
+    // -------------------------------------------------------------------------
+    // ATFN (at-fix-nautical-miles) — numeric distance arg
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Atfn_WithDistanceAndCommand_StripsToCommand()
+    {
+        var result = CommandInputController.StripConditionPrefix("ATFN 5 FH 270", out var verb);
+        Assert.Equal("FH 270", result);
+        Assert.Equal("ATFN", verb);
+    }
+
+    [Fact]
+    public void Atfn_StillTypingDistance_ReturnsEmpty()
+    {
+        var result = CommandInputController.StripConditionPrefix("ATFN 5", out var verb);
+        Assert.Equal("", result);
+        Assert.Equal("ATFN", verb);
+    }
+
+    // -------------------------------------------------------------------------
+    // ONHO (on-handoff) — zero-arg condition
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Onho_WithCommand_StripsToCommand()
+    {
+        var result = CommandInputController.StripConditionPrefix("ONHO FH 270", out var verb);
+        Assert.Equal("FH 270", result);
+        Assert.Equal("ONHO", verb);
+    }
+
+    [Fact]
+    public void Onho_BareKeyword_NoTrailingSpace_ReturnsOriginal()
+    {
+        var result = CommandInputController.StripConditionPrefix("ONHO", out var verb);
+        Assert.Equal("ONHO", result);
+        Assert.Null(verb);
+    }
+
+    [Fact]
+    public void Onho_TrailingSpaceOnly_ReturnsEmpty()
+    {
+        var result = CommandInputController.StripConditionPrefix("ONHO ", out var verb);
+        Assert.Equal("", result);
+        Assert.Equal("ONHO", verb);
+    }
+
+    // -------------------------------------------------------------------------
+    // GW alias for GIVEWAY
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Gw_WithCallsignAndCommand_StripsToCommandWithGivewayVerb()
+    {
+        var result = CommandInputController.StripConditionPrefix("GW UAL456 FH 270", out var verb);
+        Assert.Equal("FH 270", result);
+        Assert.Equal("GIVEWAY", verb);
+    }
 }

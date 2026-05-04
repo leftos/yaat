@@ -316,4 +316,160 @@ public class CommandInputParseTests
         Assert.Equal("270", result.TypedArgs[0]);
         Assert.Equal("D5L", result.TypedArgs[1]);
     }
+
+    // -------------------------------------------------------------------------
+    // Callsign + condition prefix (regression for AT/LV intellisense bug)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CallsignThenLV_FindsVerbAtIndex1_AndConditionVerbSet()
+    {
+        var result = Parse("SWA123 LV 050 FH 270");
+
+        Assert.NotNull(result);
+        Assert.Equal("LV", result.ConditionVerb);
+        Assert.Equal("FH", result.Verb);
+        // Synthetic token stream is [callsign, verb, args...] — verb at index 1.
+        Assert.Equal(1, result.VerbIndex);
+        Assert.Equal(CanonicalCommandType.FlyHeading, result.CommandType);
+        Assert.NotNull(result.Definition);
+        Assert.Single(result.TypedArgs);
+        Assert.Equal("270", result.TypedArgs[0]);
+        Assert.Equal(0, result.ParameterIndex);
+    }
+
+    [Fact]
+    public void CallsignThenAT_FindsVerb()
+    {
+        var result = Parse("SWA123 AT SUNOL FH 180");
+
+        Assert.NotNull(result);
+        Assert.Equal("AT", result.ConditionVerb);
+        Assert.Equal("FH", result.Verb);
+        Assert.Equal(1, result.VerbIndex);
+        Assert.Equal(CanonicalCommandType.FlyHeading, result.CommandType);
+        Assert.NotNull(result.Definition);
+        Assert.Single(result.TypedArgs);
+        Assert.Equal("180", result.TypedArgs[0]);
+    }
+
+    [Fact]
+    public void CallsignThenLV_TrailingSpaceAfterArg_ParamIndex0()
+    {
+        var result = Parse("SWA123 LV 050 FH ");
+
+        Assert.NotNull(result);
+        Assert.Equal("LV", result.ConditionVerb);
+        Assert.Equal("FH", result.Verb);
+        Assert.True(result.HasTrailingSpace);
+        Assert.Equal(0, result.ParameterIndex);
+    }
+
+    [Fact]
+    public void CallsignThenAT_StillTypingFix_ReturnsPartial()
+    {
+        var result = Parse("SWA123 AT SUN");
+
+        Assert.NotNull(result);
+        Assert.Equal("AT", result.ConditionVerb);
+        Assert.Equal("", result.StrippedFragment);
+        Assert.Equal(-1, result.VerbIndex);
+        Assert.Null(result.Verb);
+    }
+
+    [Fact]
+    public void CallsignThenAT_CaretInCallsign_ActiveTokenIsCallsign()
+    {
+        // "SWA123 AT SUNOL FH 180" caret at 3 (in "SWA123")
+        var result = ParseAt("SWA123 AT SUNOL FH 180", 3);
+
+        Assert.NotNull(result);
+        // Cursor in callsign region — NOT the partial-condition branch.
+        Assert.Equal("FH", result.Verb);
+        Assert.Equal(0, result.ActiveTokenIndex);
+        Assert.Equal(0, result.ActiveTokenStart);
+        Assert.Equal(6, result.ActiveTokenEnd);
+    }
+
+    [Fact]
+    public void CallsignThenAT_CaretInConditionArg_ActiveTokenIsFix()
+    {
+        // "SWA123 AT SUNOL FH 180" caret at 12 (inside "SUNOL")
+        var result = ParseAt("SWA123 AT SUNOL FH 180", 12);
+
+        Assert.NotNull(result);
+        Assert.Equal("AT", result.ConditionVerb);
+        Assert.Equal("", result.StrippedFragment);
+        // Active token spans "SUNOL" (positions 10-15)
+        Assert.Equal(10, result.ActiveTokenStart);
+        Assert.Equal(15, result.ActiveTokenEnd);
+    }
+
+    [Fact]
+    public void CallsignThenAT_VerbBoundsInFullTextCoords()
+    {
+        // Verify the verb's active-token bounds map to the actual "FH" position in the full text.
+        // "SWA123 AT SUNOL FH 180" — caret on the "FH" verb (position 17).
+        var result = ParseAt("SWA123 AT SUNOL FH 180", 17);
+
+        Assert.NotNull(result);
+        Assert.Equal("FH", result.Verb);
+        Assert.Equal(1, result.VerbIndex);
+        // The active token should be the verb (index 1 in [callsign, verb, args]),
+        // with bounds pointing at "FH" in full text (16-18).
+        Assert.Equal(1, result.ActiveTokenIndex);
+        Assert.Equal(16, result.ActiveTokenStart);
+        Assert.Equal(18, result.ActiveTokenEnd);
+    }
+
+    [Fact]
+    public void CallsignThenATFN_FindsVerb()
+    {
+        var result = Parse("SWA123 ATFN 5 FH 270");
+
+        Assert.NotNull(result);
+        Assert.Equal("ATFN", result.ConditionVerb);
+        Assert.Equal("FH", result.Verb);
+        Assert.Equal(CanonicalCommandType.FlyHeading, result.CommandType);
+        Assert.Single(result.TypedArgs);
+        Assert.Equal("270", result.TypedArgs[0]);
+    }
+
+    [Fact]
+    public void CallsignThenONHO_FindsVerb()
+    {
+        var result = Parse("SWA123 ONHO FH 270");
+
+        Assert.NotNull(result);
+        Assert.Equal("ONHO", result.ConditionVerb);
+        Assert.Equal("FH", result.Verb);
+        Assert.Equal(CanonicalCommandType.FlyHeading, result.CommandType);
+        Assert.Single(result.TypedArgs);
+        Assert.Equal("270", result.TypedArgs[0]);
+    }
+
+    [Fact]
+    public void CallsignThenGW_FindsVerb()
+    {
+        var result = Parse("SWA123 GW UAL456 FH 270");
+
+        Assert.NotNull(result);
+        // GW canonicalizes to GIVEWAY for the conditionVerb.
+        Assert.Equal("GIVEWAY", result.ConditionVerb);
+        Assert.Equal("FH", result.Verb);
+        Assert.Equal(CanonicalCommandType.FlyHeading, result.CommandType);
+    }
+
+    [Fact]
+    public void CallsignThenKnownVerb_NotTreatedAsCondition()
+    {
+        // Regression: "SWA123 CM 5000" must NOT be misinterpreted as having a condition prefix.
+        var result = Parse("SWA123 CM 5000");
+
+        Assert.NotNull(result);
+        Assert.Null(result.ConditionVerb);
+        Assert.Equal("CM", result.Verb);
+        Assert.Equal(1, result.VerbIndex);
+        Assert.Equal(CanonicalCommandType.ClimbMaintain, result.CommandType);
+    }
 }
