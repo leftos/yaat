@@ -490,7 +490,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI #42 #18 #95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
 | `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
 | `HOLD` / `HP` | Hold position (stop wherever on the ground) |
-| `RES` / `RESUME` | Resume taxi after hold |
+| `RES` / `RESUME` | Resume taxi after HOLD or release a runway hold-short (explicit or crossing). Does not apply at the destination runway hold — use CTO or LUAW. |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
 | `CROSS B` | Cross taxiway B (clears hold-short) |
 | `HS B` | Hold short at the next intersection with taxiway B |

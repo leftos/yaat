@@ -1145,7 +1145,9 @@ public static class CommandDispatcher
             case ResumeCommand when currentPhase is AirTaxiPhase:
                 aircraft.Ground.IsHeld = false;
                 return Ok("Resume taxi");
-            case ResumeCommand when currentPhase is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort } holdShort:
+            case ResumeCommand
+                when currentPhase
+                    is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort or HoldShortReason.RunwayCrossing } holdShort:
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
                 return Ok("Resume taxi");
 
@@ -1165,7 +1167,7 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
-            case ResumeCommand:
+            case ResumeCommand when currentPhase is not HoldingShortPhase:
                 return GroundCommandHandler.TryResumeTaxi(aircraft);
             case CrossRunwayCommand cross:
                 return GroundCommandHandler.TryCrossRunway(aircraft, cross);

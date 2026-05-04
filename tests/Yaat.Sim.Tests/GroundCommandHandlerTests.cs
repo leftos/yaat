@@ -762,7 +762,7 @@ public class GroundCommandHandlerTests
     }
 
     [Fact]
-    public void Resume_DoesNotClearRunwayCrossingHoldShortPhase()
+    public void Resume_ClearsRunwayCrossingHoldShortPhase()
     {
         var ac = MakeGroundAircraft();
         ac.IsOnGround = true;
@@ -788,7 +788,42 @@ public class GroundCommandHandlerTests
         var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+    }
+
+    [Fact]
+    public void Resume_DoesNotClearDestinationRunwayHoldShortPhase()
+    {
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = true;
+
+        var holdShort = new HoldShortPoint
+        {
+            NodeId = 1,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "30",
+        };
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingShortPhase(holdShort));
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = Logger,
+        };
+        ac.Phases.Start(ctx);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+
         Assert.False(result.Success);
+        Assert.False(holdShort.IsCleared);
+        Assert.NotNull(result.Message);
+        Assert.Contains("CTO", result.Message);
+        Assert.Contains("LUAW", result.Message);
+        Assert.DoesNotContain("not held", result.Message);
     }
 
     // -------------------------------------------------------------------------
