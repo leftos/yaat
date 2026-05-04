@@ -16,6 +16,13 @@ public sealed class NavigationDatabase
 {
     private readonly Dictionary<string, (double Lat, double Lon)> _navDb = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, double> _elevations = new(StringComparer.OrdinalIgnoreCase);
+
+    // Spatial bucket of airports (1° × 1° grid; ~60nm bucket size). Used by
+    // FindNearestAirportElevation for terrain-aware AGL lookups when the aircraft
+    // is en route and no precise runway is assigned. Each airport is indexed once
+    // under its canonical id; FAA/ICAO duplicates are de-duplicated.
+    private readonly Dictionary<(int LatBucket, int LonBucket), List<(string Id, double Lat, double Lon, double Elevation)>> _airportSpatialIndex =
+    [];
     private readonly Dictionary<string, List<string>> _sidBodies = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _sidAllFixes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _sidTransitions = new(StringComparer.OrdinalIgnoreCase);
@@ -119,7 +126,8 @@ public sealed class NavigationDatabase
         IReadOnlyDictionary<string, IReadOnlyList<string>>? airways = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null,
         IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? sidTransitions = null,
-        IReadOnlyDictionary<string, string>? airports = null
+        IReadOnlyDictionary<string, string>? airports = null,
+        IReadOnlyDictionary<string, (double Lat, double Lon)>? airportPositions = null
     )
     {
         var db = new NavigationDatabase();
@@ -212,6 +220,20 @@ public sealed class NavigationDatabase
             foreach (var (code, elev) in elevations)
             {
                 db._elevations[code] = elev;
+            }
+        }
+
+        if (airportPositions is not null)
+        {
+            foreach (var (code, pos) in airportPositions)
+            {
+                if (string.IsNullOrEmpty(code))
+                {
+                    continue;
+                }
+                db._navDb[code] = pos;
+                var elev = elevations is not null && elevations.TryGetValue(code, out var e) ? e : 0;
+                db.AddAirportToSpatialIndex(code, pos.Lat, pos.Lon, elev);
             }
         }
 
@@ -385,6 +407,56 @@ public sealed class NavigationDatabase
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Returns the elevation (ft MSL) of the nearest airport to <paramref name="position"/>
+    /// within <paramref name="maxRangeNm"/>, or <c>null</c> if no airport is within range.
+    /// Used as a terrain proxy for STARS / AGL gating when the aircraft has no precise
+    /// runway reference. Uses a 1°-bucketed grid; cost is O(airports in 3×3 neighborhood)
+    /// for the default 100nm cap.
+    /// </summary>
+    public double? FindNearestAirportElevation(LatLon position, double maxRangeNm = 100)
+    {
+        var (latBucket, lonBucket) = AirportBucketKey(position.Lat, position.Lon);
+        // 1° lat ≈ 60nm; expand bucket radius to cover maxRangeNm with margin.
+        int radius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / 60.0));
+
+        double bestDist = double.MaxValue;
+        double? bestElev = null;
+        for (int dLat = -radius; dLat <= radius; dLat++)
+        {
+            for (int dLon = -radius; dLon <= radius; dLon++)
+            {
+                if (!_airportSpatialIndex.TryGetValue((latBucket + dLat, lonBucket + dLon), out var bucket))
+                {
+                    continue;
+                }
+                foreach (var (_, lat, lon, elev) in bucket)
+                {
+                    var dist = GeoMath.DistanceNm(position, new LatLon(lat, lon));
+                    if ((dist < bestDist) && (dist <= maxRangeNm))
+                    {
+                        bestDist = dist;
+                        bestElev = elev;
+                    }
+                }
+            }
+        }
+        return bestElev;
+    }
+
+    private static (int LatBucket, int LonBucket) AirportBucketKey(double lat, double lon) => ((int)Math.Floor(lat), (int)Math.Floor(lon));
+
+    private void AddAirportToSpatialIndex(string id, double lat, double lon, double elevation)
+    {
+        var key = AirportBucketKey(lat, lon);
+        if (!_airportSpatialIndex.TryGetValue(key, out var bucket))
+        {
+            bucket = [];
+            _airportSpatialIndex[key] = bucket;
+        }
+        bucket.Add((id, lat, lon, elevation));
     }
 
     public RunwayInfo? GetRunway(string airportCode, string runwayId)
@@ -907,6 +979,7 @@ public sealed class NavigationDatabase
             string canonical = !string.IsNullOrEmpty(airport.IcaoId) ? airport.IcaoId : airport.FaaId ?? "";
             if (!string.IsNullOrEmpty(canonical))
             {
+                AddAirportToSpatialIndex(canonical, loc.Lat, loc.Lon, airport.Elevation);
                 if (!string.IsNullOrEmpty(airport.FaaId))
                 {
                     _airportCanonical.TryAdd(airport.FaaId, canonical);
