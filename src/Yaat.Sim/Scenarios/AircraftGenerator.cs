@@ -304,6 +304,12 @@ public static class AircraftGenerator
 
         var init = AircraftInitializer.InitializeOnFinal(rwy, category, altFromDist, aircraftType: aircraftType);
 
+        var destination = "";
+        if (request.Rules == FlightRulesKind.Ifr)
+        {
+            destination = NavigationDatabase.Instance.TryResolveAirport(airportId, out var canonical) ? canonical : airportId;
+        }
+
         var state = new AircraftState
         {
             Callsign = callsign,
@@ -321,7 +327,12 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
+            FlightPlan = new AircraftFlightPlan
+            {
+                FlightRules = flightRules,
+                AircraftType = aircraftType,
+                Destination = destination,
+            },
             Phases = init.Phases,
         };
 

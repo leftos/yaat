@@ -1397,7 +1397,6 @@ public sealed class SimulationEngine
             }
 
             state.ScenarioId = scenario.ScenarioId;
-            state.FlightPlan.Destination = scenario.PrimaryAirportId ?? "";
             state.Ground.Layout = groundLayout;
 
             World.AddAircraft(state);

@@ -4,6 +4,7 @@
 
 ### Fixed
 - CRC STARS shows aircraft inbound from high-elevation departure airports (e.g. KBLU at 5,284 ft).
+- `ADD` spawning an IFR aircraft on final auto-fills the flight-plan destination with the scenario's primary airport.
 
 ## v0.1.12-alpha [2026/05/03]
 
