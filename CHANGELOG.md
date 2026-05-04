@@ -8,6 +8,7 @@
 
 ### Fixed
 - `RFIS`/`RTIS` no longer wipes a queued pattern entry (or any other pending command block) when the aircraft has no active phase — extends the v0.1.12-alpha fix to the queue path. Same protection now applies to `SQ`, `ID`, `SAY`, and the rest of the transparent-command set.
+- `APPS`, `EAPP`, `EXP`, `NORM`, and `DELAT` no longer wipe queued instructions either — they're status/modifier verbs that should leave pending blocks intact.
 - CRC STARS shows aircraft inbound from high-elevation departure airports (e.g. KBLU at 5,284 ft).
 - `ADD` spawning an IFR aircraft on final auto-fills the flight-plan destination with the scenario's primary airport.
 - `RES` releases any taxi hold-short, including auto-added runway crossings — destination runway holds still require `CTO` or `LUAW`.

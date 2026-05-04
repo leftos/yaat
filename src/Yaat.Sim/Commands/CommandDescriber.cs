@@ -928,7 +928,12 @@ public static class CommandDescriber
                 or CanonicalCommandType.ReportFieldInSight
                 or CanonicalCommandType.ReportFieldInSightForced
                 or CanonicalCommandType.ReportTrafficInSight
-                or CanonicalCommandType.ReportTrafficInSightForced;
+                or CanonicalCommandType.ReportTrafficInSightForced
+                or CanonicalCommandType.ListApproaches
+                or CanonicalCommandType.ExpectApproach
+                or CanonicalCommandType.Expedite
+                or CanonicalCommandType.NormalRate
+                or CanonicalCommandType.DeleteQueuedCommands;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)

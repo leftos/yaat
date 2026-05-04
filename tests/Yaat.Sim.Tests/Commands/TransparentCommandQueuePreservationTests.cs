@@ -135,4 +135,37 @@ public class TransparentCommandQueuePreservationTests : IDisposable
         Assert.Contains(ac.Queue.Blocks, b => b.NaturalDescription.Contains("Enter right downwind"));
         Assert.Equal(1234u, ac.Transponder.Code);
     }
+
+    /// <summary>
+    /// Audit-pass adds: APP/XAPP/EX/NR/DELQ are pure-status / pure-modifier verbs that
+    /// must not wipe queued instructions. (CTR is already covered via SetTurnRate.)
+    /// </summary>
+    [Theory]
+    [InlineData("APPS", "list approaches")]
+    [InlineData("EAPP I28R", "expect approach")]
+    [InlineData("EXP", "expedite")]
+    [InlineData("NORM", "normal rate")]
+    [InlineData("DELAT 0", "delete queued")]
+    public void TransparentVerb_WithNullPhases_PreservesQueuedErd(string verb, string label)
+    {
+        _output.WriteLine($"Verb: {verb} ({label})");
+        var ac = MakeAirborneVfr();
+        // EXP requires an active altitude assignment to succeed past dry-run; setting
+        // it here guarantees we exercise the transparent classification, not an
+        // accidental dry-run rejection.
+        ac.Targets.TargetAltitude = 5000;
+        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
+
+        DispatchOk(ac, "DCT OAK; ERD 28R", ctx);
+        Assert.Equal(2, ac.Queue.Blocks.Count);
+
+        // Dispatch the verb. Some verbs may legitimately fail validation depending
+        // on context (e.g. EAPP with an unknown approach ID); what we care about
+        // here is that the queue isn't wiped regardless of success.
+        var parsed = CommandParser.ParseCompound(verb);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+
+        Assert.Contains(ac.Queue.Blocks, b => b.NaturalDescription.Contains("Enter right downwind"));
+    }
 }
