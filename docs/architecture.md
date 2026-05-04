@@ -378,6 +378,7 @@ Phases/RunwayInfo.cs           # Runway geometry
 Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)
 Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category + direction
 Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, UpdateWaypoints
+Phases/PhaseClearSummary.cs    # Builds short label ("pattern to RWY 28R", "approach to RWY 28R", or phase Name) for the cancellation warning surfaced when a command clears the active phase chain
 
 # Phases/Tower/
 LineUpPhase.cs                 # State-machine lineup via LineUpGeometry: Aligned (straight → fillet arc → rollout) or Pivot (SlowTurn → perpendicular straight → SlowTurn → rollout) chosen by waste-straight vs remaining-runway. Faulted stays stopped (user recovers via TAXI / CANCEL CLEARANCE)

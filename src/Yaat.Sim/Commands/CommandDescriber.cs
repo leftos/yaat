@@ -924,7 +924,11 @@ public static class CommandDescriber
                 or CanonicalCommandType.ConsolidateFull
                 or CanonicalCommandType.Deconsolidate
                 or CanonicalCommandType.ShowQueuedCommands
-                or CanonicalCommandType.SetTurnRate;
+                or CanonicalCommandType.SetTurnRate
+                or CanonicalCommandType.ReportFieldInSight
+                or CanonicalCommandType.ReportFieldInSightForced
+                or CanonicalCommandType.ReportTrafficInSight
+                or CanonicalCommandType.ReportTrafficInSightForced;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)

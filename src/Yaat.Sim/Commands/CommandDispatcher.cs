@@ -53,9 +53,15 @@ public static class CommandDispatcher
             return gwResult;
         }
 
-        // Phase-transparent commands (squawk, ident, say, etc.) — apply directly
-        // without consulting phases, clearing the queue, or clearing deferred dispatches.
-        if (aircraft.Phases?.CurrentPhase is not null && IsAllTransparent(compound))
+        // Phase-transparent commands (squawk, ident, say, RFIS/RTIS, etc.) — apply
+        // directly without consulting phases, clearing the queue, or clearing
+        // deferred dispatches. Fires regardless of phase state: the same `None`-
+        // dimension fast path in ClearConflictingBlocks that wipes the queue when
+        // phases are active also wipes it when phases are null, so the protection
+        // must apply both ways. Without the unconditional check, transparent
+        // commands like RTIS would wipe a queued pattern entry on an aircraft
+        // that hadn't yet transitioned into a phase (see N435C in S2-OAK-5).
+        if (IsAllTransparent(compound))
         {
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
@@ -83,7 +89,8 @@ public static class CommandDispatcher
                 if (result.Success && compound.Blocks.Count > 1)
                 {
                     var phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
-                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, ctx);
+                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, ctx, out var phaseDropped);
+                    EmitQueueClearWarning(aircraft, phaseDropped, compound);
                     aircraft.DeferredDispatches.Clear();
 
                     var modifierMessages = new List<string>();
@@ -145,17 +152,25 @@ public static class CommandDispatcher
         if (shouldClearPhases)
         {
             var phaseCtx = BuildMinimalContext(aircraft);
+            string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
             aircraft.Phases?.Clear(phaseCtx);
             aircraft.Phases = null;
             aircraft.Targets.TurnRateOverride = null;
             aircraft.Targets.HasExplicitTurnRate = false;
+
+            if (clearedSummary is not null)
+            {
+                var src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
+                aircraft.PendingWarnings.Add($"{aircraft.Callsign} {clearedSummary} cancelled by {src}");
+            }
         }
 
         // Selectively clear queue: remove only blocks whose dimensions conflict with the
         // incoming command. Non-conflicting pending blocks are preserved and re-appended
         // after the new blocks.
         var incomingDims = CommandDescriber.GetCompoundDimensions(compound);
-        var preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx);
+        var preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, out var dropped);
+        EmitQueueClearWarning(aircraft, dropped, compound);
         aircraft.DeferredDispatches.Clear();
 
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
@@ -299,7 +314,8 @@ public static class CommandDispatcher
 
         // Selectively clear queue: remove only blocks whose dimensions conflict
         var singleDims = CommandDescriber.GetCommandDimension(command);
-        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, ctx);
+        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, ctx, out var singleDropped);
+        EmitQueueClearWarning(aircraft, singleDropped, new CompoundCommand([new ParsedBlock(null, [command])]));
         aircraft.Queue.Blocks.AddRange(singlePreserved);
 
         bool hadProcedure = aircraft.Procedure.ActiveSidId is not null || aircraft.Procedure.ActiveStarId is not null;
@@ -1371,14 +1387,29 @@ public static class CommandDispatcher
     /// preserving non-conflicting blocks. For the current applied block, marks conflicting
     /// tracked commands as complete (superseded). Returns the preserved blocks (removed
     /// from the queue) so the caller can re-append them after enqueueing new blocks.
+    /// <paramref name="droppedDescriptions"/> receives a description of every pending block
+    /// that was lost outright (full conflict or fast-path wipe), so callers can warn the
+    /// RPO. Partial splits — where some commands in a block were preserved — are NOT
+    /// reported, since the queued instruction survived in modified form.
     /// </summary>
-    private static List<CommandBlock> ClearConflictingBlocks(AircraftState aircraft, CommandDimension incomingDimensions, DispatchContext ctx)
+    private static List<CommandBlock> ClearConflictingBlocks(
+        AircraftState aircraft,
+        CommandDimension incomingDimensions,
+        DispatchContext ctx,
+        out List<string> droppedDescriptions
+    )
     {
         var queue = aircraft.Queue;
+        droppedDescriptions = [];
 
         // Fast path: All/None → clear everything (original behavior)
         if ((incomingDimensions & CommandDimension.All) == CommandDimension.All || incomingDimensions == CommandDimension.None)
         {
+            int fastStart = queue.CurrentBlockIndex + (queue.CurrentBlock is { IsApplied: true } ? 1 : 0);
+            for (int i = fastStart; i < queue.Blocks.Count; i++)
+            {
+                droppedDescriptions.Add(DescribeQueueBlock(queue.Blocks[i]));
+            }
             queue.Blocks.Clear();
             queue.CurrentBlockIndex = 0;
             return [];
@@ -1405,7 +1436,11 @@ public static class CommandDispatcher
         {
             var block = queue.Blocks[i];
             var split = SplitBlockNonConflicting(block, incomingDimensions, ctx);
-            if (split is not null)
+            if (split is null)
+            {
+                droppedDescriptions.Add(DescribeQueueBlock(block));
+            }
+            else
             {
                 preserved.Add(split);
             }
@@ -1418,6 +1453,26 @@ public static class CommandDispatcher
         }
 
         return preserved;
+    }
+
+    private static string DescribeQueueBlock(CommandBlock block) =>
+        !string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription;
+
+    /// <summary>
+    /// Append a "queue cleared" warning to <paramref name="aircraft"/>'s PendingWarnings
+    /// when the dispatcher silently dropped one or more queued blocks. The warning lists
+    /// what was lost so an RPO can re-issue any instructions that mattered.
+    /// </summary>
+    private static void EmitQueueClearWarning(AircraftState aircraft, IReadOnlyList<string> dropped, CompoundCommand compound)
+    {
+        if (dropped.Count == 0)
+        {
+            return;
+        }
+
+        var src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
+        var lost = string.Join(", ", dropped);
+        aircraft.PendingWarnings.Add($"{aircraft.Callsign} queue cleared by {src} (lost: {lost})");
     }
 
     /// <summary>

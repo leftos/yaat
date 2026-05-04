@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+### Added
+- Orange terminal warning when a command silently cancels in-flight phase work — e.g. issuing `CM 025` to an aircraft on a pattern entry now surfaces "N435C pattern to RWY 28R cancelled by CM 025" so the RPO knows what was lost and can reissue. Recognises pattern and approach chains; falls back to the active phase name otherwise.
+- Orange terminal warning when a command silently drops queued instructions — e.g. "N435C queue cleared by FH 270 (lost: DCT VPCOL)". Fires for both intentional clears (DEL/CAPP/CTO) and unintentional ones, giving visibility into queue churn.
+
 ### Fixed
+- `RFIS`/`RTIS` no longer wipes a queued pattern entry (or any other pending command block) when the aircraft has no active phase — extends the v0.1.12-alpha fix to the queue path. Same protection now applies to `SQ`, `ID`, `SAY`, and the rest of the transparent-command set.
 - CRC STARS shows aircraft inbound from high-elevation departure airports (e.g. KBLU at 5,284 ft).
 - `ADD` spawning an IFR aircraft on final auto-fills the flight-plan destination with the scenario's primary airport.
 - `RES` releases any taxi hold-short, including auto-added runway crossings — destination runway holds still require `CTO` or `LUAW`.
