@@ -185,7 +185,7 @@ public class RfisSoftFailLookingTests
         ac.TrueHeading = new TrueHeading(180);
         ac.TrueTrack = new TrueHeading(180);
 
-        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
+        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.True(ac.Approach.HasReportedFieldInSight);
         Assert.Empty(ac.PendingObservations);
@@ -202,7 +202,7 @@ public class RfisSoftFailLookingTests
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         ac.PendingNotifications.Clear();
 
-        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
+        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Single(ac.PendingObservations);
@@ -242,7 +242,7 @@ public class RfisSoftFailLookingTests
         // Destination cleared between ticks (e.g. flight plan amended).
         ac.FlightPlan.Destination = "";
 
-        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
+        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.Empty(ac.PendingObservations);
         Assert.Empty(ac.PendingWarnings);
@@ -259,7 +259,7 @@ public class RfisSoftFailLookingTests
         Assert.Single(ac.PendingObservations);
 
         ac.FlightPlan.Destination = "ZZZZ";
-        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null);
+        PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.Empty(ac.PendingObservations);
         Assert.False(ac.Approach.HasReportedFieldInSight);

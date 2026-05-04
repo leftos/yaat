@@ -119,6 +119,16 @@ public class AircraftState
     public List<string> PendingWarnings { get; } = [];
     public List<string> PendingNotifications { get; } = [];
 
+    /// <summary>
+    /// Pilot transmissions emitted by the sim in RPO mode when the
+    /// <c>RpoShowPilotSpeech</c> scenario setting is on. Drained per tick into the
+    /// terminal as <c>PilotSpeech</c>-kind entries (green), rendered with the spelled-out
+    /// spoken form built by <see cref="Pilot.PilotResponder"/>. Solo mode keeps using
+    /// <see cref="PendingNotifications"/>; RPO with the setting off keeps using
+    /// <see cref="PendingWarnings"/>. Transient — not snapshot-serialized.
+    /// </summary>
+    public List<string> PendingPilotSpeech { get; } = [];
+
     public List<ApproachScore> PendingApproachScores { get; } = [];
     public ApproachScore? ActiveApproachScore { get; set; }
 

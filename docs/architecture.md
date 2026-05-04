@@ -307,9 +307,11 @@ PilotObservation.cs            # Abstract record PilotObservation + TrafficAcqui
                                # Extension points for future "report leaving altitude", "report passing fix", etc.
 PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhysics.Update after UpdateCommandQueue
                                # Re-runs VisualAcquisition.TryAcquireTraffic / TryAcquireAirport; on success sets the matching
-                               # HasReported* flag and pushes the in-sight pilot readback. Acquisition readbacks route through
-                               # PendingWarnings (WRN/Orange) so the event catches RPO attention. Silently drops observations
-                               # whose target has left the sim or whose destination is no longer lookupable.
+                               # HasReported* flag and pushes the in-sight pilot readback through PilotResponder.RouteRpoTransmission:
+                               # solo → PendingNotifications (gray Response), RPO+RpoShowPilotSpeech → PendingPilotSpeech (green
+                               # PilotSpeech kind via PilotResponder.BuildTrafficInSight/BuildFieldInSight), RPO default →
+                               # PendingWarnings (orange). Silently drops observations whose target has left the sim or whose
+                               # destination is no longer lookupable.
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
 
 # Track operations
@@ -417,6 +419,10 @@ Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given a
                                # Picks the first-declared rule per CanonicalCommandType (textbook form), substitutes captures via AtcNumberParser
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
+                               # Also: BuildTrafficInSight / BuildFieldInSight / BuildHoldingShortCrossing / BuildClearOfRunway / BuildGoingAround / BuildLostSightOf*
+                               # / BuildUnableTo* — the spelled-out spoken forms used by RPO PilotSpeech routing.
+                               # RouteRpoTransmission(aircraft, soloMode, rpoShowPilotSpeech, pilotSpeechText, warningText) — three-way helper
+                               # used by every sim-initiated pilot transmission site to pick the right destination collection.
 Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode.
                                # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Future home for pending-clearance reminders + DA/MDA missed-approach
 Pilot/PilotPersonality.cs      # Enum (Verbatim) controlling readback variation; Verbatim emits the textbook form for every command

@@ -31,6 +31,14 @@ public sealed class SimScenarioState
     // change.
     public bool SoloTrainingMode { get; set; }
 
+    // When true (and SoloTrainingMode is false), sim-initiated pilot transmissions
+    // (RTIS/RFIS resolution, midfield/short-final-no-clearance reminders, holding-short and
+    // clear-of-runway position reports, going-around, lost-sight, follow-cancel, etc.) are
+    // routed into AircraftState.PendingPilotSpeech and broadcast as TerminalEntryKind.PilotSpeech
+    // (green) with the spoken form built by PilotResponder. When false (default), those events
+    // continue to land in PendingWarnings (orange) — current behavior preserved.
+    public bool RpoShowPilotSpeech { get; set; }
+
     // Weather timeline (v2 time-based weather evolution)
     public WeatherTimeline? WeatherTimeline { get; set; }
 
@@ -95,6 +103,7 @@ public sealed class SimScenarioState
             AutoCrossRunway = AutoCrossRunway,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
+            RpoShowPilotSpeech = RpoShowPilotSpeech,
             IsPaused = IsPaused,
             SimRate = SimRate,
             AutoAcceptDelaySeconds = AutoAcceptDelay.TotalSeconds,

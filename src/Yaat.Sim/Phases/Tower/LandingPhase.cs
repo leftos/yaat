@@ -809,7 +809,13 @@ public sealed class LandingPhase : Phase
 
         if ((_originalPreference?.Taxiway is not null) && !_unableBroadcast)
         {
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}");
+            Pilot.PilotResponder.RouteRpoTransmission(
+                ctx.Aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, missedTaxiway),
+                $"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}"
+            );
             _unableBroadcast = true;
         }
 

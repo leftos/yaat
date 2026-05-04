@@ -60,6 +60,48 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     /// recording — uses the existing bundle's scenarioJson so ScenarioLoader has
     /// something valid to chew on, then injects custom SettingChange actions.
     /// </summary>
+    /// <summary>
+    /// RpoShowPilotSpeech is a sim-control toggle that switches sim-initiated pilot
+    /// transmissions between Warning (orange, default) and PilotSpeech (green) terminal
+    /// kinds. Like the four other settings, it must round-trip through replay so bundle
+    /// snapshots regenerate identically.
+    /// </summary>
+    [Fact]
+    public void RpoShowPilotSpeech_RoundTripsThroughReplay()
+    {
+        const string bundlePath = "TestData/66fd6538542e.zip";
+        var baseline = RecordingLoader.Load(bundlePath);
+        if (baseline is null)
+        {
+            output.WriteLine($"Skipped: {bundlePath} not present");
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var recording = new SessionRecording
+        {
+            Version = baseline.Version,
+            ScenarioJson = baseline.ScenarioJson,
+            RngSeed = baseline.RngSeed,
+            WeatherJson = baseline.WeatherJson,
+            Actions = [new RecordedSettingChange(0, "RpoShowPilotSpeech", "True")],
+            TotalElapsedSeconds = 1,
+            ScenarioName = baseline.ScenarioName,
+            ScenarioId = baseline.ScenarioId,
+            ArtccId = baseline.ArtccId,
+        };
+
+        var engine = new SimulationEngine(new TestAirportGroundData());
+        engine.Replay(recording, 1);
+
+        Assert.True(engine.Scenario!.RpoShowPilotSpeech, "RpoShowPilotSpeech should round-trip through replay");
+    }
+
     [Fact]
     public void AllFourSettingTypes_RoundTripThroughReplay()
     {

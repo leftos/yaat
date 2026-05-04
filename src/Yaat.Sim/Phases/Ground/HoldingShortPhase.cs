@@ -50,7 +50,12 @@ public sealed class HoldingShortPhase : Phase
         string target = _holdShort.TargetName ?? "unknown";
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
-        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {label} at {taxiway}");
+        string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
+        string speechText =
+            _holdShort.Reason == HoldShortReason.ExplicitHoldShort
+                ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway)
+                : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, target);
+        PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText, warningText);
 
         if (
             ctx.SoloTrainingMode

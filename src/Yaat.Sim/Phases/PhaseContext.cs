@@ -46,6 +46,14 @@ public sealed class PhaseContext
     public bool SoloTrainingMode { get; init; }
 
     /// <summary>
+    /// When true (and <see cref="SoloTrainingMode"/> is false), sim-initiated pilot
+    /// transmissions route to <c>AircraftState.PendingPilotSpeech</c> with the spoken form
+    /// from <c>PilotResponder</c>. When false, the same events fall through to
+    /// <c>PendingWarnings</c> with terse controller-debug text. Default false.
+    /// </summary>
+    public bool RpoShowPilotSpeech { get; init; }
+
+    /// <summary>
     /// The local tower position (TrackOwner), if the student is controlling tower.
     /// Used by InitialClimbPhase to hold RV SID heading while tower owns the track.
     /// </summary>

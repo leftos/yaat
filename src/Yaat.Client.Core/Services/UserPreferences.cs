@@ -114,6 +114,8 @@ public sealed class UserPreferences
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
     public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
     public bool AutoCrossRunway => _data.AutoCrossRunway;
+    public bool RpoShowPilotSpeech => _data.RpoShowPilotSpeech;
+    public bool RpoPilotSpeechAudibleAlert => _data.RpoPilotSpeechAudibleAlert;
 
     public bool GetAutoClearedToLand(string? positionType)
     {
@@ -313,6 +315,18 @@ public sealed class UserPreferences
     public void SetValidateDctFixes(bool validate)
     {
         _data.ValidateDctFixes = validate;
+        Save();
+    }
+
+    public void SetRpoShowPilotSpeech(bool enabled)
+    {
+        _data.RpoShowPilotSpeech = enabled;
+        Save();
+    }
+
+    public void SetRpoPilotSpeechAudibleAlert(bool enabled)
+    {
+        _data.RpoPilotSpeechAudibleAlert = enabled;
         Save();
     }
 
@@ -719,6 +733,8 @@ public sealed class UserPreferences
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
             AutoClearedToLandCtr = GetFieldOr(obj, "autoClearedToLandCtr", true),
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
+            RpoShowPilotSpeech = GetFieldOr(obj, "rpoShowPilotSpeech", false),
+            RpoPilotSpeechAudibleAlert = GetFieldOr(obj, "rpoPilotSpeechAudibleAlert", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
             RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
@@ -921,6 +937,8 @@ public sealed class UserPreferences
         public bool AutoClearedToLandApp { get; set; } = true;
         public bool AutoClearedToLandCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
+        public bool RpoShowPilotSpeech { get; set; }
+        public bool RpoPilotSpeechAudibleAlert { get; set; }
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public List<RecentScenario> RecentScenarios { get; set; } = [];
         public List<RecentWeather> RecentWeatherFiles { get; set; } = [];

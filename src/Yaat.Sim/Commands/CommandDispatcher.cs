@@ -527,11 +527,11 @@ public static class CommandDispatcher
             case ReportFieldInSightCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSight(aircraft, ctx);
             case ReportFieldInSightForcedCommand:
-                return NavigationCommandHandler.DispatchReportFieldInSightForced(aircraft);
+                return NavigationCommandHandler.DispatchReportFieldInSightForced(aircraft, ctx);
             case ReportTrafficInSightCommand cmd:
                 return NavigationCommandHandler.DispatchReportTrafficInSight(aircraft, cmd.TargetCallsign, ctx);
             case ReportTrafficInSightForcedCommand cmd:
-                return NavigationCommandHandler.DispatchReportTrafficInSightForced(aircraft, cmd.TargetCallsign);
+                return NavigationCommandHandler.DispatchReportTrafficInSightForced(aircraft, cmd.TargetCallsign, ctx);
 
             // --- Pattern entry commands ---
             case EnterLeftDownwindCommand cmd:

@@ -31,5 +31,6 @@ public sealed record DispatchContext(
     bool ValidateDctFixes,
     bool AutoCrossRunway,
     bool SoloTrainingMode,
+    bool RpoShowPilotSpeech,
     Action<TerminalEntry>? TerminalEmitter
 );

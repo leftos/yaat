@@ -95,7 +95,16 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        return ComputeAdjustedSpeed(ctx.Aircraft, target, normalSpeed, minSpeed, maxSpeedAdjustKts, Log);
+        return ComputeAdjustedSpeed(
+            ctx.Aircraft,
+            target,
+            normalSpeed,
+            minSpeed,
+            maxSpeedAdjustKts,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Log
+        );
     }
 
     /// <summary>
@@ -123,7 +132,17 @@ public static class AirborneFollowHelper
 
         var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
-        return ComputeAdjustedSpeedWithDesired(ctx.Aircraft, target, normalSpeed, minSpeed, desired, MaxSpeedAdjustKts, Log);
+        return ComputeAdjustedSpeedWithDesired(
+            ctx.Aircraft,
+            target,
+            normalSpeed,
+            minSpeed,
+            desired,
+            MaxSpeedAdjustKts,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Log
+        );
     }
 
     /// <summary>
@@ -142,12 +161,29 @@ public static class AirborneFollowHelper
     /// <param name="lead">Lead aircraft.</param>
     /// <param name="minSpeed">Absolute floor — never returns below this.</param>
     /// <param name="logger">Logger for warnings when separation cannot be maintained.</param>
-    public static double? AdjustedFreeFlightSpeed(AircraftState follower, AircraftState lead, double minSpeed, ILogger logger)
+    public static double? AdjustedFreeFlightSpeed(
+        AircraftState follower,
+        AircraftState lead,
+        double minSpeed,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
+        ILogger logger
+    )
     {
         double normalSpeed = Math.Max(lead.IndicatedAirspeed, minSpeed);
         var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
-        return ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, MaxSpeedAdjustKts, logger);
+        return ComputeAdjustedSpeedWithDesired(
+            follower,
+            lead,
+            normalSpeed,
+            minSpeed,
+            desired,
+            MaxSpeedAdjustKts,
+            soloTrainingMode,
+            rpoShowPilotSpeech,
+            logger
+        );
     }
 
     /// <summary>
@@ -162,12 +198,24 @@ public static class AirborneFollowHelper
         double normalSpeed,
         double minSpeed,
         double maxSpeedAdjustKts,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
         ILogger logger
     )
     {
         var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = DesiredDistanceForLeader(leaderCategory);
-        return ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, maxSpeedAdjustKts, logger);
+        return ComputeAdjustedSpeedWithDesired(
+            follower,
+            lead,
+            normalSpeed,
+            minSpeed,
+            desired,
+            maxSpeedAdjustKts,
+            soloTrainingMode,
+            rpoShowPilotSpeech,
+            logger
+        );
     }
 
     private static double? ComputeAdjustedSpeedWithDesired(
@@ -177,6 +225,8 @@ public static class AirborneFollowHelper
         double minSpeed,
         double desired,
         double maxSpeedAdjustKts,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
         ILogger logger
     )
     {
@@ -191,7 +241,13 @@ public static class AirborneFollowHelper
         if ((adjusted < minSpeed) && (distance < desired * 0.5))
         {
             follower.Approach.FollowingCallsign = null;
-            follower.PendingWarnings.Add($"{follower.Callsign} unable to maintain separation from {lead.Callsign}, cancelling follow");
+            Pilot.PilotResponder.RouteRpoTransmission(
+                follower,
+                soloTrainingMode,
+                rpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildUnableToMaintainSeparation(follower, lead.Callsign),
+                $"{follower.Callsign} unable to maintain separation from {lead.Callsign}, cancelling follow"
+            );
             logger.LogWarning(
                 "[Follow] {Callsign}: cancelled follow on {Target}, at min speed with dist={Dist:F2}nm (desired={Desired:F1}nm)",
                 follower.Callsign,

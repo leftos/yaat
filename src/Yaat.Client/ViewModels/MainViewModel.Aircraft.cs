@@ -63,6 +63,11 @@ public partial class MainViewModel
                     Message = dto.Message,
                 }
             );
+
+            if (kind == TerminalEntryKind.PilotSpeech && _preferences.RpoPilotSpeechAudibleAlert)
+            {
+                _pilotSpeechAlerts.PlayDing();
+            }
         });
     }
 

@@ -161,6 +161,24 @@
                                    FontSize="11"
                                    Margin="28,0,0,0" />
                     </StackPanel>
+                    <StackPanel Spacing="4">
+                        <CheckBox Content="Show sim-initiated pilot transmissions as pilot speech (RPO mode)"
+                                  IsChecked="{Binding RpoShowPilotSpeech}" />
+                        <TextBlock Text="Renders auto-generated pilot reports (traffic in sight, holding short, going around, midfield/short-final reminders, etc.) as green pilot speech with the spelled-out spoken form. Default off — preserves the orange Warning text."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <CheckBox Content="Audible alert on pilot transmissions"
+                                  IsChecked="{Binding RpoPilotSpeechAudibleAlert}" />
+                        <TextBlock Text="Plays a short ding when a sim-initiated pilot transmission appears. Independent of the visual setting above. Does not fire on AS-prefix SAY commands you typed yourself."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
                 </StackPanel>
                 </ScrollViewer>
             </TabItem>

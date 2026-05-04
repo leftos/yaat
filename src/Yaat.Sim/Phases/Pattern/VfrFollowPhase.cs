@@ -73,7 +73,13 @@ public sealed class VfrFollowPhase : Phase
         {
             Log.LogDebug("[VfrFollow] {Callsign}: target {Target} not found, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
             ctx.Aircraft.Approach.FollowingCallsign = null;
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow");
+            Pilot.PilotResponder.RouteRpoTransmission(
+                ctx.Aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildLostSightOfTraffic(ctx.Aircraft, TargetCallsign),
+                $"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow"
+            );
             return true;
         }
 
@@ -81,7 +87,13 @@ public sealed class VfrFollowPhase : Phase
         {
             Log.LogDebug("[VfrFollow] {Callsign}: target {Target} on ground, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
             ctx.Aircraft.Approach.FollowingCallsign = null;
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow");
+            Pilot.PilotResponder.RouteRpoTransmission(
+                ctx.Aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildTargetLanded(ctx.Aircraft, TargetCallsign),
+                $"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow"
+            );
             return true;
         }
 
@@ -107,7 +119,13 @@ public sealed class VfrFollowPhase : Phase
                     gapNm
                 );
                 ctx.Aircraft.Approach.FollowingCallsign = null;
-                ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to catch up to {TargetCallsign}, cancelling follow");
+                Pilot.PilotResponder.RouteRpoTransmission(
+                    ctx.Aircraft,
+                    ctx.SoloTrainingMode,
+                    ctx.RpoShowPilotSpeech,
+                    Pilot.PilotResponder.BuildUnableToCatchUp(ctx.Aircraft, TargetCallsign),
+                    $"{ctx.Aircraft.Callsign} unable to catch up to {TargetCallsign}, cancelling follow"
+                );
                 return true;
             }
         }
@@ -125,7 +143,14 @@ public sealed class VfrFollowPhase : Phase
         ctx.Targets.TargetTrueHeading = new TrueHeading(targetBearing);
 
         double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-        double? adjusted = AirborneFollowHelper.AdjustedFreeFlightSpeed(ctx.Aircraft, lead, minSpeed, Log);
+        double? adjusted = AirborneFollowHelper.AdjustedFreeFlightSpeed(
+            ctx.Aircraft,
+            lead,
+            minSpeed,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Log
+        );
         if (adjusted is null)
         {
             // Helper has already added a one-shot "unable to maintain separation"

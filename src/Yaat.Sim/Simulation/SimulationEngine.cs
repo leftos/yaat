@@ -149,6 +149,7 @@ public sealed class SimulationEngine
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
+            Scenario.RpoShowPilotSpeech = scenarioDto.RpoShowPilotSpeech;
             Scenario.IsPaused = scenarioDto.IsPaused;
             Scenario.SimRate = scenarioDto.SimRate;
             Scenario.AutoAcceptDelay = TimeSpan.FromSeconds(scenarioDto.AutoAcceptDelaySeconds);
@@ -431,6 +432,11 @@ public sealed class SimulationEngine
         var sw = Stopwatch.StartNew();
         _occupiedHoldShortNodes = BuildOccupiedHoldShortNodes();
         AccumulateTiming("Physics.BuildHoldShort", sw);
+
+        // Cache scenario mode flags onto the World so FlightPhysics → PilotObservationUpdater
+        // can route resolved RTIS/RFIS pilot transmissions to the correct pending list.
+        World.SoloTrainingMode = Scenario?.SoloTrainingMode ?? false;
+        World.RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false;
 
         sw.Restart();
         World.Tick(delta, PreTick, RecordWorldTiming);
@@ -973,6 +979,7 @@ public sealed class SimulationEngine
             Scenario?.ValidateDctFixes ?? true,
             Scenario?.AutoCrossRunway ?? false,
             Scenario?.SoloTrainingMode ?? false,
+            Scenario?.RpoShowPilotSpeech ?? false,
             _terminalEntries.Add
         );
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
@@ -1205,6 +1212,7 @@ public sealed class SimulationEngine
                     Scenario?.ValidateDctFixes ?? true,
                     Scenario?.AutoCrossRunway ?? false,
                     Scenario?.SoloTrainingMode ?? false,
+                    Scenario?.RpoShowPilotSpeech ?? false,
                     _terminalEntries.Add
                 );
                 CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
@@ -1295,6 +1303,7 @@ public sealed class SimulationEngine
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
+            RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
             OccupiedHoldShortNodes = occupiedNodes,
             MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,
@@ -1512,6 +1521,7 @@ public sealed class SimulationEngine
                 scenario.ValidateDctFixes,
                 scenario.AutoCrossRunway,
                 scenario.SoloTrainingMode,
+                scenario.RpoShowPilotSpeech,
                 _terminalEntries.Add
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
@@ -1610,6 +1620,7 @@ public sealed class SimulationEngine
             Scenario!.ValidateDctFixes,
             Scenario!.AutoCrossRunway,
             Scenario!.SoloTrainingMode,
+            Scenario!.RpoShowPilotSpeech,
             _terminalEntries.Add
         );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
@@ -1812,6 +1823,7 @@ public sealed class SimulationEngine
             Scenario?.ValidateDctFixes ?? true,
             Scenario?.AutoCrossRunway ?? false,
             Scenario?.SoloTrainingMode ?? false,
+            Scenario?.RpoShowPilotSpeech ?? false,
             _terminalEntries.Add
         );
         CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
@@ -1889,6 +1901,12 @@ public sealed class SimulationEngine
                 if (bool.TryParse(setting.Value, out var validate))
                 {
                     scenario.ValidateDctFixes = validate;
+                }
+                break;
+            case "RpoShowPilotSpeech":
+                if (bool.TryParse(setting.Value, out var rpoShowPilotSpeech))
+                {
+                    scenario.RpoShowPilotSpeech = rpoShowPilotSpeech;
                 }
                 break;
         }

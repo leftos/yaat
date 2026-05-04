@@ -30,6 +30,7 @@ public partial class MainViewModel : ObservableObject
     private readonly VideoMapService _videoMapService = new();
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
+    private readonly PilotSpeechAlertService _pilotSpeechAlerts = new();
 
     // Speech recognition pipeline. All services are lazy/opt-in: they only touch real resources
     // (PortAudio, Whisper weights, LLM weights) when SpeechEnabled is true AND the user holds the
@@ -136,6 +137,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _sessionValidateDctFixes = true;
+
+    [ObservableProperty]
+    private bool _sessionRpoShowPilotSpeech;
 
     [ObservableProperty]
     private bool _isSessionSettingsOpen;
@@ -1711,6 +1715,7 @@ public partial class MainViewModel : ObservableObject
             _ = SendAutoAcceptDelay();
             _ = SendAutoDeleteMode();
             _ = SendValidateDctFixes();
+            _ = SendRpoShowPilotSpeech();
             _ = SendAutoClearedToLand();
             _ = SendAutoCrossRunway();
         }
@@ -1865,6 +1870,7 @@ public partial class MainViewModel : ObservableObject
         SessionAutoClearedToLand = dto.AutoClearedToLand;
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionValidateDctFixes = dto.ValidateDctFixes;
+        SessionRpoShowPilotSpeech = dto.RpoShowPilotSpeech;
         _isApplyingSessionSettings = false;
 
         ApplyAutoClearedToLandLocally(dto.AutoClearedToLand);
@@ -1878,7 +1884,8 @@ public partial class MainViewModel : ObservableObject
                 state.AutoAcceptDelaySeconds,
                 state.AutoClearedToLand,
                 state.AutoCrossRunway,
-                state.ValidateDctFixes
+                state.ValidateDctFixes,
+                state.RpoShowPilotSpeech
             )
         );
     }
@@ -1886,7 +1893,14 @@ public partial class MainViewModel : ObservableObject
     private void ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto dto)
     {
         ApplySessionSettings(
-            new SessionSettingsDto(dto.AutoDeleteMode, dto.AutoAcceptDelaySeconds, dto.AutoClearedToLand, dto.AutoCrossRunway, dto.ValidateDctFixes)
+            new SessionSettingsDto(
+                dto.AutoDeleteMode,
+                dto.AutoAcceptDelaySeconds,
+                dto.AutoClearedToLand,
+                dto.AutoCrossRunway,
+                dto.ValidateDctFixes,
+                dto.RpoShowPilotSpeech
+            )
         );
     }
 
@@ -1935,6 +1949,14 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    partial void OnSessionRpoShowPilotSpeechChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetRpoShowPilotSpeechAsync(value);
+        }
+    }
+
     private static int AutoDeleteModeToIndex(string? mode) =>
         mode switch
         {
@@ -1962,6 +1984,18 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set DCT validation mode");
+        }
+    }
+
+    private async Task SendRpoShowPilotSpeech()
+    {
+        try
+        {
+            await _connection.SetRpoShowPilotSpeechAsync(_preferences.RpoShowPilotSpeech);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set RPO pilot-speech rendering");
         }
     }
 

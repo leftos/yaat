@@ -10,7 +10,13 @@ namespace Yaat.Sim;
 /// </summary>
 public static class PilotObservationUpdater
 {
-    public static void Update(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup, WeatherProfile? weather)
+    public static void Update(
+        AircraftState aircraft,
+        Func<string, AircraftState?>? aircraftLookup,
+        WeatherProfile? weather,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech
+    )
     {
         if (aircraft.PendingObservations.Count == 0)
         {
@@ -23,8 +29,15 @@ public static class PilotObservationUpdater
             var obs = observations[i];
             bool resolved = obs switch
             {
-                TrafficAcquisitionObservation traffic => TryResolveTraffic(aircraft, traffic, aircraftLookup, weather),
-                FieldAcquisitionObservation => TryResolveField(aircraft, weather),
+                TrafficAcquisitionObservation traffic => TryResolveTraffic(
+                    aircraft,
+                    traffic,
+                    aircraftLookup,
+                    weather,
+                    soloTrainingMode,
+                    rpoShowPilotSpeech
+                ),
+                FieldAcquisitionObservation => TryResolveField(aircraft, weather, soloTrainingMode, rpoShowPilotSpeech),
                 _ => false,
             };
 
@@ -44,7 +57,9 @@ public static class PilotObservationUpdater
         AircraftState aircraft,
         TrafficAcquisitionObservation obs,
         Func<string, AircraftState?>? aircraftLookup,
-        WeatherProfile? weather
+        WeatherProfile? weather,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech
     )
     {
         if (aircraftLookup is null)
@@ -67,7 +82,13 @@ public static class PilotObservationUpdater
 
         aircraft.Approach.HasReportedTrafficInSight = true;
         aircraft.Approach.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
-        aircraft.PendingWarnings.Add(Commands.NavigationCommandHandler.FormatTrafficInSightNotification(aircraft, obs.TargetCallsign));
+        Pilot.PilotResponder.RouteRpoTransmission(
+            aircraft,
+            soloTrainingMode,
+            rpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign),
+            Commands.NavigationCommandHandler.FormatTrafficInSightNotification(aircraft, obs.TargetCallsign)
+        );
         return true;
     }
 
@@ -77,7 +98,7 @@ public static class PilotObservationUpdater
     /// sight, or the destination is no longer lookupable → silently drop)
     /// and should be removed.
     /// </summary>
-    private static bool TryResolveField(AircraftState aircraft, WeatherProfile? weather)
+    private static bool TryResolveField(AircraftState aircraft, WeatherProfile? weather, bool soloTrainingMode, bool rpoShowPilotSpeech)
     {
         var result = VisualAcquisition.TryAcquireAirport(aircraft, weather);
         if (result is null)
@@ -92,7 +113,13 @@ public static class PilotObservationUpdater
         }
 
         aircraft.Approach.HasReportedFieldInSight = true;
-        aircraft.PendingWarnings.Add(Commands.NavigationCommandHandler.FormatFieldInSightNotification(aircraft));
+        Pilot.PilotResponder.RouteRpoTransmission(
+            aircraft,
+            soloTrainingMode,
+            rpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildFieldInSight(aircraft),
+            Commands.NavigationCommandHandler.FormatFieldInSightNotification(aircraft)
+        );
         return true;
     }
 }

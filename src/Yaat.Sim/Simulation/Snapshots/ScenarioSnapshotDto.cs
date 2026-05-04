@@ -22,6 +22,10 @@ public sealed class ScenarioSnapshotDto
     // topology). New snapshots always carry the current value.
     public bool SoloTrainingMode { get; init; }
 
+    // Optional — defaults to false so older snapshots and bundles preserve the original
+    // orange-Warning behavior for sim-initiated pilot transmissions.
+    public bool RpoShowPilotSpeech { get; init; }
+
     // Timing
     public required double AutoAcceptDelaySeconds { get; init; }
     public required bool IsStudentTowerPosition { get; init; }

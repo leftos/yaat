@@ -555,7 +555,14 @@ public sealed class FinalApproachPhase : Phase
             }
             else
             {
-                ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance");
+                string runwayId = ctx.Runway?.Designator ?? "the runway";
+                PilotResponder.RouteRpoTransmission(
+                    ctx.Aircraft,
+                    ctx.SoloTrainingMode,
+                    ctx.RpoShowPilotSpeech,
+                    PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
+                    $"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance"
+                );
             }
         }
 

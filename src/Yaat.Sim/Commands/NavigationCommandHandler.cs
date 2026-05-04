@@ -996,7 +996,13 @@ internal static class NavigationCommandHandler
         // visual approach, just echo the in-sight response.
         if (aircraft.Approach.HasReportedFieldInSight)
         {
-            aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
+            Pilot.PilotResponder.RouteRpoTransmission(
+                aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildFieldInSight(aircraft),
+                FormatFieldInSightNotification(aircraft)
+            );
             return CommandDispatcher.Ok("Field in sight");
         }
 
@@ -1024,7 +1030,13 @@ internal static class NavigationCommandHandler
             // becomes active. First-check acquisition supersedes any in-flight
             // "looking" state.
             aircraft.Approach.HasReportedFieldInSight = true;
-            aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
+            Pilot.PilotResponder.RouteRpoTransmission(
+                aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildFieldInSight(aircraft),
+                FormatFieldInSightNotification(aircraft)
+            );
             aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
             return CommandDispatcher.Ok("Field in sight");
         }
@@ -1051,7 +1063,13 @@ internal static class NavigationCommandHandler
             {
                 aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
             }
-            aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
+            Pilot.PilotResponder.RouteRpoTransmission(
+                aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
+                FormatTrafficInSightNotification(aircraft, targetCallsign)
+            );
             return CommandDispatcher.Ok("Traffic in sight");
         }
 
@@ -1072,7 +1090,13 @@ internal static class NavigationCommandHandler
         {
             aircraft.Approach.HasReportedTrafficInSight = true;
             aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
-            aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
+            Pilot.PilotResponder.RouteRpoTransmission(
+                aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
+                FormatTrafficInSightNotification(aircraft, targetCallsign)
+            );
             // First-check acquisition supersedes any in-flight "looking" state.
             aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
             return CommandDispatcher.Ok("Traffic in sight");
@@ -1233,22 +1257,34 @@ internal static class NavigationCommandHandler
         return string.Empty;
     }
 
-    internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft)
+    internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft, DispatchContext ctx)
     {
         aircraft.Approach.HasReportedFieldInSight = true;
-        aircraft.PendingWarnings.Add(FormatFieldInSightNotification(aircraft));
+        Pilot.PilotResponder.RouteRpoTransmission(
+            aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildFieldInSight(aircraft),
+            FormatFieldInSightNotification(aircraft)
+        );
         aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
         return CommandDispatcher.Ok("Field in sight (forced)");
     }
 
-    internal static CommandResult DispatchReportTrafficInSightForced(AircraftState aircraft, string? targetCallsign)
+    internal static CommandResult DispatchReportTrafficInSightForced(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)
     {
         aircraft.Approach.HasReportedTrafficInSight = true;
         if (!string.IsNullOrWhiteSpace(targetCallsign))
         {
             aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
         }
-        aircraft.PendingWarnings.Add(FormatTrafficInSightNotification(aircraft, targetCallsign));
+        Pilot.PilotResponder.RouteRpoTransmission(
+            aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
+            FormatTrafficInSightNotification(aircraft, targetCallsign)
+        );
         return CommandDispatcher.Ok("Traffic in sight (forced)");
     }
 }

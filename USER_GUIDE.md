@@ -902,6 +902,8 @@ Two optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simpli
 
 - **Auto-clear aircraft to land** — Aircraft on final are automatically cleared to land without requiring a CLAND command. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances.
 - **Aircraft cross runways automatically** — Taxiing aircraft cross runways without stopping for a CROSS command. Explicit hold-short commands and destination runway hold-shorts still apply.
+- **Show sim-initiated pilot transmissions as pilot speech (RPO mode)** — Auto-generated pilot reports (traffic in sight, holding short, going around, midfield/short-final reminders, lost-sight, etc.) render in green with the spelled-out spoken form ("November one seven two sierra papa, holding short runway two eight right.") instead of the default orange Warning text ("N172SP holding short runway 28R at B"). Default off — preserves prior behavior on upgrade.
+- **Audible alert on pilot transmissions** — Plays a short two-tone chime when a sim-initiated pilot transmission appears in the terminal. Independent of the visual setting above so you can take just the audio. The ding does not fire on AS-prefix `SAY`-class transmissions you typed yourself.
 
 #### Auto-Accept
 

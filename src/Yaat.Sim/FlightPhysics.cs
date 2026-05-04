@@ -22,15 +22,27 @@ public static class FlightPhysics
 
     public static void Update(AircraftState aircraft, double deltaSeconds)
     {
-        Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null);
+        Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
     }
 
     public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
-        Update(aircraft, deltaSeconds, aircraftLookup, weather: null);
+        Update(aircraft, deltaSeconds, aircraftLookup, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
     }
 
     public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup, WeatherProfile? weather)
+    {
+        Update(aircraft, deltaSeconds, aircraftLookup, weather, soloTrainingMode: false, rpoShowPilotSpeech: false);
+    }
+
+    public static void Update(
+        AircraftState aircraft,
+        double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup,
+        WeatherProfile? weather,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech
+    )
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
@@ -88,7 +100,7 @@ public static class FlightPhysics
         UpdatePosition(aircraft, deltaSeconds, weather);
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
         UpdateGiveWayResume(aircraft, aircraftLookup);
-        PilotObservationUpdater.Update(aircraft, aircraftLookup, weather);
+        PilotObservationUpdater.Update(aircraft, aircraftLookup, weather, soloTrainingMode, rpoShowPilotSpeech);
     }
 
     private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather)

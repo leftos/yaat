@@ -349,6 +349,12 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         await _connection!.InvokeAsync("SetValidateDctFixes", validate);
     }
 
+    public async Task SetRpoShowPilotSpeechAsync(bool enabled)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetRpoShowPilotSpeech", enabled);
+    }
+
     public async Task SetAutoClearedToLandAsync(bool enabled)
     {
         EnsureConnected();
@@ -683,6 +689,7 @@ public record RoomStateDto(
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
     bool ValidateDctFixes = true,
+    bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null
 );
 
@@ -701,6 +708,7 @@ public record ScenarioLoadedDto(
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
     bool ValidateDctFixes = true,
+    bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null
 );
 
@@ -709,7 +717,8 @@ public record SessionSettingsDto(
     int AutoAcceptDelaySeconds,
     bool AutoClearedToLand,
     bool AutoCrossRunway,
-    bool ValidateDctFixes
+    bool ValidateDctFixes,
+    bool RpoShowPilotSpeech
 );
 
 public record RoomMemberDto(string Cid, string Initials, string ArtccId);

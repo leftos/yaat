@@ -159,6 +159,12 @@ public partial class SettingsViewModel : ObservableObject
     private bool _autoCrossRunway;
 
     [ObservableProperty]
+    private bool _rpoShowPilotSpeech;
+
+    [ObservableProperty]
+    private bool _rpoPilotSpeechAudibleAlert;
+
+    [ObservableProperty]
     private string _aircraftSelectKeyDisplay = "Numpad +";
 
     [ObservableProperty]
@@ -416,6 +422,8 @@ public partial class SettingsViewModel : ObservableObject
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
         _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
         _autoCrossRunway = _preferences.AutoCrossRunway;
+        _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
+        _rpoPilotSpeechAudibleAlert = _preferences.RpoPilotSpeechAudibleAlert;
         _aircraftSelectKeyName = _preferences.AircraftSelectKey;
         _aircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
         _focusInputKeyName = _preferences.FocusInputKey;
@@ -499,6 +507,8 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         _preferences.SetValidateDctFixes(ValidateDctFixes);
+        _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);
+        _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);

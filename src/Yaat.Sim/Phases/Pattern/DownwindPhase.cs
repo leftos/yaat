@@ -149,7 +149,13 @@ public sealed class DownwindPhase : Phase
                     }
                     else
                     {
-                        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}");
+                        PilotResponder.RouteRpoTransmission(
+                            ctx.Aircraft,
+                            ctx.SoloTrainingMode,
+                            ctx.RpoShowPilotSpeech,
+                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
+                            $"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}"
+                        );
                     }
                 }
             }

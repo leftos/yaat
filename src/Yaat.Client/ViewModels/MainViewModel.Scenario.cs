@@ -311,6 +311,7 @@ public partial class MainViewModel
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
         _ = SendValidateDctFixes();
+        _ = SendRpoShowPilotSpeech();
         _ = SendAutoClearedToLand();
         _ = SendAutoCrossRunway();
     }
@@ -413,7 +414,7 @@ public partial class MainViewModel
         Aircraft.Clear();
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
-        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true));
+        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true, false));
     }
 }
 

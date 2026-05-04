@@ -19,6 +19,20 @@ public sealed class SimulationWorld
     /// </summary>
     public Tcp? StudentTcp { get; set; }
 
+    /// <summary>
+    /// Cached scenario flag — set by <c>SimulationEngine</c> before each tick. Read by
+    /// <see cref="FlightPhysics.Update(AircraftState, double, Func{string, AircraftState?}?, WeatherProfile?, bool, bool)"/>
+    /// to route sim-initiated pilot transmissions.
+    /// </summary>
+    public bool SoloTrainingMode { get; set; }
+
+    /// <summary>
+    /// Cached scenario flag — set by <c>SimulationEngine</c> before each tick. When true (and
+    /// <see cref="SoloTrainingMode"/> is false), sim-initiated pilot transmissions are routed
+    /// to <c>PendingPilotSpeech</c> instead of <c>PendingWarnings</c>.
+    /// </summary>
+    public bool RpoShowPilotSpeech { get; set; }
+
     public void AddAircraft(AircraftState aircraft)
     {
         lock (_lock)
@@ -115,6 +129,8 @@ public sealed class SimulationWorld
 
             var weather = Weather;
             var studentTcp = StudentTcp;
+            var soloMode = SoloTrainingMode;
+            var rpoShowPilotSpeech = RpoShowPilotSpeech;
             foreach (var ac in _aircraft)
             {
                 // Student TCP accepts don't trigger ONHO conditions
@@ -129,13 +145,13 @@ public sealed class SimulationWorld
                 {
                     var acSw = Stopwatch.StartNew();
                     bool onGround = ac.IsOnGround;
-                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather);
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, soloMode, rpoShowPilotSpeech);
                     acSw.Stop();
                     timingCallback(onGround ? "World.Physics.Ground" : "World.Physics.Air", acSw.Elapsed.TotalMilliseconds);
                 }
                 else
                 {
-                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather);
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, soloMode, rpoShowPilotSpeech);
                 }
             }
         }
@@ -178,6 +194,28 @@ public sealed class SimulationWorld
                     }
 
                     ac.PendingNotifications.Clear();
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public List<(string Callsign, string PilotSpeech)> DrainAllPilotSpeech()
+    {
+        var result = new List<(string, string)>();
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.PendingPilotSpeech.Count > 0)
+                {
+                    foreach (var s in ac.PendingPilotSpeech)
+                    {
+                        result.Add((ac.Callsign, s));
+                    }
+
+                    ac.PendingPilotSpeech.Clear();
                 }
             }
         }

@@ -26,7 +26,13 @@ internal static class GoAroundHelper
             return;
         }
 
-        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is going around ({reason})");
+        Pilot.PilotResponder.RouteRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildGoingAround(ctx.Aircraft, reason),
+            $"{ctx.Aircraft.Callsign} is going around ({reason})"
+        );
 
         // VFR aircraft without a pattern direction get a sensible default. For
         // parallel runways with L/R suffixes, the runway side determines the

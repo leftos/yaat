@@ -21,6 +21,7 @@ internal static class TestDispatch
         WeatherProfile? weather = null,
         Func<string, AircraftState?>? findAircraft = null,
         bool soloTrainingMode = false,
+        bool rpoShowPilotSpeech = false,
         Action<TerminalEntry>? terminalEmitter = null
-    ) => new(groundLayout, rng, weather, findAircraft, validateDctFixes, autoCrossRunway, soloTrainingMode, terminalEmitter);
+    ) => new(groundLayout, rng, weather, findAircraft, validateDctFixes, autoCrossRunway, soloTrainingMode, rpoShowPilotSpeech, terminalEmitter);
 }

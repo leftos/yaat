@@ -48,7 +48,13 @@ public sealed class RunwayHoldingPhase : Phase
 
         Log.LogDebug("[LAHSO] {Callsign}: holding short of runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
 
-        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} holding short runway {_crossingRunwayId}");
+        Pilot.PilotResponder.RouteRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, _crossingRunwayId),
+            $"{ctx.Aircraft.Callsign} holding short runway {_crossingRunwayId}"
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)

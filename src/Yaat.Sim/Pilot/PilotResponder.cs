@@ -146,6 +146,39 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Routes a sim-initiated pilot transmission. Three-way:
+    /// <list type="bullet">
+    ///   <item><description><see cref="AircraftState.PendingPilotSpeech"/> when in RPO mode (i.e.
+    ///   <paramref name="soloTrainingMode"/> is false) and the
+    ///   <c>RpoShowPilotSpeech</c> setting is on — broadcast as <c>PilotSpeech</c> kind (green)
+    ///   with the spelled-out spoken form.</description></item>
+    ///   <item><description><see cref="AircraftState.PendingWarnings"/> otherwise — broadcast as
+    ///   <c>Warning</c> kind (orange) with the existing terse controller-debug text. This is the
+    ///   default when neither toggle is set, preserving prior behavior.</description></item>
+    /// </list>
+    /// Solo-mode pilot-speech routing (into <see cref="AircraftState.PendingNotifications"/>) is
+    /// the caller's responsibility — branch on <paramref name="soloTrainingMode"/> first if the
+    /// site has a dedicated solo flow, then fall through to this helper for the non-solo case.
+    /// </summary>
+    public static void RouteRpoTransmission(
+        AircraftState aircraft,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
+        string pilotSpeechText,
+        string warningText
+    )
+    {
+        if (!soloTrainingMode && rpoShowPilotSpeech)
+        {
+            aircraft.PendingPilotSpeech.Add(pilotSpeechText);
+        }
+        else
+        {
+            aircraft.PendingWarnings.Add(warningText);
+        }
+    }
+
+    /// <summary>
     /// Brief uncleared-traffic reminder fired by <c>DownwindPhase</c> at midfield downwind when
     /// the aircraft has no landing clearance, in solo-training mode for VFR pattern aircraft.
     /// Output:
@@ -171,6 +204,143 @@ public static class PilotResponder
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
         return $"[{aircraft.Callsign}] {spoken}, short final runway {rwy}.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the aircraft has the named traffic in sight. Used by sim-resolved
+    /// RTIS (visual acquisition) and by direct RTIS dispatches in RPO mode with pilot-speech
+    /// rendering enabled. AIM 5-5-10 / 5-5-11 phraseology with NATO-spelled callsigns.
+    /// </summary>
+    public static string BuildTrafficInSight(AircraftState aircraft, string? targetCallsign)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        if (string.IsNullOrWhiteSpace(targetCallsign))
+        {
+            return $"[{aircraft.Callsign}] {spoken}, traffic in sight.";
+        }
+        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
+        return $"[{aircraft.Callsign}] {spoken}, traffic in sight, {targetSpoken}.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the aircraft has the destination field in sight. Used by sim-resolved
+    /// RFIS and by direct RFIS dispatches in RPO mode with pilot-speech rendering enabled.
+    /// </summary>
+    public static string BuildFieldInSight(AircraftState aircraft)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return $"[{aircraft.Callsign}] {spoken}, field in sight.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the aircraft has lost prior visual contact with the destination
+    /// field. Triggers a re-acquisition request from the controller's perspective.
+    /// </summary>
+    public static string BuildLostSightOfField(AircraftState aircraft)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return $"[{aircraft.Callsign}] {spoken}, negative contact with the field.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the aircraft has lost prior visual contact with previously-acquired
+    /// traffic.
+    /// </summary>
+    public static string BuildLostSightOfTraffic(AircraftState aircraft, string targetCallsign)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
+        return $"[{aircraft.Callsign}] {spoken}, negative contact with {targetSpoken}.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the pilot initiates a go-around. Reason is a short sim-internal
+    /// descriptor ("no landing clearance", "too high at missed approach point", etc.) that's
+    /// included parenthetically so the controller has the why; the spoken callout itself is the
+    /// AIM standard "going around."
+    /// </summary>
+    public static string BuildGoingAround(AircraftState aircraft, string reason)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return $"[{aircraft.Callsign}] {spoken}, going around.";
+        }
+        return $"[{aircraft.Callsign}] {spoken}, going around ({reason}).";
+    }
+
+    /// <summary>
+    /// Pilot transmission for a taxi-side hold-short report ("holding short of [label] at [taxiway]").
+    /// Used when the ground phase reaches a hold-short node where the label is a generic identifier
+    /// (taxiway intersection, ILS-critical area, etc.) rather than a specific runway designator.
+    /// </summary>
+    public static string BuildHoldingShortTaxi(AircraftState aircraft, string label, string taxiway)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return $"[{aircraft.Callsign}] {spoken}, {label} at {taxiway}.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the aircraft is holding short of a runway prior to a runway crossing.
+    /// </summary>
+    public static string BuildHoldingShortCrossing(AircraftState aircraft, string runwayId)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
+        return $"[{aircraft.Callsign}] {spoken}, holding short runway {rwy}.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the aircraft has fully exited the active runway after landing.
+    /// Reports the runway just vacated and the taxiway used.
+    /// </summary>
+    public static string BuildClearOfRunway(AircraftState aircraft, string runwayId, string taxiway)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
+        return $"[{aircraft.Callsign}] {spoken}, clear of runway {rwy} at {taxiway}.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when an instructed taxi exit cannot be made (overshoot, wrong-side, etc.).
+    /// Pilot phraseology: "negative" for no-can-do, target taxiway for context.
+    /// </summary>
+    public static string BuildUnableToExit(AircraftState aircraft, string taxiway)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return $"[{aircraft.Callsign}] {spoken}, negative on the exit at {taxiway}.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the aircraft is breaking off a follow because separation can't
+    /// be maintained relative to the lead. Pilot side; controller will likely re-sequence.
+    /// </summary>
+    public static string BuildUnableToMaintainSeparation(AircraftState aircraft, string leadCallsign)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var leadSpoken = CallsignParser.IcaoToSpoken(leadCallsign);
+        return $"[{aircraft.Callsign}] {spoken}, unable to maintain separation from {leadSpoken}, breaking off the follow.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the follow target has landed and the follow is over.
+    /// </summary>
+    public static string BuildTargetLanded(AircraftState aircraft, string targetCallsign)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
+        return $"[{aircraft.Callsign}] {spoken}, {targetSpoken} is on the ground, breaking off the follow.";
+    }
+
+    /// <summary>
+    /// Pilot transmission when the pilot can't catch up to the follow target before the leader
+    /// lands or leaves the area, so the follow is being abandoned.
+    /// </summary>
+    public static string BuildUnableToCatchUp(AircraftState aircraft, string targetCallsign)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
+        return $"[{aircraft.Callsign}] {spoken}, unable to catch up to {targetSpoken}, breaking off the follow.";
     }
 
     /// <summary>

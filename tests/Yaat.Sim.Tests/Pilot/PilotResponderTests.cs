@@ -287,4 +287,186 @@ public class PilotResponderTests
 
         Assert.Equal("[N123AB] november one two three alpha bravo, short final runway nine.", result);
     }
+
+    // --- BuildTrafficInSight ---
+
+    [Fact]
+    public void BuildTrafficInSight_WithTargetCallsign_SpellsBothCallsigns()
+    {
+        var ac = MakeAircraft("N294MG");
+        var result = PilotResponder.BuildTrafficInSight(ac, "N784ME");
+
+        Assert.Equal("[N294MG] november two nine four mike golf, traffic in sight, november seven eight four mike echo.", result);
+    }
+
+    [Fact]
+    public void BuildTrafficInSight_NoTargetCallsign_OmitsTargetClause()
+    {
+        var ac = MakeAircraft("N123AB");
+        var result = PilotResponder.BuildTrafficInSight(ac, null);
+
+        Assert.Equal("[N123AB] november one two three alpha bravo, traffic in sight.", result);
+    }
+
+    [Fact]
+    public void BuildFieldInSight_FormatsCallsign()
+    {
+        var ac = MakeAircraft("UAL238");
+        var result = PilotResponder.BuildFieldInSight(ac);
+
+        Assert.Equal("[UAL238] united two thirty eight, field in sight.", result);
+    }
+
+    [Fact]
+    public void BuildLostSightOfField_UsesNegativeContact()
+    {
+        var ac = MakeAircraft("N172SP");
+        var result = PilotResponder.BuildLostSightOfField(ac);
+
+        Assert.Contains("negative contact", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[N172SP]", result);
+        Assert.Contains("field", result);
+    }
+
+    [Fact]
+    public void BuildLostSightOfTraffic_NamesTarget()
+    {
+        var ac = MakeAircraft("N172SP");
+        var result = PilotResponder.BuildLostSightOfTraffic(ac, "N784ME");
+
+        Assert.Contains("negative contact", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("november seven eight four mike echo", result);
+    }
+
+    [Fact]
+    public void BuildGoingAround_IncludesReason()
+    {
+        var ac = MakeAircraft("FDX3807");
+        var result = PilotResponder.BuildGoingAround(ac, "no landing clearance");
+
+        Assert.Contains("[FDX3807]", result);
+        Assert.Contains("going around", result);
+        Assert.Contains("(no landing clearance)", result);
+    }
+
+    [Fact]
+    public void BuildGoingAround_EmptyReason_OmitsParenthetical()
+    {
+        var ac = MakeAircraft("FDX3807");
+        var result = PilotResponder.BuildGoingAround(ac, "");
+
+        Assert.EndsWith("going around.", result);
+        Assert.DoesNotContain("()", result);
+    }
+
+    [Fact]
+    public void BuildHoldingShortCrossing_FormatsRunway()
+    {
+        var ac = MakeAircraft("N172SP");
+        var result = PilotResponder.BuildHoldingShortCrossing(ac, "28R");
+
+        Assert.Contains("holding short runway two eight right", result);
+        Assert.Contains("[N172SP]", result);
+    }
+
+    [Fact]
+    public void BuildClearOfRunway_NamesRunwayAndTaxiway()
+    {
+        var ac = MakeAircraft("N569SX");
+        var result = PilotResponder.BuildClearOfRunway(ac, "28R", "G");
+
+        Assert.Contains("clear of runway two eight right", result);
+        Assert.Contains("at G", result);
+    }
+
+    [Fact]
+    public void BuildUnableToExit_UsesNegative()
+    {
+        var ac = MakeAircraft("N123AB");
+        var result = PilotResponder.BuildUnableToExit(ac, "M2");
+
+        Assert.Contains("negative", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("M2", result);
+    }
+
+    [Fact]
+    public void BuildUnableToMaintainSeparation_NamesLead()
+    {
+        var ac = MakeAircraft("N294MG");
+        var result = PilotResponder.BuildUnableToMaintainSeparation(ac, "N10194");
+
+        Assert.Contains("unable to maintain separation", result);
+        Assert.Contains("november one zero one nine four", result);
+    }
+
+    [Fact]
+    public void BuildTargetLanded_BreaksOff()
+    {
+        var ac = MakeAircraft("N294MG");
+        var result = PilotResponder.BuildTargetLanded(ac, "N784ME");
+
+        Assert.Contains("on the ground", result);
+        Assert.Contains("breaking off the follow", result);
+    }
+
+    [Fact]
+    public void BuildUnableToCatchUp_NamesTarget()
+    {
+        var ac = MakeAircraft("N294MG");
+        var result = PilotResponder.BuildUnableToCatchUp(ac, "N784ME");
+
+        Assert.Contains("unable to catch up", result);
+        Assert.Contains("breaking off", result);
+    }
+
+    // --- RouteRpoTransmission three-way branch ---
+
+    [Fact]
+    public void RouteRpoTransmission_SoloMode_RoutesToWarnings_NotPilotSpeech()
+    {
+        // Caller is responsible for solo→PendingNotifications routing; this helper only
+        // handles the RPO branch. In solo mode it falls through to warnings (the old default).
+        var ac = MakeAircraft("AAL123");
+
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: true, rpoShowPilotSpeech: false, "speech", "warning");
+
+        Assert.Empty(ac.PendingPilotSpeech);
+        Assert.Equal("warning", Assert.Single(ac.PendingWarnings));
+    }
+
+    [Fact]
+    public void RouteRpoTransmission_RpoMode_PilotSpeechOff_RoutesToWarnings()
+    {
+        var ac = MakeAircraft("AAL123");
+
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: false, rpoShowPilotSpeech: false, "speech", "warning");
+
+        Assert.Empty(ac.PendingPilotSpeech);
+        Assert.Equal("warning", Assert.Single(ac.PendingWarnings));
+    }
+
+    [Fact]
+    public void RouteRpoTransmission_RpoMode_PilotSpeechOn_RoutesToPilotSpeech()
+    {
+        var ac = MakeAircraft("AAL123");
+
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: false, rpoShowPilotSpeech: true, "speech", "warning");
+
+        Assert.Equal("speech", Assert.Single(ac.PendingPilotSpeech));
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void RouteRpoTransmission_SoloMode_OverridesRpoFlag()
+    {
+        // Solo mode wins even if rpoShowPilotSpeech happens to be true — solo paths handle
+        // their own routing via PendingNotifications, so this helper conservatively falls
+        // back to warning text.
+        var ac = MakeAircraft("AAL123");
+
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: true, rpoShowPilotSpeech: true, "speech", "warning");
+
+        Assert.Empty(ac.PendingPilotSpeech);
+        Assert.Equal("warning", Assert.Single(ac.PendingWarnings));
+    }
 }
