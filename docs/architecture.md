@@ -250,6 +250,8 @@ ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IA
 LatLon.cs                      # Readonly record struct: public LatLon(double Lat, double Lon). The canonical coordinate type
                                # across Yaat.Sim / Yaat.Client / yaat-server. Field names match CRC Point DTO. No implicit tuple conversion
                                # (forces explicit `new LatLon(lat, lon)` at external-JSON boundaries so argument swaps don't slip through)
+Callsign.cs                    # Static IsValid(string?): regex ^[A-Z0-9\-]{1,7}$. Boundary check used by STARS DA/VP/FP creation
+                               # to reject typos like "*T <fix>" before they create stray flight plans.
 FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)

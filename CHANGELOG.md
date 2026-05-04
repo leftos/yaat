@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.1.13-alpha [2026/05/04]
+
+### Highlights
+- Terminal flags when a command cancels a phase or drops queued work — e.g. "N435C pattern to RWY 28R cancelled by CM 025" or "queue cleared by FH 270 (lost: DCT VPCOL)" instead of a silent loss.
+- Modifier verbs (RFIS/RTIS, SQ, ID, SAY, APPS, EAPP, EXP, NORM, DELAT) no longer wipe queued instructions; RNS/DSR scope to speed only, FPH to lateral only.
+- RES releases taxi hold-shorts including auto-added runway crossings — destination runway still needs CTO or LUAW.
+- STARS DA/VP reject invalid or overlong callsigns — typos like "*T <fix>" no longer create stray flight plans.
 
 ### Added
 - Orange terminal warning when a command silently cancels in-flight phase work — e.g. issuing `CM 025` to an aircraft on a pattern entry now surfaces "N435C pattern to RWY 28R cancelled by CM 025" so the RPO knows what was lost and can reissue. Recognises pattern and approach chains; falls back to the active phase name otherwise.
