@@ -24,6 +24,7 @@
 - **Help → Command Cheatsheet** opens an HTML cheatsheet in your default browser — filterable, searchable, bundled next to the EXE for offline use.
 
 ### Fixed
+- View → Strips → New Strips Tab... opens a facility picker so external bays (e.g. NCT from an OAK position) can open in their own tab.
 - Status bar errors clear on the next successful command, so a stale rejection like "Unable, no arrival airport assigned" no longer lingers.
 - `ERB <runway> <distance>` rolls the aircraft onto final at the specified distance from threshold.
 - CRC Tower Cab keeps showing the aircraft type after an instructor blanks or changes it in the flight plan editor — Tower Cab is the out-the-window view, so it tracks the actual physical type. STARS, ASDE-X, the FP editor and flight strips still follow the filed FP.

@@ -1233,31 +1233,45 @@ public partial class MainWindow : Window
             }
         }
         items.Add(new Separator());
-        var newTabItem = new MenuItem { Header = "_New Strips Tab...", Tag = vm };
-        newTabItem.Click += OnNewStripsTabClick;
+        // Build "New Strips Tab..." as a real parent submenu (not a leaf with
+        // Click). Showing a MenuFlyout from a leaf MenuItem inside an open
+        // menu chain doesn't work in Avalonia — the parent menu loses focus
+        // and dismisses, taking the flyout's anchor with it. The submenu
+        // pattern (also used by RecentScenariosMenuItem and
+        // CopyViewSettingsMenuItem) populates dynamically on SubmenuOpened.
+        var newTabItem = new MenuItem { Header = "_New Strips Tab..." };
+        // Pre-seed with one placeholder so Avalonia recognises this as a real
+        // parent and shows the expand arrow before the user opens it.
+        newTabItem.Items.Add(new MenuItem { Header = "(Loading...)", IsEnabled = false });
+        newTabItem.SubmenuOpened += OnNewStripsTabSubmenuOpened;
         items.Add(newTabItem);
 
         submenu.ItemsSource = items;
     }
 
-    private void OnNewStripsTabClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnNewStripsTabSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is not MenuItem anchor || DataContext is not MainViewModel vm)
+        if (sender is not MenuItem submenu || DataContext is not MainViewModel vm)
         {
             return;
         }
+        submenu.Items.Clear();
 
         var studentVm = vm.StripsEntries.FirstOrDefault()?.Vm;
         if (studentVm is null || studentVm.AccessibleFacilities.Count == 0)
         {
+            submenu.Items.Add(new MenuItem { Header = "(No accessible facilities)", IsEnabled = false });
             return;
         }
 
-        var menu = new MenuFlyout();
+        var existingIds = vm
+            .StripsEntries.Select(x => x.Vm.FacilityId)
+            .Where(id => !string.IsNullOrEmpty(id))
+            .ToHashSet(System.StringComparer.Ordinal);
+        var added = 0;
         foreach (var facility in studentVm.AccessibleFacilities)
         {
-            // Exclude facilities that already have a tab.
-            if (vm.StripsEntries.Any(x => x.Vm.FacilityId == facility.FacilityId))
+            if (existingIds.Contains(facility.FacilityId))
             {
                 continue;
             }
@@ -1270,13 +1284,14 @@ public partial class MainWindow : Window
                     await vm.OpenStripsEntryForFacilityAsync(f.FacilityId);
                 }
             };
-            menu.Items.Add(item);
+            submenu.Items.Add(item);
+            added++;
         }
-        if (menu.Items.Count == 0)
+
+        if (added == 0)
         {
-            return;
+            submenu.Items.Add(new MenuItem { Header = "(All accessible facilities already open)", IsEnabled = false });
         }
-        menu.ShowAt(anchor);
     }
 
     private void OpenDataGridWindow(MainViewModel vm)
