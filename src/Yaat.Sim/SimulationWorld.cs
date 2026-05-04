@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -6,6 +7,8 @@ namespace Yaat.Sim;
 
 public sealed class SimulationWorld
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("SimulationWorld");
+
     private readonly object _lock = new();
     private readonly List<AircraftState> _aircraft = [];
 
@@ -40,6 +43,23 @@ public sealed class SimulationWorld
             if (string.IsNullOrEmpty(aircraft.Cid))
             {
                 aircraft.Cid = GenerateUniqueCid();
+            }
+
+            // Replacement-safe: drop any pre-existing entry with the same callsign before
+            // appending. A user-typed VP/DA creates an unsupported-ghost AircraftState; if a
+            // scenario delayed-spawn / generator / ADD-spawn later arrives with the same
+            // callsign, the appended duplicate makes the 1Hz broadcast pump two DTOs per tick
+            // and the client AircraftList flickers between them. Replace policy: spawning
+            // aircraft wins, ghost (and any user-typed FP/scratchpads/track ownership) is
+            // discarded. Warn so unintentional collisions surface in logs.
+            int removed = _aircraft.RemoveAll(a => string.Equals(a.Callsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase));
+            if (removed > 0)
+            {
+                Log.LogWarning(
+                    "AddAircraft({Callsign}): replaced {Count} pre-existing entry/entries with the same callsign (likely a user-typed FP ghost colliding with a scenario or runtime spawn).",
+                    aircraft.Callsign,
+                    removed
+                );
             }
 
             _aircraft.Add(aircraft);
