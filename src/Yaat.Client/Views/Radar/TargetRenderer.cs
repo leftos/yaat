@@ -79,6 +79,13 @@ public sealed class TargetRenderer : IDisposable
     /// <summary>When true, render aircraft tags using the EuroScope-style layout instead of STARS.</summary>
     public bool EuroScopeMode { get; set; }
 
+    /// <summary>Datablock text size in pixels. Updated from UserPreferences via RadarView.SyncAssignmentTint.</summary>
+    public float DatablockTextSize
+    {
+        get => _dataBlockPaint.TextSize;
+        set => _dataBlockPaint.TextSize = value;
+    }
+
     /// <summary>
     /// Per-aircraft layout result captured during the last Render(). Populated only when
     /// <see cref="EuroScopeMode"/> is on. Consumed by RadarCanvas hit-testing.

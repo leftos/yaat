@@ -60,6 +60,7 @@ public partial class RadarView : UserControl
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.RangeRingPlaced += OnRangeRingPlaced;
         _canvas.EuroScopeFieldClicked += OnEuroScopeFieldClicked;
+        _canvas.EuroScopeFieldRightClicked += OnEuroScopeFieldRightClicked;
         _canvas.HeadingModeConfirmed += OnHeadingModeConfirmed;
 
         var filteredText = this.FindControl<TextBox>("FilteredListText");
@@ -98,6 +99,7 @@ public partial class RadarView : UserControl
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.RangeRingPlaced -= OnRangeRingPlaced;
             _canvas.EuroScopeFieldClicked -= OnEuroScopeFieldClicked;
+            _canvas.EuroScopeFieldRightClicked -= OnEuroScopeFieldRightClicked;
             _canvas.HeadingModeConfirmed -= OnHeadingModeConfirmed;
         }
     }
@@ -113,6 +115,9 @@ public partial class RadarView : UserControl
 
         switch (field)
         {
+            case TagFieldId.Owner:
+                _ = mainVm.TakeControlAsync(ac.Callsign);
+                break;
             case TagFieldId.AssignedAltitude:
             case TagFieldId.CurrentAltitude:
                 ShowContextMenu(AltitudeFlyout.Build(ac, mainVm.Radar, initials));
@@ -123,6 +128,9 @@ public partial class RadarView : UserControl
             case TagFieldId.AssignedSpeed:
             case TagFieldId.CurrentSpeed:
                 ShowContextMenu(SpeedFlyout.Build(ac, mainVm.Radar, initials));
+                break;
+            case TagFieldId.Destination:
+                mainVm.Radar.EnterDrawRoute(ac.Callsign);
                 break;
             case TagFieldId.Scratchpad1:
                 if (_canvas is not null)
@@ -149,6 +157,44 @@ public partial class RadarView : UserControl
                 }
                 break;
         }
+    }
+
+    private bool OnEuroScopeFieldRightClicked(AircraftModel ac, TagFieldId field, Point pos)
+    {
+        var mainVm = FindMainViewModel();
+        if (mainVm is null)
+        {
+            return false;
+        }
+
+        if (field == TagFieldId.Owner)
+        {
+            ShowContextMenu(BuildOwnerContextMenu(ac, mainVm));
+            return true;
+        }
+
+        return false;
+    }
+
+    private ContextMenu BuildOwnerContextMenu(AircraftModel ac, MainViewModel mainVm)
+    {
+        var menu = new ContextMenu();
+        FlyoutAppearance.ApplyFontSize(menu);
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = $"RPO control — {ac.Callsign}",
+                IsEnabled = false,
+                FontWeight = Avalonia.Media.FontWeight.Bold,
+            }
+        );
+
+        // Reuse the room-aware RPO menu builder — it inserts a leading Separator and renders
+        // Take control / Give up control / Give control submenu / Unassign based on current
+        // assignment + room membership state.
+        mainVm.BuildRpoMenuItems(menu, [ac.Callsign]);
+
+        return menu;
     }
 
     private async void OnHeadingModeConfirmed(string callsign, int magneticHeading)
@@ -464,6 +510,8 @@ public partial class RadarView : UserControl
         _canvas.UnassignedTintColor = prefs.UnassignedTintEnabled ? ParseHexColor(prefs.UnassignedTintColor) : null;
         _canvas.SelectedOverrideColor = ParseHexColor(prefs.SelectedColor);
         _canvas.EuroScopeMode = prefs.EuroScopeMode;
+        _canvas.DatablockTextSize = prefs.RadarDatablockFontSize;
+        Flyouts.FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
     }
 
     private static SKColor? ParseHexColor(string hex)

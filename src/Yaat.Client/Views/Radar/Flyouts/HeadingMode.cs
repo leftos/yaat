@@ -67,7 +67,11 @@ public static class HeadingPreviewRenderer
             SubpixelText = true,
             Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
         };
-        double newHeadingTrue = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, state.CursorPos.Lat, state.CursorPos.Lon);
+        double cursorBearingTrue = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, state.CursorPos.Lat, state.CursorPos.Lon);
+        double cursorBearingMag = MagneticDeclination.TrueToMagnetic(cursorBearingTrue, ac.Position);
+        int snappedHdgMag = SnapHeadingTo5(cursorBearingMag);
+        double newHeadingMag = snappedHdgMag;
+        double newHeadingTrue = MagneticDeclination.MagneticToTrue(newHeadingMag, ac.Position);
         double curHeadingTrue = ac.Heading;
         double courseChange = GeoMath.SignedBearingDifference(curHeadingTrue, newHeadingTrue);
         double absCourseChange = Math.Abs(courseChange);
@@ -81,7 +85,12 @@ public static class HeadingPreviewRenderer
         };
 
         var (acSx, acSy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        var (curSx, curSy) = vp.LatLonToScreen(state.CursorPos.Lat, state.CursorPos.Lon);
+
+        // Project the cursor's distance along the SNAPPED bearing so the line, arc, and label
+        // all visually agree with the heading that will actually be dispatched.
+        double cursorDistNm = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, state.CursorPos.Lat, state.CursorPos.Lon);
+        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, new TrueHeading(newHeadingTrue), cursorDistNm);
+        var (curSx, curSy) = vp.LatLonToScreen(endLat, endLon);
 
         SKPoint arcEndScreen = new(acSx, acSy);
 
@@ -122,13 +131,25 @@ public static class HeadingPreviewRenderer
         // Straight line from arc end (or aircraft position if no arc) to cursor.
         canvas.DrawLine(arcEndScreen.X, arcEndScreen.Y, curSx, curSy, linePaint);
 
-        // Label near cursor.
-        double newHeadingMag = MagneticDeclination.TrueToMagnetic(newHeadingTrue, ac.Position);
-        double distNm = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, state.CursorPos.Lat, state.CursorPos.Lon);
-        int hdgInt = ((int)Math.Round(newHeadingMag) + 359) % 360 + 1; // map 0 -> 360 to keep the standard 001..360 form
-        string label = ac.GroundSpeed > 1 ? $"{hdgInt:D3}M  {distNm:0.0}nm  {FormatEta(distNm, ac.GroundSpeed)}" : $"{hdgInt:D3}M  {distNm:0.0}nm";
+        // Label near snapped end-point.
+        int hdgInt = ((snappedHdgMag - 1 + 360) % 360) + 1; // map 0 -> 360 to keep the standard 001..360 form
+        string label =
+            ac.GroundSpeed > 1
+                ? $"{hdgInt:D3}M  {cursorDistNm:0.0}nm  {FormatEta(cursorDistNm, ac.GroundSpeed)}"
+                : $"{hdgInt:D3}M  {cursorDistNm:0.0}nm";
 
         DrawLabel(canvas, label, curSx + 12, curSy - 8, textPaint);
+    }
+
+    /// <summary>
+    /// Snap a magnetic heading in degrees to the nearest 5° bucket, mapped to [5, 360].
+    /// Wraps so 0/360 collapse to 360 (matching the 001..360 convention used elsewhere).
+    /// </summary>
+    internal static int SnapHeadingTo5(double magneticDeg)
+    {
+        int snapped = (int)(Math.Round(magneticDeg / 5.0) * 5);
+        snapped = ((snapped % 360) + 360) % 360;
+        return snapped == 0 ? 360 : snapped;
     }
 
     private static double TurnRadiusNm(double groundSpeedKts, double turnRateDegPerSec)

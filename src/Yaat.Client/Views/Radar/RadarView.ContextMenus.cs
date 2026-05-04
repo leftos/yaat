@@ -252,7 +252,20 @@ public partial class RadarView
         menu.Items.Add(CreateListMenuItem("Assign speed", speeds, currentSpd, val => vm.SpeedAssignAsync(cs, init, (int)val)));
         menu.Items.Add(CreateInputMenuItem("Speed...", "Speed (knots)", input => vm.SpeedAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateMenuItem("Resume normal speed", () => vm.SpeedNormalAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem(BuildFasMenuLabel(ac), () => vm.ReduceFinalApproachSpeedAsync(cs, init)));
         return menu;
+    }
+
+    private static string BuildFasMenuLabel(AircraftModel? ac)
+    {
+        if (ac is null || string.IsNullOrEmpty(ac.FiledAircraftType))
+        {
+            return "FAS";
+        }
+
+        var category = Yaat.Sim.AircraftCategorization.Categorize(ac.FiledAircraftType);
+        var fas = Yaat.Sim.AircraftPerformance.ApproachSpeed(ac.FiledAircraftType, category);
+        return fas > 0 ? $"FAS - {fas:F0} kt" : "FAS";
     }
 
     private MenuItem BuildNavigationSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)

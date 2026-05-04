@@ -319,7 +319,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 Enable **Settings > Display > Radar Display > "EuroScope-style interactive tags"** to switch the radar tag layout to a EuroScope pseudopilot-style block where individual fields are clickable. The setting is global and off by default. With it on, every aircraft data block has four lines:
 
 ```
-{*} CALLSIGN                 ← owner marker + callsign
+ABC CALLSIGN                 ← owner initials + callsign  ('--' if uncontrolled)
 TYPE/CWT  DEST               ← aircraft type / weight category, destination
 080 (120) ASP(180) AHDG(270) ← current alt, assigned alt, assigned spd, assigned hdg
 RWY28L .SCRA +SCRB           ← assigned runway + scratchpad 1/2 + handoff target
@@ -329,8 +329,10 @@ Empty assigned fields show their identifier (`ASP`, `AHDG`, `(---)`) so the clic
 
 | Click on… | Opens |
 |---|---|
-| Current or assigned **altitude** field | Altitude flyout (FL010..FL300 in 1000-ft steps). Selection dispatches `CM` or `DM` based on whether the picked FL is above or below the aircraft. |
-| Current or assigned **speed** / `ASP` | Speed flyout (80..350 kt + Resume Normal Speed). Dispatches `SPD` or `RNS`. |
+| **Owner** initials (or `--` if no RPO assigned) | **Left-click**: take RPO control (assign aircraft to yourself). **Right-click**: opens the RPO assignment menu — Take control / Give up control / Give control to *(submenu of other RPOs in the room)* / Unassign. |
+| **Destination** field | Enters **draw-route** mode — left-click waypoints on the map; right-click the last waypoint to confirm, Esc to cancel. |
+| Current or assigned **altitude** field | Altitude flyout (FL010..FL400 in 1000-ft steps). Opens scrolled to the current altitude with a roughly ±5,000 ft window visible; the rest is reachable by scrolling. Selection dispatches `CM` or `DM` based on whether the picked FL is above or below the aircraft. |
+| Current or assigned **speed** / `ASP` | Speed flyout (80..350 kt + Resume Normal Speed + **FAS** at the bottom, labelled with the aircraft-specific final approach speed). Opens scrolled to the current speed with a ±60 kt window visible. Dispatches `SPD`, `RNS`, or `RFAS`. |
 | **AHDG** field | Enters **heading mode** — see below. |
 | Assigned **runway** field | Runway flyout listing every runway end at the aircraft's departure (if on ground) or destination (if airborne) airport, sorted numerically. Dispatches `RWY <designator>`. Includes a Clear option. |
 | **Scratchpad 1/2** (`.XXX` / `+XXX`) | Text-entry popup with the current value pre-filled, plus EuroScope-convention preset chips (CLEA / NOTC / ST-UP / PUSH / TAXI / DEPA). Enter submits, Esc cancels. |
@@ -343,6 +345,8 @@ Two flows are supported, mirroring EuroScope's pseudopilot UX:
 
 - **Drag**: press-and-hold on `AHDG`, drag to a point on the map (the cursor turns to a crosshair, an elastic vector and turn-radius arc draw live), release on the target point. The bearing aircraft → release-point is computed (converted to magnetic) and dispatched as `FH <heading>`.
 - **Click-to-confirm**: click `AHDG` and release without dragging — the mode stays active. Move the cursor anywhere; the live preview follows. Left-click on the map to confirm.
+
+Headings snap to the nearest **5°** — the visual line, label, and dispatched `FH` value all reflect the same snapped value.
 
 The preview shows a turn-anticipation arc (standard rate, radius derived from current ground speed) curving from the current heading into the new heading, plus a straight line to the cursor and a label `"275M  3.2nm  0:48"` (heading magnetic / distance / ETA at current GS).
 
@@ -892,7 +896,7 @@ Open **Settings** to configure:
 - **Scenarios** — Auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
 - **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
-- **Display** — Aircraft list font size, command signature help placement, **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)), ground display options (start with datablocks hidden), and per-window always-on-top toggles
+- **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, and ground labels (each independently configurable, range 8–24); command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); ground display options (start with datablocks hidden); per-window always-on-top toggles
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
 - **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode
 

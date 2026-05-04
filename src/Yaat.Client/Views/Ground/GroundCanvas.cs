@@ -150,6 +150,26 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
     private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = PlatformHelper.MonospaceTypefaceBold };
+
+    public float DatablockTextSize
+    {
+        get => _renderer.DatablockTextSize;
+        set
+        {
+            _renderer.DatablockTextSize = value;
+            MarkDirty();
+        }
+    }
+
+    public float LabelTextSize
+    {
+        get => _renderer.LabelTextSize;
+        set
+        {
+            _renderer.LabelTextSize = value;
+            MarkDirty();
+        }
+    }
     private int? _hoveredNodeId;
     private bool _hasFitBounds;
     private bool _suppressViewSync;

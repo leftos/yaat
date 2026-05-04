@@ -221,6 +221,32 @@ public sealed class GroundRenderer : IDisposable
         Typeface = PlatformHelper.MonospaceTypefaceBold,
     };
 
+    /// <summary>
+    /// Datablock text size in pixels. Updated from UserPreferences.GroundDatablockFontSize.
+    /// </summary>
+    public float DatablockTextSize
+    {
+        get => _dataBlockTextPaint.TextSize;
+        set => _dataBlockTextPaint.TextSize = value;
+    }
+
+    /// <summary>
+    /// Base label text size in pixels (taxi-label baseline). Runway labels render at base+2,
+    /// node labels at base-1, debug labels at base+1. Updated from UserPreferences.GroundLabelFontSize.
+    /// </summary>
+    public float LabelTextSize
+    {
+        get => _taxiLabelPaint.TextSize;
+        set
+        {
+            _taxiLabelPaint.TextSize = value;
+            _runwayLabelPaint.TextSize = value + 2;
+            _nodeLabelPaint.TextSize = value - 1;
+            _debugLabelPaint.TextSize = value + 1;
+            _debugEdgeLabelPaint.TextSize = value;
+        }
+    }
+
     private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Fill };
     private readonly SKPaint _labelBgPaint = new() { Color = new SKColor(0, 0, 0, 220), Style = SKPaintStyle.Fill };
 

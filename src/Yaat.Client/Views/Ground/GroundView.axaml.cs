@@ -51,6 +51,8 @@ public partial class GroundView : UserControl
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
         {
             _canvas.SetStartWithAllHidden(vm.Preferences.GroundHideDataBlocksByDefault);
+            ApplyFontSizePreferences(vm.Preferences);
+            vm.Preferences.FontSizesChanged += OnPreferencesFontSizesChanged;
         }
 
         _taxiInputOverlay = this.FindControl<Border>("TaxiInputOverlay");
@@ -77,6 +79,11 @@ public partial class GroundView : UserControl
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
             _canvas.DrawNodeHovered -= OnDrawNodeHovered;
+        }
+
+        if (DataContext is GroundViewModel vm && vm.Preferences is not null)
+        {
+            vm.Preferences.FontSizesChanged -= OnPreferencesFontSizesChanged;
         }
 
         if (_taxiInputBox is not null)
@@ -993,5 +1000,24 @@ public partial class GroundView : UserControl
         }
 
         return null;
+    }
+
+    private void OnPreferencesFontSizesChanged()
+    {
+        if (DataContext is GroundViewModel vm && vm.Preferences is not null)
+        {
+            ApplyFontSizePreferences(vm.Preferences);
+        }
+    }
+
+    private void ApplyFontSizePreferences(Yaat.Client.Services.UserPreferences prefs)
+    {
+        if (_canvas is null)
+        {
+            return;
+        }
+
+        _canvas.DatablockTextSize = prefs.GroundDatablockFontSize;
+        _canvas.LabelTextSize = prefs.GroundLabelFontSize;
     }
 }

@@ -227,6 +227,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.EuroScopeMode = value;
     }
 
+    public float DatablockTextSize
+    {
+        get => _targetRenderer.DatablockTextSize;
+        set => _targetRenderer.DatablockTextSize = value;
+    }
+
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _targetRenderer.LastEuroScopeTags;
 
     /// <summary>

@@ -256,6 +256,18 @@ public partial class SettingsViewModel : ObservableObject
     private int _dataGridFontSize;
 
     [ObservableProperty]
+    private int _radarDatablockFontSize;
+
+    [ObservableProperty]
+    private int _radarFlyoutFontSize;
+
+    [ObservableProperty]
+    private int _groundDatablockFontSize;
+
+    [ObservableProperty]
+    private int _groundLabelFontSize;
+
+    [ObservableProperty]
     private bool _groundHideDataBlocksByDefault;
 
     [ObservableProperty]
@@ -473,6 +485,10 @@ public partial class SettingsViewModel : ObservableObject
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
         _autoExpandSuggestionOnEnter = _preferences.AutoExpandSuggestionOnEnter;
         _dataGridFontSize = _preferences.DataGridFontSize;
+        _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
+        _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
+        _groundDatablockFontSize = _preferences.GroundDatablockFontSize;
+        _groundLabelFontSize = _preferences.GroundLabelFontSize;
         _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
         LoadMacros();
     }
@@ -556,7 +572,13 @@ public partial class SettingsViewModel : ObservableObject
         );
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
         _preferences.SetAutoExpandSuggestionOnEnter(AutoExpandSuggestionOnEnter);
-        _preferences.SetDataGridFontSize(DataGridFontSize);
+        _preferences.SetFontSizes(
+            radarDatablock: RadarDatablockFontSize,
+            radarFlyout: RadarFlyoutFontSize,
+            groundDatablock: GroundDatablockFontSize,
+            groundLabel: GroundLabelFontSize,
+            dataGrid: DataGridFontSize
+        );
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         SaveMacros();
         Saved = true;
@@ -1220,6 +1242,14 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSelectedColorChanged(string value) => VisualSettingsChanged?.Invoke();
 
     partial void OnDataGridFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnRadarDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnRadarFlyoutFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundLabelFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnGroundHideDataBlocksByDefaultChanged(bool value) => VisualSettingsChanged?.Invoke();
 

@@ -14,6 +14,7 @@ internal static class SquawkFlyout
     public static ContextMenu Build(AircraftModel aircraft, RadarViewModel radarVm, string initials)
     {
         var menu = new ContextMenu();
+        FlyoutAppearance.ApplyFontSize(menu);
         menu.Items.Add(
             new MenuItem
             {

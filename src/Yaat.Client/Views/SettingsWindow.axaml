@@ -187,22 +187,34 @@
             <TabItem Header="Display">
                 <ScrollViewer>
                     <StackPanel Margin="12" Spacing="12">
-                        <TextBlock Text="Aircraft List"
+                        <TextBlock Text="Font Sizes"
                                    FontWeight="SemiBold" />
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Font Size:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <NumericUpDown Value="{Binding DataGridFontSize}"
-                                           Minimum="8"
-                                           Maximum="24"
-                                           Increment="1"
-                                           Width="120"
-                                           HorizontalAlignment="Left" />
-                            <TextBlock Text="Controls the zoom level of the aircraft list. Default: 12. You can also use Ctrl+Plus / Ctrl+Minus / Ctrl+0 while the aircraft list is focused."
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
+                        <Grid ColumnDefinitions="200,120" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Aircraft List"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding DataGridFontSize}"
+                                           Minimum="8" Maximum="24" Increment="1" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Radar Datablock"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding RadarDatablockFontSize}"
+                                           Minimum="8" Maximum="24" Increment="1" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Radar Tag Flyouts"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding RadarFlyoutFontSize}"
+                                           Minimum="8" Maximum="24" Increment="1" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Ground Datablock"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding GroundDatablockFontSize}"
+                                           Minimum="8" Maximum="24" Increment="1" />
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Ground Labels (taxi/runway/node)"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding GroundLabelFontSize}"
+                                           Minimum="8" Maximum="24" Increment="1" />
+                        </Grid>
+                        <TextBlock Text="Defaults: 12 for datablocks/lists, 13 for ground labels. Aircraft list also responds to Ctrl+Plus / Ctrl+Minus / Ctrl+0 while focused."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11" />
                         <Separator Margin="0,4" />
                         <TextBlock Text="Command Input"
                                    FontWeight="SemiBold" />

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Speed flyout (EuroScope tag click + right-click menu) gains a "FAS - N kt" entry at the bottom (where N is the aircraft-specific final approach speed); selection dispatches `RFAS`.
+- EuroScope tag owner cell: **left-click** takes RPO control (assigns the aircraft to you); **right-click** opens the RPO assignment menu (Take control / Give up control / Give control to *(submenu of room members)* / Unassign).
+- EuroScope tag Destination field is now a click target — clicking enters draw-route mode (same flow as right-click "Draw route").
+- **Settings > Display > Font Sizes** group: separate font-size knobs for radar datablock, radar tag flyouts, ground datablock, and ground labels (taxi/runway/node), alongside the existing aircraft-list font size.
+
+### Changed
+- EuroScope heading-mode drag snaps to the nearest 5° — the live arc, the cursor label, and the dispatched `FH` value all use the same snapped heading.
+- EuroScope tag owner cell renders just the assigned RPO's initials (no braces, no `*` shorthand). Aircraft with no RPO assignment show `--`.
+- EuroScope altitude/speed flyouts open scrolled to the current value with a smaller visible window (~±5,000 ft / ±60 kt); the rest of the range is reachable by mouse-wheel/keyboard scrolling.
+- EuroScope altitude flyout extended to FL400.
+
 ## v0.1.13-alpha [2026/05/04]
 
 ### Highlights

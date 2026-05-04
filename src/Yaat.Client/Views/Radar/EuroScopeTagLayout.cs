@@ -35,7 +35,7 @@ public readonly record struct EuroScopeTagResult(SKRect Bounds, IReadOnlyList<Ta
 /// <summary>
 /// Computes the EuroScope-style 4-line aircraft tag with per-field bounding rects.
 /// Reference layout (see docs/euroscope/pseudopilot.md):
-///   Line 1: {*} CALLSIGN
+///   Line 1: OWNER CALLSIGN     (owner = controlling-RPO initials, or '--' if uncontrolled)
 ///   Line 2: TYPE/CWT  DEST
 ///   Line 3: 080 (120) ASP(180) AHDG(270)
 ///   Line 4: RWY28R .SCRA +SCRB
@@ -60,7 +60,7 @@ public static class EuroScopeTagLayout
         float y1Bot = originY;
         float x = originX;
 
-        string owner = OwnerMarker(ac, localUserInitials);
+        string owner = OwnerMarker(ac);
         x = AddField(fields, TagFieldId.Owner, owner, x, y1Top, y1Bot, paint);
         x = AddField(fields, TagFieldId.Callsign, ac.Callsign, x, y1Top, y1Bot, paint);
         maxWidth = MathF.Max(maxWidth, x - originX);
@@ -162,19 +162,11 @@ public static class EuroScopeTagLayout
         return x + width + FieldGap;
     }
 
-    private static string OwnerMarker(AircraftModel ac, string? localUserInitials)
+    private static string OwnerMarker(AircraftModel ac)
     {
-        bool ownedByMe =
-            !string.IsNullOrEmpty(localUserInitials) && string.Equals(ac.AssignedTo, localUserInitials, StringComparison.OrdinalIgnoreCase);
-        if (ownedByMe)
-        {
-            return "{*}";
-        }
-        if (!string.IsNullOrEmpty(ac.AssignedTo))
-        {
-            return $"{{{ac.AssignedTo}}}";
-        }
-        return "{}";
+        // Whoever owns the track, show their initials. Uncontrolled -> "--" (so the field
+        // remains a stable click target for the assume-track action).
+        return string.IsNullOrEmpty(ac.AssignedTo) ? "--" : ac.AssignedTo;
     }
 
     private static string FormatTypeCwt(AircraftModel ac)

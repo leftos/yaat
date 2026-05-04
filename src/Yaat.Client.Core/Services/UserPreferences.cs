@@ -180,6 +180,13 @@ public sealed class UserPreferences
     public string SignatureHelpPlacement => _data.SignatureHelpPlacement;
     public bool AutoExpandSuggestionOnEnter => _data.AutoExpandSuggestionOnEnter;
     public int DataGridFontSize => _data.DataGridFontSize;
+    public int RadarDatablockFontSize => _data.RadarDatablockFontSize;
+    public int RadarFlyoutFontSize => _data.RadarFlyoutFontSize;
+    public int GroundDatablockFontSize => _data.GroundDatablockFontSize;
+    public int GroundLabelFontSize => _data.GroundLabelFontSize;
+
+    /// <summary>Raised when any font-size preference changes (debounced via the single Save call).</summary>
+    public event Action? FontSizesChanged;
 
     public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
     {
@@ -477,6 +484,18 @@ public sealed class UserPreferences
     {
         _data.DataGridFontSize = Math.Clamp(size, 8, 24);
         Save();
+        FontSizesChanged?.Invoke();
+    }
+
+    public void SetFontSizes(int radarDatablock, int radarFlyout, int groundDatablock, int groundLabel, int dataGrid)
+    {
+        _data.RadarDatablockFontSize = Math.Clamp(radarDatablock, 8, 24);
+        _data.RadarFlyoutFontSize = Math.Clamp(radarFlyout, 8, 24);
+        _data.GroundDatablockFontSize = Math.Clamp(groundDatablock, 8, 24);
+        _data.GroundLabelFontSize = Math.Clamp(groundLabel, 8, 24);
+        _data.DataGridFontSize = Math.Clamp(dataGrid, 8, 24);
+        Save();
+        FontSizesChanged?.Invoke();
     }
 
     public void SetGroundLabelFilters(bool runways, bool taxiways, GroundFilterMode holdShort, GroundFilterMode parking, GroundFilterMode spot)
@@ -774,6 +793,10 @@ public sealed class UserPreferences
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
             AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
+            RadarDatablockFontSize = GetFieldOr(obj, "radarDatablockFontSize", 12),
+            RadarFlyoutFontSize = GetFieldOr(obj, "radarFlyoutFontSize", 12),
+            GroundDatablockFontSize = GetFieldOr(obj, "groundDatablockFontSize", 12),
+            GroundLabelFontSize = GetFieldOr(obj, "groundLabelFontSize", 13),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
         };
 
@@ -978,6 +1001,10 @@ public sealed class UserPreferences
         public string SignatureHelpPlacement { get; set; } = "Above";
         public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;
+        public int RadarDatablockFontSize { get; set; } = 12;
+        public int RadarFlyoutFontSize { get; set; } = 12;
+        public int GroundDatablockFontSize { get; set; } = 12;
+        public int GroundLabelFontSize { get; set; } = 13;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 
         // Speech recognition. With the LM-Kit engine swap, WhisperModelSize and LlmModelPath

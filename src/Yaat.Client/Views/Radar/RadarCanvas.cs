@@ -348,6 +348,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public float DatablockTextSize
+    {
+        get => _renderer.DatablockTextSize;
+        set
+        {
+            _renderer.DatablockTextSize = value;
+            MarkDirty();
+        }
+    }
+
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _renderer.LastEuroScopeTags;
 
     /// <summary>True while a heading-vector interaction is in progress (cursor preview drawing).</summary>
@@ -398,7 +408,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
         double trueBearing = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, lat, lon);
         double magBearing = MagneticDeclination.TrueToMagnetic(trueBearing, ac.Position);
-        int hdg = ((int)Math.Round(magBearing) + 359) % 360 + 1;
+        int hdg = Flyouts.HeadingPreviewRenderer.SnapHeadingTo5(magBearing);
         HeadingModeConfirmed?.Invoke(ac.Callsign, hdg);
     }
 
@@ -845,6 +855,22 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
         }
 
+        // EuroScope mode: per-field right-click. Used today for owner-cell handoff/drop.
+        // Fields without a registered handler fall through to the full aircraft right-click menu.
+        if (EuroScopeMode && props.IsRightButtonPressed && EuroScopeFieldRightClicked is not null)
+        {
+            var (fieldAc, field) = FindTagFieldAtPoint(pos);
+            if (fieldAc is not null && field != TagFieldId.None)
+            {
+                SurfaceDataBlock(fieldAc.Callsign);
+                if (EuroScopeFieldRightClicked.Invoke(fieldAc, field, pos))
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
         var dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
@@ -1084,6 +1110,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// dispatch the appropriate flyout/mode (see Flyouts/ folder, added in later phases).
     /// </summary>
     public event Action<AircraftModel, TagFieldId, Point>? EuroScopeFieldClicked;
+
+    /// <summary>
+    /// Raised when the user right-clicks an interactive EuroScope tag field. Returning true
+    /// suppresses the fallback aircraft-level right-click menu; returning false lets the
+    /// normal aircraft context menu open (e.g. for fields without a dedicated right-click action).
+    /// </summary>
+    public event Func<AircraftModel, TagFieldId, Point, bool>? EuroScopeFieldRightClicked;
 
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)
     {

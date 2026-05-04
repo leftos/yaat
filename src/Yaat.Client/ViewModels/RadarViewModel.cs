@@ -991,6 +991,11 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, "RNS", initials);
     }
 
+    public async Task ReduceFinalApproachSpeedAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "RFAS", initials);
+    }
+
     public async Task DirectToAsync(string callsign, string initials, string fix)
     {
         await _sendCommand(callsign, $"DCT {fix}", initials);
