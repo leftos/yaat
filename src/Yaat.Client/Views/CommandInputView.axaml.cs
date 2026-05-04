@@ -52,6 +52,12 @@ public partial class CommandInputView : UserControl
             sigHelpNext.Click += OnSigHelpNextClick;
         }
 
+        var saveFavItem = this.FindControl<MenuItem>("SaveAsFavoriteMenuItem");
+        if (saveFavItem is not null)
+        {
+            saveFavItem.Click += OnSaveAsFavoriteClick;
+        }
+
         // Drive popup IsOpen from code-behind so it respects this view's visibility.
         // Two CommandInputView instances share the same VM — the hidden embedded one
         // must not open its popup (would appear at 0,0).
@@ -247,6 +253,20 @@ public partial class CommandInputView : UserControl
         if (DataContext is MainViewModel vm)
         {
             vm.CommandInput.SignatureHelp.NextOverload();
+        }
+    }
+
+    private void OnSaveAsFavoriteClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(vm.CommandText))
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is Window window)
+        {
+            var favBar = window.FindControl<FavoritesBarView>("FavoritesBar");
+            favBar?.OpenAddFlyoutForCommand(vm.CommandText);
         }
     }
 

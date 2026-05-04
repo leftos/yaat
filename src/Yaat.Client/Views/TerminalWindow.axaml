@@ -6,7 +6,7 @@
         Title="Terminal">
 
     <DockPanel Margin="8">
-        <views:FavoritesBarView DockPanel.Dock="Bottom" />
+        <views:FavoritesBarView x:Name="FavoritesBar" DockPanel.Dock="Bottom" />
         <views:CommandInputView x:Name="CommandInputView" DockPanel.Dock="Bottom" />
         <views:TerminalPanelView />
     </DockPanel>

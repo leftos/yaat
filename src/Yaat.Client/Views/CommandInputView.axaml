@@ -21,7 +21,15 @@
             <TextBox Text="{Binding CommandText}"
                      CaretIndex="{Binding CommandCaretIndex, Mode=TwoWay}"
                      Watermark="Enter command (FH 270, CM 240...)"
-                     x:Name="CommandInput" />
+                     x:Name="CommandInput">
+                <TextBox.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuItem x:Name="SaveAsFavoriteMenuItem"
+                                  Header="Save as favorite..."
+                                  IsEnabled="{Binding CommandText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </MenuFlyout>
+                </TextBox.ContextFlyout>
+            </TextBox>
             <!-- Combined popup for signature help + autocomplete -->
             <Popup PlacementTarget="{Binding #CommandInput}"
                    Placement="Top"

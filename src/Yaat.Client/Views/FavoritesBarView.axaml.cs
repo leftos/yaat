@@ -14,6 +14,7 @@ namespace Yaat.Client.Views;
 public partial class FavoritesBarView : UserControl
 {
     private readonly WrapPanel _panel;
+    private Button? _addButton;
 
     public FavoritesBarView()
     {
@@ -21,6 +22,16 @@ public partial class FavoritesBarView : UserControl
 
         _panel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
         Content = _panel;
+    }
+
+    public void OpenAddFlyoutForCommand(string commandText)
+    {
+        if (_addButton is null)
+        {
+            return;
+        }
+
+        ShowAddFlyout(_addButton, commandText);
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -100,6 +111,7 @@ public partial class FavoritesBarView : UserControl
         ToolTip.SetTip(btn, "Add a favorite command");
         btn.Click += OnAddClick;
 
+        _addButton = btn;
         return btn;
     }
 
@@ -151,10 +163,10 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        ShowAddFlyout(btn);
+        ShowAddFlyout(btn, string.Empty);
     }
 
-    private void ShowAddFlyout(Button target)
+    private void ShowAddFlyout(Button target, string prefillCommand)
     {
         var vm = DataContext as MainViewModel;
         if (vm is null)
@@ -170,6 +182,7 @@ public partial class FavoritesBarView : UserControl
         };
         var commandBox = new TextBox
         {
+            Text = prefillCommand,
             Watermark = "Command text (e.g. FH 270, CM 014)",
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),

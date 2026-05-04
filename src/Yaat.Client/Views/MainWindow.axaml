@@ -244,7 +244,8 @@
         </Border>
 
         <!-- Bottom: Favorites bar (visible when docked) -->
-        <views:FavoritesBarView DockPanel.Dock="Bottom"
+        <views:FavoritesBarView x:Name="FavoritesBar"
+            DockPanel.Dock="Bottom"
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Bottom: Command input (visible when docked) -->
