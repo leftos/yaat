@@ -185,7 +185,7 @@ internal static class TaxiVariantResolver
         {
             int nodeId = i == segmentCountBeforeLastTw ? segments[i].FromNodeId : segments[i].ToNodeId;
 
-            if (TaxiPathfinder.NodeHasEdgeTo(layout, nodeId, chosenVariant))
+            if (layout.NodeHasEdgeTo(nodeId, chosenVariant))
             {
                 branchNodeId = nodeId;
                 branchSegmentIndex = i;
@@ -195,7 +195,7 @@ internal static class TaxiVariantResolver
             // Also check ToNodeId for first segment
             if (i == segmentCountBeforeLastTw)
             {
-                if (TaxiPathfinder.NodeHasEdgeTo(layout, segments[i].ToNodeId, chosenVariant))
+                if (layout.NodeHasEdgeTo(segments[i].ToNodeId, chosenVariant))
                 {
                     branchNodeId = segments[i].ToNodeId;
                     branchSegmentIndex = i + 1;
@@ -209,7 +209,7 @@ internal static class TaxiVariantResolver
         {
             for (int i = segmentCountBeforeLastTw; i < segments.Count; i++)
             {
-                if (TaxiPathfinder.NodeHasEdgeTo(layout, segments[i].ToNodeId, chosenVariant))
+                if (layout.NodeHasEdgeTo(segments[i].ToNodeId, chosenVariant))
                 {
                     branchNodeId = segments[i].ToNodeId;
                     branchSegmentIndex = i + 1;

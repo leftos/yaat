@@ -893,28 +893,6 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Returns true if the node with <paramref name="nodeId"/> has any edge
-    /// on <paramref name="taxiwayName"/>.
-    /// </summary>
-    internal static bool NodeHasEdgeTo(AirportGroundLayout layout, int nodeId, string taxiwayName)
-    {
-        if (!layout.Nodes.TryGetValue(nodeId, out var node))
-        {
-            return false;
-        }
-
-        foreach (var edge in node.Edges)
-        {
-            if (edge.MatchesTaxiway(taxiwayName))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
     /// Returns true when <paramref name="edge"/> is part of the walk path on
     /// <paramref name="taxiwayName"/> — a straight edge named X or a same-taxiway arc
     /// whose only name is X. Multi-name arcs (e.g. "D - RAMP") are NOT walk-path
@@ -1670,7 +1648,7 @@ public static class TaxiPathfinder
         if (
             nextTaxiwayName is not null
             && (stopAtNodeIds is null || stopAtNodeIds.Contains(startNodeId))
-            && NodeHasEdgeTo(layout, startNodeId, nextTaxiwayName)
+            && layout.NodeHasEdgeTo(startNodeId, nextTaxiwayName)
         )
         {
             diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: startNode={startNodeId} already connects to {nextTaxiwayName} — skipping walk");
@@ -1766,7 +1744,7 @@ public static class TaxiPathfinder
             // Stop early if this node connects to the next taxiway in the path.
             // Suppressed when SelectBestStopNode chose a specific stop — otherwise we'd
             // stop at the first Y-connecting node and ignore the look-ahead pick.
-            if (stopAtNodeIds is null && nextTaxiwayName is not null && NodeHasEdgeTo(layout, currentId, nextTaxiwayName))
+            if (stopAtNodeIds is null && nextTaxiwayName is not null && layout.NodeHasEdgeTo(currentId, nextTaxiwayName))
             {
                 diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: stopping at node={currentId} — connects to {nextTaxiwayName}");
                 break;
@@ -2107,7 +2085,7 @@ public static class TaxiPathfinder
         // Check if any candidate directly connects to the next taxiway
         foreach (var (edge, nodeId) in candidates)
         {
-            if (NodeHasEdgeTo(layout, nodeId, nextTaxiwayName))
+            if (layout.NodeHasEdgeTo(nodeId, nextTaxiwayName))
             {
                 return (edge, nodeId);
             }
@@ -2272,7 +2250,7 @@ public static class TaxiPathfinder
         {
             int current = openSet.Dequeue();
 
-            if (current != startNodeId && NodeHasEdgeTo(layout, current, taxiwayName))
+            if (current != startNodeId && layout.NodeHasEdgeTo(current, taxiwayName))
             {
                 foundId = current;
                 break;
@@ -2436,7 +2414,7 @@ public static class TaxiPathfinder
             }
 
             // Already standing on target? Only true for the start node — handled by caller.
-            if (currentId != startNodeId && NodeHasEdgeTo(layout, currentId, targetTaxiwayName))
+            if (currentId != startNodeId && layout.NodeHasEdgeTo(currentId, targetTaxiwayName))
             {
                 foundId = currentId;
                 break;

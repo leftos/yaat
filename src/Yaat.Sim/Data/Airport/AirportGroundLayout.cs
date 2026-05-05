@@ -576,6 +576,30 @@ public sealed class AirportGroundLayout
     public IEnumerable<IGroundEdge> AllEdges => Edges.Cast<IGroundEdge>().Concat(Arcs);
 
     /// <summary>
+    /// Returns true if the node with <paramref name="nodeId"/> has any edge
+    /// whose taxiway matches <paramref name="taxiwayName"/> (case-insensitive,
+    /// includes secondary names on junction arcs). Returns false when the node
+    /// is not in this layout.
+    /// </summary>
+    public bool NodeHasEdgeTo(int nodeId, string taxiwayName)
+    {
+        if (!Nodes.TryGetValue(nodeId, out var node))
+        {
+            return false;
+        }
+
+        foreach (var edge in node.Edges)
+        {
+            if (edge.MatchesTaxiway(taxiwayName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Rebuild <see cref="GroundNode.Edges"/> adjacency lists from the <see cref="Edges"/> collection.
     /// Call after constructing all edges (e.g., in tests or client-side layout reconstruction).
     /// </summary>
