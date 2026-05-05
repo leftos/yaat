@@ -1784,24 +1784,33 @@ public sealed class SimulationEngine
             return;
         }
 
-        // Single-command parse handles type-specific shortcuts (DEL, track, spawn,
-        // global squawk, etc.) that bypass the compound dispatch path. Compound
-        // commands like "DCT VPCOL; ERD 28R" intentionally fail this parse — they
-        // fall through to ParseCompound below.
-        var simpleResult = CommandParser.Parse(cmd.Command);
-        var simpleParsed = simpleResult.IsSuccess ? simpleResult.Value : null;
+        var (kind, parsed) = RecordedCommandClassifier.Classify(cmd.Command);
 
-        if (simpleParsed is SayCommand or ShowQueuedCommand)
+        switch (kind)
         {
-            return;
-        }
+            case RecordedCommandKind.SayOrShow:
+                return;
 
-        // DEL before the aircraft-exists guard: target may be in the delayed queue only.
-        if (simpleParsed is DeleteCommand)
-        {
-            Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(cmd.Callsign, StringComparison.OrdinalIgnoreCase));
-            World.RemoveAircraft(cmd.Callsign);
-            return;
+            case RecordedCommandKind.Delete:
+                // Before aircraft-exists guard: target may be in the delayed queue only.
+                Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(cmd.Callsign, StringComparison.OrdinalIgnoreCase));
+                World.RemoveAircraft(cmd.Callsign);
+                return;
+
+            case RecordedCommandKind.Coordination:
+                // RD/RDH/RDR/RDACK/RDAUTO mutate state owned by yaat-server only.
+                _logger.LogDebug("Replay: skipping coordination command {Cmd} for {Callsign} (no Sim-side handler)", cmd.Command, cmd.Callsign);
+                return;
+
+            case RecordedCommandKind.GhostTrack:
+            case RecordedCommandKind.Strip:
+            case RecordedCommandKind.TrackOwnership:
+            case RecordedCommandKind.Consolidate:
+            case RecordedCommandKind.Deconsolidate:
+            case RecordedCommandKind.AcceptAllHandoffs:
+            case RecordedCommandKind.InitiateHandoffAll:
+                // Server-only handlers; Sim has no state to mutate.
+                return;
         }
 
         var aircraft = FindAircraft(cmd.Callsign);
@@ -1810,50 +1819,23 @@ public sealed class SimulationEngine
             return;
         }
 
-        if (simpleParsed is DeleteQueuedCommand delAtCmd)
+        switch (kind)
         {
-            ReplayDeleteQueued(aircraft, delAtCmd.BlockNumber);
-            return;
-        }
-
-        if (simpleParsed is not null)
-        {
-            // Coordination commands have no Sim-side handlers (RD/RDH/RDR/RDACK/RDAUTO
-            // mutate state owned by yaat-server only). Skip with a debug log so
-            // recordings that depend on them surface visibly during replay.
-            if (IsCoordinationCommand(simpleParsed))
-            {
-                _logger.LogDebug("Replay: skipping coordination command {Cmd} for {Callsign} (no Sim-side handler)", cmd.Command, cmd.Callsign);
+            case RecordedCommandKind.DeleteQueued:
+                ReplayDeleteQueued(aircraft, ((DeleteQueuedCommand)parsed!).BlockNumber);
                 return;
-            }
 
-            if (simpleParsed is ConsolidateCommand or DeconsolidateCommand)
-            {
-                return;
-            }
-
-            if (simpleParsed is AcceptAllHandoffsCommand or InitiateHandoffAllCommand)
-            {
-                return;
-            }
-
-            if (simpleParsed is SpawnNowCommand)
-            {
+            case RecordedCommandKind.SpawnNow:
                 HandleSpawnNow(cmd.Callsign);
                 return;
-            }
 
-            if (simpleParsed is SpawnDelayCommand spawnDelay)
-            {
-                HandleSpawnDelay(cmd.Callsign, spawnDelay.Seconds);
+            case RecordedCommandKind.SpawnDelay:
+                HandleSpawnDelay(cmd.Callsign, ((SpawnDelayCommand)parsed!).Seconds);
                 return;
-            }
 
-            if (simpleParsed is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand)
-            {
-                HandleGlobalSquawkCommand(simpleParsed);
+            case RecordedCommandKind.SquawkAll:
+                HandleGlobalSquawkCommand(parsed!);
                 return;
-            }
         }
 
         var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.FlightPlan.Route);
@@ -1876,10 +1858,6 @@ public sealed class SimulationEngine
         );
         CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
     }
-
-    private static bool IsTrackCommand(ParsedCommand cmd) => TrackEngine.IsTrackCommand(cmd);
-
-    private static bool IsCoordinationCommand(ParsedCommand cmd) => TrackEngine.IsCoordinationCommand(cmd);
 
     private void HandleSpawnNow(string callsign)
     {

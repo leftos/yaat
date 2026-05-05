@@ -544,6 +544,10 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle
 RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange
+RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)
+                               # static fn. Drives the switch in both SimulationEngine.ReplayCommand and the server's
+                               # RecordingManager.ReplayCommand so the parse-and-decide flow stays in lockstep across repos.
+                               # Compound is the default arm — both single-parse failure and the catch-all route to it.
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
 RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout reading, seek API
                                # ToBaseSessionRecording (no snapshots), FindNearestSnapshotIndex, ReadSnapshotAt, ReadArtccConfigJson
