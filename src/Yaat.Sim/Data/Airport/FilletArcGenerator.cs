@@ -52,7 +52,7 @@ public static class FilletArcGenerator
     /// </summary>
     public static FilletStatistics Apply(AirportGroundLayout layout)
     {
-        int nextNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max() + 1;
+        var idCounter = new NextNodeIdCounter { Next = layout.Nodes.Keys.DefaultIfEmpty(0).Max() + 1 };
 
         // Pre-pass: detect pre-existing manual arcs (chains of shape-point nodes
         // forming smooth curves) and exclude them from filleting.
@@ -129,7 +129,7 @@ public static class FilletArcGenerator
                     .ToList();
             }
 
-            var result = FilletNode(layout, node, preserveNode, manualArcNodes, ref nextNodeId);
+            var result = FilletNode(layout, node, preserveNode, manualArcNodes, idCounter);
             if (result.Success)
             {
                 filletedCount++;
@@ -881,12 +881,20 @@ public static class FilletArcGenerator
         return true;
     }
 
+    // Mutable counter shared across all FilletNode invocations within one Apply call.
+    // Wrapped in a class so it can be passed as a reference rather than a `ref int`.
+    private sealed class NextNodeIdCounter
+    {
+        public int Next { get; set; }
+    }
+
     // Holds all shared state for a single FilletNode invocation, passed between phases.
     private sealed class FilletContext
     {
         public required AirportGroundLayout Layout { get; init; }
         public required GroundNode Intersection { get; init; }
         public required HashSet<int> ManualArcNodes { get; init; }
+        public required NextNodeIdCounter IdCounter { get; init; }
         public bool PreserveNode { get; set; }
 
         // Pre-phase: edge collection and bearing computation
@@ -922,7 +930,7 @@ public static class FilletArcGenerator
         GroundNode intersection,
         bool preserveNode,
         HashSet<int> manualArcNodes,
-        ref int nextNodeId
+        NextNodeIdCounter idCounter
     )
     {
         // Collect edges as concrete GroundEdge — arcs from previous iterations are skipped.
@@ -961,6 +969,7 @@ public static class FilletArcGenerator
             Layout = layout,
             Intersection = intersection,
             ManualArcNodes = manualArcNodes,
+            IdCounter = idCounter,
             PreserveNode = preserveNode,
             Edges = edges,
             EdgeBearings = edgeBearings,
@@ -979,7 +988,7 @@ public static class FilletArcGenerator
             return (false, 0, 0);
         }
 
-        PhaseBC_CreateTangentNodesAndArcs(ctx, ref nextNodeId);
+        PhaseBC_CreateTangentNodesAndArcs(ctx);
         PhaseD1_ShortenEdges(ctx);
         PhaseD2_MergeCollinearPairs(ctx);
         PhaseD3_ReconnectOrphans(ctx);
@@ -1130,12 +1139,12 @@ public static class FilletArcGenerator
     // --- Phase B + C: Create tangent nodes and arcs per pair ---
     // Each pair creates its own tangent nodes. Coincident tangent nodes on the same
     // edge (when multiple pairs want the same distance) are deduplicated by position.
-    private static void PhaseBC_CreateTangentNodesAndArcs(FilletContext ctx, ref int nextNodeId)
+    private static void PhaseBC_CreateTangentNodesAndArcs(FilletContext ctx)
     {
         foreach (var (edgeA, edgeB, radiusFt, turnAngleDeg, bearingA, bearingB, placementA, placementB) in ctx.PlannedArcs)
         {
-            var tanNodeA = GetOrCreateTangentNode(ctx.Layout, ctx.EdgeTangentNodes, edgeA, placementA, ctx.Intersection, ref nextNodeId);
-            var tanNodeB = GetOrCreateTangentNode(ctx.Layout, ctx.EdgeTangentNodes, edgeB, placementB, ctx.Intersection, ref nextNodeId);
+            var tanNodeA = GetOrCreateTangentNode(ctx.Layout, ctx.EdgeTangentNodes, edgeA, placementA, ctx.Intersection, ctx.IdCounter);
+            var tanNodeB = GetOrCreateTangentNode(ctx.Layout, ctx.EdgeTangentNodes, edgeB, placementB, ctx.Intersection, ctx.IdCounter);
 
             if (tanNodeA.Id == tanNodeB.Id)
             {
@@ -2482,7 +2491,7 @@ public static class FilletArcGenerator
         GroundEdge edge,
         TangentPlacement placement,
         GroundNode intersection,
-        ref int nextNodeId
+        NextNodeIdCounter idCounter
     )
     {
         if (edgeTangentNodes.TryGetValue(edge, out var existing))
@@ -2503,7 +2512,7 @@ public static class FilletArcGenerator
         }
 
         var otherNode = edge.OtherNode(intersection);
-        int id = nextNodeId++;
+        int id = idCounter.Next++;
         var provenance = new TangentNodeProvenance(intersection.Id, edge.TaxiwayName, otherNode.Id);
         var newNode = new GroundNode
         {
