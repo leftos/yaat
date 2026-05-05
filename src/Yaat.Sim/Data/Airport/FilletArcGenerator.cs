@@ -1146,6 +1146,15 @@ public static class FilletArcGenerator
 
             if (tanNodeA.Id == tanNodeB.Id)
             {
+                Log.LogDebug(
+                    "[Int#{IntId}] Phase BC: skipping arc on {TwyA}/{TwyB} (turn={Turn:F1}°, r={R:F0}ft) — tangent points deduped to same node #{NodeId}",
+                    ctx.Intersection.Id,
+                    edgeA.TaxiwayName,
+                    edgeB.TaxiwayName,
+                    turnAngleDeg,
+                    radiusFt,
+                    tanNodeA.Id
+                );
                 continue;
             }
 
