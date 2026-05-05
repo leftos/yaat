@@ -780,6 +780,15 @@ public partial class RadarView
 
         menu.Items.Add(CreateInputMenuItem("PTAC...", "PTAC arguments", input => vm.PtacAsync(cs, init, input)));
 
+        if (vm.AirwayIds is not null && vm.AirwayIds.Length > 0)
+        {
+            menu.Items.Add(CreateFilteredListMenuItem("Join airway...", vm.AirwayIds, awy => vm.JoinAirwayAsync(cs, init, awy)));
+        }
+        else
+        {
+            menu.Items.Add(CreateInputMenuItem("Join airway...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
+        }
+
         AddJoinRadialItems(menu, vm, cs, init);
 
         return menu;

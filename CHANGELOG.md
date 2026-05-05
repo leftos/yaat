@@ -13,6 +13,8 @@
 - Radar right-click → **Display** submenu gains per-aircraft display controls: **Leader direction** (1–9 numpad), **J-ring** (Clear / 1 / 2 / 3 / 5 / 10 nm), **Cone** (Clear / 1 / 2 / 3 / 5 / 10 nm), **Blank target** (`BLANK`), **Unblank target** (`BLANKD`).
 - Radar right-click → **Pattern** submenu gains in-pattern maneuver controls: **Turn crosswind / downwind / base** (`TC`/`TD`/`TB`), **Extend pattern leg** (`EXT`), **Make short approach** (`MSA`) / **normal approach** (`MNA`), **Make left/right 360** (`L360`/`R360`), **Make left/right 270** (`L270`/`R270`), **Plan 270 at next turn** (`P270`), **Cancel 270** (`NO270`), **Circle airport** (`CA`).
 - Radar right-click → **Procedures** gains **Join radial outbound...** and **Join radial inbound...** items; pick a fix from the filtered list, then enter the bearing in a follow-up dialog (sends `JRADO FIX bearing` / `JRADI FIX bearing`).
+- Radar right-click → **Procedures** → **Join airway...** opens a filtered picker of all known airways (sends `JAWY <id>`).
+- Ground right-click on a *Taxiing* aircraft gains **Follow...** and **Give way to...** submenus listing the closest 12 other ground aircraft by distance (sends `FOLLOWG <callsign>` / `GW <callsign>`).
 
 ### Changed
 - Radar **Tower** submenu and Ground **Final Approach** items (Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Go around, Line up and wait) show the aircraft's assigned runway in the label (e.g. *Cleared to land 28R*) — no behavior change, the item still issues the bare command.

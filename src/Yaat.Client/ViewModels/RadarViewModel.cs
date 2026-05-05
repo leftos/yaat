@@ -268,6 +268,7 @@ public partial class RadarViewModel : ObservableObject
     {
         _navDbReady = true;
         FixNames = NavigationDatabase.Instance.AllFixNames;
+        AirwayIds = NavigationDatabase.Instance.AllAirwayIds;
         SetFixes(BuildVisibleFixes());
     }
 
@@ -313,6 +314,8 @@ public partial class RadarViewModel : ObservableObject
     }
 
     public string[]? FixNames { get; private set; }
+
+    public string[]? AirwayIds { get; private set; }
 
     private IReadOnlyList<(string Name, double Lat, double Lon)> BuildVisibleFixes()
     {
@@ -1451,6 +1454,11 @@ public partial class RadarViewModel : ObservableObject
     public async Task JoinRadialOutboundAsync(string callsign, string initials, string radial)
     {
         await _sendCommand(callsign, $"JRADO {radial}", initials);
+    }
+
+    public async Task JoinAirwayAsync(string callsign, string initials, string airway)
+    {
+        await _sendCommand(callsign, $"JAWY {airway}", initials);
     }
 
     public async Task JoinRadialInboundAsync(string callsign, string initials, string radial)

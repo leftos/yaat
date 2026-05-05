@@ -384,6 +384,7 @@ public partial class GroundView : UserControl
         if (phase == "Taxiing" && ac is not null)
         {
             AddHoldShortSubmenu(menu, vm, ac, callsign, initials);
+            AddFollowBehindSubmenus(menu, ac, callsign, initials);
         }
 
         if (phase.StartsWith("Following", StringComparison.Ordinal))
@@ -501,6 +502,55 @@ public partial class GroundView : UserControl
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
         ShowContextMenu(menu);
+    }
+
+    /// <summary>
+    /// Adds "Follow..." and "Give way to..." submenus listing other ground aircraft
+    /// (sorted by distance, capped at 12). Skips when no other ground aircraft are present.
+    /// </summary>
+    private void AddFollowBehindSubmenus(ContextMenu menu, AircraftModel ac, string callsign, string initials)
+    {
+        var mainVm = FindMainViewModel();
+        if (mainVm is null || DataContext is not GroundViewModel vm)
+        {
+            return;
+        }
+
+        var candidates = new List<(AircraftModel Other, double DistNm)>();
+        foreach (var other in mainVm.Aircraft)
+        {
+            if (other.Callsign == callsign || !other.IsOnGround)
+            {
+                continue;
+            }
+
+            var dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, other.Position.Lat, other.Position.Lon);
+            candidates.Add((other, dist));
+        }
+
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        candidates.Sort((a, b) => a.DistNm.CompareTo(b.DistNm));
+        const int maxItems = 12;
+        if (candidates.Count > maxItems)
+        {
+            candidates = candidates.GetRange(0, maxItems);
+        }
+
+        var followSub = new MenuItem { Header = "Follow..." };
+        var giveSub = new MenuItem { Header = "Give way to..." };
+        foreach (var (other, _) in candidates)
+        {
+            var target = other.Callsign;
+            followSub.Items.Add(CreateMenuItem(target, () => vm.SendRawCommandAsync(callsign, initials, $"FOLLOWG {target}")));
+            giveSub.Items.Add(CreateMenuItem(target, () => vm.SendRawCommandAsync(callsign, initials, $"GW {target}")));
+        }
+
+        menu.Items.Add(followSub);
+        menu.Items.Add(giveSub);
     }
 
     /// <summary>

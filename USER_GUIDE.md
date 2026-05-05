@@ -260,7 +260,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 - **On an aircraft** — items vary by phase:
   - *At Parking*: "Push back" (default), "Push back, face {taxiway}" per connected edge, "Push back to..." submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance)
   - *Pushback / Taxiing / Following*: "Hold position"
-  - *Taxiing*: "Hold short of..." submenu listing intersecting runways and taxiways
+  - *Taxiing*: "Hold short of..." submenu listing intersecting runways and taxiways; "Follow..." and "Give way to..." submenus listing nearby ground aircraft (closest 12 by distance)
   - *Holding Short*: "Resume taxi", "Cross {rwy}", "Line up and wait", "Cleared for takeoff", plus nearby runway crossings
   - *Holding After Exit*: "Resume taxi"
   - *Lined Up*: "Cleared for takeoff", "Cancel takeoff clearance"
