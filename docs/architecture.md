@@ -537,8 +537,9 @@ AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn g
 SpawnRequest.cs                # Spawn descriptor
 
 # Simulation/
-SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayTo, ReplayRange, ReplayWithSnapshots,
-                               # ReplayRangeWithVerification — diff-against-bundled-snapshots);
+SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;
+                               # FastForwardTo — advance from current time; ReplayRange — between two timestamps;
+                               # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle

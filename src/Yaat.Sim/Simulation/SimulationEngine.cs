@@ -544,13 +544,50 @@ public sealed class SimulationEngine
     // --- Replay ---
 
     /// <summary>
-    /// Fast-forward replay from t=0 to <paramref name="targetSeconds"/>, applying recorded actions
-    /// at the correct times. The default action applier skips server-only commands (track, coordination).
-    /// Pass a custom <paramref name="actionApplier"/> to handle those (server rewind).
+    /// Replay from t=0 to <paramref name="targetSeconds"/>, applying recorded actions at the correct times.
+    /// Resets engine state every call (rewinds to scratch); not a step function — looping this is O(N²)
+    /// and trips assertions like the magnetic declination cache. To advance from the current state, use
+    /// <see cref="FastForwardTo"/>; to step second-by-second, use <see cref="ReplayOneSecond"/>.
+    /// The default action applier skips server-only commands (track, coordination); pass a custom
+    /// <paramref name="actionApplier"/> to handle those (server rewind).
     /// </summary>
-    public void ReplayTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
+    public void ReplayFromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
     {
         ReplayRange(0, targetSeconds, actions, actionApplier);
+    }
+
+    /// <summary>
+    /// Advance the engine from its current <c>ElapsedSeconds</c> to <paramref name="targetSeconds"/>,
+    /// applying recorded actions at the correct times. Does not reset state — the engine must already
+    /// be at the start point. Throws <see cref="ArgumentException"/> if <paramref name="targetSeconds"/>
+    /// is not strictly greater than the current time (use <see cref="ReplayFromStartTo"/> or restore from
+    /// a snapshot to rewind). Updates the replay cursor so subsequent <see cref="ReplayOneSecond"/> calls
+    /// continue from <paramref name="targetSeconds"/>.
+    /// </summary>
+    public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
+    {
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
+        }
+        int currentSeconds = (int)scenario.ElapsedSeconds;
+        if (targetSeconds <= currentSeconds)
+        {
+            throw new ArgumentException(
+                $"FastForwardTo cannot rewind: current={currentSeconds}s target={targetSeconds}s. "
+                    + "Use ReplayFromStartTo or restore from a snapshot to go backward.",
+                nameof(targetSeconds)
+            );
+        }
+        ReplayRange(currentSeconds, targetSeconds, actions, actionApplier);
+
+        _replayActions = actions;
+        _replayActionCursor = 0;
+        while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= targetSeconds)
+        {
+            _replayActionCursor++;
+        }
     }
 
     /// <summary>
@@ -837,7 +874,7 @@ public sealed class SimulationEngine
             }
         }
 
-        ReplayTo((int)targetSeconds, recording.Actions);
+        ReplayFromStartTo((int)targetSeconds, recording.Actions);
 
         // Store replay cursor so ReplayOneSecond() can continue from here
         _replayActions = recording.Actions;
