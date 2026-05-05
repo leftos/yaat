@@ -29,6 +29,7 @@
 - CRC controller list and STARS consolidation now scope to the room you joined; controllers from other rooms no longer appear in your list or in consolidation views.
 - Conditional compounds (`AT`, `LV`, `ATFN`, `ONHO`, `GW`) show autocomplete and signature help when typed after a callsign (e.g. `SWA123 AT SUNOL FH `).
 - Ground taxi at multi-corner fillets (e.g. FLL T/T4/C junction) no longer routes the aircraft through an embedded U-turn when the fillet's tangent chain has the existing "shorten" edge anchored at one end and the corner arc landing at the other. The fillet pass adds direct shorten edges from each opposite-end arc anchor, so the walker exits any corner and reaches the next segment without doubling back.
+- Ground taxi at V-shaped taxiway connectors (e.g. FLL T4) no longer enters the wrong leg when the destination is on the other side of the apex. The pathfinder now looks ahead through the remaining named taxiways from each candidate transition node and picks the one that produces the shortest legitimate route to the destination, eliminating hairpin U-turns at the next taxiway.
 
 ## v0.1.13-alpha [2026/05/04]
 

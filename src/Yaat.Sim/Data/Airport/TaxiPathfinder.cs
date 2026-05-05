@@ -28,6 +28,18 @@ public sealed class ExplicitPathOptions
     public string? AirportId { get; init; }
     public GroundNode? DestinationHintNode { get; init; }
     public Action<string>? DiagnosticLog { get; init; }
+
+    /// <summary>
+    /// When true, <see cref="TaxiPathfinder.ResolveExplicitPath"/> runs the
+    /// SelectBestStopNode look-ahead at each inter-taxiway transition. The
+    /// look-ahead recursively resolves the remaining authorized taxiway
+    /// sequence from each candidate stop and picks the one with the lowest
+    /// total distance, defeating "first-match" stops that produce hairpin
+    /// U-turns at V-shaped taxiway junctions. SelectBestStopNode disables
+    /// this on its own recursive calls to bound recursion depth — external
+    /// callers should leave it at the default.
+    /// </summary>
+    internal bool EnableLookahead { get; init; } = true;
 }
 
 /// <summary>
@@ -239,25 +251,43 @@ public static class TaxiPathfinder
             var passedStopId = nextTwName is null ? effectiveDestRunway : null;
 
             // Look-ahead: pick the best stop node on this taxiway before walking it.
-            // For the last taxiway (no nextTw), candidates are nodes on X where the walk
-            // can leave toward a parking/spot destination. For inter-taxiway transitions
-            // (nextTw set), candidates are nodes on X that have an edge matching nextTw.
-            // In both cases we score each candidate by A*(candidate → finalDestination)
-            // cost and pick the minimum, so the walk stops at the geometrically-best
-            // transition rather than the first one encountered.
+            // For inter-taxiway transitions (nextTw set), candidates are nodes on X that
+            // have an edge matching nextTw — score by walk-cost-on-X + simulated cost of
+            // the remaining authorized taxiway walk from the candidate. This defeats
+            // first-match transition picks at V-shape junctions (e.g. FLL T4 east-vs-west
+            // leg for a B-bound walk).
+            //
+            // For the last taxiway (no nextTw), candidates are nodes on X reachable to a
+            // parking/spot destination via non-walk-path edges. Only fires when a parking
+            // destination node was passed — runway destinations are already handled
+            // correctly by WalkTaxiway's stopAtRunwayId, and running the look-ahead would
+            // append a spurious A* extension past the proper hold-short.
+            //
+            // Disabled when caller passes EnableLookahead=false (used by SelectBestStopNode's
+            // own recursion to bound depth).
             HashSet<int>? passedStopNodeIds = null;
             GroundNode? passedWalkHint = passedHint;
             BestStopResult bestStopResult = default;
-            if (destinationHintNode is not null && !IsNodeReference(twName))
+            bool runLookahead =
+                !IsNodeReference(twName)
+                && options.EnableLookahead
+                && destinationHint is not null
+                && (nextTwName is not null || destinationHintNode is not null);
+            if (runLookahead && destinationHint is not null)
             {
                 bestStopResult = SelectBestStopNode(
                     layout,
                     currentNodeId,
                     twName,
                     nextTwName,
-                    destinationHintNode.Id,
+                    destinationHint.Id,
                     authorizedTaxiways,
-                    diagnosticLog
+                    diagnosticLog,
+                    taxiwayNames,
+                    twIdx,
+                    destinationRunway,
+                    airportId,
+                    explicitHoldShorts
                 );
                 if (bestStopResult.BestNodeId is not null)
                 {
@@ -1083,6 +1113,115 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
+    /// Dijkstra over walk-path edges on <paramref name="taxiwayName"/> starting from
+    /// <paramref name="startNodeId"/>. Returns parent pointers for path reconstruction
+    /// to any reachable node on X. Used by <see cref="SelectBestStopNode"/> after
+    /// picking the best candidate to materialize the actual walk-on-X segments.
+    /// </summary>
+    private static Dictionary<int, (int Parent, IGroundEdge Edge)> WalkPathParentsFrom(
+        AirportGroundLayout layout,
+        int startNodeId,
+        string taxiwayName
+    )
+    {
+        var parents = new Dictionary<int, (int Parent, IGroundEdge Edge)>();
+        var distances = new Dictionary<int, double> { [startNodeId] = 0 };
+        if (!layout.Nodes.ContainsKey(startNodeId))
+        {
+            return parents;
+        }
+
+        var pq = new PriorityQueue<int, double>();
+        pq.Enqueue(startNodeId, 0);
+
+        while (pq.TryDequeue(out int u, out double d))
+        {
+            if (d > distances[u])
+            {
+                continue;
+            }
+
+            if (!layout.Nodes.TryGetValue(u, out var node))
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                if (!edge.MatchesTaxiway(taxiwayName))
+                {
+                    continue;
+                }
+
+                int v = edge.OtherNodeId(u);
+                double nd = d + edge.DistanceNm;
+                if (!distances.TryGetValue(v, out double cur) || nd < cur)
+                {
+                    distances[v] = nd;
+                    parents[v] = (u, edge);
+                    pq.Enqueue(v, nd);
+                }
+            }
+        }
+
+        return parents;
+    }
+
+    /// <summary>
+    /// Reconstructs the walk-on-X path from <paramref name="startNodeId"/> to
+    /// <paramref name="endNodeId"/> using parents from <see cref="WalkPathParentsFrom"/>.
+    /// Returns segments tagged with <paramref name="taxiwayName"/>. Returns an empty
+    /// list when start equals end; null when end is unreachable from start.
+    /// </summary>
+    private static List<TaxiRouteSegment>? ReconstructWalkOnXPath(
+        AirportGroundLayout layout,
+        int startNodeId,
+        int endNodeId,
+        string taxiwayName,
+        Dictionary<int, (int Parent, IGroundEdge Edge)> parents
+    )
+    {
+        if (startNodeId == endNodeId)
+        {
+            return [];
+        }
+
+        if (!parents.ContainsKey(endNodeId))
+        {
+            return null;
+        }
+
+        var nodeChain = new List<int>();
+        var edgeChain = new List<IGroundEdge>();
+        int cur = endNodeId;
+        while (cur != startNodeId)
+        {
+            if (!parents.TryGetValue(cur, out var entry))
+            {
+                return null;
+            }
+            nodeChain.Add(cur);
+            edgeChain.Add(entry.Edge);
+            cur = entry.Parent;
+        }
+        nodeChain.Add(startNodeId);
+        nodeChain.Reverse();
+        edgeChain.Reverse();
+
+        var segments = new List<TaxiRouteSegment>(edgeChain.Count);
+        for (int i = 0; i < edgeChain.Count; i++)
+        {
+            if (!layout.Nodes.TryGetValue(nodeChain[i], out var fromNode) || !layout.Nodes.TryGetValue(nodeChain[i + 1], out var toNode))
+            {
+                return null;
+            }
+            segments.Add(new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = edgeChain[i].Directed(fromNode, toNode) });
+        }
+
+        return segments;
+    }
+
+    /// <summary>
     /// Result of <see cref="SelectBestStopNode"/>: the chosen stop node for the
     /// walk on a taxiway, plus the Shortest-A* routes already computed during
     /// scoring. <see cref="BridgeRoute"/> is the start→stop path when the walker
@@ -1098,12 +1237,23 @@ public static class TaxiPathfinder
     /// <summary>
     /// Pick the single best stop node for the walk on <paramref name="taxiwayName"/>.
     /// Enumerates transition candidates (see <see cref="EnumerateTransitionCandidates"/>),
-    /// scores each by (walk-cost-on-X-to-candidate + A*(candidate → finalDestination)),
+    /// scores each by walk-cost-on-X-to-candidate + simulated-remaining-walk cost,
     /// and returns the candidate with minimum total cost. This defeats "first-match"
     /// transition bugs where the walk stopped at the first taxiway transition without
-    /// checking whether it pointed toward the destination. Also caches the pre-stop
-    /// bridge (if off X) and the post-stop extension routes so the caller can reuse
-    /// them verbatim instead of recomputing with a potentially-inadmissible heuristic.
+    /// checking whether it pointed toward the destination.
+    /// <para>
+    /// For inter-taxiway transitions, the extension is computed by recursively calling
+    /// <see cref="ResolveExplicitPath"/> with the remaining authorized taxiway sequence
+    /// (<paramref name="taxiwayNames"/> from <paramref name="twIdx"/>+1 onward) and
+    /// <c>EnableLookahead=false</c>. This restricts the extension to legitimate
+    /// authorized-sequence paths, preventing it from finding indirect cross-runway
+    /// bridges through unauthorized taxiways (e.g. SFO TAXI A E succeeding via T41E/C/D).
+    /// </para>
+    /// <para>
+    /// For the last taxiway (<paramref name="nextTaxiwayName"/> is null) the extension
+    /// uses a Shortest A* to a parking/spot destination — there are no remaining named
+    /// taxiways, so the unconstrained Shortest path is the right cost.
+    /// </para>
     /// </summary>
     private static BestStopResult SelectBestStopNode(
         AirportGroundLayout layout,
@@ -1112,7 +1262,12 @@ public static class TaxiPathfinder
         string? nextTaxiwayName,
         int finalDestinationNodeId,
         IReadOnlySet<string> authorizedTaxiways,
-        Action<string>? diagnosticLog
+        Action<string>? diagnosticLog,
+        List<string> taxiwayNames,
+        int twIdx,
+        string? destinationRunway,
+        string? airportId,
+        List<string>? explicitHoldShorts
     )
     {
         var candidates = EnumerateTransitionCandidates(layout, taxiwayName, nextTaxiwayName, finalDestinationNodeId);
@@ -1124,11 +1279,95 @@ public static class TaxiPathfinder
             return default;
         }
 
-        // Real walk distance (Dijkstra over walk-path edges on X) from start to each
-        // reachable node. Candidates not in this map are unreachable by walking X and
-        // are skipped — picking them would force the walker into physically impossible
-        // paths (e.g. U-turns or bridges via other taxiways).
-        var walkDistances = WalkPathDistancesFrom(layout, walkStartNodeId, taxiwayName);
+        // When the destination is a runway and the walker starts off X, bridge onto X
+        // using the same legitimate strategies WalkTaxiway uses (BFS short-hop,
+        // current-taxiway walk, runway centerline, RAMP-with-runway-cross-check).
+        // This matches the behavior the SFO TAXI A E (from gate) test depends on:
+        // before this look-ahead existed, runway-destination commands fell through to
+        // WalkTaxiway whose BridgeToTaxiway would reject long indirect bridges
+        // through unauthorized taxiways. Without the same restriction here, the
+        // look-ahead would silently succeed where WalkTaxiway fails.
+        //
+        // For parking destinations we keep the per-candidate FindRoutes bridge below
+        // — OAK TAXI G @SIG1 is a parking destination whose legitimate bridge legitimately
+        // goes via a letter-only connector (C → RAMP) that BridgeToTaxiway's BFS depth
+        // limit can't reach but FindRoutes' soft-bias does. Pre-bridging with
+        // BridgeToTaxiway would reject those parking bridges.
+        TaxiRoute? bridgeRoute = null;
+        double bridgeBaseCost = 0;
+        int effectiveWalkStartId = walkStartNodeId;
+        if (!layout.Nodes.TryGetValue(walkStartNodeId, out var walkStartNode))
+        {
+            return default;
+        }
+
+        bool walkStartOnX = walkStartNode.Edges.Any(e => e.MatchesTaxiway(taxiwayName));
+        // Use BridgeToTaxiway-style pre-bridging for runway-destination commands
+        // (final destination is a runway hold-short — set via DestinationRunway or
+        // ExplicitHoldShorts). This matches the behavior runway-destination commands
+        // had before this look-ahead existed: ResolveExplicitPath fell through to
+        // WalkTaxiway whose BridgeToTaxiway uses limited-hop BFS, current-taxiway
+        // walk, runway centerline, and RAMP-with-runway-cross-check — strategies
+        // conservative enough to reject illegitimate long indirect bridges (e.g.
+        // SFO TAXI A E from a gate where reaching A would require T41E/C/D).
+        // Parking-destination commands keep the per-candidate FindRoutes bridge
+        // below — OAK TAXI G @SIG1 is a parking destination whose legitimate bridge
+        // legitimately goes via a letter-only connector (C → RAMP) that
+        // BridgeToTaxiway's BFS-3-hop limit can't reach.
+        bool finalDestIsHoldShort =
+            layout.Nodes.TryGetValue(finalDestinationNodeId, out var finalDestNode) && finalDestNode.Type == GroundNodeType.RunwayHoldShort;
+        bool useBridgeToTaxiway = finalDestIsHoldShort;
+        if (!walkStartOnX && useBridgeToTaxiway)
+        {
+            var bridgeSegs = new List<TaxiRouteSegment>();
+            int bridgedTo = BridgeToTaxiway(
+                layout,
+                walkStartNodeId,
+                taxiwayName,
+                bridgeSegs,
+                walkStartNode,
+                allowCurrentTaxiwayWalk: true,
+                allowRampFallback: true,
+                diagnosticLog
+            );
+            diagnosticLog?.Invoke(
+                $"[Pathfinder] SelectBestStopNode({taxiwayName}): off-X runway-dest bridge {walkStartNodeId}→{bridgedTo} segs={bridgeSegs.Count}"
+            );
+            if (bridgedTo == -1)
+            {
+                diagnosticLog?.Invoke($"[Pathfinder] SelectBestStopNode({taxiwayName}): no legitimate runway-dest bridge — returning no candidate");
+                return default;
+            }
+
+            effectiveWalkStartId = bridgedTo;
+            bridgeBaseCost = bridgeSegs.Sum(s => s.Edge.Edge.DistanceNm);
+            bridgeRoute = new TaxiRoute
+            {
+                Segments = bridgeSegs,
+                HoldShortPoints = [],
+                Warnings = [],
+            };
+        }
+
+        // Real walk distance (Dijkstra over walk-path edges on X) from the effective
+        // start (post-bridge if we bridged) to each reachable node. Candidates not in
+        // this map are unreachable by walking X. For the parking-destination path the
+        // effective start is still the original off-X start; candidates not on X get
+        // a per-candidate Shortest A* bridge below.
+        var walkDistances = WalkPathDistancesFrom(layout, effectiveWalkStartId, taxiwayName);
+
+        // For inter-taxiway transitions we score each candidate by simulating the
+        // remaining authorized taxiway walk from it. Pre-build the remaining list so
+        // the recursion runs only on the post-transition sequence.
+        List<string>? remainingTaxiways = null;
+        if (nextTaxiwayName is not null)
+        {
+            remainingTaxiways = new List<string>(taxiwayNames.Count - twIdx - 1);
+            for (int i = twIdx + 1; i < taxiwayNames.Count; i++)
+            {
+                remainingTaxiways.Add(taxiwayNames[i]);
+            }
+        }
 
         int? bestCandidate = null;
         double bestCost = double.MaxValue;
@@ -1138,17 +1377,18 @@ public static class TaxiPathfinder
 
         foreach (int candidateId in candidates)
         {
-            // Prefer the X-walk-path distance — that's the walker's actual cost when
-            // already on X. Fall back to a Shortest A* when the walker starts off X
-            // (e.g. aircraft on G with path=[D]; WalkTaxiway bridges onto D, so the
-            // walker's real cost is closer to the unconstrained shortest path).
-            TaxiRoute? bridge = null;
+            // Walk-on-X distance from the effective start (post-bridge if we used the
+            // runway-destination BridgeToTaxiway path; original start otherwise).
+            // For the parking-destination path, candidates not on X get a per-candidate
+            // Shortest A* bridge that lets soft-bias find legitimate connector hops
+            // (e.g. OAK E → C → RAMP → G when G isn't directly reachable from E).
+            TaxiRoute? perCandidateBridge = null;
             double walkCost;
             if (walkDistances.TryGetValue(candidateId, out double onXCost))
             {
-                walkCost = onXCost;
+                walkCost = bridgeBaseCost + onXCost;
             }
-            else
+            else if (!useBridgeToTaxiway)
             {
                 var bridgeCandidates = FindRoutes(
                     layout,
@@ -1164,8 +1404,13 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                bridge = bridgeCandidates[0];
-                walkCost = bridge.TotalDistanceNm;
+                perCandidateBridge = bridgeCandidates[0];
+                walkCost = perCandidateBridge.TotalDistanceNm;
+            }
+            else
+            {
+                scores.Add($"{candidateId}=unreachable_post_bridge");
+                continue;
             }
 
             if (candidateId == finalDestinationNodeId)
@@ -1175,43 +1420,81 @@ public static class TaxiPathfinder
                 {
                     bestCost = walkCost;
                     bestCandidate = candidateId;
-                    bestBridge = bridge;
+                    bestBridge = bridgeRoute ?? perCandidateBridge;
                     bestExtension = null;
                 }
 
                 continue;
             }
 
-            // Use Shortest (by distance) rather than FewestTurns for candidate scoring
-            // AND for the cached extension. FewestTurns heavily penalizes taxiway
-            // transitions and its distance-weight-0.001 cost is dominated by a
-            // distance-weight-1.0 heuristic — A* then behaves non-admissibly and can
-            // pick longer single-taxiway detours. Shortest's cost and heuristic are
-            // both in distance-nm, so A* returns the actual minimum-distance route.
-            var extensionCandidates = FindRoutes(
-                layout,
-                candidateId,
-                finalDestinationNodeId,
-                RoutePreference.Shortest,
-                1,
-                authorizedTaxiways: authorizedTaxiways
-            );
-            if (extensionCandidates.Count == 0)
+            double extensionDistance;
+            TaxiRoute? extension = null;
+            if (remainingTaxiways is not null)
             {
-                scores.Add($"{candidateId}=no_route");
-                continue;
+                // Inter-taxiway transition: recursively resolve the remaining authorized
+                // taxiway sequence from this candidate. EnableLookahead=false bounds the
+                // recursion to one level — the inner call walks the remainder using the
+                // basic walker, which is sufficient because look-ahead at THIS level
+                // already considers the downstream geometry.
+                var subRoute = ResolveExplicitPath(
+                    layout,
+                    candidateId,
+                    remainingTaxiways,
+                    out _,
+                    new ExplicitPathOptions
+                    {
+                        DestinationRunway = destinationRunway,
+                        ExplicitHoldShorts = explicitHoldShorts,
+                        AirportId = airportId,
+                        DestinationHintNode = layout.Nodes.TryGetValue(finalDestinationNodeId, out var destNode) ? destNode : null,
+                        EnableLookahead = false,
+                    }
+                );
+                if (subRoute is null)
+                {
+                    scores.Add($"{candidateId}=no_route");
+                    continue;
+                }
+
+                extensionDistance = subRoute.TotalDistanceNm;
+                extension = subRoute;
+            }
+            else
+            {
+                // Last taxiway with parking/spot destination off X — use Shortest A* to
+                // the destination. No remaining authorized taxiways, so an unconstrained
+                // Shortest path is the right cost.
+                var extensionCandidates = FindRoutes(
+                    layout,
+                    candidateId,
+                    finalDestinationNodeId,
+                    RoutePreference.Shortest,
+                    1,
+                    authorizedTaxiways: authorizedTaxiways
+                );
+                if (extensionCandidates.Count == 0)
+                {
+                    scores.Add($"{candidateId}=no_route");
+                    continue;
+                }
+
+                extension = extensionCandidates[0];
+                extensionDistance = extension.TotalDistanceNm;
             }
 
-            var extension = extensionCandidates[0];
-
-            double totalCost = walkCost + extension.TotalDistanceNm;
-            scores.Add($"{candidateId}=walk:{walkCost:F4}+ext:{extension.TotalDistanceNm:F4}=TOTAL:{totalCost:F4}");
+            double totalCost = walkCost + extensionDistance;
+            scores.Add($"{candidateId}=walk:{walkCost:F4}+ext:{extensionDistance:F4}=TOTAL:{totalCost:F4}");
             if (totalCost < bestCost)
             {
                 bestCost = totalCost;
                 bestCandidate = candidateId;
-                bestBridge = bridge;
-                bestExtension = extension;
+                bestBridge = bridgeRoute ?? perCandidateBridge;
+                // Cache the parking-destination extension for ResolveExplicitPath to
+                // reuse verbatim. Inter-taxiway extensions go back through the outer
+                // walk loop, so we don't cache them — caching would skip the bridge
+                // segments emitted by the outer walker between candidate and the next
+                // taxiway, producing incomplete routes.
+                bestExtension = remainingTaxiways is null ? extension : null;
             }
         }
 
@@ -1219,6 +1502,36 @@ public static class TaxiPathfinder
             $"[Pathfinder] SelectBestStopNode({taxiwayName}, next={nextTaxiwayName ?? "<dest>"}, dest={finalDestinationNodeId}): "
                 + $"scores=[{string.Join(" ; ", scores)}] best={bestCandidate?.ToString() ?? "null"} bestCost={bestCost:F4}nm"
         );
+
+        // When we used a runway-dest pre-bridge, the cached bridgeRoute only has segments
+        // from walkStart to the BFS-landing on X. Append the walk-on-X segments from the
+        // BFS-landing to the chosen candidate so the cached BridgeRoute the outer walker
+        // replays actually ends at the chosen stop. Without this, the outer walker would
+        // restart from the BFS-landing and never reach the chosen candidate, leaving the
+        // next taxiway's walk stranded at the wrong entry point.
+        if (bridgeRoute is not null && bestCandidate is not null && bestCandidate.Value != effectiveWalkStartId)
+        {
+            var parents = WalkPathParentsFrom(layout, effectiveWalkStartId, taxiwayName);
+            var walkOnXSegs = ReconstructWalkOnXPath(layout, effectiveWalkStartId, bestCandidate.Value, taxiwayName, parents);
+            if (walkOnXSegs is null)
+            {
+                diagnosticLog?.Invoke(
+                    $"[Pathfinder] SelectBestStopNode({taxiwayName}): could not reconstruct walk-on-X path from {effectiveWalkStartId} to {bestCandidate.Value}"
+                );
+                return default;
+            }
+
+            var fullSegments = new List<TaxiRouteSegment>(bridgeRoute.Segments.Count + walkOnXSegs.Count);
+            fullSegments.AddRange(bridgeRoute.Segments);
+            fullSegments.AddRange(walkOnXSegs);
+            bestBridge = new TaxiRoute
+            {
+                Segments = fullSegments,
+                HoldShortPoints = [],
+                Warnings = [],
+            };
+        }
+
         return new BestStopResult(bestCandidate, bestBridge, bestExtension);
     }
 

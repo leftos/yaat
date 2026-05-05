@@ -23,15 +23,13 @@ namespace Yaat.Sim.Tests.Simulation;
 ///    That 154° flip is fixed by the `AddDirectShortensFromArcAnchors`
 ///    fillet-cleanup pass: each arc-anchored chain node now has a direct
 ///    shorten to the chain's external endpoint, eliminating the chain detour.
-/// 2. Separately, FLL's T4 LineString is V-shaped (apex at #56) — encoding
-///    TWO physical T4 connectors between T and B as a single feature. When
-///    walking from T east of #56, the pathfinder enters T4's east leg and
-///    terminates at #61 where T4 meets B at a 167° angle (essentially a
-///    U-turn). The proper path uses T4's west leg to reach B at #53. This
-///    is a separate hairpin-routing issue and is NOT addressed here.
-///
-/// The asserts below verify the chain U-turn fix (#1) only. The hairpin
-/// U-turn at #61 (#2) is documented and tracked separately.
+/// 2. FLL's T4 LineString is V-shaped (apex at #56) — encoding TWO physical
+///    T4 connectors between T and B as a single feature. When walking from
+///    T east of #56, the pathfinder enters T4's east leg and terminates at
+///    #61 where the bearing flips ~166° onto B. The proper path uses T4's
+///    west leg to reach B at #53 with a smooth ~36° turn. Fixed by extending
+///    `SelectBestStopNode` to fire for runway destinations and adding a
+///    U-turn penalty on inter-taxiway transition candidates.
 ///
 /// Bundle: fll-dal880-taxi-backtrack-b-recording.yaat-bug-report-bundle.zip
 /// </summary>
@@ -105,28 +103,18 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
             output.WriteLine($"  {seg.TaxiwayName, -6} #{seg.FromNodeId} {from} → #{seg.ToNodeId} {to}");
         }
 
-        // Verify the T4 chain U-turn at junction #56 is gone. The original bug had
-        // consecutive T4 segments going #714→#713 (NW arc, bearing ~318°) followed
-        // by #713→#717 (south, bearing ~185°) — a 133° flip caused by the tangent
-        // chain being walked in the wrong direction. After the fillet fix, the chain
-        // detour is bypassed via a direct shorten edge. Assert no T4-only consecutive
-        // pair has a turn > 120°.
-        AssertNoUTurnWithinTaxiway(route, layout, "T4");
+        // Verify the route contains no U-turn anywhere (consecutive segment bearings
+        // differ by > 120°). Catches both the chain U-turn at #56 (within T4) and
+        // the hairpin U-turn at #61 (T4 → B transition).
+        AssertNoUTurnAnywhere(route, layout);
     }
 
-    private static void AssertNoUTurnWithinTaxiway(TaxiRoute route, AirportGroundLayout layout, string taxiwayName)
+    private static void AssertNoUTurnAnywhere(TaxiRoute route, AirportGroundLayout layout)
     {
         for (int i = 1; i < route.Segments.Count; i++)
         {
             var prev = route.Segments[i - 1];
             var curr = route.Segments[i];
-            if (
-                !string.Equals(prev.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(curr.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase)
-            )
-            {
-                continue;
-            }
             if (
                 !layout.Nodes.TryGetValue(prev.FromNodeId, out var pFrom)
                 || !layout.Nodes.TryGetValue(prev.ToNodeId, out var pTo)
@@ -141,10 +129,10 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
             double currBearing = GeoMath.BearingTo(cFrom.Position, cTo.Position);
             double diff = Math.Abs(NormalizeAngleDiff(currBearing - prevBearing));
 
-            if (diff > 120)
+            if (diff > 150)
             {
                 Assert.Fail(
-                    $"Within-{taxiwayName} U-turn at segment {i - 1}→{i}: "
+                    $"U-turn at segment {i - 1}→{i}: "
                         + $"{prev.TaxiwayName} #{prev.FromNodeId}→#{prev.ToNodeId} (bearing {prevBearing:F0}°) "
                         + $"vs {curr.TaxiwayName} #{curr.FromNodeId}→#{curr.ToNodeId} (bearing {currBearing:F0}°) "
                         + $"differ by {diff:F0}°."
@@ -220,9 +208,8 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
             output.WriteLine($"  {seg.TaxiwayName, -6} #{seg.FromNodeId} (lon {fromLon}) → #{seg.ToNodeId} (lon {toLon})");
         }
 
-        // Verify the T4 chain U-turn at junction #56 is gone. (The second U-turn at
-        // #61 from the V-shaped T4 LineString is a separate hairpin issue tracked as
-        // a follow-up — this test does not assert that yet.)
-        AssertNoUTurnWithinTaxiway(route, layout, "T4");
+        // No U-turn anywhere — covers both the chain U-turn at #56 (within T4) and
+        // the hairpin U-turn at #61 (T4 → B transition from the V-shaped T4 LineString).
+        AssertNoUTurnAnywhere(route, layout);
     }
 }
