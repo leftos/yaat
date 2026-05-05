@@ -2121,13 +2121,16 @@ public class TaxiPathfinderTests
         Assert.Null(failReason);
         Assert.NotNull(route);
 
+        // Identify the arc by intersection-of-origin (both tangent endpoints created by
+        // the apex intersection 507) rather than hard-coded node IDs — Phase D edge
+        // additions can shift tangent ID assignment without changing the geometry.
         bool usesArc = route.Segments.Any(s =>
             s.Edge.Edge is GroundArc arc
             && arc.TaxiwayNames.Length == 1
             && arc.TaxiwayNames[0].Equals("A1", System.StringComparison.OrdinalIgnoreCase)
-            && (((arc.Nodes[0].Id == 2186) && (arc.Nodes[1].Id == 2185)) || ((arc.Nodes[0].Id == 2185) && (arc.Nodes[1].Id == 2186)))
+            && arc.Nodes.All(n => n.Origin?.Contains("@507") == true)
         );
-        Assert.True(usesArc, "route should use the 2186↔2185 same-taxiway arc at SFO A1 apex");
+        Assert.True(usesArc, "route should use a same-taxiway A1 arc at SFO A1 apex (intersection 507)");
 
         bool visitsApex = route.Segments.Any(s => (s.FromNodeId == 507) || (s.ToNodeId == 507));
         Assert.False(visitsApex, "route should NOT visit A1 apex node 507 — the arc skips it");

@@ -1290,36 +1290,59 @@ public static class FilletArcGenerator
 
             if (farthest.Placement.LandsInManualArc)
             {
-                // Manual arc tangent: the chain edges stay intact. Only split the edge
-                // where the tangent node lands — remove it and replace with two sub-edges.
-                var splitEdge = farthest.Placement.SplitEdge;
-                if (splitEdge is not null)
+                // Manual-arc handling: chain edges stay intact except where tangent nodes
+                // land. Each tangent's SplitEdge gets sliced where the tangent sits;
+                // multiple tangents sharing a SplitEdge produce N+1 sub-edges ordered
+                // along the original edge. Without this generalization only `farthest`
+                // was sliced and nearer chain tangents ended up arc-only, leaving
+                // RescueOrphanedTangentNodes to invent chain-side connectivity.
+                var chainTangents = sorted.Where(t => t.Placement.LandsInManualArc && t.Placement.SplitEdge is not null).ToList();
+
+                foreach (var grp in chainTangents.GroupBy(t => t.Placement.SplitEdge!))
                 {
+                    var splitEdge = grp.Key;
                     var splitNodeA = splitEdge.Nodes[0];
                     var splitNodeB = splitEdge.Nodes[1];
                     ctx.ConsumedEdges.Add(splitEdge);
 
-                    double distA = GeoMath.DistanceNm(splitNodeA.Position, farthest.Node.Position);
-                    ctx.Layout.Edges.Add(
-                        new GroundEdge
+                    // Order tangents by position along the edge starting from Nodes[0]
+                    // so the sub-edges form a contiguous chain splitNodeA → t1 → … → tn → splitNodeB.
+                    var ordered = grp.OrderBy(t => GeoMath.DistanceNm(splitNodeA.Position, t.Node.Position)).ToList();
+
+                    var prev = splitNodeA;
+                    foreach (var t in ordered)
+                    {
+                        if (t.Node.Id == prev.Id)
                         {
-                            Nodes = [splitNodeA, farthest.Node],
-                            TaxiwayName = edge.TaxiwayName,
-                            DistanceNm = distA,
-                            Origin = $"Fillet:phase-d-arc-split@{ctx.Intersection.Id} {edge.TaxiwayName} #{splitNodeA.Id}↔#{farthest.Node.Id}",
+                            continue;
                         }
-                    );
-                    double distB = GeoMath.DistanceNm(farthest.Node.Position, splitNodeB.Position);
-                    ctx.Layout.Edges.Add(
-                        new GroundEdge
-                        {
-                            Nodes = [farthest.Node, splitNodeB],
-                            TaxiwayName = edge.TaxiwayName,
-                            DistanceNm = distB,
-                            Origin = $"Fillet:phase-d-arc-split@{ctx.Intersection.Id} {edge.TaxiwayName} #{farthest.Node.Id}↔#{splitNodeB.Id}",
-                        }
-                    );
+                        double dist = GeoMath.DistanceNm(prev.Position, t.Node.Position);
+                        ctx.Layout.Edges.Add(
+                            new GroundEdge
+                            {
+                                Nodes = [prev, t.Node],
+                                TaxiwayName = edge.TaxiwayName,
+                                DistanceNm = dist,
+                                Origin = $"Fillet:phase-d-arc-split@{ctx.Intersection.Id} {edge.TaxiwayName} #{prev.Id}↔#{t.Node.Id}",
+                            }
+                        );
+                        prev = t.Node;
+                    }
+                    if (prev.Id != splitNodeB.Id)
+                    {
+                        double finalDist = GeoMath.DistanceNm(prev.Position, splitNodeB.Position);
+                        ctx.Layout.Edges.Add(
+                            new GroundEdge
+                            {
+                                Nodes = [prev, splitNodeB],
+                                TaxiwayName = edge.TaxiwayName,
+                                DistanceNm = finalDist,
+                                Origin = $"Fillet:phase-d-arc-split@{ctx.Intersection.Id} {edge.TaxiwayName} #{prev.Id}↔#{splitNodeB.Id}",
+                            }
+                        );
+                    }
                 }
+
                 // Also consume any non-manual-arc walked edges before the chain
                 foreach (var walkedEdge in farthest.Placement.WalkedEdges)
                 {

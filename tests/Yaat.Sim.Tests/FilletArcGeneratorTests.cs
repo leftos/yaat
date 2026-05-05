@@ -437,4 +437,103 @@ public class FilletArcGeneratorTests
             }
         }
     }
+
+    /// <summary>
+    /// Bug repro: when an intersection has a manual-arc chain on one side and several
+    /// branches at different angles on the others, multiple per-pair tangent placements
+    /// can land in <em>different</em> chain edges. Phase D1 only splits the SplitEdge of
+    /// the farthest tangent — nearer chain tangents end up with an arc but no chain-side
+    /// edge, so RescueOrphanedTangentNodes has to invent a connection.
+    ///
+    /// A correctly-handled scenario should need zero rescue-orphan edges: every tangent
+    /// gets its chain edge split so the chain walks through it naturally.
+    /// </summary>
+    [Fact]
+    public void MultipleTangentsInManualArcChain_NoRescueOrphansNeeded()
+    {
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+
+        // Intersection at origin
+        var x = new GroundNode
+        {
+            Id = 0,
+            Position = new LatLon(0, 0),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        layout.Nodes[0] = x;
+
+        // Chain north: X -> S1 -> S2 -> S3 -> F, all on taxiway "T1"
+        // Edge lengths chosen so two different tangent distances land in different
+        // chain edges:
+        //   pair (T1, T-east) at 90° -> tangent ~75 ft -> in S1->S2
+        //   pair (T1, T-northeast) at 135° -> tangent capped at 150 ft -> in S2->S3
+        var s1 = MakeNorthNode(1, 40);
+        var s2 = MakeNorthNode(2, 40 + 60);
+        var s3 = MakeNorthNode(3, 40 + 60 + 80);
+        var f = MakeNorthNode(4, 40 + 60 + 80 + 60);
+        layout.Nodes[1] = s1;
+        layout.Nodes[2] = s2;
+        layout.Nodes[3] = s3;
+        layout.Nodes[4] = f;
+
+        AddEdge(layout, x, s1, "T1");
+        AddEdge(layout, s1, s2, "T1");
+        AddEdge(layout, s2, s3, "T1");
+        AddEdge(layout, s3, f, "T1");
+
+        // East branch (200 ft east) — produces 90° turn with chain
+        var e = MakeProjectedNode(5, 90, 200);
+        layout.Nodes[5] = e;
+        AddEdge(layout, x, e, "T2");
+
+        // Northeast branch (200 ft NE) — produces ~135° turn with chain (sharper)
+        var ne = MakeProjectedNode(6, 45, 200);
+        layout.Nodes[6] = ne;
+        AddEdge(layout, x, ne, "T3");
+
+        layout.RebuildAdjacencyLists();
+
+        FilletArcGenerator.Apply(layout);
+
+        var rescueEdges = layout.Edges.Where(e => e.Origin?.Contains("rescue-orphan") == true).ToList();
+        Assert.True(
+            rescueEdges.Count == 0,
+            $"Expected no rescue-orphan edges; got {rescueEdges.Count}: "
+                + string.Join(", ", rescueEdges.Select(e => $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id}) {e.Origin}"))
+        );
+
+        // All tangent nodes should have at least one straight edge connecting them
+        // to the graph, not just an arc. (Without straight edges, the rescue pass
+        // would have papered over a real connectivity gap.)
+        var tangentNodes = layout.Nodes.Values.Where(n => n.Origin?.StartsWith("Fillet:tangent-node") == true).ToList();
+        Assert.NotEmpty(tangentNodes);
+        foreach (var tan in tangentNodes)
+        {
+            bool hasStraightEdge = layout.Edges.Any(edge => edge.HasNode(tan.Id));
+            Assert.True(hasStraightEdge, $"Tangent node #{tan.Id} ({tan.Origin}) has no straight edges");
+        }
+    }
+
+    private static GroundNode MakeNorthNode(int id, double distFt) => MakeProjectedNode(id, 0, distFt);
+
+    private static GroundNode MakeProjectedNode(int id, double bearingDeg, double distFt)
+    {
+        var (lat, lon) = GeoMath.ProjectPointRaw(0, 0, bearingDeg, distFt / GeoMath.FeetPerNm);
+        return new GroundNode
+        {
+            Id = id,
+            Position = new LatLon(lat, lon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+    }
+
+    private static void AddEdge(AirportGroundLayout layout, GroundNode a, GroundNode b, string twy) =>
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [a, b],
+                TaxiwayName = twy,
+                DistanceNm = GeoMath.DistanceNm(a.Position, b.Position),
+            }
+        );
 }
