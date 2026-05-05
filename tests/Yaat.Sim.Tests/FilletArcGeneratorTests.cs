@@ -493,7 +493,9 @@ public class FilletArcGeneratorTests
 
         layout.RebuildAdjacencyLists();
 
-        FilletArcGenerator.Apply(layout);
+        var stats = FilletArcGenerator.Apply(layout);
+
+        Assert.True(stats.OrphansRescued == 0, $"Expected no orphans rescued; got {stats.OrphansRescued}.");
 
         var rescueEdges = layout
             .Edges.Where(e => e.FilletProvenance is FilletEdgeProvenance fep && fep.Kind == FilletEdgeKind.RescueOrphan)
