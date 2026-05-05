@@ -56,3 +56,6 @@ yaat.code-workspace
 
 ## Debug Logs
 debug.log
+
+## Python
+__pycache__/
