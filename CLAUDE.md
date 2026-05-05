@@ -45,13 +45,20 @@ python tools/bug_bundle.py snapshot <bundle.zip> --at 182              # snapsho
 python tools/bug_bundle.py snapshot <bundle.zip> --at 182 --callsign X # filter to one aircraft
 python tools/bug_bundle.py track <bundle.zip> --pair N436MS N9225L --start 115 --end 220 # time-series + gap/runaway timer between two callsigns
 python tools/bug_bundle.py actions <bundle.zip>                        # timeline of user actions
+python tools/bug_bundle.py history <bundle.zip> --callsign N42416      # per-aircraft chronology: commands + phase / route / target / approach changes
+python tools/bug_bundle.py phases <bundle.zip> --callsign N9225L       # phase-transition timeline only
+python tools/bug_bundle.py commands <bundle.zip> --callsign N42416     # actions filtered to one recipient callsign
 python tools/bug_bundle.py logs <bundle.zip>                           # extract yaat-client/server logs to .tmp/
 python tools/bug_bundle.py install <local.zip> --issue 134 --desc slug # copy to TestData/ with naming convention
 python tools/bug_bundle.py install --issue 134 --desc slug             # fetch from GitHub issue via gh
 python tools/bug_bundle.py validate <bundle.zip>                       # manifest + decompression integrity
 ```
 
-Full subcommand list: `info`, `snapshot`, `track`, `actions`, `scenario`, `weather`, `layouts`, `logs`, `install`, `validate`. See `.claude/skills/bug-bundle/SKILL.md` for the full reference.
+For single-aircraft triage start with `history --callsign X` — it replaces 5+ targeted `snapshot --at` calls with one chronological view.
+
+When a `.yaat-bug-report-bundle.zip` or `*-recording.zip` path appears in user input — or any other bundle-shaped filename — invoke the `bug-bundle` skill before running any `bug_bundle.py` subcommand. The skill carries the full reference and keeps you from re-deriving subcommand syntax from memory.
+
+Full subcommand list: `info`, `snapshot`, `track`, `actions`, `history`, `phases`, `commands`, `scenario`, `weather`, `layouts`, `logs`, `install`, `validate`. See `.claude/skills/bug-bundle/SKILL.md` for the full reference.
 
 ## Logs
 

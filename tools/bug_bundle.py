@@ -7,7 +7,11 @@ Usage:
 Subcommands:
     info      Manifest summary + aircraft callsigns at t=0.
     snapshot  Dump snapshot nearest to --at <seconds> (optionally filtered by --callsign).
+    track     Time-series of aircraft state across all snapshots (text or --json).
     actions   List recorded user actions chronologically.
+    history   Per-callsign chronological events: commands + phase / route / target / approach changes.
+    phases    Per-callsign phase-transition timeline (subset of history).
+    commands  Actions filtered to one recipient callsign.
     scenario  Decompress scenario.json.br.
     weather   Print weather.json (if present).
     layouts   List ground layout airport IDs, or dump one with --airport / all with --all.
@@ -505,6 +509,426 @@ def cmd_actions(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: history / phases / commands
+# ---------------------------------------------------------------------------
+
+
+_PATTERN_ENTRY_KIND = {
+    0: "Direct",
+    1: "FortyFive",
+    2: "Crosswind",
+    3: "Upwind",
+    4: "Base",
+    5: "Final",
+}
+
+
+def _format_phase(phase: dict[str, Any]) -> str:
+    """Render a single phase dict as 'Name { key=val, ... }'.
+
+    Used by `history` / `phases` for verbose output. Compact single-name view
+    in `cmd_track` continues to use `_phase_name`.
+    """
+    full = phase.get("$type") or "?"
+    short = full.removesuffix("Phase") if full.endswith("Phase") else full
+    extras: list[str] = []
+    if full == "PatternEntryPhase":
+        kind_idx = phase.get("Kind")
+        kind_name = _PATTERN_ENTRY_KIND.get(kind_idx, str(kind_idx))
+        extras.append(f"Kind={kind_name}")
+        lat = phase.get("EntryLat")
+        lon = phase.get("EntryLon")
+        if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+            extras.append(f"Entry={lat:.4f}/{lon:.4f}")
+        alt = phase.get("PatternAltitude")
+        if isinstance(alt, (int, float)):
+            extras.append(f"PatAlt={alt:.0f}")
+    elif full == "FinalApproachPhase":
+        fac = phase.get("FinalApproachCourseDeg")
+        if isinstance(fac, (int, float)) and fac:
+            extras.append(f"FAC={fac:.0f}")
+        lat = phase.get("AnchorLat")
+        lon = phase.get("AnchorLon")
+        if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+            extras.append(f"Anchor={lat:.4f}/{lon:.4f}")
+    elif full == "LandingPhase":
+        rh = phase.get("RunwayHeadingDeg")
+        if isinstance(rh, (int, float)) and rh:
+            extras.append(f"RwyHdg={rh:.0f}")
+    if extras:
+        return f"{short} {{ {', '.join(extras)} }}"
+    return short
+
+
+def _phase_chain_signature(phases: dict[str, Any] | None) -> tuple[str, ...]:
+    """Identity of a phase chain — the ordered list of phase $types."""
+    if phases is None:
+        return ()
+    return tuple((p.get("$type") or "?") for p in (phases.get("Phases") or []))
+
+
+def _phase_chain_str(phases: dict[str, Any] | None) -> str:
+    """Render a PhaseList as 'A -> B -> [C] -> D' with [] marking the active phase."""
+    if phases is None:
+        return "(none)"
+    plist = phases.get("Phases") or []
+    if not plist:
+        return "(none)"
+    idx = phases.get("CurrentIndex")
+    parts: list[str] = []
+    for i, p in enumerate(plist):
+        s = _format_phase(p)
+        if i == idx:
+            s = f"[{s}]"
+        parts.append(s)
+    return " -> ".join(parts)
+
+
+def _route_names(targets: dict[str, Any] | None) -> list[str]:
+    if not targets:
+        return []
+    return [(w.get("Name") or "?") for w in (targets.get("NavigationRoute") or [])]
+
+
+def _route_str(names: list[str]) -> str:
+    return "[" + ", ".join(names) + "]" if names else "[]"
+
+
+_TGT_KEYS: tuple[tuple[str, str], ...] = (
+    ("AssignedAltitude", "AssignedAlt"),
+    ("AssignedSpeed", "AssignedSpd"),
+    ("AssignedMagneticHeadingDeg", "AssignedMagHdg"),
+)
+_APPR_KEYS: tuple[tuple[str, str], ...] = (
+    ("Expected", "Expected"),
+    ("PendingClearance", "PendingClearance"),
+    ("FollowingCallsign", "Following"),
+    ("HasReportedFieldInSight", "FieldInSight"),
+    ("HasReportedTrafficInSight", "TrafficInSight"),
+)
+_TRACK_KEYS: tuple[tuple[str, str], ...] = (
+    ("Owner", "Owner"),
+    ("OnHandoff", "OnHandoff"),
+    ("HandoffPeer", "HandoffPeer"),
+)
+
+
+def _diff_dict_keys(prev: dict[str, Any], curr: dict[str, Any], keys: tuple[tuple[str, str], ...]) -> list[str]:
+    """For each (json_key, label) pair, emit '<label>=<prev>-><curr>' if changed."""
+    changes: list[str] = []
+    for json_key, label in keys:
+        pv = prev.get(json_key)
+        cv = curr.get(json_key)
+        if pv != cv:
+            changes.append(f"{label}={pv!r}->{cv!r}")
+    return changes
+
+
+def _diff_aircraft(
+    prev: dict[str, Any] | None,
+    curr: dict[str, Any] | None,
+) -> Iterator[tuple[str, str, dict[str, Any]]]:
+    """Yield (tag, detail, raw) for each state change between consecutive snapshots."""
+    if prev is None and curr is None:
+        return
+    if prev is None:
+        # First time we see this aircraft. Emit SPAWN, then synthesize an
+        # initial-state diff so non-default fields show up as their first event.
+        pos = curr.get("Position") or {} if curr is not None else {}
+        lat = pos.get("Lat")
+        lon = pos.get("Lon")
+        hdg = (curr or {}).get("TrueHeadingDeg")
+        alt = (curr or {}).get("Altitude")
+        bits: list[str] = []
+        if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+            bits.append(f"pos={lat:.4f}/{lon:.4f}")
+        if isinstance(hdg, (int, float)):
+            bits.append(f"hdg={hdg:.0f}")
+        if isinstance(alt, (int, float)):
+            bits.append(f"alt={alt:.0f}")
+        yield ("SPAWN", "appeared" + (": " + ", ".join(bits) if bits else ""), {"position": pos, "heading": hdg, "altitude": alt})
+        yield from _diff_aircraft({}, curr)
+        return
+    if curr is None:
+        yield ("DESPAWN", "removed from snapshot", {})
+        return
+
+    # Phase chain diff
+    prev_phases = prev.get("Phases")
+    curr_phases = curr.get("Phases")
+    prev_sig = _phase_chain_signature(prev_phases)
+    curr_sig = _phase_chain_signature(curr_phases)
+
+    if prev_sig != curr_sig:
+        if not curr_sig:
+            yield ("PHASE-", "phases cleared", {"prev_chain": list(prev_sig)})
+        elif not prev_sig:
+            yield ("PHASES", _phase_chain_str(curr_phases), {"chain": curr_phases})
+        else:
+            yield ("PHASES", f"rebuilt: {_phase_chain_str(curr_phases)}", {"prev_chain": list(prev_sig), "chain": curr_phases})
+    elif prev_phases is not None and curr_phases is not None:
+        prev_idx = prev_phases.get("CurrentIndex", -1)
+        curr_idx = curr_phases.get("CurrentIndex", -1)
+        if prev_idx != curr_idx:
+            plist = curr_phases.get("Phases") or []
+            if isinstance(curr_idx, int) and 0 <= curr_idx < len(plist):
+                yield ("PHASE+", _format_phase(plist[curr_idx]), {"index": curr_idx, "phase": plist[curr_idx]})
+            else:
+                yield ("PHASE", f"index {prev_idx}->{curr_idx}", {"prev_idx": prev_idx, "curr_idx": curr_idx})
+
+    # Route diff
+    prev_route = _route_names(prev.get("Targets"))
+    curr_route = _route_names(curr.get("Targets"))
+    if prev_route != curr_route:
+        if prev_route:
+            yield ("ROUTE", f"{_route_str(curr_route):<28} (was {_route_str(prev_route)})", {"prev": prev_route, "curr": curr_route})
+        else:
+            yield ("ROUTE", _route_str(curr_route), {"prev": prev_route, "curr": curr_route})
+
+    # Targets diff (assigned values only — not the moment-by-moment TargetTrueHeadingDeg etc.)
+    prev_tgt = prev.get("Targets") or {}
+    curr_tgt = curr.get("Targets") or {}
+    tgt_changes = _diff_dict_keys(prev_tgt, curr_tgt, _TGT_KEYS)
+    if tgt_changes:
+        yield ("TGT", ", ".join(tgt_changes), {
+            "prev": {k: prev_tgt.get(k) for k, _ in _TGT_KEYS},
+            "curr": {k: curr_tgt.get(k) for k, _ in _TGT_KEYS},
+        })
+
+    # Approach diff
+    prev_appr = prev.get("Approach") or {}
+    curr_appr = curr.get("Approach") or {}
+    appr_changes = _diff_dict_keys(prev_appr, curr_appr, _APPR_KEYS)
+    if appr_changes:
+        yield ("APPR", ", ".join(appr_changes), {"prev": prev_appr, "curr": curr_appr})
+
+    # Track ownership diff
+    prev_track = prev.get("Track") or {}
+    curr_track = curr.get("Track") or {}
+    trk_changes = _diff_dict_keys(prev_track, curr_track, _TRACK_KEYS)
+    if trk_changes:
+        yield ("TRACK", ", ".join(trk_changes), {"prev": prev_track, "curr": curr_track})
+
+    # Runway diff
+    prev_rwy = (prev.get("Procedure") or {}).get("DestinationRunway")
+    curr_rwy = (curr.get("Procedure") or {}).get("DestinationRunway")
+    if prev_rwy != curr_rwy:
+        yield ("RWY", f"DestinationRunway={prev_rwy!r}->{curr_rwy!r}", {"prev": prev_rwy, "curr": curr_rwy})
+
+
+def _iter_aircraft_states(
+    reader: BundleReader,
+    callsign_upper: str,
+    start: float | None,
+    end: float | None,
+) -> Iterator[tuple[int, float, dict[str, Any] | None]]:
+    """Yield (snap_idx, t, ac_dict_or_None) for snapshots in [start, end] (inclusive)."""
+    snaps_meta = reader.manifest.get("Snapshots") or []
+    for i, entry in enumerate(snaps_meta):
+        t = entry["ElapsedSeconds"]
+        if start is not None and t < start:
+            continue
+        if end is not None and t > end:
+            break
+        snap = reader.read_snapshot(i)
+        ac = next(
+            (cand for cand in (snap.get("Aircraft") or []) if (cand.get("Callsign") or "").upper() == callsign_upper),
+            None,
+        )
+        yield i, t, ac
+
+
+def _filter_actions_for_callsign(
+    actions: list[dict[str, Any]],
+    callsign_upper: str,
+    include_global: bool,
+) -> list[dict[str, Any]]:
+    """Actions whose Callsign matches (case-insensitive). With include_global, also keep actions that have no Callsign."""
+    out: list[dict[str, Any]] = []
+    for a in actions:
+        cs = a.get("Callsign")
+        if cs is None:
+            if include_global:
+                out.append(a)
+            continue
+        if cs.upper() == callsign_upper:
+            out.append(a)
+    return out
+
+
+def _enumerate_callsigns(reader: BundleReader) -> list[str]:
+    """All callsigns appearing in any snapshot. Sorted."""
+    snaps_meta = reader.manifest.get("Snapshots") or []
+    seen: set[str] = set()
+    for i in range(len(snaps_meta)):
+        snap = reader.read_snapshot(i)
+        for ac in (snap.get("Aircraft") or []):
+            cs = ac.get("Callsign")
+            if cs:
+                seen.add(cs)
+    return sorted(seen)
+
+
+def _format_action_detail(a: dict[str, Any]) -> str:
+    """Compact one-liner for an action: '<Command>' or '<$type> <extras>'."""
+    cmd = a.get("Command")
+    if cmd:
+        return cmd
+    kind = a.get("$type") or "?"
+    extras = {k: v for k, v in a.items() if k not in {"ElapsedSeconds", "$type", "Callsign", "Command", "Initials", "ConnectionId"}}
+    if extras:
+        return f"{kind} {json.dumps(extras, separators=(',', ':'))}"
+    return kind
+
+
+def _action_snap_idx(snaps_meta: list[dict[str, Any]], action_t: float) -> int | None:
+    """First snapshot index whose ElapsedSeconds >= action_t, or None if past the end."""
+    for i, entry in enumerate(snaps_meta):
+        if entry["ElapsedSeconds"] >= action_t:
+            return i
+    return None
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    cs_upper = args.callsign.upper()
+    with BundleReader(args.bundle) as reader:
+        snaps_meta = reader.manifest.get("Snapshots") or []
+        all_actions = reader.read_actions()
+        my_actions = _filter_actions_for_callsign(all_actions, cs_upper, args.include_global)
+        if args.start is not None:
+            my_actions = [a for a in my_actions if a.get("ElapsedSeconds", 0) >= args.start]
+        if args.end is not None:
+            my_actions = [a for a in my_actions if a.get("ElapsedSeconds", 0) <= args.end]
+
+        snapshot_events: list[tuple[float, int | None, str, str, dict[str, Any]]] = []
+        prev_ac: dict[str, Any] | None = None
+        seen_callsign = False
+        for snap_idx, t, ac in _iter_aircraft_states(reader, cs_upper, args.start, args.end):
+            if ac is not None:
+                seen_callsign = True
+            for tag, detail, raw in _diff_aircraft(prev_ac, ac):
+                snapshot_events.append((t, snap_idx, tag, detail, raw))
+            prev_ac = ac
+
+        if not seen_callsign and not my_actions:
+            available = _enumerate_callsigns(reader)
+            print(
+                f"error: callsign '{args.callsign}' not in any snapshot or action.\n"
+                f"       available: {', '.join(available) if available else '(none)'}",
+                file=sys.stderr,
+            )
+            return 1
+
+        action_events: list[tuple[float, int | None, str, str, dict[str, Any]]] = []
+        for a in my_actions:
+            t = a.get("ElapsedSeconds", 0)
+            kind = a.get("$type") or "?"
+            tag = "CMD" if kind == "Command" else kind[:6].upper()
+            detail = _format_action_detail(a)
+            action_events.append((t, _action_snap_idx(snaps_meta, t), tag, detail, {"action": a}))
+
+        # Merge: at the same t, actions sort before the snapshot diffs that they caused.
+        all_events = sorted(
+            action_events + snapshot_events,
+            key=lambda e: (e[0], 0 if e[2] == "CMD" else 1),
+        )
+
+        if args.json:
+            payload = [
+                {"t": t, "snap": snap, "tag": tag, "detail": detail, "callsign": args.callsign, "raw": raw}
+                for (t, snap, tag, detail, raw) in all_events
+            ]
+            write_output(json.dumps(payload, indent=2), args.out)
+            return 0
+
+        lines: list[str] = []
+        for t, snap, tag, detail, _ in all_events:
+            snap_str = f"snap={snap:>3}" if snap is not None else "snap=  -"
+            lines.append(f"t={t:>5} [{snap_str}] {tag:<6} {detail}")
+        write_output("\n".join(lines), args.out)
+    return 0
+
+
+def cmd_phases(args: argparse.Namespace) -> int:
+    cs_upper = args.callsign.upper()
+    with BundleReader(args.bundle) as reader:
+        events: list[tuple[float, int, str, str, dict[str, Any]]] = []
+        prev_ac: dict[str, Any] | None = None
+        seen_callsign = False
+        for snap_idx, t, ac in _iter_aircraft_states(reader, cs_upper, args.start, args.end):
+            if ac is not None:
+                seen_callsign = True
+            for tag, detail, raw in _diff_aircraft(prev_ac, ac):
+                if tag in {"PHASES", "PHASE+", "PHASE-", "PHASE"}:
+                    events.append((t, snap_idx, tag, detail, raw))
+            prev_ac = ac
+
+        if not seen_callsign:
+            available = _enumerate_callsigns(reader)
+            print(
+                f"error: callsign '{args.callsign}' not in any snapshot.\n"
+                f"       available: {', '.join(available) if available else '(none)'}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if args.json:
+            payload = [
+                {"t": t, "snap": snap, "tag": tag, "detail": detail, "callsign": args.callsign, "raw": raw}
+                for (t, snap, tag, detail, raw) in events
+            ]
+            write_output(json.dumps(payload, indent=2), args.out)
+            return 0
+
+        if not events:
+            print("(no phase transitions in range)", file=sys.stderr)
+            return 0
+
+        lines = [f"t={t:>5} [snap={snap:>3}] {tag:<6} {detail}" for (t, snap, tag, detail, _) in events]
+        write_output("\n".join(lines), args.out)
+    return 0
+
+
+def cmd_commands(args: argparse.Namespace) -> int:
+    cs_upper = args.callsign.upper()
+    with BundleReader(args.bundle) as reader:
+        actions = reader.read_actions()
+        matched: list[dict[str, Any]] = []
+        for a in actions:
+            cs = a.get("Callsign")
+            if not cs or cs.upper() != cs_upper:
+                continue
+            t = a.get("ElapsedSeconds", 0)
+            if args.start is not None and t < args.start:
+                continue
+            if args.end is not None and t > args.end:
+                continue
+            matched.append(a)
+
+        if not matched:
+            available = sorted({a.get("Callsign") for a in actions if a.get("Callsign")})
+            print(
+                f"error: no actions for callsign '{args.callsign}'.\n"
+                f"       available: {', '.join(available) if available else '(none)'}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if args.json:
+            write_output(json.dumps(matched, indent=2), args.out)
+            return 0
+
+        lines: list[str] = []
+        for a in matched:
+            t = a.get("ElapsedSeconds", 0)
+            kind = a.get("$type") or "?"
+            detail = _format_action_detail(a)
+            lines.append(f"t={t:>5} {kind:<10} {detail}")
+        write_output("\n".join(lines), args.out)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: scenario / weather
 # ---------------------------------------------------------------------------
 
@@ -853,6 +1277,34 @@ def build_parser() -> argparse.ArgumentParser:
     _add_out_arg(p_act)
     p_act.add_argument("--json", action="store_true", help="structured JSON output")
     p_act.set_defaults(func=cmd_actions)
+
+    p_hist = sub.add_parser("history", help="per-callsign chronological events (commands + phase / route / target / approach changes)")
+    _add_bundle_arg(p_hist)
+    _add_out_arg(p_hist)
+    p_hist.add_argument("--callsign", type=str, required=True, help="aircraft callsign (case-insensitive)")
+    p_hist.add_argument("--start", type=float, default=None, help="only include events at t >= START")
+    p_hist.add_argument("--end", type=float, default=None, help="only include events at t <= END")
+    p_hist.add_argument("--include-global", action="store_true", help="also show actions without a Callsign field")
+    p_hist.add_argument("--json", action="store_true", help="structured JSON output")
+    p_hist.set_defaults(func=cmd_history)
+
+    p_ph = sub.add_parser("phases", help="per-callsign phase-transition timeline")
+    _add_bundle_arg(p_ph)
+    _add_out_arg(p_ph)
+    p_ph.add_argument("--callsign", type=str, required=True, help="aircraft callsign (case-insensitive)")
+    p_ph.add_argument("--start", type=float, default=None, help="only include events at t >= START")
+    p_ph.add_argument("--end", type=float, default=None, help="only include events at t <= END")
+    p_ph.add_argument("--json", action="store_true", help="structured JSON output")
+    p_ph.set_defaults(func=cmd_phases)
+
+    p_cmds = sub.add_parser("commands", help="actions filtered to one recipient callsign")
+    _add_bundle_arg(p_cmds)
+    _add_out_arg(p_cmds)
+    p_cmds.add_argument("--callsign", type=str, required=True, help="aircraft callsign (case-insensitive)")
+    p_cmds.add_argument("--start", type=float, default=None, help="only include actions at t >= START")
+    p_cmds.add_argument("--end", type=float, default=None, help="only include actions at t <= END")
+    p_cmds.add_argument("--json", action="store_true", help="structured JSON output")
+    p_cmds.set_defaults(func=cmd_commands)
 
     p_scen = sub.add_parser("scenario", help="decompress scenario.json.br")
     _add_bundle_arg(p_scen)
