@@ -229,6 +229,43 @@ public sealed class RunwayExitPhase : Phase
             TryFindExitAhead(ctx);
         }
 
+        // Terminal-end safety stop: if no exit was found and the aircraft is
+        // running out of runway, brake to a halt rather than coasting off the
+        // end. Without this backstop, a missing or unreachable forward exit
+        // (typically a geojson defect or an aircraft that landed past every
+        // exit) leaves the phase looping at coast speed indefinitely.
+        if ((_holdShortNode is null) && (ctx.Aircraft.Phases?.AssignedRunway is { } rwy))
+        {
+            double distToEndNm = GeoMath.AlongTrackDistanceNm(
+                new LatLon(rwy.EndLatitude, rwy.EndLongitude),
+                ctx.Aircraft.Position,
+                _runwayHeading
+            );
+
+            // 0.15 nm ≈ 911 ft — enough headroom for the aircraft to slow from
+            // coast speed (40 kts jet) to a stop at the firm braking rate
+            // before the runway end, without prematurely stopping on a runway
+            // where exits are still being searched for.
+            const double TerminalStopBufferNm = 0.15;
+            if (distToEndNm <= TerminalStopBufferNm)
+            {
+                ctx.Targets.TargetSpeed = 0;
+                // Firm braking (5 kts/s) — same rate LandingPhase uses for explicit
+                // exit commands. From 40 kts coast, this stops the aircraft in
+                // about 0.044 nm (260 ft) — comfortably inside the 0.15 nm buffer.
+                ctx.Targets.DesiredDecelRate = 5.0;
+                if (_timeSinceLastLog >= LogIntervalSeconds)
+                {
+                    _timeSinceLastLog = 0;
+                    Log.LogWarning(
+                        "[Exit] {Callsign}: no exit found, {DistFt:F0}ft to runway end — braking to stop",
+                        ctx.Aircraft.Callsign,
+                        distToEndNm * 6076.12
+                    );
+                }
+            }
+        }
+
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {

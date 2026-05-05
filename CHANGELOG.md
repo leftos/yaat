@@ -22,6 +22,7 @@
 - EuroScope altitude flyout extended to FL400.
 
 ### Fixed
+- Landing aircraft that would otherwise have coasted off the runway end (e.g. jets on FLL 10R) now commit to a comfortably reachable forward exit during rollout, and brake to a stop on the runway as a last resort if no exit is found.
 - Right-click "Command" textbox now accepts typed input on radar, ground, and data-grid right-click menus — typing letters had been silently swallowed.
 - Ground View auto-fits the airport on first scenario load with a fresh profile — no longer shows an empty view until you click RESET.
 - Ground View saved per-scenario pan/zoom now actually persists across reconnects; previously the auto-fit on layout load silently snapped you back to the centroid every time.

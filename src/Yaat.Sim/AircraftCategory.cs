@@ -747,8 +747,13 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Returns the angle-dependent exit turn-off speed. Uses high-speed threshold for
-    /// exits ≤45° from runway heading, standard threshold for steeper exits.
+    /// Returns the angle-dependent exit turn-off speed. ICAO Annex 14 §3.10 and
+    /// FAA AC 150/5300-13B Table 4-2 publish 30° as the design intersection angle
+    /// for a rapid-exit taxiway, with acute-angle exits up to 45°. Past 46° an
+    /// aircraft entering at 30 kts would exceed comfortable lateral acceleration,
+    /// so steeper exits use the standard turn-off speed. The 46° boundary
+    /// (rather than a strict 45°) absorbs coordinate-precision noise — a
+    /// published 45° taxiway commonly measures 45.02° from geojson centerlines.
     /// Falls back to <see cref="RunwayExitSpeed"/> when exit angle is unknown.
     /// </summary>
     public static double ExitTurnOffSpeed(AircraftCategory cat, double? exitAngleDeg)
@@ -758,7 +763,8 @@ public static class CategoryPerformance
             return RunwayExitSpeed(cat);
         }
 
-        return exitAngleDeg.Value <= 45.0 ? HighSpeedExitSpeed(cat) : StandardExitSpeed(cat);
+        const double HighSpeedAngleMaxDeg = 46.0;
+        return exitAngleDeg.Value <= HighSpeedAngleMaxDeg ? HighSpeedExitSpeed(cat) : StandardExitSpeed(cat);
     }
 
     /// <summary>Speed when crossing a runway (knots).</summary>
