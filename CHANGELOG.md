@@ -13,18 +13,27 @@
 - Radar right-click → **Display** submenu gains per-aircraft display controls: **Leader direction** (1–9 numpad), **J-ring** (Clear / 1 / 2 / 3 / 5 / 10 nm), **Cone** (Clear / 1 / 2 / 3 / 5 / 10 nm), **Blank target** (`BLANK`), **Unblank target** (`BLANKD`).
 - Radar right-click → **Pattern** submenu gains in-pattern maneuver controls: **Turn crosswind / downwind / base** (`TC`/`TD`/`TB`), **Extend pattern leg** (`EXT`), **Make short approach** (`MSA`) / **normal approach** (`MNA`), **Make left/right 360** (`L360`/`R360`), **Make left/right 270** (`L270`/`R270`), **Plan 270 at next turn** (`P270`), **Cancel 270** (`NO270`), **Circle airport** (`CA`).
 - Radar right-click → **Procedures** gains **Join radial outbound...** and **Join radial inbound...** items; pick a fix from the filtered list, then enter the bearing in a follow-up dialog (sends `JRADO FIX bearing` / `JRADI FIX bearing`).
-- Radar right-click → **Procedures** → **Join airway...** opens a filtered picker of all known airways (sends `JAWY <id>`).
+- Radar right-click → **Procedures** → **Join airway {ID}** is now one-click when an airway is detected in the filed route; multiple filed airways become a submenu picker. A sibling **Join airway (other)...** free-text input handles airways not on the route. We never enumerate all CIFP airways — the global list is too large to be useful.
+- Radar right-click → **Procedures** → **Cross fix** / **Depart fix** are now scoped to fixes on the filed route plus the active DCT queue, instead of enumerating every fix in CIFP. Sibling **(other)...** entries take a free-text fix name when the target isn't on the route.
 - Ground right-click on a *Taxiing* aircraft gains **Follow...** and **Give way to...** submenus listing the closest 12 other ground aircraft by distance (sends `FOLLOWG <callsign>` / `GW <callsign>`).
+- **Settings → Colors** gains a **Terminal Channels** section with a color picker per kind (Command, Response, System, SAY, Pilot Speech, Warning, Error, Chat); **Reset All Colors** restores them along with the existing ground/radar palette.
 
 ### Changed
 - Radar **Tower** submenu and Ground **Final Approach** items (Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Go around, Line up and wait) show the aircraft's assigned runway in the label (e.g. *Cleared to land 28R*) — no behavior change, the item still issues the bare command.
 - Radar **Speed** submenu values are now type-aware: the assignable speeds run from the aircraft's `ApproachSpeed` to its altitude-resolved `ClimbSpeed` in 10-kt steps (replacing the static 150–350 kt list). C172 sees ~60–100 kt; transport jets see ~140–280 kt at altitude. Falls back to the legacy 150–350 list when filed type is unknown.
 - RTIS / RFIS pilot transmissions land on the **SAY** channel instead of WRN/RSP and drop the redundant ownship callsign: success reads as *"Have N9225L in sight"* / *"Have the field in sight"* (was *"N436MS, traffic in sight, N9225L"* / *"N436MS has the field in sight"*); the soft-fail readback (*"Negative contact, …, looking"*) is now also on the SAY channel.
+- **`SPOS`** anchors the position readback to a fix the controller is already working with on the aircraft (departure / destination airport, filed route, active DCT queue) and reads it back with the published friendly name — e.g. *"10 miles southwest of OAK - Oakland VOR"*. When no working fix is within 50 nm, it falls back to the nearest sizeable airport (max runway ≥ 6,500 ft within 100 nm). Previously it could anchor on any obscure RNAV waypoint within range.
+- **SAY readbacks** (SHDG, SALT, SSPD, SMACH, SEAPP) now emit plain numeric values — *"Heading 270, direct MENLO"*, *"Leaving 5,000 for FL240"*, *"250 knots"*, *"Mach 0.78"*, *"Expecting the ILS Z 19R approach"* — instead of baked-in digit-by-digit AIM phraseology. Spoken-form rendering (digit-by-digit speech, "thousand"/"hundred" forms, phonetic suffix letters) is now the RPO / TTS layer's job.
+- **`vstripsweb`** is now opt-in in `start.ps1` / `start.sh`; previously it launched by default.
 
 ### Fixed
 - `EF` to a parallel runway while on final now side-steps onto the new centerline instead of flying a 360 to rejoin the approach.
+- `EF` issued to an aircraft already inside the standard intercept distance now flies a close-in entry instead of overshooting and re-intercepting.
 - Aircraft joining downwind from the pattern side at a misaligned angle now read `midfield to {dir} downwind` instead of `crosswind` / `45`.
 - Aircraft instructed `SA` (Make Short Approach) now lands cleanly on tight finals instead of going around: the base-leg descent now targets the glideslope-intercept altitude at the *rollout* point (one turn-radius further along the final than the projected anchor), and Landing floats level over the runway while the wings level out from the tight base→final turn before the stabilization gate engages.
+- Parallel (`,`) tower-command compounds (e.g. `LUAW,CTO`) now surface every component's outcome on the terminal — previously only the first command's result appeared.
+- Transparent compound commands (e.g. `RFIS,SQ 5000`) no longer print empty terminal lines for components that produce no message.
+- Lowercase callsign prefixes in the command input (e.g. typing `346g spos`) now match aircraft just like uppercase; previously the parser rejected the whole string as a bad command.
 
 ## v0.1.14-alpha [2026/05/04]
 

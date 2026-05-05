@@ -760,6 +760,126 @@ public partial class RadarView
         return result;
     }
 
+    /// <summary>
+    /// Returns airway IDs found in the aircraft's filed route, in filed order.
+    /// We never offer "all airways" — global CIFP exposes thousands and the picker
+    /// would be useless.
+    /// </summary>
+    private static IReadOnlyList<string> GetFiledAirways(AircraftModel? ac)
+    {
+        if (ac is null || string.IsNullOrEmpty(ac.Route))
+        {
+            return [];
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var token in ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = token.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (NavigationDatabase.Instance.IsAirway(trimmed) && seen.Add(trimmed))
+            {
+                result.Add(trimmed);
+            }
+        }
+
+        return result;
+    }
+
+    private void AddJoinAirwayItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    {
+        var filed = GetFiledAirways(ac);
+
+        if (filed.Count == 1)
+        {
+            var only = filed[0];
+            menu.Items.Add(CreateMenuItem($"Join airway {only}", () => vm.JoinAirwayAsync(cs, init, only)));
+            menu.Items.Add(CreateInputMenuItem("Join airway (other)...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
+            return;
+        }
+
+        if (filed.Count > 1)
+        {
+            var items = filed.Cast<object>().ToList();
+            menu.Items.Add(CreateListMenuItem("Join airway...", items, items[0], val => vm.JoinAirwayAsync(cs, init, (string)val)));
+            menu.Items.Add(CreateInputMenuItem("Join airway (other)...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
+            return;
+        }
+
+        menu.Items.Add(CreateInputMenuItem("Join airway...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
+    }
+
+    /// <summary>
+    /// Returns named fixes from the aircraft's filed route (CIFP fixes only) and active DCT
+    /// queue, in route-then-queue order, deduped. We never offer "all fixes" — global CIFP
+    /// has tens of thousands.
+    /// </summary>
+    private static IReadOnlyList<string> GetRouteFixes(AircraftModel? ac)
+    {
+        if (ac is null)
+        {
+            return [];
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+
+        if (!string.IsNullOrEmpty(ac.Route))
+        {
+            foreach (var token in ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = token.Trim();
+                if (trimmed.Length == 0)
+                {
+                    continue;
+                }
+
+                if (NavigationDatabase.Instance.GetFixPosition(trimmed) is not null && seen.Add(trimmed))
+                {
+                    result.Add(trimmed);
+                }
+            }
+        }
+
+        foreach (var fix in ac.NavigationRoute)
+        {
+            if (!string.IsNullOrEmpty(fix) && seen.Add(fix))
+            {
+                result.Add(fix);
+            }
+        }
+
+        return result;
+    }
+
+    private void AddRouteFixItem(MenuItem menu, string label, AircraftModel? ac, Func<string, Task> dispatch)
+    {
+        var fixes = GetRouteFixes(ac);
+
+        if (fixes.Count == 1)
+        {
+            var only = fixes[0];
+            menu.Items.Add(CreateMenuItem($"{label} {only}", () => dispatch(only)));
+            menu.Items.Add(CreateInputMenuItem($"{label} (other)...", "Fix name", input => dispatch(input)));
+            return;
+        }
+
+        if (fixes.Count > 1)
+        {
+            var items = fixes.Cast<object>().ToList();
+            menu.Items.Add(CreateListMenuItem($"{label}...", items, items[0], val => dispatch((string)val)));
+            menu.Items.Add(CreateInputMenuItem($"{label} (other)...", "Fix name", input => dispatch(input)));
+            return;
+        }
+
+        menu.Items.Add(CreateInputMenuItem($"{label}...", "Fix name", input => dispatch(input)));
+    }
+
     private MenuItem BuildProceduresSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Procedures" };
@@ -767,27 +887,12 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Climb via SID", () => vm.ClimbViaSidAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Descend via STAR", () => vm.DescendViaStarAsync(cs, init)));
 
-        if (vm.FixNames is not null)
-        {
-            menu.Items.Add(CreateFilteredListMenuItem("Cross fix...", vm.FixNames, fix => vm.CrossFixAsync(cs, init, fix)));
-            menu.Items.Add(CreateFilteredListMenuItem("Depart fix...", vm.FixNames, fix => vm.DepartFixAsync(cs, init, fix)));
-        }
-        else
-        {
-            menu.Items.Add(CreateInputMenuItem("Cross fix...", "Fix name", input => vm.CrossFixAsync(cs, init, input)));
-            menu.Items.Add(CreateInputMenuItem("Depart fix...", "Fix name", input => vm.DepartFixAsync(cs, init, input)));
-        }
+        AddRouteFixItem(menu, "Cross fix", ac, val => vm.CrossFixAsync(cs, init, val));
+        AddRouteFixItem(menu, "Depart fix", ac, val => vm.DepartFixAsync(cs, init, val));
 
         menu.Items.Add(CreateInputMenuItem("PTAC...", "PTAC arguments", input => vm.PtacAsync(cs, init, input)));
 
-        if (vm.AirwayIds is not null && vm.AirwayIds.Length > 0)
-        {
-            menu.Items.Add(CreateFilteredListMenuItem("Join airway...", vm.AirwayIds, awy => vm.JoinAirwayAsync(cs, init, awy)));
-        }
-        else
-        {
-            menu.Items.Add(CreateInputMenuItem("Join airway...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
-        }
+        AddJoinAirwayItems(menu, vm, cs, init, ac);
 
         AddJoinRadialItems(menu, vm, cs, init);
 

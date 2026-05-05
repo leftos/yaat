@@ -113,7 +113,6 @@ public sealed class NavigationDatabase
         LoadFixPronunciations(artccsBaseDir);
         TaxiRoutes = LoadTaxiRoutes(artccsBaseDir);
         AllFixNames = BuildSortedNames();
-        AllAirwayIds = BuildSortedAirwayIds();
     }
 
     /// <summary>
@@ -124,7 +123,6 @@ public sealed class NavigationDatabase
         _cifpFilePath = "";
         TaxiRoutes = TaxiRouteCatalog.Empty;
         AllFixNames = [];
-        AllAirwayIds = [];
     }
 
     /// <summary>
@@ -319,7 +317,6 @@ public sealed class NavigationDatabase
         }
 
         db.AllFixNames = db.BuildSortedNames();
-        db.AllAirwayIds = db.BuildSortedAirwayIds();
         return db;
     }
 
@@ -339,11 +336,6 @@ public sealed class NavigationDatabase
     /// Sorted array of all fix names, for prefix-search autocomplete.
     /// </summary>
     public string[] AllFixNames { get; private set; }
-
-    /// <summary>
-    /// Sorted array of all airway IDs, for prefix-search autocomplete (JAWY picker).
-    /// </summary>
-    public string[] AllAirwayIds { get; private set; }
 
     /// <summary>
     /// Speech-recognition patterns for custom fixes that declared a <c>spokenPatterns</c> field
@@ -1486,13 +1478,6 @@ public sealed class NavigationDatabase
         var names = _navDb.Keys.ToArray();
         Array.Sort(names, StringComparer.OrdinalIgnoreCase);
         return names;
-    }
-
-    private string[] BuildSortedAirwayIds()
-    {
-        var ids = _airways.Keys.ToArray();
-        Array.Sort(ids, StringComparer.OrdinalIgnoreCase);
-        return ids;
     }
 
     // ──────────────────────────────────────────────
