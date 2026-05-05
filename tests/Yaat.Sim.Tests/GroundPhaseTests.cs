@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -735,6 +736,73 @@ public class GroundPhaseTests
         // Pre-cleared: phase should insert crossing but no hold
         // Verify no HoldingShortPhase in the upcoming phases
         Assert.DoesNotContain(aircraft.Phases.Phases.Skip(1), p => p is HoldingShortPhase);
+    }
+
+    // --- Snapshot/restore mid-segment behavior ---
+
+    [Fact]
+    public void TaxiingPhase_RestoreMidSegment_DoesNotSkipSegment()
+    {
+        // Mid-segment snapshot/restore: TaxiingPhase persisted Initialized=true,
+        // but GroundNavigatorDto does not carry the active PathPrimitive. After
+        // FromSnapshot the navigator's _currentPrimitive is null, so Tick falls
+        // into its default branch and returns ArrivedAtNode immediately. That
+        // signals ArriveAtNode, which advances route.CurrentSegmentIndex —
+        // skipping the segment the aircraft was actually traversing.
+        //
+        // The fix: FromSnapshot leaves _initialized=false so the next OnTick
+        // re-runs SetupCurrentSegment from the route's current segment.
+        var layout = BuildCrossingLayout();
+        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+
+        // 3-segment route: 0→1, 1→2, 2→3. No hold-shorts so progression is uninterrupted.
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) },
+                new TaxiRouteSegment { TaxiwayName = "RWY28L", Edge = layout.Edges[1].Directed(layout.Nodes[1], layout.Nodes[2]) },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[2].Directed(layout.Nodes[2], layout.Nodes[3]) },
+            ],
+            HoldShortPoints = [],
+        };
+        aircraft.Ground.AssignedTaxiRoute = route;
+
+        aircraft.Phases = new PhaseList();
+        var taxiPhase = new TaxiingPhase();
+        aircraft.Phases.Add(taxiPhase);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        // Tick a few times so the phase initialises and the aircraft moves a bit
+        // along segment 0 — but stays well short of node 1.
+        for (int i = 0; i < 3; i++)
+        {
+            taxiPhase.OnTick(ctx);
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+        }
+
+        Assert.Equal(0, route.CurrentSegmentIndex);
+
+        // Snapshot mid-segment, then restore into a fresh phase via the real
+        // PhaseList.FromSnapshot path — which adds restored phases WITHOUT
+        // calling OnStart (PhaseList.cs:316-320). Calling Start() afterwards
+        // would call OnStart and mask the bug because OnStart re-runs
+        // SetupCurrentSegment.
+        var dto = (TaxiingPhaseDto)taxiPhase.ToSnapshot();
+        var restored = TaxiingPhase.FromSnapshot(dto);
+
+        var restoredAircraft = MakeGroundAircraft(aircraft.Position.Lat, aircraft.Position.Lon, heading: 0);
+        restoredAircraft.IndicatedAirspeed = aircraft.IndicatedAirspeed;
+        restoredAircraft.Ground.AssignedTaxiRoute = route;
+        restoredAircraft.Phases = new PhaseList();
+        restoredAircraft.Phases.Add(restored);
+        var restoredCtx = MakeContext(restoredAircraft, layout);
+
+        int idxBefore = route.CurrentSegmentIndex;
+        restored.OnTick(restoredCtx);
+
+        Assert.Equal(idxBefore, route.CurrentSegmentIndex);
     }
 
     // --- Pushback distance scales with aircraft length ---
