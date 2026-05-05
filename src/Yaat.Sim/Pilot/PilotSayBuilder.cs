@@ -82,42 +82,242 @@ public static class PilotSayBuilder
             : "Negative, no approach assigned";
     }
 
+    // Sizeable-airport criteria for both the route-far fallback and the parenthetical
+    // airport reference. 6,500 ft typically captures Class C/D airports with airline
+    // service and the larger regional fields a working controller (or RPO) recognizes
+    // by name; 100 nm covers en-route aircraft transiting unfamiliar airspace.
+    private const int SizeableAirportMinRunwayFt = 6500;
+    private const double SizeableAirportMaxRangeNm = 100.0;
+
     /// <summary>
-    /// Position report relative to the nearest known fix. Uses the active <see cref="NavigationDatabase"/>
-    /// to find the closest fix and its bearing/distance. Falls back to a polite "unable to determine"
-    /// message if no fix is reachable, since raw lat/lon would be unintelligible over the radio.
+    /// Position report relative to a fix the working controller is likely to recognize.
+    /// Primary candidates: the aircraft's filed route (departure, destination, expanded
+    /// route fixes) plus active DCT-queue fixes ATC has named. If no candidate is within
+    /// 50 nm, falls back to the nearest sizeable airport. When the chosen anchor is a
+    /// fix (not an airport), appends a parenthetical airport reference so an unfamiliar
+    /// reader can place the fix.
     /// </summary>
     public static string BuildPosition(AircraftState aircraft)
     {
         try
         {
-            var fixTuples = NavigationDatabase.Instance.GetFixTuples();
-            var frd = FrdResolver.ToFrd(aircraft.Position.Lat, aircraft.Position.Lon, fixTuples);
-            if (frd is null)
+            var navDb = NavigationDatabase.Instance;
+            var candidates = BuildPositionCandidates(aircraft, navDb);
+
+            string? primary = candidates.Count > 0 ? FrdResolver.ToFrd(aircraft.Position.Lat, aircraft.Position.Lon, candidates) : null;
+
+            if (primary is null)
             {
-                return "Unable to determine position";
+                var fallback = navDb.FindNearestSizeableAirport(aircraft.Position, SizeableAirportMinRunwayFt, SizeableAirportMaxRangeNm);
+                if (fallback is null)
+                {
+                    return "Unable to determine position";
+                }
+                var fallbackFrd = FrdResolver.ToFrd(
+                    aircraft.Position.Lat,
+                    aircraft.Position.Lon,
+                    [(fallback.Value.Id, fallback.Value.Lat, fallback.Value.Lon)],
+                    SizeableAirportMaxRangeNm
+                );
+                return fallbackFrd is null ? "Unable to determine position" : FormatFrd(fallbackFrd, navDb);
             }
 
-            var parsed = FrdResolver.ParseFrd(frd);
-            if (parsed is null)
+            string primaryText = FormatFrd(primary, navDb);
+            string? primaryName = FrdResolver.ParseFrd(primary)?.Fix;
+            // Anchors that have a published friendly name (VORs, airports) already place
+            // themselves for the reader. Only unnamed intersections need an extra airport
+            // context line for someone who doesn't recognize the 5-letter waypoint.
+            if (primaryName is null || navDb.GetNavaidName(primaryName) is not null || navDb.GetAirportName(primaryName) is not null)
             {
-                return frd;
+                return primaryText;
             }
 
-            var (fixName, radial, distance) = parsed.Value;
-            if (radial is null || distance is null || distance == 0)
+            var nearbyAirport = navDb.FindNearestSizeableAirport(aircraft.Position, SizeableAirportMinRunwayFt, SizeableAirportMaxRangeNm);
+            if (nearbyAirport is null || string.Equals(nearbyAirport.Value.Id, primaryName, StringComparison.OrdinalIgnoreCase))
             {
-                return $"Over {fixName}";
+                return primaryText;
             }
 
-            string cardinal = BearingToCardinal(radial.Value);
-            return $"{SpokenDigits(distance.Value)} miles {cardinal} of {fixName}";
+            var airportFrd = FrdResolver.ToFrd(
+                aircraft.Position.Lat,
+                aircraft.Position.Lon,
+                [(nearbyAirport.Value.Id, nearbyAirport.Value.Lat, nearbyAirport.Value.Lon)],
+                SizeableAirportMaxRangeNm
+            );
+            return airportFrd is null ? primaryText : $"{primaryText}, {FormatFrd(airportFrd, navDb)}";
         }
         catch (InvalidOperationException)
         {
             return "Unable to determine position";
         }
     }
+
+    private static List<(string Name, double Lat, double Lon)> BuildPositionCandidates(AircraftState aircraft, NavigationDatabase navDb)
+    {
+        var candidates = new List<(string Name, double Lat, double Lon)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name) || !seen.Add(name))
+            {
+                return;
+            }
+            var pos = navDb.GetFixPosition(name);
+            if (pos is not null)
+            {
+                candidates.Add((name, pos.Value.Lat, pos.Value.Lon));
+            }
+        }
+
+        var fp = aircraft.FlightPlan;
+        Add(fp.Departure);
+        Add(fp.Destination);
+        foreach (var fix in navDb.ExpandRoute(fp.Route))
+        {
+            Add(fix);
+        }
+        foreach (var nav in aircraft.Targets.NavigationRoute)
+        {
+            if (seen.Add(nav.Name))
+            {
+                candidates.Add((nav.Name, nav.Position.Lat, nav.Position.Lon));
+            }
+        }
+
+        return candidates;
+    }
+
+    private static string FormatFrd(string frd, NavigationDatabase navDb)
+    {
+        var parsed = FrdResolver.ParseFrd(frd);
+        if (parsed is null)
+        {
+            return frd;
+        }
+
+        var (fixName, radial, distance) = parsed.Value;
+        string label = AnchorLabel(fixName, navDb);
+        if (radial is null || distance is null || distance == 0)
+        {
+            return $"Over {label}";
+        }
+
+        string cardinal = BearingToCardinal(radial.Value);
+        return $"{distance.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)} miles {cardinal} of {label}";
+    }
+
+    /// <summary>
+    /// Renders a position-report anchor with the published friendly name. VHF navaids
+    /// take priority over airports because identifiers like "OAK" exist as both an FAA
+    /// airport code and a colocated VOR — when an aircraft is flying past the navaid on
+    /// route, the controller cares about the navaid label, not the airport's:
+    ///   "OAK - Oakland VOR"        (CIFP section D navaid)
+    ///   "KOAK - Oakland Airport"   (NavData airport)
+    ///   "GROAN intersection"       (named RNAV waypoint, no published friendly name)
+    /// </summary>
+    private static string AnchorLabel(string code, NavigationDatabase navDb)
+    {
+        var navaidName = navDb.GetNavaidName(code);
+        if (!string.IsNullOrWhiteSpace(navaidName))
+        {
+            return $"{code} - {TitleCase(navaidName)} VOR";
+        }
+
+        var rawAirportName = navDb.GetAirportName(code);
+        if (!string.IsNullOrWhiteSpace(rawAirportName))
+        {
+            return $"{code} - {FriendlyAirportName(rawAirportName)}";
+        }
+
+        return $"{code} intersection";
+    }
+
+    private static string TitleCase(string raw) =>
+        System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(raw.Trim().ToLowerInvariant());
+
+    /// <summary>
+    /// Heuristic to convert raw NavData airport names into a short readable label.
+    /// Strategy: drop trailing generic suffixes (INTL, MUNI, REGIONAL, METRO, EXEC, etc.),
+    /// detect when a compound city name like "SAN FRANCISCO" appears later in the string
+    /// (which signals a metro qualifier rather than the airport's own name) and trim
+    /// everything from that point on, then title-case and append " Airport".
+    /// Examples:
+    ///   "OAKLAND SAN FRANCISCO BAY"      → "Oakland Airport"
+    ///   "SAN FRANCISCO INTL"             → "San Francisco Airport"
+    ///   "JOHN F KENNEDY INTL"            → "John F Kennedy Airport"
+    ///   "NORMAN Y MINETA SAN JOSE INTL"  → "Norman Y Mineta Airport"
+    /// </summary>
+    internal static string FriendlyAirportName(string rawName)
+    {
+        var tokens = rawName.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).ToList();
+        while (tokens.Count > 1 && IsGenericAirportSuffix(tokens[^1]))
+        {
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
+        if (tokens.Count == 0)
+        {
+            return rawName.Trim();
+        }
+
+        // A compound city name (e.g. "SAN FRANCISCO") appearing at position 1+ is a metro
+        // qualifier glued onto the airport's actual name (KOAK = "OAKLAND SAN FRANCISCO BAY").
+        // Trim it and everything after.
+        for (int i = 1; i < tokens.Count - 1; i++)
+        {
+            var pair = $"{tokens[i]} {tokens[i + 1]}";
+            if (CompoundCityNames.Contains(pair, StringComparer.OrdinalIgnoreCase))
+            {
+                tokens.RemoveRange(i, tokens.Count - i);
+                break;
+            }
+        }
+
+        var titled = string.Join(
+            ' ',
+            tokens.Select(t => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(t.ToLowerInvariant()))
+        );
+        return $"{titled} Airport";
+    }
+
+    private static bool IsGenericAirportSuffix(string token) =>
+        token.Equals("INTL", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("INTERNATIONAL", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("MUNI", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("MUNICIPAL", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("REGIONAL", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("RGNL", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("METRO", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("METROPOLITAN", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("EXEC", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("EXECUTIVE", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("FIELD", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("AIRPORT", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("AIRPARK", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("AIRBASE", StringComparison.OrdinalIgnoreCase);
+
+    // Common US compound city names. When one of these appears at position 1+ inside an
+    // airport's published name, it's a metro qualifier (e.g. KOAK's "OAKLAND SAN FRANCISCO
+    // BAY" = the OAKLAND airport, with "SAN FRANCISCO" tacked on as the metro descriptor).
+    private static readonly string[] CompoundCityNames =
+    [
+        "SAN FRANCISCO",
+        "SAN DIEGO",
+        "SAN JOSE",
+        "SAN ANTONIO",
+        "LOS ANGELES",
+        "NEW YORK",
+        "NEW ORLEANS",
+        "FORT WORTH",
+        "FORT LAUDERDALE",
+        "FORT MYERS",
+        "ST LOUIS",
+        "ST PAUL",
+        "ST PETERSBURG",
+        "OKLAHOMA CITY",
+        "KANSAS CITY",
+    ];
 
     private static int RoundToNearest(double value, int increment)
     {

@@ -1001,11 +1001,13 @@ public static partial class CifpParser
 
     /// <summary>
     /// Parses VOR/DME/NDB navaid records (section D, "SUSAD" prefix) from CIFP data.
-    /// Returns a dictionary of navaid identifier → (lat, lon) for supplementing NavData fixes.
+    /// Returns a dictionary of navaid identifier → (lat, lon, name) for supplementing
+    /// NavData fixes. The published navaid name (e.g. "WOODSIDE" for OSI) sits at
+    /// columns 93-123 of the primary record per ARINC 424 field 5.71.
     /// </summary>
-    public static IReadOnlyDictionary<string, (double Lat, double Lon)> ParseNavaids(string cifpFilePath)
+    public static IReadOnlyDictionary<string, (double Lat, double Lon, string Name)> ParseNavaids(string cifpFilePath)
     {
-        var navaids = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
+        var navaids = new Dictionary<string, (double Lat, double Lon, string Name)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var line in File.ReadLines(cifpFilePath))
         {
@@ -1048,7 +1050,8 @@ public static partial class CifpParser
 
             if (lat is not null && lon is not null)
             {
-                navaids[ident] = (lat.Value, lon.Value);
+                string name = line.Length >= 123 ? line[93..123].Trim() : "";
+                navaids[ident] = (lat.Value, lon.Value, name);
             }
         }
 

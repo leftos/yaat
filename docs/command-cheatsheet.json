@@ -268,7 +268,7 @@
         { "verb": "SEAPP", "aliases": [], "description": "Say expected approach" },
         { "verb": "SALT", "aliases": [], "description": "Say altitude (e.g. \"Leaving five thousand for eight thousand\")" },
         { "verb": "SHDG", "aliases": [], "description": "Say heading (e.g. \"Heading two seven zero, direct MENLO\")" },
-        { "verb": "SPOS", "aliases": [], "description": "Say position (e.g. \"Over WAITZ\" or \"one two miles east of OAK\")" }
+        { "verb": "SPOS", "aliases": [], "description": "Say position relative to a route/DCT fix or sizeable airport (e.g. \"one two miles east of WAITZ (three zero miles east of KOAK)\")" }
       ],
       "notes": ["Combine with AT for deferred reports: AT WAITZ SALT, AT MENLO SHDG, AT RHV SAY position report"]
     },

@@ -16,6 +16,8 @@ public sealed class NavigationDatabase
 {
     private readonly Dictionary<string, (double Lat, double Lon)> _navDb = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, double> _elevations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _airportNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _navaidNames = new(StringComparer.OrdinalIgnoreCase);
 
     // Spatial bucket of airports (1° × 1° grid; ~60nm bucket size). Used by
     // FindNearestAirportElevation for terrain-aware AGL lookups when the aircraft
@@ -437,6 +439,29 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
+    /// Returns the published airport name (raw NavData form, typically all-caps like
+    /// "METROPOLITAN OAKLAND INTL") for <paramref name="code"/>, or <c>null</c> if the
+    /// code is unknown or the airport has no name. Callers that surface this to humans
+    /// should title-case the result.
+    /// </summary>
+    public string? GetAirportName(string code)
+    {
+        if (_airportNames.TryGetValue(code, out var name))
+        {
+            return name;
+        }
+        if (code.Length == 4 && code.StartsWith('K') && _airportNames.TryGetValue(code[1..], out var byFaa))
+        {
+            return byFaa;
+        }
+        if (code.Length == 3 && _airportNames.TryGetValue("K" + code, out var byIcao))
+        {
+            return byIcao;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Returns the elevation (ft MSL) of the nearest airport to <paramref name="position"/>
     /// within <paramref name="maxRangeNm"/>, or <c>null</c> if no airport is within range.
     /// Used as a terrain proxy for STARS / AGL gating when the aircraft has no precise
@@ -471,6 +496,83 @@ public sealed class NavigationDatabase
             }
         }
         return bestElev;
+    }
+
+    /// <summary>
+    /// Returns the nearest airport to <paramref name="position"/> within
+    /// <paramref name="maxRangeNm"/> whose longest runway is at least
+    /// <paramref name="minRunwayLengthFt"/>, or <c>null</c> if none qualifies.
+    /// Used by pilot position reports to anchor against an airport a working
+    /// controller (or RPO) is likely to recognize, instead of an arbitrary
+    /// nearby RNAV waypoint. Walks the same 1°-bucket grid as
+    /// <see cref="FindNearestAirportElevation"/>; cost is O(airports in
+    /// neighborhood) plus one runway lookup per candidate.
+    /// </summary>
+    public (string Id, double Lat, double Lon)? FindNearestSizeableAirport(LatLon position, int minRunwayLengthFt, double maxRangeNm)
+    {
+        var (latBucket, lonBucket) = AirportBucketKey(position.Lat, position.Lon);
+        int radius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / 60.0));
+
+        double bestDist = double.MaxValue;
+        (string Id, double Lat, double Lon)? best = null;
+        for (int dLat = -radius; dLat <= radius; dLat++)
+        {
+            for (int dLon = -radius; dLon <= radius; dLon++)
+            {
+                if (!_airportSpatialIndex.TryGetValue((latBucket + dLat, lonBucket + dLon), out var bucket))
+                {
+                    continue;
+                }
+                foreach (var (id, lat, lon, _) in bucket)
+                {
+                    var dist = GeoMath.DistanceNm(position, new LatLon(lat, lon));
+                    if ((dist >= bestDist) || (dist > maxRangeNm))
+                    {
+                        continue;
+                    }
+                    if (!HasRunwayAtLeast(id, minRunwayLengthFt))
+                    {
+                        continue;
+                    }
+                    bestDist = dist;
+                    best = (id, lat, lon);
+                }
+            }
+        }
+        return best;
+    }
+
+    private bool HasRunwayAtLeast(string airportId, int minLengthFt)
+    {
+        if (_runways.TryGetValue(airportId, out var list) && MaxRunwayLength(list) >= minLengthFt)
+        {
+            return true;
+        }
+
+        // FAA/ICAO key fallback, mirroring GetAirportElevation.
+        if (airportId.Length == 4 && airportId.StartsWith('K') && _runways.TryGetValue(airportId[1..], out var byFaa))
+        {
+            return MaxRunwayLength(byFaa) >= minLengthFt;
+        }
+        if (airportId.Length == 3 && _runways.TryGetValue("K" + airportId, out var byIcao))
+        {
+            return MaxRunwayLength(byIcao) >= minLengthFt;
+        }
+
+        return false;
+    }
+
+    private static double MaxRunwayLength(IReadOnlyList<RunwayInfo> runways)
+    {
+        double max = 0;
+        foreach (var r in runways)
+        {
+            if (r.LengthFt > max)
+            {
+                max = r.LengthFt;
+            }
+        }
+        return max;
     }
 
     private static (int LatBucket, int LonBucket) AirportBucketKey(double lat, double lon) => ((int)Math.Floor(lat), (int)Math.Floor(lon));
@@ -995,12 +1097,20 @@ public sealed class NavigationDatabase
             {
                 _navDb.TryAdd(airport.FaaId, pos);
                 _elevations.TryAdd(airport.FaaId, airport.Elevation);
+                if (!string.IsNullOrEmpty(airport.Name))
+                {
+                    _airportNames.TryAdd(airport.FaaId, airport.Name);
+                }
             }
 
             if (!string.IsNullOrEmpty(airport.IcaoId))
             {
                 _navDb.TryAdd(airport.IcaoId, pos);
                 _elevations.TryAdd(airport.IcaoId, airport.Elevation);
+                if (!string.IsNullOrEmpty(airport.Name))
+                {
+                    _airportNames.TryAdd(airport.IcaoId, airport.Name);
+                }
             }
 
             string canonical = !string.IsNullOrEmpty(airport.IcaoId) ? airport.IcaoId : airport.FaaId ?? "";
@@ -1419,10 +1529,24 @@ public sealed class NavigationDatabase
         }
 
         var navaids = CifpParser.ParseNavaids(cifpFilePath);
-        foreach (var (ident, pos) in navaids)
+        foreach (var (ident, info) in navaids)
         {
-            _navDb.TryAdd(ident, pos);
+            _navDb.TryAdd(ident, (info.Lat, info.Lon));
+            if (!string.IsNullOrEmpty(info.Name))
+            {
+                _navaidNames.TryAdd(ident, info.Name);
+            }
         }
+    }
+
+    /// <summary>
+    /// Returns the published navaid name (e.g. "WOODSIDE" for OSI, "POINT REYES" for PYE)
+    /// for <paramref name="code"/>, or <c>null</c> if the code isn't a known VHF navaid.
+    /// Sourced from CIFP section D primary records.
+    /// </summary>
+    public string? GetNavaidName(string code)
+    {
+        return _navaidNames.TryGetValue(code, out var name) ? name : null;
     }
 
     /// <summary>

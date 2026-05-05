@@ -129,7 +129,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Say expected approach | — | `SEAPP` | YAAT-only — broadcasts expected approach |
 | Say altitude | — | `SALT` | YAAT-only — reports altitude and vertical trend |
 | Say heading | — | `SHDG` | YAAT-only — reports heading and direct-to fix |
-| Say position | — | `SPOS` | YAAT-only — reports position relative to nearest fix |
+| Say position | — | `SPOS` | YAAT-only — anchors on a fix from the filed route, DCT queue, or dep/dest airport (with a parenthetical airport reference for unfamiliar fixes); falls back to the nearest sizeable airport when off-route |
 | AT FIX SAY | — | `AT WAITZ SALT`, `AT MENLO SHDG`, `AT RHV SAY position report` | YAAT-only — defer any SAY-class report to fix overflight |
 
 ### Navigation

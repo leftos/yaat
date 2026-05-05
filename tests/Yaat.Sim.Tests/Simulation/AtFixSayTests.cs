@@ -152,6 +152,9 @@ public class AtFixSayTests(ITestOutputHelper output)
         using var _ = NavigationDatabase.ScopedOverride(NavDb);
 
         var ac = MakeAircraft();
+        // BuildPosition restricts candidates to the aircraft's filed route + DCT queue
+        // + dep/dest, so FIX_B must be on the route for SPOS to anchor on it.
+        ac.FlightPlan.Route = "FIX_B";
         var (captured, ctx) = MakeContext();
 
         var parsed = CommandParser.ParseCompound("AT FIX_B SPOS", ac.FlightPlan.Route);

@@ -449,7 +449,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Say expected approach | `SEAPP` | — | Aircraft reports expected approach |
 | Say altitude | `SALT` | — | Aircraft reports current and target altitude |
 | Say heading | `SHDG` | — | Aircraft reports heading (includes direct-to fix if navigating) |
-| Say position | `SPOS` | — | Aircraft reports position as fix-radial-distance |
+| Say position | `SPOS` | — | Aircraft reports position relative to a route/DCT fix or sizeable airport |
 | Spawn now | `SPAWN` | — | — |
 | Spawn delay | `DELAY 120` | — | — |
 | Wait (seconds) | `WAIT 30` | — | — |
@@ -1144,7 +1144,7 @@ Make an aircraft broadcast information. Output uses spoken pilot phraseology per
 | `SEAPP` | Aircraft reports expected approach (e.g. `Expecting the ILS one niner left approach`) or `Negative, no approach assigned` |
 | `SALT` | Aircraft reports altitude and vertical trend (e.g. `Leaving five thousand three hundred for eight thousand`) |
 | `SHDG` | Aircraft reports heading (e.g. `Heading two seven zero, direct MENLO`) |
-| `SPOS` | Aircraft reports position relative to nearest fix (e.g. `Over WAITZ` or `one two miles east of OAK`) |
+| `SPOS` | Aircraft reports position relative to a fix on its filed route, DCT queue, or departure/destination airport, with a parenthetical airport reference when the anchor is a fix (e.g. `one two miles east of WAITZ (three zero miles east of KOAK)`). Falls back to the nearest sizeable airport when off-route. |
 
 **Combine with `AT` for deferred reports.** Wrap any SAY-class verb in an `AT <fix>` condition to make the aircraft transmit when overflying that fix:
 
