@@ -1951,6 +1951,13 @@ public static class FilletArcGenerator
     /// </summary>
     private static int RemoveRedundantPreserveEdges(AirportGroundLayout layout)
     {
+        // "Between" tolerance: the closer edge's far endpoint must lie within this
+        // detour budget of the line from fromNode to toNode. A short stub in roughly
+        // the same direction but landing off-axis (e.g., toward an unrelated parking
+        // node) would fail the triangle-inequality check and not displace the preserve.
+        const double betweenToleranceFracOfPreserve = 0.10;
+        const double betweenToleranceMinFt = 15.0;
+
         int removed = 0;
         var toRemove = new List<GroundEdge>();
 
@@ -1963,12 +1970,11 @@ public static class FilletArcGenerator
             int fromId = preserve.Nodes[0].Id;
             int toId = preserve.Nodes[1].Id;
 
-            // Check if there's another edge from the same node on the same taxiway
-            // to a closer node in the same direction
             double preserveDist = preserve.DistanceNm;
             double preserveBearing = GeoMath.BearingTo(preserve.Nodes[0].Position, preserve.Nodes[1].Position);
+            double toleranceNm = Math.Max(preserveDist * betweenToleranceFracOfPreserve, betweenToleranceMinFt / GeoMath.FeetPerNm);
 
-            bool hasCloserEdge = layout.Edges.Any(e =>
+            bool hasBetweenEdge = layout.Edges.Any(e =>
             {
                 if (e == preserve)
                 {
@@ -1990,15 +1996,25 @@ public static class FilletArcGenerator
                     return false;
                 }
 
-                // Check same direction (within 30°)
+                // Same direction (within 30°) — keeps obvious anti-parallel candidates out.
                 var other = e.Nodes[0].Id == fromId ? e.Nodes[1] : e.Nodes[0];
                 double otherBearing = GeoMath.BearingTo(preserve.Nodes[0].Position, other.Position);
-                return GeoMath.AbsBearingDifference(preserveBearing, otherBearing) < 30.0;
+                if (GeoMath.AbsBearingDifference(preserveBearing, otherBearing) >= 30.0)
+                {
+                    return false;
+                }
+
+                // Triangle inequality: dist(from, other) + dist(other, to) ≈ dist(from, to)
+                // means `other` lies on the line. A short stub headed off-axis (e.g., into
+                // a ramp branch) fails this check even if its direction matches.
+                double otherToTo = GeoMath.DistanceNm(other.Position, preserve.Nodes[1].Position);
+                double detour = (e.DistanceNm + otherToTo) - preserveDist;
+                return Math.Abs(detour) <= toleranceNm;
             });
 
-            if (hasCloserEdge)
+            if (hasBetweenEdge)
             {
-                Log.LogDebug("Removing redundant preserve edge {Twy}(#{From}↔#{To}) — closer edge exists", preserve.TaxiwayName, fromId, toId);
+                Log.LogDebug("Removing redundant preserve edge {Twy}(#{From}↔#{To}) — closer edge exists on the path", preserve.TaxiwayName, fromId, toId);
                 toRemove.Add(preserve);
                 removed++;
             }
