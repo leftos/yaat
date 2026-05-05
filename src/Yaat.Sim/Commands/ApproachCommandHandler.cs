@@ -570,7 +570,14 @@ public static class ApproachCommandHandler
                             EntryLat = waypoints.DownwindAbeamLat,
                             EntryLon = waypoints.DownwindAbeamLon,
                             PatternAltitude = waypoints.PatternAltitude,
-                            Kind = PatternEntryPhase.ClassifyDownwindEntry(aircraft.TrueTrack, waypoints.DownwindHeading),
+                            Kind = PatternEntryPhase.ClassifyDownwindEntry(
+                                aircraft.Position,
+                                aircraft.TrueTrack,
+                                new LatLon(approachRunway.ThresholdLatitude, approachRunway.ThresholdLongitude),
+                                approachRunway.TrueHeading,
+                                waypoints.DownwindHeading,
+                                waypoints.Direction
+                            ),
                             LeadInLat = leadIn.Lat,
                             LeadInLon = leadIn.Lon,
                         }

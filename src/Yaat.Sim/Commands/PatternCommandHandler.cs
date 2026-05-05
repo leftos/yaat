@@ -1598,13 +1598,19 @@ internal static class PatternCommandHandler
         PatternEntryLeg entryLeg
     )
     {
-        _ = direction;
         return entryLeg switch
         {
             PatternEntryLeg.Upwind => PatternEntryKind.Upwind,
             PatternEntryLeg.Base => PatternEntryKind.Base,
             PatternEntryLeg.Final => PatternEntryKind.Final,
-            _ => PatternEntryPhase.ClassifyDownwindEntry(aircraft.TrueTrack, runway.TrueHeading.ToReciprocal()),
+            _ => PatternEntryPhase.ClassifyDownwindEntry(
+                aircraft.Position,
+                aircraft.TrueTrack,
+                new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+                runway.TrueHeading,
+                runway.TrueHeading.ToReciprocal(),
+                direction
+            ),
         };
     }
 }

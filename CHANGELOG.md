@@ -23,6 +23,7 @@
 
 ### Fixed
 - `EF` to a parallel runway while on final now side-steps onto the new centerline instead of flying a 360 to rejoin the approach.
+- Aircraft joining downwind from the pattern side at a misaligned angle now read `midfield to {dir} downwind` instead of `crosswind` / `45`.
 
 ## v0.1.14-alpha [2026/05/04]
 

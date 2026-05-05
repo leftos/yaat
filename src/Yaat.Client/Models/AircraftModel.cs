@@ -841,6 +841,7 @@ public partial class AircraftModel : ObservableObject
             "Direct" => JoinNonEmpty("direct", dir, "downwind", rwy),
             "FortyFive" => JoinNonEmpty("45 to", dir, "downwind", rwy),
             "Crosswind" => JoinNonEmpty("crosswind to", dir, "downwind", rwy),
+            "Midfield" => JoinNonEmpty("midfield to", dir, "downwind", rwy),
             "Upwind" => JoinNonEmpty("upwind entry", rwy),
             "Base" => JoinNonEmpty(dir, "base entry", rwy),
             "Final" => JoinNonEmpty("straight-in", rwy),

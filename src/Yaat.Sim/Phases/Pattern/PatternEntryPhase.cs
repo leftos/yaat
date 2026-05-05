@@ -14,13 +14,21 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public enum PatternEntryKind
 {
-    /// <summary>Joining downwind from roughly along the downwind course (≤30° angular delta).</summary>
+    /// <summary>Joining downwind from roughly along the downwind course (≤20° angular delta).</summary>
     Direct,
 
-    /// <summary>Classic 45° intercept to downwind (AIM 4-3-3), >30° up to 75°.</summary>
+    /// <summary>
+    /// Classic 45° intercept to downwind (AIM 4-3-3 / AC 90-66B): 20°–60° angular
+    /// delta from the pattern side of the runway.
+    /// </summary>
     FortyFive,
 
-    /// <summary>Entering downwind from a crosswind-like angle (>75°), typically after a teardrop or from the opposite side.</summary>
+    /// <summary>
+    /// True crosswind→downwind transition (>60° angular delta) from the upwind /
+    /// non-pattern side of the runway, where the join turn matches pattern direction.
+    /// Aircraft on the pattern side at a perpendicular angle are classified as
+    /// <see cref="Midfield"/> instead.
+    /// </summary>
     Crosswind,
 
     /// <summary>Joining on the upwind leg (parallel to departure end), used for go-around re-entry and wrong-side corrections.</summary>
@@ -31,6 +39,15 @@ public enum PatternEntryKind
 
     /// <summary>Joining directly onto final (straight-in).</summary>
     Final,
+
+    /// <summary>
+    /// Joining downwind from the pattern side at a misaligned angle — neither
+    /// a clean AIM 4-3-3 45° entry (which arrives on the pattern side at
+    /// roughly 45° to the downwind course) nor a true crosswind→downwind turn
+    /// (which crosses from the upwind/non-pattern side). Covers midfield-cross
+    /// and teardrop-family entries where the join turn opposes pattern direction.
+    /// </summary>
+    Midfield,
 }
 
 /// <summary>
@@ -185,26 +202,57 @@ public sealed class PatternEntryPhase : Phase
 
     /// <summary>
     /// Classifies a downwind entry by the angular delta between the aircraft's
-    /// current track and the downwind course. Thresholds reflect AIM 4-3-3:
-    /// the recommended 45° entry lives in roughly 20°–60° off-course; below
-    /// 20° the aircraft is effectively along downwind (direct); above 60°
-    /// the geometry is more perpendicular than a 45° intercept (crosswind).
-    /// For non-downwind target legs, callers should pass the leg directly
-    /// (Upwind/Base/Final) rather than calling this.
+    /// current track and the downwind course, combined with which side of the
+    /// runway centerline the aircraft is on. AIM 4-3-3's 45° entry arrives on
+    /// the pattern side at roughly 45° off-course; a real crosswind→downwind
+    /// turn crosses from the upwind (non-pattern) side. Aircraft that are
+    /// angularly perpendicular *but* already on the pattern side, or aircraft
+    /// approaching at 45° from the wrong side, are classified as
+    /// <see cref="PatternEntryKind.Midfield"/> — the join turn opposes the
+    /// pattern's natural turn direction. Aircraft straddling the centerline
+    /// (within <c>CenterlineEpsilonNm</c>) are treated as on-pattern-side so
+    /// classification doesn't whipsaw tick-to-tick. For non-downwind target
+    /// legs, callers should pass the leg directly (Upwind/Base/Final).
     /// </summary>
-    public static PatternEntryKind ClassifyDownwindEntry(TrueHeading aircraftTrack, TrueHeading downwindCourse)
+    public static PatternEntryKind ClassifyDownwindEntry(
+        LatLon aircraftPosition,
+        TrueHeading aircraftTrack,
+        LatLon runwayThreshold,
+        TrueHeading runwayHeading,
+        TrueHeading downwindCourse,
+        PatternDirection patternDirection
+    )
     {
         double delta = aircraftTrack.AbsAngleTo(downwindCourse);
+
         if (delta <= 20.0)
         {
             return PatternEntryKind.Direct;
         }
+
+        // Signed pattern-side distance: positive = on pattern side, negative = on
+        // upwind/non-pattern side. Aircraft within CenterlineEpsilonNm of the
+        // axis are ambiguous; bias them toward the friendly label for the angle
+        // bucket (FortyFive for 45°-ish, Crosswind for perpendicular).
+        double crossTrack = GeoMath.SignedCrossTrackDistanceNm(aircraftPosition, runwayThreshold, runwayHeading);
+        double patternSign = patternDirection == PatternDirection.Right ? 1.0 : -1.0;
+        double patternSideDist = crossTrack * patternSign;
+
         if (delta <= 60.0)
         {
-            return PatternEntryKind.FortyFive;
+            // 45° bucket: anything that isn't clearly on the wrong side counts as 45°.
+            return patternSideDist >= -CenterlineEpsilonNm ? PatternEntryKind.FortyFive : PatternEntryKind.Midfield;
         }
-        return PatternEntryKind.Crosswind;
+        // Perpendicular bucket: anything that isn't clearly on the pattern side counts as crosswind.
+        return patternSideDist > CenterlineEpsilonNm ? PatternEntryKind.Midfield : PatternEntryKind.Crosswind;
     }
+
+    /// <summary>
+    /// Cross-track tolerance around the extended centerline. Aircraft within
+    /// this band are treated as on the pattern side so the classification
+    /// doesn't flip while the aircraft is roughly over the runway axis.
+    /// </summary>
+    private const double CenterlineEpsilonNm = 0.25;
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

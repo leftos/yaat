@@ -267,7 +267,14 @@ public sealed class VfrFollowPhase : Phase
                 EntryLat = leadWaypoints.DownwindAbeamLat,
                 EntryLon = leadWaypoints.DownwindAbeamLon,
                 PatternAltitude = leadWaypoints.PatternAltitude,
-                Kind = PatternEntryPhase.ClassifyDownwindEntry(ctx.Aircraft.TrueTrack, leadWaypoints.DownwindHeading),
+                Kind = PatternEntryPhase.ClassifyDownwindEntry(
+                    ctx.Aircraft.Position,
+                    ctx.Aircraft.TrueTrack,
+                    new LatLon(leadRunway.ThresholdLatitude, leadRunway.ThresholdLongitude),
+                    leadRunway.TrueHeading,
+                    leadWaypoints.DownwindHeading,
+                    leadWaypoints.Direction
+                ),
                 LeadInLat = leadIn.Lat,
                 LeadInLon = leadIn.Lon,
             };
