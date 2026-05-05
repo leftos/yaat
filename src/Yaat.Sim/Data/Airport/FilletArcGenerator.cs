@@ -1783,6 +1783,7 @@ public static class FilletArcGenerator
             // Rewrite arc node references with bezier control point adjustment
             foreach (var arc in layout.Arcs)
             {
+                bool translated = false;
                 for (int k = 0; k < arc.Nodes.Length; k++)
                 {
                     if (mergeMap.TryGetValue(arc.Nodes[k].Id, out var survivor))
@@ -1806,7 +1807,17 @@ public static class FilletArcGenerator
 
                         arc.Origin += $" +merge({victim.Id}->{survivor.Id})";
                         arc.Nodes[k] = survivor;
+                        translated = true;
                     }
+                }
+
+                // Recompute MinRadiusOfCurvatureFt from the now-current geometry so
+                // the degenerate-arc filter below uses fresh values rather than the
+                // pre-merge radius.
+                if (translated)
+                {
+                    var bezier = arc.ToBezier();
+                    arc.MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(arc.Nodes[0].Position.Lat, 10);
                 }
             }
 
