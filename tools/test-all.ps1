@@ -1,6 +1,13 @@
 #!/usr/bin/env pwsh
 # Builds and runs the full test suites for both yaat and yaat-server repos.
-# Usage: pwsh tools/test-all.ps1
+# Usage:
+#   pwsh tools/test-all.ps1                 # Release (default — ~30% faster on Sim)
+#   pwsh tools/test-all.ps1 -Config Debug   # Debug (better stack traces for failures)
+
+param(
+    [ValidateSet('Debug', 'Release')]
+    [string]$Config = 'Release'
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -35,10 +42,12 @@ function Run-Step {
     }
 }
 
-Run-Step 'Build yaat' $yaatDir 'dotnet build -p:TreatWarningsAsErrors=true'
-Run-Step 'Build yaat-server' $serverDir 'dotnet build -p:TreatWarningsAsErrors=true'
-Run-Step 'Test yaat' $yaatDir 'dotnet test --no-build'
-Run-Step 'Test yaat-server' $serverDir 'dotnet test --no-build'
+Write-Host "Configuration: $Config" -ForegroundColor Yellow
+
+Run-Step 'Build yaat' $yaatDir "dotnet build -c $Config -p:TreatWarningsAsErrors=true"
+Run-Step 'Build yaat-server' $serverDir "dotnet build -c $Config -p:TreatWarningsAsErrors=true"
+Run-Step 'Test yaat' $yaatDir "dotnet test -c $Config --no-build"
+Run-Step 'Test yaat-server' $serverDir "dotnet test -c $Config --no-build"
 
 Write-Host ''
 if ($failed) {
