@@ -180,6 +180,19 @@ public partial class DataGridView : UserControl
         menu.Items.Add(new Separator());
 
         menu.AddCommandTextBox(cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        menu.Items.Add(new Separator());
+
+        AddPhaseAwareItems(menu, ac, vm, callsign, initials);
+        if (!ac.IsOnGround)
+        {
+            menu.Items.Add(BuildTowerSubmenu(ac, vm, callsign, initials));
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
 
         menu.Items.Add(new Separator());
         var editItem = new MenuItem { Header = "Edit flight plan" };

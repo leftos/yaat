@@ -249,13 +249,53 @@ public partial class RadarView
 
         var menu = new MenuItem { Header = spdLabel };
 
-        var speeds = BuildSpeedList();
-        var currentSpd = ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0 ? (int)(Math.Round(ac.AssignedSpeed.Value / 10.0) * 10) : 250;
+        var speeds = BuildSpeedListForAircraft(ac);
+        var currentSpd =
+            ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0
+                ? (int)(Math.Round(ac.AssignedSpeed.Value / 10.0) * 10)
+                : (int)((IList<object>)speeds)[speeds.Count / 2];
         menu.Items.Add(CreateListMenuItem("Assign speed", speeds, currentSpd, val => vm.SpeedAssignAsync(cs, init, (int)val)));
         menu.Items.Add(CreateInputMenuItem("Speed...", "Speed (knots)", input => vm.SpeedAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateMenuItem("Resume normal speed", () => vm.SpeedNormalAsync(cs, init)));
         menu.Items.Add(CreateMenuItem(BuildFasMenuLabel(ac), () => vm.ReduceFinalApproachSpeedAsync(cs, init)));
         return menu;
+    }
+
+    private static IReadOnlyList<object> BuildSpeedListForAircraft(AircraftModel? ac)
+    {
+        if (ac is null || string.IsNullOrEmpty(ac.FiledAircraftType))
+        {
+            return BuildSpeedList();
+        }
+
+        var type = ac.FiledAircraftType;
+        var cat = Yaat.Sim.AircraftCategorization.Categorize(type);
+        var alt = Math.Max(ac.Altitude, 0);
+
+        double approach = Yaat.Sim.AircraftPerformance.ApproachSpeed(type, cat);
+        double climb = Yaat.Sim.AircraftPerformance.ClimbSpeed(type, cat, alt);
+
+        int min = (int)(Math.Floor(approach / 10.0) * 10);
+        int max = (int)(Math.Ceiling(climb / 10.0) * 10);
+
+        if (min < 40)
+        {
+            min = 40;
+        }
+
+        if (max - min < 50)
+        {
+            min = Math.Max(40, min - 20);
+            max += 20;
+        }
+
+        var items = new List<object>(((max - min) / 10) + 1);
+        for (int s = min; s <= max; s += 10)
+        {
+            items.Add(s);
+        }
+
+        return items;
     }
 
     private static string BuildFasMenuLabel(AircraftModel? ac)
@@ -455,6 +495,40 @@ public partial class RadarView
                 Command = new RelayCommand(() => vm.ToggleShowPath(callsign)),
             }
         );
+        menu.Items.Add(new Separator());
+
+        var ldr = new MenuItem { Header = "Leader direction" };
+        for (int d = 1; d <= 9; d++)
+        {
+            var direction = d;
+            var label = direction == 5 ? "5 (default)" : direction.ToString();
+            ldr.Items.Add(CreateMenuItem(label, () => vm.LeaderDirectionAsync(callsign, GetInitials(), direction)));
+        }
+
+        menu.Items.Add(ldr);
+
+        var jring = new MenuItem { Header = "J-ring" };
+        jring.Items.Add(CreateMenuItem("Clear", () => vm.JRingAsync(callsign, GetInitials(), null)));
+        foreach (var r in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
+        {
+            var radius = r;
+            jring.Items.Add(CreateMenuItem($"{radius:0} nm", () => vm.JRingAsync(callsign, GetInitials(), radius)));
+        }
+
+        menu.Items.Add(jring);
+
+        var cone = new MenuItem { Header = "Cone" };
+        cone.Items.Add(CreateMenuItem("Clear", () => vm.ConeAsync(callsign, GetInitials(), null)));
+        foreach (var r in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
+        {
+            var radius = r;
+            cone.Items.Add(CreateMenuItem($"{radius:0} nm", () => vm.ConeAsync(callsign, GetInitials(), radius)));
+        }
+
+        menu.Items.Add(cone);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Blank target", () => vm.BlankAsync(callsign, GetInitials())));
+        menu.Items.Add(CreateMenuItem("Unblank target", () => vm.BlankDeleteAsync(callsign, GetInitials())));
         return menu;
     }
 
@@ -706,7 +780,47 @@ public partial class RadarView
 
         menu.Items.Add(CreateInputMenuItem("PTAC...", "PTAC arguments", input => vm.PtacAsync(cs, init, input)));
 
+        AddJoinRadialItems(menu, vm, cs, init);
+
         return menu;
+    }
+
+    private void AddJoinRadialItems(MenuItem menu, RadarViewModel vm, string cs, string init)
+    {
+        if (vm.FixNames is not null)
+        {
+            menu.Items.Add(
+                CreateFilteredListMenuItem(
+                    "Join radial outbound...",
+                    vm.FixNames,
+                    fix =>
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                            ShowInputPopup($"Bearing from {fix} (0-360)", bearing => vm.JoinRadialOutboundAsync(cs, init, $"{fix} {bearing}"))
+                        );
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+            menu.Items.Add(
+                CreateFilteredListMenuItem(
+                    "Join radial inbound...",
+                    vm.FixNames,
+                    fix =>
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                            ShowInputPopup($"Bearing to {fix} (0-360)", bearing => vm.JoinRadialInboundAsync(cs, init, $"{fix} {bearing}"))
+                        );
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+        else
+        {
+            menu.Items.Add(CreateInputMenuItem("Join radial outbound...", "FIX bearing", input => vm.JoinRadialOutboundAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Join radial inbound...", "FIX bearing", input => vm.JoinRadialInboundAsync(cs, init, input)));
+        }
     }
 
     private MenuItem BuildTowerSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
@@ -809,7 +923,29 @@ public partial class RadarView
     {
         var menu = new MenuItem { Header = "Pattern" };
         AddPatternEntryItems(menu, vm, cs, init, ac);
+        menu.Items.Add(new Separator());
+        AddPatternManeuverItems(menu, vm, cs, init);
         return menu;
+    }
+
+    private void AddPatternManeuverItems(MenuItem menu, RadarViewModel vm, string cs, string init)
+    {
+        menu.Items.Add(CreateMenuItem("Turn crosswind", () => vm.TurnCrosswindAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Turn downwind", () => vm.TurnDownwindAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Turn base", () => vm.TurnBaseAsync(cs, init)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Extend pattern leg", () => vm.ExtendPatternAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Make short approach", () => vm.MakeShortApproachAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Make normal approach", () => vm.MakeNormalApproachAsync(cs, init)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Make left 360", () => vm.MakeLeft360Async(cs, init)));
+        menu.Items.Add(CreateMenuItem("Make right 360", () => vm.MakeRight360Async(cs, init)));
+        menu.Items.Add(CreateMenuItem("Make left 270", () => vm.MakeLeft270Async(cs, init)));
+        menu.Items.Add(CreateMenuItem("Make right 270", () => vm.MakeRight270Async(cs, init)));
+        menu.Items.Add(CreateMenuItem("Plan 270 at next turn", () => vm.Plan270Async(cs, init)));
+        menu.Items.Add(CreateMenuItem("Cancel 270", () => vm.Cancel270Async(cs, init)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Circle airport", () => vm.CircleAirportAsync(cs, init)));
     }
 
     private void AddPatternEntryItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)

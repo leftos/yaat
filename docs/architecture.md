@@ -166,6 +166,7 @@ Views/
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
   FavoritesBarView.axaml.cs     # Favorite command buttons bar (click/ctrl+click/right-click)
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
+  DataGridView.ContextMenu.cs   # Partial: phase-aware right-click menu builders
   DataGridWindow.axaml.cs       # Pop-out data grid window
   TerminalPanelView.axaml.cs    # Auto-scroll with user-scroll detection
   TerminalWindow.axaml.cs       # Pop-out terminal (shares MainViewModel)

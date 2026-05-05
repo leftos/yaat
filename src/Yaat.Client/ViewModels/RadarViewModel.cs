@@ -1358,6 +1358,106 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, $"SAY {text}", initials);
     }
 
+    public async Task LeaderDirectionAsync(string callsign, string initials, int direction)
+    {
+        await _sendCommand(callsign, $"LDR {direction}", initials);
+    }
+
+    public async Task JRingAsync(string callsign, string initials, double? radiusNm)
+    {
+        await _sendCommand(callsign, radiusNm.HasValue ? $"JRING {radiusNm.Value}" : "JRING", initials);
+    }
+
+    public async Task ConeAsync(string callsign, string initials, double? radiusNm)
+    {
+        await _sendCommand(callsign, radiusNm.HasValue ? $"CONE {radiusNm.Value}" : "CONE", initials);
+    }
+
+    public async Task BlankAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "BLANK", initials);
+    }
+
+    public async Task BlankDeleteAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "BLANKD", initials);
+    }
+
+    public async Task TurnCrosswindAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "TC", initials);
+    }
+
+    public async Task TurnDownwindAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "TD", initials);
+    }
+
+    public async Task TurnBaseAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "TB", initials);
+    }
+
+    public async Task ExtendPatternAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "EXT", initials);
+    }
+
+    public async Task MakeShortApproachAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "MSA", initials);
+    }
+
+    public async Task MakeNormalApproachAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "MNA", initials);
+    }
+
+    public async Task MakeLeft360Async(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "L360", initials);
+    }
+
+    public async Task MakeRight360Async(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "R360", initials);
+    }
+
+    public async Task MakeLeft270Async(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "L270", initials);
+    }
+
+    public async Task MakeRight270Async(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "R270", initials);
+    }
+
+    public async Task Cancel270Async(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "NO270", initials);
+    }
+
+    public async Task Plan270Async(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "P270", initials);
+    }
+
+    public async Task CircleAirportAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CA", initials);
+    }
+
+    public async Task JoinRadialOutboundAsync(string callsign, string initials, string radial)
+    {
+        await _sendCommand(callsign, $"JRADO {radial}", initials);
+    }
+
+    public async Task JoinRadialInboundAsync(string callsign, string initials, string radial)
+    {
+        await _sendCommand(callsign, $"JRADI {radial}", initials);
+    }
+
     // --- Coordination ---
 
     public async Task CoordinationReleaseAsync(string callsign, string initials)

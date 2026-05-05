@@ -9,9 +9,14 @@
 - Radar right-click → **Squawk** → **Squawk random** assigns a random discrete code (`RANDSQ`) without typing.
 - Radar right-click → **Ask pilot to say...** submenu issues SAY-class commands: Altitude (`SALT`), Heading (`SHDG`), Speed (`SSPD`), Mach (`SMACH`), Position (`SPOS`), Expected approach (`SEAPP`), and a Custom… text entry that emits `SAY <text>`.
 - Ground right-click on an aircraft *At Parking* → **Push back to...** submenu lists the closest 30 named parking/spot/helipad nodes by distance and issues `PUSH @<parking>` or `PUSH $<spot>` in one click.
+- Aircraft list right-click is now phase-aware: ground phases show **Push back / Hold position / Resume taxi / Cross / LUAW / Cancel takeoff / Final-approach landing items / Exit left/right** as appropriate; airborne phases show a **Tower** submenu (LUAW, CTO, CLAND, COPT, T&G, S&G, LA, GA — runway in label when assigned). The list also gains always-visible **Track**, **Squawk**, **Ask pilot to say...**, and **Coordination** submenus mirroring the radar menu's one-click items.
+- Radar right-click → **Display** submenu gains per-aircraft display controls: **Leader direction** (1–9 numpad), **J-ring** (Clear / 1 / 2 / 3 / 5 / 10 nm), **Cone** (Clear / 1 / 2 / 3 / 5 / 10 nm), **Blank target** (`BLANK`), **Unblank target** (`BLANKD`).
+- Radar right-click → **Pattern** submenu gains in-pattern maneuver controls: **Turn crosswind / downwind / base** (`TC`/`TD`/`TB`), **Extend pattern leg** (`EXT`), **Make short approach** (`MSA`) / **normal approach** (`MNA`), **Make left/right 360** (`L360`/`R360`), **Make left/right 270** (`L270`/`R270`), **Plan 270 at next turn** (`P270`), **Cancel 270** (`NO270`), **Circle airport** (`CA`).
+- Radar right-click → **Procedures** gains **Join radial outbound...** and **Join radial inbound...** items; pick a fix from the filtered list, then enter the bearing in a follow-up dialog (sends `JRADO FIX bearing` / `JRADI FIX bearing`).
 
 ### Changed
 - Radar **Tower** submenu and Ground **Final Approach** items (Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Go around, Line up and wait) show the aircraft's assigned runway in the label (e.g. *Cleared to land 28R*) — no behavior change, the item still issues the bare command.
+- Radar **Speed** submenu values are now type-aware: the assignable speeds run from the aircraft's `ApproachSpeed` to its altitude-resolved `ClimbSpeed` in 10-kt steps (replacing the static 150–350 kt list). C172 sees ~60–100 kt; transport jets see ~140–280 kt at altitude. Falls back to the legacy 150–350 list when filed type is unknown.
 
 ## v0.1.14-alpha [2026/05/04]
 
