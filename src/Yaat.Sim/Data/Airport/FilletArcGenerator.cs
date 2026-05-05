@@ -208,7 +208,7 @@ public static class FilletArcGenerator
 
         foreach (var arc in layout.Arcs)
         {
-            if (!TryParsePhaseCArcOrigin(arc.Origin, out int intId, out string twyKey))
+            if (arc.FilletProvenance is not CornerArcProvenance prov)
             {
                 continue;
             }
@@ -216,7 +216,7 @@ public static class FilletArcGenerator
             double b0 = arc.EdgeBearingAtNode0Deg;
             double b1 = arc.EdgeBearingAtNode1Deg;
             (double lo, double hi) = b0 <= b1 ? (b0, b1) : (b1, b0);
-            var key = (intId, twyKey);
+            var key = (prov.IntersectionId, prov.NormalizedTaxiwayKey);
 
             if (!arcsByGroup.TryGetValue(key, out var list))
             {
@@ -367,7 +367,8 @@ public static class FilletArcGenerator
                     {
                         continue;
                     }
-                    if (edge.Origin is null || !edge.Origin.StartsWith("Fillet:phase-d-", StringComparison.Ordinal))
+                    // Only consider phase-d edges (rescue-orphan and non-fillet edges aren't bypass candidates).
+                    if (edge.FilletProvenance is not FilletEdgeProvenance fep || fep.Kind == FilletEdgeKind.RescueOrphan)
                     {
                         continue;
                     }
@@ -555,17 +556,16 @@ public static class FilletArcGenerator
     {
         layout.RebuildAdjacencyLists();
 
-        // Group tangent nodes by (intersectionId, taxiway, destinationNodeId).
-        // The grouping key is parsed from origin tags of the form
-        // "Fillet:tangent-node@<intId> on-<twy>(→<destId>)".
+        // Group tangent nodes by (intersectionId, taxiway, destinationNodeId) — read
+        // straight from the typed TangentNodeProvenance attached at construction.
         var groups = new Dictionary<(int IntId, string Twy, int DestId), List<GroundNode>>();
         foreach (var node in layout.Nodes.Values)
         {
-            if (!TryParseTangentNodeOrigin(node.Origin, out int intId, out string twy, out int destId))
+            if (node.FilletProvenance is not TangentNodeProvenance tprov)
             {
                 continue;
             }
-            var key = (intId, twy, destId);
+            var key = (tprov.IntersectionId, tprov.Taxiway, tprov.DestinationNodeId);
             if (!groups.TryGetValue(key, out var list))
             {
                 list = [];
@@ -583,11 +583,13 @@ public static class FilletArcGenerator
                 continue;
             }
 
-            // BFS within members along phase-d-tangent-link@<intId> edges to find
+            // BFS within members along TangentLink edges from this intersection to find
             // each connected chain. Process each chain independently.
-            string tangentLinkPrefix = $"Fillet:phase-d-tangent-link@{key.IntId} ";
-            string arcPrefix = $"Fillet:phase-c-arc@{key.IntId} ";
-            string shortenPrefix = $"Fillet:phase-d-shorten@{key.IntId} ";
+            int intId = key.IntId;
+            bool IsKindAt(IGroundEdge e, FilletEdgeKind kind) =>
+                e.FilletProvenance is FilletEdgeProvenance fp && fp.IntersectionId == intId && fp.Kind == kind;
+            bool IsArcAnchorAt(IGroundEdge e) =>
+                e.FilletProvenance is CornerArcProvenance cap && cap.IntersectionId == intId;
             var memberIds = members.Select(n => n.Id).ToHashSet();
 
             var visited = new HashSet<int>();
@@ -613,7 +615,7 @@ public static class FilletArcGenerator
                         {
                             continue;
                         }
-                        if (edge.Origin?.StartsWith(tangentLinkPrefix, StringComparison.Ordinal) != true)
+                        if (!IsKindAt(edge, FilletEdgeKind.TangentLink))
                         {
                             continue;
                         }
@@ -632,8 +634,8 @@ public static class FilletArcGenerator
                     continue;
                 }
 
-                // Identify arc anchors: chain members with at least one phase-c-arc edge.
-                var arcAnchors = chain.Where(n => n.Edges.Any(e => e.Origin?.StartsWith(arcPrefix, StringComparison.Ordinal) == true)).ToList();
+                // Identify arc anchors: chain members with at least one phase-c-arc from this intersection.
+                var arcAnchors = chain.Where(n => n.Edges.Any(IsArcAnchorAt)).ToList();
                 if (arcAnchors.Count < 2)
                 {
                     continue;
@@ -643,11 +645,8 @@ public static class FilletArcGenerator
                 // inside the chain). For a linear chain there will be two endpoints.
                 var chainEndpoints = chain
                     .Where(n =>
-                        n.Edges.Count(e =>
-                            e is GroundEdge ge
-                            && ge.Origin?.StartsWith(tangentLinkPrefix, StringComparison.Ordinal) == true
-                            && memberIds.Contains(ge.OtherNode(n).Id)
-                        ) <= 1
+                        n.Edges.Count(e => e is GroundEdge ge && IsKindAt(ge, FilletEdgeKind.TangentLink) && memberIds.Contains(ge.OtherNode(n).Id))
+                        <= 1
                     )
                     .ToHashSet();
 
@@ -667,7 +666,7 @@ public static class FilletArcGenerator
                         {
                             continue;
                         }
-                        if (edge.Origin?.StartsWith(shortenPrefix, StringComparison.Ordinal) != true)
+                        if (!IsKindAt(edge, FilletEdgeKind.Shorten))
                         {
                             continue;
                         }
@@ -718,12 +717,14 @@ public static class FilletArcGenerator
                         }
 
                         double dist = GeoMath.DistanceNm(anchor.Position, target.Position);
+                        var prov = new FilletEdgeProvenance(key.IntId, FilletEdgeKind.ShortenDirect, key.Twy, anchor.Id, target.Id);
                         var newEdge = new GroundEdge
                         {
                             Nodes = [anchor, target],
                             TaxiwayName = key.Twy,
                             DistanceNm = dist,
-                            Origin = $"Fillet:phase-d-shorten-direct@{key.IntId} {key.Twy} #{anchor.Id}↔#{target.Id}",
+                            Origin = prov.DisplayString,
+                            FilletProvenance = prov,
                         };
                         layout.Edges.Add(newEdge);
                         addedTotal++;
@@ -750,118 +751,6 @@ public static class FilletArcGenerator
         return addedTotal;
     }
 
-    /// <summary>
-    /// Parse origin of the form "Fillet:tangent-node@&lt;intId&gt; on-&lt;twy&gt;(→&lt;destId&gt;)".
-    /// </summary>
-    private static bool TryParseTangentNodeOrigin(string? origin, out int intId, out string twy, out int destId)
-    {
-        intId = 0;
-        twy = "";
-        destId = 0;
-        if (string.IsNullOrEmpty(origin))
-        {
-            return false;
-        }
-
-        const string prefix = "Fillet:tangent-node@";
-        if (!origin.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        int spaceIdx = origin.IndexOf(' ', prefix.Length);
-        if (spaceIdx <= prefix.Length)
-        {
-            return false;
-        }
-
-        if (!int.TryParse(origin.AsSpan(prefix.Length, spaceIdx - prefix.Length), out intId))
-        {
-            return false;
-        }
-
-        // Expect " on-<twy>(→<destId>)" after the int id
-        const string onPrefix = "on-";
-        int onStart = spaceIdx + 1;
-        if (onStart + onPrefix.Length > origin.Length)
-        {
-            return false;
-        }
-        if (!origin.AsSpan(onStart, onPrefix.Length).SequenceEqual(onPrefix.AsSpan()))
-        {
-            return false;
-        }
-
-        int twyStart = onStart + onPrefix.Length;
-        int parenIdx = origin.IndexOf('(', twyStart);
-        if (parenIdx < 0)
-        {
-            return false;
-        }
-        twy = origin[twyStart..parenIdx];
-
-        // Look for the arrow → followed by digits and ')'
-        int arrowIdx = origin.IndexOf('→', parenIdx);
-        if (arrowIdx < 0)
-        {
-            return false;
-        }
-        int closeIdx = origin.IndexOf(')', arrowIdx);
-        if (closeIdx < 0)
-        {
-            return false;
-        }
-        return int.TryParse(origin.AsSpan(arrowIdx + 1, closeIdx - arrowIdx - 1), out destId);
-    }
-
-    /// <summary>
-    /// Parse the intersection id and taxiway pair from a `Fillet:phase-c-arc@<id> <twyA>/<twyB>` origin tag.
-    /// Returns false for any other origin format. The taxiway pair is normalized so the order
-    /// (twyA/twyB vs twyB/twyA) doesn't matter.
-    /// </summary>
-    private static bool TryParsePhaseCArcOrigin(string? origin, out int intId, out string twyKey)
-    {
-        intId = 0;
-        twyKey = "";
-        if (string.IsNullOrEmpty(origin))
-        {
-            return false;
-        }
-
-        const string prefix = "Fillet:phase-c-arc@";
-        if (!origin.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        int spaceIdx = origin.IndexOf(' ', prefix.Length);
-        if (spaceIdx <= prefix.Length)
-        {
-            return false;
-        }
-
-        if (!int.TryParse(origin.AsSpan(prefix.Length, spaceIdx - prefix.Length), out intId))
-        {
-            return false;
-        }
-
-        // Walk forward to find the twyA/twyB token (everything up to the next space or end).
-        int twyStart = spaceIdx + 1;
-        int twyEnd = origin.IndexOf(' ', twyStart);
-        string twyToken = twyEnd < 0 ? origin[twyStart..] : origin[twyStart..twyEnd];
-
-        int slashIdx = twyToken.IndexOf('/');
-        if (slashIdx < 0)
-        {
-            twyKey = twyToken;
-            return true;
-        }
-
-        string twyA = twyToken[..slashIdx];
-        string twyB = twyToken[(slashIdx + 1)..];
-        twyKey = string.CompareOrdinal(twyA, twyB) <= 0 ? $"{twyA}/{twyB}" : $"{twyB}/{twyA}";
-        return true;
-    }
 
     private static bool IsEligibleForFilleting(GroundNode node)
     {
@@ -1250,6 +1139,7 @@ public static class FilletArcGenerator
             double minRadiusFt = bezier.MinRadiusOfCurvatureFt(tanNodeA.Position.Lat, 10);
             double arcLengthNm = bezier.ArcLengthNm(20);
             bool sameTaxiway = edgeA.SharesTaxiway(edgeB);
+            var arcProv = new CornerArcProvenance(ctx.Intersection.Id, edgeA.TaxiwayName, edgeB.TaxiwayName);
 
             ctx.Layout.Arcs.Add(
                 new GroundArc
@@ -1265,7 +1155,8 @@ public static class FilletArcGenerator
                     EdgeBearingAtNode0Deg = bearingAToIntersection,
                     EdgeBearingAtNode1Deg = bearingBToIntersection,
                     TurnAngleDeg = effectiveTurnDeg,
-                    Origin = $"Fillet:phase-c-arc@{ctx.Intersection.Id} {edgeA.TaxiwayName}/{edgeB.TaxiwayName}",
+                    Origin = arcProv.DisplayString,
+                    FilletProvenance = arcProv,
                 }
             );
             ctx.ArcsCreated++;
@@ -1317,13 +1208,15 @@ public static class FilletArcGenerator
                             continue;
                         }
                         double dist = GeoMath.DistanceNm(prev.Position, t.Node.Position);
+                        var splitProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.ArcSplit, edge.TaxiwayName, prev.Id, t.Node.Id);
                         ctx.Layout.Edges.Add(
                             new GroundEdge
                             {
                                 Nodes = [prev, t.Node],
                                 TaxiwayName = edge.TaxiwayName,
                                 DistanceNm = dist,
-                                Origin = $"Fillet:phase-d-arc-split@{ctx.Intersection.Id} {edge.TaxiwayName} #{prev.Id}↔#{t.Node.Id}",
+                                Origin = splitProv.DisplayString,
+                                FilletProvenance = splitProv,
                             }
                         );
                         prev = t.Node;
@@ -1331,13 +1224,15 @@ public static class FilletArcGenerator
                     if (prev.Id != splitNodeB.Id)
                     {
                         double finalDist = GeoMath.DistanceNm(prev.Position, splitNodeB.Position);
+                        var finalProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.ArcSplit, edge.TaxiwayName, prev.Id, splitNodeB.Id);
                         ctx.Layout.Edges.Add(
                             new GroundEdge
                             {
                                 Nodes = [prev, splitNodeB],
                                 TaxiwayName = edge.TaxiwayName,
                                 DistanceNm = finalDist,
-                                Origin = $"Fillet:phase-d-arc-split@{ctx.Intersection.Id} {edge.TaxiwayName} #{prev.Id}↔#{splitNodeB.Id}",
+                                Origin = finalProv.DisplayString,
+                                FilletProvenance = finalProv,
                             }
                         );
                     }
@@ -1352,13 +1247,15 @@ public static class FilletArcGenerator
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
                 {
                     double ptToTanDist = GeoMath.DistanceNm(ptNode.Position, farthest.Node.Position);
+                    var ptProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Passthrough, edge.TaxiwayName, ptNode.Id, farthest.Node.Id);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [ptNode, farthest.Node],
                             TaxiwayName = edge.TaxiwayName,
                             DistanceNm = ptToTanDist,
-                            Origin = $"Fillet:phase-d-passthrough@{ctx.Intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farthest.Node.Id}",
+                            Origin = ptProv.DisplayString,
+                            FilletProvenance = ptProv,
                         }
                     );
                 }
@@ -1372,13 +1269,15 @@ public static class FilletArcGenerator
                     if (!nearest.Placement.LandsInManualArc)
                     {
                         double shortenDist = GeoMath.DistanceNm(otherNode.Position, nearest.Node.Position);
+                        var shortenProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Shorten, edge.TaxiwayName, otherNode.Id, nearest.Node.Id);
                         ctx.Layout.Edges.Add(
                             new GroundEdge
                             {
                                 Nodes = [otherNode, nearest.Node],
                                 TaxiwayName = edge.TaxiwayName,
                                 DistanceNm = shortenDist,
-                                Origin = $"Fillet:phase-d-shorten@{ctx.Intersection.Id} {edge.TaxiwayName} #{otherNode.Id}↔#{nearest.Node.Id}",
+                                Origin = shortenProv.DisplayString,
+                                FilletProvenance = shortenProv,
                             }
                         );
                     }
@@ -1397,23 +1296,27 @@ public static class FilletArcGenerator
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
                 {
                     double ptToTanDist = GeoMath.DistanceNm(ptNode.Position, farthest.Node.Position);
+                    var ptToTanProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Passthrough, edge.TaxiwayName, ptNode.Id, farthest.Node.Id);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [ptNode, farthest.Node],
                             TaxiwayName = edge.TaxiwayName,
                             DistanceNm = ptToTanDist,
-                            Origin = $"Fillet:phase-d-passthrough@{ctx.Intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farthest.Node.Id}",
+                            Origin = ptToTanProv.DisplayString,
+                            FilletProvenance = ptToTanProv,
                         }
                     );
                     double ptToFarDist = GeoMath.DistanceNm(ptNode.Position, farNode.Position);
+                    var ptToFarProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Passthrough, edge.TaxiwayName, ptNode.Id, farNode.Id);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [ptNode, farNode],
                             TaxiwayName = edge.TaxiwayName,
                             DistanceNm = ptToFarDist,
-                            Origin = $"Fillet:phase-d-passthrough@{ctx.Intersection.Id} {edge.TaxiwayName} #{ptNode.Id}↔#{farNode.Id}",
+                            Origin = ptToFarProv.DisplayString,
+                            FilletProvenance = ptToFarProv,
                         }
                     );
                 }
@@ -1430,13 +1333,15 @@ public static class FilletArcGenerator
                         farthest.Node.Id,
                         shortenDist * GeoMath.FeetPerNm
                     );
+                    var stdShortenProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Shorten, edge.TaxiwayName, farNode.Id, farthest.Node.Id);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [farNode, farthest.Node],
                             TaxiwayName = edge.TaxiwayName,
                             DistanceNm = shortenDist,
-                            Origin = $"Fillet:phase-d-shorten@{ctx.Intersection.Id} {edge.TaxiwayName} #{farNode.Id}↔#{farthest.Node.Id}",
+                            Origin = stdShortenProv.DisplayString,
+                            FilletProvenance = stdShortenProv,
                         }
                     );
                 }
@@ -1471,13 +1376,15 @@ public static class FilletArcGenerator
                     toTan.Node.Id,
                     segDist * GeoMath.FeetPerNm
                 );
+                var linkProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.TangentLink, edge.TaxiwayName, fromTan.Node.Id, toTan.Node.Id);
                 ctx.Layout.Edges.Add(
                     new GroundEdge
                     {
                         Nodes = [fromTan.Node, toTan.Node],
                         TaxiwayName = edge.TaxiwayName,
                         DistanceNm = segDist,
-                        Origin = $"Fillet:phase-d-tangent-link@{ctx.Intersection.Id} {edge.TaxiwayName} #{fromTan.Node.Id}↔#{toTan.Node.Id}",
+                        Origin = linkProv.DisplayString,
+                        FilletProvenance = linkProv,
                     }
                 );
             }
@@ -1533,13 +1440,15 @@ public static class FilletArcGenerator
                     bHasTangent
                 );
 
+                var mergeProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Merge, edgeA.TaxiwayName, endA.Id, endB.Id);
                 ctx.Layout.Edges.Add(
                     new GroundEdge
                     {
                         Nodes = [endA, endB],
                         TaxiwayName = edgeA.TaxiwayName,
                         DistanceNm = mergedDist,
-                        Origin = $"Fillet:phase-d-merge@{ctx.Intersection.Id} {edgeA.TaxiwayName} #{endA.Id}↔#{endB.Id}",
+                        Origin = mergeProv.DisplayString,
+                        FilletProvenance = mergeProv,
                     }
                 );
 
@@ -1585,13 +1494,15 @@ public static class FilletArcGenerator
             if (bestTarget is not null)
             {
                 double newDist = GeoMath.DistanceNm(otherNode.Position, bestTarget.Position);
+                var reconnectProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Reconnect, edge.TaxiwayName);
                 ctx.Layout.Edges.Add(
                     new GroundEdge
                     {
                         Nodes = [otherNode, bestTarget],
                         TaxiwayName = edge.TaxiwayName,
                         DistanceNm = newDist,
-                        Origin = $"Fillet:phase-d-reconnect@{ctx.Intersection.Id} {edge.TaxiwayName}",
+                        Origin = reconnectProv.DisplayString,
+                        FilletProvenance = reconnectProv,
                     }
                 );
             }
@@ -1676,13 +1587,15 @@ public static class FilletArcGenerator
                         nearest.Node.Id,
                         tangentFt
                     );
+                    var preserveProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Preserve, edge.TaxiwayName);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [ctx.Intersection, nearest.Node],
                             TaxiwayName = edge.TaxiwayName,
                             DistanceNm = stubDist,
-                            Origin = $"Fillet:phase-d-preserve@{ctx.Intersection.Id} {edge.TaxiwayName}",
+                            Origin = preserveProv.DisplayString,
+                            FilletProvenance = preserveProv,
                         }
                     );
                 }
@@ -1701,13 +1614,15 @@ public static class FilletArcGenerator
                         tangentFt,
                         firstEdgeFt
                     );
+                    var preserveProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Preserve, edge.TaxiwayName);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [ctx.Intersection, otherNode],
                             TaxiwayName = edge.TaxiwayName,
                             DistanceNm = neighborDist,
-                            Origin = $"Fillet:phase-d-preserve@{ctx.Intersection.Id} {edge.TaxiwayName}",
+                            Origin = preserveProv.DisplayString,
+                            FilletProvenance = preserveProv,
                         }
                     );
                 }
@@ -1741,13 +1656,15 @@ public static class FilletArcGenerator
                         otherA.Id,
                         dist * GeoMath.FeetPerNm
                     );
+                    var stubProvA = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Preserve, edgeA.TaxiwayName);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [ctx.Intersection, otherA],
                             TaxiwayName = edgeA.TaxiwayName,
                             DistanceNm = dist,
-                            Origin = $"Fillet:phase-d-preserve@{ctx.Intersection.Id} {edgeA.TaxiwayName}",
+                            Origin = stubProvA.DisplayString,
+                            FilletProvenance = stubProvA,
                         }
                     );
                 }
@@ -1763,13 +1680,15 @@ public static class FilletArcGenerator
                         otherB.Id,
                         dist * GeoMath.FeetPerNm
                     );
+                    var stubProvB = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Preserve, edgeB.TaxiwayName);
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
                             Nodes = [ctx.Intersection, otherB],
                             TaxiwayName = edgeB.TaxiwayName,
                             DistanceNm = dist,
-                            Origin = $"Fillet:phase-d-preserve@{ctx.Intersection.Id} {edgeB.TaxiwayName}",
+                            Origin = stubProvB.DisplayString,
+                            FilletProvenance = stubProvB,
                         }
                     );
                 }
@@ -1954,7 +1873,7 @@ public static class FilletArcGenerator
             {
                 var node = layout.Nodes[id];
                 // Only remove fillet-created tangent nodes, not original graph nodes
-                if (node.Origin?.StartsWith("Fillet:") == true)
+                if (node.FilletProvenance is not null)
                 {
                     layout.Nodes.Remove(id);
                 }
@@ -1994,7 +1913,11 @@ public static class FilletArcGenerator
         int removed = 0;
         var toRemove = new List<GroundEdge>();
 
-        foreach (var preserve in layout.Edges.Where(e => e.Origin is not null && e.Origin.Contains("phase-d-preserve")).ToList())
+        foreach (
+            var preserve in layout
+                .Edges.Where(e => e.FilletProvenance is FilletEdgeProvenance fep && fep.Kind == FilletEdgeKind.Preserve)
+                .ToList()
+        )
         {
             int fromId = preserve.Nodes[0].Id;
             int toId = preserve.Nodes[1].Id;
@@ -2060,7 +1983,7 @@ public static class FilletArcGenerator
 
         foreach (var node in layout.Nodes.Values.ToList())
         {
-            if (node.Origin is null || !node.Origin.StartsWith("Fillet:tangent-node"))
+            if (node.FilletProvenance is not TangentNodeProvenance)
             {
                 continue;
             }
@@ -2126,13 +2049,16 @@ public static class FilletArcGenerator
                 continue;
             }
 
+            // RescueOrphan has no intersection scope — pass 0 as a placeholder.
+            var rescueProv = new FilletEdgeProvenance(0, FilletEdgeKind.RescueOrphan, twyName, node.Id, bestNeighbor.Id);
             layout.Edges.Add(
                 new GroundEdge
                 {
                     Nodes = [node, bestNeighbor],
                     TaxiwayName = twyName,
                     DistanceNm = bestDist,
-                    Origin = $"Fillet:rescue-orphan #{node.Id}↔#{bestNeighbor.Id}",
+                    Origin = rescueProv.DisplayString,
+                    FilletProvenance = rescueProv,
                 }
             );
 
@@ -2518,13 +2444,15 @@ public static class FilletArcGenerator
 
         var otherNode = edge.OtherNode(intersection);
         int id = nextNodeId++;
+        var provenance = new TangentNodeProvenance(intersection.Id, edge.TaxiwayName, otherNode.Id);
         var newNode = new GroundNode
         {
             Id = id,
             Position = new LatLon(placement.Lat, placement.Lon),
             Type = GroundNodeType.TaxiwayIntersection,
             SourceIntersectionPosition = (intersection.Position.Lat, intersection.Position.Lon),
-            Origin = $"Fillet:tangent-node@{intersection.Id} on-{edge.TaxiwayName}(→{otherNode.Id})",
+            Origin = provenance.DisplayString,
+            FilletProvenance = provenance,
         };
         layout.Nodes[id] = newNode;
         existing.Add((newNode, placement));

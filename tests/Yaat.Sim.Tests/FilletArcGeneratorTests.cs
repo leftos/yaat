@@ -495,7 +495,9 @@ public class FilletArcGeneratorTests
 
         FilletArcGenerator.Apply(layout);
 
-        var rescueEdges = layout.Edges.Where(e => e.Origin?.Contains("rescue-orphan") == true).ToList();
+        var rescueEdges = layout
+            .Edges.Where(e => e.FilletProvenance is FilletEdgeProvenance fep && fep.Kind == FilletEdgeKind.RescueOrphan)
+            .ToList();
         Assert.True(
             rescueEdges.Count == 0,
             $"Expected no rescue-orphan edges; got {rescueEdges.Count}: "
@@ -505,7 +507,7 @@ public class FilletArcGeneratorTests
         // All tangent nodes should have at least one straight edge connecting them
         // to the graph, not just an arc. (Without straight edges, the rescue pass
         // would have papered over a real connectivity gap.)
-        var tangentNodes = layout.Nodes.Values.Where(n => n.Origin?.StartsWith("Fillet:tangent-node") == true).ToList();
+        var tangentNodes = layout.Nodes.Values.Where(n => n.FilletProvenance is TangentNodeProvenance).ToList();
         Assert.NotEmpty(tangentNodes);
         foreach (var tan in tangentNodes)
         {

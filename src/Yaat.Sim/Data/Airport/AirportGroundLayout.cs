@@ -48,6 +48,15 @@ public sealed class GroundNode
     public string? Origin { get; set; }
 
     /// <summary>
+    /// Typed fillet-pipeline provenance for nodes created by
+    /// <see cref="FilletArcGenerator"/>. Null for non-fillet nodes. Cleanup passes
+    /// pattern-match on the concrete record type instead of parsing
+    /// <see cref="Origin"/>. Not serialized.
+    /// </summary>
+    [JsonIgnore]
+    public FilletProvenance? FilletProvenance { get; set; }
+
+    /// <summary>
     /// For tangent-point nodes created by <see cref="FilletArcGenerator"/>: the position of
     /// the intersection node this tangent was created for. Used during coincident-node merging
     /// to position the merged node at the midpoint between two source intersections.
@@ -122,6 +131,14 @@ public interface IGroundEdge
     string? Origin { get; set; }
 
     /// <summary>
+    /// Typed fillet-pipeline provenance for edges/arcs created by
+    /// <see cref="FilletArcGenerator"/>. Null for non-fillet elements. Cleanup
+    /// passes pattern-match on the concrete record type instead of parsing
+    /// <see cref="Origin"/>. Not serialized.
+    /// </summary>
+    FilletProvenance? FilletProvenance { get; set; }
+
+    /// <summary>
     /// Create a <see cref="DirectionalEdge"/> capturing a specific traversal direction.
     /// </summary>
     DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode);
@@ -166,6 +183,10 @@ public sealed class GroundEdge : IGroundEdge
     /// <inheritdoc/>
     [JsonIgnore]
     public string? Origin { get; set; }
+
+    /// <inheritdoc/>
+    [JsonIgnore]
+    public FilletProvenance? FilletProvenance { get; set; }
 
     /// <summary>
     /// Intermediate coordinates along this edge (lat, lon pairs) for curved paths.
@@ -225,6 +246,10 @@ public sealed class GroundArc : IGroundEdge
     /// <inheritdoc/>
     [JsonIgnore]
     public string? Origin { get; set; }
+
+    /// <inheritdoc/>
+    [JsonIgnore]
+    public FilletProvenance? FilletProvenance { get; set; }
 
     /// <summary>
     /// Bezier control points P1 and P2. P0 = Nodes[0].Lat/Lon, P3 = Nodes[1].Lat/Lon.
