@@ -94,9 +94,6 @@ public static class TaxiPathfinder
     /// </summary>
     private const double FewestTurnsDistanceWeight = 0.001;
 
-    /// <summary>Assumed max taxi speed (kts) for straight edges in the Fastest strategy.</summary>
-    private const double FastestStraightSpeedKts = 30.0;
-
     /// <summary>
     /// Returns true if the token is a node reference (e.g., "#42").
     /// </summary>
@@ -453,8 +450,9 @@ public static class TaxiPathfinder
     /// (1.0 = best possible for that metric). A route's final score is the max across
     /// strategies. Results are deduplicated by taxiway sequence and ranked by score descending.
     /// <para>
-    /// <paramref name="aircraftType"/> is used by the Fastest strategy to compute arc
-    /// speed limits from the aircraft's ground turn rate. When null, defaults to Jet.
+    /// The Fastest strategy uses jet ground turn rate and taxi speed for arc speed
+    /// limits — those values dominate the cost ordering across categories anyway,
+    /// so the strategy stays category-agnostic.
     /// </para>
     /// </summary>
     public static List<TaxiRoute> FindRoutes(
@@ -463,7 +461,6 @@ public static class TaxiPathfinder
         int toNodeId,
         RoutePreference? preference = null,
         int maxRoutes = 4,
-        string? aircraftType = null,
         IReadOnlySet<string>? authorizedTaxiways = null
     )
     {
@@ -471,9 +468,8 @@ public static class TaxiPathfinder
             ? [preference.Value]
             : new[] { RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest };
 
-        var category = aircraftType is not null ? AircraftCategorization.Categorize(aircraftType) : AircraftCategory.Jet;
-        double turnRateDegSec = CategoryPerformance.GroundTurnRate(category);
-        double taxiSpeedKts = CategoryPerformance.TaxiSpeed(category);
+        double turnRateDegSec = CategoryPerformance.GroundTurnRate(AircraftCategory.Jet);
+        double taxiSpeedKts = CategoryPerformance.TaxiSpeed(AircraftCategory.Jet);
 
         // Phase 1: Collect candidates from each strategy via Yen's K-shortest.
         // Each strategy produces up to maxRoutes candidates.
