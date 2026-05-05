@@ -893,15 +893,6 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Checks if a stored runway ID (e.g., "12/30") contains the target
-    /// designator (case-insensitive).
-    /// </summary>
-    internal static bool RunwayIdMatches(RunwayIdentifier storedRunwayId, string targetRunway)
-    {
-        return storedRunwayId.Contains(targetRunway);
-    }
-
-    /// <summary>
     /// Returns true if the node with <paramref name="nodeId"/> has any edge
     /// on <paramref name="taxiwayName"/>.
     /// </summary>

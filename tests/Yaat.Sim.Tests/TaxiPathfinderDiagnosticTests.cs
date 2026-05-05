@@ -168,7 +168,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
                     layout.Nodes.TryGetValue(s.ToNodeId, out var n)
                     && n.Type == GroundNodeType.RunwayHoldShort
                     && n.RunwayId is { } rId
-                    && TaxiPathfinder.RunwayIdMatches(rId, "30")
+                    && rId.Contains("30")
                 );
                 output.WriteLine($"  hasVariant={hasVariant} passesHoldShort={passesHoldShort}");
             }
@@ -178,7 +178,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
 
         // Dump runway 30 hold-short nodes
         var hs30 = layout
-            .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } id && TaxiPathfinder.RunwayIdMatches(id, "30"))
+            .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } id && id.Contains("30"))
             .ToList();
         output.WriteLine($"=== Runway 30 hold-short nodes in OAK layout: {hs30.Count} ===");
         foreach (var hs in hs30.OrderBy(n => n.Position.Lat))

@@ -44,7 +44,7 @@ internal static class TaxiVariantResolver
                 layout.Nodes.TryGetValue(seg.ToNodeId, out var segNode)
                 && segNode.Type == GroundNodeType.RunwayHoldShort
                 && segNode.RunwayId is { } segRwyId
-                && TaxiPathfinder.RunwayIdMatches(segRwyId, destinationRunway)
+                && segRwyId.Contains(destinationRunway)
             )
             {
                 Log.LogDebug("[Variant] Route already reaches hold-short #{NodeId} for {Rwy}", seg.ToNodeId, destinationRunway);
@@ -63,7 +63,7 @@ internal static class TaxiVariantResolver
                 node.Type != GroundNodeType.RunwayHoldShort
                 || node.RunwayId is not { } nodeRwyId
                 || node.Edges.Count == 0
-                || !TaxiPathfinder.RunwayIdMatches(nodeRwyId, destinationRunway)
+                || !nodeRwyId.Contains(destinationRunway)
             )
             {
                 continue;

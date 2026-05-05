@@ -432,7 +432,7 @@ public class TaxiPathfinderTests
         Assert.Equal(expected, TaxiVariantResolver.IsNumberedVariant(candidate, baseName));
     }
 
-    // --- RunwayIdMatches helper tests ---
+    // --- RunwayIdentifier.Contains tests (used by pathfinder for hold-short matching) ---
 
     [Theory]
     [InlineData("12", "30", "30", true)]
@@ -441,9 +441,9 @@ public class TaxiPathfinderTests
     [InlineData("30", "30", "30", true)]
     [InlineData("30L", "30L", "30L", true)]
     [InlineData("12L", "30R", "30R", true)]
-    public void RunwayIdMatches_ReturnsExpected(string end1, string end2, string target, bool expected)
+    public void RunwayIdentifierContains_ReturnsExpected(string end1, string end2, string target, bool expected)
     {
-        Assert.Equal(expected, TaxiPathfinder.RunwayIdMatches(new RunwayIdentifier(end1, end2), target));
+        Assert.Equal(expected, new RunwayIdentifier(end1, end2).Contains(target));
     }
 
     // --- Variant auto-inference tests ---
@@ -1034,7 +1034,7 @@ public class TaxiPathfinderTests
                 n.Type == GroundNodeType.RunwayHoldShort
                 && n.RunwayId is not null
                 && n.RunwayId is { } rId
-                && TaxiPathfinder.RunwayIdMatches(rId, "30")
+                && rId.Contains("30")
             )
             .ToList();
         Assert.True(holdShorts.Count > 0, "Should have hold-shorts for runway 30");
@@ -1155,7 +1155,7 @@ public class TaxiPathfinderTests
             && n.Type == GroundNodeType.RunwayHoldShort
             && n.RunwayId is not null
             && n.RunwayId is { } rId
-            && TaxiPathfinder.RunwayIdMatches(rId, "30")
+            && rId.Contains("30")
         );
         Assert.True(passesHoldShort, "Route should pass through a hold-short node for runway 30");
     }
@@ -1268,7 +1268,7 @@ public class TaxiPathfinderTests
                     n.Type == GroundNodeType.RunwayHoldShort
                     && n.RunwayId is not null
                     && n.RunwayId is { } rId
-                    && TaxiPathfinder.RunwayIdMatches(rId, "30")
+                    && rId.Contains("30")
                 )
                 .ToList();
             var hsInfo = string.Join("; ", hs30.Select(n => $"HS {n.Id} edges=[{string.Join(",", n.Edges.Select(e => e.TaxiwayName))}]"));
@@ -1289,7 +1289,7 @@ public class TaxiPathfinderTests
             && n.Type == GroundNodeType.RunwayHoldShort
             && n.RunwayId is not null
             && n.RunwayId is { } rId
-            && TaxiPathfinder.RunwayIdMatches(rId, "30")
+            && rId.Contains("30")
         );
 
         var segSummary = string.Join(
