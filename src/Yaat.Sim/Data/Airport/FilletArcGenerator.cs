@@ -915,6 +915,8 @@ public static class FilletArcGenerator
             GroundEdge EdgeB,
             double RadiusFt,
             double TurnAngleDeg,
+            double BearingA,
+            double BearingB,
             TangentPlacement PlacementA,
             TangentPlacement PlacementB
         )> PlannedArcs { get; init; }
@@ -1125,7 +1127,7 @@ public static class FilletArcGenerator
                     var placementA = ComputeTangentPlacement(edgeA, ctx.Intersection, bearingA, tangentDistNm, walkA);
                     var placementB = ComputeTangentPlacement(edgeB, ctx.Intersection, bearingB, tangentDistNm, walkB);
 
-                    ctx.PlannedArcs.Add((edgeA, edgeB, radiusFt, turnAngle, placementA, placementB));
+                    ctx.PlannedArcs.Add((edgeA, edgeB, radiusFt, turnAngle, bearingA, bearingB, placementA, placementB));
                 }
             }
         }
@@ -1145,7 +1147,7 @@ public static class FilletArcGenerator
     // edge (when multiple pairs want the same distance) are deduplicated by position.
     private static void PhaseBC_CreateTangentNodesAndArcs(FilletContext ctx, ref int nextNodeId)
     {
-        foreach (var (edgeA, edgeB, radiusFt, turnAngleDeg, placementA, placementB) in ctx.PlannedArcs)
+        foreach (var (edgeA, edgeB, radiusFt, turnAngleDeg, bearingA, bearingB, placementA, placementB) in ctx.PlannedArcs)
         {
             var tanNodeA = GetOrCreateTangentNode(ctx.Layout, ctx.EdgeTangentNodes, edgeA, placementA, ctx.Intersection, ref nextNodeId);
             var tanNodeB = GetOrCreateTangentNode(ctx.Layout, ctx.EdgeTangentNodes, edgeB, placementB, ctx.Intersection, ref nextNodeId);
@@ -1163,11 +1165,6 @@ public static class FilletArcGenerator
                 );
                 continue;
             }
-
-            int idxA = ctx.EdgeBearings.FindIndex(x => x.Edge == edgeA);
-            int idxB = ctx.EdgeBearings.FindIndex(x => x.Edge == edgeB);
-            double bearingA = ctx.EdgeBearings[idxA].Bearing;
-            double bearingB = ctx.EdgeBearings[idxB].Bearing;
 
             double bearingAToIntersection = placementA.BearingTowardIntersectionDeg ?? (bearingA + 180.0) % 360.0;
             double bearingBToIntersection = placementB.BearingTowardIntersectionDeg ?? (bearingB + 180.0) % 360.0;
