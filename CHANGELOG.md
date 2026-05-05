@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.1.14-alpha [2026/05/04]
+
+### Highlights
+- Right-click an aircraft on the ground → **Preset taxi route** issues SOP taxi commands in one click; ships with FLL and OAK starters.
+- EuroScope tag owner cell: left-click takes control, right-click opens the RPO assignment menu (give to / accept handoff).
+- Right-click → **Tower** submenu lets you pre-clear "Line up and wait" or "Cleared for takeoff" while the aircraft is still taxiing.
+- Landing jets no longer coast off the runway end at high-density airports — rollout commits to a reachable exit, or brakes to a stop on the runway as a last resort.
 
 ### Added
 - Ground View shows a small amber dot at every runway threshold when an aircraft is selected — left-click the dot to open the same "Taxi to runway" submenu produced by right-clicking a hold-short node, without hunting for the right node first.

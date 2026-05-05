@@ -176,6 +176,7 @@ Views/
   AboutWindow.axaml.cs          # Help → About dialog: version, build kind, .NET runtime, log path, GitHub link
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
+  ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
 Views/Map/
@@ -195,8 +196,11 @@ Views/Radar/
   RadarViewWindow.axaml.cs      # Pop-out radar window
   RadarCanvas.cs                # SkiaSharp canvas with pan/zoom lock
   RadarRenderer.cs              # Stateless SkiaSharp radar renderer
+  RadarDatablockLayout.cs       # Datablock line/field layout (EuroScope tag + standard datablock geometry shared with renderer + click hit-testing)
   VideoMapRenderer.cs           # Video map line/label rendering
   TargetRenderer.cs             # Aircraft target/datablock rendering
+  Flyouts/
+    FlyoutAppearance.cs         # Shared visual styling for tag flyouts (altitude, speed, runway, scratchpad popups)
 ```
 
 ## Yaat.VStrips — Standalone app (`tools/Yaat.VStrips/`)
