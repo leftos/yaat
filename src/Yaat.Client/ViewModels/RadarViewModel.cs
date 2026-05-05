@@ -1318,6 +1318,46 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, "SQSBY", initials);
     }
 
+    public async Task RandomSquawkAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "RANDSQ", initials);
+    }
+
+    public async Task SayAltitudeAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "SALT", initials);
+    }
+
+    public async Task SayHeadingAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "SHDG", initials);
+    }
+
+    public async Task SaySpeedAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "SSPD", initials);
+    }
+
+    public async Task SayMachAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "SMACH", initials);
+    }
+
+    public async Task SayPositionAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "SPOS", initials);
+    }
+
+    public async Task SayExpectedApproachAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "SEAPP", initials);
+    }
+
+    public async Task SayCustomAsync(string callsign, string initials, string text)
+    {
+        await _sendCommand(callsign, $"SAY {text}", initials);
+    }
+
     // --- Coordination ---
 
     public async Task CoordinationReleaseAsync(string callsign, string initials)

@@ -8,6 +8,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -113,6 +114,7 @@ public partial class RadarView
         menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
@@ -377,11 +379,26 @@ public partial class RadarView
     {
         var menu = new MenuItem { Header = "Squawk" };
         menu.Items.Add(CreateInputMenuItem("Squawk...", "Code (0000-7777)", input => vm.SquawkAsync(cs, init, int.Parse(input))));
+        menu.Items.Add(CreateMenuItem("Squawk random", () => vm.RandomSquawkAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Squawk VFR", () => vm.SquawkVfrAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Squawk normal", () => vm.SquawkNormalAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Squawk standby", () => vm.SquawkStandbyAsync(cs, init)));
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Ident", () => vm.IdentAsync(cs, init)));
+        return menu;
+    }
+
+    private MenuItem BuildAskPilotSubmenu(RadarViewModel vm, string cs, string init)
+    {
+        var menu = new MenuItem { Header = "Ask pilot to say..." };
+        menu.Items.Add(CreateMenuItem("Altitude", () => vm.SayAltitudeAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Heading", () => vm.SayHeadingAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Speed", () => vm.SaySpeedAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Mach", () => vm.SayMachAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Position", () => vm.SayPositionAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Expected approach", () => vm.SayExpectedApproachAsync(cs, init)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateInputMenuItem("Custom...", "Text", input => vm.SayCustomAsync(cs, init, input)));
         return menu;
     }
 
@@ -458,20 +475,19 @@ public partial class RadarView
 
         var menu = new MenuItem { Header = apchLabel };
 
-        // Try to get approach list from CIFP data
-        IReadOnlyList<string>? approachIds = null;
+        IReadOnlyList<CifpApproachProcedure>? approaches = null;
         if (ac is not null && !string.IsNullOrEmpty(ac.Destination))
         {
-            var approaches = NavigationDatabase.Instance.GetApproaches(ac.Destination);
-            if (approaches.Count > 0)
+            var fromDb = NavigationDatabase.Instance.GetApproaches(ac.Destination);
+            if (fromDb.Count > 0)
             {
-                approachIds = approaches.Select(a => a.ApproachId).ToList();
+                approaches = fromDb;
             }
         }
 
-        if (approachIds is not null)
+        if (approaches is not null)
         {
-            var ids = approachIds.Cast<object>().ToList();
+            var ids = approaches.Select(a => (object)a.ApproachId).ToList();
             menu.Items.Add(CreateListMenuItem("Cleared approach", ids, ids[0], val => vm.ClearedApproachAsync(cs, init, (string)val)));
             menu.Items.Add(CreateListMenuItem("Join approach", ids, ids[0], val => vm.JoinApproachAsync(cs, init, (string)val)));
             menu.Items.Add(CreateListMenuItem("Cleared straight-in", ids, ids[0], val => vm.ClearedApproachStraightInAsync(cs, init, (string)val)));
@@ -497,9 +513,7 @@ public partial class RadarView
             menu.Items.Add(CreateInputMenuItem("Expect approach...", "Approach ID", input => vm.ExpectApproachAsync(cs, init, input)));
         }
 
-        menu.Items.Add(
-            CreateInputMenuItem("Cleared visual approach...", "Runway (e.g. 28R)", input => vm.ClearedVisualApproachAsync(cs, init, input))
-        );
+        AddVisualApproachItems(menu, vm, cs, init, ac, approaches);
 
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Report field in sight", () => vm.ReportFieldInSightAsync(cs, init)));
@@ -510,10 +524,172 @@ public partial class RadarView
         return menu;
     }
 
-    private MenuItem BuildProceduresSubmenu(RadarViewModel vm, string cs, string init)
+    private void AddVisualApproachItems(
+        MenuItem menu,
+        RadarViewModel vm,
+        string cs,
+        string init,
+        AircraftModel? ac,
+        IReadOnlyList<CifpApproachProcedure>? approaches
+    )
+    {
+        var defaultRunway = TryGetSmartRunway(ac, approaches);
+        var runways = ac is not null && !string.IsNullOrEmpty(ac.Destination) ? GetRunwayDesignators(ac.Destination) : [];
+
+        if (defaultRunway is not null)
+        {
+            menu.Items.Add(CreateMenuItem($"Cleared visual approach {defaultRunway}", () => vm.ClearedVisualApproachAsync(cs, init, defaultRunway)));
+        }
+
+        if (runways.Count > 0)
+        {
+            var label = defaultRunway is not null ? "Cleared visual approach (other)..." : "Cleared visual approach...";
+            var items = runways.Cast<object>().ToList();
+            menu.Items.Add(CreateListMenuItem(label, items, items[0], val => vm.ClearedVisualApproachAsync(cs, init, (string)val)));
+        }
+        else if (defaultRunway is null)
+        {
+            menu.Items.Add(
+                CreateInputMenuItem("Cleared visual approach...", "Runway (e.g. 28R)", input => vm.ClearedVisualApproachAsync(cs, init, input))
+            );
+        }
+    }
+
+    private static string? TryGetSmartRunway(AircraftModel? ac, IReadOnlyList<CifpApproachProcedure>? approaches)
+    {
+        if (ac is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(ac.AssignedRunway))
+        {
+            return ac.AssignedRunway;
+        }
+
+        if (approaches is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(ac.ActiveApproachId))
+        {
+            var rwy = approaches.FirstOrDefault(a => string.Equals(a.ApproachId, ac.ActiveApproachId, StringComparison.OrdinalIgnoreCase))?.Runway;
+            if (!string.IsNullOrEmpty(rwy))
+            {
+                return rwy;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(ac.ExpectedApproach))
+        {
+            var rwy = approaches.FirstOrDefault(a => string.Equals(a.ApproachId, ac.ExpectedApproach, StringComparison.OrdinalIgnoreCase))?.Runway;
+            if (!string.IsNullOrEmpty(rwy))
+            {
+                return rwy;
+            }
+        }
+
+        return null;
+    }
+
+    private void AddJoinStarItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    {
+        var defaultStar = TryGetFiledStar(ac);
+        var starIds = ac is not null && !string.IsNullOrEmpty(ac.Destination) ? GetStarIds(ac.Destination) : [];
+
+        if (defaultStar is not null)
+        {
+            menu.Items.Add(CreateMenuItem($"Join STAR {defaultStar}", () => vm.JoinStarAsync(cs, init, defaultStar)));
+        }
+
+        if (starIds.Count > 0)
+        {
+            var label = defaultStar is not null ? "Join STAR (other)..." : "Join STAR...";
+            var items = starIds.Cast<object>().ToList();
+            menu.Items.Add(CreateListMenuItem(label, items, items[0], val => vm.JoinStarAsync(cs, init, (string)val)));
+        }
+        else if (defaultStar is null)
+        {
+            menu.Items.Add(CreateInputMenuItem("Join STAR...", "STAR name", input => vm.JoinStarAsync(cs, init, input)));
+        }
+    }
+
+    private static string? TryGetFiledStar(AircraftModel? ac)
+    {
+        if (ac is null || string.IsNullOrEmpty(ac.Destination) || string.IsNullOrEmpty(ac.Route))
+        {
+            return null;
+        }
+
+        var tokens = ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries);
+        foreach (var token in tokens)
+        {
+            var trimmed = token.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            var star = NavigationDatabase.Instance.GetStar(ac.Destination, trimmed);
+            if (star is not null)
+            {
+                return star.ProcedureId;
+            }
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> GetStarIds(string airportCode)
+    {
+        var stars = NavigationDatabase.Instance.GetStars(airportCode);
+        if (stars.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = new List<string>(stars.Count);
+        foreach (var s in stars)
+        {
+            ids.Add(s.ProcedureId);
+        }
+
+        ids.Sort(StringComparer.OrdinalIgnoreCase);
+        return ids;
+    }
+
+    private static IReadOnlyList<string> GetRunwayDesignators(string airportCode)
+    {
+        var runways = NavigationDatabase.Instance.GetRunways(airportCode);
+        if (runways.Count == 0)
+        {
+            return [];
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var rwy in runways)
+        {
+            if (!string.IsNullOrEmpty(rwy.Id.End1) && seen.Add(rwy.Id.End1))
+            {
+                result.Add(rwy.Id.End1);
+            }
+
+            if (!string.IsNullOrEmpty(rwy.Id.End2) && seen.Add(rwy.Id.End2))
+            {
+                result.Add(rwy.Id.End2);
+            }
+        }
+
+        result.Sort(StringComparer.OrdinalIgnoreCase);
+        return result;
+    }
+
+    private MenuItem BuildProceduresSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Procedures" };
-        menu.Items.Add(CreateInputMenuItem("Join STAR...", "STAR name", input => vm.JoinStarAsync(cs, init, input)));
+        AddJoinStarItems(menu, vm, cs, init, ac);
         menu.Items.Add(CreateMenuItem("Climb via SID", () => vm.ClimbViaSidAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Descend via STAR", () => vm.DescendViaStarAsync(cs, init)));
 
@@ -533,38 +709,26 @@ public partial class RadarView
         return menu;
     }
 
-    private MenuItem BuildTowerSubmenu(RadarViewModel vm, string cs, string init)
+    private MenuItem BuildTowerSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Tower" };
+        var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {ac.AssignedRunway}" : "";
 
         // Departures
-        menu.Items.Add(CreateMenuItem("Line up and wait", () => vm.LineUpAndWaitAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem($"Line up and wait{rwy}", () => vm.LineUpAndWaitAsync(cs, init)));
         menu.Items.Add(BuildClearedForTakeoffSubmenu(vm, cs, init));
         menu.Items.Add(new Separator());
 
         // Arrivals / pattern operations
-        menu.Items.Add(CreateMenuItem("Cleared to land", () => vm.ClearedToLandAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Cleared for the option", () => vm.ClearedForOptionAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Touch and go", () => vm.TouchAndGoAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Stop and go", () => vm.StopAndGoAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Low approach", () => vm.LowApproachAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Go around", () => vm.GoAroundAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(cs, init)));
         menu.Items.Add(new Separator());
 
-        // Pattern entries
-        menu.Items.Add(
-            CreateInputMenuItem("Enter left downwind...", "Runway (optional)", input => vm.EnterLeftDownwindAsync(cs, init, NullIfEmpty(input)))
-        );
-        menu.Items.Add(
-            CreateInputMenuItem("Enter right downwind...", "Runway (optional)", input => vm.EnterRightDownwindAsync(cs, init, NullIfEmpty(input)))
-        );
-        menu.Items.Add(CreateInputMenuItem("Enter left base...", "Runway (optional)", input => vm.EnterLeftBaseAsync(cs, init, NullIfEmpty(input))));
-        menu.Items.Add(
-            CreateInputMenuItem("Enter right base...", "Runway (optional)", input => vm.EnterRightBaseAsync(cs, init, NullIfEmpty(input)))
-        );
-        menu.Items.Add(
-            CreateInputMenuItem("Enter straight-in final...", "Runway (optional)", input => vm.EnterFinalAsync(cs, init, NullIfEmpty(input)))
-        );
+        AddPatternEntryItems(menu, vm, cs, init, ac);
         return menu;
     }
 
@@ -630,34 +794,54 @@ public partial class RadarView
                 menu.Items.Add(BuildApproachSubmenu(vm, cs, init, ac));
                 break;
             case MenuGroup.Procedures:
-                menu.Items.Add(BuildProceduresSubmenu(vm, cs, init));
+                menu.Items.Add(BuildProceduresSubmenu(vm, cs, init, ac));
                 break;
             case MenuGroup.Tower:
-                menu.Items.Add(BuildTowerSubmenu(vm, cs, init));
+                menu.Items.Add(BuildTowerSubmenu(vm, cs, init, ac));
                 break;
             case MenuGroup.Pattern:
-                menu.Items.Add(BuildPatternSubmenu(vm, cs, init));
+                menu.Items.Add(BuildPatternSubmenu(vm, cs, init, ac));
                 break;
         }
     }
 
-    private MenuItem BuildPatternSubmenu(RadarViewModel vm, string cs, string init)
+    private MenuItem BuildPatternSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Pattern" };
-        menu.Items.Add(
-            CreateInputMenuItem("Enter left downwind...", "Runway (optional)", input => vm.EnterLeftDownwindAsync(cs, init, NullIfEmpty(input)))
-        );
-        menu.Items.Add(
-            CreateInputMenuItem("Enter right downwind...", "Runway (optional)", input => vm.EnterRightDownwindAsync(cs, init, NullIfEmpty(input)))
-        );
-        menu.Items.Add(CreateInputMenuItem("Enter left base...", "Runway (optional)", input => vm.EnterLeftBaseAsync(cs, init, NullIfEmpty(input))));
-        menu.Items.Add(
-            CreateInputMenuItem("Enter right base...", "Runway (optional)", input => vm.EnterRightBaseAsync(cs, init, NullIfEmpty(input)))
-        );
-        menu.Items.Add(
-            CreateInputMenuItem("Enter straight-in final...", "Runway (optional)", input => vm.EnterFinalAsync(cs, init, NullIfEmpty(input)))
-        );
+        AddPatternEntryItems(menu, vm, cs, init, ac);
         return menu;
+    }
+
+    private void AddPatternEntryItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    {
+        var runwayAirport = ac is not null ? (!string.IsNullOrEmpty(ac.Destination) ? ac.Destination : ac.Departure) : null;
+        var runways = !string.IsNullOrEmpty(runwayAirport) ? GetRunwayDesignators(runwayAirport) : [];
+        var defaultRunway = !string.IsNullOrEmpty(ac?.AssignedRunway) ? ac.AssignedRunway : null;
+
+        AddPatternEntry(menu, "Enter left downwind", runways, defaultRunway, rwy => vm.EnterLeftDownwindAsync(cs, init, rwy));
+        AddPatternEntry(menu, "Enter right downwind", runways, defaultRunway, rwy => vm.EnterRightDownwindAsync(cs, init, rwy));
+        AddPatternEntry(menu, "Enter left base", runways, defaultRunway, rwy => vm.EnterLeftBaseAsync(cs, init, rwy));
+        AddPatternEntry(menu, "Enter right base", runways, defaultRunway, rwy => vm.EnterRightBaseAsync(cs, init, rwy));
+        AddPatternEntry(menu, "Enter straight-in final", runways, defaultRunway, rwy => vm.EnterFinalAsync(cs, init, rwy));
+    }
+
+    private void AddPatternEntry(MenuItem menu, string baseLabel, IReadOnlyList<string> runways, string? defaultRunway, Func<string?, Task> action)
+    {
+        if (defaultRunway is not null)
+        {
+            menu.Items.Add(CreateMenuItem($"{baseLabel} {defaultRunway}", () => action(defaultRunway)));
+        }
+
+        if (runways.Count > 0)
+        {
+            var label = defaultRunway is not null ? $"{baseLabel} (other)..." : $"{baseLabel}...";
+            var items = runways.Cast<object>().ToList();
+            menu.Items.Add(CreateListMenuItem(label, items, items[0], val => action((string)val)));
+        }
+        else if (defaultRunway is null)
+        {
+            menu.Items.Add(CreateInputMenuItem($"{baseLabel}...", "Runway (optional)", input => action(NullIfEmpty(input))));
+        }
     }
 
     private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;

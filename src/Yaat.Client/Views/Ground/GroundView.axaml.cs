@@ -367,6 +367,12 @@ public partial class GroundView : UserControl
                     var h = heading;
                     menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackHeadingAsync(callsign, initials, h)));
                 }
+
+                var pushSubmenu = BuildPushbackToSpotSubmenu(vm, ac, callsign, initials);
+                if (pushSubmenu is not null)
+                {
+                    menu.Items.Add(pushSubmenu);
+                }
             }
         }
 
@@ -419,12 +425,13 @@ public partial class GroundView : UserControl
 
         if (phase == "FinalApproach")
         {
-            menu.Items.Add(CreateMenuItem("Cleared to land", () => vm.ClearedToLandAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Touch and go", () => vm.TouchAndGoAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Stop and go", () => vm.StopAndGoAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Low approach", () => vm.LowApproachAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Cleared for the option", () => vm.ClearedForOptionAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Go around", () => vm.GoAroundAsync(callsign, initials)));
+            var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {ac.AssignedRunway}" : "";
+            menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(callsign, initials)));
             menu.Items.Add(CreateMenuItem("Cancel landing clearance", () => vm.CancelLandingClearanceAsync(callsign, initials)));
         }
 
@@ -494,6 +501,66 @@ public partial class GroundView : UserControl
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
         ShowContextMenu(menu);
+    }
+
+    /// <summary>
+    /// Builds the "Push back to..." submenu listing the closest Parking/Spot/Helipad nodes
+    /// to the aircraft. Sends the canonical PUSH command (`@name` for parking/helipad,
+    /// `$name` for spot). Returns null when the layout is unavailable or there are no candidates.
+    /// </summary>
+    private static MenuItem? BuildPushbackToSpotSubmenu(GroundViewModel vm, AircraftModel ac, string callsign, string initials)
+    {
+        var layout = vm.DomainLayout;
+        if (layout is null)
+        {
+            return null;
+        }
+
+        var currentNodeId = vm.GetAircraftNearestNodeId(ac);
+        var candidates = new List<(GroundNode Node, double DistNm)>();
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(node.Name))
+            {
+                continue;
+            }
+
+            if (currentNodeId.HasValue && node.Id == currentNodeId.Value)
+            {
+                continue;
+            }
+
+            var dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon);
+            candidates.Add((node, dist));
+        }
+
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        candidates.Sort((a, b) => a.DistNm.CompareTo(b.DistNm));
+        const int maxItems = 30;
+        if (candidates.Count > maxItems)
+        {
+            candidates = candidates.GetRange(0, maxItems);
+        }
+
+        var submenu = new MenuItem { Header = "Push back to..." };
+        foreach (var (node, _) in candidates)
+        {
+            var name = node.Name!;
+            var prefix = node.Type == GroundNodeType.Spot ? '$' : '@';
+            var cmd = $"PUSH {prefix}{name}";
+            submenu.Items.Add(CreateMenuItem(name, () => vm.SendRawCommandAsync(callsign, initials, cmd)));
+        }
+
+        return submenu;
     }
 
     /// <summary>

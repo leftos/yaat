@@ -256,7 +256,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 **Right-click context menus:**
 - **On a node** (with aircraft selected): up to 4 route options ("Taxi via T U W") computed via K-shortest paths. Routes that cross runways automatically append crossing commands. Also: "Push to {spot}" (parking nodes), "Draw taxi route...", "Custom taxi...", and "Warp here".
 - **On an aircraft** — items vary by phase:
-  - *At Parking*: "Push back" (default), "Push back, face {taxiway}" per connected edge
+  - *At Parking*: "Push back" (default), "Push back, face {taxiway}" per connected edge, "Push back to..." submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance)
   - *Pushback / Taxiing / Following*: "Hold position"
   - *Taxiing*: "Hold short of..." submenu listing intersecting runways and taxiways
   - *Holding Short*: "Resume taxi", "Cross {rwy}", "Line up and wait", "Cleared for takeoff", plus nearby runway crossings
@@ -264,7 +264,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
   - *Lined Up*: "Cleared for takeoff", "Cancel takeoff clearance"
   - *On the ground (most phases)*: "Preset taxi route" submenu listing per-airport SOP routes when applicable, "Draw taxi route..."
   - *Takeoff*: "Cancel takeoff clearance"
-  - *Final Approach*: "Cleared to land", "Touch and go", "Stop and go", "Low approach", "Cleared for the option", "Go around", "Cancel landing clearance"
+  - *Final Approach*: "Cleared to land {rwy}", "Touch and go {rwy}", "Stop and go {rwy}", "Low approach {rwy}", "Cleared for the option {rwy}", "Go around {rwy}", "Cancel landing clearance" — runway shown in label when assigned
   - *Landing*: "Exit left", "Exit right"
   - All phases include "Delete"
 - **On empty space**: left-click to deselect the current aircraft
@@ -330,7 +330,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 - **PTL**: predicted track lines — adjust length (in minutes); **PTL OWN** shows lines for your tracked aircraft, **PTL ALL** shows lines for all aircraft
 
 **Right-click context menus:**
-- **On an aircraft**: Heading, Altitude, Speed, Approach, Track operations, Delete
+- **On an aircraft**: phase-aware groups (Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower, Pattern) plus always-visible Track, Data Block, Squawk, Ask pilot to say, Coordination, Display, Sim Control, RPO. Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway. Procedures offers a Join STAR picker (smart-defaults to a filed STAR detected in the route). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label. Squawk gains a "Squawk random" one-click. "Ask pilot to say..." submenu issues SAY-class commands (altitude, heading, speed, mach, position, expected approach, custom).
 - **On the map**: always shows [FRD](COMMANDS.md#fix-radial-distance-frd) header (nearest fix + radial + distance) and "Copy FRD". With aircraft selected, also: "Fly heading {hdg}", "Direct to {FRD}", "Append direct to {FRD}", "Hold at {FRD} (left/right)", "Warp here ({FRD})"
 
 **Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, handoff indicator, and scratchpads when set.

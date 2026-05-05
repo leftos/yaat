@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Radar right-click → **Approach** → **Cleared visual approach {rwy}** is now one-click when the aircraft has an assigned runway or an active/expected approach (its runway is parsed from the CIFP procedure); a sibling **Cleared visual approach (other)...** picker lists every runway end at the destination. Falls back to free-text only when no runway data is loaded.
+- Radar right-click → **Procedures** → **Join STAR {NAME}** is now one-click when a STAR is detected in the filed route; sibling **Join STAR (other)...** picker lists every STAR at the destination.
+- Radar right-click → **Tower** / **Pattern** → pattern-entry items (Enter left/right downwind, left/right base, straight-in final) default to the aircraft's assigned runway in one click, with **(other)...** picker for runway override.
+- Radar right-click → **Squawk** → **Squawk random** assigns a random discrete code (`RANDSQ`) without typing.
+- Radar right-click → **Ask pilot to say...** submenu issues SAY-class commands: Altitude (`SALT`), Heading (`SHDG`), Speed (`SSPD`), Mach (`SMACH`), Position (`SPOS`), Expected approach (`SEAPP`), and a Custom… text entry that emits `SAY <text>`.
+- Ground right-click on an aircraft *At Parking* → **Push back to...** submenu lists the closest 30 named parking/spot/helipad nodes by distance and issues `PUSH @<parking>` or `PUSH $<spot>` in one click.
+
+### Changed
+- Radar **Tower** submenu and Ground **Final Approach** items (Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Go around, Line up and wait) show the aircraft's assigned runway in the label (e.g. *Cleared to land 28R*) — no behavior change, the item still issues the bare command.
+
 ## v0.1.14-alpha [2026/05/04]
 
 ### Highlights
