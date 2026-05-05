@@ -20,6 +20,12 @@ public static class FilletArcGenerator
     private const double RampRadiusFt = 50.0;
     private const double MaxTangentDistFt = 150.0;
 
+    // Tangent-node and intersection-node coincidence threshold. Two nodes within
+    // this distance are treated as the same point: tangent placements dedupe to
+    // one shared node, and post-fillet coincident intersections merge.
+    private const double CoincidentNodeThresholdFt = 5.0;
+    private const double CoincidentNodeThresholdNm = CoincidentNodeThresholdFt / GeoMath.FeetPerNm;
+
     /// <summary>
     /// Apply fillet arcs to all eligible intersection nodes in the layout.
     /// Mutates the layout in place: inserts tangent-point nodes, creates arcs,
@@ -1739,14 +1745,13 @@ public static class FilletArcGenerator
     /// </summary>
     private static int MergeCoincidentNodes(AirportGroundLayout layout)
     {
-        const double thresholdNm = 5.0 / GeoMath.FeetPerNm;
         const int maxPasses = 5;
         int totalMerged = 0;
 
         int pass;
         for (pass = 0; pass < maxPasses; pass++)
         {
-            var mergeMap = BuildMergeMap(layout, thresholdNm);
+            var mergeMap = BuildMergeMap(layout, CoincidentNodeThresholdNm);
             if (mergeMap.Count == 0)
             {
                 break;
@@ -1835,7 +1840,7 @@ public static class FilletArcGenerator
         {
             // Cap hit before BuildMergeMap returned empty — graph may still contain
             // coincident nodes. Investigate the airport layout if this fires.
-            int remaining = BuildMergeMap(layout, thresholdNm).Count;
+            int remaining = BuildMergeMap(layout, CoincidentNodeThresholdNm).Count;
             if (remaining > 0)
             {
                 Log.LogWarning(
@@ -2408,14 +2413,12 @@ public static class FilletArcGenerator
         ref int nextNodeId
     )
     {
-        const double dedupeThresholdNm = 5.0 / GeoMath.FeetPerNm;
-
         if (edgeTangentNodes.TryGetValue(edge, out var existing))
         {
             foreach (var (node, _) in existing)
             {
                 double dist = GeoMath.DistanceNm(node.Position, new LatLon(placement.Lat, placement.Lon));
-                if (dist <= dedupeThresholdNm)
+                if (dist <= CoincidentNodeThresholdNm)
                 {
                     return node;
                 }
