@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.1.15-alpha [2026/05/05]
+
+### Highlights
+- One-click radar right-click for **Cleared visual approach**, **Join STAR**, **Join airway**, and pattern entries — uses the aircraft's assigned runway / filed route, with **(other)…** pickers for overrides.
+- Aircraft list right-click is now phase-aware — taxi/cross/hold items on the ground, a **Tower** submenu (LUAW/CTO/CLAND/COPT/T&G/S&G/LA/GA) airborne, plus always-visible **Track**, **Squawk**, **Ask pilot to say**, and **Coordination** submenus.
+- Radar right-click gains a **Pattern** submenu (TC/TD/TB, EXT, MSA/MNA, 360s, 270s, CA), a **Display** submenu (leader direction, J-ring, cone, blank target), and **Join radial inbound/outbound**.
+- Pilot transmissions (RTIS/RFIS readbacks, SAY altitudes/headings/speeds) now land on the **SAY** channel and read in plain English — *"Have N9225L in sight"*, *"Heading 270, direct MENLO"*, *"Leaving 5,000 for FL240"* — without the redundant ownship callsign.
 
 ### Added
 - Radar right-click → **Approach** → **Cleared visual approach {rwy}** is now one-click when the aircraft has an assigned runway or an active/expected approach (its runway is parsed from the CIFP procedure); a sibling **Cleared visual approach (other)...** picker lists every runway end at the destination. Falls back to free-text only when no runway data is loaded.

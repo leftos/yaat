@@ -100,6 +100,9 @@ Services/
   GroundColorScheme.cs          # Theme/color scheme for strips
   TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
 
+Models/
+  TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat); defaults match the legacy hard-coded scheme
+
 ViewModels/
   ConnectViewModel.cs           # Room/identity connection flow
 
@@ -354,6 +357,7 @@ Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depa
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
                                     # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
+Commands/NodeRefToken.cs            # Parses user-typed `#<id>` node-reference tokens used in TAXI clearances; co-located with the parser since the token format is grammar, not routing
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CAPPF/JAPPF/PTACF forced variants/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
 Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution, CancelTakeoff, ClearedTakeoffPresent (CTOPP)
@@ -482,6 +486,7 @@ AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, Groun
 CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)
 FilletArcGenerator.cs          # Replaces intersection nodes with bezier fillet arcs; plan-then-execute: compute tangent points → create arcs → rebuild edges → delete node
                                # Radius fits to edge length, collinear merges produce inner straight edges, coincident node merge pass, applied as Step 8 in GeoJsonParser
+FilletProvenance.cs            # Discriminated record (TangentNode / CornerArc / etc.) attached to fillet-generated nodes/edges/arcs so cleanup passes can pattern-match instead of parsing Origin strings
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiPathfinder.cs              # 3-strategy A* + Yen's K-shortest: FewestTurns (minimize taxiway transitions), Shortest (distance), Fastest (time with arc speed limits)
