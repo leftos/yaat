@@ -52,7 +52,19 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var kind = Enum.TryParse<TerminalEntryKind>(dto.Kind, out var k) ? k : TerminalEntryKind.System;
+            // SAY-class verbs (SayPosition, SaySpeed, SayMach, SayAltitude, SayHeading,
+            // SayExpectedApproach) and the freeform "Say" all belong in the Say channel;
+            // the dispatcher uses verb-specific Kind strings so future filters can split
+            // them apart, but the visible categorization is uniform.
+            TerminalEntryKind kind;
+            if (dto.Kind.StartsWith("Say", StringComparison.Ordinal))
+            {
+                kind = TerminalEntryKind.Say;
+            }
+            else if (!Enum.TryParse(dto.Kind, out kind))
+            {
+                kind = TerminalEntryKind.System;
+            }
             AddTerminalEntry(
                 new TerminalEntry
                 {
