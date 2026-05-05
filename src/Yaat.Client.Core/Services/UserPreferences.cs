@@ -194,6 +194,21 @@ public sealed class UserPreferences
             _data.GroundBrightness
         );
 
+    public TerminalColorScheme TerminalColors =>
+        new(
+            _data.TerminalCommandColor,
+            _data.TerminalResponseColor,
+            _data.TerminalSystemColor,
+            _data.TerminalSayColor,
+            _data.TerminalPilotSpeechColor,
+            _data.TerminalWarningColor,
+            _data.TerminalErrorColor,
+            _data.TerminalChatColor
+        );
+
+    /// <summary>Raised after <see cref="SetTerminalColors"/> persists; subscribers refresh terminal styling.</summary>
+    public event Action? TerminalColorsChanged;
+
     public string SignatureHelpPlacement => _data.SignatureHelpPlacement;
     public bool AutoExpandSuggestionOnEnter => _data.AutoExpandSuggestionOnEnter;
     public int DataGridFontSize => _data.DataGridFontSize;
@@ -483,6 +498,20 @@ public sealed class UserPreferences
         _data.GroundDatablockTextColor = scheme.DatablockText;
         _data.GroundBrightness = Math.Clamp(scheme.Brightness, 10, 100);
         Save();
+    }
+
+    public void SetTerminalColors(TerminalColorScheme scheme)
+    {
+        _data.TerminalCommandColor = scheme.Command;
+        _data.TerminalResponseColor = scheme.Response;
+        _data.TerminalSystemColor = scheme.System;
+        _data.TerminalSayColor = scheme.Say;
+        _data.TerminalPilotSpeechColor = scheme.PilotSpeech;
+        _data.TerminalWarningColor = scheme.Warning;
+        _data.TerminalErrorColor = scheme.Error;
+        _data.TerminalChatColor = scheme.Chat;
+        Save();
+        TerminalColorsChanged?.Invoke();
     }
 
     public void SetSignatureHelpPlacement(string placement)
@@ -807,6 +836,14 @@ public sealed class UserPreferences
             GroundAircraftColor = GetFieldOr(obj, "groundAircraftColor", GroundColorScheme.DefaultAircraft),
             GroundDatablockTextColor = GetFieldOr(obj, "groundDatablockTextColor", GroundColorScheme.DefaultDatablockText),
             GroundBrightness = GetFieldOr(obj, "groundBrightness", GroundColorScheme.DefaultBrightness),
+            TerminalCommandColor = GetFieldOr(obj, "terminalCommandColor", TerminalColorScheme.DefaultCommand),
+            TerminalResponseColor = GetFieldOr(obj, "terminalResponseColor", TerminalColorScheme.DefaultResponse),
+            TerminalSystemColor = GetFieldOr(obj, "terminalSystemColor", TerminalColorScheme.DefaultSystem),
+            TerminalSayColor = GetFieldOr(obj, "terminalSayColor", TerminalColorScheme.DefaultSay),
+            TerminalPilotSpeechColor = GetFieldOr(obj, "terminalPilotSpeechColor", TerminalColorScheme.DefaultPilotSpeech),
+            TerminalWarningColor = GetFieldOr(obj, "terminalWarningColor", TerminalColorScheme.DefaultWarning),
+            TerminalErrorColor = GetFieldOr(obj, "terminalErrorColor", TerminalColorScheme.DefaultError),
+            TerminalChatColor = GetFieldOr(obj, "terminalChatColor", TerminalColorScheme.DefaultChat),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
             AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
@@ -1015,6 +1052,14 @@ public sealed class UserPreferences
         public string GroundAircraftColor { get; set; } = GroundColorScheme.DefaultAircraft;
         public string GroundDatablockTextColor { get; set; } = GroundColorScheme.DefaultDatablockText;
         public int GroundBrightness { get; set; } = GroundColorScheme.DefaultBrightness;
+        public string TerminalCommandColor { get; set; } = TerminalColorScheme.DefaultCommand;
+        public string TerminalResponseColor { get; set; } = TerminalColorScheme.DefaultResponse;
+        public string TerminalSystemColor { get; set; } = TerminalColorScheme.DefaultSystem;
+        public string TerminalSayColor { get; set; } = TerminalColorScheme.DefaultSay;
+        public string TerminalPilotSpeechColor { get; set; } = TerminalColorScheme.DefaultPilotSpeech;
+        public string TerminalWarningColor { get; set; } = TerminalColorScheme.DefaultWarning;
+        public string TerminalErrorColor { get; set; } = TerminalColorScheme.DefaultError;
+        public string TerminalChatColor { get; set; } = TerminalColorScheme.DefaultChat;
         public string SignatureHelpPlacement { get; set; } = "Above";
         public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;

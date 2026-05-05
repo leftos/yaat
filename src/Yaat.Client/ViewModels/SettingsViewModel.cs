@@ -240,6 +240,31 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _groundBrightness = GroundColorScheme.DefaultBrightness;
 
+    // Terminal channel colors
+    [ObservableProperty]
+    private string _terminalCommandColor = TerminalColorScheme.DefaultCommand;
+
+    [ObservableProperty]
+    private string _terminalResponseColor = TerminalColorScheme.DefaultResponse;
+
+    [ObservableProperty]
+    private string _terminalSystemColor = TerminalColorScheme.DefaultSystem;
+
+    [ObservableProperty]
+    private string _terminalSayColor = TerminalColorScheme.DefaultSay;
+
+    [ObservableProperty]
+    private string _terminalPilotSpeechColor = TerminalColorScheme.DefaultPilotSpeech;
+
+    [ObservableProperty]
+    private string _terminalWarningColor = TerminalColorScheme.DefaultWarning;
+
+    [ObservableProperty]
+    private string _terminalErrorColor = TerminalColorScheme.DefaultError;
+
+    [ObservableProperty]
+    private string _terminalChatColor = TerminalColorScheme.DefaultChat;
+
     [ObservableProperty]
     private int _groundSatelliteImageBrightness = 50;
 
@@ -483,6 +508,15 @@ public partial class SettingsViewModel : ObservableObject
         _groundAircraftColor = groundColors.Aircraft;
         _groundDatablockTextColor = groundColors.DatablockText;
         _groundBrightness = groundColors.Brightness;
+        var terminalColors = _preferences.TerminalColors;
+        _terminalCommandColor = terminalColors.Command;
+        _terminalResponseColor = terminalColors.Response;
+        _terminalSystemColor = terminalColors.System;
+        _terminalSayColor = terminalColors.Say;
+        _terminalPilotSpeechColor = terminalColors.PilotSpeech;
+        _terminalWarningColor = terminalColors.Warning;
+        _terminalErrorColor = terminalColors.Error;
+        _terminalChatColor = terminalColors.Chat;
         _groundSatelliteImageBrightness = _preferences.GroundSatelliteImageBrightness;
         _groundVideoMapOverlayBrightness = _preferences.GroundVideoMapOverlayBrightness;
         _groundYaatLayoutBrightness = _preferences.GroundYaatLayoutBrightness;
@@ -570,6 +604,18 @@ public partial class SettingsViewModel : ObservableObject
                 GroundAircraftColor,
                 GroundDatablockTextColor,
                 GroundBrightness
+            )
+        );
+        _preferences.SetTerminalColors(
+            new TerminalColorScheme(
+                TerminalCommandColor,
+                TerminalResponseColor,
+                TerminalSystemColor,
+                TerminalSayColor,
+                TerminalPilotSpeechColor,
+                TerminalWarningColor,
+                TerminalErrorColor,
+                TerminalChatColor
             )
         );
         _preferences.SetGroundLayerSettings(
@@ -1195,6 +1241,15 @@ public partial class SettingsViewModel : ObservableObject
         UnassignedTintEnabled = false;
         UnassignedTintColor = "#888888";
         SelectedColor = "#FFFFFF";
+        var t = TerminalColorScheme.Default;
+        TerminalCommandColor = t.Command;
+        TerminalResponseColor = t.Response;
+        TerminalSystemColor = t.System;
+        TerminalSayColor = t.Say;
+        TerminalPilotSpeechColor = t.PilotSpeech;
+        TerminalWarningColor = t.Warning;
+        TerminalErrorColor = t.Error;
+        TerminalChatColor = t.Chat;
     }
 
     /// <summary>
@@ -1250,6 +1305,22 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnUnassignedTintColorChanged(string value) => VisualSettingsChanged?.Invoke();
 
     partial void OnSelectedColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalCommandColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalResponseColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalSystemColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalSayColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalPilotSpeechColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalWarningColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalErrorColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalChatColorChanged(string value) => VisualSettingsChanged?.Invoke();
 
     partial void OnDataGridFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 

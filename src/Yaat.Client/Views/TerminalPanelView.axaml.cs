@@ -30,9 +30,15 @@ public partial class TerminalPanelView : UserControl
     {
         base.OnLoaded(e);
 
-        _colorizer = new TerminalColorizer(_lineKinds);
+        var prefs = (DataContext as MainViewModel)?.Preferences;
+        _colorizer = new TerminalColorizer(_lineKinds, () => prefs?.TerminalColors ?? Yaat.Client.Models.TerminalColorScheme.Default);
         TerminalEditor.TextArea.TextView.LineTransformers.Add(_colorizer);
         TerminalEditor.TextArea.Caret.CaretBrush = Brushes.Transparent;
+
+        if (prefs is not null)
+        {
+            prefs.TerminalColorsChanged += OnTerminalColorsChanged;
+        }
 
         _scrollViewer = TerminalEditor.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
         if (_scrollViewer is not null)
@@ -59,6 +65,15 @@ public partial class TerminalPanelView : UserControl
         }
     }
 
+    private void OnTerminalColorsChanged()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _colorizer?.ReloadColors();
+            TerminalEditor.TextArea.TextView.Redraw();
+        });
+    }
+
     protected override void OnUnloaded(Avalonia.Interactivity.RoutedEventArgs e)
     {
         foreach (var (toggle, _) in EnumerateCategoryToggles())
@@ -70,6 +85,10 @@ public partial class TerminalPanelView : UserControl
         {
             vm.TerminalEntries.CollectionChanged -= OnEntriesChanged;
             vm.TerminalFilterChanged -= OnFilterChanged;
+            if (vm.Preferences is { } prefs)
+            {
+                prefs.TerminalColorsChanged -= OnTerminalColorsChanged;
+            }
         }
 
         if (_scrollViewer is not null)

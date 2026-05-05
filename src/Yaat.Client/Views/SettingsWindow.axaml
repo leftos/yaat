@@ -385,6 +385,45 @@
                             <TextBlock Text="Color for the currently selected aircraft's symbol and datablock. Default: white." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
+                        <TextBlock Text="Terminal Channels"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Command:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalCommandColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Response:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalResponseColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="System:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalSystemColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="SAY (controller):" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalSayColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Pilot Speech:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalPilotSpeechColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Warning:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalWarningColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Error:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalErrorColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Chat:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalChatColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <TextBlock Text="Foreground colors per terminal channel. Pilot Speech is sim-initiated transmissions in RPO mode; SAY is controller-issued SAY-class verbs. Saved settings apply to the live terminal immediately."
+                                       TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
                         <Button Content="Reset All Colors to Defaults"
                                 Command="{Binding ResetAllColorsCommand}"
                                 HorizontalAlignment="Left" />
