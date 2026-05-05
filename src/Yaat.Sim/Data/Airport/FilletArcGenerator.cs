@@ -1463,7 +1463,10 @@ public static class FilletArcGenerator
                 bool aHasTangent = ctx.EdgeTangentNodes.TryGetValue(edgeA, out var tanListA);
                 bool bHasTangent = ctx.EdgeTangentNodes.TryGetValue(edgeB, out var tanListB);
 
-                // Determine the effective endpoints after shortening — use the farthest tangent
+                // Determine the effective endpoints after shortening — use the farthest
+                // tangent. MaxBy returns the first element when distances tie, so output
+                // is deterministic only if PhaseA-PhaseBC populate EdgeTangentNodes in a
+                // stable order (they do — pair iteration is by edge index).
                 GroundNode endA = aHasTangent ? tanListA!.MaxBy(t => t.Placement.TangentDistNm).Node : otherA;
                 GroundNode endB = bHasTangent ? tanListB!.MaxBy(t => t.Placement.TangentDistNm).Node : otherB;
 
