@@ -244,7 +244,6 @@ public static class TaxiPathfinder
             // (parking→taxiway). Between explicitly listed taxiways: only BFS
             // (short hop) and runway centerline bridging are allowed.
             bool isFirstTw = twIdx == 0;
-            var passedHint = destinationHint;
             var passedStopId = nextTwName is null ? effectiveDestRunway : null;
 
             // Look-ahead: pick the best stop node on this taxiway before walking it.
@@ -261,15 +260,12 @@ public static class TaxiPathfinder
             // append a spurious A* extension past the proper hold-short.
             //
             // Disabled when caller passes EnableLookahead=false (used by SelectBestStopNode's
-            // own recursion to bound depth).
+            // own recursion to bound depth). twName is guaranteed not to be a node
+            // reference here — node refs `continue` at the top of the loop.
             HashSet<int>? passedStopNodeIds = null;
-            GroundNode? passedWalkHint = passedHint;
+            GroundNode? passedWalkHint = destinationHint;
             BestStopResult bestStopResult = default;
-            bool runLookahead =
-                !IsNodeReference(twName)
-                && options.EnableLookahead
-                && destinationHint is not null
-                && (nextTwName is not null || destinationHintNode is not null);
+            bool runLookahead = options.EnableLookahead && destinationHint is not null && (nextTwName is not null || destinationHintNode is not null);
             if (runLookahead && destinationHint is not null)
             {
                 bestStopResult = SelectBestStopNode(
