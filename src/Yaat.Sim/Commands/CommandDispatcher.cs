@@ -287,7 +287,7 @@ public static class CommandDispatcher
                     return result;
                 }
 
-                if (result.Message is not null)
+                if (!string.IsNullOrEmpty(result.Message))
                 {
                     messages.Add(result.Message);
                 }

@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -161,6 +162,30 @@ public class PhaseTransparentCommandTests
         Assert.True(ac.Transponder.IsIdenting);
         Assert.NotNull(ac.Phases);
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// Regression: SAY-class verbs return Ok("") and surface their value via the
+    /// TerminalEmitter rather than the result message. A compound of two SAY verbs
+    /// (e.g. "SPOS, SALT") used to join the empty per-command messages with ", ",
+    /// producing a stray "RSP &lt;callsign&gt; , " line in the terminal. Filter empties
+    /// out of the join so an all-empty compound produces no Response broadcast.
+    /// </summary>
+    [Fact]
+    public void TwoSayCompound_DoesNotEmitCommaResponse()
+    {
+        var ac = MakeAircraftInUpwind();
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new SayPositionCommand(), new SayAltitudeCommand()])]);
+        var captured = new List<TerminalEntry>();
+        var ctx = TestDispatch.Context(new Random(42), validateDctFixes: false, terminalEmitter: captured.Add);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, ctx);
+
+        Assert.True(result.Success);
+        Assert.True(string.IsNullOrEmpty(result.Message), $"Expected empty result message, got '{result.Message}'");
+        Assert.Equal(2, captured.Count);
+        Assert.Contains(captured, e => e.Kind == "SayPosition");
+        Assert.Contains(captured, e => e.Kind == "SayAltitude");
     }
 
     [Fact]
