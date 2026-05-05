@@ -945,17 +945,46 @@ public static class CommandDispatcher
         var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx);
         if (towerResult is not null)
         {
-            if (towerResult.Success)
+            if (!towerResult.Success)
             {
-                // Dispatch remaining parallel commands in the same block (e.g. CROSS after TAXI)
-                var block = compound.Blocks[0];
-                for (int i = 1; i < block.Commands.Count; i++)
+                return towerResult;
+            }
+
+            // Dispatch remaining parallel commands in the same block (e.g. CLAND after EF 28L,
+            // or CROSS after TAXI). Collect every per-command message so the RPO sees the full
+            // outcome — without this, CLAND's "Cleared to land 28L" would be silently dropped
+            // and the user would think only the EF took effect.
+            var messages = new List<string>();
+            if (!string.IsNullOrEmpty(towerResult.Message))
+            {
+                messages.Add(towerResult.Message);
+            }
+            var block = compound.Blocks[0];
+            for (int i = 1; i < block.Commands.Count; i++)
+            {
+                var subResult = TryApplyTowerCommand(block.Commands[i], aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx);
+                if (subResult is null)
                 {
-                    TryApplyTowerCommand(block.Commands[i], aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx);
+                    continue;
+                }
+                if (!subResult.Success)
+                {
+                    // Subsequent failure on a partially-applied compound: surface it so the RPO
+                    // knows the second clause didn't take effect (e.g. EF succeeds but CLAND
+                    // fails because the new phase rejects it).
+                    var combinedFail =
+                        messages.Count > 0
+                            ? $"{string.Join(", ", messages)}; but {subResult.Message}"
+                            : subResult.Message ?? "Subsequent command failed";
+                    return new CommandResult(false, combinedFail);
+                }
+                if (!string.IsNullOrEmpty(subResult.Message))
+                {
+                    messages.Add(subResult.Message);
                 }
             }
 
-            return towerResult;
+            return messages.Count <= 1 ? towerResult : new CommandResult(true, string.Join(", ", messages));
         }
 
         // Check standard command acceptance against the current phase

@@ -77,6 +77,57 @@ public class CompoundTowerCommandTests
     }
 
     /// <summary>
+    /// EF 28R, CLAND — both clauses are tower commands that get applied in the same
+    /// parallel block. The result message must include both verbs ("Enter final" AND
+    /// "Cleared to land") so the RPO sees the full outcome. Pre-fix, only the first
+    /// clause's message was returned and the second was silently dropped, which left
+    /// the RPO unsure whether the landing clearance had taken effect.
+    /// </summary>
+    [Fact]
+    public void EnterFinal_Comma_ClearedToLand_ReturnsBothMessages()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        var ac = new AircraftState
+        {
+            Callsign = "N42416",
+            AircraftType = "C172",
+            // Place 0.05° south of the threshold, well into the OAK pattern bounds.
+            Position = new LatLon(rwy.ThresholdLatitude - 0.05, rwy.ThresholdLongitude),
+            TrueHeading = new TrueHeading(280),
+            Altitude = 1500,
+            IndicatedAirspeed = 90,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                Destination = "OAK",
+                FlightRules = "VFR",
+                HasFlightPlan = true,
+            },
+        };
+        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Left, null, null, null);
+        var phases = new PhaseList { AssignedRunway = rwy };
+        phases.Add(new Yaat.Sim.Phases.Pattern.DownwindPhase { Waypoints = waypoints });
+        ac.Phases = phases;
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new EnterFinalCommand("28R"), new ClearedToLandCommand()])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        Assert.True(result.Success, $"Dispatch failed: {result.Message}");
+        Assert.NotNull(result.Message);
+        Assert.Contains("Enter final", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cleared to land", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ClearanceType.ClearedToLand, ac.Phases?.LandingClearance);
+    }
+
+    /// <summary>
     /// CTO MR270; DCT SUNOL — the DCT block must be enqueued after the
     /// tower command (CTO) is processed. Currently the DCT block is silently
     /// dropped because DispatchWithPhase returns early.
