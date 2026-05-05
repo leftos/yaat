@@ -1735,7 +1735,7 @@ public partial class MainViewModel : ObservableObject
             return null;
         }
 
-        var token = parts[0];
+        var token = parts[0].ToUpperInvariant();
         var remainder = parts[1].Trim();
 
         if (!Callsign.IsValid(token))
@@ -1772,7 +1772,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Use the first token as a callsign candidate
-        var token = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+        var token = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0].ToUpperInvariant();
         if (!Callsign.IsValid(token))
         {
             StatusText = $"\"{token}\" is not a valid callsign";
