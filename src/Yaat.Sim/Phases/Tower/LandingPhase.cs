@@ -54,6 +54,20 @@ public sealed class LandingPhase : Phase
     private const double StabilizedXteNm = 0.08;
     private const double StabilizedGraceSeconds = 1.0;
 
+    // --- Float-on-arrival (short-approach rollout) ---
+    //
+    // When LandingPhase activates while the aircraft is still rolling out from
+    // a tight base→final turn (e.g. after `SA`), the wings-level/heading-aligned
+    // gate isn't met. Per AIM 4-3-3 the pilot may vary pattern size; on a short
+    // approach the pilot floats down the runway while wings level out before
+    // touchdown — the runway is long enough to absorb the delay. We hold level
+    // flight and suppress the stab gate while heading-error from the runway
+    // exceeds RolloutHeadingErrorDeg, capped at MaxFloatDistanceNm past the
+    // threshold so a misaligned approach can still trigger GA.
+
+    private const double RolloutHeadingErrorDeg = 5.0;
+    private const double MaxFloatDistanceNm = 0.5; // ~3000 ft — more than half a typical GA runway
+
     /// <summary>
     /// Observable sub-state of the landing phase. Public so tests can assert
     /// the exact sequence of transitions. Mirrors <see cref="LineUpPhase.State"/>.
@@ -103,6 +117,7 @@ public sealed class LandingPhase : Phase
     private double _stabilizedSinceSec;
     private double _touchdownLat;
     private double _touchdownLon;
+    private bool _floatingForRollout;
 
     // Exit resolution state
     private ResolvedExitInfo? _candidateExit;
@@ -367,6 +382,23 @@ public sealed class LandingPhase : Phase
         ctx.Targets.TargetSpeed = Math.Min(plan.Vref, ctx.Aircraft.IndicatedAirspeed);
         // TargetAltitude = fieldElevation was set at OnStart and is maintained by FinalApproachPhase's predecessor.
 
+        if (IsRollingOutOverRunway(ctx, plan))
+        {
+            HoldLevelDuringRollout(ctx);
+            _floatingForRollout = true;
+            _stabilizedSinceSec = 0;
+            return false;
+        }
+
+        if (_floatingForRollout)
+        {
+            // Float ended — restore the descent target so the aircraft resumes
+            // its descent toward the runway instead of holding the float altitude.
+            ctx.Targets.TargetAltitude = plan.FieldElevation;
+            ctx.Targets.DesiredVerticalRate = null;
+            _floatingForRollout = false;
+        }
+
         // Stabilization gate
         CheckStabilizationGate(ctx, plan);
         if (CurrentState == State.GoAround)
@@ -383,8 +415,79 @@ public sealed class LandingPhase : Phase
         return false;
     }
 
+    /// <summary>
+    /// Returns true when the aircraft entered LandingPhase while still rolling out
+    /// from a tight turn (e.g. short-approach base→final). Heading error from the
+    /// runway centerline exceeds <see cref="RolloutHeadingErrorDeg"/> and the
+    /// aircraft is within <see cref="MaxFloatDistanceNm"/> past the threshold so
+    /// the float doesn't extend forever down the runway.
+    /// </summary>
+    private static bool IsRollingOutOverRunway(PhaseContext ctx, LandingPlan plan)
+    {
+        if (ctx.Aircraft.IsOnGround)
+        {
+            return false;
+        }
+
+        double headingError = Math.Abs(NormalizeAngle180(ctx.Aircraft.TrueHeading.Degrees - plan.RunwayHeading.Degrees));
+        if (headingError <= RolloutHeadingErrorDeg)
+        {
+            return false;
+        }
+
+        // Cap the float so a genuinely misaligned approach doesn't fly down the
+        // entire runway — the stab gate still applies past the cap.
+        double bearing = GeoMath.BearingTo(new LatLon(plan.ThresholdLat, plan.ThresholdLon), ctx.Aircraft.Position);
+        double alongTrack = NormalizeAngle180(bearing - plan.RunwayHeading.Degrees);
+        bool pastThreshold = Math.Abs(alongTrack) <= 90.0;
+        if (!pastThreshold)
+        {
+            return true; // not yet over the runway → keep floating to reach centerline
+        }
+
+        double distFromThresholdNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.ThresholdLat, plan.ThresholdLon));
+        return distFromThresholdNm <= MaxFloatDistanceNm;
+    }
+
+    /// <summary>
+    /// Holds level flight while the aircraft completes its rollout. No descent,
+    /// no flare progression — let bank/heading bleed off naturally before the
+    /// stab gate (and the flare entry) re-engage.
+    /// </summary>
+    private static void HoldLevelDuringRollout(PhaseContext ctx)
+    {
+        ctx.Targets.TargetAltitude = ctx.Aircraft.Altitude;
+        ctx.Targets.DesiredVerticalRate = 0;
+    }
+
+    private static double NormalizeAngle180(double degrees)
+    {
+        double a = degrees % 360.0;
+        if (a > 180.0)
+        {
+            a -= 360.0;
+        }
+        else if (a < -180.0)
+        {
+            a += 360.0;
+        }
+        return a;
+    }
+
     private bool TickFlare(PhaseContext ctx, LandingPlan plan)
     {
+        if (IsRollingOutOverRunway(ctx, plan))
+        {
+            // Defer the flare playback until wings level — see TickStabilizedApproach.
+            HoldLevelDuringRollout(ctx);
+            ctx.Targets.TargetTrueHeading = ComputeCenterlineSteeringTarget(ctx, plan);
+            ctx.Targets.TargetSpeed = Math.Min(plan.Vref, ctx.Aircraft.IndicatedAirspeed);
+            CurrentState = State.StabilizedApproach;
+            _floatingForRollout = true;
+            _stabilizedSinceSec = 0;
+            return false;
+        }
+
         double agl = ctx.Aircraft.Altitude - plan.FieldElevation;
 
         // Closed-form AGL-indexed playback. Invariant I2: vsi and spd are pure

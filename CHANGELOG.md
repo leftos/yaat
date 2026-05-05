@@ -24,6 +24,7 @@
 ### Fixed
 - `EF` to a parallel runway while on final now side-steps onto the new centerline instead of flying a 360 to rejoin the approach.
 - Aircraft joining downwind from the pattern side at a misaligned angle now read `midfield to {dir} downwind` instead of `crosswind` / `45`.
+- Aircraft instructed `SA` (Make Short Approach) now lands cleanly on tight finals instead of going around: the base-leg descent now targets the glideslope-intercept altitude at the *rollout* point (one turn-radius further along the final than the projected anchor), and Landing floats level over the runway while the wings level out from the tight base→final turn before the stabilization gate engages.
 
 ## v0.1.14-alpha [2026/05/04]
 

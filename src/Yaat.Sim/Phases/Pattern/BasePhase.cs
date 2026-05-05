@@ -61,26 +61,31 @@ public sealed class BasePhase : Phase
         ctx.Targets.NavigationRoute.Clear();
 
         // Begin descent. Default rate; if SA shortened the final, compute a
-        // steeper rate so the aircraft hits the GS intercept altitude by the
-        // final-turn point.
+        // steeper rate so the aircraft is on the 3° glideslope at base→final
+        // rollout — not earlier. The 90° base→final turn translates the aircraft
+        // one turn-radius further along the final, so the rollout point is
+        // (finalDist + r) from the threshold, not finalDist.
         double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
 
         // Approximate target altitude: halfway between pattern and threshold.
-        // When SA shortens the final to MinShortApproachFinalNm, that midpoint
-        // sits above the GS intercept altitude — substitute the GS altitude so
-        // the aircraft is at a stabilized profile by the start of final.
+        // When SA shortens the final, replace the midpoint with the GS-intercept
+        // altitude at the rollout point so the aircraft is stabilized on glide
+        // path the moment it rolls out on final, not before.
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
         double midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.5;
         if (FinalDistanceNm is { } finalDist)
         {
             double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
-            double gsAlt = thresholdElev + finalDist * GlideSlopeGeometry.FeetPerNm(gsAngle);
+            double turnRate = CategoryPerformance.PatternTurnRate(ctx.Category);
+            double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, 60);
+            double turnRadiusNm = Math.Max(groundSpeedKt / (turnRate * 62.832), MinTurnRadiusNm);
+            double rolloutDistNm = finalDist + turnRadiusNm;
+            double gsAlt = thresholdElev + rolloutDistNm * GlideSlopeGeometry.FeetPerNm(gsAngle);
             if (gsAlt < midAlt)
             {
                 midAlt = gsAlt;
                 double deltaAlt = Math.Max(ctx.Aircraft.Altitude - midAlt, 0);
                 double baseLen = CategoryPerformance.PatternSizeNm(ctx.Category);
-                double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, 60);
                 double timeMin = baseLen / (groundSpeedKt / 60.0);
                 double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
                 descentRate = Math.Clamp(computedRate, descentRate, 1500);
