@@ -1,19 +1,18 @@
-using System.Text;
 using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Pilot;
 
 /// <summary>
-/// Generates pilot-style transmission text for SAY-class verbs (SALT, SHDG, SPOS, SSPD,
+/// Generates pilot transmission text for SAY-class verbs (SALT, SHDG, SPOS, SSPD,
 /// SMACH, SEAPP, freeform SAY). Pure functions over <see cref="AircraftState"/> with no
 /// broadcast or routing concerns — callers (CommandDispatcher for triggered/sequenced
-/// SAY blocks; the server's SayCommandHandler for direct controller queries) decide where
+/// SAY blocks; the server's command pipeline for direct controller queries) decide where
 /// the resulting text goes.
 ///
-/// Output uses AIM-compliant spoken phraseology: digit-by-digit numbers (AIM 4-2-8),
-/// thousand/hundred altitude form below FL180 and "flight level X" at/above (AIM 4-2-9),
-/// magnetic headings as three spoken digits (AIM 4-2-10), "Mach point X" with no leading
-/// zero (AIM 4-2-11), and "leaving X for Y" for level changes (AIM 4-5-1, 5-3-3).
+/// Output is plain text with numeric values: "Heading 270, direct MENLO", "Leaving 5,000
+/// for FL240", "250 knots", "Mach 0.78", "Expecting the ILS 19L approach". Radio
+/// phraseology (digit-by-digit speech, "thousand"/"hundred" forms, "Mach point X") is
+/// owned by downstream consumers (RPO readback or a TTS engine), not the message text.
 /// </summary>
 public static class PilotSayBuilder
 {
@@ -23,16 +22,16 @@ public static class PilotSayBuilder
         var target = aircraft.Targets.AssignedAltitude;
         if (target is null)
         {
-            return SpokenAltitude(alt);
+            return PlainAltitude(alt);
         }
 
         int targetAlt = RoundToNearest(target.Value, 100);
         if (Math.Abs(alt - targetAlt) < 100)
         {
-            return $"Level {SpokenAltitude(alt)}";
+            return $"Level {PlainAltitude(alt)}";
         }
 
-        return $"Leaving {SpokenAltitude(alt)} for {SpokenAltitude(targetAlt)}";
+        return $"Leaving {PlainAltitude(alt)} for {PlainAltitude(targetAlt)}";
     }
 
     public static string BuildHeading(AircraftState aircraft)
@@ -44,18 +43,16 @@ public static class PilotSayBuilder
         if (aircraft.Targets.NavigationRoute.Count > 0)
         {
             string fixName = aircraft.Targets.NavigationRoute[0].Name;
-            return isTurning
-                ? $"Heading {SpokenHeading(hdg)}, turning {turnDir} direct {fixName}"
-                : $"Heading {SpokenHeading(hdg)}, direct {fixName}";
+            return isTurning ? $"Heading {PlainHeading(hdg)}, turning {turnDir} direct {fixName}" : $"Heading {PlainHeading(hdg)}, direct {fixName}";
         }
 
         if (isTurning && aircraft.Targets.TargetTrueHeading is { } targetHdg)
         {
             int targetRounded = NormalizeHeading(RoundToNearest(targetHdg.Degrees, 5));
-            return $"Heading {SpokenHeading(hdg)}, turning {turnDir} {SpokenHeading(targetRounded)}";
+            return $"Heading {PlainHeading(hdg)}, turning {turnDir} {PlainHeading(targetRounded)}";
         }
 
-        return $"Heading {SpokenHeading(hdg)}";
+        return $"Heading {PlainHeading(hdg)}";
     }
 
     public static string BuildSpeed(AircraftState aircraft)
@@ -63,22 +60,22 @@ public static class PilotSayBuilder
         var ias = (int)Math.Round(aircraft.IndicatedAirspeed);
         if (aircraft.Altitude >= 24000)
         {
-            return $"{SpokenDigits(ias)} knots, {BuildMach(aircraft)}";
+            return $"{ias.ToString(System.Globalization.CultureInfo.InvariantCulture)} knots, {BuildMach(aircraft)}";
         }
 
-        return $"{SpokenDigits(ias)} knots";
+        return $"{ias.ToString(System.Globalization.CultureInfo.InvariantCulture)} knots";
     }
 
     public static string BuildMach(AircraftState aircraft)
     {
         var mach = WindInterpolator.IasToMach(aircraft.IndicatedAirspeed, aircraft.Altitude);
-        return $"Mach {SpokenMach(mach)}";
+        return $"Mach {PlainMach(mach)}";
     }
 
     public static string BuildExpectedApproach(AircraftState aircraft)
     {
         return aircraft.Approach.Expected is not null
-            ? $"Expecting the {SpokenApproach(aircraft.Approach.Expected)} approach"
+            ? $"Expecting the {PlainApproach(aircraft.Approach.Expected)} approach"
             : "Negative, no approach assigned";
     }
 
@@ -331,118 +328,45 @@ public static class PilotSayBuilder
     }
 
     /// <summary>
-    /// Spoken altitude per AIM 4-2-9: at/above FL180, "flight level X" with digits spoken
-    /// individually; below FL180, group form "X thousand Y hundred". Trailing zero hundreds
-    /// are dropped ("five thousand", not "five thousand zero hundred").
+    /// Plain altitude form: thousands grouped with comma below FL180 ("5,000",
+    /// "17,900"); "FL{xxx}" at or above FL180 ("FL180", "FL250").
     /// </summary>
-    internal static string SpokenAltitude(int altitudeFt)
+    internal static string PlainAltitude(int altitudeFt)
     {
         if (altitudeFt >= 18000)
         {
-            int fl = altitudeFt / 100;
-            return $"flight level {SpokenDigits(fl)}";
+            return $"FL{altitudeFt / 100}";
         }
-
-        int thousands = altitudeFt / 1000;
-        int hundreds = (altitudeFt % 1000) / 100;
-
-        var sb = new StringBuilder();
-        if (thousands > 0)
-        {
-            sb.Append(SpokenDigits(thousands));
-            sb.Append(" thousand");
-        }
-        if (hundreds > 0)
-        {
-            if (sb.Length > 0)
-            {
-                sb.Append(' ');
-            }
-            sb.Append(SpokenDigit(hundreds));
-            sb.Append(" hundred");
-        }
-        if (sb.Length == 0)
-        {
-            sb.Append("zero");
-        }
-        return sb.ToString();
+        return altitudeFt.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    /// <summary>
-    /// Three-digit spoken heading per AIM 4-2-10: every heading reads as three digits,
-    /// "two seven zero" or "three six zero". Unlike SpokenDigits the leading zero is
-    /// always preserved.
-    /// </summary>
-    internal static string SpokenHeading(int hdg)
+    /// <summary>Three-digit zero-padded heading: "270", "005", "360".</summary>
+    internal static string PlainHeading(int hdg)
     {
         hdg = NormalizeHeading(hdg);
-        return $"{SpokenDigit(hdg / 100)} {SpokenDigit((hdg / 10) % 10)} {SpokenDigit(hdg % 10)}";
+        return hdg.ToString("D3", System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    /// <summary>
-    /// Number spoken digit-by-digit per AIM 4-2-8 ("two three zero" for 230). Leading
-    /// zeros are dropped (1 → "one", not "zero zero one").
-    /// </summary>
-    internal static string SpokenDigits(int value)
-    {
-        if (value < 0)
-        {
-            return $"minus {SpokenDigits(-value)}";
-        }
-        if (value == 0)
-        {
-            return "zero";
-        }
-
-        var digits = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var parts = new string[digits.Length];
-        for (int i = 0; i < digits.Length; i++)
-        {
-            parts[i] = SpokenDigit(digits[i] - '0');
-        }
-        return string.Join(' ', parts);
-    }
+    /// <summary>Plain Mach: "0.78", "0.65", "0.80".</summary>
+    internal static string PlainMach(double mach) => Math.Round(mach, 2).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// Spoken Mach per AIM 4-2-11: "Mach point seven eight" — leading "0." is dropped,
-    /// remaining digits are spoken individually.
-    /// </summary>
-    internal static string SpokenMach(double mach)
-    {
-        // Round to two decimals, then strip leading "0." and speak each remaining digit.
-        var rounded = Math.Round(mach, 2);
-        var formatted = rounded.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-        var dot = formatted.IndexOf('.');
-        var digits = dot >= 0 ? formatted[(dot + 1)..] : formatted;
-
-        var parts = new string[digits.Length];
-        for (int i = 0; i < digits.Length; i++)
-        {
-            parts[i] = SpokenDigit(digits[i] - '0');
-        }
-        return $"point {string.Join(' ', parts)}";
-    }
-
-    /// <summary>
-    /// Spell a CIFP approach identifier with the type expanded, an optional phonetic letter
-    /// suffix, and digit-by-digit runway. CIFP approach IDs use a single-letter type code:
-    /// I=ILS, R=RNAV, V=VOR, L=LOC, B=LOC-BC, S=SDF, N=NDB, D=VOR/DME, etc. (ARINC 424
-    /// table 5-9). An optional second letter (Y/Z/W/X/V) disambiguates parallel approaches
-    /// and is spoken phonetically. Examples:
-    ///   I19L  → "ILS one niner left"
-    ///   IZ28R → "ILS Zulu two eight right"
-    ///   R09   → "RNAV niner"
-    ///   V19   → "VOR one niner"
+    /// Plain CIFP approach identifier: type letter expanded to a name, optional parallel
+    /// suffix split off as a separate token, runway digits and L/R/C kept as-is.
+    /// Examples:
+    ///   I19L  → "ILS 19L"
+    ///   IZ28R → "ILS Z 28R"
+    ///   R09   → "RNAV 09"
+    ///   V19   → "VOR 19"
     /// Falls back to the raw id if the format doesn't match.
     /// </summary>
-    internal static string SpokenApproach(string approachId)
+    internal static string PlainApproach(string approachId)
     {
         if (string.IsNullOrWhiteSpace(approachId))
         {
             return approachId;
         }
 
-        // Find where the runway portion starts: the first digit.
         int runwayStart = -1;
         for (int i = 0; i < approachId.Length; i++)
         {
@@ -455,75 +379,13 @@ public static class PilotSayBuilder
 
         if (runwayStart < 1)
         {
-            // No type letters or no runway digits — bail out.
             return approachId;
         }
 
         var typePart = approachId[..runwayStart];
         var runwayPart = approachId[runwayStart..];
-
-        var sb = new StringBuilder();
-
-        // First letter = type code; expand to full word. If unmapped, leave as the raw letter.
-        char typeCode = typePart[0];
-        sb.Append(ApproachTypeName(typeCode));
-
-        // Second letter (if present) = phonetic suffix for parallel approaches.
-        if (typePart.Length >= 2)
-        {
-            sb.Append(' ');
-            sb.Append(PhoneticLetter(typePart[1]));
-        }
-
-        // Runway: digits + optional L/R/C.
-        char? runwaySuffix = null;
-        var runwayDigits = runwayPart;
-        if (runwayPart.Length > 0 && (runwayPart[^1] == 'L' || runwayPart[^1] == 'R' || runwayPart[^1] == 'C'))
-        {
-            runwaySuffix = runwayPart[^1];
-            runwayDigits = runwayPart[..^1];
-        }
-
-        if (runwayDigits.Length > 0 && runwayDigits.All(char.IsDigit))
-        {
-            sb.Append(' ');
-            sb.Append(SpokenRunway(runwayDigits));
-            if (runwaySuffix is { } s)
-            {
-                sb.Append(' ');
-                sb.Append(
-                    s switch
-                    {
-                        'L' => "left",
-                        'R' => "right",
-                        'C' => "center",
-                        _ => s.ToString(),
-                    }
-                );
-            }
-        }
-        else
-        {
-            sb.Append(' ');
-            sb.Append(runwayPart);
-        }
-
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Speak a runway number digit-by-digit, preserving any leading zero from the chart.
-    /// "09" → "zero niner", "19" → "one niner", "9" → "niner". Modern FAA charts use the
-    /// 2-digit form for runways &lt; 10 (e.g., RWY 09L), and pilots speak what they see.
-    /// </summary>
-    private static string SpokenRunway(string runwayDigits)
-    {
-        var parts = new string[runwayDigits.Length];
-        for (int i = 0; i < runwayDigits.Length; i++)
-        {
-            parts[i] = SpokenDigit(runwayDigits[i] - '0');
-        }
-        return string.Join(' ', parts);
+        var typeName = ApproachTypeName(typePart[0]);
+        return typePart.Length >= 2 ? $"{typeName} {typePart[1]} {runwayPart}" : $"{typeName} {runwayPart}";
     }
 
     /// <summary>ARINC 424 / CIFP single-letter approach type code → full type name.</summary>
@@ -534,11 +396,11 @@ public static class PilotSayBuilder
             'R' => "RNAV",
             'V' => "VOR",
             'L' => "LOC",
-            'B' => "LOC backcourse",
+            'B' => "LOC-BC",
             'S' => "SDF",
             'N' => "NDB",
-            'D' => "VOR DME",
-            'Q' => "NDB DME",
+            'D' => "VOR/DME",
+            'Q' => "NDB/DME",
             'P' => "GPS",
             'T' => "TACAN",
             'X' => "LDA",
@@ -546,54 +408,6 @@ public static class PilotSayBuilder
             'M' => "MLS",
             'H' => "RNP",
             _ => typeCode.ToString(),
-        };
-
-    private static string SpokenDigit(int digit) =>
-        digit switch
-        {
-            0 => "zero",
-            1 => "one",
-            2 => "two",
-            3 => "three",
-            4 => "four",
-            5 => "five",
-            6 => "six",
-            7 => "seven",
-            8 => "eight",
-            9 => "niner",
-            _ => digit.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        };
-
-    private static string PhoneticLetter(char c) =>
-        char.ToUpperInvariant(c) switch
-        {
-            'A' => "Alpha",
-            'B' => "Bravo",
-            'C' => "Charlie",
-            'D' => "Delta",
-            'E' => "Echo",
-            'F' => "Foxtrot",
-            'G' => "Golf",
-            'H' => "Hotel",
-            'I' => "India",
-            'J' => "Juliet",
-            'K' => "Kilo",
-            'L' => "Lima",
-            'M' => "Mike",
-            'N' => "November",
-            'O' => "Oscar",
-            'P' => "Papa",
-            'Q' => "Quebec",
-            'R' => "Romeo",
-            'S' => "Sierra",
-            'T' => "Tango",
-            'U' => "Uniform",
-            'V' => "Victor",
-            'W' => "Whiskey",
-            'X' => "Xray",
-            'Y' => "Yankee",
-            'Z' => "Zulu",
-            _ => c.ToString(),
         };
 
     private static string BearingToCardinal(int bearing)

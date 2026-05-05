@@ -117,8 +117,8 @@ public class AtFixSayTests(ITestOutputHelper output)
 
         var entry = Assert.Single(captured, e => e.Kind == "SayAltitude");
         Assert.Equal("TST01", entry.Callsign);
-        // Aircraft cruising near 5000 ft level, no assigned altitude → bare spoken altitude.
-        Assert.Equal("five thousand", entry.Message);
+        // Aircraft cruising near 5000 ft level, no assigned altitude → bare plain altitude.
+        Assert.Equal("5,000", entry.Message);
     }
 
     [Fact]
@@ -141,8 +141,8 @@ public class AtFixSayTests(ITestOutputHelper output)
 
         var entry = Assert.Single(captured, e => e.Kind == "SayHeading");
         Assert.Equal("TST01", entry.Callsign);
-        // Aircraft heading 360 north → "Heading three six zero" (AIM 4-2-10)
-        Assert.Equal("Heading three six zero", entry.Message);
+        // Aircraft heading 360 north → "Heading 360" (plain three-digit form)
+        Assert.Equal("Heading 360", entry.Message);
     }
 
     [Fact]
@@ -192,8 +192,8 @@ public class AtFixSayTests(ITestOutputHelper output)
 
         var entry = Assert.Single(captured, e => e.Kind == "SaySpeed");
         Assert.Equal("TST01", entry.Callsign);
-        // 250 KIAS at 5000 ft → "two five zero knots" (no Mach below FL240)
-        Assert.Equal("two five zero knots", entry.Message);
+        // 250 KIAS at 5000 ft → "250 knots" (no Mach below FL240)
+        Assert.Equal("250 knots", entry.Message);
     }
 
     [Fact]
