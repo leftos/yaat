@@ -1370,7 +1370,7 @@ public static class CommandDescriber
 
     private static string FormatTaxiNatural(TaxiCommand taxi)
     {
-        var displayPath = taxi.Path.Where(t => !TaxiPathfinder.IsNodeReference(t)).ToList();
+        var displayPath = taxi.Path.Where(t => !NodeRefToken.IsNodeReference(t)).ToList();
 
         if (taxi.DestinationSpot is not null)
         {

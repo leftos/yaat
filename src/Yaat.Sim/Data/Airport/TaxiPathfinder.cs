@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -95,16 +96,6 @@ public static class TaxiPathfinder
     private const double FewestTurnsDistanceWeight = 0.001;
 
     /// <summary>
-    /// Returns true if the token is a node reference (e.g., "#42").
-    /// </summary>
-    public static bool IsNodeReference(string token) => token.Length > 1 && token[0] == '#' && int.TryParse(token.AsSpan(1), out _);
-
-    /// <summary>
-    /// Parses the numeric node ID from a node reference token (e.g., "#42" → 42).
-    /// </summary>
-    public static int ParseNodeId(string token) => int.Parse(token.AsSpan(1));
-
-    /// <summary>
     /// Validate and resolve an explicit taxiway path (e.g., "S T U W W1").
     /// Supports #nodeId tokens for exact node references (A* between them).
     /// Returns the route along the named taxiways, with implicit hold-short at
@@ -149,7 +140,7 @@ public static class TaxiPathfinder
         // Also include the start node's currently-on taxiways: if the aircraft
         // is parked on G when given TAXI D, the natural bridge from G to D
         // walks G — penalizing G would force a worse D-entry point.
-        var authorizedTaxiways = new HashSet<string>(taxiwayNames.Where(n => !IsNodeReference(n)), StringComparer.OrdinalIgnoreCase);
+        var authorizedTaxiways = new HashSet<string>(taxiwayNames.Where(n => !NodeRefToken.IsNodeReference(n)), StringComparer.OrdinalIgnoreCase);
         if (layout.Nodes.TryGetValue(fromNodeId, out var startNodeForAuth))
         {
             foreach (var startEdge in startNodeForAuth.Edges)
@@ -215,9 +206,9 @@ public static class TaxiPathfinder
             segmentCountBeforeLastTw = segCountBefore;
 
             // Node reference: A* from current position to the specified node
-            if (IsNodeReference(twName))
+            if (NodeRefToken.IsNodeReference(twName))
             {
-                int targetNodeId = ParseNodeId(twName);
+                int targetNodeId = NodeRefToken.ParseNodeId(twName);
                 if (!layout.Nodes.ContainsKey(targetNodeId))
                 {
                     failReason = $"Node #{targetNodeId} does not exist";
@@ -383,7 +374,7 @@ public static class TaxiPathfinder
         }
 
         // Auto-infer numbered taxiway variant for destination runway
-        if (destinationRunway is not null && taxiwayNames.Count > 0 && !IsNodeReference(taxiwayNames[^1]))
+        if (destinationRunway is not null && taxiwayNames.Count > 0 && !NodeRefToken.IsNodeReference(taxiwayNames[^1]))
         {
             _ = TaxiVariantResolver.TryInferVariant(
                 layout,

@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Linq;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -1896,28 +1897,28 @@ public class TaxiPathfinderTests
     [Fact]
     public void IsNodeReference_ValidToken()
     {
-        Assert.True(TaxiPathfinder.IsNodeReference("#42"));
-        Assert.True(TaxiPathfinder.IsNodeReference("#0"));
-        Assert.True(TaxiPathfinder.IsNodeReference("#999"));
+        Assert.True(NodeRefToken.IsNodeReference("#42"));
+        Assert.True(NodeRefToken.IsNodeReference("#0"));
+        Assert.True(NodeRefToken.IsNodeReference("#999"));
     }
 
     [Fact]
     public void IsNodeReference_InvalidToken()
     {
-        Assert.False(TaxiPathfinder.IsNodeReference("#"));
-        Assert.False(TaxiPathfinder.IsNodeReference("42"));
-        Assert.False(TaxiPathfinder.IsNodeReference("A"));
-        Assert.False(TaxiPathfinder.IsNodeReference("@42"));
-        Assert.False(TaxiPathfinder.IsNodeReference("#abc"));
-        Assert.False(TaxiPathfinder.IsNodeReference("#12x"));
+        Assert.False(NodeRefToken.IsNodeReference("#"));
+        Assert.False(NodeRefToken.IsNodeReference("42"));
+        Assert.False(NodeRefToken.IsNodeReference("A"));
+        Assert.False(NodeRefToken.IsNodeReference("@42"));
+        Assert.False(NodeRefToken.IsNodeReference("#abc"));
+        Assert.False(NodeRefToken.IsNodeReference("#12x"));
     }
 
     [Fact]
     public void ParseNodeId_ExtractsId()
     {
-        Assert.Equal(42, TaxiPathfinder.ParseNodeId("#42"));
-        Assert.Equal(0, TaxiPathfinder.ParseNodeId("#0"));
-        Assert.Equal(999, TaxiPathfinder.ParseNodeId("#999"));
+        Assert.Equal(42, NodeRefToken.ParseNodeId("#42"));
+        Assert.Equal(0, NodeRefToken.ParseNodeId("#0"));
+        Assert.Equal(999, NodeRefToken.ParseNodeId("#999"));
     }
 
     [Fact]

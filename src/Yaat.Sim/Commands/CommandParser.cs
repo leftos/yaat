@@ -1795,9 +1795,9 @@ public static class CommandParser
         // WARPG @<parking>   — e.g., WARPG @B12
         // WARPG <tw1> <tw2>  — e.g., WARPG C B
         var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1 && TaxiPathfinder.IsNodeReference(parts[0]))
+        if (parts.Length == 1 && NodeRefToken.IsNodeReference(parts[0]))
         {
-            return PR.Ok(new WarpGroundCommand("", "", TaxiPathfinder.ParseNodeId(parts[0])));
+            return PR.Ok(new WarpGroundCommand("", "", NodeRefToken.ParseNodeId(parts[0])));
         }
 
         if (parts.Length == 1 && parts[0].StartsWith('@') && parts[0].Length > 1)
