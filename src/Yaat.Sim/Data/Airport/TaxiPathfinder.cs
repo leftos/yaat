@@ -1692,7 +1692,7 @@ public static class TaxiPathfinder
         {
             diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: startNode={startNodeId} already connects to {nextTaxiwayName} — skipping walk");
             endNodeId = startNodeId;
-            return segments.Count > 0;
+            return true;
         }
 
         // Walk along the taxiway to the end
@@ -1817,7 +1817,7 @@ public static class TaxiPathfinder
         // them back in as through-turn shortcuts.
         ApplySameTaxiwayArcShortcuts(layout, segments, walkStartIdx, startNodeId, taxiwayName, diagnosticLog);
 
-        return segments.Count > 0;
+        return segments.Count > walkStartIdx;
     }
 
     /// <summary>

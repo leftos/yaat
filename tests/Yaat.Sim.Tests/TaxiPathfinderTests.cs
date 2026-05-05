@@ -2091,6 +2091,73 @@ public class TaxiPathfinderTests
     }
 
     [Fact]
+    public void WalkTaxiway_SkipPath_ReturnsTrueWhenStartNodeAlreadyConnectsToNextTaxiway()
+    {
+        // Layout: node0 sits at a junction where it already has an edge on
+        // both "X" and "Y". When walking "X" with NextTaxiwayName="Y", the
+        // skip-path at WalkTaxiway should fire (no walking needed — we're
+        // already at the connector) and report success even though segments
+        // is empty. Earlier `return segments.Count > 0` reported failure for
+        // an empty outer list, breaking first-taxiway clearances of the form
+        // "TAXI X Y ..." when the aircraft starts at the X/Y junction.
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        var node0 = new GroundNode
+        {
+            Id = 0,
+            Position = new LatLon(37.700, -122.200),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var node1 = new GroundNode
+        {
+            Id = 1,
+            Position = new LatLon(37.701, -122.200),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var node2 = new GroundNode
+        {
+            Id = 2,
+            Position = new LatLon(37.700, -122.201),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+
+        var edgeX = new GroundEdge
+        {
+            Nodes = [node0, node1],
+            TaxiwayName = "X",
+            DistanceNm = 0.06,
+        };
+        var edgeY = new GroundEdge
+        {
+            Nodes = [node0, node2],
+            TaxiwayName = "Y",
+            DistanceNm = 0.06,
+        };
+
+        layout.Nodes[0] = node0;
+        layout.Nodes[1] = node1;
+        layout.Nodes[2] = node2;
+        layout.Edges.AddRange([edgeX, edgeY]);
+        node0.Edges.AddRange([edgeX, edgeY]);
+        node1.Edges.Add(edgeX);
+        node2.Edges.Add(edgeY);
+        layout.RebuildAdjacencyLists();
+
+        var segments = new List<TaxiRouteSegment>();
+        bool walked = TaxiPathfinder.WalkTaxiway(
+            layout,
+            startNodeId: 0,
+            taxiwayName: "X",
+            segments,
+            out int endNodeId,
+            new WalkOptions { NextTaxiwayName = "Y" }
+        );
+
+        Assert.True(walked, "skip-path validation must report success even with empty segments");
+        Assert.Equal(0, endNodeId);
+        Assert.Empty(segments);
+    }
+
+    [Fact]
     public void ResolveExplicitPath_SfoM2_UsesSameTaxiwayArcAtA1Apex()
     {
         // SFO A1 has a same-taxiway fillet arc (TaxiwayNames=["A1"])
