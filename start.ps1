@@ -1,7 +1,7 @@
 ﻿# Start yaat-server and yaat-client side by side.
 # Kill all processes on Ctrl-C.
 # Build sequentially first -- both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-NoVStripsWeb] [-Release] [-Scenario <id>] [-Sync <url>]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-VStripsWeb] [-Release] [-Scenario <id>] [-Sync <url>]
 #
 # -Sync <url>     Sync local yaat repo to the commit pinned by a remote server,
 #                 then build and run client-only. Example:
@@ -10,11 +10,11 @@
 #                 the main client, autoconnecting to the same server. Combine with
 #                 -ClientOnly or -Sync to launch vStrips against an existing
 #                 server. Ignored with -ServerOnly.
-# -NoVStripsWeb   Skip the Yaat.VStrips.Web (WASM) publish step. By default the
-#                 web bundle is published into yaat-server\wwwroot\vstrips\ on
-#                 every server-bearing run so http://<server>/vstrips/ serves
-#                 the live web client. Skip when iterating server changes only
-#                 and the existing bundle is fine.
+# -VStripsWeb     Publish the Yaat.VStrips.Web (WASM) bundle into
+#                 yaat-server\wwwroot\vstrips\ so http://<server>/vstrips/ serves
+#                 the live web client. Off by default to keep iteration fast --
+#                 opt in when you've changed Yaat.VStrips.Web and need a fresh
+#                 bundle. Ignored under -ClientOnly or -Docker.
 # -Release        Build and run every project in Release configuration. Default
 #                 is Debug for faster iteration. Yaat.VStrips.Web always
 #                 publishes Release regardless (its Debug bundle is huge and
@@ -26,7 +26,7 @@ param(
     [switch]$ClientOnly,
     [switch]$ServerOnly,
     [switch]$VStrips,
-    [switch]$NoVStripsWeb,
+    [switch]$VStripsWeb,
     [switch]$Release,
     [string]$Scenario,
     [string]$Sync
@@ -142,9 +142,10 @@ if ($VStrips -and -not $ServerOnly) {
 # Publish the WASM web vStrips client into yaat-server\wwwroot\vstrips\ so
 # /vstrips/ serves the live bundle when the server runs. The project's
 # CopyToServerWwwroot AfterTargets="Publish" target does the cross-repo copy.
-# Skipped under -ClientOnly (no server to serve it from), -NoVStripsWeb (opt-out),
-# or -Docker (the dockerized server has its own bundle baked in via the image).
-if (-not $ClientOnly -and -not $NoVStripsWeb -and -not $Docker) {
+# Opt-in via -VStripsWeb. Ignored under -ClientOnly (no server to serve it
+# from) or -Docker (the dockerized server has its own bundle baked in via
+# the image).
+if ($VStripsWeb -and -not $ClientOnly -and -not $Docker) {
     # Yaat.VStrips.Web is a Microsoft.NET.Sdk.WebAssembly project with
     # WasmBuildNative=true, which needs the wasm-tools workload. There's no
     # global.json manifest pinning it, so `dotnet workload restore` is a no-op
@@ -163,8 +164,7 @@ Install it with:
 
 On Windows this needs an elevated PowerShell. Then re-run start.ps1.
 
-To skip the WASM publish entirely, re-run with -NoVStripsWeb (useful when
-iterating server changes only and the existing bundle is fine).
+To skip the WASM publish entirely, re-run without -VStripsWeb (the default).
 "@
         exit 1
     }

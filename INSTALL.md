@@ -145,7 +145,7 @@ dotnet --version
 
 You should see a version starting with `10.`.
 
-Then install the **wasm-tools** workload — `start.ps1`/`start.sh` publishes the in-browser flight strips bundle (`Yaat.VStrips.Web`) into the server's `wwwroot/vstrips/` on every server-bearing run, and that publish step needs the WebAssembly tooling:
+If you want to use the in-browser flight strips client (`Yaat.VStrips.Web`, served from the server at `/vstrips/`), install the **wasm-tools** workload — `start.ps1`/`start.sh` publishes that bundle into the server's `wwwroot/vstrips/` when you opt in with `-VStripsWeb` / `--vstrips-web`, and the publish step needs the WebAssembly tooling:
 
 ```
 dotnet workload install wasm-tools
@@ -153,7 +153,7 @@ dotnet workload install wasm-tools
 
 On Windows this needs an elevated PowerShell ("Run as administrator"). On Linux/macOS you may need `sudo` depending on how you installed .NET. Verify with `dotnet workload list` — you should see `wasm-tools` in the table.
 
-You can skip this step if you'll always run the start script with `-NoVStripsWeb` / `--no-vstrips-web`, but the default flow needs it.
+You can skip this step if you don't plan to use the web strips client; the default start flow does not publish it.
 
 ### Step 3: Download the code
 
@@ -313,13 +313,13 @@ Make sure you installed the **.NET 10 SDK**, not an older version or just the Ru
 
 ### `NETSDK1147: the following workloads must be installed: wasm-tools` (source builds only)
 
-The start script publishes the in-browser flight strips bundle (`tools/Yaat.VStrips.Web`) into the server's wwwroot on every server-bearing run. That step needs the WebAssembly workload. Install it with:
+When you opt in with `-VStripsWeb` / `--vstrips-web`, the start script publishes the in-browser flight strips bundle (`tools/Yaat.VStrips.Web`) into the server's wwwroot. That step needs the WebAssembly workload. Install it with:
 
 ```
 dotnet workload install wasm-tools
 ```
 
-On Windows this needs an elevated PowerShell. On Linux/macOS you may need `sudo` depending on how you installed .NET. If you don't need the in-browser strips, re-run the start script with `-NoVStripsWeb` (PowerShell) or `--no-vstrips-web` (bash) to skip the step.
+On Windows this needs an elevated PowerShell. On Linux/macOS you may need `sudo` depending on how you installed .NET. If you don't need the in-browser strips, just drop the `-VStripsWeb` / `--vstrips-web` flag — it's off by default.
 
 ### Execution policy error on start.ps1 (Windows, source builds only)
 
