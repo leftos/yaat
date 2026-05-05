@@ -889,21 +889,22 @@ public static class FilletArcGenerator
     }
 
     // Holds all shared state for a single FilletNode invocation, passed between phases.
+    // Inputs supplied by FilletNode are `required init`; phase outputs default to empty
+    // and are filled in by their owning phase (Add/AddRange).
     private sealed class FilletContext
     {
+        // Inputs
         public required AirportGroundLayout Layout { get; init; }
         public required GroundNode Intersection { get; init; }
         public required HashSet<int> ManualArcNodes { get; init; }
         public required NextNodeIdCounter IdCounter { get; init; }
-        public bool PreserveNode { get; set; }
-
-        // Pre-phase: edge collection and bearing computation
         public required List<GroundEdge> Edges { get; init; }
         public required List<(GroundEdge Edge, GroundNode OtherNode, double Bearing)> EdgeBearings { get; init; }
+        public bool PreserveNode { get; set; }
 
         // Phase A outputs
-        public required Dictionary<GroundEdge, TaxiwayWalkResult> EdgeWalks { get; init; }
-        public required List<(
+        public Dictionary<GroundEdge, TaxiwayWalkResult> EdgeWalks { get; } = [];
+        public List<(
             GroundEdge EdgeA,
             GroundEdge EdgeB,
             double RadiusFt,
@@ -912,16 +913,16 @@ public static class FilletArcGenerator
             double BearingB,
             TangentPlacement PlacementA,
             TangentPlacement PlacementB
-        )> PlannedArcs { get; init; }
-        public required List<(GroundEdge EdgeA, GroundNode OtherA, GroundEdge EdgeB, GroundNode OtherB)> PlannedMerges { get; init; }
+        )> PlannedArcs { get; } = [];
+        public List<(GroundEdge EdgeA, GroundNode OtherA, GroundEdge EdgeB, GroundNode OtherB)> PlannedMerges { get; } = [];
 
         // Phase B+C outputs
         public int ArcsCreated { get; set; }
-        public required Dictionary<GroundEdge, List<(GroundNode Node, TangentPlacement Placement)>> EdgeTangentNodes { get; init; }
+        public Dictionary<GroundEdge, List<(GroundNode Node, TangentPlacement Placement)>> EdgeTangentNodes { get; } = [];
 
         // Phase D working state
-        public required HashSet<GroundEdge> ConsumedEdges { get; init; }
-        public required List<GroundNode> DeferredShapeNodes { get; init; }
+        public HashSet<GroundEdge> ConsumedEdges { get; } = [];
+        public List<GroundNode> DeferredShapeNodes { get; } = [];
         public int EdgesMerged { get; set; }
     }
 
@@ -973,12 +974,6 @@ public static class FilletArcGenerator
             PreserveNode = preserveNode,
             Edges = edges,
             EdgeBearings = edgeBearings,
-            EdgeWalks = [],
-            PlannedArcs = [],
-            PlannedMerges = [],
-            EdgeTangentNodes = [],
-            ConsumedEdges = [],
-            DeferredShapeNodes = [],
         };
 
         PhaseA_ComputeFillets(ctx);
