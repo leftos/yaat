@@ -2014,7 +2014,7 @@ public static class TaxiPathfinder
         int startNodeId,
         List<IGroundEdge> candidates,
         string? nextTaxiwayName,
-        GroundNode? destinationHint = null
+        GroundNode? destinationHint
     )
     {
         if (candidates.Count <= 1)
@@ -2088,7 +2088,7 @@ public static class TaxiPathfinder
         AirportGroundLayout layout,
         List<(IGroundEdge Edge, int NodeId)> candidates,
         string? nextTaxiwayName,
-        GroundNode? destinationHint = null
+        GroundNode? destinationHint
     )
     {
         if (nextTaxiwayName is null)
