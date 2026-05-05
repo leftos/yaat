@@ -228,16 +228,15 @@ public class VisualApproachCommandTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void ReportFieldInSight_WhenFieldSeen_AddsWarning()
+    public void ReportFieldInSight_WhenFieldSeen_AddsReadback()
     {
         var aircraft = MakeAircraft();
         aircraft.Approach.HasReportedFieldInSight = true;
 
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
-        // Field acquisition routes through PendingWarnings (WRN/Orange) — gates the visual approach.
-        Assert.Single(aircraft.PendingWarnings);
-        Assert.Contains("field in sight", aircraft.PendingWarnings[0]);
+        // Field acquisition routes through PendingPilotReadbacks (SAY channel) — gates the visual approach.
+        Assert.Equal("Have the field in sight", Assert.Single(aircraft.PendingPilotReadbacks));
     }
 
     // Soft-fail behavior (visual reasons) and hard-fail (no destination / not in
@@ -246,16 +245,15 @@ public class VisualApproachCommandTests : IDisposable
     // here cannot exercise the airport visual-acquisition path.
 
     [Fact]
-    public void ReportTrafficInSight_WhenTrafficSeen_AddsNotification()
+    public void ReportTrafficInSight_WhenTrafficSeen_AddsReadback()
     {
         var aircraft = MakeAircraft();
         aircraft.Approach.HasReportedTrafficInSight = true;
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
-        // Traffic acquisition routes through PendingWarnings (WRN/Orange) for attention.
-        Assert.Single(aircraft.PendingWarnings);
-        Assert.Contains("traffic in sight", aircraft.PendingWarnings[0]);
+        // Traffic acquisition routes through PendingPilotReadbacks (SAY channel).
+        Assert.Equal("Have UAL456 in sight", Assert.Single(aircraft.PendingPilotReadbacks));
     }
 
     [Fact]

@@ -243,6 +243,28 @@ public sealed class SimulationWorld
         return result;
     }
 
+    public List<(string Callsign, string Readback)> DrainAllPilotReadbacks()
+    {
+        var result = new List<(string, string)>();
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.PendingPilotReadbacks.Count > 0)
+                {
+                    foreach (var s in ac.PendingPilotReadbacks)
+                    {
+                        result.Add((ac.Callsign, s));
+                    }
+
+                    ac.PendingPilotReadbacks.Clear();
+                }
+            }
+        }
+
+        return result;
+    }
+
     public List<ApproachScore> DrainAllApproachScores()
     {
         var result = new List<ApproachScore>();

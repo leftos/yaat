@@ -129,6 +129,17 @@ public class AircraftState
     /// </summary>
     public List<string> PendingPilotSpeech { get; } = [];
 
+    /// <summary>
+    /// Terse pilot readbacks for visual-acquisition events (RTIS / RFIS — the "Have
+    /// N9225L in sight" / "Negative contact, looking" line). Drained per tick into the
+    /// terminal as a <c>SayReadback</c>-kind entry (the kind starts with "Say" so the
+    /// client routes it to the SAY channel just like the SPOS / SALT verb output).
+    /// Used when the spelled-out <see cref="PendingPilotSpeech"/> path is not active —
+    /// solo mode and RPO mode without <c>RpoShowPilotSpeech</c> both land here. Transient —
+    /// not snapshot-serialized.
+    /// </summary>
+    public List<string> PendingPilotReadbacks { get; } = [];
+
     public List<ApproachScore> PendingApproachScores { get; } = [];
     public ApproachScore? ActiveApproachScore { get; set; }
 

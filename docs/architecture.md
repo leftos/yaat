@@ -314,10 +314,10 @@ PilotObservation.cs            # Abstract record PilotObservation + TrafficAcqui
                                # Extension points for future "report leaving altitude", "report passing fix", etc.
 PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhysics.Update after UpdateCommandQueue
                                # Re-runs VisualAcquisition.TryAcquireTraffic / TryAcquireAirport; on success sets the matching
-                               # HasReported* flag and pushes the in-sight pilot readback through PilotResponder.RouteRpoTransmission:
-                               # solo → PendingNotifications (gray Response), RPO+RpoShowPilotSpeech → PendingPilotSpeech (green
-                               # PilotSpeech kind via PilotResponder.BuildTrafficInSight/BuildFieldInSight), RPO default →
-                               # PendingWarnings (orange). Silently drops observations whose target has left the sim or whose
+                               # HasReported* flag and pushes the in-sight pilot readback through PilotResponder.RouteRpoSayReadback:
+                               # RPO+RpoShowPilotSpeech → PendingPilotSpeech (green spelled-out via BuildTrafficInSight/BuildFieldInSight),
+                               # otherwise (solo or RPO default) → PendingPilotReadbacks (SAY channel, "Have <target> in sight" /
+                               # "Have the field in sight"). Silently drops observations whose target has left the sim or whose
                                # destination is no longer lookupable.
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
 

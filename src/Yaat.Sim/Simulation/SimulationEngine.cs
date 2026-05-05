@@ -486,6 +486,12 @@ public sealed class SimulationEngine
             EmitTerminal("Response", callsign, notification);
         }
 
+        var readbacks = World.DrainAllPilotReadbacks();
+        foreach (var (callsign, readback) in readbacks)
+        {
+            EmitTerminal("SayReadback", callsign, readback);
+        }
+
         World.DrainAllApproachScores();
     }
 

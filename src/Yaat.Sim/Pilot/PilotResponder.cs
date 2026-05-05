@@ -179,6 +179,33 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Routes a sim-initiated pilot readback for visual-acquisition events (RTIS / RFIS)
+    /// onto the SAY channel rather than the orange Warning channel. Same RPO/solo logic
+    /// as <see cref="RouteRpoTransmission"/>: if RPO mode + <c>RpoShowPilotSpeech</c> is
+    /// on, fire the spelled-out green <see cref="AircraftState.PendingPilotSpeech"/>;
+    /// otherwise fire the terse <see cref="AircraftState.PendingPilotReadbacks"/> which
+    /// the server broadcasts as kind <c>SayReadback</c> (the kind starts with "Say" so
+    /// the client maps it to the SAY channel like SPOS / SALT).
+    /// </summary>
+    public static void RouteRpoSayReadback(
+        AircraftState aircraft,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
+        string pilotSpeechText,
+        string sayReadbackText
+    )
+    {
+        if (!soloTrainingMode && rpoShowPilotSpeech)
+        {
+            aircraft.PendingPilotSpeech.Add(pilotSpeechText);
+        }
+        else
+        {
+            aircraft.PendingPilotReadbacks.Add(sayReadbackText);
+        }
+    }
+
+    /// <summary>
     /// Brief uncleared-traffic reminder fired by <c>DownwindPhase</c> at midfield downwind when
     /// the aircraft has no landing clearance, in solo-training mode for VFR pattern aircraft.
     /// Output:

@@ -82,12 +82,12 @@ public static class PilotObservationUpdater
 
         aircraft.Approach.HasReportedTrafficInSight = true;
         aircraft.Approach.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
-        Pilot.PilotResponder.RouteRpoTransmission(
+        Pilot.PilotResponder.RouteRpoSayReadback(
             aircraft,
             soloTrainingMode,
             rpoShowPilotSpeech,
             Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign),
-            Commands.NavigationCommandHandler.FormatTrafficInSightNotification(aircraft, obs.TargetCallsign)
+            Commands.NavigationCommandHandler.FormatTrafficInSightNotification(obs.TargetCallsign)
         );
         return true;
     }
@@ -113,12 +113,12 @@ public static class PilotObservationUpdater
         }
 
         aircraft.Approach.HasReportedFieldInSight = true;
-        Pilot.PilotResponder.RouteRpoTransmission(
+        Pilot.PilotResponder.RouteRpoSayReadback(
             aircraft,
             soloTrainingMode,
             rpoShowPilotSpeech,
             Pilot.PilotResponder.BuildFieldInSight(aircraft),
-            Commands.NavigationCommandHandler.FormatFieldInSightNotification(aircraft)
+            Commands.NavigationCommandHandler.FormatFieldInSightNotification()
         );
         return true;
     }

@@ -19,6 +19,7 @@
 ### Changed
 - Radar **Tower** submenu and Ground **Final Approach** items (Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Go around, Line up and wait) show the aircraft's assigned runway in the label (e.g. *Cleared to land 28R*) — no behavior change, the item still issues the bare command.
 - Radar **Speed** submenu values are now type-aware: the assignable speeds run from the aircraft's `ApproachSpeed` to its altitude-resolved `ClimbSpeed` in 10-kt steps (replacing the static 150–350 kt list). C172 sees ~60–100 kt; transport jets see ~140–280 kt at altitude. Falls back to the legacy 150–350 list when filed type is unknown.
+- RTIS / RFIS pilot transmissions land on the **SAY** channel instead of WRN/RSP and drop the redundant ownship callsign: success reads as *"Have N9225L in sight"* / *"Have the field in sight"* (was *"N436MS, traffic in sight, N9225L"* / *"N436MS has the field in sight"*); the soft-fail readback (*"Negative contact, …, looking"*) is now also on the SAY channel.
 
 ## v0.1.14-alpha [2026/05/04]
 

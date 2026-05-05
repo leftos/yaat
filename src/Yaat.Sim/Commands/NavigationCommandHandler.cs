@@ -996,12 +996,12 @@ internal static class NavigationCommandHandler
         // visual approach, just echo the in-sight response.
         if (aircraft.Approach.HasReportedFieldInSight)
         {
-            Pilot.PilotResponder.RouteRpoTransmission(
+            Pilot.PilotResponder.RouteRpoSayReadback(
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
                 Pilot.PilotResponder.BuildFieldInSight(aircraft),
-                FormatFieldInSightNotification(aircraft)
+                FormatFieldInSightNotification()
             );
             return CommandDispatcher.Ok("Field in sight");
         }
@@ -1030,12 +1030,12 @@ internal static class NavigationCommandHandler
             // becomes active. First-check acquisition supersedes any in-flight
             // "looking" state.
             aircraft.Approach.HasReportedFieldInSight = true;
-            Pilot.PilotResponder.RouteRpoTransmission(
+            Pilot.PilotResponder.RouteRpoSayReadback(
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
                 Pilot.PilotResponder.BuildFieldInSight(aircraft),
-                FormatFieldInSightNotification(aircraft)
+                FormatFieldInSightNotification()
             );
             aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
             return CommandDispatcher.Ok("Field in sight");
@@ -1047,7 +1047,7 @@ internal static class NavigationCommandHandler
         // the latest request always wins.
         aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
         aircraft.PendingObservations.Add(new FieldAcquisitionObservation());
-        aircraft.PendingNotifications.Add(FormatFieldLookingNotification(result, destination));
+        aircraft.PendingPilotReadbacks.Add(FormatFieldLookingNotification(result, destination));
         return CommandDispatcher.Ok($"Looking for the field — {FormatFieldFailureHint(result, metar, destination)}");
     }
 
@@ -1063,12 +1063,12 @@ internal static class NavigationCommandHandler
             {
                 aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
             }
-            Pilot.PilotResponder.RouteRpoTransmission(
+            Pilot.PilotResponder.RouteRpoSayReadback(
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
                 Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
-                FormatTrafficInSightNotification(aircraft, targetCallsign)
+                FormatTrafficInSightNotification(targetCallsign)
             );
             return CommandDispatcher.Ok("Traffic in sight");
         }
@@ -1090,12 +1090,12 @@ internal static class NavigationCommandHandler
         {
             aircraft.Approach.HasReportedTrafficInSight = true;
             aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
-            Pilot.PilotResponder.RouteRpoTransmission(
+            Pilot.PilotResponder.RouteRpoSayReadback(
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
                 Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
-                FormatTrafficInSightNotification(aircraft, targetCallsign)
+                FormatTrafficInSightNotification(targetCallsign)
             );
             // First-check acquisition supersedes any in-flight "looking" state.
             aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
@@ -1109,20 +1109,18 @@ internal static class NavigationCommandHandler
         var targetCallsignUpper = targetCallsign.ToUpperInvariant();
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
         aircraft.PendingObservations.Add(new TrafficAcquisitionObservation(targetCallsignUpper));
-        aircraft.PendingNotifications.Add(FormatTrafficLookingNotification(result, target));
+        aircraft.PendingPilotReadbacks.Add(FormatTrafficLookingNotification(result, target));
         return CommandDispatcher.Ok($"Looking for traffic — {FormatTrafficFailureHint(result, target)}");
     }
 
     /// <summary>
-    /// Pilot readback when the traffic has been acquired. Broadcast into the RPO
-    /// terminal so the ownship callsign leads (for disambiguation in busy logs),
-    /// then the standard "traffic in sight" phraseology (AIM 5-5-10 / 5-5-11),
-    /// then the target tag for context.
+    /// Pilot readback when the traffic has been acquired. The terminal entry already shows
+    /// the speaking aircraft in its callsign column, so the readback drops the leading
+    /// ownship callsign and uses the GA-pilot colloquial "Have &lt;target&gt; in sight" form
+    /// (AIM 5-5-10 / 5-5-11).
     /// </summary>
-    internal static string FormatTrafficInSightNotification(AircraftState aircraft, string? targetCallsign) =>
-        string.IsNullOrWhiteSpace(targetCallsign)
-            ? $"{aircraft.Callsign}, traffic in sight"
-            : $"{aircraft.Callsign}, traffic in sight, {targetCallsign}";
+    internal static string FormatTrafficInSightNotification(string? targetCallsign) =>
+        string.IsNullOrWhiteSpace(targetCallsign) ? "Traffic in sight" : $"Have {targetCallsign} in sight";
 
     /// <summary>
     /// Pilot readback when RTIS can't be satisfied on the first check — the
@@ -1161,10 +1159,13 @@ internal static class NavigationCommandHandler
 
     /// <summary>
     /// Pilot readback when the field has been acquired. Routed through
-    /// PendingWarnings (orange) so the RPO sees the resolution clearly —
-    /// "field in sight" gates the visual approach clearance.
+    /// <see cref="AircraftState.PendingPilotReadbacks"/> so the RPO sees the resolution
+    /// on the SAY channel — "field in sight" gates the visual approach clearance.
+    /// The terminal entry already shows the speaking aircraft in its callsign column,
+    /// so the readback drops the leading ownship callsign and uses the GA-pilot
+    /// colloquial "Have the field in sight" form.
     /// </summary>
-    internal static string FormatFieldInSightNotification(AircraftState aircraft) => $"{aircraft.Callsign} has the field in sight";
+    internal static string FormatFieldInSightNotification() => "Have the field in sight";
 
     /// <summary>
     /// Pilot readback when RFIS can't be satisfied on the first check — the
@@ -1260,12 +1261,12 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft, DispatchContext ctx)
     {
         aircraft.Approach.HasReportedFieldInSight = true;
-        Pilot.PilotResponder.RouteRpoTransmission(
+        Pilot.PilotResponder.RouteRpoSayReadback(
             aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
             Pilot.PilotResponder.BuildFieldInSight(aircraft),
-            FormatFieldInSightNotification(aircraft)
+            FormatFieldInSightNotification()
         );
         aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
         return CommandDispatcher.Ok("Field in sight (forced)");
@@ -1278,12 +1279,12 @@ internal static class NavigationCommandHandler
         {
             aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
         }
-        Pilot.PilotResponder.RouteRpoTransmission(
+        Pilot.PilotResponder.RouteRpoSayReadback(
             aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
             Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
-            FormatTrafficInSightNotification(aircraft, targetCallsign)
+            FormatTrafficInSightNotification(targetCallsign)
         );
         return CommandDispatcher.Ok("Traffic in sight (forced)");
     }

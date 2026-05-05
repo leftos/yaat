@@ -17,8 +17,8 @@ namespace Yaat.Sim.Tests.Commands;
 /// RPO-facing diagnostic (cloud layer, distance, hemisphere, bank) lives in
 /// <c>CommandResult.Message</c> only — the pilot readback stays clean. When
 /// the field becomes acquirable, <c>HasReportedFieldInSight</c> is set and
-/// the pilot reports "field in sight" via PendingWarnings (orange) so the
-/// RPO sees the resolution clearly.
+/// the pilot reports "Have the field in sight" via PendingPilotReadbacks
+/// (SAY channel) so the RPO sees the resolution clearly.
 /// </summary>
 [Collection("NavDbMutator")]
 public class RfisSoftFailLookingTests
@@ -44,7 +44,7 @@ public class RfisSoftFailLookingTests
 
         Assert.True(result.Success, $"Expected soft-fail success but got: {result.Message}");
         Assert.False(ac.Approach.HasReportedFieldInSight);
-        Assert.Contains("looking", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
 
         var obs = Assert.Single(ac.PendingObservations);
         Assert.IsType<FieldAcquisitionObservation>(obs);
@@ -53,7 +53,7 @@ public class RfisSoftFailLookingTests
     // -------------------------------------------------------------------------
     // RPO diagnostic hint — CommandResult.Message names the specific failure
     // reason so the RPO can decide whether to relay it to the student. Pilot
-    // phraseology in PendingNotifications stays diagnostic-free.
+    // phraseology in PendingPilotReadbacks stays diagnostic-free.
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -67,9 +67,9 @@ public class RfisSoftFailLookingTests
         Assert.True(result.Success);
         Assert.Contains("Looking for the field", result.Message);
         Assert.Contains("behind ownship", result.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("hemisphere", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hemisphere", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
         // Real-world pilot idiom — actionable for the controller (cue to offer a vector).
-        Assert.Contains("field's behind us", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("field's behind us", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public class RfisSoftFailLookingTests
         Assert.Contains("Looking for the field", result.Message);
         Assert.Contains("OVC020", result.Message);
         // Pilot says "on top, looking" — no METAR codes.
-        Assert.Contains("on top", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("OVC", ac.PendingNotifications[0]);
+        Assert.Contains("on top", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("OVC", ac.PendingPilotReadbacks[0]);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class RfisSoftFailLookingTests
         // Pilot readback collapses to the plain default — at FL180+ the controller
         // already knows why; no fictitious "on top" claim about a deck that may
         // not exist (aviation-sim-expert review).
-        Assert.Equal("Negative contact, KOAK, looking", ac.PendingNotifications[0]);
+        Assert.Equal("Negative contact, KOAK, looking", ac.PendingPilotReadbacks[0]);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class RfisSoftFailLookingTests
 
         Assert.True(result.Success);
         Assert.Contains("bank", result.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("in the turn", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("in the turn", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
     }
 
     // -------------------------------------------------------------------------
@@ -167,7 +167,7 @@ public class RfisSoftFailLookingTests
 
     // -------------------------------------------------------------------------
     // Tick-based acquisition: once the field is acquirable, the observation
-    // resolves, the flag flips, and the pilot says "field in sight".
+    // resolves, the flag flips, and the pilot says "Have the field in sight".
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -180,7 +180,7 @@ public class RfisSoftFailLookingTests
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         Assert.Single(ac.PendingObservations);
-        ac.PendingNotifications.Clear();
+        ac.PendingPilotReadbacks.Clear();
 
         ac.TrueHeading = new TrueHeading(180);
         ac.TrueTrack = new TrueHeading(180);
@@ -189,8 +189,8 @@ public class RfisSoftFailLookingTests
 
         Assert.True(ac.Approach.HasReportedFieldInSight);
         Assert.Empty(ac.PendingObservations);
-        // Resolution routes through PendingWarnings (orange) for visibility.
-        Assert.Contains("field in sight", ac.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
+        // Resolution routes through PendingPilotReadbacks (SAY channel).
+        Assert.Contains("field in sight", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -200,15 +200,14 @@ public class RfisSoftFailLookingTests
         var ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
-        ac.PendingNotifications.Clear();
+        ac.PendingPilotReadbacks.Clear();
 
         PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Single(ac.PendingObservations);
         // No re-emit of "looking" each tick.
-        Assert.Empty(ac.PendingNotifications);
-        Assert.Empty(ac.PendingWarnings);
+        Assert.Empty(ac.PendingPilotReadbacks);
     }
 
     // -------------------------------------------------------------------------
@@ -237,7 +236,7 @@ public class RfisSoftFailLookingTests
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         Assert.Single(ac.PendingObservations);
-        ac.PendingNotifications.Clear();
+        ac.PendingPilotReadbacks.Clear();
 
         // Destination cleared between ticks (e.g. flight plan amended).
         ac.FlightPlan.Destination = "";
@@ -245,7 +244,7 @@ public class RfisSoftFailLookingTests
         PilotObservationUpdater.Update(ac, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.Empty(ac.PendingObservations);
-        Assert.Empty(ac.PendingWarnings);
+        Assert.Empty(ac.PendingPilotReadbacks);
         Assert.False(ac.Approach.HasReportedFieldInSight);
     }
 
@@ -267,7 +266,7 @@ public class RfisSoftFailLookingTests
 
     // -------------------------------------------------------------------------
     // Forced variant is unchanged behavior-wise: no observation, flag set
-    // immediately, success readback routed through PendingWarnings (orange).
+    // immediately, success readback routed through PendingPilotReadbacks (SAY).
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -281,7 +280,7 @@ public class RfisSoftFailLookingTests
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
         Assert.Empty(ac.PendingObservations);
-        Assert.Contains("field in sight", ac.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("field in sight", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

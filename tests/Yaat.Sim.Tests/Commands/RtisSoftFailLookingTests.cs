@@ -47,7 +47,7 @@ public class RtisSoftFailLookingTests
         Assert.True(result.Success, $"Expected soft-fail success but got: {result.Message}");
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
-        Assert.Contains("looking", ownship.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", ownship.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
 
         var obs = Assert.Single(ownship.PendingObservations);
         var traffic = Assert.IsType<TrafficAcquisitionObservation>(obs);
@@ -71,7 +71,7 @@ public class RtisSoftFailLookingTests
     // -------------------------------------------------------------------------
     // RPO diagnostic hint — CommandResult.Message names the specific failure
     // reason so the RPO can decide whether to relay it to the student. Pilot
-    // phraseology in PendingNotifications stays diagnostic-free.
+    // phraseology in PendingPilotReadbacks stays diagnostic-free.
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -87,7 +87,7 @@ public class RtisSoftFailLookingTests
         Assert.Contains("Looking for traffic", result.Message);
         Assert.Contains("behind ownship", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback stays diagnostic-free.
-        Assert.DoesNotContain("hemisphere", ownship.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hemisphere", ownship.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class RtisSoftFailLookingTests
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.Single(ownship.PendingObservations);
-        ownship.PendingNotifications.Clear();
+        ownship.PendingPilotReadbacks.Clear();
 
         // Turn around — now target is in forward hemisphere.
         ownship.TrueHeading = new TrueHeading(180);
@@ -177,8 +177,8 @@ public class RtisSoftFailLookingTests
         Assert.True(ownship.Approach.HasReportedTrafficInSight);
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
         Assert.Empty(ownship.PendingObservations);
-        // Acquisition readback routes through PendingWarnings (WRN/Orange) for visibility.
-        Assert.Contains("in sight", ownship.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
+        // Acquisition readback routes through PendingPilotReadbacks (SAY channel).
+        Assert.Contains("in sight", ownship.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -189,14 +189,14 @@ public class RtisSoftFailLookingTests
         var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
-        ownship.PendingNotifications.Clear();
+        ownship.PendingPilotReadbacks.Clear();
 
         PilotObservationUpdater.Update(ownship, cs => cs == "LEAD" ? lead : null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Single(ownship.PendingObservations);
         // No re-emit of "looking" each tick.
-        Assert.Empty(ownship.PendingNotifications);
+        Assert.Empty(ownship.PendingPilotReadbacks);
     }
 
     // -------------------------------------------------------------------------
@@ -235,13 +235,13 @@ public class RtisSoftFailLookingTests
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.Single(ownship.PendingObservations);
-        ownship.PendingNotifications.Clear();
+        ownship.PendingPilotReadbacks.Clear();
 
         // Target gone from sim — updater's lookup returns null.
         PilotObservationUpdater.Update(ownship, cs => null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         Assert.Empty(ownship.PendingObservations);
-        Assert.Empty(ownship.PendingNotifications);
+        Assert.Empty(ownship.PendingPilotReadbacks);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
     }
 

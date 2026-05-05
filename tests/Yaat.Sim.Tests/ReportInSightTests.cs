@@ -36,9 +36,9 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
-        // Acquisition is a key event — announced via PendingWarnings (orange).
-        Assert.Contains("field in sight", ac.PendingWarnings[0]);
-        Assert.Empty(ac.PendingNotifications);
+        // Pilot readback uses the GA-pilot colloquial "Have the field in sight" form
+        // on the SAY channel via PendingPilotReadbacks.
+        Assert.Equal("Have the field in sight", ac.PendingPilotReadbacks[0]);
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class ReportInSightTests
         Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Contains("Class Alpha", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback stays diagnostic-free — controller already knows why at FL180+.
-        Assert.DoesNotContain("Class", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("on top", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Class", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("on top", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
         Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
@@ -99,7 +99,7 @@ public class ReportInSightTests
         // RPO diagnostic names the binding layer (OVC020).
         Assert.Contains("OVC020", result.Message);
         // Pilot readback stays diagnostic-free — no METAR codes.
-        Assert.DoesNotContain("OVC", ac.PendingNotifications[0]);
+        Assert.DoesNotContain("OVC", ac.PendingPilotReadbacks[0]);
         Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
@@ -135,9 +135,9 @@ public class ReportInSightTests
         Assert.Contains("behind ownship", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback uses the real-world "field's behind us" idiom (no
         // sim-internal "outside forward hemisphere" diagnostic).
-        Assert.Contains("field's behind us", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("looking", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("hemisphere", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("field's behind us", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hemisphere", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
         Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
@@ -156,8 +156,8 @@ public class ReportInSightTests
         // RPO diagnostic includes distance + max range + visibility qualifier.
         Assert.Contains("nm", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback is plain.
-        Assert.Contains("Negative contact", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("looking", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Negative contact", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("looking", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
         Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
@@ -177,7 +177,7 @@ public class ReportInSightTests
         // RPO diagnostic mentions the bank/occlusion.
         Assert.Contains("bank", result.Message, StringComparison.OrdinalIgnoreCase);
         // Pilot readback uses the "in the turn" idiom, no high-wing diagnostics.
-        Assert.Contains("in the turn", ac.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("in the turn", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
         Assert.IsType<FieldAcquisitionObservation>(Assert.Single(ac.PendingObservations));
     }
 
@@ -221,10 +221,10 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.True(ownship.Approach.HasReportedTrafficInSight);
-        // Traffic acquisition is a key event — announced via PendingWarnings
-        // (WRN/Orange) so it catches the RPO's eye, not PendingNotifications (RSP/gray).
-        Assert.Contains("traffic in sight", ownship.PendingWarnings[0]);
-        Assert.Empty(ownship.PendingNotifications);
+        // Pilot readback uses the GA-pilot colloquial "Have <target> in sight" form
+        // and lands on the SAY channel via PendingPilotReadbacks. The terminal entry's
+        // own callsign column shows the speaker, so the message drops the leading ownship.
+        Assert.Equal("Have LEAD in sight", ownship.PendingPilotReadbacks[0]);
     }
 
     // When the pilot can't acquire traffic on the first check, RTIS now soft-fails:
@@ -247,7 +247,7 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
-        var notification = ownship.PendingNotifications[0];
+        var notification = ownship.PendingPilotReadbacks[0];
         Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LEAD", notification);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
@@ -264,7 +264,7 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
-        var notification = ownship.PendingNotifications[0];
+        var notification = ownship.PendingPilotReadbacks[0];
         Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
     }
@@ -283,7 +283,7 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
-        var notification = ownship.PendingNotifications[0];
+        var notification = ownship.PendingPilotReadbacks[0];
         Assert.Contains("clouds between us", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
     }
@@ -303,8 +303,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.Contains("field in sight", ac.PendingWarnings[0]);
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Equal("Have the field in sight", ac.PendingPilotReadbacks[0]);
     }
 
     [Fact]
@@ -317,7 +316,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.Contains("traffic in sight", ac.PendingWarnings[0]);
+        Assert.Equal("Have LEAD in sight", ac.PendingPilotReadbacks[0]);
     }
 
     // -------------------------------------------------------------------------
