@@ -292,16 +292,7 @@ public sealed class TaxiingPhaseDto : PhaseDto
     public required bool Initialized { get; init; }
     public required double TimeSinceLastLog { get; init; }
     public required double PrevDistToTarget { get; init; }
-    public required double CurrentNodeRequiredSpeed { get; init; }
-    public List<SpeedConstraintDto>? SpeedConstraints { get; init; }
     public GroundNavigatorDto? Navigator { get; init; }
-}
-
-public sealed class SpeedConstraintDto
-{
-    public required double PathDistNm { get; init; }
-    public required double RequiredSpeedKts { get; init; }
-    public required int NodeId { get; init; }
 }
 
 public sealed class GroundNavigatorDto
@@ -315,15 +306,6 @@ public sealed class GroundNavigatorDto
     public double CurrentNodeRequiredSpeed { get; init; }
     public double MaxSpeedKts { get; init; }
     public double? NextSegmentBearing { get; init; }
-    public List<SpeedConstraintDto>? SpeedConstraints { get; init; }
-    public ArcStateDto? ArcState { get; init; }
-}
-
-public sealed class ArcStateDto
-{
-    public double MinRadiusOfCurvatureFt { get; init; }
-    public double RemainingDistNm { get; init; }
-    public required List<double[]> Waypoints { get; init; }
 }
 
 public sealed class FollowingPhaseDto : PhaseDto

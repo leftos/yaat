@@ -148,8 +148,6 @@ public sealed class TaxiingPhase : Phase
             Initialized = _initialized,
             TimeSinceLastLog = _timeSinceLastLog,
             PrevDistToTarget = _nav.PrevDistToTarget,
-            CurrentNodeRequiredSpeed = 0,
-            SpeedConstraints = null,
             Navigator = _nav.ToSnapshot(),
         };
 
