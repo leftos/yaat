@@ -194,7 +194,14 @@ public static class FilletArcGenerator
     /// </summary>
     private static int RemoveDuplicateCornerArcs(AirportGroundLayout layout)
     {
-        var arcsByCorner = new Dictionary<(int IntId, string Twy, int Brg0Bucket, int Brg1Bucket), List<GroundArc>>();
+        // Bearing tolerance for "same physical corner". An angular cluster avoids the
+        // boundary fragility of a Math.Round bucket: two arcs at 4.9° and 5.1° were
+        // bucketed apart even though they describe the same corner.
+        const double cornerBearingToleranceDeg = 5.0;
+
+        // Group by (intersection, taxiway-pair) first; cluster within each group by
+        // sorted bearing pair so endpoint order doesn't matter.
+        var arcsByGroup = new Dictionary<(int IntId, string Twy), List<(GroundArc Arc, double BrgLo, double BrgHi)>>();
 
         foreach (var arc in layout.Arcs)
         {
@@ -203,51 +210,93 @@ public static class FilletArcGenerator
                 continue;
             }
 
-            // Round bearings to 5° buckets and sort so endpoint order doesn't matter.
-            int b0 = ((int)Math.Round(arc.EdgeBearingAtNode0Deg / 5.0) + 72) % 72;
-            int b1 = ((int)Math.Round(arc.EdgeBearingAtNode1Deg / 5.0) + 72) % 72;
-            (int lo, int hi) = b0 <= b1 ? (b0, b1) : (b1, b0);
-            var key = (intId, twyKey, lo, hi);
+            double b0 = arc.EdgeBearingAtNode0Deg;
+            double b1 = arc.EdgeBearingAtNode1Deg;
+            (double lo, double hi) = b0 <= b1 ? (b0, b1) : (b1, b0);
+            var key = (intId, twyKey);
 
-            if (!arcsByCorner.TryGetValue(key, out var list))
+            if (!arcsByGroup.TryGetValue(key, out var list))
             {
                 list = [];
-                arcsByCorner[key] = list;
+                arcsByGroup[key] = list;
             }
 
-            list.Add(arc);
+            list.Add((arc, lo, hi));
         }
 
         var toRemove = new List<GroundArc>();
-        foreach (var (key, list) in arcsByCorner)
+        foreach (var (key, group) in arcsByGroup)
         {
-            if (list.Count <= 1)
+            if (group.Count <= 1)
             {
                 continue;
             }
 
-            // Keep the arc with the largest min radius — that's the one whose
-            // tangent placement had the most edge available, i.e. the corner
-            // geometry the fillet generator would have picked if the parallel
-            // bypass edges hadn't existed.
-            list.Sort((a, b) => b.MinRadiusOfCurvatureFt.CompareTo(a.MinRadiusOfCurvatureFt));
-            for (int i = 1; i < list.Count; i++)
+            // Cluster arcs by both bearings within tolerance. Single-link clustering:
+            // two arcs share a cluster if both their endpoint bearings differ by less
+            // than the tolerance. Typical N is small (handful per intersection).
+            var clusterIdx = new int[group.Count];
+            for (int i = 0; i < clusterIdx.Length; i++)
             {
-                toRemove.Add(list[i]);
+                clusterIdx[i] = i;
             }
 
-            if (Log.IsEnabled(LogLevel.Debug))
+            for (int i = 0; i < group.Count; i++)
             {
-                Log.LogDebug(
-                    "[CornerDedup@{IntId}] {Twy} bearings({Lo}°,{Hi}°): kept r={KeptR:F1}ft, dropped {DropCount} (radii={DroppedRadii})",
-                    key.IntId,
-                    key.Twy,
-                    key.Brg0Bucket * 5,
-                    key.Brg1Bucket * 5,
-                    list[0].MinRadiusOfCurvatureFt,
-                    list.Count - 1,
-                    string.Join(",", list.Skip(1).Select(a => $"{a.MinRadiusOfCurvatureFt:F1}"))
-                );
+                for (int j = i + 1; j < group.Count; j++)
+                {
+                    if (clusterIdx[j] != j)
+                    {
+                        continue;
+                    }
+                    if (
+                        GeoMath.AbsBearingDifference(group[i].BrgLo, group[j].BrgLo) < cornerBearingToleranceDeg
+                        && GeoMath.AbsBearingDifference(group[i].BrgHi, group[j].BrgHi) < cornerBearingToleranceDeg
+                    )
+                    {
+                        clusterIdx[j] = clusterIdx[i];
+                    }
+                }
+            }
+
+            // Bucket by cluster id, keep the arc with the largest min radius per cluster.
+            var clusters = new Dictionary<int, List<(GroundArc Arc, double BrgLo, double BrgHi)>>();
+            for (int i = 0; i < group.Count; i++)
+            {
+                if (!clusters.TryGetValue(clusterIdx[i], out var bucket))
+                {
+                    bucket = [];
+                    clusters[clusterIdx[i]] = bucket;
+                }
+                bucket.Add(group[i]);
+            }
+
+            foreach (var (_, cluster) in clusters)
+            {
+                if (cluster.Count <= 1)
+                {
+                    continue;
+                }
+
+                cluster.Sort((a, b) => b.Arc.MinRadiusOfCurvatureFt.CompareTo(a.Arc.MinRadiusOfCurvatureFt));
+                for (int i = 1; i < cluster.Count; i++)
+                {
+                    toRemove.Add(cluster[i].Arc);
+                }
+
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[CornerDedup@{IntId}] {Twy} bearings(~{Lo:F0}°,~{Hi:F0}°): kept r={KeptR:F1}ft, dropped {DropCount} (radii={DroppedRadii})",
+                        key.IntId,
+                        key.Twy,
+                        cluster[0].BrgLo,
+                        cluster[0].BrgHi,
+                        cluster[0].Arc.MinRadiusOfCurvatureFt,
+                        cluster.Count - 1,
+                        string.Join(",", cluster.Skip(1).Select(a => $"{a.Arc.MinRadiusOfCurvatureFt:F1}"))
+                    );
+                }
             }
         }
 
