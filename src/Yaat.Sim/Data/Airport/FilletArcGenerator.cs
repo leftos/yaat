@@ -2504,6 +2504,10 @@ public static class FilletArcGenerator
         bool isProtected = manualArcNodes.Contains(otherNode.Id) || startEdge.IsRunwayCenterline;
         var steps = new List<TaxiwayWalkStep> { new(startEdge, otherNode, firstEdgeFt, hasOtherTw, isProtected) };
 
+        // Cycle guard: a closed taxiway loop (rare but possible at tight ramps) could
+        // re-enter a node via a different edge than the one we came in on. Visited-set
+        // protection terminates the walk cleanly instead of looping forever.
+        var visited = new HashSet<int> { intersection.Id, otherNode.Id };
         var currentNode = otherNode;
         var prevEdge = startEdge;
         double cumDist = firstEdgeFt;
@@ -2527,6 +2531,15 @@ public static class FilletArcGenerator
             }
 
             var nextNode = continuation!.OtherNode(currentNode);
+            if (!visited.Add(nextNode.Id))
+            {
+                Log.LogDebug(
+                    "WalkTaxiway: cycle detected on {Twy} at #{Node} (revisit) — terminating walk",
+                    startEdge.TaxiwayName,
+                    nextNode.Id
+                );
+                break;
+            }
             double edgeFt = GeoMath.DistanceNm(currentNode.Position, nextNode.Position) * GeoMath.FeetPerNm;
             cumDist += edgeFt;
 
