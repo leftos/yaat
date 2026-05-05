@@ -1933,7 +1933,7 @@ public static class TaxiPathfinder
 
         // Strategy 1: BFS (short hop, max 3 hops)
         var bfsSegs = new List<TaxiRouteSegment>();
-        (int bfsId, _) = BfsToTaxiway(layout, startNodeId, taxiwayName, bfsSegs);
+        int bfsId = BfsToTaxiway(layout, startNodeId, taxiwayName, bfsSegs);
         if (bfsId != -1)
         {
             diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: BFS candidate → node={bfsId} segs={bfsSegs.Count}");
@@ -1944,7 +1944,7 @@ public static class TaxiPathfinder
         if (allowCurrentTaxiwayWalk)
         {
             var walkSegs = new List<TaxiRouteSegment>();
-            (int walkId, _) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, walkSegs, diagnosticLog);
+            int walkId = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, walkSegs, diagnosticLog);
             if (walkId != -1)
             {
                 diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: WalkCurrentTaxiway candidate → node={walkId} segs={walkSegs.Count}");
@@ -1965,7 +1965,7 @@ public static class TaxiPathfinder
         }
 
         // Strategy 3: Bridge via runway centerline edges (e.g., D→F across a runway)
-        (int rwyEndId, _) = BridgeViaRunwayEdges(layout, startNodeId, taxiwayName, segments);
+        int rwyEndId = BridgeViaRunwayEdges(layout, startNodeId, taxiwayName, segments);
         if (rwyEndId != -1)
         {
             return rwyEndId;
@@ -2272,12 +2272,7 @@ public static class TaxiPathfinder
     /// runway 15/33) without allowing traversal via other named taxiways.
     /// Limited to <see cref="MaxRunwayBridgeNm"/> to prevent long runway walks.
     /// </summary>
-    private static (int FoundId, IGroundEdge? FoundEdge) BridgeViaRunwayEdges(
-        AirportGroundLayout layout,
-        int startNodeId,
-        string taxiwayName,
-        List<TaxiRouteSegment> segments
-    )
+    private static int BridgeViaRunwayEdges(AirportGroundLayout layout, int startNodeId, string taxiwayName, List<TaxiRouteSegment> segments)
     {
         var openSet = new PriorityQueue<int, double>();
         var cameFrom = new Dictionary<int, (int NodeId, IGroundEdge Edge)>();
@@ -2332,7 +2327,7 @@ public static class TaxiPathfinder
 
         if (foundId == -1)
         {
-            return (-1, null);
+            return -1;
         }
 
         // Reconstruct path
@@ -2352,21 +2347,7 @@ public static class TaxiPathfinder
 
         pathSegments.Reverse();
         segments.AddRange(pathSegments);
-
-        IGroundEdge? foundEdge = null;
-        if (layout.Nodes.TryGetValue(foundId, out var endNode))
-        {
-            foreach (var edge in endNode.Edges)
-            {
-                if (edge.MatchesTaxiway(taxiwayName))
-                {
-                    foundEdge = edge;
-                    break;
-                }
-            }
-        }
-
-        return (foundId, foundEdge);
+        return foundId;
     }
 
     /// <summary>
@@ -2376,17 +2357,17 @@ public static class TaxiPathfinder
     /// walk. This lets users omit the current taxiway from instructions (e.g.,
     /// aircraft on W5 told "TAXI W V T" doesn't need to say "TAXI W5 W V T").
     /// </summary>
-    private static (int FoundId, IGroundEdge? FoundEdge) WalkCurrentTaxiwayToTarget(
+    private static int WalkCurrentTaxiwayToTarget(
         AirportGroundLayout layout,
         int startNodeId,
         string targetTaxiwayName,
         List<TaxiRouteSegment> segments,
-        Action<string>? diagnosticLog = null
+        Action<string>? diagnosticLog
     )
     {
         if (!layout.Nodes.TryGetValue(startNodeId, out var startNode))
         {
-            return (-1, null);
+            return -1;
         }
 
         // Collect distinct taxiway names on the start node (excluding target and runways)
@@ -2403,50 +2384,48 @@ public static class TaxiPathfinder
 
         if (candidateNames.Count == 0)
         {
-            return (-1, null);
+            return -1;
         }
 
         // Try walking each candidate taxiway toward the target; keep the shortest
         List<TaxiRouteSegment>? bestSegments = null;
         int bestEndId = -1;
-        IGroundEdge? bestEdge = null;
 
         foreach (string twName in candidateNames)
         {
             var trialSegments = new List<TaxiRouteSegment>();
-            (int endId, IGroundEdge? edge) = WalkTaxiwayToward(layout, startNodeId, twName, targetTaxiwayName, trialSegments, diagnosticLog);
+            int endId = WalkTaxiwayToward(layout, startNodeId, twName, targetTaxiwayName, trialSegments, diagnosticLog);
             diagnosticLog?.Invoke($"[WalkCurrent] tried walk via {twName}: endId={endId} segs={trialSegments.Count}");
 
             if (endId != -1 && (bestSegments is null || trialSegments.Count < bestSegments.Count))
             {
                 bestSegments = trialSegments;
                 bestEndId = endId;
-                bestEdge = edge;
             }
         }
 
         if (bestSegments is null)
         {
-            return (-1, null);
+            return -1;
         }
 
         segments.AddRange(bestSegments);
-        return (bestEndId, bestEdge);
+        return bestEndId;
     }
 
     /// <summary>
     /// Walk along <paramref name="walkTaxiwayName"/> from the start node until
     /// reaching a node that connects to <paramref name="targetTaxiwayName"/>.
     /// At forks, prefers the branch closer to the nearest target-taxiway node.
-    /// Returns (-1, null) if the walk dead-ends without reaching the target.
+    /// Returns -1 if the walk dead-ends without reaching the target.
     /// </summary>
-    private static (int FoundId, IGroundEdge? FoundEdge) WalkTaxiwayToward(
+    private static int WalkTaxiwayToward(
         AirportGroundLayout layout,
         int startNodeId,
         string walkTaxiwayName,
         string targetTaxiwayName,
         List<TaxiRouteSegment> trialSegments,
-        Action<string>? diagnosticLog = null
+        Action<string>? diagnosticLog
     )
     {
         // BFS over the walkTaxiwayName-only sub-graph to find the shortest hop count
@@ -2460,7 +2439,6 @@ public static class TaxiPathfinder
         queue.Enqueue(startNodeId);
 
         int foundId = -1;
-        IGroundEdge? foundTargetEdge = null;
 
         while (queue.Count > 0)
         {
@@ -2474,14 +2452,6 @@ public static class TaxiPathfinder
             if (currentId != startNodeId && NodeHasEdgeTo(layout, currentId, targetTaxiwayName))
             {
                 foundId = currentId;
-                foreach (var e in node.Edges)
-                {
-                    if (e.MatchesTaxiway(targetTaxiwayName))
-                    {
-                        foundTargetEdge = e;
-                        break;
-                    }
-                }
                 break;
             }
 
@@ -2506,7 +2476,7 @@ public static class TaxiPathfinder
         if (foundId == -1)
         {
             diagnosticLog?.Invoke($"[WalkToward] BFS via {walkTaxiwayName} from {startNodeId} → no node connects to {targetTaxiwayName}");
-            return (-1, null);
+            return -1;
         }
 
         // Reconstruct the path from start to foundId.
@@ -2531,13 +2501,13 @@ public static class TaxiPathfinder
         }
 
         diagnosticLog?.Invoke($"[WalkToward] BFS via {walkTaxiwayName} from {startNodeId} → {foundId} ({path.Count} hops)");
-        return (foundId, foundTargetEdge);
+        return foundId;
     }
 
     /// <summary>
-    /// BFS from startNodeId (max 3 hops) to find the nearest graph-connected
-    /// Scores a bridge path by taxiway transitions (primary) and total distance (tiebreaker).
-    /// Lower score = better. Prefers paths that stay on the same taxiway over multi-taxiway hops.
+    /// Score a bridge path by taxiway transitions (primary) and total distance
+    /// (tiebreaker). Lower score = better. Prefers paths that stay on the same
+    /// taxiway over multi-taxiway hops.
     /// </summary>
     private static double ScoreBridgePath(List<TaxiRouteSegment> segs)
     {
@@ -2558,14 +2528,9 @@ public static class TaxiPathfinder
     /// <summary>
     /// BFS from startNodeId (max 3 hops) to find the nearest graph-connected
     /// node that has an edge on the target taxiway. Adds connecting segments.
-    /// Returns (-1, null) if no path found.
+    /// Returns -1 if no path found.
     /// </summary>
-    private static (int FoundId, IGroundEdge? FoundEdge) BfsToTaxiway(
-        AirportGroundLayout layout,
-        int startNodeId,
-        string taxiwayName,
-        List<TaxiRouteSegment> segments
-    )
+    private static int BfsToTaxiway(AirportGroundLayout layout, int startNodeId, string taxiwayName, List<TaxiRouteSegment> segments)
     {
         const int maxHops = 3;
         var visited = new HashSet<int> { startNodeId };
@@ -2574,7 +2539,6 @@ public static class TaxiPathfinder
         queue.Enqueue((startNodeId, 0));
 
         int foundId = -1;
-        IGroundEdge? foundEdge = null;
 
         while (queue.Count > 0 && foundId == -1)
         {
@@ -2595,21 +2559,9 @@ public static class TaxiPathfinder
 
                 cameFrom[neighborId] = (nodeId, edge);
 
-                if (layout.Nodes.TryGetValue(neighborId, out var neighborNode))
+                if (layout.Nodes.TryGetValue(neighborId, out var neighborNode) && neighborNode.Edges.Any(e => e.MatchesTaxiway(taxiwayName)))
                 {
-                    foreach (var nEdge in neighborNode.Edges)
-                    {
-                        if (nEdge.MatchesTaxiway(taxiwayName))
-                        {
-                            foundId = neighborId;
-                            foundEdge = nEdge;
-                            break;
-                        }
-                    }
-                }
-
-                if (foundId != -1)
-                {
+                    foundId = neighborId;
                     break;
                 }
 
@@ -2622,7 +2574,7 @@ public static class TaxiPathfinder
 
         if (foundId == -1)
         {
-            return (-1, null);
+            return -1;
         }
 
         // Reconstruct path and add connecting segments
@@ -2648,7 +2600,7 @@ public static class TaxiPathfinder
             prevId = id;
         }
 
-        return (foundId, foundEdge);
+        return foundId;
     }
 
     /// <summary>
