@@ -109,21 +109,17 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// A VFR aircraft positioned just past the requested runway's Final entry
-    /// point but flying along the runway direction (past and away from the
-    /// entry) cannot physically U-turn and realign with the runway within the
-    /// available distance, no matter how tight a VFR turn radius is allowed.
-    /// The guard must still reject this case.
-    ///
-    /// Geometry: aircraft 0.1 nm NW of the 28R Final entry (along 28R heading
-    /// from the entry), heading 292° (runway direction). Entry point is 0.1
-    /// nm to the SE. turnToEntry = 180° (entry is directly behind), turnAtEntry
-    /// = 180° (arrival bearing 112° vs. runway 292°). Total turn = 360°. Even
-    /// a 60° bank at 80 kt gives ~0.054 nm radius → ~0.34 nm of arc needed,
-    /// which exceeds the 0.1 nm of straight-line distance available.
+    /// A VFR aircraft just inside the standard Final entry point, aligned with
+    /// the runway, must be accepted via the close-in detection path
+    /// (PatternCommandHandler `entryLeg == Final` block). Before that fix the
+    /// old loop check evaluated the standard far-entry geometry — entry behind
+    /// the aircraft, total turn ≈ 360° — and rejected with "short final" even
+    /// though the maneuver is trivial (continue straight in). The close-in
+    /// override anchors the entry at the aircraft's current along-track on the
+    /// new FAC and queues FinalApproachPhase directly, no teardrop.
     /// </summary>
     [Fact]
-    public void Vfr_PastEntryPointHeadingAway_StillRejected()
+    public void Vfr_InsideStandardEntryAligned_AcceptedViaCloseInPath()
     {
         TestVnasData.EnsureInitialized();
         var rwy28R = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
@@ -133,9 +129,10 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         }
 
         // Piston pattern altitude ÷ 3° glideslope gives the default Final
-        // entry distance GetEntryPoint uses. Place aircraft 0.1 nm further
-        // out along the runway direction so the entry point sits 0.1 nm
-        // behind the aircraft in bearing terms.
+        // entry distance GetEntryPoint uses. Place aircraft 0.1 nm INSIDE the
+        // entry point — close-in detection kicks in (alongTrack > 0,
+        // alongTrack < standardEntry, angleOff ≤ 30°, alongTrack ≥ piston
+        // 1.0 nm minimum, altitude feasible at 300 ft AGL).
         double patternAglFt = CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Piston);
         double gsFtPerNm = GlideSlopeGeometry.FeetPerNm(GlideSlopeGeometry.AngleForCategory(AircraftCategory.Piston));
         double entryDistNm = patternAglFt / gsFtPerNm;
@@ -158,8 +155,9 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
 
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
-        Assert.False(result.Success, "VFR aircraft 0.1 nm past the Final entry heading away must still be rejected");
-        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success, $"Close-in aligned VFR aircraft must be accepted. Got: '{result.Message}'");
+        // Close-in path queues FinalApproach directly; no PatternEntryPhase to a far waypoint.
+        Assert.DoesNotContain(ac.Phases!.Phases, p => p is PatternEntryPhase);
     }
 
     // -------------------------------------------------------------------------

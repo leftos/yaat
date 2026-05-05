@@ -138,13 +138,89 @@ internal static class PatternCommandHandler
             }
         }
 
+        // For Final entry: detect "close-in aligned" — the aircraft is already
+        // inside the standard glideslope-TPA intercept distance and reasonably
+        // aligned with the new FAC. The standard entry point would be behind
+        // the aircraft, forcing a teardrop / 360. Instead, anchor the entry at
+        // the aircraft's current along-track on the new centerline (mirrors the
+        // ERB-no-distance precedent below for Base entry). When this engages,
+        // the loop check below is irrelevant — it validates maneuverability for
+        // the standard far entry, not the close-in override.
+        bool isCloseInFinal = false;
+        double closeInAlongTrack = 0.0;
+        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && finalDistanceNm is null)
+        {
+            var airportRunwaysCi = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            var (sizeOvCi, altOvCi) = PatternGeometry.ResolveAuthoredOverrides(
+                runway,
+                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                aircraft.Pattern.SizeOverrideNm,
+                aircraft.Pattern.AltitudeOverrideFt
+            );
+            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOvCi, altOvCi, airportRunwaysCi);
+
+            TrueHeading reciprocalCi = waypoints.FinalHeading.ToReciprocal();
+            double alongTrackOutboundCi = GeoMath.AlongTrackDistanceNm(
+                aircraft.Position,
+                new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+                reciprocalCi
+            );
+            double standardEntryDistNm =
+                CategoryPerformance.PatternAltitudeAgl(category) / GlideSlopeGeometry.FeetPerNm(GlideSlopeGeometry.AngleForCategory(category));
+            double angleOffDeg = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading);
+
+            // Engage only in the "sweet spot": aircraft is on the approach side,
+            // inside the standard intercept, and roughly aligned. Outside that
+            // window the standard far-entry / loop-check path is what we want.
+            //
+            // Inside the window we still need two safety gates:
+            //   - alongTrack ≥ MinimumPerpendicularBaseFinalDistanceNm: below this
+            //     a stable final segment can't be established from the override.
+            //   - altitude must be feasible to descend over the path (mirrors the
+            //     ERB altitude check below; uses approach speed because this is a
+            //     final-leg path, not a base-leg path).
+            //
+            // When either safety gate fails we deliberately FALL THROUGH to the
+            // existing loop check rather than rejecting from here. The loop check
+            // and downstream FinalApproachPhase already handle these geometries
+            // (either by rejecting "short final" or by routing the aircraft via
+            // a far entry point that the FinalApproachPhase auto-go-around can
+            // recover). Rejecting here would leave the aircraft with no phases,
+            // since the phase-clear at line 228 happens after our early returns.
+            if (
+                alongTrackOutboundCi > 0
+                && alongTrackOutboundCi < standardEntryDistNm
+                && angleOffDeg <= MaxCloseInFinalAngleOffDeg(alongTrackOutboundCi, category)
+                && alongTrackOutboundCi >= MinimumPerpendicularBaseFinalDistanceNm(category)
+            )
+            {
+                double crossTrackAbsNmCi = Math.Abs(
+                    GeoMath.SignedCrossTrackDistanceNm(
+                        aircraft.Position,
+                        new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+                        waypoints.FinalHeading
+                    )
+                );
+                double totalPathNmCi = crossTrackAbsNmCi + alongTrackOutboundCi;
+                double approachSpeedKt = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, category);
+                double pathMinutesCi = totalPathNmCi / (approachSpeedKt / 60.0);
+                double maxDescentFtCi = CategoryPerformance.PatternDescentRate(category) * pathMinutesCi;
+                double altitudeToLoseFtCi = aircraft.Altitude - runway.ElevationFt;
+                if (altitudeToLoseFtCi <= maxDescentFtCi)
+                {
+                    isCloseInFinal = true;
+                    closeInAlongTrack = alongTrackOutboundCi;
+                }
+            }
+        }
+
         // For Final entry: reject if the maneuver would create a 360° loop.
         // Compute the two heading changes: (1) turn from current heading to the
         // bearing toward the entry point, (2) turn from arrival bearing at the
         // entry point to the runway (approach) heading. If BOTH exceed 90°, the
         // total turn approaches 360° — the aircraft must reverse to the entry
         // point and then reverse again to align with final. That's a loop.
-        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final)
+        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && !isCloseInFinal)
         {
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
@@ -229,7 +305,7 @@ internal static class PatternCommandHandler
 
         // For wrong-side entry: midfield crossing then downwind entry
         PatternEntryLeg effectiveEntryLeg = isOnWrongSide ? PatternEntryLeg.Downwind : entryLeg;
-        double? effectiveFinalDistanceNm = isOnWrongSide ? null : finalDistanceNm;
+        double? effectiveFinalDistanceNm = isCloseInFinal ? closeInAlongTrack : (isOnWrongSide ? null : finalDistanceNm);
 
         // If the aircraft is airborne, heading roughly aligned with the runway,
         // near the runway (within 3nm of departure end), and NOT already close to
@@ -267,7 +343,7 @@ internal static class PatternCommandHandler
         // than aiming for the standard pattern base turn point (which would force
         // a diagonal leg). Setting useAircraftPositionAsEntry skips PatternEntryPhase
         // below so BasePhase starts immediately from the aircraft's current position.
-        bool useAircraftPositionAsEntry = false;
+        bool useAircraftPositionAsEntry = isCloseInFinal;
         if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Base && effectiveFinalDistanceNm is null)
         {
             TrueHeading reciprocal = waypoints.FinalHeading.ToReciprocal();
@@ -1184,6 +1260,26 @@ internal static class PatternCommandHandler
     /// distance left to capture the parallel centerline before flare.
     /// </summary>
     private const double MinSidestepAglFt = 500.0;
+
+    /// <summary>
+    /// Maximum heading delta (degrees) from runway heading for EF to engage the
+    /// "close-in aligned final" path that uses the aircraft's current along-track as
+    /// the entry point. Anchored to 7110.65 §5-9-2 / TBL 5-9-1:
+    ///   - 30° general intercept envelope (≥ 2 NM from approach gate),
+    ///   - 20° tightened envelope inside 2 NM,
+    ///   - 45° helicopters.
+    /// Beyond these limits an aircraft is meaningfully misaligned and should be
+    /// vectored before EF; we leave the standard far-entry / loop-check path to
+    /// handle it (likely rejecting with "Unable, short final").
+    /// </summary>
+    private static double MaxCloseInFinalAngleOffDeg(double alongTrackNm, AircraftCategory category)
+    {
+        if (category == AircraftCategory.Helicopter)
+        {
+            return 45.0;
+        }
+        return alongTrackNm < 2.0 ? 20.0 : 30.0;
+    }
 
     /// <summary>
     /// True when <paramref name="target"/> is parallel to <paramref name="current"/>

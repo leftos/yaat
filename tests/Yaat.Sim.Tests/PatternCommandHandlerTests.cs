@@ -697,6 +697,147 @@ public class PatternCommandHandlerTests
     }
 
     // -------------------------------------------------------------------------
+    // TryEnterPattern — Final close-in aligned override
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryEnterPattern_Final_CloseInAligned_UsesAircraftPositionAsEntry()
+    {
+        var rwy = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // Place the aircraft 3.5 NM out on the FAC: inside the jet 4.7 NM standard
+        // intercept, and well beyond the 2.0 NM minimum.
+        var (lat, lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 3.5);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy.ElevationFt + 1100);
+        ac.AircraftType = "B738";
+        ac.TrueHeading = rwy.TrueHeading;
+        ac.FlightPlan.Destination = "KOAK";
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+
+        Assert.True(result.Success);
+        // useAircraftPositionAsEntry = true → entry distance ≈ 0 → no PatternEntryPhase queued.
+        Assert.DoesNotContain(ac.Phases!.Phases, p => p is PatternEntryPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is FinalApproachPhase);
+    }
+
+    [Fact]
+    public void TryEnterPattern_Final_OutsideStandardIntercept_UsesStandardEntry()
+    {
+        var rwy = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // 6 NM out — well past the jet 4.7 NM standard intercept distance.
+        var (lat, lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 6.0);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy.ElevationFt + 1500);
+        ac.AircraftType = "B738";
+        ac.TrueHeading = rwy.TrueHeading;
+        ac.FlightPlan.Destination = "KOAK";
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+
+        Assert.True(result.Success);
+        // Aircraft sits outside the close-in window, so the standard far entry path runs
+        // and a PatternEntryPhase is queued (distToEntry > 1.0 NM).
+        var entry = ac.Phases!.Phases.OfType<PatternEntryPhase>().FirstOrDefault();
+        Assert.NotNull(entry);
+        double entryToThresholdNm = GeoMath.DistanceNm(
+            new LatLon(entry.EntryLat, entry.EntryLon),
+            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude)
+        );
+        // Standard intercept: PatternAltitudeAgl(Jet) / FeetPerNm(3°) ≈ 1500/318 ≈ 4.7 NM.
+        Assert.InRange(entryToThresholdNm, 4.0, 5.5);
+    }
+
+    [Fact]
+    public void TryEnterPattern_Final_CloseInButMisaligned_FallsThroughToLoopCheck()
+    {
+        var rwy = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // 3.5 NM out (close-in zone for jets) but heading 35° off the runway — outside
+        // the 30° angle-off envelope, so the close-in path is skipped and the standard
+        // loop check runs. With this geometry, the loop check rejects ("short final").
+        var (lat, lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 3.5);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy.ElevationFt + 1100);
+        ac.AircraftType = "B738";
+        ac.TrueHeading = new TrueHeading(rwy.TrueHeading.Degrees - 35.0);
+        ac.FlightPlan.Destination = "KOAK";
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+
+        Assert.False(result.Success);
+        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryEnterPattern_Final_InsideMinimumDistance_FallsThroughToLoopCheck()
+    {
+        var rwy = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // 1.5 NM out, jet — inside the 2.0 NM jet minimum perpendicular base/final.
+        // The close-in alongTrack-min safety gate fails, so close-in is skipped
+        // and the standard loop check runs. With this geometry (entry behind
+        // aircraft, total turn ≈ 360°, IFR jet radius too large) the loop check
+        // rejects "short final". The behavior under test is the fall-through —
+        // close-in does not reject from inside its block; it defers to the loop
+        // check (so an aircraft that *can* fly the standard teardrop still
+        // gets a chance, instead of being rejected outright).
+        var (lat, lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 1.5);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy.ElevationFt + 500);
+        ac.AircraftType = "B738";
+        ac.TrueHeading = rwy.TrueHeading;
+        ac.FlightPlan.Destination = "KOAK";
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+
+        Assert.False(result.Success);
+        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryEnterPattern_Final_TooHighForCloseIn_FallsThroughToLoopCheck()
+    {
+        var rwy = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // 3.5 NM out, aligned, but at 8000 ft — alongTrack ≥ 2.0 jet minimum
+        // (alongTrack gate passes), but the descent the close-in path can absorb
+        // at jet pattern descent rate over a 3.5 NM straight-in is far less
+        // than 7991 ft, so the altitude-feasibility gate fails and we fall
+        // through to the standard loop check (which rejects "short final").
+        var (lat, lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 3.5);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: 8000);
+        ac.AircraftType = "B738";
+        ac.TrueHeading = rwy.TrueHeading;
+        ac.FlightPlan.Destination = "KOAK";
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+
+        Assert.False(result.Success);
+        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryEnterPattern_Final_CloseInWithExplicitFinalDistance_SkipsCloseInPath()
+    {
+        var rwy = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // 3.5 NM out, aligned, jet — same shape as the close-in success case, but
+        // the controller supplies an explicit finalDistanceNm = 5.0. Close-in
+        // detection's `finalDistanceNm is null` gate excludes this path; the standard
+        // loop check runs against an entry 1.5 NM behind the aircraft and rejects.
+        // The success-vs-reject delta vs the close-in-aligned test proves the gate.
+        var (lat, lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 3.5);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy.ElevationFt + 1100);
+        ac.AircraftType = "B738";
+        ac.TrueHeading = rwy.TrueHeading;
+        ac.FlightPlan.Destination = "KOAK";
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", 5.0);
+
+        Assert.False(result.Success);
+        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // -------------------------------------------------------------------------
     // TryClearedToLand — preconditions
     // -------------------------------------------------------------------------
 
