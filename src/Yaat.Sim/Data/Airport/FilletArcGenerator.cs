@@ -75,17 +75,20 @@ public static class FilletArcGenerator
             // (prior iterations may have shortened or removed edges).
             layout.RebuildAdjacencyLists();
 
-            Log.LogDebug(
-                "[Int#{IntId}] edges ({Count}): [{Edges}]",
-                node.Id,
-                node.Edges.Count,
-                string.Join(
-                    ", ",
-                    node.Edges.Select(e =>
-                        $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id} {(e is GroundArc ? "arc" : "edge")} {e.DistanceNm * GeoMath.FeetPerNm:F0}ft rwy={e.IsRunwayCenterline}) origin={e.Origin}"
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Int#{IntId}] edges ({Count}): [{Edges}]",
+                    node.Id,
+                    node.Edges.Count,
+                    string.Join(
+                        ", ",
+                        node.Edges.Select(e =>
+                            $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id} {(e is GroundArc ? "arc" : "edge")} {e.DistanceNm * GeoMath.FeetPerNm:F0}ft rwy={e.IsRunwayCenterline}) origin={e.Origin}"
+                        )
                     )
-                )
-            );
+                );
+            }
 
             if (node.Edges.Count < 2)
             {
@@ -912,13 +915,16 @@ public static class FilletArcGenerator
         if ((runwayEdgeCount == 1) && (nonRunwayEdgeCount > 0))
         {
             preserveNode = true;
-            Log.LogDebug(
-                "[Eligibility] Node #{Id}: preserve=true (rwy={Rwy}, nonRwy={NonRwy}, edges=[{Edges}])",
-                node.Id,
-                runwayEdgeCount,
-                nonRunwayEdgeCount,
-                string.Join(", ", node.Edges.Select(e => $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id}) rwy={e.IsRunwayCenterline}"))
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Eligibility] Node #{Id}: preserve=true (rwy={Rwy}, nonRwy={NonRwy}, edges=[{Edges}])",
+                    node.Id,
+                    runwayEdgeCount,
+                    nonRunwayEdgeCount,
+                    string.Join(", ", node.Edges.Select(e => $"{e.TaxiwayName}({e.Nodes[0].Id}↔{e.Nodes[1].Id}) rwy={e.IsRunwayCenterline}"))
+                );
+            }
             return true;
         }
 
@@ -1608,7 +1614,7 @@ public static class FilletArcGenerator
                 ctx.Layout.Nodes.Remove(shapeNode.Id);
                 Log.LogDebug("[Int#{IntId}] Removed shape node #{NodeId} (no remaining edges)", ctx.Intersection.Id, shapeNode.Id);
             }
-            else
+            else if (Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug(
                     "[Int#{IntId}] Kept shape node #{NodeId} ({Edges} edges, {Arcs} arcs surviving: {Detail})",
