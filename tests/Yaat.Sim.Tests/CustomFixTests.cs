@@ -72,14 +72,11 @@ public class CustomFixTests
         var bytes = File.ReadAllBytes(navDbPath);
         var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
 
-        // Resolve CIFP same way TestVnasData does
-        var cifpGz = Path.Combine("TestData", "FAACIFP18.gz");
-        if (!File.Exists(cifpGz))
+        var cifpPath = TestVnasData.GetCifpPath();
+        if (cifpPath is null)
         {
             return; // Skip if no CIFP
         }
-
-        var cifpPath = DecompressGzip(cifpGz);
 
         // Use default customFixesBaseDir (null) — forces AppContext.BaseDirectory path
         var db = new NavigationDatabase(navData, cifpPath);
@@ -111,13 +108,11 @@ public class CustomFixTests
         var bytes = File.ReadAllBytes(navDbPath);
         var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
 
-        var cifpGz = Path.Combine("TestData", "FAACIFP18.gz");
-        if (!File.Exists(cifpGz))
+        var cifpPath = TestVnasData.GetCifpPath();
+        if (cifpPath is null)
         {
             return;
         }
-
-        var cifpPath = DecompressGzip(cifpGz);
 
         // Initialize with default custom fix path (same as server does)
         var db = new NavigationDatabase(navData, cifpPath);
@@ -130,15 +125,5 @@ public class CustomFixTests
         var dct = (DirectToCommand)result.Value!.Blocks[0].Commands[0];
         Assert.Single(dct.Fixes);
         Assert.Equal("OAK30NUM", dct.Fixes[0].Name);
-    }
-
-    private static string DecompressGzip(string gzPath)
-    {
-        var decompressedPath = Path.Combine(Path.GetTempPath(), "FAACIFP18-customfix-test");
-        using var inputStream = File.OpenRead(gzPath);
-        using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
-        using var outputStream = File.Create(decompressedPath);
-        gzipStream.CopyTo(outputStream);
-        return decompressedPath;
     }
 }

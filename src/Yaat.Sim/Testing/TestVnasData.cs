@@ -24,6 +24,8 @@ public static class TestVnasData
     private static NavigationDatabase? _navigationDatabase;
     private static string? _cifpPath;
     private static bool _procedureDbAttempted;
+    private static bool _exitHandlerRegistered;
+    private static FileStream? _cifpSentinel;
 
     /// <summary>
     /// Sets the directory containing test data files (NavData.dat, FAACIFP18.gz, etc.).
@@ -82,6 +84,25 @@ public static class TestVnasData
         }
     }
 
+    /// <summary>
+    /// Returns the path to a decompressed FAACIFP18 file for tests, or null if no source CIFP is available.
+    /// Decompresses the bundled <c>TestData/FAACIFP18.gz</c> on first call and caches the resulting path
+    /// for the lifetime of the test process. Falls back to the system CIFP cache if no bundled gz exists.
+    /// Thread-safe; safe to call from any test setup.
+    /// </summary>
+    public static string? GetCifpPath()
+    {
+        if (_procedureDbAttempted)
+        {
+            return _cifpPath;
+        }
+
+        lock (_lock)
+        {
+            return ResolveCifpPath();
+        }
+    }
+
     private static string? ResolveCifpPath()
     {
         if (_procedureDbAttempted)
@@ -113,17 +134,91 @@ public static class TestVnasData
 
     private static string DecompressGzip(string gzPath)
     {
-        var decompressedPath = Path.Combine(Path.GetTempPath(), $"FAACIFP18-test-{Environment.ProcessId}");
-        if (File.Exists(decompressedPath))
+        SweepStaleCifpTempFiles();
+
+        var decompressedPath = Path.Combine(Path.GetTempPath(), $"yaat-test-FAACIFP18-{Environment.ProcessId}");
+
+        if (!File.Exists(decompressedPath))
         {
-            return decompressedPath;
+            using var inputStream = File.OpenRead(gzPath);
+            using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
+            using var outputStream = File.Create(decompressedPath);
+            gzipStream.CopyTo(outputStream);
         }
 
-        using var inputStream = File.OpenRead(gzPath);
-        using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
-        using var outputStream = File.Create(decompressedPath);
-        gzipStream.CopyTo(outputStream);
+        // Hold a read-only sentinel handle WITHOUT FileShare.Delete for the test
+        // process's lifetime. This blocks any other concurrent test process's sweep
+        // from deleting our live file (Windows refuses File.Delete on a handle that
+        // wasn't opened with FileShare.Delete). NavigationDatabase opens the file
+        // independently with FileShare.Read, which is compatible. On clean process
+        // exit we dispose the handle and delete the file. On a hard kill the OS
+        // releases the handle and the next sweep picks it up.
+        _cifpSentinel ??= new FileStream(decompressedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        RegisterCleanupOnExit(decompressedPath);
+
         return decompressedPath;
+    }
+
+    private static void RegisterCleanupOnExit(string decompressedPath)
+    {
+        if (_exitHandlerRegistered)
+        {
+            return;
+        }
+
+        _exitHandlerRegistered = true;
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            _cifpSentinel?.Dispose();
+            _cifpSentinel = null;
+            TryDelete(decompressedPath);
+        };
+    }
+
+    private static void SweepStaleCifpTempFiles()
+    {
+        // Clean up files leaked by prior test processes that crashed or were killed before
+        // ProcessExit could fire. Patterns: the current yaat-prefixed name plus four legacy
+        // patterns from sites that used to have their own DecompressGzip helpers. All
+        // exclusively yaat-owned, so this won't touch unrelated files.
+        var tempDir = Path.GetTempPath();
+        string[] patterns =
+        [
+            "yaat-test-FAACIFP18-*",
+            "FAACIFP18-test-*",
+            "FAACIFP18-fp-test-*",
+            "FAACIFP18-customfix-test",
+            "FAACIFP18-taxiroutes-test",
+        ];
+
+        foreach (var pattern in patterns)
+        {
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(tempDir, pattern))
+                {
+                    TryDelete(file);
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        // Files held open by a concurrently-running test process will fail to delete on
+        // Windows; that's fine — the owning process will clean its own file on exit, or
+        // a later sweep will pick it up.
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     public static void EnsureInitialized()

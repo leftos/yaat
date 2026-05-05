@@ -12,4 +12,6 @@ internal static class TestVnasData
     internal static NavigationDatabase? NavigationDb => Yaat.Sim.Testing.TestVnasData.NavigationDb;
 
     internal static void EnsureInitialized() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
+    internal static string? GetCifpPath() => Yaat.Sim.Testing.TestVnasData.GetCifpPath();
 }

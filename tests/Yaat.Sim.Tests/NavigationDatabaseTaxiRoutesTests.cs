@@ -25,15 +25,19 @@ public class NavigationDatabaseTaxiRoutesTests
     public void NavigationDatabase_FullConstructor_LoadsTaxiRoutesFromBaseDir()
     {
         var navDbPath = Path.Combine("TestData", "NavData.dat");
-        var cifpGz = Path.Combine("TestData", "FAACIFP18.gz");
-        if (!File.Exists(navDbPath) || !File.Exists(cifpGz))
+        if (!File.Exists(navDbPath))
+        {
+            return;
+        }
+
+        var cifpPath = TestVnasData.GetCifpPath();
+        if (cifpPath is null)
         {
             return;
         }
 
         var bytes = File.ReadAllBytes(navDbPath);
         var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
-        string cifpPath = DecompressGzip(cifpGz);
 
         // Point at the test fixture directory so we don't depend on the production
         // bundled JSONs (which may not exist at the time this test is written).
@@ -44,15 +48,5 @@ public class NavigationDatabaseTaxiRoutesTests
         var koakRoutes = db.TaxiRoutes.GetRoutesForAirport("KOAK");
         Assert.Equal(3, koakRoutes.Count);
         Assert.Contains(koakRoutes, r => r.Name == "DEP 30 via W");
-    }
-
-    private static string DecompressGzip(string gzPath)
-    {
-        var decompressedPath = Path.Combine(Path.GetTempPath(), "FAACIFP18-taxiroutes-test");
-        using var inputStream = File.OpenRead(gzPath);
-        using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
-        using var outputStream = File.Create(decompressedPath);
-        gzipStream.CopyTo(outputStream);
-        return decompressedPath;
     }
 }

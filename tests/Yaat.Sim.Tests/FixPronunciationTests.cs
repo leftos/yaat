@@ -129,15 +129,14 @@ public class FixPronunciationTests
             return;
         }
 
-        var cifpGz = Path.Combine("TestData", "FAACIFP18.gz");
-        if (!File.Exists(cifpGz))
+        var cifpPath = TestVnasData.GetCifpPath();
+        if (cifpPath is null)
         {
             return;
         }
 
         var bytes = File.ReadAllBytes(navDbPath);
         var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
-        var cifpPath = DecompressGzip(cifpGz);
 
         var db = new NavigationDatabase(navData, cifpPath);
 
@@ -164,15 +163,14 @@ public class FixPronunciationTests
             return;
         }
 
-        var cifpGz = Path.Combine("TestData", "FAACIFP18.gz");
-        if (!File.Exists(cifpGz))
+        var cifpPath = TestVnasData.GetCifpPath();
+        if (cifpPath is null)
         {
             return;
         }
 
         var bytes = File.ReadAllBytes(navDbPath);
         var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
-        var cifpPath = DecompressGzip(cifpGz);
 
         var db = new NavigationDatabase(navData, cifpPath);
 
@@ -181,15 +179,5 @@ public class FixPronunciationTests
 
         Assert.Contains("see rah", hint);
         Assert.Contains("seppin", hint);
-    }
-
-    private static string DecompressGzip(string gzPath)
-    {
-        var decompressedPath = Path.Combine(Path.GetTempPath(), $"FAACIFP18-fp-test-{Guid.NewGuid():N}");
-        using var inputStream = File.OpenRead(gzPath);
-        using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
-        using var outputStream = File.Create(decompressedPath);
-        gzipStream.CopyTo(outputStream);
-        return decompressedPath;
     }
 }
