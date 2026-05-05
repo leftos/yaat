@@ -203,7 +203,12 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
 
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.False(result.Success);
-        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+        // 28L → 28R is a parallel-runway sidestep candidate; the AGL gate (200 ft AGL
+        // < the 500 ft sidestep floor) catches it before the loop check would, so the
+        // message is "too low for sidestep" rather than "short final". The substantive
+        // assertion — EF below the stabilized-approach floor must reject — is
+        // unchanged.
+        Assert.Contains("too low", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
     // -------------------------------------------------------------------------

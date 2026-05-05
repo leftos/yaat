@@ -47,6 +47,11 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Pattern entry requires the aircraft to be airborne");
         }
 
+        // Capture state before the runway-resolution block mutates it, so the
+        // parallel-runway sidestep detection below can compare current vs target.
+        var previousAssignedRunway = aircraft.Phases?.AssignedRunway;
+        var previousActivePhase = aircraft.Phases?.CurrentPhase;
+
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
@@ -75,6 +80,32 @@ internal static class PatternCommandHandler
         var runway = aircraft.Phases.AssignedRunway;
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool touchAndGo = aircraft.Phases.TrafficDirection is not null;
+
+        // Parallel-runway sidestep (7110.65 §4-8-7, AIM §5-4-19). When EF targets a
+        // runway parallel to the one the aircraft is currently flying FinalApproach on,
+        // retarget the active phase chain instead of rebuilding from a far-away
+        // PatternEntry. The aircraft is already established on the parallel localizer
+        // + glideslope; the sidestep just shifts the centerline/threshold a few
+        // hundred feet laterally.
+        if (
+            entryLeg == PatternEntryLeg.Final
+            && previousAssignedRunway is not null
+            && previousActivePhase is FinalApproachPhase finalApproach
+            && !string.Equals(previousAssignedRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase)
+            && IsParallelSidestepCandidate(previousAssignedRunway, runway)
+        )
+        {
+            // AGL gate: below the stabilized-approach floor (FAA AC 120-71) the aircraft
+            // doesn't have enough lateral distance left to capture the new centerline
+            // before flare. Real ATC would reject ("unable, go around if needed") and
+            // we mirror that.
+            double aglFt = aircraft.Altitude - runway.ElevationFt;
+            if (aglFt < MinSidestepAglFt)
+            {
+                return new CommandResult(false, "Unable, too low for sidestep");
+            }
+            return ApplySidestep(aircraft, finalApproach, runway, category);
+        }
 
         // Detect if the aircraft is on the wrong side of the runway
         bool isOnWrongSide = false;
@@ -1126,6 +1157,84 @@ internal static class PatternCommandHandler
             PatternEntryLeg.Upwind => (wp.DepartureEndLat, wp.DepartureEndLon),
             _ => (wp.DownwindAbeamLat, wp.DownwindAbeamLon),
         };
+    }
+
+    /// <summary>
+    /// Maximum lateral separation (nm) between two parallel runway centerlines for
+    /// EF to be treated as a sidestep instead of a fresh pattern-entry build. AIM
+    /// §5-4-19.1 anchors the side-step maneuver at runways "no more than 1200 feet"
+    /// between centerlines; 0.25 nm (~1520 ft) leaves a small buffer for nominal
+    /// mag-variation differences while still excluding non-parallel pairs (e.g.
+    /// OAK 28L/30, where the headings alone already disqualify them).
+    /// </summary>
+    private const double MaxSidestepCenterlineSeparationNm = 0.25;
+
+    /// <summary>
+    /// Maximum runway-heading difference (degrees) between two runways for EF to be
+    /// treated as a sidestep. True parallels are typically &lt;1°; CIFP / mag-var
+    /// rounding can push apparent deltas to a few degrees; 5° is a safe cap that
+    /// still excludes non-parallel pairs.
+    /// </summary>
+    private const double MaxSidestepHeadingDeltaDeg = 5.0;
+
+    /// <summary>
+    /// Minimum AGL (ft) at which a sidestep retarget is still safe. Below the
+    /// stabilized-approach floor (FAA AC 120-71 / InFO 11009 — 500 ft VMC) the
+    /// aircraft is committed to the original runway and doesn't have enough lateral
+    /// distance left to capture the parallel centerline before flare.
+    /// </summary>
+    private const double MinSidestepAglFt = 500.0;
+
+    /// <summary>
+    /// True when <paramref name="target"/> is parallel to <paramref name="current"/>
+    /// and their centerlines are within <see cref="MaxSidestepCenterlineSeparationNm"/>.
+    /// Both runways must be at the same airport; the heading delta must be within
+    /// <see cref="MaxSidestepHeadingDeltaDeg"/>.
+    /// </summary>
+    private static bool IsParallelSidestepCandidate(RunwayInfo current, RunwayInfo target)
+    {
+        if (!string.Equals(current.AirportId, target.AirportId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (current.TrueHeading.AbsAngleTo(target.TrueHeading) > MaxSidestepHeadingDeltaDeg)
+        {
+            return false;
+        }
+
+        double crossTrackNm = Math.Abs(
+            GeoMath.SignedCrossTrackDistanceNm(
+                new LatLon(target.ThresholdLatitude, target.ThresholdLongitude),
+                new LatLon(current.ThresholdLatitude, current.ThresholdLongitude),
+                current.TrueHeading
+            )
+        );
+        return crossTrackNm <= MaxSidestepCenterlineSeparationNm;
+    }
+
+    /// <summary>
+    /// Apply a parallel-runway sidestep on an active FinalApproachPhase: retarget the
+    /// running phase to the new runway, transfer any landing clearance, and clear any
+    /// active instrument approach (it doesn't apply to the parallel runway). The
+    /// FinalApproachPhase keeps its established/intercept/glideslope state — the
+    /// aircraft is still flying a 3° slope, just on the parallel centerline.
+    /// </summary>
+    private static CommandResult ApplySidestep(
+        AircraftState aircraft,
+        FinalApproachPhase finalApproach,
+        RunwayInfo newRunway,
+        AircraftCategory category
+    )
+    {
+        var phases = aircraft.Phases!;
+        phases.ActiveApproach = null;
+        if (phases.ClearedRunwayId is not null)
+        {
+            phases.ClearedRunwayId = newRunway.Designator;
+        }
+        finalApproach.RetargetRunway(newRunway, GlideSlopeGeometry.AngleForCategory(category));
+        return CommandDispatcher.Ok($"Sidestep, runway {newRunway.Designator}");
     }
 
     /// <summary>

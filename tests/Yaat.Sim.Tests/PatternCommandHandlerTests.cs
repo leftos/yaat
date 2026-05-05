@@ -650,11 +650,16 @@ public class PatternCommandHandlerTests
         );
         ac.Phases = phases;
 
-        // Request EF for 28R — should be rejected (short final for 28L)
+        // Request EF for 28R — must be rejected (committed to 28L). With the parallel-
+        // runway sidestep path active, this case is now caught by the AGL gate (200 ft
+        // AGL < the 500 ft sidestep floor) rather than by the loop check, so the
+        // rejection message is "too low for sidestep" instead of "short final". Either
+        // way, the assertion is the same: EF must not retarget below the stabilized-
+        // approach floor.
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
 
         Assert.False(result.Success);
-        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("too low", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

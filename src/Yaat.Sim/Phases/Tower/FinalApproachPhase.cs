@@ -316,6 +316,26 @@ public sealed class FinalApproachPhase : Phase
         }
     }
 
+    /// <summary>
+    /// Re-aim this active phase at a different runway without resetting glideslope /
+    /// FAS / intercept state. Used by EF parallel-runway sidestep (7110.65 §5-9-7):
+    /// the aircraft is already established on a parallel final, the controller
+    /// switches the assigned runway, and the phase keeps running with shifted
+    /// threshold + centerline. The cross-track correction in OnTick converges the
+    /// aircraft onto the new centerline.
+    /// </summary>
+    internal void RetargetRunway(RunwayInfo newRunway, double gsAngleDeg)
+    {
+        _thresholdLat = newRunway.ThresholdLatitude;
+        _thresholdLon = newRunway.ThresholdLongitude;
+        _thresholdElevation = newRunway.ElevationFt;
+        _runwayHeading = newRunway.TrueHeading;
+        _finalApproachCourse = newRunway.TrueHeading;
+        _anchorLat = newRunway.ThresholdLatitude;
+        _anchorLon = newRunway.ThresholdLongitude;
+        _gsAngleDeg = gsAngleDeg;
+    }
+
     public override bool OnTick(PhaseContext ctx)
     {
         if (_goAroundTriggered)
