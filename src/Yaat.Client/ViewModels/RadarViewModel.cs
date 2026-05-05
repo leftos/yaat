@@ -1258,6 +1258,17 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, "GA", initials);
     }
 
+    public async Task LineUpAndWaitAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "LUAW", initials);
+    }
+
+    public async Task ClearedForTakeoffAsync(string callsign, string initials, string? arg)
+    {
+        var cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
+        await _sendCommand(callsign, cmd, initials);
+    }
+
     // --- Pattern entry ---
 
     public async Task EnterLeftDownwindAsync(string callsign, string initials, string? runway)

@@ -14,6 +14,7 @@
 - **Settings > Display > Font Sizes** group: separate font-size knobs for radar datablock, radar tag flyouts, ground datablock, and ground labels (taxi/runway/node), alongside the existing aircraft-list font size.
 - **Settings > Misc > Windows > Always on Top** gains a "Flight Strips" checkbox that pins all popped-out flight-strip windows above other windows.
 - Condition autocomplete dropdown now lists `ATFN` and `ONHO` alongside `AT`/`LV`/`GIVEWAY`/`BEHIND`.
+- Right-click → **Tower** submenu now offers **Line up and wait** and **Cleared for takeoff** while the aircraft is taxiing (not just at the hold-short), so trainers can pre-clear departures during busy traffic. The Cleared for Takeoff item opens a submenu with one-click variants (fly runway heading, on course, make left/right traffic, crosswind/downwind turns, 270s, 360 overhead) plus a Custom… input for arg forms like `LT 270` or `DCT BERKS`.
 
 ### Changed
 - EuroScope heading-mode drag snaps to the nearest 5° — the live arc, the cursor label, and the dispatched `FH` value all use the same snapped heading.

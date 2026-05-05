@@ -536,6 +536,13 @@ public partial class RadarView
     private MenuItem BuildTowerSubmenu(RadarViewModel vm, string cs, string init)
     {
         var menu = new MenuItem { Header = "Tower" };
+
+        // Departures
+        menu.Items.Add(CreateMenuItem("Line up and wait", () => vm.LineUpAndWaitAsync(cs, init)));
+        menu.Items.Add(BuildClearedForTakeoffSubmenu(vm, cs, init));
+        menu.Items.Add(new Separator());
+
+        // Arrivals / pattern operations
         menu.Items.Add(CreateMenuItem("Cleared to land", () => vm.ClearedToLandAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Cleared for the option", () => vm.ClearedForOptionAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Touch and go", () => vm.TouchAndGoAsync(cs, init)));
@@ -543,6 +550,8 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Low approach", () => vm.LowApproachAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Go around", () => vm.GoAroundAsync(cs, init)));
         menu.Items.Add(new Separator());
+
+        // Pattern entries
         menu.Items.Add(
             CreateInputMenuItem("Enter left downwind...", "Runway (optional)", input => vm.EnterLeftDownwindAsync(cs, init, NullIfEmpty(input)))
         );
@@ -556,6 +565,33 @@ public partial class RadarView
         menu.Items.Add(
             CreateInputMenuItem("Enter straight-in final...", "Runway (optional)", input => vm.EnterFinalAsync(cs, init, NullIfEmpty(input)))
         );
+        return menu;
+    }
+
+    private MenuItem BuildClearedForTakeoffSubmenu(RadarViewModel vm, string cs, string init)
+    {
+        var menu = new MenuItem { Header = "Cleared for takeoff" };
+
+        menu.Items.Add(CreateMenuItem("Fly runway heading", () => vm.ClearedForTakeoffAsync(cs, init, null)));
+        menu.Items.Add(CreateMenuItem("Fly on course", () => vm.ClearedForTakeoffAsync(cs, init, "OC")));
+        menu.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MLT")));
+        menu.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MRT")));
+        menu.Items.Add(CreateMenuItem("Turn left crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MLC")));
+        menu.Items.Add(CreateMenuItem("Turn right crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MRC")));
+        menu.Items.Add(CreateMenuItem("Turn left downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MLD")));
+        menu.Items.Add(CreateMenuItem("Turn right downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MRD")));
+        menu.Items.Add(CreateMenuItem("Left 270", () => vm.ClearedForTakeoffAsync(cs, init, "ML270")));
+        menu.Items.Add(CreateMenuItem("Right 270", () => vm.ClearedForTakeoffAsync(cs, init, "MR270")));
+        menu.Items.Add(CreateMenuItem("360 overhead", () => vm.ClearedForTakeoffAsync(cs, init, "360")));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(
+            CreateInputMenuItem(
+                "Custom...",
+                "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)",
+                input => vm.ClearedForTakeoffAsync(cs, init, NullIfEmpty(input))
+            )
+        );
+
         return menu;
     }
 
