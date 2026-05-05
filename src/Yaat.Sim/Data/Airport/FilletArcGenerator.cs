@@ -1731,9 +1731,11 @@ public static class FilletArcGenerator
     private static int MergeCoincidentNodes(AirportGroundLayout layout)
     {
         const double thresholdNm = 5.0 / GeoMath.FeetPerNm;
+        const int maxPasses = 5;
         int totalMerged = 0;
 
-        for (int pass = 0; pass < 5; pass++)
+        int pass;
+        for (pass = 0; pass < maxPasses; pass++)
         {
             var mergeMap = BuildMergeMap(layout, thresholdNm);
             if (mergeMap.Count == 0)
@@ -1818,6 +1820,21 @@ public static class FilletArcGenerator
             }
 
             totalMerged += mergeMap.Count;
+        }
+
+        if (pass == maxPasses)
+        {
+            // Cap hit before BuildMergeMap returned empty — graph may still contain
+            // coincident nodes. Investigate the airport layout if this fires.
+            int remaining = BuildMergeMap(layout, thresholdNm).Count;
+            if (remaining > 0)
+            {
+                Log.LogWarning(
+                    "MergeCoincidentNodes hit max-pass cap ({MaxPasses}); {Remaining} coincident-node merges still pending",
+                    maxPasses,
+                    remaining
+                );
+            }
         }
 
         // Final pass: recompute cached distances for all edges and arcs so they
