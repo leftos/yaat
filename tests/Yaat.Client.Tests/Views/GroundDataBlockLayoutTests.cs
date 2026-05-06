@@ -29,7 +29,7 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
-    public void NoModeC_WhenTransponderModeIsCharlie_OnGround()
+    public void NoSqStby_WhenTransponderModeIsCharlie_OnGround()
     {
         var ac = CreateModel();
         ac.TransponderMode = "C";
@@ -41,7 +41,7 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
-    public void HasModeC_WhenTransponderModeIsStandby_OnGround()
+    public void HasSqStby_WhenTransponderModeIsStandby_OnGround()
     {
         var ac = CreateModel();
         ac.TransponderMode = "Standby";
@@ -49,11 +49,11 @@ public class GroundDataBlockLayoutTests
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
 
-        Assert.Equal("ModeC", layout.Line4);
+        Assert.Equal("SqStby", layout.Line4);
     }
 
     [Fact]
-    public void HasModeC_WhenAirborneStandby()
+    public void HasSqStby_WhenAirborneStandby()
     {
         var ac = CreateModel();
         ac.Altitude = 1500;
@@ -63,7 +63,7 @@ public class GroundDataBlockLayoutTests
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: true);
 
         Assert.NotEqual("", layout.Line3); // altitude line is present when airborne
-        Assert.Equal("ModeC", layout.Line4);
+        Assert.Equal("SqStby", layout.Line4);
     }
 
     [Fact]

@@ -63,7 +63,11 @@ public static class AircraftGenerator
 
         var callsign = GenerateCallsign(request, existingAircraft, r);
         var category = AircraftCategorization.Categorize(aircraftType);
-        var transponderMode = request.Rules == FlightRulesKind.Vfr ? "A" : "C";
+        // Airborne and on-runway spawns squawk Mode C (real-world airborne traffic, including
+        // VFR/1200, is altitude-reporting; runway spawns are about to take off with the
+        // transponder already on). Parking spawns sit on Standby until the pilot powers up
+        // the transponder for taxi.
+        var transponderMode = request.PositionType == SpawnPositionType.Parking ? "Standby" : "C";
         var flightRules = request.Rules == FlightRulesKind.Ifr ? "IFR" : "VFR";
 
         // VFR ADD spawns are cold calls: no AssignedCode, squawking 1200 (FAA

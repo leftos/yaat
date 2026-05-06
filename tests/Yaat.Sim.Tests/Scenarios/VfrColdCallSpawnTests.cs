@@ -40,10 +40,43 @@ public class VfrColdCallSpawnTests
         Assert.NotNull(state);
         Assert.Equal((uint)0, state.Transponder.AssignedCode);
         Assert.Equal((uint)1200, state.Transponder.Code);
+        // Airborne VFR ADD squawks Mode C (real-world airborne /1200 traffic is altitude-
+        // reporting). Only parking spawns sit on Standby.
+        Assert.Equal("C", state.Transponder.Mode);
         Assert.Equal("VFR", state.FlightPlan.FlightRules);
         Assert.False(state.FlightPlan.HasFlightPlan);
         Assert.Equal("", state.FlightPlan.Destination);
         Assert.Equal("", state.FlightPlan.Route);
+    }
+
+    [Fact]
+    public void AircraftGenerator_VfrAdd_ParkingSpawn_TransponderOnStandby()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        // Parking spawns: pilot's transponder is on Standby until they power up for taxi.
+        var groundLayout = new TestAirportGroundData().GetLayout("OAK");
+        Assert.NotNull(groundLayout);
+
+        var request = new SpawnRequest
+        {
+            Rules = FlightRulesKind.Vfr,
+            Weight = WeightClass.Small,
+            Engine = EngineKind.Piston,
+            PositionType = SpawnPositionType.Parking,
+            ParkingName = "NEW1",
+        };
+
+        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(42));
+
+        Assert.Null(error);
+        Assert.NotNull(state);
+        Assert.Equal("Standby", state.Transponder.Mode);
+        Assert.True(state.IsOnGround);
     }
 
     [Fact]
@@ -73,6 +106,7 @@ public class VfrColdCallSpawnTests
         Assert.NotEqual((uint)0, state.Transponder.AssignedCode);
         Assert.NotEqual((uint)1200, state.Transponder.AssignedCode);
         Assert.Equal(state.Transponder.AssignedCode, state.Transponder.Code);
+        Assert.Equal("C", state.Transponder.Mode);
         Assert.Equal("IFR", state.FlightPlan.FlightRules);
     }
 

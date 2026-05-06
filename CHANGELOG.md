@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- VFR `ADD` cold-call spawns no longer pre-fill **CID** or **BCN** in the CRC Flight Data editor — both stay blank until the controller files via `DA` / `VP`. Previously the editor showed the auto-assigned CID and `BCN 0000`.
+- VFR `ADD` cold-call spawns at parking are now on transponder **Standby** until the pilot powers up for taxi. Airborne and on-runway VFR ADD spawns continue to squawk Mode C / 1200 (real-world airborne /1200 traffic is altitude-reporting).
+- ASDE-X now shows **Standby** aircraft as a primary-only cyan diamond (no callsign, no datablock) instead of a fully-correlated white aircraft icon. Real ASDE-X can't correlate a target to a track without a Mode A/C reply.
+- YAAT Client ground view shows **SqStby** (no strikethrough) under Standby aircraft instead of a struck-through `ModeC` label. Same indication, easier to read.
+- `DA` / `VP` typed without an equipment suffix (e.g. `DA SR22 050`) now defaults the suffix to `/A` per FAA convention. Typing `SR22/G` still overrides to `/G` as before.
+
 ## v0.1.16-alpha [2026/05/05]
 
 ### Highlights

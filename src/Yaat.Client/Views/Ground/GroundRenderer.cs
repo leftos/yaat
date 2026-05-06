@@ -47,7 +47,7 @@ internal readonly struct DataBlockLayout
         string dest = ac.Destination.StartsWith('K') ? ac.Destination[1..] : ac.Destination;
         string line2 = string.IsNullOrEmpty(dest) ? ac.AircraftType : $"{ac.AircraftType} {dest}";
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
-        string line4 = ac.TransponderMode == "Standby" ? "ModeC" : "";
+        string line4 = ac.TransponderMode == "Standby" ? "SqStby" : "";
 
         float w1 = textPaint.MeasureText(line1);
         float w2 = textPaint.MeasureText(line2);
@@ -246,13 +246,6 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
         SubpixelText = true,
         Typeface = PlatformHelper.MonospaceTypefaceBold,
-    };
-
-    private readonly SKPaint _strikethroughPaint = new()
-    {
-        StrokeWidth = 1,
-        Style = SKPaintStyle.Stroke,
-        IsAntialias = true,
     };
 
     /// <summary>
@@ -1780,19 +1773,7 @@ public sealed class GroundRenderer : IDisposable
 
             if (layout.Line4.Length > 0)
             {
-                float modeCBaseline = layout.TextY + layout.LineHeight * row;
-                canvas.DrawText(layout.Line4, layout.TextX, modeCBaseline, _dataBlockTextPaint);
-                _dataBlockTextPaint.GetFontMetrics(out var metrics);
-                float strikeOffset = metrics.StrikeoutPosition.GetValueOrDefault();
-                if (strikeOffset == 0)
-                {
-                    strikeOffset = -_dataBlockTextPaint.TextSize / 3f;
-                }
-                float strikeY = modeCBaseline + strikeOffset;
-                _strikethroughPaint.Color = dbColor;
-                _strikethroughPaint.StrokeWidth = MathF.Max(1f, metrics.StrikeoutThickness.GetValueOrDefault());
-                float w = _dataBlockTextPaint.MeasureText(layout.Line4);
-                canvas.DrawLine(layout.TextX, strikeY, layout.TextX + w, strikeY, _strikethroughPaint);
+                canvas.DrawText(layout.Line4, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
             }
         }
     }
@@ -1913,7 +1894,6 @@ public sealed class GroundRenderer : IDisposable
         _dataBlockLeaderPaint.Dispose();
         _dataBlockTextPaint.Dispose();
         _dataBlockBgPaint.Dispose();
-        _strikethroughPaint.Dispose();
         _labelBgPaint.Dispose();
         _bgPaint.Dispose();
         _debugLabelPaint.Dispose();
