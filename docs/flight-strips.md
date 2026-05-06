@@ -213,7 +213,11 @@ aircraft phase gating and go straight to `HandleStripCmd`.
 
 ### Full strip: `STRIP`, `AN`, `STRIPD`, `STRIPO`
 
-All four are aircraft-scoped (require a selected or prefix callsign):
+All four are aircraft-scoped by default (resolve via the selected
+callsign) and additionally accept an optional leading `STRIP_<id>`
+token so the strips UI / CRC translator can address a specific full
+strip — most importantly a scanned copy `STRIP_{callsign}_{shortGuid}`
+that shares its callsign with the original.
 
 - `STRIP {bay}[/{rack}[/{index}]]` pushes or reassigns a full flight
   strip keyed by `STRIP_{callsign}` to the named bay. Rack and index
@@ -222,12 +226,23 @@ All four are aircraft-scoped (require a selected or prefix callsign):
   the first rack / first slot when omitted. The record is type
   `DepartureStrip (0)`. The slash-compound form removes the
   greedy-bay-match ambiguity that applied to the older space-separated
-  syntax.
+  syntax. **Id form:** `STRIP STRIP_<id> {bay}[/{rack}[/{index}]]` moves
+  the specific strip identified by id; the strip must already exist
+  (the handler does not synthesize a phantom record from an arbitrary
+  id) and the dispatch callsign is irrelevant.
 - `AN {box} [text]` writes (or clears) annotation text into one of
   boxes 1–9 on the aircraft's strip. Field index is `box + 9`. Accepts
   `AN 10`–`AN 18` as aliases for `AN 1`–`AN 9`.
+  **Id form:** `AN STRIP_<id> {box} [text]` annotates a specific strip;
+  the parser peels the id token before parsing the box and text.
 - `STRIPD` deletes the full strip keyed by `STRIP_{callsign}`.
+  **Id form:** `STRIPD STRIP_<id>` deletes a specific strip.
 - `STRIPO` toggles the offset flag on the full strip.
+  **Id form:** `STRIPO STRIP_<id>` toggles offset on a specific strip.
+
+The strips UI always emits the id form so scanned copies are addressable;
+terminal users keep the bare callsign-keyed shorthand, and old
+recordings (which only carry the bare form) replay deterministically.
 
 `HandleStripPush` resolves the bay using `GetAccessibleStripBay(artccId, positionCallsign, bayName)`,
 closing the tower-vs-TRACON facility gap. Tower students can now `STRIP`
@@ -261,15 +276,10 @@ sending controller knows the coordination preview has no live receiver.
 - No cascade: deleting the originator (`STRIPD` or aircraft removed) does
   **not** delete its scanned copies. Each copy is independent after the
   scan; the receiving CRC vStrips can drop it via its own
-  `DeleteStripItem` path. There is no canonical command that addresses a
-  scanned copy directly (`STRIPD` is callsign-keyed and would target the
-  original).
+  `DeleteStripItem` path, and the id-form `STRIPD STRIP_<id>` /
+  `STRIPO STRIP_<id>` / `AN STRIP_<id> …` verbs let the originating
+  controller manage the copy directly.
 - Half-strip scan is out of scope; spec full strips first.
-- The Yaat.Client embedded Strips tab hides "Offset" / "Push to" /
-  "Push all in rack to" / "Delete" on scanned copies (id starts with
-  `STRIP_` but doesn't equal `STRIP_{callsign}`) — those items dispatch
-  callsign-keyed canonicals which would hit the **originator's** strip.
-  See `VStripsView.BuildStripContextMenu`.
 
 ### Half-strips: `HSC` / `HSA` / `HSD` / `HSM` / `HSO` / `HSS`
 
@@ -344,15 +354,19 @@ no bay is always just `HSD`.
 Parsing for `HSA` is capped at 7 tokens total (1 lookup key + 6 new
 lines). `HSD` is capped at 1 token.
 
-**`HSTRIP_<id>` strip-id form (HSA / HSD / HSO / HSS / HSM):** when the
-first token starts with `HSTRIP_`, the parser never treats it as a bay
-spec — it's always the lookup key. The server's `FindHalfStripMatches`
-correspondingly switches from first-line text matching to `Id` matching.
-This is required because empty half-strips (created via `HSC bay/rack`
-with no body) have no first-line text, so `StripItemViewModel.LookupKey`
-falls back to the strip id and the embedded UI emits commands like
-`HSD HSTRIP_<guid>`. Mirrors `SEP_` / `BLANK_` id-prefix handling on
-`SEPD` / `SEPE` / `SEPM` / `BLANKD`.
+**`HSTRIP_<id>` strip-id form is the default UI emit shape (HSA / HSD /
+HSO / HSS / HSM):** the strips UI and `StripCommandTranslator` (CRC →
+canonical) always pass `strip.Id` as the lookup token so two half-strips
+with duplicate first-line text remain individually addressable. The
+parser detects the `HSTRIP_` prefix and the server's
+`FindHalfStripMatches` switches from first-line text matching to `Id`
+matching. Terminal users typing `HSD <text>` still get the first-line
+fallback for human-friendly entry. Half-strip ids are 8-char hex
+(e.g. `HSTRIP_aece26a3`) so action logs and terminal output stay
+readable; legacy 32-char GUID ids in older recordings keep working
+(parser/handler match by prefix + exact id, not length). Mirrors
+`SEP_` / `BLANK_` id-prefix handling on `SEPD` / `SEPE` / `SEPM` /
+`BLANKD`.
 
 #### Server dispatch
 
@@ -366,7 +380,7 @@ falls back to the strip id and the embedded UI emits commands like
    - Aircraft-scoped: `[callsign, …userLines]`.
 4. Reject if the result would be empty (global, no lines) or longer
    than 6.
-5. Generate id `HSTRIP_{Guid.NewGuid():N}` and build a `StripItemRecord`
+5. Generate a fresh 8-char hex id via `StripMutations.NewHalfStripId` (re-rolls on collision against the room's existing ids; e.g. `HSTRIP_aece26a3`) and build a `StripItemRecord`
    with `Type = HalfStripLeft (6)` and `FacilityId` set to the **bay's
    owning facility** (from the resolver), not the scenario's
    `StudentPosition.FacilityId`. This is the tower-vs-TRACON fix —

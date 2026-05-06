@@ -190,4 +190,106 @@ public class StripCommandParserTests
         var result = CommandParser.Parse("AN 9c X");
         Assert.Null(result.Value);
     }
+
+    // ── Id-form (STRIP_<id> prefix) coverage ──────────────────────
+    //
+    // Strip-tab and CRC-translator paths emit the id form so a scanned copy
+    // (STRIP_{callsign}_{shortGuid}) can be addressed independently of its
+    // originator. Terminal users keep the bare/callsign-keyed forms.
+
+    [Fact]
+    public void StripD_StripIdForm_ParsesId()
+    {
+        var result = CommandParser.Parse("STRIPD STRIP_UAL100");
+        var cmd = Assert.IsType<StripDeleteCommand>(result.Value);
+        Assert.Equal("STRIP_UAL100", cmd.StripId);
+    }
+
+    [Fact]
+    public void StripD_NoArg_LeavesStripIdNull()
+    {
+        var result = CommandParser.Parse("STRIPD");
+        var cmd = Assert.IsType<StripDeleteCommand>(result.Value);
+        Assert.Null(cmd.StripId);
+    }
+
+    [Fact]
+    public void StripD_StripIdForm_HandlesScannedCopySuffix()
+    {
+        var result = CommandParser.Parse("STRIPD STRIP_UAL100_a1b2c3d4");
+        var cmd = Assert.IsType<StripDeleteCommand>(result.Value);
+        Assert.Equal("STRIP_UAL100_a1b2c3d4", cmd.StripId);
+    }
+
+    [Fact]
+    public void StripD_StripIdForm_RejectsExtraTokens()
+    {
+        // Extra tokens are user error; the handler can't disambiguate so
+        // reject at parse time. STRIPD is at most "STRIPD STRIP_<id>".
+        var result = CommandParser.Parse("STRIPD STRIP_UAL100 garbage");
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void StripO_StripIdForm_ParsesId()
+    {
+        var result = CommandParser.Parse("STRIPO STRIP_UAL100_a1b2c3d4");
+        var cmd = Assert.IsType<StripOffsetCommand>(result.Value);
+        Assert.Equal("STRIP_UAL100_a1b2c3d4", cmd.StripId);
+    }
+
+    [Fact]
+    public void StripO_NoArg_LeavesStripIdNull()
+    {
+        var result = CommandParser.Parse("STRIPO");
+        var cmd = Assert.IsType<StripOffsetCommand>(result.Value);
+        Assert.Null(cmd.StripId);
+    }
+
+    [Fact]
+    public void An_StripIdForm_PeelsIdAndParsesBox()
+    {
+        var result = CommandParser.Parse("AN STRIP_UAL100 3 RV");
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
+        Assert.Equal("STRIP_UAL100", cmd.StripId);
+        Assert.Equal("3", cmd.Box);
+        Assert.Equal("RV", cmd.Text);
+    }
+
+    [Fact]
+    public void An_StripIdForm_BoxOnly_ClearsBox()
+    {
+        var result = CommandParser.Parse("AN STRIP_UAL100 5");
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
+        Assert.Equal("STRIP_UAL100", cmd.StripId);
+        Assert.Equal("5", cmd.Box);
+        Assert.Null(cmd.Text);
+    }
+
+    [Fact]
+    public void An_StripIdForm_8a_PreservesSuffixCanonical()
+    {
+        var result = CommandParser.Parse("AN STRIP_UAL100 8a ENR");
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
+        Assert.Equal("STRIP_UAL100", cmd.StripId);
+        Assert.Equal("8a", cmd.Box);
+        Assert.Equal("ENR", cmd.Text);
+    }
+
+    [Fact]
+    public void An_StripIdOnly_ReturnsNull()
+    {
+        var result = CommandParser.Parse("AN STRIP_UAL100");
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void Strip_StripIdForm_KeepsTokensIntact()
+    {
+        // Parser passes raw tokens to the handler; STRIP_<id> peel happens
+        // server-side so the parser stays bay-agnostic.
+        var result = CommandParser.Parse("STRIP STRIP_UAL100_a1b2c3d4 Local 1");
+        var cmd = Assert.IsType<StripMoveCommand>(result.Value);
+        Assert.Equal(["STRIP_UAL100_a1b2c3d4", "Local", "1"], cmd.Tokens);
+    }
 }

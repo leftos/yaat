@@ -30,12 +30,25 @@ namespace Yaat.Client.ViewModels;
 public static class VStripsCanonicalBuilder
 {
     /// <summary>
-    /// Move an existing full strip (departure/arrival) into a bay position.
+    /// Move the currently-selected aircraft's full strip — terminal-shorthand
+    /// callsign-keyed form. UI emit sites that know the strip id should call
+    /// <see cref="BuildStripMoveById"/> instead so scanned copies (which share
+    /// a callsign with the original) round-trip unambiguously.
     /// Pass <paramref name="index"/> <c>null</c> to append to the tail of the
     /// rack (the first-available bottom slot).
     /// </summary>
     public static string BuildStripMove(string bayName, int rack, int? index) =>
         index is int i ? $"STRIP {bayName}/{OneBased(rack)}/{OneBased(i)}" : $"STRIP {bayName}/{OneBased(rack)}";
+
+    /// <summary>
+    /// Move a specific full strip identified by id (e.g. a scanned copy
+    /// <c>STRIP_{callsign}_{shortGuid}</c>). Always emitted by the strips
+    /// UI; the server's parser detects the leading <c>STRIP_</c> token and
+    /// dispatches against that exact strip rather than synthesizing
+    /// <c>STRIP_{dispatchCallsign}</c>.
+    /// </summary>
+    public static string BuildStripMoveById(string stripId, string bayName, int rack, int? index) =>
+        index is int i ? $"STRIP {stripId} {bayName}/{OneBased(rack)}/{OneBased(i)}" : $"STRIP {stripId} {bayName}/{OneBased(rack)}";
 
     /// <summary>
     /// Copy a full strip (departure/arrival) into an external facility's bay
@@ -48,23 +61,48 @@ public static class VStripsCanonicalBuilder
     public static string BuildStripScan(string bayName, int rack, int? index) =>
         index is int i ? $"SCAN {bayName}/{OneBased(rack)}/{OneBased(i)}" : $"SCAN {bayName}/{OneBased(rack)}";
 
-    /// <summary>Delete the full strip owned by the currently-selected aircraft.</summary>
+    /// <summary>Delete the full strip owned by the currently-selected aircraft (terminal shorthand).</summary>
     public static string BuildStripDelete() => "STRIPD";
 
-    /// <summary>Toggle offset on the full strip owned by the currently-selected aircraft.</summary>
+    /// <summary>
+    /// Delete a specific full strip by id. Used by every UI emit site so a
+    /// scanned copy <c>STRIP_{callsign}_{shortGuid}</c> can be removed
+    /// without disturbing the original <c>STRIP_{callsign}</c>.
+    /// </summary>
+    public static string BuildStripDeleteById(string stripId) => $"STRIPD {stripId}";
+
+    /// <summary>Toggle offset on the full strip owned by the currently-selected aircraft (terminal shorthand).</summary>
     public static string BuildStripOffset() => "STRIPO";
 
+    /// <summary>Toggle offset on a specific full strip by id; mirrors <see cref="BuildStripDeleteById"/>.</summary>
+    public static string BuildStripOffsetById(string stripId) => $"STRIPO {stripId}";
+
     /// <summary>
-    /// Edit a single annotation slot. <paramref name="box"/> is the canonical
-    /// slot id — <c>"1"</c>..<c>"9"</c> for the 3×3 grid (maps to
-    /// FieldValues[10..18] server-side), or <c>"8a"</c>/<c>"8b"</c> for the
-    /// col-3 freeform slots below field 8 (FieldValues[19..20]). Empty or
-    /// whitespace-only <paramref name="text"/> clears the slot.
+    /// Edit a single annotation slot — terminal shorthand keyed by the
+    /// dispatch callsign. UI emit sites should call
+    /// <see cref="BuildAnnotateById"/> so scanned copies are addressable.
+    /// <paramref name="box"/> is the canonical slot id — <c>"1"</c>..<c>"9"</c>
+    /// for the 3×3 grid (maps to FieldValues[10..18] server-side), or
+    /// <c>"8a"</c>/<c>"8b"</c> for the col-3 freeform slots below field 8
+    /// (FieldValues[19..20]). Empty or whitespace-only <paramref name="text"/>
+    /// clears the slot.
     /// </summary>
     public static string BuildAnnotate(string box, string? text)
     {
         var trimmed = text?.Trim();
         return string.IsNullOrEmpty(trimmed) ? $"AN {box}" : $"AN {box} {trimmed}";
+    }
+
+    /// <summary>
+    /// Edit an annotation slot on a specific full strip by id. Server peels
+    /// the leading <c>STRIP_</c> token before parsing the box/text — the
+    /// terminal-shorthand form (<see cref="BuildAnnotate"/>) stays available
+    /// for human entry.
+    /// </summary>
+    public static string BuildAnnotateById(string stripId, string box, string? text)
+    {
+        var trimmed = text?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? $"AN {stripId} {box}" : $"AN {stripId} {box} {trimmed}";
     }
 
     /// <summary>Create a new half-strip in a bay/rack with the given lines (max 6).</summary>
@@ -86,10 +124,16 @@ public static class VStripsCanonicalBuilder
         return sb.ToString();
     }
 
-    /// <summary>Amend an existing half-strip's lines by lookup key (first field value).</summary>
-    public static string BuildHalfStripAmend(string lookupKey, IReadOnlyList<string> newLines)
+    /// <summary>
+    /// Amend an existing half-strip by its <c>HSTRIP_…</c> id. UI emit sites
+    /// always call this with <c>strip.Id</c> so two half-strips with the
+    /// same first-line text remain distinguishable. Server parser detects
+    /// the <c>HSTRIP_</c> prefix and falls back to first-line matching only
+    /// when terminal users type a non-id key.
+    /// </summary>
+    public static string BuildHalfStripAmend(string stripId, IReadOnlyList<string> newLines)
     {
-        var sb = new StringBuilder("HSA ").Append(lookupKey);
+        var sb = new StringBuilder("HSA ").Append(stripId);
         foreach (var line in newLines)
         {
             sb.Append(' ').Append(line);
@@ -97,12 +141,12 @@ public static class VStripsCanonicalBuilder
         return sb.ToString();
     }
 
-    /// <summary>Move a half-strip by lookup key to a destination bay/rack/index.</summary>
-    public static string BuildHalfStripMove(string lookupKey, string destBayName, int rack, int index) =>
-        $"HSM {lookupKey} {destBayName}/{OneBased(rack)}/{OneBased(index)}";
+    /// <summary>Move a half-strip by stripId to a destination bay/rack/index.</summary>
+    public static string BuildHalfStripMove(string stripId, string destBayName, int rack, int index) =>
+        $"HSM {stripId} {destBayName}/{OneBased(rack)}/{OneBased(index)}";
 
-    /// <summary>Delete a half-strip by lookup key.</summary>
-    public static string BuildHalfStripDelete(string lookupKey) => $"HSD {lookupKey}";
+    /// <summary>Delete a half-strip by stripId.</summary>
+    public static string BuildHalfStripDelete(string stripId) => $"HSD {stripId}";
 
     /// <summary>
     /// Replace a half-strip's full FieldValues by stripId. Empty cells are
@@ -112,11 +156,11 @@ public static class VStripsCanonicalBuilder
     public static string BuildHalfStripEdit(string stripId, IReadOnlyList<string> slots) =>
         slots.Count == 0 ? $"HSE {stripId}" : $"HSE {stripId} {string.Join('\\', slots)}";
 
-    /// <summary>Toggle offset on a half-strip by lookup key.</summary>
-    public static string BuildHalfStripOffset(string lookupKey) => $"HSO {lookupKey}";
+    /// <summary>Toggle offset on a half-strip by stripId.</summary>
+    public static string BuildHalfStripOffset(string stripId) => $"HSO {stripId}";
 
-    /// <summary>Slide a half-strip (toggle Left ↔ Right) by lookup key.</summary>
-    public static string BuildHalfStripSlide(string lookupKey) => $"HSS {lookupKey}";
+    /// <summary>Slide a half-strip (toggle Left ↔ Right) by stripId.</summary>
+    public static string BuildHalfStripSlide(string stripId) => $"HSS {stripId}";
 
     /// <summary>
     /// Create a separator of the given style at a bay position with an optional

@@ -708,9 +708,14 @@ public partial class VStripsViewModel : ObservableObject
         var indexOrZero = index ?? 0;
         var canonical = strip.Type switch
         {
-            StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripMove(destBay.Name, rack, index),
+            StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripMoveById(
+                strip.Id,
+                destBay.Name,
+                rack,
+                index
+            ),
             StripItemType.HalfStripLeft or StripItemType.HalfStripRight => VStripsCanonicalBuilder.BuildHalfStripMove(
-                strip.LookupKey,
+                strip.Id,
                 destBay.Name,
                 rack,
                 indexOrZero
@@ -739,8 +744,11 @@ public partial class VStripsViewModel : ObservableObject
             OptimisticallyMove(strip, destBay, rack, index);
         }
 
-        var callsign = strip.IsFullStrip ? (strip.AircraftId ?? "") : "";
-        await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
+        // Every UI dispatch addresses the strip by id, so the callsign field
+        // on the wire is purely informational. Send empty so the server
+        // never falls back to callsign-keyed lookup (which would mis-target a
+        // scanned copy whose callsign matches the original).
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -773,16 +781,16 @@ public partial class VStripsViewModel : ObservableObject
 
     public async Task DeleteStripAsync(StripItemViewModel strip)
     {
-        var (callsign, canonical) = strip.Type switch
+        // Every emit form addresses the strip by id so duplicate first-line
+        // text or duplicate callsign (scanned copies) round-trip correctly.
+        var canonical = strip.Type switch
         {
-            StripItemType.DepartureStrip or StripItemType.ArrivalStrip => (strip.AircraftId ?? "", VStripsCanonicalBuilder.BuildStripDelete()),
-            StripItemType.HalfStripLeft or StripItemType.HalfStripRight => ("", VStripsCanonicalBuilder.BuildHalfStripDelete(strip.LookupKey)),
-            StripItemType.HandwrittenSeparator or StripItemType.WhiteSeparator or StripItemType.RedSeparator or StripItemType.GreenSeparator => (
-                "",
-                VStripsCanonicalBuilder.BuildSeparatorDeleteById(strip.Id)
-            ),
-            StripItemType.BlankStrip => ("", VStripsCanonicalBuilder.BuildBlankDeleteById(strip.Id)),
-            _ => ((string)"", (string?)null),
+            StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripDeleteById(strip.Id),
+            StripItemType.HalfStripLeft or StripItemType.HalfStripRight => VStripsCanonicalBuilder.BuildHalfStripDelete(strip.Id),
+            StripItemType.HandwrittenSeparator or StripItemType.WhiteSeparator or StripItemType.RedSeparator or StripItemType.GreenSeparator =>
+                VStripsCanonicalBuilder.BuildSeparatorDeleteById(strip.Id),
+            StripItemType.BlankStrip => VStripsCanonicalBuilder.BuildBlankDeleteById(strip.Id),
+            _ => null,
         };
 
         if (canonical is null)
@@ -791,16 +799,16 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task ToggleOffsetAsync(StripItemViewModel strip)
     {
-        var (callsign, canonical) = strip.Type switch
+        var canonical = strip.Type switch
         {
-            StripItemType.DepartureStrip or StripItemType.ArrivalStrip => (strip.AircraftId ?? "", VStripsCanonicalBuilder.BuildStripOffset()),
-            StripItemType.HalfStripLeft or StripItemType.HalfStripRight => ("", VStripsCanonicalBuilder.BuildHalfStripOffset(strip.LookupKey)),
-            _ => ((string)"", (string?)null),
+            StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripOffsetById(strip.Id),
+            StripItemType.HalfStripLeft or StripItemType.HalfStripRight => VStripsCanonicalBuilder.BuildHalfStripOffset(strip.Id),
+            _ => null,
         };
 
         if (canonical is null)
@@ -808,23 +816,24 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
-    /// Edits an annotation slot on a full strip. <paramref name="box"/> is the
-    /// canonical slot id — <c>"1"</c>..<c>"9"</c> for the 3×3 grid, or
+    /// Edits an annotation slot on a full strip — emitted by id so a scanned
+    /// copy is annotated independently of its originator. <paramref name="box"/>
+    /// is the canonical slot id — <c>"1"</c>..<c>"9"</c> for the 3×3 grid, or
     /// <c>"8a"</c>/<c>"8b"</c> for the col-3 freeform slots below field 8.
     /// </summary>
     public async Task AnnotateAsync(StripItemViewModel strip, string box, string? text)
     {
-        if (!strip.IsFullStrip || strip.AircraftId is null)
+        if (!strip.IsFullStrip)
         {
             return;
         }
 
-        var canonical = VStripsCanonicalBuilder.BuildAnnotate(box, text);
-        await _sendCommand(strip.AircraftId, canonical, _getUserInitials?.Invoke() ?? "");
+        var canonical = VStripsCanonicalBuilder.BuildAnnotateById(strip.Id, box, text);
+        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     /// <summary>
@@ -838,7 +847,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             return;
         }
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.LookupKey, lines);
+        var canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.Id, lines);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -887,7 +896,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             return;
         }
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripSlide(strip.LookupKey);
+        var canonical = VStripsCanonicalBuilder.BuildHalfStripSlide(strip.Id);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 

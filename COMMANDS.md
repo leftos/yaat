@@ -380,12 +380,14 @@ All commands grouped by category. Each table shows the primary command, aliases,
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
-| Annotate strip box | `AN 3 RV` | `ANNOTATE`, `BOX` | — |
-| Push strip to bay | `STRIP Ground/1/1` | — | Slash-compound `bay[/rack[/index]]`, 1-based |
+| Annotate strip box | `AN 3 RV` | `ANNOTATE`, `BOX` | Optional id-form: `AN STRIP_<id> 3 RV` targets a specific strip (e.g. a scanned copy) |
+| Push strip to bay | `STRIP Ground/1/1` | — | Slash-compound `bay[/rack[/index]]`, 1-based. Optional id-form: `STRIP STRIP_<id> Ground/1/1` |
 | Scan strip to external bay | `SCAN NCT/1` | — | Copies strip to external bay; original stays put |
+| Delete strip | `STRIPD` | — | Optional id-form: `STRIPD STRIP_<id>` (required to remove a scanned copy) |
+| Toggle strip offset | `STRIPO` | — | Optional id-form: `STRIPO STRIP_<id>` |
 | Create half-strip | `HSC Ground/1 Hello\World` | `HALFSTRIPCREATE` | — |
-| Amend half-strip | `HSA Hello\Updated\Body` | `HALFSTRIPAMEND` | — |
-| Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | — |
+| Amend half-strip | `HSA Hello\Updated\Body` | `HALFSTRIPAMEND` | Also accepts `HSA HSTRIP_<id> ...` (UI default — disambiguates duplicate first-line text) |
+| Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | Also accepts `HSD HSTRIP_<id>` (UI default) |
 | Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | — |
 | Scratchpad 2 | `SP2 I8R` / `SP2` (clear) | — | — |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
@@ -977,7 +979,9 @@ Lines are separated by a literal backslash `\` and capped at 6 lines total. The 
 
 Because of this rule, a single-token global delete like `HSD Ground` is interpreted as "delete the half-strip with first line `Ground`" (auto-search), not as "delete the aircraft-scoped half-strip in bay `Ground`". Aircraft-scoped delete with no bay is just `HSD`.
 
-**Strip-id form:** if the first token starts with `HSTRIP_` it is always treated as a strip id (lookup matches by `Id`, not by first-line text), never as a bay name. This lets the embedded vStrips UI operate on empty half-strips that have no first-line text yet — `HSD HSTRIP_<id>`, `HSA HSTRIP_<id> line1\line2`, `HSO HSTRIP_<id>`, `HSS HSTRIP_<id>`. Mirrors the `SEP_<id>` and `BLANK_<id>` id-prefix handling on `SEPD` / `SEPE` / `SEPM` / `BLANKD`.
+**Strip-id form (UI default):** if the first token starts with `HSTRIP_` it is always treated as a strip id (lookup matches by `Id`, not by first-line text), never as a bay name. The strips UI and the CRC → canonical translator always emit this shape so two half-strips with the same first-line text remain individually addressable. Empty half-strips with no first-line text also work: `HSD HSTRIP_<id>`, `HSA HSTRIP_<id> line1\line2`, `HSO HSTRIP_<id>`, `HSS HSTRIP_<id>`. Mirrors the `SEP_<id>` and `BLANK_<id>` id-prefix handling on `SEPD` / `SEPE` / `SEPM` / `BLANKD`. Half-strip and separator ids are 8-char hex (e.g. `HSTRIP_aece26a3`); legacy 32-char GUID ids in older recordings keep working.
+
+**Full-strip id form (UI default for STRIPD / STRIPO / AN / STRIP):** the four full-strip verbs accept an optional leading `STRIP_<id>` token to address a specific strip — required to manage scanned copies (`STRIP_{callsign}_{shortGuid}`) that share their callsign with the original. `STRIPD STRIP_<id>` deletes a specific strip; `STRIPO STRIP_<id>` toggles offset; `AN STRIP_<id> 3 RV` annotates; `STRIP STRIP_<id> Local/2/3` moves. Terminal users keep the bare callsign-keyed shorthand.
 
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |

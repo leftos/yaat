@@ -37,6 +37,36 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
+    public void BuildStripDeleteById_PrefixesId()
+    {
+        // Id form is the only safe target for a scanned copy that shares a
+        // callsign with the original. UI emits this; terminal entry uses
+        // the bare verb above.
+        Assert.Equal("STRIPD STRIP_UAL100_a1b2c3d4", VStripsCanonicalBuilder.BuildStripDeleteById("STRIP_UAL100_a1b2c3d4"));
+    }
+
+    [Fact]
+    public void BuildStripOffsetById_PrefixesId()
+    {
+        Assert.Equal("STRIPO STRIP_UAL100", VStripsCanonicalBuilder.BuildStripOffsetById("STRIP_UAL100"));
+    }
+
+    [Fact]
+    public void BuildStripMoveById_PrefixesIdBeforeDestSpec()
+    {
+        Assert.Equal("STRIP STRIP_UAL100 Local/2/3", VStripsCanonicalBuilder.BuildStripMoveById("STRIP_UAL100", "Local", 1, 2));
+        Assert.Equal("STRIP STRIP_UAL100 Local/1", VStripsCanonicalBuilder.BuildStripMoveById("STRIP_UAL100", "Local", 0, null));
+    }
+
+    [Fact]
+    public void BuildAnnotateById_PrefixesIdBeforeBoxAndText()
+    {
+        Assert.Equal("AN STRIP_UAL100 3 RV", VStripsCanonicalBuilder.BuildAnnotateById("STRIP_UAL100", "3", "RV"));
+        Assert.Equal("AN STRIP_UAL100 5", VStripsCanonicalBuilder.BuildAnnotateById("STRIP_UAL100", "5", null));
+        Assert.Equal("AN STRIP_UAL100 8a ENR", VStripsCanonicalBuilder.BuildAnnotateById("STRIP_UAL100", "8a", "ENR"));
+    }
+
+    [Fact]
     public void BuildStripScan_FormatsExternalBayDest_OneBasedSlashWire()
     {
         // SCAN copies a full strip into an external facility's bay; format
@@ -99,16 +129,18 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildHalfStripAmend_ExpandsKeyThenLines()
+    public void BuildHalfStripAmend_PrefixesStripIdThenLines()
     {
-        Assert.Equal("HSA NORDO NEW LINE2", VStripsCanonicalBuilder.BuildHalfStripAmend("NORDO", ["NEW", "LINE2"]));
+        // Half-strip mutations always pass strip.Id (HSTRIP_…) — duplicate
+        // first-line text would otherwise produce ambiguous matches.
+        Assert.Equal("HSA HSTRIP_abc123 NEW LINE2", VStripsCanonicalBuilder.BuildHalfStripAmend("HSTRIP_abc123", ["NEW", "LINE2"]));
     }
 
     [Fact]
-    public void BuildHalfStripMove_UsesSlashSeparatedDest_OneBasedWire()
+    public void BuildHalfStripMove_UsesStripIdAndSlashDest()
     {
         // 0-based rack 1 / index 2 → wire rack 2 / index 3.
-        Assert.Equal("HSM NORDO Local/2/3", VStripsCanonicalBuilder.BuildHalfStripMove("NORDO", "Local", 1, 2));
+        Assert.Equal("HSM HSTRIP_abc123 Local/2/3", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "Local", 1, 2));
     }
 
     [Fact]
@@ -117,15 +149,15 @@ public class VStripsCanonicalBuilderTests
         // CRC bay names contain literal spaces ("Local 1"). The canonical must
         // round-trip through whitespace tokenization on the server (handler
         // resolves multi-word bays via StripMutations.ResolveStripDest).
-        Assert.Equal("HSM N569SX Local 1/1/2", VStripsCanonicalBuilder.BuildHalfStripMove("N569SX", "Local 1", 0, 1));
+        Assert.Equal("HSM HSTRIP_abc123 Local 1/1/2", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "Local 1", 0, 1));
     }
 
     [Fact]
-    public void BuildHalfStripDeleteOffsetSlide_AreKeyed()
+    public void BuildHalfStripDeleteOffsetSlide_AreStripIdKeyed()
     {
-        Assert.Equal("HSD NORDO", VStripsCanonicalBuilder.BuildHalfStripDelete("NORDO"));
-        Assert.Equal("HSO NORDO", VStripsCanonicalBuilder.BuildHalfStripOffset("NORDO"));
-        Assert.Equal("HSS NORDO", VStripsCanonicalBuilder.BuildHalfStripSlide("NORDO"));
+        Assert.Equal("HSD HSTRIP_abc123", VStripsCanonicalBuilder.BuildHalfStripDelete("HSTRIP_abc123"));
+        Assert.Equal("HSO HSTRIP_abc123", VStripsCanonicalBuilder.BuildHalfStripOffset("HSTRIP_abc123"));
+        Assert.Equal("HSS HSTRIP_abc123", VStripsCanonicalBuilder.BuildHalfStripSlide("HSTRIP_abc123"));
     }
 
     [Theory]

@@ -470,7 +470,11 @@ public record GhostTrackCommand(string Callsign, string? AirportCode, string? Ru
 /// and <c>AN 8A RV</c>) to this canonical form so handlers only need to
 /// dispatch on the canonical string.
 /// </summary>
-public record StripAnnotateCommand(string Box, string? Text) : ParsedCommand;
+// Optional <c>StripId</c> targets a specific full strip (departure, arrival,
+// or scanned copy) by its <c>STRIP_…</c> id when set. Null means
+// callsign-keyed (the historical default), where the handler synthesizes
+// <c>STRIP_{callsign}</c>.
+public record StripAnnotateCommand(string Box, string? Text, string? StripId = null) : ParsedCommand;
 
 // Tokens = space-separated args after STRIP; server-side handler greedy-matches a bay
 // prefix against accessible bays, then parses the remaining 0..2 tokens as rack/index.
@@ -486,9 +490,12 @@ public record StripMoveCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 // preserved.
 public record StripScanCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
-public record StripDeleteCommand : ParsedCommand;
+// <c>StripId</c> targets a specific full strip by id (e.g. a scanned copy
+// <c>STRIP_{callsign}_{shortGuid}</c>). Null = callsign-keyed default.
+public record StripDeleteCommand(string? StripId = null) : ParsedCommand;
 
-public record StripOffsetCommand : ParsedCommand;
+// <c>StripId</c>: same id-form support as <see cref="StripDeleteCommand"/>.
+public record StripOffsetCommand(string? StripId = null) : ParsedCommand;
 
 public record HalfStripCreateCommand(string BayName, int? Rack, IReadOnlyList<string> Lines) : ParsedCommand;
 

@@ -246,9 +246,11 @@ public class VStripsViewModelTests
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-loc"), rack: 1, index: 2);
 
         var entry = Assert.Single(captured);
-        Assert.Equal("UAL100", entry.Callsign);
+        // UI dispatches by strip id, not callsign — keeps scanned copies
+        // (which share a callsign with the original) addressable.
+        Assert.Equal("", entry.Callsign);
         // Wire is slash-compound 1-based: rack 1 → "2", index 2 → "3".
-        Assert.Equal("STRIP LOCAL/2/3", entry.Command);
+        Assert.Equal("STRIP S1 LOCAL/2/3", entry.Command);
     }
 
     [Fact]
@@ -339,7 +341,7 @@ public class VStripsViewModelTests
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S2"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: 2);
 
         var entry = Assert.Single(captured);
-        Assert.Equal("STRIP GROUND/1/3", entry.Command);
+        Assert.Equal("STRIP S2 GROUND/1/3", entry.Command);
     }
 
     [Fact]
@@ -395,12 +397,12 @@ public class VStripsViewModelTests
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: null);
 
         var entry = Assert.Single(captured);
-        // Wire drops the trailing /index token.
-        Assert.Equal("STRIP GROUND/1", entry.Command);
+        // Wire drops the trailing /index token; UI prefixes the strip id.
+        Assert.Equal("STRIP S1 GROUND/1", entry.Command);
     }
 
     [Fact]
-    public async Task MoveStripAsync_HalfStrip_EmitsHsmWithKey()
+    public async Task MoveStripAsync_HalfStrip_EmitsHsmWithStripId()
     {
         var (vm, captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
@@ -410,12 +412,14 @@ public class VStripsViewModelTests
 
         var entry = Assert.Single(captured);
         Assert.Equal("", entry.Callsign);
+        // HSM addresses the half-strip by id (not first-line text) so two
+        // half-strips with duplicate first-line cells stay distinguishable.
         // 1-based wire: rack 0 → "1", index 0 → "1".
-        Assert.Equal("HSM NORDO LOCAL/1/1", entry.Command);
+        Assert.Equal("HSM H1 LOCAL/1/1", entry.Command);
     }
 
     [Fact]
-    public async Task DeleteStripAsync_FullStrip_EmitsStripd()
+    public async Task DeleteStripAsync_FullStrip_EmitsStripdById()
     {
         var (vm, captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
@@ -424,12 +428,15 @@ public class VStripsViewModelTests
         await vm.DeleteStripAsync(vm.ItemsByIdForTests["S1"]);
 
         var entry = Assert.Single(captured);
-        Assert.Equal("UAL100", entry.Callsign);
-        Assert.Equal("STRIPD", entry.Command);
+        // STRIPD addresses by strip id so a scanned copy
+        // <c>STRIP_{callsign}_{shortGuid}</c> can be removed without
+        // hitting the original.
+        Assert.Equal("", entry.Callsign);
+        Assert.Equal("STRIPD S1", entry.Command);
     }
 
     [Fact]
-    public async Task ToggleOffsetAsync_FullStrip_EmitsStripo()
+    public async Task ToggleOffsetAsync_FullStrip_EmitsStripoById()
     {
         var (vm, captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
@@ -437,11 +444,11 @@ public class VStripsViewModelTests
 
         await vm.ToggleOffsetAsync(vm.ItemsByIdForTests["S1"]);
 
-        Assert.Equal(("UAL100", "STRIPO"), captured[0]);
+        Assert.Equal(("", "STRIPO S1"), captured[0]);
     }
 
     [Fact]
-    public async Task AnnotateAsync_EmitsAnOnAircraftCallsign()
+    public async Task AnnotateAsync_EmitsAnByStripId()
     {
         var (vm, captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
@@ -449,7 +456,7 @@ public class VStripsViewModelTests
 
         await vm.AnnotateAsync(vm.ItemsByIdForTests["S1"], "3", "RV");
 
-        Assert.Equal(("UAL100", "AN 3 RV"), captured[0]);
+        Assert.Equal(("", "AN S1 3 RV"), captured[0]);
     }
 
     [Fact]
@@ -461,7 +468,7 @@ public class VStripsViewModelTests
 
         await vm.AnnotateAsync(vm.ItemsByIdForTests["S1"], "8a", "ENR");
 
-        Assert.Equal(("UAL100", "AN 8a ENR"), captured[0]);
+        Assert.Equal(("", "AN S1 8a ENR"), captured[0]);
     }
 
     [Fact]
@@ -533,10 +540,12 @@ public class VStripsViewModelTests
 
         // Push to an external bay uses the exact same canonical verb as a
         // move within the same window — the server's GetAccessibleStripBay
-        // already accepts external bays.
+        // already accepts external bays. The UI prefixes the strip id so
+        // the dispatch targets this exact strip even if its callsign
+        // collides with a scanned copy.
         var (callsign, canonical) = captured[0];
-        Assert.Equal("UAL100", callsign);
-        Assert.StartsWith("STRIP NCT", canonical);
+        Assert.Equal("", callsign);
+        Assert.StartsWith("STRIP STRIP_UAL100 NCT", canonical);
     }
 
     [Fact]

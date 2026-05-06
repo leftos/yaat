@@ -242,8 +242,13 @@ public class VStripsViewInteractionTests
         }
 
         Assert.Equal(3, captured.Count);
-        Assert.All(captured, c => Assert.StartsWith("STRIP LOCAL", c.Command));
-        Assert.Equal(["S1", "S2", "S3"], captured.Select(c => c.Callsign).ToArray());
+        // PushAllInRackAsync uses null index (append-to-tail), so the wire
+        // drops the trailing /index. Each STRIP dispatch is keyed by the
+        // strip id (UI default) so duplicate-callsign edges stay distinct.
+        Assert.Equal("STRIP S1 LOCAL/1", captured[0].Command);
+        Assert.Equal("STRIP S2 LOCAL/1", captured[1].Command);
+        Assert.Equal("STRIP S3 LOCAL/1", captured[2].Command);
+        Assert.All(captured, c => Assert.Equal("", c.Callsign));
     }
 
     [AvaloniaFact]
@@ -348,19 +353,16 @@ public class VStripsViewInteractionTests
     }
 
     [AvaloniaFact]
-    public void StripContextMenu_ScannedCopy_HidesCallsignKeyedItems()
+    public void StripContextMenu_ScannedCopy_ShowsAllItems()
     {
         // A scanned copy is a full strip with id "STRIP_{callsign}_{guid}" —
-        // distinguishable from the canonical "STRIP_{callsign}" form. The
-        // Offset / Push to / Push all in rack to / Delete items all dispatch
-        // callsign-keyed canonicals (STRIPO / STRIP / STRIPD) which would
-        // hit the **originator's** strip, not this copy. Hide them on copies
-        // so the receiver can't accidentally clobber the source.
+        // distinguishable from the canonical "STRIP_{callsign}" form.
+        // Every menu item now dispatches by strip id (STRIPD STRIP_<id> /
+        // STRIPO STRIP_<id> / AN STRIP_<id> / STRIP STRIP_<id> ...), so the
+        // receiver can manage the copy without disturbing the original.
         var (vm, _) = MakeVm();
         SeedBays(vm, ConfigWithExternalBay());
 
-        // Seed a "scanned copy" — id has STRIP_ prefix but doesn't match
-        // STRIP_{AircraftId}, so the gate fires.
         var copy = new StripItemDto(
             "STRIP_UAL123_abcdef01",
             "UAL123",
@@ -394,11 +396,10 @@ public class VStripsViewInteractionTests
         var menu = view.BuildStripContextMenu(strip, vm);
         var headers = ExtractHeaders(menu);
 
-        Assert.DoesNotContain("Offset", headers);
-        Assert.DoesNotContain("Push to", headers);
-        Assert.DoesNotContain("Push all in rack to", headers);
-        Assert.DoesNotContain("Scan to", headers);
-        Assert.DoesNotContain("Delete", headers);
+        Assert.Contains("Offset", headers);
+        Assert.Contains("Push to", headers);
+        Assert.Contains("Scan to", headers);
+        Assert.Contains("Delete", headers);
     }
 
     [AvaloniaFact]

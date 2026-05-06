@@ -764,8 +764,8 @@ public static class CommandParser
             Annotate when arg is not null => ParseStripAnnotate(arg),
             StripMove when arg is not null => ParseStripMove(arg),
             StripScan when arg is not null => ParseStripScan(arg),
-            StripDelete when arg is null => PR.Ok(new StripDeleteCommand()),
-            StripOffset when arg is null => PR.Ok(new StripOffsetCommand()),
+            StripDelete => ParseStripDelete(arg),
+            StripOffset => ParseStripOffset(arg),
             HalfStripCreate when arg is not null => ParseHalfStripCreate(arg),
             HalfStripAmend => ParseHalfStripMutate(arg ?? "", isDelete: false),
             HalfStripDelete => ParseHalfStripMutate(arg ?? "", isDelete: true),
@@ -2138,12 +2138,67 @@ public static class CommandParser
         return PR.Ok(new CreateAbbreviatedFlightPlanCommand(beaconCode, scratchpad1, scratchpad2, aircraftType, cruiseAltitude, flightRules));
     }
 
+    /// <summary>
+    /// Recognizes the optional <c>STRIP_…</c> id-form prefix that strip-tab
+    /// commands (STRIPD/STRIPO/AN/STRIP) use to address a specific full strip
+    /// — most importantly a scanned copy <c>STRIP_{callsign}_{shortGuid}</c>
+    /// that shares its callsign with the original. Match is case-insensitive.
+    /// </summary>
+    private static bool IsFullStripIdToken(string token) => token.StartsWith("STRIP_", StringComparison.OrdinalIgnoreCase);
+
+    private static PR ParseStripDelete(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Ok(new StripDeleteCommand());
+        }
+        var trimmed = arg.Trim();
+        if (IsFullStripIdToken(trimmed) && !trimmed.Contains(' '))
+        {
+            return PR.Ok(new StripDeleteCommand(trimmed));
+        }
+        return PR.Fail($"STRIPD takes no argument or a STRIP_<id> token (got '{trimmed}')");
+    }
+
+    private static PR ParseStripOffset(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Ok(new StripOffsetCommand());
+        }
+        var trimmed = arg.Trim();
+        if (IsFullStripIdToken(trimmed) && !trimmed.Contains(' '))
+        {
+            return PR.Ok(new StripOffsetCommand(trimmed));
+        }
+        return PR.Fail($"STRIPO takes no argument or a STRIP_<id> token (got '{trimmed}')");
+    }
+
     private static PR ParseStripAnnotate(string arg)
     {
         var parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return PR.Fail($"invalid strip annotation box '{arg}'");
+        }
+
+        // Optional leading STRIP_<id> token: <c>AN STRIP_<id> 3 [text]</c>.
+        // Peeled off here so the rest of the parser is unchanged. UI emit
+        // sites that target a scanned copy use this form; terminal users
+        // typing <c>AN 3 RV</c> hit the no-id branch.
+        string? stripId = null;
+        if (IsFullStripIdToken(parts[0]))
+        {
+            stripId = parts[0];
+            if (parts.Length < 2)
+            {
+                return PR.Fail($"AN with strip id requires a box (got '{arg}')");
+            }
+            parts = parts[1].Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+            {
+                return PR.Fail($"AN with strip id requires a box (got '{arg}')");
+            }
         }
 
         var boxToken = parts[0].ToLowerInvariant();
@@ -2174,7 +2229,7 @@ public static class CommandParser
         }
 
         var text = parts.Length > 1 ? parts[1].Trim() : null;
-        return PR.Ok(new StripAnnotateCommand(canonical, text));
+        return PR.Ok(new StripAnnotateCommand(canonical, text, stripId));
     }
 
     private const int HalfStripMaxLines = 6;

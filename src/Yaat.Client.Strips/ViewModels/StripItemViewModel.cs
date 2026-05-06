@@ -198,12 +198,5 @@ public partial class StripItemViewModel : ObservableObject
         OnPropertyChanged(nameof(SeparatorLabel));
     }
 
-    /// <summary>
-    /// Lookup key used by half-strip canonical verbs (HSA / HSD / HSM / HSO / HSS).
-    /// Half-strips identify themselves by their first field value; fall back to the
-    /// strip id if the first field is empty (still unique across all items).
-    /// </summary>
-    public string LookupKey => FieldValues.Length > 0 && !string.IsNullOrEmpty(FieldValues[0]) ? FieldValues[0] : Id;
-
     private string Field(int idx) => idx < FieldValues.Length ? FieldValues[idx] ?? "" : "";
 }
