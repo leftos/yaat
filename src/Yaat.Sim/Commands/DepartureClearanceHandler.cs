@@ -13,6 +13,21 @@ internal sealed record DepartureRouteResult(List<NavigationTarget> Targets, stri
 
 internal static class DepartureClearanceHandler
 {
+    /// <summary>
+    /// When CTO bundles an explicit climb-to altitude, mirror it onto
+    /// <see cref="ControlTargets.AssignedAltitude"/> so the datablock, SALT,
+    /// and SnapshotDiff observe a single source of truth from issuance —
+    /// matching the CM/DM/FA pattern. Bare LUAW (without takeoff) does not
+    /// authorize the climb yet, so leave the field alone in that case.
+    /// </summary>
+    private static void SyncControllerAssignedAltitude(AircraftState aircraft, ClearanceType type, int? assignedAltitude)
+    {
+        if (type == ClearanceType.ClearedForTakeoff && assignedAltitude is { } v)
+        {
+            aircraft.Targets.AssignedAltitude = v;
+        }
+    }
+
     internal static CommandResult TryClearedForTakeoff(ClearedForTakeoffCommand cto, AircraftState aircraft, LinedUpAndWaitingPhase luaw)
     {
         if (aircraft.Phases?.AssignedRunway is null)
@@ -23,6 +38,7 @@ internal static class DepartureClearanceHandler
         luaw.Departure = cto.Departure;
         luaw.AssignedAltitude = cto.AssignedAltitude;
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+        SyncControllerAssignedAltitude(aircraft, ClearanceType.ClearedForTakeoff, cto.AssignedAltitude);
 
         string? takeoffDesignator = null;
 
@@ -144,6 +160,7 @@ internal static class DepartureClearanceHandler
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Procedure.DepartureRunway = runway.Designator;
         InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, holding.HoldShort.NodeId, logger);
+        SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
     }
@@ -169,6 +186,7 @@ internal static class DepartureClearanceHandler
         aircraft.Procedure.DepartureRunway = runway.Designator;
         InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, null, logger);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+        SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
     }
@@ -284,6 +302,7 @@ internal static class DepartureClearanceHandler
             PatternRunway = patternRunway,
             PreClearedHoldShortNodeIds = preClearedIds.Count > 0 ? preClearedIds : null,
         };
+        SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
     }
@@ -472,6 +491,8 @@ internal static class DepartureClearanceHandler
         }
 
         logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);
+
+        SyncControllerAssignedAltitude(aircraft, ClearanceType.ClearedForTakeoff, assignedAltitude);
 
         return BuildDepartureMessage(ClearanceType.ClearedForTakeoff, takeoffDesignator, departure, assignedAltitude);
     }
@@ -1087,6 +1108,7 @@ internal static class DepartureClearanceHandler
             }
             luawCancel.Departure = null;
             luawCancel.AssignedAltitude = null;
+            aircraft.Targets.AssignedAltitude = null;
             return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
         }
         if (currentPhase is LineUpPhase lineup)
@@ -1113,6 +1135,7 @@ internal static class DepartureClearanceHandler
                 }
             }
             aircraft.Phases.DepartureClearance = null;
+            aircraft.Targets.AssignedAltitude = null;
             return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold short{CommandDispatcher.RunwayLabel(aircraft)}");
         }
         if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
@@ -1133,6 +1156,7 @@ internal static class DepartureClearanceHandler
             aircraft.Phases?.Clear(ctx);
             aircraft.Phases = null;
             aircraft.Targets.TargetSpeed = 0;
+            aircraft.Targets.AssignedAltitude = null;
             return CommandDispatcher.Ok("Abort takeoff, hold position");
         }
         return new CommandResult(false, "No takeoff clearance to cancel");
@@ -1182,6 +1206,7 @@ internal static class DepartureClearanceHandler
                 }
                 upcomingLuaw.Departure = null;
                 upcomingLuaw.AssignedAltitude = null;
+                aircraft.Targets.AssignedAltitude = null;
                 return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
             }
             if (p is TakeoffPhase or HelicopterTakeoffPhase)
@@ -1191,6 +1216,7 @@ internal static class DepartureClearanceHandler
                 // LUAW so the aircraft holds when the line-up brake completes.
                 lineup.RollingMode = false;
                 phases.Insert(i, new LinedUpAndWaitingPhase());
+                aircraft.Targets.AssignedAltitude = null;
                 return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
             }
         }
@@ -1248,6 +1274,7 @@ internal static class DepartureClearanceHandler
             Logger = SimLog.CreateLogger("DepartureClearanceHandler"),
         };
         aircraft.Phases.Start(ctoppCtx);
+        SyncControllerAssignedAltitude(aircraft, ClearanceType.ClearedForTakeoff, ctopp.AssignedAltitude);
 
         var msg = "Cleared for takeoff, present position";
         msg += FormatDepartureInstructionSuffix(ctopp.Departure);
