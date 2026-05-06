@@ -14,6 +14,7 @@
 - `SALT` after a `CTO` with a bundled climb-to altitude (e.g. `CTO ... 014`) reports *"Leaving X for 1,400"* — the assigned altitude is mirrored onto the aircraft the moment the takeoff clearance is issued, and `CTOC` retracts it.
 - Conditional `AT FIX` / `LV altitude` commands no longer cancel the active phase at dispatch — the wrapped instruction waits for the trigger to fire.
 - Aircraft on a long final now slow progressively instead of holding intercept speed until ~5 NM and then bleeding to Vref in one shot. A configuration gate at ~5–7 NM commands `1.3 × Vref` first; the existing FAS gate at ~2 NM then commands Vref. Heavies spawned `OnFinal` at 12 NM (e.g. B763 at 224 KIAS) now settle at the configuration band by ~5 NM, matching real flap-extension and stabilized-approach pacing.
+- Flight plans created or amended from CRC clients now record the correct FAA equipment suffix (e.g. `C182/A`) instead of garbage like `C182/L-DOV/C`.
 
 ## v0.1.15-alpha [2026/05/05]
 
