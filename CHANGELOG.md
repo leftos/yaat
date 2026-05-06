@@ -9,6 +9,7 @@
 - Aircraft taxiing out of OAK GA-ramp parking spots (GA3, GA7, etc.) no longer make a wide ~270° turn onto their first taxiway. The pathfinder previously picked the geometrically-shortest fillet arc to enter the named taxiway, even when that arc was authored for the opposite direction of travel and would land the aircraft heading 180° from the next walk step. It now prefers bridge endpoints whose first arc is traversed in its natural-forward bezier direction (or is a straight edge), so the aircraft turns the short way out of parking.
 - Aircraft list **Type** column shows the physical aircraft type — instructor amendments that blank the filed flight plan no longer leave the column empty.
 - `SALT` after a `CTO` with a bundled climb-to altitude (e.g. `CTO ... 014`) reports *"Leaving X for 1,400"* — the assigned altitude is mirrored onto the aircraft the moment the takeoff clearance is issued, and `CTOC` retracts it.
+- Conditional `AT FIX` / `LV altitude` commands no longer cancel the active phase at dispatch — the wrapped instruction waits for the trigger to fire.
 
 ## v0.1.15-alpha [2026/05/05]
 

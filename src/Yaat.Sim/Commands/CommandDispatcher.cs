@@ -920,6 +920,19 @@ public static class CommandDispatcher
     /// </summary>
     private static CommandResult? DispatchWithPhase(CompoundCommand compound, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
+        // Conditional leading blocks (AT FIX, LV altitude, distance-final, on-handoff,
+        // ground-entity) defer to the queue's trigger machinery — the wrapped command
+        // hasn't actually fired yet, so the active phase must not be torn down based on
+        // what the deferred block would do. WAIT / GiveWay are short-circuited earlier
+        // via TryDeferLeadingWait / TryDeferGiveWay; this guard covers the other
+        // condition types that share the queue/trigger path. Returning null routes the
+        // compound through DispatchCompound's normal DryRunValidate + EnqueueBlocks
+        // path, where the block gets a BlockTrigger and waits for the trigger to fire.
+        if (compound.Blocks[0].Condition is not null)
+        {
+            return null;
+        }
+
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
 
