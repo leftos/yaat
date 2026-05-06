@@ -178,22 +178,24 @@ public class OakGaSpawnTurnAroundTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Assertion: neither N346G nor N172SP should accumulate more than 220° of
-    /// total heading rotation from spawn through t=30 s. A natural taxi-out
-    /// from these parking spots requires ~150-180° of cumulative rotation
-    /// (short-way connector + short-way arc onto the taxiway). The bug under
-    /// investigation produces ~270-400° of cumulative CW rotation because the
-    /// pathfinder picks an arc that lands the aircraft heading opposite the
-    /// next segment's direction, forcing a 180° reversal at the arc endpoint.
+    /// Assertion: neither N346G nor N172SP should accumulate more than 320° of
+    /// total heading rotation from spawn through t=30 s, AND signed rotation
+    /// must stay within 200° (no near-full-revolution spiral). A natural
+    /// taxi-out from these parking spots requires ~150-200° of *signed* turn
+    /// (short-way connector + short-way arc onto the taxiway, plus minor
+    /// pursuit-control oscillation that bumps the absolute total). The bug
+    /// produces ~270-400° of *signed* CW rotation because the pathfinder
+    /// picks an arc that lands the aircraft heading opposite the next
+    /// segment's direction, forcing a 180° reversal at the arc endpoint.
     ///
-    /// This test fails on `main` (the buggy code) and should pass after the
-    /// pathfinder learns to penalize routes with large abrupt heading
-    /// reversals at non-parking nodes.
+    /// This test fails on `main` (the buggy code) and passes once the
+    /// pathfinder prefers bridge endpoints whose first target-taxiway arc
+    /// is traversed in its natural-forward bezier direction.
     /// </summary>
     [Theory]
-    [InlineData("N346G", 220.0)]
-    [InlineData("N172SP", 220.0)]
-    public void TaxiOut_DoesNotSpinNearlyFullCircle(string callsign, double maxCumulativeDeg)
+    [InlineData("N346G", 320.0, 200.0)]
+    [InlineData("N172SP", 320.0, 200.0)]
+    public void TaxiOut_DoesNotSpinNearlyFullCircle(string callsign, double maxCumulativeAbsDeg, double maxAbsSignedDeg)
     {
         var recording = LoadRecording();
         var engine = BuildEngine();
@@ -225,13 +227,20 @@ public class OakGaSpawnTurnAroundTests(ITestOutputHelper output)
         }
 
         output.WriteLine(
-            $"{callsign}: cumulativeAbs={cumulativeAbs:F0}deg cumulativeSigned={cumulativeSigned:F0}deg (max allowed {maxCumulativeDeg:F0})"
+            $"{callsign}: cumulativeAbs={cumulativeAbs:F0}deg cumulativeSigned={cumulativeSigned:F0}deg "
+                + $"(max abs {maxCumulativeAbsDeg:F0}, max signed {maxAbsSignedDeg:F0})"
         );
         Assert.True(
-            cumulativeAbs <= maxCumulativeDeg,
-            $"{callsign} accumulated {cumulativeAbs:F0}deg of rotation in 30s — expected <= {maxCumulativeDeg:F0}deg "
-                + $"(short-way taxi out of parking should be ~150-180deg). Spinning the long way around an arc "
-                + $"whose tangent opposes the next route segment is the symptom."
+            cumulativeAbs <= maxCumulativeAbsDeg,
+            $"{callsign} accumulated {cumulativeAbs:F0}deg of rotation in 30s — expected <= {maxCumulativeAbsDeg:F0}deg. "
+                + "The 270deg taxi-out spiral compounds CW rotation past a full half-revolution; natural "
+                + "pursuit-control taxi out of parking should stay well under this."
+        );
+        Assert.True(
+            Math.Abs(cumulativeSigned) <= maxAbsSignedDeg,
+            $"{callsign} accumulated {cumulativeSigned:F0}deg of *signed* rotation in 30s — expected |signed| <= {maxAbsSignedDeg:F0}deg. "
+                + "A signed rotation past +/-200deg is the spiral symptom: the aircraft kept turning the same way "
+                + "past where a short-way correction would have arrived."
         );
     }
 

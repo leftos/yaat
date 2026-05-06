@@ -96,6 +96,28 @@ public static class TaxiPathfinder
     private const double FewestTurnsDistanceWeight = 0.001;
 
     /// <summary>
+    /// Cost penalty (in nm-equivalent units) added when two consecutive route
+    /// edges meet at a non-parking node with an arrival-vs-departure heading
+    /// flip exceeding <see cref="BearingFlipThresholdDeg"/>. The aircraft would
+    /// have to U-turn at that node, which is almost always a sign that the
+    /// pathfinder picked the wrong fillet arc — a sibling arc with the
+    /// correct exit tangent usually exists nearby. The penalty is large
+    /// enough to be effectively forbidding when an alternative path is
+    /// reachable, but small enough that A* will still resolve a route
+    /// through such a junction if no alternative exists (rather than
+    /// returning null).
+    /// </summary>
+    private const double BearingFlipPenaltyNm = 5.0;
+
+    /// <summary>
+    /// Heading flip threshold (degrees) at a connecting node above which
+    /// the bearing-flip penalty applies. 135 deg permits ordinary sharp
+    /// turns (e.g. 90 deg twy intersections, 120 deg V-junctions) and
+    /// only catches near-U-turn transitions.
+    /// </summary>
+    private const double BearingFlipThresholdDeg = 135.0;
+
+    /// <summary>
     /// Validate and resolve an explicit taxiway path (e.g., "S T U W W1").
     /// Supports #nodeId tokens for exact node references (A* between them).
     /// Returns the route along the named taxiways, with implicit hold-short at
@@ -658,7 +680,7 @@ public static class TaxiPathfinder
                 candidates.Add(new TaxiRoute { Segments = combinedSegments, HoldShortPoints = holdShorts });
             }
 
-            candidates.Sort((a, b) => RouteCost(a, costFn).CompareTo(RouteCost(b, costFn)));
+            candidates.Sort((a, b) => RouteCost(layout, a, costFn).CompareTo(RouteCost(layout, b, costFn)));
 
             TaxiRoute? nextRoute = null;
             foreach (var candidate in candidates)
@@ -818,17 +840,79 @@ public static class TaxiPathfinder
     /// Total cost of a route under the given cost function.
     /// Used by Yen's K-shortest to sort candidates by the active strategy's metric.
     /// </summary>
-    private static double RouteCost(TaxiRoute route, Func<IGroundEdge, IGroundEdge?, double> costFn)
+    private static double RouteCost(AirportGroundLayout layout, TaxiRoute route, Func<IGroundEdge, IGroundEdge?, double> costFn)
     {
         double total = 0;
         IGroundEdge? prev = null;
         foreach (var seg in route.Segments)
         {
             total += costFn(seg.Edge.Edge, prev);
+            if (prev is not null)
+            {
+                total += BearingFlipPenalty(layout, seg.Edge.FromNodeId, prev, seg.Edge.Edge);
+            }
+
             prev = seg.Edge.Edge;
         }
 
         return total;
+    }
+
+    /// <summary>
+    /// Returns <see cref="BearingFlipPenaltyNm"/> when the transition from
+    /// <paramref name="prevEdge"/> to <paramref name="nextEdge"/> at
+    /// <paramref name="connectingNodeId"/> requires an abrupt heading flip
+    /// of more than <see cref="BearingFlipThresholdDeg"/>; otherwise 0. The
+    /// flip is computed from the directional tangent at the connecting node
+    /// for each edge — for arcs via <see cref="GroundArc.TangentBearingAt"/>,
+    /// for straights via the chord bearing into / out of the node. Parking
+    /// nodes are exempt because routes that end at a parking spot legitimately
+    /// reverse direction at the destination, and routes that start at a
+    /// parking spot can't have a "flip" relative to a previous edge anyway
+    /// (there is no previous edge).
+    /// </summary>
+    private static double BearingFlipPenalty(AirportGroundLayout layout, int connectingNodeId, IGroundEdge prevEdge, IGroundEdge nextEdge)
+    {
+        if (!layout.Nodes.TryGetValue(connectingNodeId, out var connectingNode))
+        {
+            return 0.0;
+        }
+
+        if (connectingNode.Type == GroundNodeType.Parking)
+        {
+            return 0.0;
+        }
+
+        double arrivalBrg = ArrivalBearingAt(prevEdge, connectingNodeId);
+        double departureBrg = DepartureBearingAt(nextEdge, connectingNodeId);
+        double flipDeg = Math.Abs((((departureBrg - arrivalBrg) + 540.0) % 360.0) - 180.0);
+        return flipDeg > BearingFlipThresholdDeg ? BearingFlipPenaltyNm : 0.0;
+    }
+
+    private static double ArrivalBearingAt(IGroundEdge edge, int connectingNodeId)
+    {
+        var nodes = edge.Nodes;
+        var connectingNode = nodes[0].Id == connectingNodeId ? nodes[0] : nodes[1];
+        var otherNode = nodes[0].Id == connectingNodeId ? nodes[1] : nodes[0];
+        if (edge is GroundArc arc)
+        {
+            return arc.TangentBearingAt(connectingNode, otherNode, connectingNode);
+        }
+
+        return GeoMath.BearingTo(otherNode.Position, connectingNode.Position);
+    }
+
+    private static double DepartureBearingAt(IGroundEdge edge, int connectingNodeId)
+    {
+        var nodes = edge.Nodes;
+        var connectingNode = nodes[0].Id == connectingNodeId ? nodes[0] : nodes[1];
+        var otherNode = nodes[0].Id == connectingNodeId ? nodes[1] : nodes[0];
+        if (edge is GroundArc arc)
+        {
+            return arc.TangentBearingAt(connectingNode, connectingNode, otherNode);
+        }
+
+        return GeoMath.BearingTo(connectingNode.Position, otherNode.Position);
     }
 
     /// <summary>
@@ -2199,6 +2283,10 @@ public static class TaxiPathfinder
 
                 IGroundEdge? prevEdge = cameFrom.TryGetValue(current, out var prevEntry) ? prevEntry.Edge : null;
                 double tentativeG = currentG + costFn(edge, prevEdge);
+                if (prevEdge is not null)
+                {
+                    tentativeG += BearingFlipPenalty(layout, current, prevEdge, edge);
+                }
 
                 if (tentativeG >= gScore.GetValueOrDefault(neighbor, double.MaxValue))
                 {
@@ -2482,9 +2570,19 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// BFS from startNodeId (max 3 hops) to find the nearest graph-connected
+    /// BFS from startNodeId (max 3 hops) to find the best graph-connected
     /// node that has an edge on the target taxiway. Adds connecting segments.
     /// Returns -1 if no path found.
+    /// <para>
+    /// "Best" prefers candidates whose first target-taxiway edge can be entered
+    /// without a >135° heading flip vs the bridge's arrival direction. Without
+    /// this preference, an aircraft taxiing out of parking can pick the first
+    /// 1-hop candidate whose only target-taxiway edge is a fillet arc that
+    /// lands the aircraft heading opposite the next walk step (forcing a U-turn
+    /// at the arc endpoint). When a flip-free candidate is reachable in
+    /// roughly the same hop count, this pass finds it. Falls back to the
+    /// hop-count-shortest candidate when none is flip-free.
+    /// </para>
     /// </summary>
     private static int BfsToTaxiway(AirportGroundLayout layout, int startNodeId, string taxiwayName, List<TaxiRouteSegment> segments)
     {
@@ -2494,9 +2592,9 @@ public static class TaxiPathfinder
         var cameFrom = new Dictionary<int, (int ParentId, IGroundEdge Edge)>();
         queue.Enqueue((startNodeId, 0));
 
-        int foundId = -1;
+        var candidates = new List<(int NodeId, int Depth)>();
 
-        while (queue.Count > 0 && foundId == -1)
+        while (queue.Count > 0)
         {
             var (nodeId, depth) = queue.Dequeue();
             if (!layout.Nodes.TryGetValue(nodeId, out var node))
@@ -2517,8 +2615,7 @@ public static class TaxiPathfinder
 
                 if (layout.Nodes.TryGetValue(neighborId, out var neighborNode) && neighborNode.Edges.Any(e => e.MatchesTaxiway(taxiwayName)))
                 {
-                    foundId = neighborId;
-                    break;
+                    candidates.Add((neighborId, depth + 1));
                 }
 
                 if (depth + 1 < maxHops)
@@ -2528,10 +2625,12 @@ public static class TaxiPathfinder
             }
         }
 
-        if (foundId == -1)
+        if (candidates.Count == 0)
         {
             return -1;
         }
+
+        int foundId = SelectBestBridgeCandidate(layout, taxiwayName, candidates, cameFrom);
 
         // Reconstruct path and add connecting segments
         var pathNodes = new List<int>();
@@ -2557,6 +2656,103 @@ public static class TaxiPathfinder
         }
 
         return foundId;
+    }
+
+    /// <summary>
+    /// Pick the bridge endpoint in <paramref name="candidates"/> whose first
+    /// target-taxiway edge is traversed in its natural-forward direction (or
+    /// is a straight, where direction does not apply). Fillet arcs are placed
+    /// by <see cref="FilletArcGenerator"/> with a specific bezier orientation
+    /// matching the natural geometric flow at a junction; reverse-traversing
+    /// an arc that connects RAMP to a taxiway lands the aircraft at the
+    /// taxiway endpoint heading 180° away from the next walk step's direction
+    /// (the GA3-at-OAK and GA7-at-OAK 270° turn-out symptom). Each candidate
+    /// is scored:
+    ///
+    /// <para>
+    ///   <c>score = depth + (flipFreeFirstStep ? 0 : ReverseArcPenalty)</c>
+    /// </para>
+    ///
+    /// where <c>flipFreeFirstStep</c> is true when at least one
+    /// target-taxiway edge at the candidate is either a straight (no
+    /// inherent direction) or an arc traversed with <c>Nodes[0] ==
+    /// candidateId</c> (forward). Lowest score wins.
+    /// </summary>
+    private static int SelectBestBridgeCandidate(
+        AirportGroundLayout layout,
+        string taxiwayName,
+        List<(int NodeId, int Depth)> candidates,
+        Dictionary<int, (int ParentId, IGroundEdge Edge)> cameFrom
+    )
+    {
+        const double ReverseArcPenalty = 1000.0;
+
+        int bestId = candidates[0].NodeId;
+        double bestScore = double.MaxValue;
+
+        foreach (var (nodeId, depth) in candidates)
+        {
+            double score = depth + (HasFlipFreeFirstStep(layout, taxiwayName, nodeId, cameFrom) ? 0.0 : ReverseArcPenalty);
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                bestId = nodeId;
+            }
+        }
+
+        return bestId;
+    }
+
+    /// <summary>
+    /// True when at least one of <paramref name="bridgeEndId"/>'s edges on
+    /// <paramref name="taxiwayName"/> can be entered without a near-U-turn:
+    /// either it's a straight edge (no inherent direction), or it's an arc
+    /// whose bezier <c>Nodes[0]</c> matches the bridge endpoint (forward
+    /// traversal, geometrically aligned with the bridge's arrival heading).
+    /// Excludes the edge by which we arrived (by parent-node match).
+    /// </summary>
+    private static bool HasFlipFreeFirstStep(
+        AirportGroundLayout layout,
+        string taxiwayName,
+        int bridgeEndId,
+        Dictionary<int, (int ParentId, IGroundEdge Edge)> cameFrom
+    )
+    {
+        if (!layout.Nodes.TryGetValue(bridgeEndId, out var bridgeEndNode))
+        {
+            return false;
+        }
+
+        cameFrom.TryGetValue(bridgeEndId, out var bridgeEntry);
+
+        foreach (var edge in bridgeEndNode.Edges)
+        {
+            int otherId = edge.OtherNodeId(bridgeEndId);
+            if (bridgeEntry.Edge is not null && otherId == bridgeEntry.ParentId)
+            {
+                continue;
+            }
+
+            if (!edge.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            if (edge is GroundArc arc)
+            {
+                if (arc.Nodes[0].Id == bridgeEndId)
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
