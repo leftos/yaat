@@ -182,6 +182,13 @@ public partial class DataGridView : UserControl
         menu.AddCommandTextBox(cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
         menu.Items.Add(new Separator());
 
+        if (ac.IsDelayed)
+        {
+            AddDelayedSpawnItems(menu, vm, callsign, initials);
+            grid.ContextMenu = menu;
+            return;
+        }
+
         AddPhaseAwareItems(menu, ac, vm, callsign, initials);
         if (!ac.IsOnGround)
         {

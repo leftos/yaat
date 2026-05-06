@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- Aircraft list right-click on a delayed (deferred) spawn now shows only **Spawn now**, **Change spawn delay** (preset offsets 15s / 30s / 1m / 2m / 5m / 10m, plus a custom input that accepts `90`, `2m15s`, `1h30m`, etc.), and **Delete** — control commands, track/squawk/ask-pilot/coordination submenus, and the flight plan editor are hidden until the aircraft actually spawns.
+
 ### Fixed
 - VFR `ADD` cold-call spawns no longer pre-fill **CID** or **BCN** in the CRC Flight Data editor — both stay blank until the controller files via `DA` / `VP`. Previously the editor showed the auto-assigned CID and `BCN 0000`.
 - VFR `ADD` cold-call spawns at parking are now on transponder **Standby** until the pilot powers up for taxi. Airborne and on-runway VFR ADD spawns continue to squawk Mode C / 1200 (real-world airborne /1200 traffic is altitude-reporting).
