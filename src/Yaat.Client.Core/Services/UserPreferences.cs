@@ -667,6 +667,26 @@ public sealed class UserPreferences
         Save();
     }
 
+    /// <summary>
+    /// Returns the persisted up-arrow command history for a scenario, newest first.
+    /// Empty list when no history has been saved for the given scenario.
+    /// </summary>
+    public IReadOnlyList<string> GetCommandHistory(string scenarioId)
+    {
+        return _data.ScenarioCommandHistory.TryGetValue(scenarioId, out var history) ? history : [];
+    }
+
+    /// <summary>
+    /// Replaces the persisted up-arrow command history for a scenario with the given
+    /// snapshot. Caller is responsible for ordering (newest first) and trimming
+    /// (MainViewModel caps at 50 entries before calling).
+    /// </summary>
+    public void SetCommandHistory(string scenarioId, IEnumerable<string> entries)
+    {
+        _data.ScenarioCommandHistory[scenarioId] = entries.ToList();
+        Save();
+    }
+
     public List<(string ScenarioId, string DisplayName)> GetSavedViewScenarioIds()
     {
         var ids = new HashSet<string>();
@@ -852,6 +872,7 @@ public sealed class UserPreferences
             GroundDatablockFontSize = GetFieldOr(obj, "groundDatablockFontSize", 12),
             GroundLabelFontSize = GetFieldOr(obj, "groundLabelFontSize", 13),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
+            ScenarioCommandHistory = GetFieldOr<Dictionary<string, List<string>>>(obj, "scenarioCommandHistory", []),
         };
 
         return ApplyDefaultServers(result);
@@ -1068,6 +1089,11 @@ public sealed class UserPreferences
         public int GroundDatablockFontSize { get; set; } = 12;
         public int GroundLabelFontSize { get; set; } = 13;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
+
+        // Per-scenario up-arrow recall history. Keyed by ActiveScenarioId; values are
+        // ordered newest-first, capped at 50 entries by MainViewModel before save.
+        // Discarded for commands typed while no scenario is active.
+        public Dictionary<string, List<string>> ScenarioCommandHistory { get; set; } = [];
 
         // Speech recognition. With the LM-Kit engine swap, WhisperModelSize and LlmModelPath
         // hold LM-Kit model sources — curated IDs (e.g. "whisper-large-turbo3", "qwen3.5:4b"),

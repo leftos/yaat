@@ -1023,6 +1023,27 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasScenario));
         OnPropertyChanged(nameof(WindowTitle));
         RefreshDisplayFavorites();
+        ReloadCommandHistoryForScenario(value);
+    }
+
+    /// <summary>
+    /// Replaces the in-memory up-arrow recall list with whatever was last persisted for
+    /// this scenario. Called on every ActiveScenarioId transition (load, switch, unload).
+    /// When the new id is null, the in-memory list is cleared but the saved-to-disk
+    /// history for the previously-active scenario stays intact.
+    /// </summary>
+    private void ReloadCommandHistoryForScenario(string? scenarioId)
+    {
+        CommandHistory.Clear();
+        if (string.IsNullOrEmpty(scenarioId))
+        {
+            return;
+        }
+
+        foreach (var entry in _preferences.GetCommandHistory(scenarioId))
+        {
+            CommandHistory.Add(entry);
+        }
     }
 
     partial void OnActiveScenarioNameChanged(string? value)
@@ -2213,6 +2234,14 @@ public partial class MainViewModel : ObservableObject
         while (CommandHistory.Count > 50)
         {
             CommandHistory.RemoveAt(CommandHistory.Count - 1);
+        }
+
+        // Persist per-scenario; commands typed with no active scenario are kept
+        // in memory only (lost on next scenario load, per the chosen design).
+        var scenarioId = ActiveScenarioId;
+        if (!string.IsNullOrEmpty(scenarioId))
+        {
+            _preferences.SetCommandHistory(scenarioId, CommandHistory);
         }
     }
 }
