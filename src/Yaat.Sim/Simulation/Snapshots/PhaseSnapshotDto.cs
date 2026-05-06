@@ -530,6 +530,15 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     public required bool IsPatternTraffic { get; init; }
     public required bool TooHighGoAroundChecked { get; init; }
     public required bool FasSet { get; init; } = false;
+
+    /// <summary>
+    /// True once the aircraft has been commanded down to the configuration speed
+    /// (1.3·Vref). Two-stage decel: configuration gate (this) precedes the FAS gate.
+    /// Defaults to false on legacy snapshots; <c>FromSnapshot</c> seeds it from
+    /// <see cref="FasSet"/> so restored aircraft past the config gate don't re-fire it.
+    /// </summary>
+    public bool ConfigSet { get; init; }
+
     public required double MapDistNm { get; init; }
 
     /// <summary>
