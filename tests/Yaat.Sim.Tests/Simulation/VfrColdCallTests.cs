@@ -83,6 +83,7 @@ public class VfrColdCallTests(ITestOutputHelper output)
         Assert.Equal(0, ac.FlightPlan.CruiseAltitude);
         Assert.Equal(0, ac.FlightPlan.CruiseSpeed);
         Assert.Equal("VFR", ac.FlightPlan.FlightRules);
+        Assert.Equal("", ac.FlightPlan.EquipmentSuffix);
 
         Assert.Equal((uint)0, ac.Transponder.AssignedCode);
         Assert.Equal((uint)1200, ac.Transponder.Code);

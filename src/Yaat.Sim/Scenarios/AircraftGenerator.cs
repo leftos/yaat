@@ -20,6 +20,32 @@ public static class AircraftGenerator
 
     public static IReadOnlyList<string> GetAirlines() => Airlines;
 
+    /// <summary>
+    /// Builds the FP record for an ADD-spawned aircraft. VFR ADD = cold call: blank fields,
+    /// HasFlightPlan=false. The controller files via DA / VP later. IFR ADD = filed plan with
+    /// the auto-generated type so STARS/strips have a non-blank readout.
+    /// </summary>
+    private static AircraftFlightPlan BuildAddFlightPlan(string flightRules, string aircraftType, string destination)
+    {
+        if (flightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
+        {
+            return new AircraftFlightPlan
+            {
+                HasFlightPlan = false,
+                FlightRules = "VFR",
+                AircraftType = "",
+                EquipmentSuffix = "",
+            };
+        }
+        return new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            FlightRules = flightRules,
+            AircraftType = aircraftType,
+            Destination = destination,
+        };
+    }
+
     public static (AircraftState? State, string? Error) Generate(
         SpawnRequest request,
         string? primaryAirportId,
@@ -165,7 +191,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
         };
 
         return (state, null);
@@ -219,7 +245,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
         };
 
         return (state, null);
@@ -268,7 +294,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
             Phases = init.Phases,
         };
 
@@ -327,12 +353,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan
-            {
-                FlightRules = flightRules,
-                AircraftType = aircraftType,
-                Destination = destination,
-            },
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, destination),
             Phases = init.Phases,
         };
 
@@ -384,7 +405,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = new AircraftFlightPlan { FlightRules = flightRules, AircraftType = aircraftType },
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
             Phases = init.Phases,
         };
 

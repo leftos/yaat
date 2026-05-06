@@ -102,10 +102,13 @@ public static class ScenarioLoader
         // Top-level wins for the actual physical type. Filed FP type is opt-in: only set when
         // the scenario explicitly populates FlightPlan.aircraftType. EquipmentSuffix derives
         // from the filed string when present, else from the actual type so legacy scenarios
-        // without a filed type still surface a sensible suffix on strips.
+        // without a filed type still surface a sensible suffix on strips. Cold calls (no
+        // scenario flightPlan block) get a blank suffix — controllers file via DA / VP.
+        var hasFiledFp = ac.FlightPlan is not null;
         var actualType = ac.AircraftType;
         var filedType = ac.FlightPlan?.AircraftType ?? "";
         var suffixSource = !string.IsNullOrEmpty(filedType) ? filedType : actualType;
+        var equipmentSuffix = hasFiledFp ? ExtractSuffix(suffixSource) : "";
 
         // primaryApproach is only intended for the scenario's primary airport.
         // Aircraft destined elsewhere must not inherit it — even if the same approach ID
@@ -140,8 +143,8 @@ public static class ScenarioLoader
                 Destination = ac.FlightPlan?.Destination ?? "",
                 Route = ac.FlightPlan?.Route ?? "",
                 Remarks = ac.FlightPlan?.Remarks ?? "",
-                EquipmentSuffix = ExtractSuffix(suffixSource),
-                HasFlightPlan = ac.FlightPlan is not null,
+                EquipmentSuffix = equipmentSuffix,
+                HasFlightPlan = hasFiledFp,
             },
             Approach = new AircraftApproachState { Expected = effectiveApproach },
         };
