@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## v0.1.17-alpha [2026/05/06]
+
+### Highlights
+- Up-arrow command recall now persists per scenario across restarts (last 50 entries) — switching scenarios swaps the recall list with it.
+- Aircraft list right-click on a delayed spawn is now trimmed to **Spawn now**, **Change spawn delay** (preset offsets 15s–10m or custom like `2m15s`), and **Delete** — no control commands or flight plan editor until the aircraft actually spawns.
+- VFR `ADD` cold-call spawns now behave like real cold calls: blank CID and BCN in the Flight Data editor, parking spawns sit on transponder **Standby** until taxi.
+- ASDE-X now shows **Standby** aircraft as a primary-only cyan diamond (no callsign, no datablock) instead of a fully-correlated white icon.
+
+### Added
+- Up-arrow command recall now persists **per scenario** across client restarts (last 50 entries, newest first). Switching scenarios swaps the recall list with it; commands typed without an active scenario stay in memory only.
 
 ### Changed
 - Aircraft list right-click on a delayed (deferred) spawn now shows only **Spawn now**, **Change spawn delay** (preset offsets 15s / 30s / 1m / 2m / 5m / 10m, plus a custom input that accepts `90`, `2m15s`, `1h30m`, etc.), and **Delete** — control commands, track/squawk/ask-pilot/coordination submenus, and the flight plan editor are hidden until the aircraft actually spawns.
