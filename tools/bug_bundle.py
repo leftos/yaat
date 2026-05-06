@@ -211,6 +211,19 @@ def write_output(text: str, out_path: Path | None) -> None:
         print(f"wrote {out_path}", file=sys.stderr)
 
 
+def pretty_json(text: str) -> str:
+    """Re-serialize a JSON string with indent=2 for greppability.
+
+    Bundle entries (scenario, weather, artcc-config, layouts) come out of
+    Brotli decompression as whatever the server wrote — usually one giant line.
+    Falls back to the original text if the payload isn't valid JSON.
+    """
+    try:
+        return json.dumps(json.loads(text), indent=2, ensure_ascii=False)
+    except (json.JSONDecodeError, ValueError):
+        return text
+
+
 def write_bytes_output(data: bytes, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "wb") as fp:
@@ -934,9 +947,111 @@ def cmd_commands(args: argparse.Namespace) -> int:
 
 
 def cmd_scenario(args: argparse.Namespace) -> int:
+    aircraft_filter: list[str] | None = [c.upper() for c in args.aircraft] if args.aircraft else None
+    show: str = getattr(args, "show", "full")
+
     with BundleReader(args.bundle) as reader:
-        write_output(reader.read_scenario(), args.out)
-    return 0
+        scenario_text = reader.read_scenario()
+
+        if aircraft_filter is None and show == "full":
+            write_output(pretty_json(scenario_text), args.out)
+            return 0
+
+        try:
+            scenario = json.loads(scenario_text)
+        except (json.JSONDecodeError, ValueError) as exc:
+            print(f"error: scenario is not valid JSON: {exc}", file=sys.stderr)
+            return 1
+
+        all_aircraft = scenario.get("aircraft") or []
+
+        def _callsign(a: dict) -> str:
+            return str(a.get("aircraftId") or (a.get("flightplan") or {}).get("callsign") or "")
+
+        if aircraft_filter is not None:
+            wanted = set(aircraft_filter)
+            matched = [a for a in all_aircraft if _callsign(a).upper() in wanted]
+            if not matched:
+                avail = ", ".join(sorted({_callsign(a) for a in all_aircraft if _callsign(a)}))
+                print(f"error: no scenario aircraft matched {sorted(wanted)}.\n       available: {avail}", file=sys.stderr)
+                return 1
+        else:
+            matched = list(all_aircraft)
+
+        if show == "full":
+            payload = matched if aircraft_filter is not None else scenario
+            write_output(json.dumps(payload, indent=2, ensure_ascii=False), args.out)
+            return 0
+
+        if show == "presets":
+            payload = [
+                {
+                    "callsign": _callsign(a),
+                    "spawnDelay": a.get("spawnDelay"),
+                    "presetCommands": a.get("presetCommands") or [],
+                }
+                for a in matched
+            ]
+            write_output(json.dumps(payload, indent=2, ensure_ascii=False), args.out)
+            return 0
+
+        if show == "spawns":
+            payload = [
+                {
+                    "callsign": _callsign(a),
+                    "aircraftType": a.get("aircraftType"),
+                    "airportId": a.get("airportId"),
+                    "startingConditions": a.get("startingConditions"),
+                    "onAltitudeProfile": a.get("onAltitudeProfile"),
+                    "spawnDelay": a.get("spawnDelay"),
+                }
+                for a in matched
+            ]
+            write_output(json.dumps(payload, indent=2, ensure_ascii=False), args.out)
+            return 0
+
+        if show == "summary":
+            lines = []
+            header = f"{'callsign':<10} {'type':<6} {'apt':<5} {'rules':<5} {'dep->dest':<14} {'start':<28} {'spawn':>7}  presets"
+            lines.append(header)
+            lines.append("-" * len(header))
+            for a in matched:
+                cs = _callsign(a) or "?"
+                fp = a.get("flightplan") or {}
+                sc = a.get("startingConditions") or {}
+                start_desc = _describe_starting_conditions(sc)
+                presets = a.get("presetCommands") or []
+                preset_text = " ; ".join((c.get("command") or "?") for c in presets) or "(none)"
+                lines.append(
+                    f"{cs:<10} "
+                    f"{(a.get('aircraftType') or '?'):<6} "
+                    f"{(a.get('airportId') or '?'):<5} "
+                    f"{(fp.get('rules') or '?'):<5} "
+                    f"{(fp.get('departure') or '?')+'->'+(fp.get('destination') or '?'):<14} "
+                    f"{start_desc:<28} "
+                    f"{(a.get('spawnDelay') if a.get('spawnDelay') is not None else '-')!s:>7}  "
+                    f"{preset_text}"
+                )
+            write_output("\n".join(lines), args.out)
+            return 0
+
+        print(f"error: unknown --show value '{show}'", file=sys.stderr)
+        return 1
+
+
+def _describe_starting_conditions(sc: dict) -> str:
+    if not sc:
+        return "(none)"
+    t = sc.get("type") or "?"
+    if t == "Parking":
+        return f"Parking {sc.get('parking') or '?'}"
+    if t == "FixOrFrd":
+        alt = sc.get("altitude")
+        nav = sc.get("navigationPath")
+        return f"Fix {sc.get('fix') or '?'} alt={alt} via={nav}"
+    if t == "Position":
+        return f"Pos {sc.get('latitude')},{sc.get('longitude')} alt={sc.get('altitude')} hdg={sc.get('heading')}"
+    return t
 
 
 def cmd_weather(args: argparse.Namespace) -> int:
@@ -945,7 +1060,7 @@ def cmd_weather(args: argparse.Namespace) -> int:
         if w is None:
             print("bundle has no weather.json (HasWeather=false)", file=sys.stderr)
             return 1
-        write_output(w, args.out)
+        write_output(pretty_json(w), args.out)
     return 0
 
 
@@ -955,7 +1070,7 @@ def cmd_artcc_config(args: argparse.Namespace) -> int:
         if cfg is None:
             print("bundle has no artcc-config.json.br (HasArtccConfig=false)", file=sys.stderr)
             return 1
-        write_output(cfg, args.out)
+        write_output(pretty_json(cfg), args.out)
     return 0
 
 
@@ -972,7 +1087,7 @@ def cmd_layouts(args: argparse.Namespace) -> int:
             out_dir = args.out_dir or (DEFAULT_TMP / f"{args.bundle.stem}.layouts")
             out_dir.mkdir(parents=True, exist_ok=True)
             for aid in layout_ids:
-                text = reader.read_layout(aid)
+                text = pretty_json(reader.read_layout(aid))
                 path = out_dir / f"{aid}.json"
                 path.write_text(text, encoding="utf-8", newline="\n")
                 print(f"wrote {path}")
@@ -986,7 +1101,7 @@ def cmd_layouts(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
                 return 1
-            write_output(reader.read_layout(args.airport), args.out)
+            write_output(pretty_json(reader.read_layout(args.airport)), args.out)
             return 0
 
         # Default: list airport IDs
@@ -1306,9 +1421,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_cmds.add_argument("--json", action="store_true", help="structured JSON output")
     p_cmds.set_defaults(func=cmd_commands)
 
-    p_scen = sub.add_parser("scenario", help="decompress scenario.json.br")
+    p_scen = sub.add_parser(
+        "scenario",
+        help="decompress scenario.json.br (full JSON, or filter to specific aircraft / fields)",
+    )
     _add_bundle_arg(p_scen)
     _add_out_arg(p_scen)
+    p_scen.add_argument(
+        "--aircraft",
+        nargs="+",
+        default=None,
+        metavar="CALLSIGN",
+        help="filter to one or more aircraft by callsign (case-insensitive)",
+    )
+    p_scen.add_argument(
+        "--show",
+        choices=("full", "presets", "spawns", "summary"),
+        default="full",
+        help=(
+            "what to print per matched aircraft: full block (default), preset commands only, "
+            "starting conditions only, or a one-line summary table across all matched aircraft"
+        ),
+    )
     p_scen.set_defaults(func=cmd_scenario)
 
     p_wx = sub.add_parser("weather", help="print weather.json (if present)")

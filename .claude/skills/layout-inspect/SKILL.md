@@ -7,7 +7,9 @@ description: "Query airport ground graph topology via LayoutInspector CLI tool"
 
 Query the airport ground graph for debugging ground/taxi/exit bugs. Wraps `tools/Yaat.LayoutInspector`.
 
-GeoJSON airport files are at: `X:\dev\vzoa\training-files\atctrainer-airport-files\`
+GeoJSON airport files are at:
+- `X:\dev\vzoa\training-files\atctrainer-airport-files\` (full set)
+- `tests/Yaat.Sim.Tests/TestData/<icao>.geojson` (whatever subset has been pulled into the test data — e.g. `oak.geojson`, `sfo.geojson`)
 
 ## Usage
 
@@ -22,12 +24,28 @@ timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --exits 
 
 **Trace a multi-hop exit path from a node through a taxiway:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --path <NodeID> <Taxiway> --json 2>&1 | tee .tmp/li-path.log
+timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --bfs <NodeID> <Taxiway> --json 2>&1 | tee .tmp/li-bfs.log
+```
+
+**Resolve a full pathfinder route (preferred for taxi-bug investigation — matches what `GroundCommandHandler.TryTaxi` does at runtime):**
+```bash
+timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --pathfinder <NodeID> T1 T2 T3 --pf-dest-rwy 28R 2>&1 | tee .tmp/li-pf.log
 ```
 
 **Inspect a specific node's connectivity:**
 ```bash
 timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node <NodeID> --json 2>&1 | tee .tmp/li-node.log
+```
+
+**Inspect multiple nodes in one invocation (`--node` is repeatable):**
+```bash
+timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node 619 --node 621 --node 1220 --node 1222 --node 1224 2>&1 | tee .tmp/li-cluster.log
+```
+
+**Inspect a node and everything within N graph hops (`--node-depth`):**
+```bash
+timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node 621 --node-depth 1 2>&1 | tee .tmp/li-621-d1.log
+# Useful for dumping a fillet cluster without listing every member id by hand.
 ```
 
 **Show all nodes on a taxiway:**
@@ -52,28 +70,45 @@ timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --html .
 
 ### Flags Reference
 
-| Flag | Purpose |
-|------|---------|
-| `--node N` | Single node detail with edges |
-| `--taxiway T` | All nodes/edges on a taxiway |
-| `--runway 28R` | Centerline + hold-short nodes |
-| `--exits 28R` | BFS-discovered exits with angle/side/high-speed classification |
-| `--path N T` | BFS trace from node N through taxiway T to hold-short |
-| `--pf N T [T2...]` | Pathfinder route from node through taxiway sequence |
-| `--parking` | Show parking positions |
-| `--spots` | Show spot/deice positions |
-| `--dump` | Full airport JSON |
-| `--json` | JSON output mode |
-| `--no-fillets` | Parse without fillet arcs |
-| `--debug-fillets` | Enable fillet debug logging |
-| `--validate` | Run graph validation checks |
-| `--html <path>` | Interactive HTML render (pan/zoom, URL-persisted view) |
-| `--ticks <csv>` | Overlay TickRecorder CSV as animated aircraft path |
-| `--tick-table` / `--tick-summary` | Text-table analysis of a TickRecorder CSV |
+Most list-valued flags are **repeatable AND accept comma-separated values** — `--node 619 --node 621` and `--node 619,621` are equivalent. Mix freely.
+
+| Flag | Repeatable / CSV | Purpose |
+|------|------------------|---------|
+| `--node N` | yes / yes | Node detail with edges |
+| `--node-depth N` | no | Expand each `--node` to include neighbors within N graph hops |
+| `--taxiway T` | yes / yes | All nodes/edges on a taxiway |
+| `--runway 28R` | yes / yes | Centerline + hold-short nodes |
+| `--exits 28R` | yes / yes | BFS-discovered exits with angle/side/high-speed classification |
+| `--bfs N T` | no | BFS trace from node N through taxiway T to hold-short |
+| `--walk-trace N T` | no | Detailed walker trace (developer diagnostic) |
+| `--pathfinder N T1 T2 ...` | no (greedy) | Resolve explicit taxi route through taxiway sequence |
+| `--pf-dest-rwy R` | no | Destination runway hint for `--pathfinder` |
+| `--pf-hold-shorts HS` | yes / yes | Explicit hold-short targets for `--pathfinder` |
+| `--pf-dest-parking P`, `--pf-dest-spot S`, `--pf-dest-node N` | no | Pathfinder destinations |
+| `--exit-query RWY TWY [SIDE]` | yes | Repeated targeted exit-query diagnostic |
+| `--intersection T1 T2` | no | Find taxiway intersection node |
+| `--parking` / `--spots` | flag | Show parking / spot positions |
+| `--dump` | flag | Full airport JSON |
+| `--json` | flag | JSON output mode |
+| `--no-fillets` | flag | Parse without fillet arcs |
+| `--debug-fillets` / `--debug-exits` | flag | Enable subsystem debug logging |
+| `--validate` | flag | Run graph validation checks |
+| `--html <path>` | no | Interactive HTML render (pan/zoom, URL-persisted view) |
+| `--html-taxiway T` / `--html-runway R` / `--html-node N` / `--html-route N` | yes / yes | Highlight overlays for `--html` |
+| `--html-annotate NODE TEXT` | yes | Add a labeled annotation at a node |
+| `--ticks <csv>` | no | Overlay TickRecorder CSV as animated path |
+| `--tick-table` / `--tick-summary` | flag | Text-table analysis of a TickRecorder CSV |
+| `--tick-range LO-HI` | no | Filter tick analysis to inclusive range |
+| `--tick-ref ICAO/RWY` | no | Reference runway for xte/hdgErr columns |
+| `--tick-hold-shorts HS` | yes / yes | Distance columns to named hold-shorts |
+| `--tick-callsign CS` | no | Filter tick CSV to one callsign |
+| `--airport-code ICAO` | no | Override airport code (rare) |
+| `--navdata <dir>` | no | Override NavData directory |
 
 ### Tips
 
 - Always use `--json` for machine-readable output when analyzing programmatically.
 - Use `--debug-fillets` when investigating fillet arc issues.
 - Combine flags: `--exits 28R --json` gives structured exit data.
+- For repeatable flags, prefer the inline CSV form for short lists (`--node 619,621,1222`) and repeated `--node` for long ones (cleaner shell history).
 - For KOAK: `X:\dev\vzoa\training-files\atctrainer-airport-files\KOAK.geojson`

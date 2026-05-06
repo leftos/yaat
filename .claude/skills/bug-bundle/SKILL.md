@@ -54,6 +54,27 @@ python tools/bug_bundle.py phases <bundle.zip> --callsign N9225L --out .tmp/bb-p
 python tools/bug_bundle.py commands <bundle.zip> --callsign N42416 --out .tmp/bb-cmds-N42416.log
 ```
 
+**One-line summary of every aircraft in the scenario (callsign / type / dep-dest / start / presets):**
+```bash
+python tools/bug_bundle.py scenario <bundle.zip> --show summary 2>&1 | tee .tmp/bb-scen-summary.log
+```
+
+**Preset commands for one or more aircraft:**
+```bash
+python tools/bug_bundle.py scenario <bundle.zip> --aircraft N346G --show presets
+python tools/bug_bundle.py scenario <bundle.zip> --aircraft N346G N172SP --show presets
+```
+
+**Starting conditions (parking spot / fix / coordinates) for one or more aircraft:**
+```bash
+python tools/bug_bundle.py scenario <bundle.zip> --aircraft N346G --show spawns
+```
+
+**Full scenario block for one aircraft (everything: type, FP, presets, autotrack, etc.):**
+```bash
+python tools/bug_bundle.py scenario <bundle.zip> --aircraft N346G
+```
+
 **Extract logs to `.tmp/`:**
 ```bash
 python tools/bug_bundle.py logs <bundle.zip>
@@ -93,7 +114,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `history` | Per-callsign chronological events: commands + phase / route / target / approach / track / runway changes (`--callsign X`, `--start/--end`, `--include-global`, `--json`) |
 | `phases` | Per-callsign phase-transition timeline only (`--callsign X`, `--start/--end`, `--json`) |
 | `commands` | Actions filtered to one recipient callsign (`--callsign X`, `--start/--end`, `--json`) |
-| `scenario` | Decompress `scenario.json.br` |
+| `scenario` | Pretty-print `scenario.json.br`. Optional `--aircraft CS [CS ...]` filter and `--show {full,presets,spawns,summary}` (default `full`). |
 | `weather` | Print `weather.json` if present |
 | `layouts` | List airport IDs, `--airport X` to dump one, `--all --out-dir D` for all |
 | `logs` | Extract `yaat-client.log`/`yaat-server.log` to `.tmp/` |
@@ -108,3 +129,4 @@ python tools/bug_bundle.py validate <bundle.zip>
 - `history` event tags: `CMD` (action), `PHASES` (chain installed/rebuilt), `PHASE+` (current phase advanced), `PHASE-` (chain cleared), `ROUTE` (NavigationRoute changed), `TGT` (assigned alt/spd/hdg changed), `APPR` (Approach state), `TRACK` (ownership), `RWY` (DestinationRunway), `SPAWN`/`DESPAWN`. Output is ASCII-only (no unicode arrows) so it survives Windows cp1252 stdout.
 - `install` validates the archive post-copy; a post-install warning usually means the bundle is truncated.
 - Output goes to stdout by default (pipeable). Use `--out <path>` to write a file; `logs` always writes files and prints paths.
+- `scenario`, `weather`, `artcc-config`, and `layouts` always pretty-print the JSON they emit (indent=2). Falls back to raw text if the payload isn't valid JSON.

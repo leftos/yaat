@@ -49,6 +49,9 @@ python tools/bug_bundle.py history <bundle.zip> --callsign N42416      # per-air
 python tools/bug_bundle.py phases <bundle.zip> --callsign N9225L       # phase-transition timeline only
 python tools/bug_bundle.py commands <bundle.zip> --callsign N42416     # actions filtered to one recipient callsign
 python tools/bug_bundle.py logs <bundle.zip>                           # extract yaat-client/server logs to .tmp/
+python tools/bug_bundle.py scenario <bundle.zip> --show summary        # one-line summary table of all aircraft (callsign/type/start/presets)
+python tools/bug_bundle.py scenario <bundle.zip> --aircraft N346G --show presets   # preset commands for one aircraft
+python tools/bug_bundle.py scenario <bundle.zip> --aircraft N346G --show spawns    # starting conditions (parking/fix/etc) for one aircraft
 python tools/bug_bundle.py install <local.zip> --issue 134 --desc slug # copy to TestData/ with naming convention
 python tools/bug_bundle.py install --issue 134 --desc slug             # fetch from GitHub issue via gh
 python tools/bug_bundle.py validate <bundle.zip>                       # manifest + decompression integrity
