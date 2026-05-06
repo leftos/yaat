@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.1.16-alpha [2026/05/05]
+
+### Highlights
+- **Scenario → Edit Arrival Generators...** edits the live arrival-generator list during a session — add/remove/tune entries, **Apply** pushes to sim immediately, **Save As** writes a new scenario JSON.
+- YAAT's flight-plan editor now mirrors CRC: beacon recycle button, Create/Amend label, equipment defaults to `A`, `RMK/` round-trip, input masks.
+- `DA` / `VP` / beacon-reroll now only set the *assigned* beacon — the aircraft keeps squawking the previous code (e.g. 1200) until you issue `SQ`, matching real CRC behavior.
+- `TAXI` issued to an aircraft already holding short of a runway now implicitly clears the first crossing of that same runway — no separate `CTO` needed.
 
 ### Added
 - **Scenario → Edit Arrival Generators...** edits the live arrival-generator list — add/remove/tune entries, **Apply** pushes to sim immediately, **Save As** writes a new scenario JSON.

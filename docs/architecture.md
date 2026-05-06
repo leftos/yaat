@@ -154,6 +154,7 @@ ViewModels/
   MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave), aircraft assignments
   MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update)
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
+  MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar, scenario-scoped)
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
@@ -162,6 +163,8 @@ ViewModels/
   SettingsViewModel.cs          # Alias editing; preset detection
   WeatherPeriodViewModel.cs     # Per-period VM: wind layers, METARs, precipitation, start/transition minutes
   WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
+  ArrivalGeneratorsEditorViewModel.cs # Arrival generator editor VM: row list, Apply (push to sim), Save As (write scenario JSON)
+  GeneratorRowViewModel.cs      # Per-row VM for ArrivalGeneratorsEditor: airport/runway/airline/type/rate/etc. fields
   *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp)
 
 Views/
@@ -179,6 +182,7 @@ Views/
   WeatherEditorControl.axaml.cs # Per-period weather editing UserControl (precipitation, wind layers grid, METARs)
   AboutWindow.axaml.cs          # Help → About dialog: version, build kind, .NET runtime, log path, GitHub link
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
+  ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
@@ -260,6 +264,9 @@ LatLon.cs                      # Readonly record struct: public LatLon(double La
                                # (forces explicit `new LatLon(lat, lon)` at external-JSON boundaries so argument swaps don't slip through)
 Callsign.cs                    # Static IsValid(string?): regex ^[A-Z0-9\-]{1,7}$. Boundary check used by STARS DA/VP/FP creation
                                # to reject typos like "*T <fix>" before they create stray flight plans.
+FlightPlanAltitude.cs          # Parser + formatter for the CRC altitude grammar used in FP forms and STARS DA/VP:
+                               # `VFR` (rules-only), `VFR/045` / `OTP/120` (rules + altitude), `045` (IFR + altitude), blank.
+                               # Returns FlightRules + AltitudeFeet?; round-trips through CRC FP edits without synthesizing fields.
 FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)
@@ -661,6 +668,7 @@ Scenes/                        # ScenarioSceneBase (connect → room → load �
                                # AircraftListScene / GroundViewScene / RadarViewScene / FlightStripsScene
                                # GroundViewPopoutScene / RadarViewPopoutScene
                                # FlightPlanEditorScene
+                               # ArrivalGeneratorsEditorScene
                                # StandaloneWindowSceneBase + Settings/LoadScenario/LoadWeather/Weather/About
 Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePickerService against the headless Window which is fine)
 ```
