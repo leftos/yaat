@@ -97,6 +97,31 @@ internal static class GroundCommandHandler
             route.ToSummary()
         );
 
+        // Implicit first-crossing clearance: when the aircraft is already holding short of a
+        // runway and the new route's first runway crossing is for that same runway, the TAXI
+        // command itself authorizes the crossing — no separate CTO needed. Subsequent crossings
+        // still require explicit clearance.
+        string? implicitCrossLabel = null;
+        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase priorHold && priorHold.HoldShort.TargetName is { Length: > 0 } priorRwy)
+        {
+            var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+            if (firstCrossing is not null && firstCrossing.TargetName is { Length: > 0 } crossingRwy)
+            {
+                if (RunwayIdentifier.Parse(crossingRwy).Overlaps(RunwayIdentifier.Parse(priorRwy)))
+                {
+                    firstCrossing.IsCleared = true;
+                    implicitCrossLabel = crossingRwy;
+                    Log.LogInformation(
+                        "[TryTaxi] {Callsign}: implicit cross of {Rwy} at node {NodeId} (already holding short of {PriorRwy})",
+                        aircraft.Callsign,
+                        crossingRwy,
+                        firstCrossing.NodeId,
+                        priorRwy
+                    );
+                }
+            }
+        }
+
         if (autoCrossRunway)
         {
             foreach (var hs in route.HoldShortPoints)
@@ -233,6 +258,11 @@ internal static class GroundCommandHandler
         if (route.Warnings.Count > 0)
         {
             msg += " [" + string.Join("; ", route.Warnings) + "]";
+        }
+
+        if (implicitCrossLabel is not null)
+        {
+            msg += $" (cross {implicitCrossLabel})";
         }
 
         return CommandDispatcher.Ok(msg);
