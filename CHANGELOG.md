@@ -5,6 +5,9 @@
 ### Added
 - **Scenario → Edit Arrival Generators...** edits the live arrival-generator list — add/remove/tune entries, **Apply** pushes to sim immediately, **Save As** writes a new scenario JSON.
 
+### Changed
+- YAAT's flight-plan editor mirrors CRC: BCN recycle button, Create/Amend label, EQ defaults to `A`, RMK/ round-trip, input masks.
+
 ### Fixed
 - A `TAXI` command issued to an aircraft already holding short of a runway now implicitly clears the first crossing of that same runway — the controller no longer needs a separate `CTO` to send the aircraft through. The taxi response acknowledges the implicit cross (e.g. *Taxi via B RWY 28L (cross 28R/10L)*); subsequent crossings on the new route still require explicit clearance.
 - Strip and separator commands sent from the strips UI / CRC vStrips are now addressed by id — duplicate first-line text on half-strips no longer fails `HSD`/`HSA`/`HSO`/`HSS`/`HSM` with a multi-match error, and scanned full-strip copies (`STRIP_<callsign>_<short>`) can be deleted, offset, annotated, and pushed independently of their originator. Half-strip and separator ids are also shorter (`HSTRIP_aece26a3` / `SEP_d47c4d97` instead of 32-char GUIDs) so action logs and terminal output stay readable.
@@ -15,6 +18,7 @@
 - Conditional `AT FIX` / `LV altitude` commands no longer cancel the active phase at dispatch — the wrapped instruction waits for the trigger to fire.
 - Aircraft on a long final now slow progressively instead of holding intercept speed until ~5 NM and then bleeding to Vref in one shot. A configuration gate at ~5–7 NM commands `1.3 × Vref` first; the existing FAS gate at ~2 NM then commands Vref. Heavies spawned `OnFinal` at 12 NM (e.g. B763 at 224 KIAS) now settle at the configuration band by ~5 NM, matching real flap-extension and stabilized-approach pacing.
 - Flight plans created or amended from CRC clients now record the correct FAA equipment suffix (e.g. `C182/A`) instead of garbage like `C182/L-DOV/C`.
+- Flight-plan altitudes typed in CRC now accept `VFR`, `OTP`, `VFR/065`, `OTP/120`; flight rules switch from the prefix and CRC data blocks render correctly.
 
 ## v0.1.15-alpha [2026/05/05]
 

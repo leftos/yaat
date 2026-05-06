@@ -48,6 +48,17 @@ public static class FlightPlanEditorManager
                 {
                     Log.LogError(ex, "Failed to amend flight plan for {Callsign}", callsign);
                 }
+            },
+            async callsign =>
+            {
+                try
+                {
+                    await vm.Connection.RequestNewBeaconCodeAsync(callsign);
+                }
+                catch (Exception ex)
+                {
+                    Log.LogError(ex, "Failed to request new beacon code for {Callsign}", callsign);
+                }
             }
         );
 

@@ -437,55 +437,11 @@ public partial class AircraftModel : ObservableObject
         }
     }
 
-    public string CruiseAltitudeDisplay => FormatAltitudeField(FlightRules, CruiseAltitude);
+    public string CruiseAltitudeDisplay => FlightPlanAltitude.Format(FlightRules, CruiseAltitude);
 
-    internal static string FormatAltitudeField(string flightRules, int cruiseAltitude)
-    {
-        var isVfr = flightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-        var isOtp = flightRules.Equals("OTP", StringComparison.OrdinalIgnoreCase);
-        var altStr = cruiseAltitude > 0 ? (cruiseAltitude / 100).ToString("D3") : "";
+    internal static string FormatAltitudeField(string flightRules, int cruiseAltitude) => FlightPlanAltitude.Format(flightRules, cruiseAltitude);
 
-        if (isOtp)
-        {
-            return string.IsNullOrEmpty(altStr) ? "OTP" : $"OTP/{altStr}";
-        }
-        if (isVfr)
-        {
-            return string.IsNullOrEmpty(altStr) ? "VFR" : $"VFR/{altStr}";
-        }
-        return altStr;
-    }
-
-    internal static (string FlightRules, int CruiseAltitude)? ParseAltitudeField(string text)
-    {
-        text = text.Trim().ToUpperInvariant();
-        if (string.IsNullOrEmpty(text))
-        {
-            return ("VFR", 0);
-        }
-
-        if (text == "VFR")
-        {
-            return ("VFR", 0);
-        }
-        if (text == "OTP")
-        {
-            return ("OTP", 0);
-        }
-        if (text.StartsWith("VFR/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var vfrAlt))
-        {
-            return ("VFR", vfrAlt * 100);
-        }
-        if (text.StartsWith("OTP/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var otpAlt))
-        {
-            return ("OTP", otpAlt * 100);
-        }
-        if (int.TryParse(text, out var alt))
-        {
-            return ("IFR", alt * 100);
-        }
-        return null;
-    }
+    internal static (string FlightRules, int CruiseAltitude)? ParseAltitudeField(string text) => FlightPlanAltitude.Parse(text);
 
     [ObservableProperty]
     private string _taxiRoute = "";

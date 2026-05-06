@@ -318,6 +318,17 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     }
 
     /// <summary>
+    /// Asks the server to recycle the aircraft's beacon code — releases the current
+    /// assigned code back to the pool and assigns a fresh one. Mirrors CRC's recycle
+    /// button next to the BCN field in its flight-plan editor.
+    /// </summary>
+    public async Task<CommandResultDto> RequestNewBeaconCodeAsync(string callsign)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("RequestNewBeaconCode", callsign);
+    }
+
+    /// <summary>
     /// Task #18 — printer-modal "Request Strip" button. Idempotent server-side,
     /// so a double-click doesn't print twice. Returns a descriptive result so
     /// the UI can show success/failure feedback.

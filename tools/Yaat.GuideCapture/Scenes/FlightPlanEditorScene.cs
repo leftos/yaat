@@ -23,7 +23,7 @@ internal sealed class FlightPlanEditorScene : ScenarioSceneBase
         await SceneActions.WaitUntilAsync(() => vm.Aircraft.Count > 0, TimeSpan.FromSeconds(5), "scenario aircraft to populate");
 
         var aircraft = vm.Aircraft[0];
-        _editor = new FlightPlanEditorWindow(aircraft, (_, _) => { });
+        _editor = new FlightPlanEditorWindow(aircraft, (_, _) => { }, _ => Task.CompletedTask);
         _editor.Show();
         Dispatcher.UIThread.RunJobs();
         _editor.UpdateLayout();
