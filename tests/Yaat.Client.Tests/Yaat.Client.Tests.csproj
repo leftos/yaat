@@ -13,6 +13,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <!-- Headless Avalonia runtime for view/binding tests. Version pinned to match the
+         Avalonia 11.3.13 used by Yaat.Client. -->
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.13" />
     <!-- Test-only CUDA backend for the opt-in LocalLlmPipeline integration tests.
          Sits alongside the CPU backend that flows in transitively from Yaat.Client.
          Does NOT ship in the production installer — only lands in this project's bin dir. -->

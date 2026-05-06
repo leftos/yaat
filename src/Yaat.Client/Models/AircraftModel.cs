@@ -19,19 +19,21 @@ public partial class AircraftModel : ObservableObject
 
     /// <summary>
     /// Actual aircraft type — what's physically flying. Read by Tower Cab (out-the-window
-    /// datablock) and physics/performance lookups. Fixed at spawn and never changed by FP
-    /// amendments. Other surfaces (STARS, ASDE-X, EuroScope tag, FP Editor, flight strips,
-    /// data grid) read <see cref="FiledAircraftType"/> instead.
+    /// datablock), physics/performance lookups, and the operator-facing Aircraft List data
+    /// grid (including its right-click menu header). Fixed at spawn and never changed by FP
+    /// amendments. Flight-plan-bound surfaces (STARS, ASDE-X, EuroScope tag, FP Editor,
+    /// flight strips) read <see cref="FiledAircraftType"/> instead.
     /// </summary>
     [ObservableProperty]
     private string _aircraftType = "";
 
     /// <summary>
     /// Filed aircraft type — what the flight plan currently records. Read by STARS, ASDE-X,
-    /// the EuroScope tag, the Flight Plan Editor, flight strips, and the data grid. Mutated
-    /// by FP amendments and may be empty when an instructor blanks the field. Tower Cab is
-    /// driven by <see cref="AircraftType"/> instead so blanking the FP type does not blank
-    /// the tower's "out the window" view.
+    /// the EuroScope tag, the Flight Plan Editor, and flight strips. Mutated by FP amendments
+    /// and may be empty when an instructor blanks the field. Tower Cab and the Aircraft List
+    /// data grid are driven by <see cref="AircraftType"/> instead so blanking the FP type
+    /// does not blank either the tower's "out the window" view or the operator's situational
+    /// awareness grid.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
