@@ -90,7 +90,9 @@ jobs:
 
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-          # Split into chunks at bullet boundaries, respecting Discord's 4096 char embed limit
+          # Split into chunks. Discord limits each embed description to 4096 chars and the
+          # combined size of all embeds in a single POST to 6000 chars, so we send one
+          # embed per webhook POST.
           echo "$CLAUDE_RESPONSE" > /tmp/summary.txt
           python3 -c "
           import json, sys
@@ -111,7 +113,6 @@ jobs:
 
           title = sys.argv[1]
           ts = sys.argv[2]
-          embeds = []
           for i, chunk in enumerate(chunks):
               embed = {'description': chunk, 'color': 16750848}
               if i == 0:
@@ -119,18 +120,22 @@ jobs:
               if i == len(chunks) - 1:
                   embed['footer'] = {'text': 'Covers commits since the last digest'}
                   embed['timestamp'] = ts
-              embeds.append(embed)
+              with open(f'/tmp/discord_payload_{i}.json', 'w', encoding='utf-8') as f:
+                  json.dump({'embeds': [embed]}, f, ensure_ascii=False)
 
-          json.dump({'embeds': embeds}, open('/tmp/discord_payload.json', 'w', encoding='utf-8'), ensure_ascii=False)
-          " "Daily Dev Digest — ${TODAY}" "$TIMESTAMP"
+          print(len(chunks))
+          " "Daily Dev Digest — ${TODAY}" "$TIMESTAMP" > /tmp/chunk_count.txt
+          CHUNK_COUNT=$(cat /tmp/chunk_count.txt)
 
-          HTTP_CODE=$(curl -sS -o /tmp/discord_response.txt -w "%{http_code}" \
-            -H "Content-Type: application/json" \
-            -d @/tmp/discord_payload.json "$DISCORD_WEBHOOK_URL")
-          if [ "$HTTP_CODE" -ge 400 ]; then
-            echo "Discord webhook failed with HTTP $HTTP_CODE"
-            echo "Payload size: $(wc -c < /tmp/discord_payload.json) bytes"
-            echo "Response body:"
-            cat /tmp/discord_response.txt
-            exit 1
-          fi
+          for i in $(seq 0 $((CHUNK_COUNT - 1))); do
+            HTTP_CODE=$(curl -sS -o /tmp/discord_response.txt -w "%{http_code}" \
+              -H "Content-Type: application/json" \
+              -d @/tmp/discord_payload_${i}.json "$DISCORD_WEBHOOK_URL")
+            if [ "$HTTP_CODE" -ge 400 ]; then
+              echo "Discord webhook failed for chunk ${i} with HTTP $HTTP_CODE"
+              echo "Payload size: $(wc -c < /tmp/discord_payload_${i}.json) bytes"
+              echo "Response body:"
+              cat /tmp/discord_response.txt
+              exit 1
+            fi
+          done
