@@ -26,6 +26,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Loading Live Weather](#loading-live-weather)
   - [Weather Editor](#weather-editor)
   - [Weather Timelines (V2 Format)](#weather-timelines-v2-format)
+  - [Arrival Generators Editor](#arrival-generators-editor)
 - [Commands](#commands)
 - [Simulation Controls](#simulation-controls)
   - [Timeline / Rewind](#timeline--rewind)
@@ -650,6 +651,28 @@ YAAT supports a **v2 weather JSON format** that defines time-based weather evolu
 **Loading:** Load v2 weather files using **Scenario > Load Weather... > Local Files** — files with a `periods` array are detected automatically. The v1 format continues to work.
 
 **Rewind:** Weather timelines are fully compatible with the rewind system. Rewinding past a transition boundary restores the correct interpolated weather.
+
+### Arrival Generators Editor
+
+![Arrival Generators Editor](docs/user-guide/img/arrival-generators-editor.png)
+
+**Scenario > Edit Arrival Generators...** opens an editor for the live arrival-generator list of the currently loaded scenario. Edits take effect immediately on the running sim — no scenario reload needed. The original scenario file on disk is untouched; use **Save As...** to persist a tuned variant to a new JSON file for later reuse.
+
+The editor has two panels:
+
+- **Left panel** — generator list with **+ Add** / **- Remove** buttons. Each row summarizes its runway, engine, weight category, and interval time.
+- **Right panel** — selected generator details, grouped into Identity (id, runway), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude).
+
+**Reschedule on Apply:** When you click **Apply to Sim**, every generator is rescheduled from now — `NextSpawnSeconds = elapsed + intervalTime`, distance reset to `initialDistance`. Aircraft already spawned by previous generators keep flying; only future spawns are affected.
+
+- **Apply to Sim** sends the new generator list to the server and applies it immediately.
+- **Revert** restores the editor to the state it had when the window was opened (does not undo edits already applied to the sim).
+- **Save As...** writes the loaded scenario JSON with the edited `aircraftGenerators` array to a new file.
+- **Close** closes the editor.
+
+**Recording / replay:** Edits are recorded as a `RecordedArrivalGeneratorsChange` action and replay deterministically with the same reschedule semantics.
+
+**Validation:** Empty/duplicate ids, unknown engine types, unknown weight categories, or runways that don't exist on the active airport are reported in the status line and prevent the apply.
 
 ---
 

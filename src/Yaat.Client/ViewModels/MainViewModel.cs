@@ -899,6 +899,7 @@ public partial class MainViewModel : ObservableObject
         _connection.CrcLobbyChanged += OnCrcLobbyChanged;
         _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
         _connection.WeatherChanged += OnWeatherChanged;
+        _connection.ArrivalGeneratorsChanged += OnArrivalGeneratorsChanged;
         _connection.PositionDisplayChanged += OnPositionDisplayChanged;
         _connection.ScenarioLoaded += OnScenarioLoaded;
         _connection.ScenarioUnloaded += OnScenarioUnloaded;

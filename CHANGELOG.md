@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- **Scenario → Edit Arrival Generators...** edits the live arrival-generator list — add/remove/tune entries, **Apply** pushes to sim immediately, **Save As** writes a new scenario JSON.
+
 ### Fixed
 - Aircraft taxiing out of OAK GA-ramp parking spots (GA3, GA7, etc.) no longer make a wide ~270° turn onto their first taxiway. The pathfinder previously picked the geometrically-shortest fillet arc to enter the named taxiway, even when that arc was authored for the opposite direction of travel and would land the aircraft heading 180° from the next walk step. It now prefers bridge endpoints whose first arc is traversed in its natural-forward bezier direction (or is a straight edge), so the aircraft turns the short way out of parking.
 

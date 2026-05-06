@@ -110,6 +110,8 @@
                           IsEnabled="{Binding IsInRoom}" />
                 <MenuItem Header="Ed_it Weather..."
                           x:Name="EditWeatherMenuItem" />
+                <MenuItem Header="Edit Arrival _Generators..."
+                          x:Name="EditArrivalGeneratorsMenuItem" />
                 <Separator />
                 <MenuItem Header="_Approach Report"
                           x:Name="ApproachReportMenuItem"

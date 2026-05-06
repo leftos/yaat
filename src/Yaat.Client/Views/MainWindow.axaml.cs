@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private GroundViewWindow? _groundViewWindow;
     private RadarViewWindow? _radarViewWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
+    private ArrivalGeneratorsEditorWindow? _arrivalGeneratorsEditorWindow;
 
     // Test hooks — read-only views of the subordinate windows the MainWindow creates
     // in response to IsDataGridPoppedOut / IsGroundViewPoppedOut / IsRadarViewPoppedOut
@@ -108,6 +109,20 @@ public partial class MainWindow : Window
                 if (e.PropertyName == nameof(MainViewModel.HasActiveWeather))
                 {
                     editWeatherItem.IsEnabled = vm.HasActiveWeather;
+                }
+            };
+        }
+
+        var editArrivalGeneratorsItem = this.FindControl<MenuItem>("EditArrivalGeneratorsMenuItem");
+        if (editArrivalGeneratorsItem is not null)
+        {
+            editArrivalGeneratorsItem.Click += OnEditArrivalGeneratorsClick;
+            editArrivalGeneratorsItem.IsEnabled = vm.HasScenario;
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.HasScenario))
+                {
+                    editArrivalGeneratorsItem.IsEnabled = vm.HasScenario;
                 }
             };
         }
@@ -1870,6 +1885,31 @@ public partial class MainWindow : Window
         );
         _weatherEditorWindow.Closing += (_, _) => _weatherEditorWindow = null;
         _weatherEditorWindow.Show();
+    }
+
+    private void OnEditArrivalGeneratorsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || !vm.HasScenario)
+        {
+            return;
+        }
+
+        if (_arrivalGeneratorsEditorWindow is not null)
+        {
+            _arrivalGeneratorsEditorWindow.Activate();
+            return;
+        }
+
+        var editorVm = new ArrivalGeneratorsEditorViewModel(vm.LatestArrivalGenerators, vm.LatestPositions, vm.LatestRunwayIds);
+
+        _arrivalGeneratorsEditorWindow = new ArrivalGeneratorsEditorWindow(
+            editorVm,
+            vm.Preferences,
+            async json => await vm.Connection.LoadArrivalGeneratorsAsync(json),
+            () => vm.LoadedScenarioJson
+        );
+        _arrivalGeneratorsEditorWindow.Closing += (_, _) => _arrivalGeneratorsEditorWindow = null;
+        _arrivalGeneratorsEditorWindow.Show();
     }
 
     private Key _focusInputKey = Key.OemTilde;

@@ -7,6 +7,7 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedWeatherChange), "WeatherChange")]
 [JsonDerivedType(typeof(RecordedSettingChange), "SettingChange")]
 [JsonDerivedType(typeof(RecordedAsdexMutation), "AsdexMutation")]
+[JsonDerivedType(typeof(RecordedArrivalGeneratorsChange), "ArrivalGeneratorsChange")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -17,6 +18,8 @@ public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Calls
 public sealed record RecordedWeatherChange(double ElapsedSeconds, string? WeatherJson) : RecordedAction(ElapsedSeconds);
 
 public sealed record RecordedSettingChange(double ElapsedSeconds, string Setting, string? Value) : RecordedAction(ElapsedSeconds);
+
+public sealed record RecordedArrivalGeneratorsChange(double ElapsedSeconds, string GeneratorsJson) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// CRC-sourced ASDE-X mutation. <see cref="Kind"/> is one of <c>EditDbFields</c>, <c>Tag</c>,

@@ -28,6 +28,7 @@ internal static class SceneCatalog
         new LoadScenarioDialogScene(),
         new LoadWeatherDialogScene(),
         new WeatherEditorScene(),
+        new ArrivalGeneratorsEditorScene(),
         new AboutWindowScene(),
     ];
 }

@@ -1763,6 +1763,9 @@ public sealed class SimulationEngine
             case RecordedSettingChange setting:
                 ApplySettingChange(setting);
                 break;
+            case RecordedArrivalGeneratorsChange generators:
+                ApplyArrivalGeneratorsJson(generators.GeneratorsJson);
+                break;
         }
     }
 
@@ -1936,6 +1939,69 @@ public sealed class SimulationEngine
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// Replaces the live arrival-generator list with the parsed JSON. Each generator is
+    /// rescheduled "from now" — NextSpawnSeconds = elapsed + intervalTime,
+    /// NextSpawnDistance = initialDistance, IsExhausted = false. Already-spawned aircraft
+    /// from prior generators keep flying. Returns warnings; the swap is best-effort per
+    /// generator (entries with unresolvable runways are dropped with a warning).
+    /// </summary>
+    public List<string> ApplyArrivalGeneratorsJson(string generatorsJson)
+    {
+        var warnings = new List<string>();
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            warnings.Add("No active scenario");
+            return warnings;
+        }
+
+        List<ScenarioGeneratorConfig>? configs;
+        try
+        {
+            configs = JsonSerializer.Deserialize<List<ScenarioGeneratorConfig>>(generatorsJson);
+        }
+        catch (JsonException ex)
+        {
+            warnings.Add($"Invalid generators JSON: {ex.Message}");
+            return warnings;
+        }
+
+        if (configs is null)
+        {
+            warnings.Add("Generators JSON deserialized to null");
+            return warnings;
+        }
+
+        var navDb = NavigationDatabase.Instance;
+        var airportId = scenario.PrimaryAirportId ?? "";
+        var newStates = new List<GeneratorState>();
+        foreach (var cfg in configs)
+        {
+            var runway = navDb.GetRunway(airportId, cfg.Runway);
+            if (runway is null)
+            {
+                warnings.Add($"Generator '{cfg.Id}': runway {cfg.Runway} not found at {airportId}");
+                continue;
+            }
+
+            newStates.Add(
+                new GeneratorState
+                {
+                    Config = cfg,
+                    Runway = runway,
+                    NextSpawnSeconds = scenario.ElapsedSeconds + cfg.IntervalTime,
+                    NextSpawnDistance = cfg.InitialDistance,
+                    IsExhausted = false,
+                }
+            );
+        }
+
+        scenario.Generators.Clear();
+        scenario.Generators.AddRange(newStates);
+        return warnings;
     }
 
     private void ApplyWeatherJson(string weatherJson)

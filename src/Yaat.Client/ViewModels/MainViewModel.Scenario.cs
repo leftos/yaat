@@ -198,6 +198,7 @@ public partial class MainViewModel
 
     private async Task SendScenarioToServer(string json, string? apiId)
     {
+        StashLoadedScenarioJson(json);
         var result = await _connection.LoadScenarioAsync(json);
 
         if (result.Success)
@@ -306,6 +307,7 @@ public partial class MainViewModel
                 result.AllAircraft
             )
         );
+        StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.Positions);
         ApplySimState(result.IsPaused, result.SimRate);
 
         _ = SendAutoAcceptDelay();
@@ -335,6 +337,7 @@ public partial class MainViewModel
                     dto.AllAircraft
                 )
             );
+            StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.Positions);
             ApplySimState(dto.IsPaused, dto.SimRate);
 
             // Apply session settings from the server (set by the loading RPO).

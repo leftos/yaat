@@ -34,6 +34,7 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     public event Action<CrcLobbyChangedDto>? CrcLobbyChanged;
     public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
     public event Action<WeatherChangedDto>? WeatherChanged;
+    public event Action<ArrivalGeneratorsChangedDto>? ArrivalGeneratorsChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
@@ -117,6 +118,8 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         _connection.On<CrcRoomMembersChangedDto>("CrcRoomMembersChanged", dto => CrcRoomMembersChanged?.Invoke(dto));
 
         _connection.On<WeatherChangedDto>("WeatherChanged", dto => WeatherChanged?.Invoke(dto));
+
+        _connection.On<ArrivalGeneratorsChangedDto>("ArrivalGeneratorsChanged", dto => ArrivalGeneratorsChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
@@ -264,6 +267,14 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     {
         EnsureConnected();
         await _connection!.InvokeAsync("ClearWeather");
+    }
+
+    // --- Arrival generators ---
+
+    public async Task<CommandResultDto> LoadArrivalGeneratorsAsync(string generatorsJson)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("LoadArrivalGenerators", generatorsJson);
     }
 
     // --- Aircraft assignments ---
@@ -653,7 +664,9 @@ public record LoadScenarioResultDto(
     bool AutoClearedToLand = false,
     bool IsStudentTowerPosition = true,
     string? StudentPositionType = null,
-    FlightStripsConfigDto? FlightStripsConfig = null
+    FlightStripsConfigDto? FlightStripsConfig = null,
+    List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
+    List<ScenarioPositionDto>? Positions = null
 );
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
@@ -710,8 +723,14 @@ public record ScenarioLoadedDto(
     bool AutoCrossRunway = false,
     bool ValidateDctFixes = true,
     bool RpoShowPilotSpeech = false,
-    FlightStripsConfigDto? FlightStripsConfig = null
+    FlightStripsConfigDto? FlightStripsConfig = null,
+    List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
+    List<ScenarioPositionDto>? Positions = null
 );
+
+public record ScenarioPositionDto(string Id, string Callsign, string Name);
+
+public record ArrivalGeneratorsChangedDto(List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig> Generators);
 
 public record SessionSettingsDto(
     string? AutoDeleteMode,
