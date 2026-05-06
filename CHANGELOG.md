@@ -11,6 +11,7 @@
 - ASDE-X now shows **Standby** aircraft as a primary-only cyan diamond (no callsign, no datablock) instead of a fully-correlated white aircraft icon. Real ASDE-X can't correlate a target to a track without a Mode A/C reply.
 - YAAT Client ground view shows **SqStby** (no strikethrough) under Standby aircraft instead of a struck-through `ModeC` label. Same indication, easier to read.
 - `DA` / `VP` typed without an equipment suffix (e.g. `DA SR22 050`) now defaults the suffix to `/A` per FAA convention. Typing `SR22/G` still overrides to `/G` as before.
+- Generated VFR N-numbers now match FAA format: 5 alphanumeric characters with at most two trailing letters (e.g. `N12345`, `N1234A`, `N123AB`).
 
 ## v0.1.16-alpha [2026/05/05]
 

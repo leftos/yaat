@@ -462,15 +462,24 @@ public static class AircraftGenerator
 
     private static string GenerateNNumber(HashSet<string> existing, Random rng)
     {
-        const string chars = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+        // FAA N-number format: N followed by 5 alphanumeric characters. First char
+        // must be a digit 1-9 (no leading zero). Up to 2 letters allowed, at the
+        // end. I and O are excluded to avoid confusion with 1 and 0.
+        const string letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string digits = "0123456789";
         for (int attempt = 0; attempt < 100; attempt++)
         {
-            var suffix = new char[4];
-            // First char after N must be a digit (1-9)
+            int letterCount = rng.Next(0, 3); // 0, 1, or 2 trailing letters
+            int digitCount = 5 - letterCount;
+            var suffix = new char[5];
             suffix[0] = (char)('1' + rng.Next(9));
-            for (int i = 1; i < 4; i++)
+            for (int i = 1; i < digitCount; i++)
             {
-                suffix[i] = chars[rng.Next(chars.Length)];
+                suffix[i] = digits[rng.Next(digits.Length)];
+            }
+            for (int i = digitCount; i < 5; i++)
+            {
+                suffix[i] = letters[rng.Next(letters.Length)];
             }
             var callsign = $"N{new string(suffix)}";
             if (!existing.Contains(callsign))
@@ -479,7 +488,7 @@ public static class AircraftGenerator
             }
         }
 
-        return $"N{rng.Next(10000, 99999)}";
+        return $"N{rng.Next(10000, 100000)}";
     }
 
     private static (double Lat, double Lon) ComputePosition(double originLat, double originLon, double bearingDeg, double distanceNm)
