@@ -530,6 +530,7 @@ All test data lives in `tests/Yaat.Sim.Tests/TestData/`.
 | `issue134-oak-runway-exit-recording.json` | #134 | N70CS | OAK 28L runway exit picks intermediate routing vertex instead of real taxiway |
 | `issue-l360-stalls-recording.yaat-bug-report-bundle.zip` | — | N44444 | L360/R360 stalled at 1° because `MakeTurnPhase` never re-issued `TargetTrueHeading` after the snap cleared `PreferredTurnDirection` |
 | `oak-taxi-recording.json` | — | NKS2904 | OAK taxi routing baseline |
+| `oak-ga-spawn-turnaround-recording.yaat-bug-report-bundle.zip` | — | N346G, N172SP | OAK GA parking spawn — pathfinder picks an arc whose exit tangent is opposite the next route segment, forcing a 270° CW spiral |
 
 ### Adding a new airport layout
 
