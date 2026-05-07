@@ -202,21 +202,7 @@ function Test-McpRegistered {
 }
 
 function Register-McpServers {
-    $githubTokenEnv = $null
-    if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_MCP_TOKEN)) {
-        $githubTokenEnv = "GITHUB_MCP_TOKEN"
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($env:GITHUB_PAT_TOKEN)) {
-        $githubTokenEnv = "GITHUB_PAT_TOKEN"
-    }
-
-    if ($githubTokenEnv) {
-        Invoke-CodexMcpAdd -Name "github" -Arguments @("--url", "https://api.githubcopilot.com/mcp/", "--bearer-token-env-var", $githubTokenEnv)
-    }
-    else {
-        Write-Warning "GITHUB_MCP_TOKEN and GITHUB_PAT_TOKEN are not set; registering GitHub remote MCP without a bearer-token env var."
-        Invoke-CodexMcpAdd -Name "github" -Arguments @("--url", "https://api.githubcopilot.com/mcp/")
-    }
+    Write-Host "Skipping standalone GitHub and Hugging Face MCP registration; use the official Codex plugins for those providers."
 
     if (-not [string]::IsNullOrWhiteSpace($env:CONTEXT7_API_KEY)) {
         Invoke-CodexMcpAdd -Name "context7" -Arguments @("--", $PowershellExe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $RepoRoot "tools\mcp\context7-stdio.ps1"))
@@ -232,21 +218,6 @@ function Register-McpServers {
     else {
         Write-Warning "EXA_API_KEY is not set; registering Exa hosted MCP without an API key."
         Invoke-CodexMcpAdd -Name "exa" -Arguments @("--url", "https://mcp.exa.ai/mcp")
-    }
-
-    $huggingFaceTokenEnv = $null
-    if (-not [string]::IsNullOrWhiteSpace($env:HF_TOKEN)) {
-        $huggingFaceTokenEnv = "HF_TOKEN"
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($env:HUGGINGFACE_HUB_TOKEN)) {
-        $huggingFaceTokenEnv = "HUGGINGFACE_HUB_TOKEN"
-    }
-
-    if ($huggingFaceTokenEnv) {
-        Invoke-CodexMcpAdd -Name "huggingface" -Arguments @("--url", "https://huggingface.co/mcp", "--bearer-token-env-var", $huggingFaceTokenEnv)
-    }
-    else {
-        Write-Warning "Skipping optional Hugging Face MCP: set HF_TOKEN or HUGGINGFACE_HUB_TOKEN to enable it."
     }
 }
 
