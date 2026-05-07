@@ -93,7 +93,10 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         SetHoldingTargets(ctx);
 
         var label = AirspaceClass == AirspaceClass.Bravo ? "bravo" : "charlie";
-        ctx.Aircraft.PendingNotifications.Add(Pilot.PilotResponder.BuildAirspaceBoundaryHold(ctx.Aircraft, label, Ident, ReferencePosition));
+        Pilot.PilotResponder.QueueSoloPilotTransmission(
+            ctx.Aircraft,
+            Pilot.PilotResponder.BuildAirspaceBoundaryHold(ctx.Aircraft, label, Ident, ReferencePosition)
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)

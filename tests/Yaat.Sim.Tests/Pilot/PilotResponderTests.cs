@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Tests.Pilot;
@@ -32,6 +34,13 @@ public class PilotResponderTests
 
     private static CompoundCommand CompoundWithCondition(BlockCondition condition, params ParsedCommand[] commands) =>
         new([new ParsedBlock(condition, commands.ToList())]);
+
+    private static AircraftState MakeAircraftWithAssignedRunway(string callsign, string runwayId)
+    {
+        var ac = MakeAircraft(callsign);
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(runwayId) };
+        return ac;
+    }
 
     [Fact]
     public void BuildReadback_SingleAltitudeCommand_AppendsBracketAndSpokenCallsign()
@@ -108,6 +117,116 @@ public class PilotResponderTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public void BuildReadback_ClearedForTakeoff_IncludesRunwayDepartureAndAltitude()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var ac = MakeAircraft("N436MS");
+        ac.Procedure.DepartureRunway = "28R";
+        var compound = Compound(new ClearedForTakeoffCommand(new DirectFixDeparture("MOD", 37.625, -120.957, TurnDirection.Right), 2500));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal(
+            "[N436MS] cleared for takeoff runway two eight right, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
+            result
+        );
+    }
+
+    [Fact]
+    public void BuildReadback_ClearedForTakeoff_RelativeTurnDepartureUsesGroupedDegrees()
+    {
+        var ac = MakeAircraft("N172SP");
+        ac.Procedure.DepartureRunway = "28R";
+        var compound = Compound(new ClearedForTakeoffCommand(new RelativeTurnDeparture(270, TurnDirection.Right), 1400));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal(
+            "[N172SP] cleared for takeoff runway two eight right, make a right two seventy degree departure, climb and maintain one thousand four hundred, november one seven two sierra papa.",
+            result
+        );
+    }
+
+    [Fact]
+    public void BuildReadback_AcknowledgePilotContact_RemainsSilent()
+    {
+        var ac = MakeAircraft("N172SP");
+        var compound = Compound(new AcknowledgePilotContactCommand());
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void BuildReadback_ClearedTakeoffPresent_IncludesDepartureAndAltitudeWithoutRunway()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var ac = MakeAircraft("N436MS");
+        ac.Procedure.DepartureRunway = "28R";
+        var compound = Compound(new ClearedTakeoffPresentCommand(new DirectFixDeparture("MOD", 37.625, -120.957, TurnDirection.Right), 2500));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal(
+            "[N436MS] cleared for takeoff, present position, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
+            result
+        );
+    }
+
+    [Fact]
+    public void BuildReadback_DirectToVor_UsesPublishedNavaidName()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var ac = MakeAircraft("N436MS");
+        var compound = Compound(new DirectToCommand([new ResolvedFix("MOD", 37.625, -120.957)], []));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[N436MS] proceed direct to Modesto VOR, november four three six mike sierra.", result);
+    }
+
+    public static TheoryData<ParsedCommand, string> RunwayCriticalTowerReadbackCases() =>
+        new()
+        {
+            { new LineUpAndWaitCommand(), "line up and wait runway two eight right" },
+            { new ClearedToLandCommand(), "cleared to land runway two eight right" },
+            { new LandAndHoldShortCommand("28L"), "cleared to land runway two eight right, hold short runway two eight left" },
+            { new TouchAndGoCommand(null, null), "cleared touch and go runway two eight right" },
+            { new StopAndGoCommand(null), "cleared stop and go runway two eight right" },
+            { new LowApproachCommand(null), "cleared low approach runway two eight right" },
+            { new ClearedForOptionCommand(null), "cleared for the option runway two eight right" },
+            { new ClearedForOptionCommand(PatternDirection.Right), "cleared for the option runway two eight right, make right traffic" },
+        };
+
+    [Theory]
+    [MemberData(nameof(RunwayCriticalTowerReadbackCases))]
+    public void BuildReadback_RunwayCriticalTowerClearances_IncludeAssignedRunway(ParsedCommand command, string expectedClause)
+    {
+        var ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
+        var compound = Compound(command);
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal($"[N436MS] {expectedClause}, november four three six mike sierra.", result);
+    }
+
     // --- BuildReadyToTaxi ---
 
     [Fact]
@@ -126,6 +245,15 @@ public class PilotResponderTests
         var result = PilotResponder.BuildReadyToTaxi(ac);
 
         Assert.Equal("[AAL123] ground, american one twenty three at the ramp, with information Alpha, ready to taxi.", result);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_WithRadioName_AddressesFacility()
+    {
+        var ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
+        var result = PilotResponder.BuildReadyToTaxi(ac, "Oakland Ground");
+
+        Assert.Equal("[N123AB] Oakland Ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result);
     }
 
     // --- BuildHoldingShortReady ---
@@ -148,6 +276,15 @@ public class PilotResponderTests
         Assert.Contains("american one twenty three holding short runway nine left", result);
     }
 
+    [Fact]
+    public void BuildHoldingShortReady_WithRadioName_AddressesFacility()
+    {
+        var ac = MakeAircraft("N123AB");
+        var result = PilotResponder.BuildHoldingShortReady(ac, "28R", "Oakland Tower");
+
+        Assert.Equal("[N123AB] Oakland Tower, november one two three alpha bravo holding short runway two eight right, ready for departure.", result);
+    }
+
     // --- BuildLinedUpReady ---
 
     [Fact]
@@ -157,6 +294,15 @@ public class PilotResponderTests
         var result = PilotResponder.BuildLinedUpReady(ac, "28R");
 
         Assert.Equal("[N123AB] tower, november one two three alpha bravo runway two eight right, ready.", result);
+    }
+
+    [Fact]
+    public void BuildLinedUpReady_WithRadioName_AddressesFacility()
+    {
+        var ac = MakeAircraft("N123AB");
+        var result = PilotResponder.BuildLinedUpReady(ac, "28R", "Oakland Tower");
+
+        Assert.Equal("[N123AB] Oakland Tower, november one two three alpha bravo runway two eight right, ready.", result);
     }
 
     // --- BuildOnFinal ---
@@ -195,6 +341,18 @@ public class PilotResponderTests
         var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 3);
 
         Assert.Equal("[N123AB] tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.", result);
+    }
+
+    [Fact]
+    public void BuildOnFinal_WithRadioName_AddressesFacility()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 3, "Oakland Tower");
+
+        Assert.Equal(
+            "[N123AB] Oakland Tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.",
+            result
+        );
     }
 
     [Fact]
@@ -244,6 +402,21 @@ public class PilotResponderTests
 
         Assert.Equal(
             "[AAL123] tower, american one twenty three, five miles east at two thousand, request closed traffic, with information Alpha.",
+            result
+        );
+    }
+
+    [Fact]
+    public void BuildClosedTrafficRequest_WithRadioName_AddressesFacility()
+    {
+        var airport = new LatLon(37.7212, -122.2208);
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        ac.Position = GeoMath.ProjectPoint(airport, new TrueHeading(180), 3);
+
+        var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1500, "Oakland Tower");
+
+        Assert.Equal(
+            "[N123AB] Oakland Tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha.",
             result
         );
     }

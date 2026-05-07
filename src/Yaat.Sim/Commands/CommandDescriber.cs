@@ -394,7 +394,7 @@ public static class CommandDescriber
             LeftTurnCommand cmd => $"LT {cmd.Degrees}",
             RightTurnCommand cmd => $"RT {cmd.Degrees}",
             FlyPresentHeadingCommand => "FPH",
-            ClimbMaintainCommand cmd => $"CM {cmd.Altitude}",
+            ClimbMaintainCommand cmd => FormatClimbMaintainCanonical(cmd),
             DescendMaintainCommand cmd => $"DM {cmd.Altitude}",
             SpeedCommand cmd => FormatSpeedCanonical(cmd),
             ResumeNormalSpeedCommand => "RNS",
@@ -635,7 +635,7 @@ public static class CommandDescriber
             LeftTurnCommand cmd => $"Turn {cmd.Degrees} degrees left",
             RightTurnCommand cmd => $"Turn {cmd.Degrees} degrees right",
             FlyPresentHeadingCommand => "Fly present heading",
-            ClimbMaintainCommand cmd => $"Climb and maintain {cmd.Altitude:N0}",
+            ClimbMaintainCommand cmd => FormatClimbMaintainNatural(cmd),
             DescendMaintainCommand cmd => $"Descend and maintain {cmd.Altitude:N0}",
             SpeedCommand cmd => FormatSpeedNatural(cmd),
             ResumeNormalSpeedCommand => "Resume normal speed",
@@ -962,6 +962,16 @@ public static class CommandDescriber
         };
     }
 
+    private static string FormatClimbMaintainCanonical(ClimbMaintainCommand cmd)
+    {
+        return cmd.Modifier switch
+        {
+            AltitudeAssignmentModifier.AtOrAbove => $"CM A{cmd.Altitude}",
+            AltitudeAssignmentModifier.AtOrBelow => $"CM B{cmd.Altitude}",
+            _ => $"CM {cmd.Altitude}",
+        };
+    }
+
     private static string FormatWarpCanonical(WarpCommand cmd)
     {
         var sb = new StringBuilder("WARP ").Append(cmd.PositionLabel);
@@ -995,6 +1005,16 @@ public static class CommandDescriber
             SpeedModifier.Floor => $"Maintain {cmd.Speed} knots or greater",
             SpeedModifier.Ceiling => $"Do not exceed {cmd.Speed} knots",
             _ => $"Speed {cmd.Speed} knots",
+        };
+    }
+
+    private static string FormatClimbMaintainNatural(ClimbMaintainCommand cmd)
+    {
+        return cmd.Modifier switch
+        {
+            AltitudeAssignmentModifier.AtOrAbove => $"Maintain at or above {cmd.Altitude:N0}",
+            AltitudeAssignmentModifier.AtOrBelow => $"Maintain at or below {cmd.Altitude:N0}",
+            _ => $"Climb and maintain {cmd.Altitude:N0}",
         };
     }
 

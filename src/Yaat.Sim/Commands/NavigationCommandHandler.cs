@@ -1047,7 +1047,14 @@ internal static class NavigationCommandHandler
         // the latest request always wins.
         aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
         aircraft.PendingObservations.Add(new FieldAcquisitionObservation());
-        aircraft.PendingPilotReadbacks.Add(FormatFieldLookingNotification(result, destination));
+        if (ctx.SoloTrainingMode)
+        {
+            Pilot.PilotResponder.QueueSoloPilotReadback(aircraft, FormatFieldLookingNotification(result, destination));
+        }
+        else
+        {
+            aircraft.PendingPilotReadbacks.Add(FormatFieldLookingNotification(result, destination));
+        }
         return CommandDispatcher.Ok($"Looking for the field — {FormatFieldFailureHint(result, metar, destination)}");
     }
 
@@ -1109,7 +1116,14 @@ internal static class NavigationCommandHandler
         var targetCallsignUpper = targetCallsign.ToUpperInvariant();
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
         aircraft.PendingObservations.Add(new TrafficAcquisitionObservation(targetCallsignUpper));
-        aircraft.PendingPilotReadbacks.Add(FormatTrafficLookingNotification(result, target));
+        if (ctx.SoloTrainingMode)
+        {
+            Pilot.PilotResponder.QueueSoloPilotReadback(aircraft, FormatTrafficLookingNotification(result, target));
+        }
+        else
+        {
+            aircraft.PendingPilotReadbacks.Add(FormatTrafficLookingNotification(result, target));
+        }
         return CommandDispatcher.Ok($"Looking for traffic — {FormatTrafficFailureHint(result, target)}");
     }
 

@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -139,6 +140,13 @@ public class AircraftState
     /// not snapshot-serialized.
     /// </summary>
     public List<string> PendingPilotReadbacks { get; } = [];
+
+    /// <summary>
+    /// Typed solo-training pilot transmissions awaiting server broadcast to
+    /// the client audio layer. Each entry stores compact terminal text plus
+    /// bracket-free spoken text for TTS. Transient — not snapshot-serialized.
+    /// </summary>
+    public List<PilotTransmission> PendingPilotTransmissions { get; } = [];
 
     public List<ApproachScore> PendingApproachScores { get; } = [];
     public ApproachScore? ActiveApproachScore { get; set; }

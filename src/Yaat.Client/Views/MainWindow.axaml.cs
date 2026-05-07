@@ -1815,6 +1815,7 @@ public partial class MainWindow : Window
             vm.RefreshCommandScheme();
             vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
             vm.RefreshIsSpeechEnabledFromPrefs();
+            vm.RefreshWindowTitleFromPrefs();
             ApplyKeybinds(vm.Preferences);
             // Visual settings already applied via preview — just ensure final state is consistent
             SyncAllRadarViewTint();

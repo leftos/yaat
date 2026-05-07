@@ -39,6 +39,7 @@ namespace Yaat.Client.Services;
 // --- Broadcast payloads (server.On<T>). ---
 [JsonSerializable(typeof(AircraftDto))]
 [JsonSerializable(typeof(TerminalBroadcastDto))]
+[JsonSerializable(typeof(PilotTransmissionBroadcastDto))]
 [JsonSerializable(typeof(RoomMemberChangedDto))]
 [JsonSerializable(typeof(CrcLobbyChangedDto))]
 [JsonSerializable(typeof(CrcRoomMembersChangedDto))]

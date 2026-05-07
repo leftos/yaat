@@ -168,6 +168,15 @@ public partial class SettingsViewModel : ObservableObject
     private bool _rpoPilotSpeechAudibleAlert;
 
     [ObservableProperty]
+    private bool _pilotVoiceEnabled;
+
+    [ObservableProperty]
+    private int _pilotVoiceVolume = 80;
+
+    [ObservableProperty]
+    private bool _pilotVoiceRadioFxEnabled = true;
+
+    [ObservableProperty]
     private string _aircraftSelectKeyDisplay = "Numpad +";
 
     [ObservableProperty]
@@ -404,6 +413,13 @@ public partial class SettingsViewModel : ObservableObject
     public bool IsCudaBackendSupported => CudaBackend is not null;
 
     /// <summary>
+    /// Runtime installer for the Piper voice pack used by solo-training pilot TTS. Unlike the
+    /// CUDA backend, this is cross-platform and always visible because sherpa-onnx consumes the
+    /// same archive layout on every desktop OS.
+    /// </summary>
+    public PiperVoiceInstaller PiperVoice { get; } = new();
+
+    /// <summary>
     /// Available audio input device names. First entry is always the <see cref="DefaultAudioDeviceLabel"/>
     /// sentinel which maps to an empty <see cref="UserPreferences.AudioInputDevice"/> (meaning "use
     /// system default"). Enumerated once at Settings open via <see cref="AudioCaptureService.ListInputDevices"/>;
@@ -468,6 +484,9 @@ public partial class SettingsViewModel : ObservableObject
         _soloTrainingMode = _preferences.SoloTrainingMode;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
         _rpoPilotSpeechAudibleAlert = _preferences.RpoPilotSpeechAudibleAlert;
+        _pilotVoiceEnabled = _preferences.PilotVoiceEnabled;
+        _pilotVoiceVolume = _preferences.PilotVoiceVolume;
+        _pilotVoiceRadioFxEnabled = _preferences.PilotVoiceRadioFxEnabled;
         _aircraftSelectKeyName = _preferences.AircraftSelectKey;
         _aircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
         _focusInputKeyName = _preferences.FocusInputKey;
@@ -568,6 +587,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);
         _preferences.SetSoloTrainingMode(SoloTrainingMode);
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
+        _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
@@ -1379,5 +1399,46 @@ public partial class SettingsViewModel : ObservableObject
     private void UninstallCudaBackend()
     {
         CudaBackend?.Uninstall();
+    }
+
+    // ---------- Piper voice install ----------
+
+    private CancellationTokenSource? _piperVoiceInstallCts;
+
+    [RelayCommand]
+    private async Task InstallPiperVoicePackAsync()
+    {
+        if (PiperVoice.IsBusy)
+        {
+            return;
+        }
+
+        _piperVoiceInstallCts?.Dispose();
+        _piperVoiceInstallCts = new CancellationTokenSource();
+        try
+        {
+            await PiperVoice.InstallAsync(_piperVoiceInstallCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // StatusMessage was already set by InstallAsync.
+        }
+        catch (Exception)
+        {
+            // InstallAsync logs + sets StatusMessage. Keep Settings open when offline or when
+            // GitHub is unavailable.
+        }
+    }
+
+    [RelayCommand]
+    private void CancelPiperVoicePackInstall()
+    {
+        _piperVoiceInstallCts?.Cancel();
+    }
+
+    [RelayCommand]
+    private void UninstallPiperVoicePack()
+    {
+        PiperVoice.Uninstall();
     }
 }

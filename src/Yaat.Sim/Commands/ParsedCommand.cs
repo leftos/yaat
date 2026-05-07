@@ -35,7 +35,18 @@ public record RightTurnCommand(int Degrees) : ParsedCommand;
 
 public record FlyPresentHeadingCommand : ParsedCommand;
 
-public record ClimbMaintainCommand(int Altitude) : ParsedCommand;
+public enum AltitudeAssignmentModifier
+{
+    None,
+    AtOrAbove,
+    AtOrBelow,
+}
+
+public record ClimbMaintainCommand(int Altitude, AltitudeAssignmentModifier Modifier) : ParsedCommand
+{
+    public ClimbMaintainCommand(int altitude)
+        : this(altitude, AltitudeAssignmentModifier.None) { }
+}
 
 public record DescendMaintainCommand(int Altitude) : ParsedCommand;
 

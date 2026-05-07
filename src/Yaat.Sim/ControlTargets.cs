@@ -29,6 +29,12 @@ public class ControlTargets
     /// <summary>Target altitude in feet MSL.</summary>
     public double? TargetAltitude { get; set; }
 
+    /// <summary>Minimum altitude in feet MSL. Used for "maintain VFR at or above" restrictions.</summary>
+    public double? AltitudeFloor { get; set; }
+
+    /// <summary>Maximum altitude in feet MSL. Used for "maintain VFR at or below" restrictions.</summary>
+    public double? AltitudeCeiling { get; set; }
+
     /// <summary>
     /// Vertical rate override in fpm (positive = climb).
     /// Null means use category default.
@@ -101,6 +107,8 @@ public class ControlTargets
             PreferredTurnDirection = PreferredTurnDirection.HasValue ? (int)PreferredTurnDirection.Value : null,
             TurnRateOverride = TurnRateOverride,
             TargetAltitude = TargetAltitude,
+            AltitudeFloor = AltitudeFloor,
+            AltitudeCeiling = AltitudeCeiling,
             DesiredVerticalRate = DesiredVerticalRate,
             TargetSpeed = TargetSpeed,
             DesiredDecelRate = DesiredDecelRate,
@@ -121,6 +129,8 @@ public class ControlTargets
         targets.PreferredTurnDirection = dto.PreferredTurnDirection.HasValue ? (TurnDirection)dto.PreferredTurnDirection.Value : null;
         targets.TurnRateOverride = dto.TurnRateOverride;
         targets.TargetAltitude = dto.TargetAltitude;
+        targets.AltitudeFloor = dto.AltitudeFloor;
+        targets.AltitudeCeiling = dto.AltitudeCeiling;
         targets.DesiredVerticalRate = dto.DesiredVerticalRate;
         targets.TargetSpeed = dto.TargetSpeed;
         targets.DesiredDecelRate = dto.DesiredDecelRate;

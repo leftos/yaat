@@ -9,6 +9,7 @@ using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
@@ -1045,7 +1046,7 @@ public sealed class SimulationEngine
             var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft);
             if (!string.IsNullOrEmpty(readback))
             {
-                aircraft.PendingNotifications.Add(readback);
+                Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(aircraft, readback);
             }
         }
 
@@ -1362,6 +1363,8 @@ public sealed class SimulationEngine
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
+            StudentPositionType = Scenario?.StudentPositionType,
+            StudentRadioName = PilotResponder.ResolveStudentRadioName(Scenario),
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
             OccupiedHoldShortNodes = occupiedNodes,
             MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,

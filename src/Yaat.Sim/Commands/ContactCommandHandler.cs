@@ -79,7 +79,7 @@ public static class ContactCommandHandler
     {
         if (ctx.SoloTrainingMode)
         {
-            aircraft.PendingNotifications.Add(pilotSpeech);
+            PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech);
             return;
         }
         PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech, warningText);

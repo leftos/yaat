@@ -63,7 +63,7 @@ public static class PilotProactive
             return;
         }
 
-        aircraft.PendingNotifications.Add(line);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line);
         aircraft.HasMadeInitialContact = true;
     }
 

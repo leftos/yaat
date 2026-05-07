@@ -91,11 +91,18 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyClimbMaintain(ClimbMaintainCommand cmd, AircraftState aircraft)
     {
+        if (cmd.Modifier != AltitudeAssignmentModifier.None)
+        {
+            return ApplyVfrAltitudeRestriction(cmd, aircraft);
+        }
+
         var prev = PreviousAltitude(aircraft, cmd.Altitude);
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.AltitudeFloor = null;
+        aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
 
@@ -107,6 +114,36 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }
 
+    private static CommandResult ApplyVfrAltitudeRestriction(ClimbMaintainCommand cmd, AircraftState aircraft)
+    {
+        if (!aircraft.FlightPlan.IsVfr)
+        {
+            return new CommandResult(false, "CM A/B altitude restrictions require VFR aircraft");
+        }
+
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.IsExpediting = false;
+        aircraft.Targets.AssignedAltitude = cmd.Altitude;
+        aircraft.Targets.HasExplicitSpeedCommand = false;
+
+        switch (cmd.Modifier)
+        {
+            case AltitudeAssignmentModifier.AtOrAbove:
+                aircraft.Targets.AltitudeFloor = cmd.Altitude;
+                aircraft.Targets.AltitudeCeiling = null;
+                aircraft.Targets.TargetAltitude = aircraft.Altitude < cmd.Altitude ? cmd.Altitude : null;
+                return CommandDispatcher.Ok($"Maintain VFR at or above {cmd.Altitude:N0}");
+            case AltitudeAssignmentModifier.AtOrBelow:
+                aircraft.Targets.AltitudeCeiling = cmd.Altitude;
+                aircraft.Targets.AltitudeFloor = null;
+                aircraft.Targets.TargetAltitude = aircraft.Altitude > cmd.Altitude ? cmd.Altitude : null;
+                return CommandDispatcher.Ok($"Maintain VFR at or below {cmd.Altitude:N0}");
+            default:
+                return new CommandResult(false, $"invalid CM altitude restriction '{cmd.Modifier}'");
+        }
+    }
+
     internal static CommandResult ApplyDescendMaintain(DescendMaintainCommand cmd, AircraftState aircraft)
     {
         var prev = PreviousAltitude(aircraft, cmd.Altitude);
@@ -114,6 +151,8 @@ internal static class FlightCommandHandler
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.AltitudeFloor = null;
+        aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
 
@@ -134,6 +173,8 @@ internal static class FlightCommandHandler
         aircraft.Altitude = cmd.Altitude;
         aircraft.VerticalSpeed = 0;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.AltitudeFloor = null;
+        aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         return CommandDispatcher.Ok($"Force altitude {cmd.Altitude:N0}");
     }
@@ -656,6 +697,8 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedMagneticHeading = heading;
         aircraft.Targets.PreferredTurnDirection = null;
         aircraft.Targets.TargetAltitude = altitude;
+        aircraft.Targets.AltitudeFloor = null;
+        aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = altitude;
         aircraft.Targets.TargetSpeed = speed;
         aircraft.Targets.AssignedSpeed = speed;

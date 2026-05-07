@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
@@ -52,6 +53,41 @@ public class M102AirborneCheckInTests
             SoloTrainingMode = soloMode,
             StudentPositionType = positionType,
         };
+
+    private static SimScenarioState MakeScenarioWithStudentRadioName(string positionType, string callsign, string radioName)
+    {
+        var scenario = MakeScenario(positionType);
+        scenario.StudentPosition = TrackOwner.CreateStars(callsign, "OAK", 3, "O");
+        scenario.ArtccConfig = new ArtccConfigRoot
+        {
+            Id = "ZOA",
+            Facility = new FacilityConfig
+            {
+                Id = "ZOA",
+                Type = "Artcc",
+                Name = "Oakland",
+                ChildFacilities =
+                [
+                    new FacilityConfig
+                    {
+                        Id = "OAK",
+                        Type = "Atct",
+                        Name = "Oakland",
+                        Positions =
+                        [
+                            new PositionConfig
+                            {
+                                Id = "oak-twr",
+                                Callsign = callsign,
+                                RadioName = radioName,
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        return scenario;
+    }
 
     // ─────────────────────────────────────────────────────────────────────
     // PilotResponder.BuildAirborneCheckIn — IFR
@@ -121,6 +157,17 @@ public class M102AirborneCheckInTests
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
         Assert.Equal("[AAL123] tower, american one twenty three, with information Alpha.", line);
+    }
+
+    [Fact]
+    public void Ifr_Tower_UsesStudentPositionRadioName()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 2500, destinationRunway: "28R");
+        var sc = MakeScenarioWithStudentRadioName("TWR", "OAK_TWR", "Oakland Tower");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("[AAL123] Oakland Tower, american one twenty three runway two eight right, with information Alpha.", line);
     }
 
     // ─────────────────────────────────────────────────────────────────────

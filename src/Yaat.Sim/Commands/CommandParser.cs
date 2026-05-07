@@ -608,7 +608,7 @@ public static class CommandParser
             RelativeRight => ParseDegrees(arg, d => new RightTurnCommand(d)),
             FlyPresentHeading when arg is null => PR.Ok(new FlyPresentHeadingCommand()),
             // Altitude / Speed
-            ClimbMaintain => ParseAltitude(arg, a => new ClimbMaintainCommand(a)),
+            ClimbMaintain => ParseClimbMaintain(arg),
             DescendMaintain => ParseAltitude(arg, a => new DescendMaintainCommand(a)),
             Speed => ParseSpeed(arg),
             ResumeNormalSpeed when arg is null => PR.Ok(new ResumeNormalSpeedCommand()),
@@ -1716,6 +1716,27 @@ public static class CommandParser
     {
         int? altitude = AltitudeResolver.Resolve(arg);
         return altitude is null ? PR.Fail($"invalid altitude '{arg}'") : PR.Ok(factory(altitude.Value));
+    }
+
+    private static PR ParseClimbMaintain(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Fail("requires an altitude argument");
+        }
+
+        var trimmed = arg.Trim();
+        if (trimmed.Length > 1 && trimmed[0] is 'A' or 'a' or 'B' or 'b')
+        {
+            var modifier = trimmed[0] is 'A' or 'a' ? AltitudeAssignmentModifier.AtOrAbove : AltitudeAssignmentModifier.AtOrBelow;
+            int? restrictedAltitude = AltitudeResolver.Resolve(trimmed[1..]);
+            return restrictedAltitude is null
+                ? PR.Fail($"invalid altitude '{arg}'")
+                : PR.Ok(new ClimbMaintainCommand(restrictedAltitude.Value, modifier));
+        }
+
+        int? altitude = AltitudeResolver.Resolve(trimmed);
+        return altitude is null ? PR.Fail($"invalid altitude '{arg}'") : PR.Ok(new ClimbMaintainCommand(altitude.Value));
     }
 
     private static PR ParseWarp(string? arg)

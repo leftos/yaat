@@ -179,6 +179,9 @@
                     <StackPanel Spacing="8" MinWidth="240">
                         <TextBlock Text="Session Settings" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
 
+                        <CheckBox Content="Solo Training Mode"
+                                  IsChecked="{Binding SessionSoloTrainingMode}" />
+
                         <StackPanel Spacing="2">
                             <TextBlock Text="Auto-Delete:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
                             <ComboBox ItemsSource="{Binding SessionAutoDeleteOptions}"
@@ -202,9 +205,6 @@
 
                         <CheckBox Content="Validate DCT Fixes"
                                   IsChecked="{Binding SessionValidateDctFixes}" />
-
-                        <CheckBox Content="Solo Training Mode"
-                                  IsChecked="{Binding SessionSoloTrainingMode}" />
 
                         <TextBlock Text="Changes apply to all RPOs in this session."
                                    Foreground="{DynamicResource SubtleTextBrush}"

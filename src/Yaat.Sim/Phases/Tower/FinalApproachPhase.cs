@@ -366,7 +366,11 @@ public sealed class FinalApproachPhase : Phase
             var rwyId = ctx.Runway?.Designator ?? clearance?.RunwayId ?? "the runway";
             var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
             var distMiles = (int)Math.Round(startDist);
-            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles));
+            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
+            PilotResponder.QueueSoloPilotTransmission(
+                ctx.Aircraft,
+                PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles, facilityCallName)
+            );
             ctx.Aircraft.HasMadeInitialContact = true;
         }
     }
@@ -654,7 +658,7 @@ public sealed class FinalApproachPhase : Phase
             if (ctx.SoloTrainingMode && _isPatternTraffic && ctx.Aircraft.FlightPlan.IsVfr)
             {
                 string runwayId = ctx.Runway?.Designator ?? "the runway";
-                ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId));
+                PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId));
             }
             else
             {

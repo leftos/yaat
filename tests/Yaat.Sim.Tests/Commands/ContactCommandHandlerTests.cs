@@ -35,8 +35,8 @@ public class ContactCommandHandlerTests
 
         Assert.True(result.Success);
         var notification = Assert.Single(ac.PendingNotifications);
-        Assert.StartsWith("[N123AB] tower on ", notification);
-        Assert.Contains(", november one two three alpha bravo, so long.", notification);
+        Assert.StartsWith("tower on ", notification);
+        Assert.Contains(", N123AB, so long.", notification);
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public class ContactCommandHandlerTests
 
         Assert.True(result.Success);
         var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Equal("[N123AB] november one two three alpha bravo, good day.", notification);
+        Assert.Equal("N123AB, good day.", notification);
     }
 
     // --- Routing: solo / RPO+flag / RPO ---

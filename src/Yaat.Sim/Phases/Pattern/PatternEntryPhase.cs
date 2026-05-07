@@ -138,7 +138,11 @@ public sealed class PatternEntryPhase : Phase
         {
             var airportPos = new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude);
             int altitudeFt = (int)Math.Round(ctx.Aircraft.Altitude);
-            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt));
+            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
+            PilotResponder.QueueSoloPilotTransmission(
+                ctx.Aircraft,
+                PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName)
+            );
             _hasAnnouncedInitialCall = true;
             ctx.Aircraft.HasMadeInitialContact = true;
         }

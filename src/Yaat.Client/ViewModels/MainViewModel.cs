@@ -30,6 +30,7 @@ public partial class MainViewModel : ObservableObject
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
     private readonly PilotSpeechAlertService _pilotSpeechAlerts = new();
+    private readonly PilotVoiceService _pilotVoice = new();
 
     // Speech recognition pipeline. All services are lazy/opt-in: they only touch real resources
     // (PortAudio, Whisper weights, LLM weights) when SpeechEnabled is true AND the user holds the
@@ -417,6 +418,9 @@ public partial class MainViewModel : ObservableObject
         get
         {
             var appLabel = $"YAAT {BuildInfo.TitleSuffix}";
+            var soloMode = HasScenario ? SessionSoloTrainingMode : _preferences.SoloTrainingMode;
+            var modeLabel = soloMode ? "Solo mode" : "RPO mode";
+            appLabel = $"{appLabel} [{modeLabel}]";
             if (ActiveRoomName is null)
             {
                 return appLabel;
@@ -822,10 +826,16 @@ public partial class MainViewModel : ObservableObject
         IsSpeechEnabled = _preferences.SpeechEnabled;
     }
 
+    public void RefreshWindowTitleFromPrefs()
+    {
+        OnPropertyChanged(nameof(WindowTitle));
+    }
+
     public MainViewModel(IFilePickerService filePicker)
     {
         _filePicker = filePicker;
         _isSpeechEnabled = _preferences.SpeechEnabled;
+        _sessionSoloTrainingMode = _preferences.SoloTrainingMode;
 
         // Speech pipeline wiring. The order here matters: LlmService must exist before
         // LocalLlmCommandMapper, and SpeechRecognitionService needs all of them.
@@ -901,6 +911,7 @@ public partial class MainViewModel : ObservableObject
         _connection.Reconnected += OnReconnected;
         _connection.Closed += OnConnectionClosed;
         _connection.TerminalEntryReceived += OnTerminalEntry;
+        _connection.PilotTransmissionReceived += OnPilotTransmissionReceived;
         _connection.RoomMemberChanged += OnRoomMemberChanged;
         _connection.CrcLobbyChanged += OnCrcLobbyChanged;
         _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
@@ -2221,6 +2232,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSessionSoloTrainingModeChanged(bool value)
     {
+        OnPropertyChanged(nameof(WindowTitle));
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetSoloTrainingModeAsync(value);

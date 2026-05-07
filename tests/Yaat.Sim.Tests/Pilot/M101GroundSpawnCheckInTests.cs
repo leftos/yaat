@@ -64,7 +64,7 @@ public class M101GroundSpawnCheckInTests
         TickElapsed(phase, ctx, 5.0);
 
         Assert.Single(ac.PendingNotifications);
-        Assert.Contains("november one two three alpha bravo at kilo ramp", ac.PendingNotifications[0]);
+        Assert.Contains("N123AB at kilo ramp", ac.PendingNotifications[0]);
         Assert.Contains("with information Alpha", ac.PendingNotifications[0]);
         Assert.True(ac.HasMadeInitialContact);
         Assert.True(ac.Ground.HasAnnouncedReady);
@@ -132,7 +132,7 @@ public class M101GroundSpawnCheckInTests
 
         var pilotLine = ac.PendingNotifications.SingleOrDefault();
         Assert.NotNull(pilotLine);
-        Assert.Contains("holding short runway two eight right", pilotLine);
+        Assert.Contains("holding short runway 28R", pilotLine);
         Assert.Contains("ready for departure", pilotLine);
         Assert.True(ac.HasMadeInitialContact);
     }
@@ -186,8 +186,8 @@ public class M101GroundSpawnCheckInTests
         phase2.OnStart(Ctx(ac));
 
         Assert.Equal(2, ac.PendingNotifications.Count);
-        Assert.Contains("holding short runway two eight left", ac.PendingNotifications[0]);
-        Assert.Contains("holding short runway two eight right", ac.PendingNotifications[1]);
+        Assert.Contains("holding short runway 28L", ac.PendingNotifications[0]);
+        Assert.Contains("holding short runway 28R", ac.PendingNotifications[1]);
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public class M101GroundSpawnCheckInTests
         TickElapsed(phase, ctx, 90.0);
 
         Assert.Single(ac.PendingNotifications);
-        Assert.Contains("runway two eight right, ready", ac.PendingNotifications[0]);
+        Assert.Contains("runway 28R, ready", ac.PendingNotifications[0]);
         Assert.True(ac.HasAnnouncedLinedUpReady);
         Assert.True(ac.HasMadeInitialContact);
 
@@ -310,7 +310,7 @@ public class M101GroundSpawnCheckInTests
 
         var line = ac.PendingNotifications.SingleOrDefault();
         Assert.NotNull(line);
-        Assert.Contains("final runway two eight right", line);
+        Assert.Contains("final runway 28R", line);
         Assert.Contains("with information Alpha", line);
         Assert.True(ac.HasMadeInitialContact);
     }

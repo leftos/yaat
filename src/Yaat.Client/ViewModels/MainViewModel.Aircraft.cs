@@ -83,6 +83,21 @@ public partial class MainViewModel
         });
     }
 
+    private void OnPilotTransmissionReceived(PilotTransmissionBroadcastDto dto)
+    {
+        if (
+            !_preferences.PilotVoiceEnabled
+            || !SessionSoloTrainingMode
+            || !_pilotVoice.IsAvailable
+            || !string.Equals(dto.ScenarioId, ActiveScenarioId, StringComparison.Ordinal)
+        )
+        {
+            return;
+        }
+
+        _pilotVoice.Enqueue(dto, _preferences.PilotVoiceVolume, _preferences.PilotVoiceRadioFxEnabled);
+    }
+
     private void OnAircraftUpdated(AircraftDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>

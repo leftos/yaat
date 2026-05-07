@@ -89,8 +89,8 @@ public class M103PatternTrafficCheckInTests
 
         var line = ac.PendingNotifications.SingleOrDefault();
         Assert.NotNull(line);
-        Assert.Contains("november one two three alpha bravo", line);
-        Assert.Contains("three miles south at one thousand five hundred", line);
+        Assert.Contains("N123AB", line);
+        Assert.Contains("3 miles south at one thousand five hundred", line);
         Assert.Contains("request closed traffic", line);
         Assert.Contains("with information Alpha", line);
         Assert.True(ac.HasMadeInitialContact);
@@ -214,7 +214,7 @@ public class M103PatternTrafficCheckInTests
 
         var line = ac.PendingNotifications.SingleOrDefault();
         Assert.NotNull(line);
-        Assert.Contains("midfield downwind runway two eight right", line);
+        Assert.Contains("midfield downwind runway 28R", line);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -348,7 +348,7 @@ public class M103PatternTrafficCheckInTests
 
         var line = ac.PendingNotifications.SingleOrDefault();
         Assert.NotNull(line);
-        Assert.Contains("short final runway two eight right", line);
+        Assert.Contains("short final runway 28R", line);
         Assert.Empty(ac.PendingWarnings);
     }
 

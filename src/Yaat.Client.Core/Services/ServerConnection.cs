@@ -30,6 +30,7 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     /// </summary>
     public event Action? Connected;
     public event Action<TerminalBroadcastDto>? TerminalEntryReceived;
+    public event Action<PilotTransmissionBroadcastDto>? PilotTransmissionReceived;
     public event Action<RoomMemberChangedDto>? RoomMemberChanged;
     public event Action<CrcLobbyChangedDto>? CrcLobbyChanged;
     public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
@@ -110,6 +111,8 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         );
 
         _connection.On<TerminalBroadcastDto>("TerminalBroadcast", dto => TerminalEntryReceived?.Invoke(dto));
+
+        _connection.On<PilotTransmissionBroadcastDto>("PilotTransmissionBroadcast", dto => PilotTransmissionReceived?.Invoke(dto));
 
         _connection.On<RoomMemberChangedDto>("RoomMemberChanged", dto => RoomMemberChanged?.Invoke(dto));
 
@@ -769,6 +772,16 @@ public record RoomMemberChangedDto(string RoomId, List<RoomMemberDto> Members, s
 public record UnloadScenarioResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
 
 public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp);
+
+public record PilotTransmissionBroadcastDto(
+    string ScenarioId,
+    string Callsign,
+    string Text,
+    string SourceKind,
+    int SpeakerId,
+    double ElapsedSeconds,
+    DateTime Timestamp
+);
 
 public record CrcLobbyClientDto(string ClientId, string? Cid, string? DisplayName, string? ArtccId, string? PositionId, bool IsActive);
 

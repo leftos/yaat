@@ -1,6 +1,4 @@
 using Microsoft.Extensions.Logging;
-using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
 using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
@@ -10,15 +8,14 @@ namespace Yaat.Client.Services;
 /// terminal pane (TerminalEntryKind.PilotSpeech), gated by the
 /// <c>RpoPilotSpeechAudibleAlert</c> user preference.
 ///
-/// The chime is generated in code via NAudio's <see cref="SignalGenerator"/> so the client
-/// doesn't ship a WAV asset. Two-tone bell: ~880 Hz (A5) → ~660 Hz (E5), 120 ms each, with
+/// The chime is generated in code so the client doesn't ship a WAV asset.
+/// Two-tone bell: ~880 Hz (A5) → ~660 Hz (E5), 120 ms each, with
 /// a fast attack and a 100 ms exponential decay tail to avoid click on cutoff. Mono, 44.1 kHz,
-/// 16-bit PCM. The cached PCM buffer is built lazily on first play (≈30 KB) and reused.
+/// Float32 PCM. The cached buffer is built lazily on first play and reused.
 ///
-/// Each <see cref="PlayDing"/> call constructs a fresh <see cref="WaveOutEvent"/> so overlapping
-/// transmissions can layer without one cutting off the previous; the device disposes itself when
-/// playback completes via <see cref="WaveOutEvent.PlaybackStopped"/>. Failures (no audio device,
-/// device busy) are caught and logged at Warning — the ding is best-effort by design, never blocking.
+/// Playback uses the same PortAudio output path as pilot voice so the feature remains
+/// cross-platform. Failures (no audio device, device busy) are caught and logged at Warning —
+/// the ding is best-effort by design, never blocking.
 /// </summary>
 public sealed class PilotSpeechAlertService
 {
@@ -28,24 +25,20 @@ public sealed class PilotSpeechAlertService
     private const float OutputVolume = 0.5f;
 
     private readonly object _lock = new();
-    private byte[]? _cachedDingPcm;
+    private readonly PortAudioFloatPlayer _player = new();
+    private float[]? _cachedDing;
 
     public void PlayDing()
     {
+        _ = PlayDingAsync();
+    }
+
+    private async Task PlayDingAsync()
+    {
         try
         {
-            var pcm = EnsureCachedDing();
-            var ms = new System.IO.MemoryStream(pcm, writable: false);
-            var reader = new RawSourceWaveStream(ms, new WaveFormat(SampleRate, 16, 1));
-            var output = new WaveOutEvent { Volume = OutputVolume };
-            output.Init(reader);
-            output.PlaybackStopped += (_, _) =>
-            {
-                output.Dispose();
-                reader.Dispose();
-                ms.Dispose();
-            };
-            output.Play();
+            var ding = EnsureCachedDing();
+            await _player.PlayAsync(ding, SampleRate, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -53,21 +46,21 @@ public sealed class PilotSpeechAlertService
         }
     }
 
-    private byte[] EnsureCachedDing()
+    private float[] EnsureCachedDing()
     {
-        if (_cachedDingPcm is not null)
+        if (_cachedDing is not null)
         {
-            return _cachedDingPcm;
+            return _cachedDing;
         }
 
         lock (_lock)
         {
-            _cachedDingPcm ??= GenerateDing();
-            return _cachedDingPcm;
+            _cachedDing ??= GenerateDing();
+            return _cachedDing;
         }
     }
 
-    private static byte[] GenerateDing()
+    private static float[] GenerateDing()
     {
         // Two-tone notification: A5 → E5, 120 ms each, with attack + decay envelope so each
         // tone has a distinct "bell" character instead of a flat blip. Total ≈ 240 ms.
@@ -75,11 +68,15 @@ public sealed class PilotSpeechAlertService
         var secondTone = BuildTone(660.0, durationMs: 120, attackMs: 5, decayMs: 100);
 
         int totalSamples = firstTone.Length + secondTone.Length;
-        var pcm = new byte[totalSamples * 2];
-        int byteIndex = 0;
-        WriteSamples(firstTone, pcm, ref byteIndex);
-        WriteSamples(secondTone, pcm, ref byteIndex);
-        return pcm;
+        var samples = new float[totalSamples];
+        Array.Copy(firstTone, 0, samples, 0, firstTone.Length);
+        Array.Copy(secondTone, 0, samples, firstTone.Length, secondTone.Length);
+        for (int i = 0; i < samples.Length; i++)
+        {
+            samples[i] *= OutputVolume;
+        }
+
+        return samples;
     }
 
     private static float[] BuildTone(double frequencyHz, int durationMs, int attackMs, int decayMs)
@@ -109,17 +106,5 @@ public sealed class PilotSpeechAlertService
         }
 
         return samples;
-    }
-
-    private static void WriteSamples(float[] samples, byte[] dest, ref int byteIndex)
-    {
-        for (int i = 0; i < samples.Length; i++)
-        {
-            // Clamp before scaling to int16 range; full-scale is ±32767.
-            float clamped = Math.Clamp(samples[i], -1f, 1f);
-            short pcm16 = (short)(clamped * 32767);
-            dest[byteIndex++] = (byte)(pcm16 & 0xFF);
-            dest[byteIndex++] = (byte)((pcm16 >> 8) & 0xFF);
-        }
     }
 }

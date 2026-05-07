@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim;
 
@@ -258,6 +259,24 @@ public sealed class SimulationWorld
                     }
 
                     ac.PendingPilotReadbacks.Clear();
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public List<PilotTransmission> DrainAllPilotTransmissions()
+    {
+        var result = new List<PilotTransmission>();
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.PendingPilotTransmissions.Count > 0)
+                {
+                    result.AddRange(ac.PendingPilotTransmissions);
+                    ac.PendingPilotTransmissions.Clear();
                 }
             }
         }

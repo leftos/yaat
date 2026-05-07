@@ -805,7 +805,7 @@ public static class FlightPhysics
             return;
         }
 
-        var target = aircraft.Targets.TargetAltitude;
+        double? target = ResolveAltitudeGoal(aircraft);
         if (target is null)
         {
             aircraft.VerticalSpeed = 0;
@@ -859,6 +859,22 @@ public static class FlightPhysics
             aircraft.Altitude -= change;
             aircraft.VerticalSpeed = -rate;
         }
+    }
+
+    private static double? ResolveAltitudeGoal(AircraftState aircraft)
+    {
+        double? goal = aircraft.Targets.TargetAltitude;
+        if (aircraft.Targets.AltitudeFloor is { } floor)
+        {
+            goal = goal is null ? (aircraft.Altitude < floor - AltitudeSnapFt ? floor : null) : Math.Max(goal.Value, floor);
+        }
+
+        if (aircraft.Targets.AltitudeCeiling is { } ceiling)
+        {
+            goal = goal is null ? (aircraft.Altitude > ceiling + AltitudeSnapFt ? ceiling : null) : Math.Min(goal.Value, ceiling);
+        }
+
+        return goal;
     }
 
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)

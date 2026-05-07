@@ -95,8 +95,8 @@ Logging/
   FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log or yaat-vstrips.log)
 
 Services/
-  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings).
-  UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (per-app: %LOCALAPPDATA%/yaat/ for Client, /yaat-vstrips/ for VStrips)
+  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio.
+  UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (per-app: %LOCALAPPDATA%/yaat/ for Client, /yaat-vstrips/ for VStrips). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
   UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel),
                                 # "vstrips-{platform}" for Yaat.VStrips so each app downloads its own installer from the shared GitHub release.
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
@@ -134,6 +134,10 @@ Services/
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
   CommandHistoryFormatter.cs    # Pure formatter — canonicalizes partial callsign prefix in up-arrow recall history
   NaturalCommandNormalizer.cs   # Shared transcript-to-canonical normalizer for solo-mode typed natural-language ATC input
+  PilotVoicePack.cs             # Shared Piper voice-pack discovery/validation for installer and sherpa-onnx playback.
+  PiperVoiceInstaller.cs        # Settings-driven Piper voice-pack downloader/extractor into YaatPaths app data.
+  PilotVoiceService.cs          # Off-by-default solo-training pilot voice queue. Consumes PilotTransmissionBroadcastDto FIFO; synthesizes with sherpa-onnx/Piper, applies NAudio.Dsp radio FX, plays through PortAudio.
+  PilotSpeechAlertService.cs    # Optional RPO-mode pilot-speech ding for TerminalEntryKind.PilotSpeech; generated in code and played through PortAudio.
   TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
   (UpdateService.cs lives in Yaat.Client.Core; MainViewModel constructs it with channel: null)
   ArgumentSuggester.cs           # Command argument autocomplete from CommandRegistry metadata (literal options + contextual fix/runway suggestions)
@@ -159,7 +163,7 @@ Services/
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
   MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave), aircraft assignments
-  MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update)
+  MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update), terminal broadcast handling, and PilotTransmissionBroadcast gate to PilotVoiceService.
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler
@@ -167,7 +171,7 @@ ViewModels/
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
-  SettingsViewModel.cs          # Alias editing; preset detection
+  SettingsViewModel.cs          # Settings tabs: identity/admin/sim/audio/speech/visuals/keybinds; includes STT/TTS model download flows.
   WeatherPeriodViewModel.cs     # Per-period VM: wind layers, METARs, precipitation, start/transition minutes
   WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
   ArrivalGeneratorsEditorViewModel.cs # Arrival generator editor VM: row list, Apply (push to sim), Save As (write scenario JSON)
@@ -334,8 +338,9 @@ PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhy
                                # Re-runs VisualAcquisition.TryAcquireTraffic / TryAcquireAirport; on success sets the matching
                                # HasReported* flag and pushes the in-sight pilot readback through PilotResponder.RouteRpoSayReadback:
                                # RPO+RpoShowPilotSpeech → PendingPilotSpeech (green spelled-out via BuildTrafficInSight/BuildFieldInSight),
-                               # otherwise (solo or RPO default) → PendingPilotReadbacks (SAY channel, "Have <target> in sight" /
-                               # "Have the field in sight"). Silently drops observations whose target has left the sim or whose
+                               # solo → PendingPilotReadbacks + typed PendingPilotTransmissions for audio; RPO default →
+                               # PendingPilotReadbacks only (SAY channel, "Have <target> in sight" / "Have the field in sight").
+                               # Silently drops observations whose target has left the sim or whose
                                # destination is no longer lookupable.
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
 
@@ -445,10 +450,13 @@ HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", f
 # Pilot/ — solo-training pilot AI (deterministic readbacks)
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → spoken-English readback string.
                                # Picks the first-declared rule per CanonicalCommandType (textbook form), substitutes captures via AtcNumberParser
+Pilot/PilotTransmission.cs     # Record: Callsign, Text, SourceKind. Transient typed side queue for solo-training audio broadcasts.
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
                                # Also: BuildTrafficInSight / BuildFieldInSight / BuildHoldingShortCrossing / BuildClearOfRunway / BuildGoingAround / BuildLostSightOf*
                                # / BuildUnableTo* — the spelled-out spoken forms used by RPO PilotSpeech routing.
+                               # QueueSoloPilotTransmission / QueueSoloPilotReadback mirror solo terminal queues into PendingPilotTransmissions
+                               # without changing spoken text or terminal behavior.
                                # RouteRpoTransmission(aircraft, soloMode, rpoShowPilotSpeech, pilotSpeechText, warningText) — three-way helper
                                # used by every sim-initiated pilot transmission site to pick the right destination collection.
 Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode.
@@ -726,12 +734,13 @@ src/Yaat.Server/
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
-    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack; drains solo PendingPilotTransmissions after terminal broadcasts and emits PilotTransmissionBroadcast
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
     CoordinationCommandHandler.cs # Stateless coordination logic (RD, RDH, RDR, RDACK, RDAUTO)
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
     ScenarioState.cs           # Per-room active scenario state: queues, positions, generators, channels
-    TrainingBroadcastService.cs # SignalR hub context wrapper for training clients
+    TrainingBroadcastService.cs # SignalR hub context wrapper for training clients, including PilotTransmissionBroadcast fan-out.
+    PilotVoiceAssigner.cs      # Pure deterministic `(scenario rng seed, callsign) -> speaker id 0..903` helper for pilot voice events.
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch; BroadcastToTopicSubscribersAsync
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules; STARS hysteresis (add at elev+100, remove at elev); AircraftState.IsVehicle excluded from STARS
     StarsLineNumberAssigner.cs # Per-room sequential line number assignment (1-99 wrap)

@@ -145,7 +145,7 @@ public sealed class DownwindPhase : Phase
                     string runwayId = ctx.Runway?.Designator ?? "unknown";
                     if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)
                     {
-                        ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId));
+                        PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId));
                     }
                     else
                     {

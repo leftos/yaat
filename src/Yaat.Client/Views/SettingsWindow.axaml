@@ -99,6 +99,15 @@
                                FontStyle="Italic"
                                Margin="0,0,0,4" />
                     <StackPanel Spacing="4">
+                        <CheckBox Content="Solo training mode"
+                                  IsChecked="{Binding SoloTrainingMode}" />
+                        <TextBlock Text="Aircraft make their own pilot transmissions and typed natural-language ATC commands can be mapped to YAAT commands after normal parsing fails."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
                         <CheckBox Content="Auto-accept handoffs to unattended positions"
                                   IsChecked="{Binding AutoAcceptEnabled}" />
                         <StackPanel Spacing="4"
@@ -156,15 +165,6 @@
                         <CheckBox Content="Aircraft cross runways automatically"
                                   IsChecked="{Binding AutoCrossRunway}" />
                         <TextBlock Text="Taxiing aircraft cross runways without stopping. No CROSS command needed. Hold-short commands and destination runway hold-shorts still apply."
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="11"
-                                   Margin="28,0,0,0" />
-                    </StackPanel>
-                    <StackPanel Spacing="4">
-                        <CheckBox Content="Solo training mode"
-                                  IsChecked="{Binding SoloTrainingMode}" />
-                        <TextBlock Text="Aircraft make their own pilot transmissions and typed natural-language ATC commands can be mapped to YAAT commands after normal parsing fails."
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="11"
@@ -564,213 +564,277 @@
                 <ScrollViewer>
                     <StackPanel Margin="12" Spacing="12">
 
-                        <CheckBox Content="Enable speech recognition"
-                                  IsChecked="{Binding SpeechEnabled}" />
+                        <Expander IsExpanded="{Binding SpeechEnabled, Mode=OneWay}">
+                            <Expander.Header>
+                                <CheckBox Content="Speech-to-text (STT)"
+                                          IsChecked="{Binding SpeechEnabled}" />
+                            </Expander.Header>
+                            <StackPanel Spacing="12" Margin="0,8,0,0">
+                                <CheckBox Content="Auto-focus command input after PTT"
+                                          IsChecked="{Binding AutoFocusInputAfterSpeech}"
+                                          ToolTip.Tip="When PTT/STT produces a transcript, focus the command input box so you can press Enter to send without mousing for it." />
 
-                        <CheckBox Content="Auto-focus command input after PTT"
-                                  IsChecked="{Binding AutoFocusInputAfterSpeech}"
-                                  ToolTip.Tip="When PTT/STT produces a transcript, focus the command input box so you can press Enter to send without mousing for it." />
+                                <TextBlock Text="Whisper Model (speech-to-text)"
+                                           FontWeight="SemiBold" />
+                                <StackPanel Spacing="4">
+                                    <ComboBox ItemsSource="{Binding WhisperLmKitModels}"
+                                              SelectedItem="{Binding SelectedWhisperLmKitModel}"
+                                              Width="420">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding DisplayName}" />
+                                                    <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}"
+                                                               Foreground="{DynamicResource SubtleTextBrush}" />
+                                                    <TextBlock Text="✓ cached"
+                                                               FontSize="10"
+                                                               Foreground="LightGreen"
+                                                               IsVisible="{Binding IsLocallyAvailable}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Text="{Binding SelectedWhisperLmKitModel.Description}"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource SubtleTextBrush}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Download now"
+                                                Command="{Binding DownloadSelectedWhisperModelCommand}"
+                                                IsEnabled="{Binding SelectedWhisperLmKitModel.CanDownload, FallbackValue=False}" />
+                                        <Button Content="Delete cached"
+                                                Command="{Binding DeleteSelectedWhisperModelCommand}"
+                                                IsEnabled="{Binding SelectedWhisperLmKitModel.CanDelete, FallbackValue=False}" />
+                                        <TextBlock Text="{Binding SelectedWhisperLmKitModel.StatusMessage}"
+                                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <ProgressBar Minimum="0"
+                                                 Maximum="1"
+                                                 Value="{Binding SelectedWhisperLmKitModel.DownloadProgress}"
+                                                 IsVisible="{Binding SelectedWhisperLmKitModel.IsDownloading}"
+                                                 Height="8" />
+                                    <TextBlock Text="Pre-downloading here avoids the multi-second stall on your first PTT press. LM-Kit caches models under %LOCALAPPDATA%/LM-Kit/Models/ and reuses them across runs."
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource SubtleTextBrush}" />
+                                </StackPanel>
 
-                        <TextBlock Text="Whisper Model (speech-to-text)"
-                                   FontWeight="SemiBold"
-                                   Margin="0,8,0,0" />
-                        <StackPanel Spacing="4">
-                            <ComboBox ItemsSource="{Binding WhisperLmKitModels}"
-                                      SelectedItem="{Binding SelectedWhisperLmKitModel}"
-                                      Width="420">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
+                                <TextBlock Text="LLM Model (command interpretation)"
+                                           FontWeight="SemiBold" />
+                                <StackPanel Spacing="4">
+                                    <ComboBox ItemsSource="{Binding LlmLmKitModels}"
+                                              SelectedItem="{Binding SelectedLlmLmKitModel}"
+                                              Width="420">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding DisplayName}" />
+                                                    <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}"
+                                                               Foreground="{DynamicResource SubtleTextBrush}" />
+                                                    <TextBlock Text="GPU recommended"
+                                                               FontSize="10"
+                                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                                               IsVisible="{Binding GpuRecommended}" />
+                                                    <TextBlock Text="✓ cached"
+                                                               FontSize="10"
+                                                               Foreground="LightGreen"
+                                                               IsVisible="{Binding IsLocallyAvailable}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Text="{Binding SelectedLlmLmKitModel.Description}"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource SubtleTextBrush}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Download now"
+                                                Command="{Binding DownloadSelectedLlmModelCommand}"
+                                                IsEnabled="{Binding SelectedLlmLmKitModel.CanDownload, FallbackValue=False}" />
+                                        <Button Content="Delete cached"
+                                                Command="{Binding DeleteSelectedLlmModelCommand}"
+                                                IsEnabled="{Binding SelectedLlmLmKitModel.CanDelete, FallbackValue=False}" />
+                                        <TextBlock Text="{Binding SelectedLlmLmKitModel.StatusMessage}"
+                                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <ProgressBar Minimum="0"
+                                                 Maximum="1"
+                                                 Value="{Binding SelectedLlmLmKitModel.DownloadProgress}"
+                                                 IsVisible="{Binding SelectedLlmLmKitModel.IsDownloading}"
+                                                 Height="8" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                        <TextBlock Text="Or use a custom GGUF:"
+                                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <Button x:Name="BrowseLlmModelButton"
+                                                Content="Browse..."
+                                                Click="OnBrowseLlmModelClick" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding LlmModelPath, StringFormat='Source: {0}'}"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               FontSize="11"
+                                               IsVisible="{Binding LlmModelPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+
+                                <TextBlock Text="Acceleration"
+                                           FontWeight="SemiBold" />
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding LmKitGpuSnapshot.Summary}"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SubtleTextBrush}" />
+                                    <TextBlock Text="Vulkan and CPU backends ship with the application. NVIDIA CUDA 13 is a separate download (~534 MB compressed, ~700 MB on disk) because bundling it into the installer doubled its size."
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               IsVisible="{Binding IsCudaBackendSupported}" />
+
+                                    <StackPanel Spacing="4"
+                                                Margin="0,6,0,0"
+                                                IsVisible="{Binding IsCudaBackendSupported}">
+                                        <TextBlock Text="{Binding CudaBackend.StatusMessage}"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                                   IsVisible="{Binding CudaBackend.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        <ProgressBar Minimum="0"
+                                                     Maximum="1"
+                                                     Value="{Binding CudaBackend.Progress}"
+                                                     IsVisible="{Binding CudaBackend.IsBusy}"
+                                                     Height="8" />
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="{Binding DisplayName}" />
-                                            <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}"
-                                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                                            <TextBlock Text="✓ cached"
-                                                       FontSize="10"
-                                                       Foreground="LightGreen"
-                                                       IsVisible="{Binding IsLocallyAvailable}" />
+                                            <Button Content="Download CUDA 13 runtime"
+                                                    Command="{Binding InstallCudaBackendCommand}"
+                                                    IsVisible="{Binding !CudaBackend.IsInstalled}"
+                                                    IsEnabled="{Binding !CudaBackend.IsBusy}" />
+                                            <Button Content="Cancel"
+                                                    Command="{Binding CancelCudaBackendInstallCommand}"
+                                                    IsVisible="{Binding CudaBackend.IsBusy}" />
+                                            <Button Content="Uninstall CUDA"
+                                                    Command="{Binding UninstallCudaBackendCommand}"
+                                                    IsVisible="{Binding CudaBackend.IsInstalled}"
+                                                    IsEnabled="{Binding !CudaBackend.IsBusy}" />
                                         </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <TextBlock Text="{Binding SelectedWhisperLmKitModel.Description}"
-                                       TextWrapping="Wrap"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Download now"
-                                        Command="{Binding DownloadSelectedWhisperModelCommand}"
-                                        IsEnabled="{Binding SelectedWhisperLmKitModel.CanDownload, FallbackValue=False}" />
-                                <Button Content="Delete cached"
-                                        Command="{Binding DeleteSelectedWhisperModelCommand}"
-                                        IsEnabled="{Binding SelectedWhisperLmKitModel.CanDelete, FallbackValue=False}" />
-                                <TextBlock Text="{Binding SelectedWhisperLmKitModel.StatusMessage}"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding SelectedWhisperLmKitModel.DownloadProgress}"
-                                         IsVisible="{Binding SelectedWhisperLmKitModel.IsDownloading}"
-                                         Height="8" />
-                            <TextBlock Text="Pre-downloading here avoids the multi-second stall on your first PTT press. LM-Kit caches models under %LOCALAPPDATA%/LM-Kit/Models/ and reuses them across runs."
-                                       TextWrapping="Wrap"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                        </StackPanel>
+                                    </StackPanel>
 
-                        <TextBlock Text="LLM Model (command interpretation)"
-                                   FontWeight="SemiBold"
-                                   Margin="0,8,0,0" />
-                        <StackPanel Spacing="4">
-                            <ComboBox ItemsSource="{Binding LlmLmKitModels}"
-                                      SelectedItem="{Binding SelectedLlmLmKitModel}"
-                                      Width="420">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="{Binding DisplayName}" />
-                                            <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}"
-                                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                                            <TextBlock Text="GPU recommended"
-                                                       FontSize="10"
-                                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                                       IsVisible="{Binding GpuRecommended}" />
-                                            <TextBlock Text="✓ cached"
-                                                       FontSize="10"
-                                                       Foreground="LightGreen"
-                                                       IsVisible="{Binding IsLocallyAvailable}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <TextBlock Text="{Binding SelectedLlmLmKitModel.Description}"
-                                       TextWrapping="Wrap"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Download now"
-                                        Command="{Binding DownloadSelectedLlmModelCommand}"
-                                        IsEnabled="{Binding SelectedLlmLmKitModel.CanDownload, FallbackValue=False}" />
-                                <Button Content="Delete cached"
-                                        Command="{Binding DeleteSelectedLlmModelCommand}"
-                                        IsEnabled="{Binding SelectedLlmLmKitModel.CanDelete, FallbackValue=False}" />
-                                <TextBlock Text="{Binding SelectedLlmLmKitModel.StatusMessage}"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <ProgressBar Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding SelectedLlmLmKitModel.DownloadProgress}"
-                                         IsVisible="{Binding SelectedLlmLmKitModel.IsDownloading}"
-                                         Height="8" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                <TextBlock Text="Or use a custom GGUF:"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                                <Button x:Name="BrowseLlmModelButton"
-                                        Content="Browse..."
-                                        Click="OnBrowseLlmModelClick" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding LlmModelPath, StringFormat='Source: {0}'}"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11"
-                                       IsVisible="{Binding LlmModelPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                        <TextBlock Text="LLM GPU layers:"
+                                                   VerticalAlignment="Center" />
+                                        <NumericUpDown Value="{Binding LlmGpuLayers}"
+                                                       Minimum="-1"
+                                                       Maximum="100"
+                                                       Width="110" />
+                                        <TextBlock Text="(-1 = auto, 0 = CPU only, N = offload N layers)"
+                                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
 
-                        <TextBlock Text="Acceleration"
-                                   FontWeight="SemiBold"
-                                   Margin="0,8,0,0" />
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding LmKitGpuSnapshot.Summary}"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <TextBlock Text="Vulkan and CPU backends ship with the application. NVIDIA CUDA 13 is a separate download (~534 MB compressed, ~700 MB on disk) because bundling it into the installer doubled its size."
-                                       TextWrapping="Wrap"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       IsVisible="{Binding IsCudaBackendSupported}" />
-
-                            <!-- CUDA backend download panel. Only visible on Windows x64 —
-                                 LM-Kit uses Vulkan (Linux) or Metal (macOS) elsewhere and has
-                                 no runtime payload to fetch. -->
-                            <StackPanel Spacing="4"
-                                        Margin="0,6,0,0"
-                                        IsVisible="{Binding IsCudaBackendSupported}">
-                                <TextBlock Text="{Binding CudaBackend.StatusMessage}"
-                                           TextWrapping="Wrap"
-                                           FontSize="11"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           IsVisible="{Binding CudaBackend.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                <ProgressBar Minimum="0"
-                                             Maximum="1"
-                                             Value="{Binding CudaBackend.Progress}"
-                                             IsVisible="{Binding CudaBackend.IsBusy}"
-                                             Height="8" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Download CUDA 13 runtime"
-                                            Command="{Binding InstallCudaBackendCommand}"
-                                            IsVisible="{Binding !CudaBackend.IsInstalled}"
-                                            IsEnabled="{Binding !CudaBackend.IsBusy}" />
-                                    <Button Content="Cancel"
-                                            Command="{Binding CancelCudaBackendInstallCommand}"
-                                            IsVisible="{Binding CudaBackend.IsBusy}" />
-                                    <Button Content="Uninstall CUDA"
-                                            Command="{Binding UninstallCudaBackendCommand}"
-                                            IsVisible="{Binding CudaBackend.IsInstalled}"
-                                            IsEnabled="{Binding !CudaBackend.IsBusy}" />
+                                <TextBlock Text="Push-to-Talk"
+                                           FontWeight="SemiBold" />
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="PTT key:"
+                                               Foreground="{DynamicResource SubtleTextBrush}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="PttKeyButton"
+                                                Content="{Binding PttKeyDisplay}"
+                                                Width="160"
+                                                HorizontalContentAlignment="Center"
+                                                Command="{Binding StartPttKeyCaptureCommand}" />
+                                        <TextBlock Text="(click, then press a key or modifier)"
+                                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Text="Hold this key to record speech. Default: Right Ctrl."
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               FontSize="11" />
+                                    <TextBlock Text="Input device:"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               Margin="0,8,0,0" />
+                                    <ComboBox ItemsSource="{Binding AudioInputDevices}"
+                                              SelectedItem="{Binding SelectedAudioInputDeviceDisplay}"
+                                              Width="360" />
+                                    <TextBlock Text="Pick the microphone YAAT should record from, or leave on System default to use whichever mic Windows is currently set to."
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               FontSize="11" />
                                 </StackPanel>
                             </StackPanel>
+                        </Expander>
 
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                <TextBlock Text="LLM GPU layers:"
-                                           VerticalAlignment="Center" />
-                                <NumericUpDown Value="{Binding LlmGpuLayers}"
-                                               Minimum="-1"
-                                               Maximum="100"
-                                               Width="110" />
-                                <TextBlock Text="(-1 = auto, 0 = CPU only, N = offload N layers)"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                        </StackPanel>
+                        <Expander IsExpanded="{Binding PilotVoiceEnabled, Mode=OneWay}">
+                            <Expander.Header>
+                                <CheckBox Content="Text-to-speech (TTS)"
+                                          IsChecked="{Binding PilotVoiceEnabled}" />
+                            </Expander.Header>
+                            <StackPanel Spacing="12" Margin="0,8,0,0">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Solo pilot voice"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Speaks typed solo-training pilot transmissions with the local Piper voice pack. Off by default."
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               FontSize="11" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                        <TextBlock Text="Volume:"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SubtleTextBrush}" />
+                                        <Slider Minimum="0"
+                                                Maximum="100"
+                                                TickFrequency="5"
+                                                IsSnapToTickEnabled="False"
+                                                Value="{Binding PilotVoiceVolume}"
+                                                Width="220" />
+                                        <TextBlock Text="{Binding PilotVoiceVolume, StringFormat='{}{0}%'}"
+                                                   MinWidth="44"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SubtleTextBrush}" />
+                                    </StackPanel>
+                                    <CheckBox Content="Radio effect"
+                                              IsChecked="{Binding PilotVoiceRadioFxEnabled}" />
+                                </StackPanel>
 
-                        <TextBlock Text="Push-to-Talk"
-                                   FontWeight="SemiBold"
-                                   Margin="0,8,0,0" />
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="PTT key:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="PttKeyButton"
-                                        Content="{Binding PttKeyDisplay}"
-                                        Width="160"
-                                        HorizontalContentAlignment="Center"
-                                        Command="{Binding StartPttKeyCaptureCommand}" />
-                                <TextBlock Text="(click, then press a key or modifier)"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Piper voice pack"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding PiperVoice.StatusMessage}"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               IsVisible="{Binding PiperVoice.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    <ProgressBar Minimum="0"
+                                                 Maximum="1"
+                                                 Value="{Binding PiperVoice.Progress}"
+                                                 IsVisible="{Binding PiperVoice.IsBusy}"
+                                                 Height="8" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Download Piper voice pack"
+                                                Command="{Binding InstallPiperVoicePackCommand}"
+                                                IsVisible="{Binding !PiperVoice.IsInstalled}"
+                                                IsEnabled="{Binding !PiperVoice.IsBusy}" />
+                                        <Button Content="Cancel"
+                                                Command="{Binding CancelPiperVoicePackInstallCommand}"
+                                                IsVisible="{Binding PiperVoice.IsBusy}" />
+                                        <Button Content="Delete cached"
+                                                Command="{Binding UninstallPiperVoicePackCommand}"
+                                                IsVisible="{Binding PiperVoice.IsInstalled}"
+                                                IsEnabled="{Binding !PiperVoice.IsBusy}" />
+                                    </StackPanel>
+                                    <TextBlock Text="The voice pack is shared across app upgrades and stored under YAAT app data."
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               FontSize="11" />
+                                </StackPanel>
                             </StackPanel>
-                            <TextBlock Text="Hold this key to record speech. Default: Right Ctrl."
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                            <TextBlock Text="Input device:"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       Margin="0,8,0,0" />
-                            <ComboBox ItemsSource="{Binding AudioInputDevices}"
-                                      SelectedItem="{Binding SelectedAudioInputDeviceDisplay}"
-                                      Width="360" />
-                            <TextBlock Text="Pick the microphone YAAT should record from, or leave on System default to use whichever mic Windows is currently set to."
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
+                        </Expander>
 
                         <Separator Margin="0,12,0,0" />
 

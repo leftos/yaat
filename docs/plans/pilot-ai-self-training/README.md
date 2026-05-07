@@ -63,7 +63,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
        │     parse controller speech (one source of truth)│
        │   • Concat clauses, append spoken callsign tail  │
        │   • Push to AircraftState.PendingNotifications   │
-       │   • (M10.3) speak via IPilotVoice                │
+       │   • (M10.3) mirror typed PilotTransmission event │
        │   • (M10.4) update PilotExpectation              │
        └──────────────────────────────────────────────────┘
 
@@ -90,8 +90,8 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.1.3** | [m10.1.3-vfr-pattern-work.md](m10.1.3-vfr-pattern-work.md) | VFR closed-traffic: initial-call request + uncleared-only reminders at midfield-downwind and short-final |
 | [x] | **M10.1.4** | [m10.1.4-hoo-signoff.md](m10.1.4-hoo-signoff.md) | New `CT` and `FCA` commands for the frequency-change instruction (separate from HOO/ACCEPT per 7110.65 §7-6-11) |
 | [x] | **M10.1.5** | [m10.1.5-vfr-airspace-respect.md](m10.1.5-vfr-airspace-respect.md) | VFR self-restrict outside FAA AIS Class B (no clearance) / Class C (no two-way comms) until gate satisfied |
-| [ ] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
-| [ ] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS layer (audible pilot voice + radio realism) |
+| [x] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
+| [x] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS v1: typed pilot-transmission SignalR event + off-by-default local client voice |
 | [ ] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency contention + transmission queue + activity-aware verbosity |
 | [ ] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pilot expectations + proactive-after-silence reminders (airborne-spawn moved to M10.1.2) |
 | [ ] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
@@ -100,8 +100,8 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 ## Decisions committed
 
 - **`SoloTrainingMode` gates everything.** All pilot behavior is preference-gated so instructor-mode users see zero behavior change.
-- **TTS engine: sherpa-onnx + Piper LibriTTS-R 904-speaker model + NAudio.Core DSP** (validated by M10.0).
-- **Voice pack downloaded on demand**, not bundled — keeps installer slim for users who never enable TTS. Mirrors `CudaBackendInstaller` precedent.
+- **TTS v1 is event-driven and client-side.** The sim emits typed `PilotTransmission` metadata alongside existing terminal queues; the server broadcasts `PilotTransmissionBroadcast`; the client speaks it only when the user enables Pilot Voice and the active session is solo training.
+- **TTS engine: sherpa-onnx + Piper LibriTTS-R 904-speaker model + NAudio radio DSP + PortAudio playback.** This keeps M10.3 cross-platform and aligned with the M10.0 spike.
 - **Pilot speech inverts `PhraseologyRules`** — single source of truth; one rule covers both controller-input parsing (M10.2) and pilot-readback generation (M10.1+).
 - **Missed approach uses warn-early-then-miss-at-DA pattern** (M10.5).
 - **First production ship was M10.1; M10.1.1 + M10.1.2 + M10.1.3 form the VFR-emphasis pull-forward** (decided 2026-05-02 — moved airborne-spawn out of M10.4 to land alongside ground-spawn).
@@ -119,9 +119,9 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 - **`CommandDescriber`** — extension point for readback templates.
 - **`AircraftState.HasFlightPlan` / `Destination` / `ActiveSidId` / `ExpectedApproach`** — already populated. Seed inputs for `PilotExpectation` (M10.4).
 - **`ApproachClearance.MissedApproachFixes`** + **`MapAltitudeFt`** — already populated from CIFP. M10.5's missed-approach autonomy reads them.
-- **`CudaBackendInstaller`** (`src/Yaat.Client/Services/`) — pattern reference for `PiperVoiceInstaller` (M10.3).
+- **`PiperVoiceInstaller`** (`src/Yaat.Client/Services/`) — Settings download/remove flow for the Piper LibriTTS-R voice pack.
 - **`tools/Yaat.SpeechSandbox` TTS tab** — built during M10.0; live-tunable testbed for radio-FX parameters.
-- **PortAudio** — already used for STT audio capture; M10.3's audio output reuses the same dependency.
+- **PilotTransmission queue** — transient side queue on `AircraftState`; mirrors terminal pilot text into typed audio metadata without changing phraseology or terminal behavior.
 - **Pattern phases** (`src/Yaat.Sim/Phases/Pattern/`) — `DownwindPhase`, `BasePhase`, `UpwindPhase`, `CrosswindPhase`, `PatternEntryPhase`, `VfrFollowPhase`. Pattern plumbing already exists; M10.1.3 only adds pilot speech.
 
 ## Deferred indefinitely (and why)
@@ -169,7 +169,6 @@ After M10.5:
 
 All major scope/architecture decisions are committed. **The voice-pool sizing question is resolved**: sherpa-onnx + Piper LibriTTS-R is a single 75 MB ONNX file with 904 speakers selectable by integer — no per-voice file management.
 
-Remaining provisional items are pending the active milestone's exploration:
+Remaining provisional item is pending a later milestone:
 
-- M10.1.2 + M10.1.3 are sketches; their state-model details and template wording will firm up when those become active.
-- M10.3 engine choice locks based on M10.0 spike findings; if production smoke-tests on Mac/Linux reveal issues, candidate fallbacks are KokoroSharp (Apache-2.0, 54 voices, no espeak dep) → KittenTTS (Apache-2.0, 8 voices, ~25 MB, fastest). Cloud TTS only if both local options fail.
+- M10.3 follow-up: output-device picker.

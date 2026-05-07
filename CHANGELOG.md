@@ -6,12 +6,18 @@
 - `CT [target]` tells the pilot to contact the next controller — accepts callsign, frequency, or TCP, or auto-resolves with no argument.
 - `FCA` issues the VFR frequency-change-approved dismissal — pilot signs off without a follow-on handoff.
 - Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established.
-- Solo training mode accepts typed natural-language ATC commands and syncs the setting across rooms and recordings.
+- Solo training mode accepts typed natural-language ATC commands, syncs across rooms and recordings, persists across runs, and labels windows as Solo/RPO mode.
+- Solo-training pilot voices use the optional Piper pack with per-aircraft speakers, radio effects, and logged TTS text for review.
+- Speech settings separate STT and TTS into collapsible panels, and TTS includes Piper voice-pack install and remove controls.
 - Favorite commands now support a fixed-grid pop-out panel with categories, airport scope, colors, sizing, ground overrides, batch blanks, and drag rearranging.
 - The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.
 
 ### Fixed
 - Speed `UNTIL` accepts aliases and fires staged speed changes while earlier speed or phase-controlled work continues.
+- Solo-training pilot readbacks preserve runway assignments and pronounce navaids like `MOD` as published navaid names.
+- Solo-training `STBY`/`ROGER` stays silent, and departure relative turns use grouped-degree phraseology.
+- VFR altitude restrictions support `CM A/B025` and `CM A/B2500` for at-or-above and at-or-below clearances.
+- Pilot terminal lines show controller-readable text while TTS receives callsign-stripped, hyphen-normalized speech.
 
 ## v0.1.17-alpha [2026/05/06]
 

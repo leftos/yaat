@@ -1,5 +1,8 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 
@@ -16,14 +19,38 @@ namespace Yaat.Sim.Pilot;
 /// utterances (spawn check-in, "going around" volunteered) live here directly because they
 /// have no controller-side rule equivalent.
 ///
-/// Output format:
+/// Spoken output format:
 /// <code>"[N123AB] descend and maintain five thousand, november one two three alpha bravo."</code>
-/// The <c>[ICAO]</c> bracket prefix is for terminal rendering (so the user sees who is talking
-/// even if multiple aircraft talk back close together); the spoken-callsign tail is the real
-/// ATC closing form.
+/// The <c>[ICAO]</c> bracket prefix is a legacy terminal aid. Solo-mode terminal display removes
+/// it and compacts obvious spoken runway/distance forms, while TTS keeps the spoken phrase
+/// without the bracket prefix.
 /// </summary>
 public static class PilotResponder
 {
+    public const string SourceResponse = "Response";
+    public const string SourceSayReadback = "SayReadback";
+
+    /// <summary>
+    /// Queues a solo-training pilot line for the terminal response channel and for typed
+    /// pilot-audio broadcast. The terminal gets compact text; audio gets the spoken form
+    /// without the legacy bracketed callsign prefix.
+    /// </summary>
+    public static void QueueSoloPilotTransmission(AircraftState aircraft, string text, string sourceKind = SourceResponse)
+    {
+        aircraft.PendingNotifications.Add(CompactForTerminal(aircraft, text));
+        aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text, PrepareForTts(aircraft, text), sourceKind));
+    }
+
+    /// <summary>
+    /// Queues a solo-training SAY-channel readback and mirrors it to the typed
+    /// pilot-audio broadcast.
+    /// </summary>
+    public static void QueueSoloPilotReadback(AircraftState aircraft, string text, string sourceKind = SourceSayReadback)
+    {
+        aircraft.PendingPilotReadbacks.Add(text);
+        aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text, PrepareForTts(aircraft, text), sourceKind));
+    }
+
     /// <summary>
     /// Returns the readback line for an accepted compound command, or <see langword="null"/> if
     /// none of its commands had a verbalization. The caller is responsible for the
@@ -42,7 +69,7 @@ public static class PilotResponder
             var conditionLead = FormatCondition(block.Condition);
             foreach (var cmd in block.Commands)
             {
-                var clause = PhraseologyVerbalizer.Verbalize(cmd);
+                var clause = VerbalizeForReadback(cmd, aircraft);
                 if (string.IsNullOrEmpty(clause))
                 {
                     continue;
@@ -61,6 +88,175 @@ public static class PilotResponder
         return Format(aircraft, string.Join(", ", clauses));
     }
 
+    private static string? VerbalizeForReadback(ParsedCommand cmd, AircraftState aircraft) =>
+        cmd switch
+        {
+            ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
+                BuildAltitudeRestrictionClause(aircraft, cm),
+            LineUpAndWaitCommand luaw => BuildRunwayInstructionClause(aircraft, "line up and wait") ?? PhraseologyVerbalizer.Verbalize(luaw),
+            ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
+                aircraft,
+                "cleared for takeoff",
+                cto.Departure,
+                cto.AssignedAltitude,
+                includeRunway: true
+            ),
+            ClearedTakeoffPresentCommand ctopp => BuildTakeoffClearanceClause(
+                aircraft,
+                "cleared for takeoff, present position",
+                ctopp.Departure,
+                ctopp.AssignedAltitude,
+                includeRunway: false
+            ),
+            AcknowledgePilotContactCommand => null,
+            ClearedToLandCommand cland => BuildRunwayInstructionClause(aircraft, "cleared to land") ?? PhraseologyVerbalizer.Verbalize(cland),
+            LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
+            TouchAndGoCommand tg => AppendTrafficPatternClause(
+                BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId) ?? PhraseologyVerbalizer.Verbalize(tg),
+                tg.TrafficPattern
+            ),
+            StopAndGoCommand sg => AppendTrafficPatternClause(
+                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? PhraseologyVerbalizer.Verbalize(sg),
+                sg.TrafficPattern
+            ),
+            LowApproachCommand la => AppendTrafficPatternClause(
+                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? PhraseologyVerbalizer.Verbalize(la),
+                la.TrafficPattern
+            ),
+            ClearedForOptionCommand option => AppendTrafficPatternClause(
+                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? PhraseologyVerbalizer.Verbalize(option),
+                option.TrafficPattern
+            ),
+            _ => PhraseologyVerbalizer.Verbalize(cmd),
+        };
+
+    private static string BuildAltitudeRestrictionClause(AircraftState aircraft, ClimbMaintainCommand cmd)
+    {
+        var vfr = aircraft.FlightPlan.IsVfr ? "VFR " : "";
+        var restriction = cmd.Modifier == AltitudeAssignmentModifier.AtOrAbove ? "at or above" : "at or below";
+        return $"maintain {vfr}{restriction} {PhraseologyVerbalizer.AltitudeWords(cmd.Altitude)}";
+    }
+
+    private static string BuildTakeoffClearanceClause(
+        AircraftState aircraft,
+        string lead,
+        DepartureInstruction departure,
+        int? assignedAltitude,
+        bool includeRunway
+    )
+    {
+        var sb = new StringBuilder(lead);
+        var runwayId = ResolveTakeoffRunwayId(aircraft);
+        if (includeRunway && !string.IsNullOrWhiteSpace(runwayId))
+        {
+            sb.Append(" runway ");
+            sb.Append(PhraseologyVerbalizer.SpellRunway(runwayId));
+        }
+
+        var departureClause = BuildDepartureInstructionClause(departure);
+        if (!string.IsNullOrWhiteSpace(departureClause))
+        {
+            sb.Append(", ");
+            sb.Append(departureClause);
+        }
+
+        if (assignedAltitude is { } altitude)
+        {
+            sb.Append(", climb and maintain ");
+            sb.Append(PhraseologyVerbalizer.AltitudeWords(altitude));
+        }
+
+        return sb.ToString();
+    }
+
+    private static string ResolveTakeoffRunwayId(AircraftState aircraft)
+    {
+        if (!string.IsNullOrWhiteSpace(aircraft.Procedure.DepartureRunway))
+        {
+            return aircraft.Procedure.DepartureRunway;
+        }
+
+        return aircraft.Phases?.AssignedRunway?.Designator ?? "";
+    }
+
+    private static string? BuildRunwayInstructionClause(AircraftState aircraft, string lead, string? explicitRunwayId = null)
+    {
+        var runwayId = ResolveRunwayId(aircraft, explicitRunwayId);
+        if (string.IsNullOrWhiteSpace(runwayId))
+        {
+            return null;
+        }
+
+        return $"{lead} runway {PhraseologyVerbalizer.SpellRunway(runwayId)}";
+    }
+
+    private static string BuildLandAndHoldShortClause(AircraftState aircraft, LandAndHoldShortCommand command)
+    {
+        var holdShortRunway = PhraseologyVerbalizer.SpellRunway(command.CrossingRunwayId);
+        var landingClause = BuildRunwayInstructionClause(aircraft, "cleared to land");
+        if (landingClause is null)
+        {
+            return $"cleared to land, hold short runway {holdShortRunway}";
+        }
+
+        return $"{landingClause}, hold short runway {holdShortRunway}";
+    }
+
+    private static string? AppendTrafficPatternClause(string? clause, PatternDirection? direction)
+    {
+        if (string.IsNullOrWhiteSpace(clause))
+        {
+            return clause;
+        }
+
+        if (direction is null)
+        {
+            return clause;
+        }
+
+        return $"{clause}, make {PatternDirectionWord(direction.Value)} traffic";
+    }
+
+    private static string ResolveRunwayId(AircraftState aircraft, string? explicitRunwayId = null)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitRunwayId))
+        {
+            return explicitRunwayId;
+        }
+
+        return aircraft.Phases?.ClearedRunwayId ?? aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Phases?.ActiveApproach?.RunwayId ?? "";
+    }
+
+    private static string BuildDepartureInstructionClause(DepartureInstruction departure) =>
+        departure switch
+        {
+            DefaultDeparture => "",
+            RunwayHeadingDeparture => "fly runway heading",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } => "right crosswind departure",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } => "left crosswind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } => "right downwind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } => "left downwind departure",
+            RelativeTurnDeparture rel =>
+                $"make a {TurnDirectionWord(rel.Direction)} {PhraseologyVerbalizer.DegreesWords(rel.Degrees)} degree departure",
+            FlyHeadingDeparture { Direction: TurnDirection.Right } fh =>
+                $"turn right heading {PhraseologyVerbalizer.HeadingDigits(fh.MagneticHeading)}",
+            FlyHeadingDeparture { Direction: TurnDirection.Left } fh =>
+                $"turn left heading {PhraseologyVerbalizer.HeadingDigits(fh.MagneticHeading)}",
+            FlyHeadingDeparture fh => $"fly heading {PhraseologyVerbalizer.HeadingDigits(fh.MagneticHeading)}",
+            OnCourseDeparture => "on course",
+            DirectFixDeparture { Direction: TurnDirection.Left } dfd => $"turn left direct {PhraseologyVerbalizer.SpellFix(dfd.FixName)}",
+            DirectFixDeparture { Direction: TurnDirection.Right } dfd => $"turn right direct {PhraseologyVerbalizer.SpellFix(dfd.FixName)}",
+            DirectFixDeparture dfd => $"direct {PhraseologyVerbalizer.SpellFix(dfd.FixName)}",
+            ClosedTrafficDeparture ct when ct.RunwayId is not null =>
+                $"make {PatternDirectionWord(ct.Direction)} traffic runway {PhraseologyVerbalizer.SpellRunway(ct.RunwayId)}",
+            ClosedTrafficDeparture ct => $"make {PatternDirectionWord(ct.Direction)} traffic",
+            _ => "",
+        };
+
+    private static string TurnDirectionWord(TurnDirection direction) => direction == TurnDirection.Right ? "right" : "left";
+
+    private static string PatternDirectionWord(PatternDirection direction) => direction == PatternDirection.Right ? "right" : "left";
+
     /// <summary>
     /// Pilot-initiated spawn check-in fired by <c>AtParkingPhase</c> 5 seconds after spawn
     /// in solo-training mode. Both IFR and VFR aircraft check in. Output:
@@ -70,9 +266,14 @@ public static class PilotResponder
     /// </summary>
     public static string BuildReadyToTaxi(AircraftState aircraft)
     {
+        return BuildReadyToTaxi(aircraft, "ground");
+    }
+
+    public static string BuildReadyToTaxi(AircraftState aircraft, string facilityCallName)
+    {
         var location = aircraft.Ground.ParkingSpot is { Length: > 0 } spot ? $"at {spot.ToLowerInvariant()}" : "at the ramp";
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
-        return $"[{aircraft.Callsign}] ground, {spoken} {location}, with information Alpha, ready to taxi.";
+        return $"[{aircraft.Callsign}] {CleanFacilityCallName(facilityCallName, "ground")}, {spoken} {location}, with information Alpha, ready to taxi.";
     }
 
     /// <summary>
@@ -82,9 +283,14 @@ public static class PilotResponder
     /// </summary>
     public static string BuildHoldingShortReady(AircraftState aircraft, string runwayId)
     {
+        return BuildHoldingShortReady(aircraft, runwayId, "tower");
+    }
+
+    public static string BuildHoldingShortReady(AircraftState aircraft, string runwayId, string facilityCallName)
+    {
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
-        return $"[{aircraft.Callsign}] tower, {spoken} holding short runway {rwy}, ready for departure.";
+        return $"[{aircraft.Callsign}] {CleanFacilityCallName(facilityCallName, "tower")}, {spoken} holding short runway {rwy}, ready for departure.";
     }
 
     /// <summary>
@@ -94,9 +300,14 @@ public static class PilotResponder
     /// </summary>
     public static string BuildLinedUpReady(AircraftState aircraft, string runwayId)
     {
+        return BuildLinedUpReady(aircraft, runwayId, "tower");
+    }
+
+    public static string BuildLinedUpReady(AircraftState aircraft, string runwayId, string facilityCallName)
+    {
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
-        return $"[{aircraft.Callsign}] tower, {spoken} runway {rwy}, ready.";
+        return $"[{aircraft.Callsign}] {CleanFacilityCallName(facilityCallName, "tower")}, {spoken} runway {rwy}, ready.";
     }
 
     /// <summary>
@@ -115,16 +326,29 @@ public static class PilotResponder
         int distanceMilesForVfr
     )
     {
+        return BuildOnFinal(aircraft, runwayId, ifrWithActiveApproach, approachId, distanceMilesForVfr, "tower");
+    }
+
+    public static string BuildOnFinal(
+        AircraftState aircraft,
+        string runwayId,
+        bool ifrWithActiveApproach,
+        string? approachId,
+        int distanceMilesForVfr,
+        string facilityCallName
+    )
+    {
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var facility = CleanFacilityCallName(facilityCallName, "tower");
         if (ifrWithActiveApproach && !string.IsNullOrEmpty(approachId))
         {
             var apch = SpokenApproachName(approachId, runwayId);
-            return $"[{aircraft.Callsign}] tower, {spoken}, {apch}.";
+            return $"[{aircraft.Callsign}] {facility}, {spoken}, {apch}.";
         }
 
         var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
         var miles = Math.Max(1, distanceMilesForVfr);
-        return $"[{aircraft.Callsign}] tower, {spoken} {SpellMiles(miles)}-mile final runway {rwy}, with information Alpha.";
+        return $"[{aircraft.Callsign}] {facility}, {spoken} {SpellMiles(miles)}-mile final runway {rwy}, with information Alpha.";
     }
 
     /// <summary>
@@ -135,6 +359,11 @@ public static class PilotResponder
     /// </summary>
     public static string BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt)
     {
+        return BuildClosedTrafficRequest(aircraft, airportPosition, altitudeFt, "tower");
+    }
+
+    public static string BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt, string facilityCallName)
+    {
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         double distNm = GeoMath.DistanceNm(airportPosition, aircraft.Position);
         int distMiles = Math.Max(1, (int)Math.Round(distNm));
@@ -142,7 +371,7 @@ public static class PilotResponder
         string direction = BearingToCardinal8(bearingFromAirport);
         string distWords = SpellDistanceDigits(distMiles);
         string altitudeWords = AtcNumberParser.AltitudeToWords(altitudeFt);
-        return $"[{aircraft.Callsign}] tower, {spoken}, {distWords} miles {direction} at {altitudeWords}, request closed traffic, with information Alpha.";
+        return $"[{aircraft.Callsign}] {CleanFacilityCallName(facilityCallName, "tower")}, {spoken}, {distWords} miles {direction} at {altitudeWords}, request closed traffic, with information Alpha.";
     }
 
     /// <summary>
@@ -223,6 +452,10 @@ public static class PilotResponder
         if (!soloTrainingMode && rpoShowPilotSpeech)
         {
             aircraft.PendingPilotSpeech.Add(pilotSpeechText);
+        }
+        else if (soloTrainingMode)
+        {
+            QueueSoloPilotReadback(aircraft, sayReadbackText);
         }
         else
         {
@@ -411,26 +644,27 @@ public static class PilotResponder
             return null;
         }
 
-        string facility = positionType switch
+        string fallbackFacility = positionType switch
         {
             "TWR" => "tower",
             "APP" => "approach",
             "CTR" => "center",
             _ => "",
         };
-        if (facility.Length == 0)
+        if (fallbackFacility.Length == 0)
         {
             return null;
         }
 
+        string facilityCallName = ResolveStudentFacilityCallName(scenario, positionType, fallbackFacility);
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         int altitudeFt = (int)Math.Round(aircraft.Altitude);
 
         if (aircraft.FlightPlan.IsVfr)
         {
-            return BuildVfrAirborne(aircraft, scenario, primaryAirportPosition, facility, spoken, altitudeFt);
+            return BuildVfrAirborne(aircraft, scenario, primaryAirportPosition, positionType, facilityCallName, spoken, altitudeFt);
         }
-        return BuildIfrAirborne(aircraft, facility, spoken, altitudeFt);
+        return BuildIfrAirborne(aircraft, positionType, facilityCallName, spoken, altitudeFt);
     }
 
     /// <summary>
@@ -450,33 +684,34 @@ public static class PilotResponder
         return $"[{aircraft.Callsign}] {spoken}, holding outside the {airspaceLabel}, {distWords} miles {direction} of {airport}, {reason}.";
     }
 
-    private static string BuildIfrAirborne(AircraftState aircraft, string facility, string spoken, int altitudeFt)
+    private static string BuildIfrAirborne(AircraftState aircraft, string positionType, string facilityCallName, string spoken, int altitudeFt)
     {
-        if (facility == "tower")
+        if (positionType == "TWR")
         {
             // Direct-to-tower IFR is rare. Mention destination runway if known; otherwise drop the runway clause.
             var rwy = aircraft.Procedure.DestinationRunway;
             var rwyClause = !string.IsNullOrEmpty(rwy) ? " runway " + PhraseologyVerbalizer.SpellRunway(rwy) : "";
-            return $"[{aircraft.Callsign}] tower, {spoken}{rwyClause}, with information Alpha.";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken}{rwyClause}, with information Alpha.";
         }
 
         bool isFlightLevel = altitudeFt >= 18000 && altitudeFt % 100 == 0;
         var altitudePhrase = isFlightLevel ? AtcNumberParser.AltitudeToWords(altitudeFt) : "level " + AtcNumberParser.AltitudeToWords(altitudeFt);
 
-        if (facility == "center" && isFlightLevel)
+        if (positionType == "CTR" && isFlightLevel)
         {
             // Class A enroute — no airport ATIS reference.
-            return $"[{aircraft.Callsign}] center, {spoken} {altitudePhrase}.";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {altitudePhrase}.";
         }
 
-        return $"[{aircraft.Callsign}] {facility}, {spoken} {altitudePhrase}, with information Alpha.";
+        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {altitudePhrase}, with information Alpha.";
     }
 
     private static string BuildVfrAirborne(
         AircraftState aircraft,
         SimScenarioState scenario,
         LatLon primaryAirportPosition,
-        string facility,
+        string positionType,
+        string facilityCallName,
         string spoken,
         int altitudeFt
     )
@@ -499,18 +734,18 @@ public static class PilotResponder
             // position with an explicit "of the field"/"of [airport]" anchor avoids the bare-direction
             // adjacency that would read as contradicting the heading-of-flight.
             string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
-            string positionAnchor = facility == "tower" ? "the field" : SpellAirportLetters(scenario.PrimaryAirportId ?? "");
-            string atisSuffix = facility == "center" ? "" : ", with information Alpha";
-            return $"[{aircraft.Callsign}] {facility}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading} at {altitudeWords}{atisSuffix}.";
+            string positionAnchor = positionType == "TWR" ? "the field" : SpellAirportLetters(scenario.PrimaryAirportId ?? "");
+            string atisSuffix = positionType == "CTR" ? "" : ", with information Alpha";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading} at {altitudeWords}{atisSuffix}.";
         }
 
         string intent;
         if (inbound)
         {
-            intent = facility switch
+            intent = positionType switch
             {
-                "tower" => "inbound for landing",
-                "approach" => "request landing",
+                "TWR" => "inbound for landing",
+                "APP" => "request landing",
                 // Center doesn't naturally handle landings — fall back to transit phrasing.
                 _ => "request transition",
             };
@@ -520,13 +755,74 @@ public static class PilotResponder
             intent = "request transition";
         }
 
-        if (facility == "center")
+        if (positionType == "CTR")
         {
             var airportSpoken = SpellAirportLetters(scenario.PrimaryAirportId ?? "");
-            return $"[{aircraft.Callsign}] center, {spoken} at {altitudeWords}, {distWords} miles {direction} of {airportSpoken}, {intent}.";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} at {altitudeWords}, {distWords} miles {direction} of {airportSpoken}, {intent}.";
         }
 
-        return $"[{aircraft.Callsign}] {facility}, {spoken} {distWords} miles {direction} at {altitudeWords}, {intent}, with information Alpha.";
+        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} at {altitudeWords}, {intent}, with information Alpha.";
+    }
+
+    public static string? ResolveStudentRadioName(SimScenarioState? scenario)
+    {
+        if (scenario?.StudentPosition?.Callsign is not { Length: > 0 } callsign)
+        {
+            return null;
+        }
+
+        var radioName = scenario.ArtccConfig?.FindPositionByCallsign(callsign)?.RadioName;
+        return string.IsNullOrWhiteSpace(radioName) ? null : radioName.Trim();
+    }
+
+    public static string ResolveStudentFacilityCallName(SimScenarioState? scenario, string positionType, string fallbackFacility)
+    {
+        var radioName = ResolveStudentRadioName(scenario);
+        if (string.IsNullOrWhiteSpace(radioName))
+        {
+            return CleanFacilityCallName(fallbackFacility, fallbackFacility);
+        }
+
+        if (!PositionTypeMatchesFacility(positionType, fallbackFacility))
+        {
+            return CleanFacilityCallName(fallbackFacility, fallbackFacility);
+        }
+
+        return CleanFacilityCallName(radioName, fallbackFacility);
+    }
+
+    public static string ResolveContextFacilityCallName(
+        string? studentPositionType,
+        string? studentRadioName,
+        string expectedPositionType,
+        string fallbackFacility
+    )
+    {
+        if (
+            !string.Equals(studentPositionType, expectedPositionType, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(studentRadioName)
+        )
+        {
+            return CleanFacilityCallName(fallbackFacility, fallbackFacility);
+        }
+
+        return CleanFacilityCallName(studentRadioName, fallbackFacility);
+    }
+
+    private static bool PositionTypeMatchesFacility(string positionType, string fallbackFacility) =>
+        (positionType, fallbackFacility.ToLowerInvariant()) switch
+        {
+            ("TWR", "tower") => true,
+            ("GND", "ground") => true,
+            ("APP", "approach") => true,
+            ("CTR", "center") => true,
+            _ => false,
+        };
+
+    private static string CleanFacilityCallName(string? facilityCallName, string fallbackFacility)
+    {
+        var value = string.IsNullOrWhiteSpace(facilityCallName) ? fallbackFacility : facilityCallName.Trim();
+        return value.Length == 0 ? fallbackFacility : value;
     }
 
     /// <summary>
@@ -627,6 +923,103 @@ public static class PilotResponder
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         return $"[{aircraft.Callsign}] {body}, {spoken}.";
     }
+
+    private static string CompactForTerminal(AircraftState aircraft, string speechText)
+    {
+        var text = StripBracketedPrefix(aircraft, speechText);
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        text = Regex.Replace(text, Regex.Escape(spoken), aircraft.Callsign, RegexOptions.IgnoreCase);
+        text = CompactRunwayPhrases(text);
+        text = CompactDistancePhrases(text);
+        return text;
+    }
+
+    private static string StripBracketedPrefix(AircraftState aircraft, string text)
+    {
+        var prefix = $"[{aircraft.Callsign}] ";
+        return text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? text[prefix.Length..] : text;
+    }
+
+    public static string PrepareForTts(AircraftState aircraft, string text)
+    {
+        var speech = StripBracketedPrefix(aircraft, text);
+        speech = Regex.Replace(speech, @"\bx-ray\b", "xray", RegexOptions.IgnoreCase);
+        return Regex.Replace(speech, @"(?<=\w)-(?=\w)", " ");
+    }
+
+    private static string CompactRunwayPhrases(string text)
+    {
+        return Regex.Replace(
+            text,
+            @"\brunway (?<d1>zero|one|two|three|four|five|six|seven|eight|nine)(?: (?<d2>zero|one|two|three|four|five|six|seven|eight|nine))?(?: (?<suffix>left|right|center))?\b",
+            match =>
+            {
+                var d1 = DigitWordToChar(match.Groups["d1"].Value);
+                var d2 = match.Groups["d2"].Success ? DigitWordToChar(match.Groups["d2"].Value).ToString() : "";
+                var suffix = match.Groups["suffix"].Success ? RunwaySuffix(match.Groups["suffix"].Value) : "";
+                return $"runway {d1}{d2}{suffix}";
+            },
+            RegexOptions.IgnoreCase
+        );
+    }
+
+    private static string CompactDistancePhrases(string text)
+    {
+        text = Regex.Replace(
+            text,
+            @"\b(?<n>one|two|three|four|five|six|seven|eight|nine|ten)-mile\b",
+            match => $"{NumberWordToInt(match.Groups["n"].Value)}-mile",
+            RegexOptions.IgnoreCase
+        );
+
+        return Regex.Replace(
+            text,
+            @"\b(?<n>one|two|three|four|five|six|seven|eight|nine|ten) miles\b",
+            match => $"{NumberWordToInt(match.Groups["n"].Value)} miles",
+            RegexOptions.IgnoreCase
+        );
+    }
+
+    private static char DigitWordToChar(string word) =>
+        word.ToLowerInvariant() switch
+        {
+            "zero" => '0',
+            "one" => '1',
+            "two" => '2',
+            "three" => '3',
+            "four" => '4',
+            "five" => '5',
+            "six" => '6',
+            "seven" => '7',
+            "eight" => '8',
+            "nine" => '9',
+            _ => '?',
+        };
+
+    private static int NumberWordToInt(string word) =>
+        word.ToLowerInvariant() switch
+        {
+            "one" => 1,
+            "two" => 2,
+            "three" => 3,
+            "four" => 4,
+            "five" => 5,
+            "six" => 6,
+            "seven" => 7,
+            "eight" => 8,
+            "nine" => 9,
+            "ten" => 10,
+            _ => 0,
+        };
+
+    private static string RunwaySuffix(string word) =>
+        word.ToLowerInvariant() switch
+        {
+            "left" => "L",
+            "right" => "R",
+            "center" => "C",
+            _ => "",
+        };
 
     /// <summary>
     /// CIFP-style approach id ("I28R", "R28R-Y", "VIS28R") to ATC-spoken form

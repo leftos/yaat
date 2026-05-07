@@ -67,6 +67,14 @@ public class PhraseologyVerbalizerTests
         Assert.Equal("turn twenty degrees right", result);
     }
 
+    [Theory]
+    [InlineData(45, "forty five")]
+    [InlineData(270, "two seventy")]
+    public void DegreesWords_RelativeTurnsUseGroupedForm(int degrees, string expected)
+    {
+        Assert.Equal(expected, PhraseologyVerbalizer.DegreesWords(degrees));
+    }
+
     // --- Speed ---
 
     [Fact]

@@ -134,6 +134,9 @@ public sealed class UserPreferences
     public bool SoloTrainingMode => _data.SoloTrainingMode;
     public bool RpoShowPilotSpeech => _data.RpoShowPilotSpeech;
     public bool RpoPilotSpeechAudibleAlert => _data.RpoPilotSpeechAudibleAlert;
+    public bool PilotVoiceEnabled => _data.PilotVoiceEnabled;
+    public int PilotVoiceVolume => Math.Clamp(_data.PilotVoiceVolume, 0, 100);
+    public bool PilotVoiceRadioFxEnabled => _data.PilotVoiceRadioFxEnabled;
 
     public bool GetAutoClearedToLand(string? positionType)
     {
@@ -374,6 +377,14 @@ public sealed class UserPreferences
     public void SetRpoPilotSpeechAudibleAlert(bool enabled)
     {
         _data.RpoPilotSpeechAudibleAlert = enabled;
+        Save();
+    }
+
+    public void SetPilotVoiceSettings(bool enabled, int volume, bool radioFxEnabled)
+    {
+        _data.PilotVoiceEnabled = enabled;
+        _data.PilotVoiceVolume = Math.Clamp(volume, 0, 100);
+        _data.PilotVoiceRadioFxEnabled = radioFxEnabled;
         Save();
     }
 
@@ -835,6 +846,9 @@ public sealed class UserPreferences
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             RpoShowPilotSpeech = GetFieldOr(obj, "rpoShowPilotSpeech", false),
             RpoPilotSpeechAudibleAlert = GetFieldOr(obj, "rpoPilotSpeechAudibleAlert", false),
+            PilotVoiceEnabled = GetFieldOr(obj, "pilotVoiceEnabled", false),
+            PilotVoiceVolume = GetFieldOr(obj, "pilotVoiceVolume", 80),
+            PilotVoiceRadioFxEnabled = GetFieldOr(obj, "pilotVoiceRadioFxEnabled", true),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             FavoritePanelColumns = GetFieldOr(obj, "favoritePanelColumns", 6),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
@@ -1054,6 +1068,9 @@ public sealed class UserPreferences
         public bool SoloTrainingMode { get; set; }
         public bool RpoShowPilotSpeech { get; set; }
         public bool RpoPilotSpeechAudibleAlert { get; set; }
+        public bool PilotVoiceEnabled { get; set; }
+        public int PilotVoiceVolume { get; set; } = 80;
+        public bool PilotVoiceRadioFxEnabled { get; set; } = true;
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public int FavoritePanelColumns { get; set; } = 6;
         public List<RecentScenario> RecentScenarios { get; set; } = [];

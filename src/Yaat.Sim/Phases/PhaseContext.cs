@@ -54,6 +54,19 @@ public sealed class PhaseContext
     public bool RpoShowPilotSpeech { get; init; }
 
     /// <summary>
+    /// Student controller position type (TWR/GND/APP/CTR), derived from the vNAS position callsign.
+    /// Used by pilot speech to address the right facility radio name without changing non-matching
+    /// generic calls such as a ramp aircraft calling ground during a tower-only scenario.
+    /// </summary>
+    public string? StudentPositionType { get; init; }
+
+    /// <summary>
+    /// vNAS radio name for the student position, e.g. "Oakland Tower". Null falls back to
+    /// generic "tower", "ground", "approach", or "center" wording.
+    /// </summary>
+    public string? StudentRadioName { get; init; }
+
+    /// <summary>
     /// The local tower position (TrackOwner), if the student is controlling tower.
     /// Used by InitialClimbPhase to hold RV SID heading while tower owns the track.
     /// </summary>

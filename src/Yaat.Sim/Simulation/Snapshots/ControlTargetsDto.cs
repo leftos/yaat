@@ -6,6 +6,8 @@ public sealed class ControlTargetsDto
     public int? PreferredTurnDirection { get; init; }
     public double? TurnRateOverride { get; init; }
     public double? TargetAltitude { get; init; }
+    public double? AltitudeFloor { get; init; }
+    public double? AltitudeCeiling { get; init; }
     public double? DesiredVerticalRate { get; init; }
     public double? TargetSpeed { get; init; }
     public double? DesiredDecelRate { get; init; }

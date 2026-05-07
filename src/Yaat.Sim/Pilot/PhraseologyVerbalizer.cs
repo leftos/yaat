@@ -1,5 +1,6 @@
 using System.Text;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Pilot;
@@ -62,6 +63,16 @@ public static class PhraseologyVerbalizer
         if (cmd is UnsupportedCommand)
         {
             return null;
+        }
+
+        if (cmd is ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove } atOrAbove)
+        {
+            return $"maintain at or above {AltitudeWords(atOrAbove.Altitude)}";
+        }
+
+        if (cmd is ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrBelow } atOrBelow)
+        {
+            return $"maintain at or below {AltitudeWords(atOrBelow.Altitude)}";
         }
 
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
@@ -205,21 +216,65 @@ public static class PhraseologyVerbalizer
         return string.Join(' ', deg.ToString("D3").Select(SpellDigit));
     }
 
-    /// <summary>Relative-turn degrees: 30 → "thirty", 90 → "ninety". Whole-tens preferred.</summary>
-    public static string DegreesWords(int degrees) =>
-        degrees switch
+    /// <summary>Relative-turn degrees: 45 → "forty five", 270 → "two seventy".</summary>
+    public static string DegreesWords(int degrees)
+    {
+        if (degrees is >= 1 and <= 99)
         {
+            return TwoDigitWords(degrees);
+        }
+
+        if (degrees is >= 100 and <= 360)
+        {
+            var hundreds = degrees / 100;
+            var remainder = degrees % 100;
+            var leading = SpellDigit((char)('0' + hundreds));
+            return remainder switch
+            {
+                0 => $"{leading} hundred",
+                < 10 => $"{leading} zero {SpellDigit((char)('0' + remainder))}",
+                _ => $"{leading} {TwoDigitWords(remainder)}",
+            };
+        }
+
+        return DigitsWords(degrees);
+    }
+
+    private static string TwoDigitWords(int value) =>
+        value switch
+        {
+            0 => "zero",
+            1 => "one",
+            2 => "two",
+            3 => "three",
+            4 => "four",
+            5 => "five",
+            6 => "six",
+            7 => "seven",
+            8 => "eight",
+            9 => "nine",
             10 => "ten",
-            20 => "twenty",
-            30 => "thirty",
-            40 => "forty",
-            50 => "fifty",
-            60 => "sixty",
-            70 => "seventy",
-            80 => "eighty",
-            90 => "ninety",
-            _ => DigitsWords(degrees),
+            11 => "eleven",
+            12 => "twelve",
+            13 => "thirteen",
+            14 => "fourteen",
+            15 => "fifteen",
+            16 => "sixteen",
+            17 => "seventeen",
+            18 => "eighteen",
+            19 => "nineteen",
+            < 30 => "twenty" + OnesSuffix(value - 20),
+            < 40 => "thirty" + OnesSuffix(value - 30),
+            < 50 => "forty" + OnesSuffix(value - 40),
+            < 60 => "fifty" + OnesSuffix(value - 50),
+            < 70 => "sixty" + OnesSuffix(value - 60),
+            < 80 => "seventy" + OnesSuffix(value - 70),
+            < 90 => "eighty" + OnesSuffix(value - 80),
+            < 100 => "ninety" + OnesSuffix(value - 90),
+            _ => DigitsWords(value),
         };
+
+    private static string OnesSuffix(int value) => value == 0 ? "" : " " + TwoDigitWords(value);
 
     /// <summary>Altitude → "five thousand" / "flight level three three zero" (delegates to <see cref="AtcNumberParser"/>).</summary>
     public static string AltitudeWords(int feet) => AtcNumberParser.AltitudeToWords(feet);
@@ -307,8 +362,51 @@ public static class PhraseologyVerbalizer
             _ => c.ToString(),
         };
 
-    /// <summary>Lowercase the fix name. Real fix-name pronunciation (DUMBA, SUNOL) needs a phoneme dictionary.</summary>
-    public static string SpellFix(string fix) => string.IsNullOrEmpty(fix) ? "" : fix.ToLowerInvariant();
+    /// <summary>
+    /// Spoken fix label for readbacks. Published VHF navaids use the same friendly name source as
+    /// SPOS position anchors ("MOD" -> "Modesto VOR"); ordinary intersections keep the concise
+    /// identifier form ("SUNOL" -> "sunol").
+    /// </summary>
+    public static string SpellFix(string fix)
+    {
+        if (string.IsNullOrWhiteSpace(fix))
+        {
+            return "";
+        }
+
+        var trimmed = fix.Trim();
+        if (TryGetNavigationDatabase() is { } navDb)
+        {
+            var navaidName = navDb.GetNavaidName(trimmed);
+            if (!string.IsNullOrWhiteSpace(navaidName))
+            {
+                return $"{TitleCase(navaidName)} VOR";
+            }
+
+            var airportName = navDb.GetAirportName(trimmed);
+            if (!string.IsNullOrWhiteSpace(airportName))
+            {
+                return PilotSayBuilder.FriendlyAirportName(airportName);
+            }
+        }
+
+        return trimmed.ToLowerInvariant();
+    }
+
+    private static NavigationDatabase? TryGetNavigationDatabase()
+    {
+        try
+        {
+            return NavigationDatabase.Instance;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private static string TitleCase(string raw) =>
+        System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(raw.Trim().ToLowerInvariant());
 
     /// <summary>"28R" → "two eight right". Letters expand; digits spell out.</summary>
     public static string SpellRunway(string runway)

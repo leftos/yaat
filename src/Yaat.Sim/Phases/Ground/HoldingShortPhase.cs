@@ -64,7 +64,8 @@ public sealed class HoldingShortPhase : Phase
             && _holdShort.TargetName is { Length: > 0 } runwayId
         )
         {
-            ctx.Aircraft.PendingNotifications.Add(PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId));
+            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId, facilityCallName));
             _hasAnnouncedReady = true;
             ctx.Aircraft.HasMadeInitialContact = true;
         }
