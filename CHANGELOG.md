@@ -6,9 +6,10 @@
 - `CT [target]` tells the pilot to contact the next controller — accepts callsign, frequency, or TCP, or auto-resolves with no argument.
 - `FCA` issues the VFR frequency-change-approved dismissal — pilot signs off without a follow-on handoff.
 - Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established.
+- The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.
 
 ### Fixed
-- Speed `UNTIL` accepts long and custom speed aliases, including chained distance or fix-based speed changes.
+- Speed `UNTIL` accepts aliases and fires staged speed changes while earlier speed or phase-controlled work continues.
 
 ## v0.1.17-alpha [2026/05/06]
 

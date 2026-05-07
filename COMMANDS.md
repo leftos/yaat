@@ -56,7 +56,7 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
   ```
   CM 050, FH 090; FH 180
   ```
-  Climb and turn simultaneously. Once **both** complete, turn to heading 180.
+  Climb and turn simultaneously. Once the lateral part of the first block is complete, turn to heading 180; the climb continues if it has not reached 5,000 yet. For altitude-specific sequencing, use `LV` or numeric `AT`.
 
 - **Combined:**
   ```
@@ -66,7 +66,7 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 
 ### Conditional Blocks
 
-Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific conditions instead of waiting for the previous block:
+Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific conditions instead of waiting for the previous block. Conditional blocks in a chain are watched while the earlier block continues, until YAAT reaches an ordinary untriggered block:
 
 - **LV** — triggers when the aircraft reaches an altitude:
   ```
@@ -98,7 +98,7 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   |------|---------|---------|
   | `AT <taxiway>` | Fires the first time the aircraft turns onto that taxiway | `AT B SPD 10` |
   | `AT $<spot>` | Fires when the aircraft reaches the named spot/intersection node | `AT $5 RNS` |
-  | `AT @<parking>` | Fires when the aircraft reaches the named parking spot | `AT @TERM2 FREQ 121.7` |
+  | `AT @<parking>` | Fires when the aircraft reaches the named parking spot | `AT @TERM2 FCA` |
   | `AT <t1>/<t2>` | Fires at the node where two named taxiways meet (closest to the aircraft when issued) | `AT B/C SPD 5` |
 
   **Disambiguation order:** sigils win first (`$` spot, `@` parking, `/` intersection), then bare digits stay altitudes (so `AT 30` is still 3,000 ft — to target SFO spot `30` use `AT $30`), then bare names try airborne fixes (`AT SUNOL`) before falling back to a taxiway. If the resolved entity is not present in the airport layout, the block is rejected with a `AT ground entity not found` warning.
@@ -119,6 +119,8 @@ CM 100; LV 050 FH 270; LV 100 DCT SUNOL
 ```
 
 Climb to 10,000 ft. At 5,000 ft, turn to heading 270. At 10,000 ft, proceed direct SUNOL.
+
+If you put a condition after a comma, YAAT promotes it to a new sequential block, so `CM 020, AT OAK30NUM CM 014` is treated like `CM 020; AT OAK30NUM CM 014`.
 
 ### Wait Commands
 

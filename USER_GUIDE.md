@@ -28,6 +28,8 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Weather Timelines (V2 Format)](#weather-timelines-v2-format)
   - [Arrival Generators Editor](#arrival-generators-editor)
 - [Commands](#commands)
+  - [Compound Commands](#compound-commands)
+  - [Helicopter operations](#helicopter-operations)
 - [Simulation Controls](#simulation-controls)
   - [Timeline / Rewind](#timeline--rewind)
   - [Save / Load Recordings](#save--load-recordings)
@@ -701,6 +703,144 @@ Commands support chaining (`;` sequential, `,` parallel), conditional triggers (
 In solo training, VFR aircraft respect FAA Class B/C entry gates: Class B requires `CLBRV`; Class C requires the pilot's initial call plus a successful controller command using that aircraft's callsign. Use `STBY` or `ROGER` when you only want to establish two-way communications.
 
 **See the [Command Reference](COMMANDS.md) for the complete list of every command, alias, syntax detail, and example.**
+
+### Compound Commands
+
+Compound commands let you give several instructions in one command line. Think of the line as a list of **blocks**. A block may contain one command, or several commands that start together. Blocks may start immediately, wait their turn, or wait for a trigger such as an altitude, fix, taxiway, or distance from final.
+
+#### Use `,` for simultaneous instructions
+
+A comma keeps commands in the same block. Use it when the instructions should start at the same time, especially when they affect different control surfaces:
+
+```
+FH 270, CM 050, SPD 210
+```
+
+The aircraft turns to heading 270, climbs to 5,000 ft, and maintains 210 knots at the same time. The speed assignment does not cancel the turn, and the altitude assignment does not cancel the speed. Each command writes to its own target.
+
+If a condition starts the block, every command after the condition shares that trigger:
+
+```
+AT SUNOL FH 180, DM 030, SPD 210
+```
+
+At SUNOL, the aircraft turns to 180, descends to 3,000 ft, and slows to 210 knots together.
+
+When a comma is followed by a condition keyword (`AT`, `LV`, `ATFN`, `ONHO`, `GIVEWAY`, `BEHIND`), YAAT treats that as a new block. For example, this is accepted as two blocks:
+
+```
+CM 020, AT OAK30NUM CM 014
+```
+
+The aircraft starts climbing to 2,000 ft now, then descends to 1,400 ft when OAK30NUM is reached.
+
+#### Use `;` for ordered blocks
+
+A semicolon separates blocks. Use it when the next instruction should wait for the previous block or for its own trigger:
+
+```
+FH 270; FH 180
+```
+
+The aircraft turns to 270 first, then turns to 180 after the first turn is complete.
+
+If the previous block mixes lateral movement with altitude or speed, the next block can advance when the lateral part is done while the altitude or speed target continues. For example:
+
+```
+FH 270, CM 100; FH 180
+```
+
+The second turn waits for the heading-to-270 part, not necessarily for the climb all the way to 10,000 ft. If you want a later instruction to happen at an altitude, use `LV` or numeric `AT`.
+
+#### Use `LV` and `AT` for triggers
+
+`LV <altitude> <command>` starts a block when the aircraft reaches an altitude. Altitudes use the same format as `CM` and `DM`: `050` means 5,000 ft, `5000` means 5,000 ft, and AGL forms such as `KOAK+010` are accepted.
+
+```
+CM 100; LV 050 FH 270; LV 100 DCT SUNOL
+```
+
+The aircraft climbs to 10,000 ft. While it is still climbing, it turns heading 270 at 5,000 ft. At 10,000 ft, it proceeds direct SUNOL.
+
+`AT <token> <command>` starts a block when a place or condition is reached:
+
+| Form | Meaning | Example |
+|------|---------|---------|
+| `AT SUNOL` | Fix reached or sequenced | `AT SUNOL SPD 180` |
+| `AT SUNOL090` | Radial crossed | `AT SUNOL090 FH 270` |
+| `AT SUNOL090020` | Fix-radial-distance point reached | `AT SUNOL090020 FH 270` |
+| `AT 050` | Altitude reached, same as `LV 050` | `AT 050 FH 270` |
+| `AT B` | Taxiway reached while taxiing | `AT B SPD 10` |
+| `AT $5` | Named spot reached | `AT $5 RNS` |
+| `AT @TERM2` | Parking/helipad reached | `AT @TERM2 FCA` |
+| `AT B/C` | Intersection of two taxiways reached | `AT B/C SPD 5` |
+
+Conditional blocks can fire while an earlier block is still active, as long as no ordinary untriggered block is sitting between them. This is what makes staged commands work:
+
+```
+DCT VPCOL OAK30NUM VPMID; AT OAK30NUM CM 014
+```
+
+The aircraft keeps flying the route to VPMID. When OAK30NUM is sequenced, it starts descending to 1,400 ft without abandoning the rest of the route.
+
+#### Use `SPD X UNTIL Y` for staged speeds
+
+`SPD X UNTIL Y` is shorthand for "maintain this speed now, then resume normal speed when Y happens."
+
+If `Y` is a number, it means nautical miles from the assigned runway threshold:
+
+```
+SPD 210 UNTIL 10
+```
+
+The aircraft maintains 210 knots, then resumes normal speed at 10 NM final. This is shorthand for:
+
+```
+SPD 210; ATFN 10 RNS
+```
+
+You can chain distance-based speed reductions:
+
+```
+SPD 210 UNTIL 10; SPD 180 UNTIL 5
+```
+
+The aircraft maintains 210 knots until 10 NM final, slows to 180 knots, then resumes normal speed at 5 NM final.
+
+If `Y` is a fix, the speed is cancelled when that fix is reached or sequenced:
+
+```
+SPD 180 UNTIL AXMUL
+SPD 180 AXMUL
+```
+
+Both forms mean maintain 180 knots until AXMUL, then resume normal speed. The second form is the ATCTrainer-style alias.
+
+YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed assignments inside that boundary are rejected. Use `RNS` when you want to cancel a speed assignment earlier.
+
+#### Queue and phase clearing
+
+YAAT validates a compound command before applying it. If a later block is invalid, the aircraft state is left unchanged.
+
+When a new command replaces queued work, YAAT clears only conflicting control surfaces:
+
+| New command | Clears pending | Preserves pending |
+|-------------|----------------|-------------------|
+| Heading, turn, `DCT`, hold | Lateral blocks | Altitude and speed blocks |
+| `CM`, `DM`, `CVIA`, `DVIA` | Vertical blocks | Lateral and speed blocks |
+| `SPD`, `RNS`, `RFAS`, `MACH` | Speed blocks | Lateral and altitude blocks |
+| Tower/ground phase commands | Usually all flight-control dimensions | Status/display commands |
+
+This means adjusting speed does not cancel a turn, and issuing a heading does not cancel a previously queued altitude trigger unless that queued block also contained lateral work. If a queued block is dropped, YAAT adds a terminal warning naming the lost block.
+
+`CXL` / `CLR` / `DELAT` clears pending queued blocks, but it does not undo the target that is already active. If you want to stop an active direct route or heading hold too, issue a lateral command such as `FPH` before clearing:
+
+```
+FPH
+CXL
+```
+
+Aircraft in a phase, such as taxi, takeoff, approach, pattern, landing, or holding, are phase-managed. A direct command during a phase can be accepted, rejected with a reason, or clear the phase after validation. Conditional commands do not clear the phase when issued; they wait in the queue and fire when their trigger is reached. Pure status/display instructions such as squawk, ident, SAY-class reports, and report-in-sight commands do not cancel phases or clear the flight-control queue.
 
 ### Helicopter operations
 

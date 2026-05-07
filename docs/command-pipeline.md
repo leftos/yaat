@@ -94,7 +94,7 @@ A queued `CommandBlock` carries:
 - `ApplyAction` — closure that runs when the trigger fires.
 - `SourceCommandText` — the canonical compound string (snapshot/replay support).
 
-Each tick, step 9 of `FlightPhysics.Update` (`UpdateCommandQueue`) checks the head block's trigger. When met, the closure runs and the block is dropped. `ReadyToAdvance` gates lateral changes until they're complete; altitude/speed are fire-and-forget. AT-fix triggers may also fire as the block runs, via `NotifyFixSequenced` from `UpdateNavigation`.
+Each tick, step 9 of `FlightPhysics.Update` (`UpdateCommandQueue`) checks the current block's trigger. When met, the closure runs. `ReadyToAdvance` gates lateral changes until they're complete; altitude/speed continue in parallel when paired with lateral work. While the current block is still running, `ApplyReadyConditionalBlocks` scans the contiguous conditional blocks behind it so `AT`, `LV`, `ATFN`, radial/FRD, and handoff triggers can fire without waiting for the current target to complete. Active phases still skip ordinary queue advancement, but run the same triggered-block scan; fix and ground triggers can also fire through `NotifyFixSequenced` and `NotifyGroundEntityReached`.
 
 ### 7. Effect on the aircraft
 

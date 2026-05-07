@@ -1051,11 +1051,15 @@ public static class FlightPhysics
         }
 
         // During active phases, the phase system owns control targets. The full
-        // command queue logic (block advancement, block application) is skipped.
-        // AT fix triggers fire via NotifyFixSequenced when the navigation route
-        // or approach phase sequences past the fix.
+        // command queue logic (block advancement, untriggered block application) is
+        // skipped, but triggered blocks still need to be watched. This lets commands
+        // such as "SPD 210 UNTIL 10" fire their ATFN/RNS block during approach
+        // phases, while fix and ground triggers can still fire via their event
+        // callbacks.
         if (aircraft.Phases?.CurrentPhase is not null)
         {
+            int triggerStart = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
+            ApplyReadyConditionalBlocks(aircraft, queue, triggerStart, aircraftLookup);
             return;
         }
 
@@ -1081,10 +1085,12 @@ public static class FlightPhysics
             }
             else
             {
-                // Lookahead: check next block's AT-fix trigger while current block is running.
-                // This allows "DCT A B C; AT B CM 014" to fire the altitude command at B
-                // without waiting for the DCT to reach C first.
-                LookaheadAtFixTrigger(aircraft, queue, aircraftLookup);
+                // Lookahead: check following conditional blocks while the current
+                // block is still running. This allows "DCT A B C; AT B CM 014",
+                // "CM 100; LV 050 FH 270", and "SPD 210; ATFN 10 RNS" to fire
+                // on their trigger without waiting for the current lateral,
+                // altitude, or speed target to complete.
+                ApplyReadyConditionalBlocks(aircraft, queue, queue.CurrentBlockIndex + 1, aircraftLookup);
                 return;
             }
         }
@@ -1113,33 +1119,44 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Peeks at the next block in the queue. If it has an AT fix-name trigger and the
-    /// aircraft is currently at that fix, apply the block immediately alongside the
-    /// still-running current block. This lets "DCT A B C; AT B CM 014" fire the
-    /// altitude command when the aircraft crosses B, without waiting for the DCT to
-    /// reach C first.
+    /// Applies ready conditional blocks in the contiguous triggered run starting at
+    /// <paramref name="startIndex"/>. Stops at the first unapplied untriggered block
+    /// so ordinary semicolon sequencing is preserved.
     /// </summary>
-    private static void LookaheadAtFixTrigger(AircraftState aircraft, CommandQueue queue, Func<string, AircraftState?>? aircraftLookup)
+    private static void ApplyReadyConditionalBlocks(
+        AircraftState aircraft,
+        CommandQueue queue,
+        int startIndex,
+        Func<string, AircraftState?>? aircraftLookup
+    )
     {
-        int nextIdx = queue.CurrentBlockIndex + 1;
-        if (nextIdx >= queue.Blocks.Count)
+        for (int i = startIndex; i < queue.Blocks.Count; i++)
         {
-            return;
-        }
+            var block = queue.Blocks[i];
+            if (block.IsApplied)
+            {
+                continue;
+            }
 
-        var nextBlock = queue.Blocks[nextIdx];
-        if (nextBlock.IsApplied || nextBlock.Trigger is null || nextBlock.Trigger.Type is not BlockTriggerType.ReachFix)
-        {
-            return;
-        }
+            if (block.Trigger is null)
+            {
+                break;
+            }
 
-        if (!IsTriggerMet(aircraft, nextBlock.Trigger, aircraftLookup))
-        {
-            return;
-        }
+            block.TriggerMet = IsTriggerMet(aircraft, block.Trigger, aircraftLookup);
+            if (!block.TriggerMet)
+            {
+                TrackFrdMiss(aircraft, block);
+                continue;
+            }
 
-        nextBlock.TriggerMet = true;
-        ApplyBlock(aircraft, nextBlock);
+            if (block.Trigger.Type is BlockTriggerType.OnHandoff)
+            {
+                aircraft.Track.HandoffAccepted = false;
+            }
+
+            ApplyBlock(aircraft, block);
+        }
     }
 
     private static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup)
