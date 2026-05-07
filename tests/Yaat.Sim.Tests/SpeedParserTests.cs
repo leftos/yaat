@@ -104,4 +104,26 @@ public class SpeedParserTests
         var spd2 = Assert.IsType<SpeedCommand>(compound.Value!.Blocks[1].Commands[0]);
         Assert.Equal(180, spd2.Speed);
     }
+
+    [Fact]
+    public void SpeedUntil_LongAlias_ParsedInCompound()
+    {
+        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
+        var compound = CommandParser.ParseCompound("SPEED 210 UNTIL 10; SPEED 180 UNTIL 5");
+
+        Assert.True(compound.IsSuccess, compound.Reason);
+        Assert.Equal(3, compound.Value!.Blocks.Count);
+
+        var spd1 = Assert.IsType<SpeedCommand>(compound.Value.Blocks[0].Commands[0]);
+        Assert.Equal(210, spd1.Speed);
+
+        var dist10 = Assert.IsType<DistanceFinalCondition>(compound.Value.Blocks[1].Condition);
+        Assert.Equal(10, dist10.DistanceNm);
+        var spd2 = Assert.IsType<SpeedCommand>(compound.Value.Blocks[1].Commands[0]);
+        Assert.Equal(180, spd2.Speed);
+
+        var dist5 = Assert.IsType<DistanceFinalCondition>(compound.Value.Blocks[2].Condition);
+        Assert.Equal(5, dist5.DistanceNm);
+        Assert.IsType<ResumeNormalSpeedCommand>(compound.Value.Blocks[2].Commands[0]);
+    }
 }

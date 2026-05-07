@@ -25,7 +25,7 @@ public static class CommandSchemeParser
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(input.Trim())));
+        var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(input.Trim(), scheme)));
         trimmed = CommaBeforeCondition.Replace(trimmed, ";");
         if (string.IsNullOrEmpty(trimmed))
         {
@@ -235,7 +235,7 @@ public static class CommandSchemeParser
         }
 
         // Apply ExpandWait and ExpandSpeedUntil to the remainder after condition extraction
-        var expandedRemainder = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(remaining)));
+        var expandedRemainder = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(remaining, scheme)));
         if (expandedRemainder.Contains(';'))
         {
             // Expansion produced additional blocks — split and handle each
@@ -310,8 +310,8 @@ public static class CommandSchemeParser
     {
         failure = null;
         // SAY consumes entire remainder as literal text — don't split on comma
-        var upperCheck = remaining.TrimStart().ToUpperInvariant();
-        if (upperCheck.StartsWith("SAY "))
+        var trimmedRemaining = remaining.TrimStart();
+        if (StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Say))
         {
             var parsed = Parse(remaining.Trim(), scheme, out failure);
             return parsed is not null ? ToCanonical(parsed.Type, parsed.Argument) : null;
@@ -749,8 +749,11 @@ public static class CommandSchemeParser
     /// Supports distance-based UNTIL (numeric Y → ATFN), fix-based UNTIL (alpha Y → AT),
     /// and ATCTrainer alias (SPD X FIXNAME → AT).
     /// </summary>
-    public static string ExpandSpeedUntil(string input)
+    public static string ExpandSpeedUntil(string input) => ExpandSpeedUntil(input, CommandScheme.Default());
+
+    public static string ExpandSpeedUntil(string input, CommandScheme scheme)
     {
+        var speedAliases = GetAliases(scheme, CanonicalCommandType.Speed);
         // Split by semicolons to process blocks independently
         var blocks = input.Split(';');
         var result = new List<string>();
@@ -758,25 +761,16 @@ public static class CommandSchemeParser
         for (int i = 0; i < blocks.Length; i++)
         {
             var block = blocks[i].Trim();
-            var upper = block.ToUpperInvariant();
 
             // Match "SPD X UNTIL Y" where Y is numeric (distance)
-            var distMatch = Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
-            if (distMatch.Success)
+            if (TryParseSpeedUntilDistance(block, speedAliases, out var spdPart, out var distPart))
             {
-                var spdPart = block[..distMatch.Groups[1].Length].Trim();
-                var distPart = distMatch.Groups[2].Value;
-
                 // Look at the next block for chaining
                 if (i + 1 < blocks.Length)
                 {
                     var nextBlock = blocks[i + 1].Trim();
-                    var nextUpper = nextBlock.ToUpperInvariant();
-                    var nextMatch = Regex.Match(nextUpper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
-                    if (nextMatch.Success)
+                    if (TryParseSpeedUntilDistance(nextBlock, speedAliases, out var nextSpdPart, out var nextDistPart))
                     {
-                        var nextSpdPart = blocks[i + 1].Trim()[..nextMatch.Groups[1].Length].Trim();
-                        var nextDistPart = nextMatch.Groups[2].Value;
                         result.Add(spdPart);
                         result.Add($"ATFN {distPart} {nextSpdPart}");
                         result.Add($"ATFN {nextDistPart} RNS");
@@ -791,22 +785,16 @@ public static class CommandSchemeParser
             }
 
             // Match "SPD X UNTIL FIXNAME" where FIXNAME is 2-5 alpha chars (fix-based)
-            var fixUntilMatch = Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+([A-Z]{2,5})$");
-            if (fixUntilMatch.Success)
+            if (TryParseSpeedUntilFix(block, speedAliases, out spdPart, out var fixName))
             {
-                var spdPart = block[..fixUntilMatch.Groups[1].Length].Trim();
-                var fixName = fixUntilMatch.Groups[2].Value;
                 result.Add(spdPart);
                 result.Add($"AT {fixName} RNS");
                 continue;
             }
 
             // Match "SPD X FIXNAME" (ATCTrainer alias for SPD X UNTIL FIXNAME)
-            var fixAliasMatch = Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+([A-Z]{2,5})$");
-            if (fixAliasMatch.Success)
+            if (TryParseSpeedFixAlias(block, speedAliases, out spdPart, out fixName))
             {
-                var spdPart = block[..fixAliasMatch.Groups[1].Length].Trim();
-                var fixName = fixAliasMatch.Groups[2].Value;
                 result.Add(spdPart);
                 result.Add($"AT {fixName} RNS");
                 continue;
@@ -817,6 +805,106 @@ public static class CommandSchemeParser
 
         return string.Join("; ", result);
     }
+
+    private static IReadOnlyList<string> GetAliases(CommandScheme scheme, CanonicalCommandType type) =>
+        scheme.Patterns.TryGetValue(type, out var pattern) ? pattern.Aliases : CommandRegistry.AliasesFor(type);
+
+    private static bool StartsWithSchemeAlias(string input, CommandScheme scheme, CanonicalCommandType type)
+    {
+        foreach (var alias in GetAliases(scheme, type))
+        {
+            if (input.Length <= alias.Length)
+            {
+                continue;
+            }
+
+            if ((input[alias.Length] == ' ') && (input.StartsWith(alias, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSchemeAlias(string token, IReadOnlyList<string> aliases)
+    {
+        foreach (var alias in aliases)
+        {
+            if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryParseSpeedUntilDistance(string block, IReadOnlyList<string> speedAliases, out string spdPart, out string distPart)
+    {
+        spdPart = "";
+        distPart = "";
+
+        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (
+            (tokens.Length != 4)
+            || (!IsSchemeAlias(tokens[0], speedAliases))
+            || (!IsSpeedToken(tokens[1]))
+            || (!tokens[2].Equals("UNTIL", StringComparison.OrdinalIgnoreCase))
+            || (!IsDistanceToken(tokens[3]))
+        )
+        {
+            return false;
+        }
+
+        spdPart = $"{tokens[0]} {tokens[1]}";
+        distPart = tokens[3];
+        return true;
+    }
+
+    private static bool TryParseSpeedUntilFix(string block, IReadOnlyList<string> speedAliases, out string spdPart, out string fixName)
+    {
+        spdPart = "";
+        fixName = "";
+
+        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (
+            (tokens.Length != 4)
+            || (!IsSchemeAlias(tokens[0], speedAliases))
+            || (!IsSpeedToken(tokens[1]))
+            || (!tokens[2].Equals("UNTIL", StringComparison.OrdinalIgnoreCase))
+            || (!IsFixToken(tokens[3]))
+        )
+        {
+            return false;
+        }
+
+        spdPart = $"{tokens[0]} {tokens[1]}";
+        fixName = tokens[3].ToUpperInvariant();
+        return true;
+    }
+
+    private static bool TryParseSpeedFixAlias(string block, IReadOnlyList<string> speedAliases, out string spdPart, out string fixName)
+    {
+        spdPart = "";
+        fixName = "";
+
+        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if ((tokens.Length != 3) || (!IsSchemeAlias(tokens[0], speedAliases)) || (!IsSpeedToken(tokens[1])) || (!IsFixToken(tokens[2])))
+        {
+            return false;
+        }
+
+        spdPart = $"{tokens[0]} {tokens[1]}";
+        fixName = tokens[2].ToUpperInvariant();
+        return true;
+    }
+
+    private static bool IsSpeedToken(string token) => Regex.IsMatch(token, @"^\d+[+\-]?$");
+
+    private static bool IsDistanceToken(string token) => Regex.IsMatch(token, @"^\d+(?:\.\d+)?$");
+
+    private static bool IsFixToken(string token) => Regex.IsMatch(token, @"^[A-Z]{2,5}$", RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Expands "WAIT N cmd" and "DELAY N cmd" patterns into "WAIT N; cmd".

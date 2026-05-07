@@ -7,6 +7,9 @@
 - `FCA` issues the VFR frequency-change-approved dismissal — pilot signs off without a follow-on handoff.
 - Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established.
 
+### Fixed
+- Speed `UNTIL` accepts long and custom speed aliases, including chained distance or fix-based speed changes.
+
 ## v0.1.17-alpha [2026/05/06]
 
 ### Highlights

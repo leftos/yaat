@@ -319,8 +319,8 @@ public static class CommandParser
     private static List<ParsedCommand>? ParseCommandList(string input, string? aircraftRoute, TextWriter? debugLog = null)
     {
         // SAY consumes entire remainder as literal text — don't split on comma
-        var upperCheck = input.TrimStart().ToUpperInvariant();
-        if (upperCheck.StartsWith("SAY ") || upperCheck.StartsWith("SAYF "))
+        var trimmedInput = input.TrimStart();
+        if (StartsWithRegisteredAlias(trimmedInput, Say))
         {
             var cmd = Parse(input.Trim(), aircraftRoute);
             if (!cmd.IsSuccess)
@@ -372,6 +372,24 @@ public static class CommandParser
         }
 
         return commands.Count > 0 ? commands : null;
+    }
+
+    private static bool StartsWithRegisteredAlias(string input, CanonicalCommandType type)
+    {
+        foreach (var alias in CommandRegistry.AliasesFor(type))
+        {
+            if (input.Length <= alias.Length)
+            {
+                continue;
+            }
+
+            if ((input[alias.Length] == ' ') && (input.StartsWith(alias, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static (BlockCondition Condition, string Remainder)? ParseLvCondition(string input)
@@ -493,11 +511,10 @@ public static class CommandParser
 
     private static bool IsGiveWayConditionVerb(string token)
     {
-        return token.Equals("TAXI", StringComparison.OrdinalIgnoreCase)
-            || token.Equals("RWY", StringComparison.OrdinalIgnoreCase)
-            || token.Equals("PUSH", StringComparison.OrdinalIgnoreCase)
-            || token.Equals("FOLLOWG", StringComparison.OrdinalIgnoreCase)
-            || token.Equals("FOLG", StringComparison.OrdinalIgnoreCase);
+        return (CommandRegistry.IsAliasFor(Taxi, token))
+            || (CommandRegistry.IsAliasFor(AssignRunway, token))
+            || (CommandRegistry.IsAliasFor(Pushback, token))
+            || (CommandRegistry.IsAliasFor(FollowGround, token));
     }
 
     private static (BlockCondition Condition, string Remainder)? ParseGiveWayCondition(string input)

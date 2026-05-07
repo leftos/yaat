@@ -17,6 +17,22 @@ public static class CommandRegistry
         return All.GetValueOrDefault(type);
     }
 
+    public static IReadOnlyList<string> AliasesFor(CanonicalCommandType type) =>
+        All.TryGetValue(type, out var def) ? def.DefaultAliases : Array.Empty<string>();
+
+    public static bool IsAliasFor(CanonicalCommandType type, string token)
+    {
+        foreach (var alias in AliasesFor(type))
+        {
+            if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static IReadOnlyList<CommandDefinition> ByCategory(string category)
     {
         return All.Values.Where(d => d.Category == category).ToArray();

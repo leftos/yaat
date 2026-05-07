@@ -94,9 +94,27 @@ public class SpeedParserTests
     }
 
     [Fact]
+    public void SpeedUntil_LongAlias_ExpandedToCompound()
+    {
+        var result = CommandSchemeParser.ParseCompound("SPEED 210 UNTIL 10", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 210; ATFN 10 RNS", result.CanonicalString);
+    }
+
+    [Fact]
     public void SpeedUntilChained_ExpandedCorrectly()
     {
         var result = CommandSchemeParser.ParseCompound("SPD 210 UNTIL 10; SPD 180 UNTIL 5", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 210; ATFN 10 SPD 180; ATFN 5 RNS", result.CanonicalString);
+    }
+
+    [Fact]
+    public void SpeedUntilChained_LongAlias_ExpandedCorrectly()
+    {
+        var result = CommandSchemeParser.ParseCompound("SPEED 210 UNTIL 10; SPEED 180 UNTIL 5", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("SPD 210; ATFN 10 SPD 180; ATFN 5 RNS", result.CanonicalString);
@@ -123,12 +141,42 @@ public class SpeedParserTests
     }
 
     [Fact]
+    public void SpeedUntilFix_LongAlias_ExpandedToAtBlock()
+    {
+        var result = CommandSchemeParser.ParseCompound("SPEED 180 UNTIL AXMUL", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 180; AT AXMUL RNS", result.CanonicalString);
+    }
+
+    [Fact]
     public void SpeedFixAlias_ExpandedToAtBlock()
     {
         var result = CommandSchemeParser.ParseCompound("SPD 180 AXMUL", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("SPD 180; AT AXMUL RNS", result.CanonicalString);
+    }
+
+    [Fact]
+    public void SpeedFixAlias_LongAlias_ExpandedToAtBlock()
+    {
+        var result = CommandSchemeParser.ParseCompound("SPEED 180 AXMUL", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 180; AT AXMUL RNS", result.CanonicalString);
+    }
+
+    [Fact]
+    public void SpeedUntil_CustomSchemeAlias_ExpandedToCanonicalSpeed()
+    {
+        var scheme = CommandScheme.Default();
+        scheme.Patterns[CanonicalCommandType.Speed].Aliases = ["SPD", "FAST"];
+
+        var result = CommandSchemeParser.ParseCompound("FAST 210 UNTIL 10", scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 210; ATFN 10 RNS", result.CanonicalString);
     }
 
     [Fact]
@@ -167,6 +215,15 @@ public class SpeedParserTests
     public void AtCondition_SpeedFixAlias_ParsesAsCompound()
     {
         var result = CommandSchemeParser.ParseCompound("AT CEPIN SPD 180 AXMUL", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("AT CEPIN SPD 180; AT AXMUL RNS", result.CanonicalString);
+    }
+
+    [Fact]
+    public void AtCondition_SpeedLongAliasFixAlias_ParsesAsCompound()
+    {
+        var result = CommandSchemeParser.ParseCompound("AT CEPIN SPEED 180 AXMUL", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("AT CEPIN SPD 180; AT AXMUL RNS", result.CanonicalString);
