@@ -23,7 +23,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class AtFixDuringInitialClimbTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/at-fix-cancels-phase-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/10797ffbbfea.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

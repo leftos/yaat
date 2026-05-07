@@ -20,7 +20,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueFllRolloutOverrunTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/fll-10r-overrun-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/94c6ed9ab1d4.zip";
     private const string Callsign = "NKS461";
 
     // 10R ends per the bundle's AssignedRunway DTO at t=205:

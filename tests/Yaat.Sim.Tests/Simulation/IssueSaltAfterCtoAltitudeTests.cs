@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueSaltAfterCtoAltitudeTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/salt-after-cto-altitude-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/10797ffbbfea.zip";
     private const string Callsign = "N172SP";
     private const int SaltTime = 383;
     private const int ExpectedAssignedAltitude = 1400;

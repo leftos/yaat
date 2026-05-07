@@ -22,7 +22,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueOakImplicitCrossOnTaxiTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-implicit-cross-on-taxi-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/10797ffbbfea.zip";
     private const string Callsign = "N342T";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

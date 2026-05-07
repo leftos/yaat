@@ -28,7 +28,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
     /// In this session FDX3807 spawns at 224 KIAS and (pre-fix) flat-lines that speed
     /// until ~5 NM before decelerating in one bleed.
     /// </summary>
-    private const string FullRecordingPath = "TestData/fdx-heavy-final-speed-recording.yaat-bug-report-bundle.zip";
+    private const string FullRecordingPath = "TestData/10797ffbbfea.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

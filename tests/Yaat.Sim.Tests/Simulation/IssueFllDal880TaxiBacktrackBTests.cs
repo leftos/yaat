@@ -35,7 +35,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/fll-dal880-taxi-backtrack-b-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/94c6ed9ab1d4.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

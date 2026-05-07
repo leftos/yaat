@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueStripsAddressByIdReplayTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/strips-id-addressing-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/10797ffbbfea.zip";
 
     private static readonly HashSet<string> StripVerbs =
     [
