@@ -1,0 +1,155 @@
+using System.Globalization;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Pilot;
+
+namespace Yaat.Sim.Commands;
+
+/// <summary>
+/// Handles CT (contact next controller) and FCA (frequency change approved). Both are pure
+/// pilot-speech commands — no state mutation. Distinct from HOO/ACCEPT/DROP which are radar-side
+/// coordination actions invisible to the pilot (FAA 7110.65 §7-6-11).
+///
+/// <para>CT supports three argument forms for disambiguation:</para>
+/// <list type="bullet">
+///   <item><description><b>Position callsign</b> ("OAK_TWR") — exact match. Use this when multiple
+///   positions share a STARS scope (e.g. OAK_TWR and OAK_GND both on TCP 3O).</description></item>
+///   <item><description><b>Frequency in MHz</b> ("121.9", "128.525") — tolerance ±5 kHz.</description></item>
+///   <item><description><b>TCP code</b> ("3O", "2B") — convenient when unambiguous; first match wins.</description></item>
+/// </list>
+///
+/// <para>With no argument, auto-resolves to <c>Track.HandoffPeer</c> (HOO initiated, awaiting/just
+/// accepted) or <c>Track.Owner</c> after <c>HandoffAccepted</c> flips true. Rejects when neither
+/// is available.</para>
+/// </summary>
+public static class ContactCommandHandler
+{
+    public static CommandResult HandleContact(ContactCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        string facilityShortname;
+        double? frequencyMhz;
+
+        if (cmd.Target is { Length: > 0 } target)
+        {
+            var resolution = ResolveExplicitTarget(target, ctx.ArtccConfig);
+            switch (resolution)
+            {
+                case ResolvedTarget.NotFound:
+                    return new CommandResult(false, $"unknown position {target}");
+                case ResolvedTarget.Ambiguous a:
+                    return new CommandResult(
+                        false,
+                        $"ambiguous TCP {target.ToUpperInvariant()} — try {string.Join(" or ", a.Candidates.Select(p => p.Callsign))}"
+                    );
+                case ResolvedTarget.Found found:
+                    facilityShortname = FacilityShortname.From(found.Position.Callsign);
+                    frequencyMhz = found.Position.Frequency / 1_000_000.0;
+                    break;
+                default:
+                    return new CommandResult(false, $"unknown position {target}");
+            }
+        }
+        else
+        {
+            var owner = aircraft.Track.HandoffPeer ?? (aircraft.Track.HandoffAccepted ? aircraft.Track.Owner : null);
+            if (owner is null)
+            {
+                return new CommandResult(false, "no handoff target — issue HOO first or specify position");
+            }
+            facilityShortname = FacilityShortname.From(owner.Callsign);
+            var pos = ctx.ArtccConfig?.FindPositionByCallsign(owner.Callsign);
+            frequencyMhz = pos is not null ? pos.Frequency / 1_000_000.0 : null;
+        }
+
+        var pilotSpeech = frequencyMhz is double freq
+            ? PilotResponder.BuildContactReadback(aircraft, facilityShortname, freq)
+            : BuildContactReadbackNoFreq(aircraft, facilityShortname);
+        var warning = $"[Contact] {facilityShortname}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
+        Route(aircraft, ctx, pilotSpeech, warning);
+        return new CommandResult(true, "");
+    }
+
+    public static CommandResult HandleFrequencyChangeApproved(AircraftState aircraft, DispatchContext ctx)
+    {
+        var pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft);
+        Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved");
+        return new CommandResult(true, "");
+    }
+
+    private static void Route(AircraftState aircraft, DispatchContext ctx, string pilotSpeech, string warningText)
+    {
+        if (ctx.SoloTrainingMode)
+        {
+            aircraft.PendingNotifications.Add(pilotSpeech);
+            return;
+        }
+        PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech, warningText);
+    }
+
+    private static string BuildContactReadbackNoFreq(AircraftState aircraft, string facilityShortname)
+    {
+        var spoken = Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return $"[{aircraft.Callsign}] {facilityShortname.ToLowerInvariant()}, {spoken}, so long.";
+    }
+
+    private abstract record ResolvedTarget
+    {
+        public sealed record Found(PositionConfig Position) : ResolvedTarget;
+
+        public sealed record Ambiguous(IReadOnlyList<PositionConfig> Candidates) : ResolvedTarget;
+
+        public sealed record NotFound : ResolvedTarget;
+    }
+
+    private static ResolvedTarget ResolveExplicitTarget(string target, ArtccConfigRoot? config)
+    {
+        if (config is null)
+        {
+            return new ResolvedTarget.NotFound();
+        }
+        var trimmed = target.Trim();
+
+        if (LooksLikeFrequency(trimmed) && double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var mhz))
+        {
+            var byFreq = config.FindPositionByFrequency(mhz);
+            return byFreq is null ? new ResolvedTarget.NotFound() : new ResolvedTarget.Found(byFreq);
+        }
+
+        if (trimmed.Contains('_'))
+        {
+            var byCallsign = config.FindPositionByCallsign(trimmed.ToUpperInvariant());
+            return byCallsign is null ? new ResolvedTarget.NotFound() : new ResolvedTarget.Found(byCallsign);
+        }
+
+        // TCP-code path can resolve to multiple positions (consolidated TWR + GND on shared
+        // STARS scope). Force the controller to disambiguate rather than silently picking one.
+        var byTcp = config.FindPositionsByTcpCodeAnyFacility(trimmed.ToUpperInvariant());
+        return byTcp.Count switch
+        {
+            0 => new ResolvedTarget.NotFound(),
+            1 => new ResolvedTarget.Found(byTcp[0]),
+            _ => new ResolvedTarget.Ambiguous(byTcp),
+        };
+    }
+
+    private static bool LooksLikeFrequency(string s)
+    {
+        // "121.9" / "128.525" — three digits, dot, one or more digits, in the VHF aviation band.
+        var dot = s.IndexOf('.');
+        if (dot < 1 || dot >= s.Length - 1)
+        {
+            return false;
+        }
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (i == dot)
+            {
+                continue;
+            }
+            if (!char.IsDigit(s[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+}

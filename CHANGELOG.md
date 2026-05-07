@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `CT [target]` tells the pilot to contact the next controller — accepts callsign, frequency, or TCP, or auto-resolves with no argument.
+- `FCA` issues the VFR frequency-change-approved dismissal — pilot signs off without a follow-on handoff.
+
 ## v0.1.17-alpha [2026/05/06]
 
 ### Highlights

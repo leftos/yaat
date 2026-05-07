@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
@@ -22,6 +23,11 @@ namespace Yaat.Sim.Commands;
 /// <para><see cref="TerminalEmitter"/> is nullable: SAY-class verbs broadcast pilot
 /// transmissions through it. Callers running outside a simulation (parser tests,
 /// dry-run dispatch) leave it null and the broadcasts are discarded.</para>
+///
+/// <para><see cref="ArtccConfig"/> is nullable: the CT (contact) command resolves a target
+/// position to a frequency through it. Callers without an ARTCC config (parser tests,
+/// minimal harnesses) leave it null and CT falls back to the verbatim target callsign for
+/// the spoken facility name with no frequency component.</para>
 /// </summary>
 public sealed record DispatchContext(
     AirportGroundLayout? GroundLayout,
@@ -32,5 +38,6 @@ public sealed record DispatchContext(
     bool AutoCrossRunway,
     bool SoloTrainingMode,
     bool RpoShowPilotSpeech,
-    Action<TerminalEntry>? TerminalEmitter
+    Action<TerminalEntry>? TerminalEmitter,
+    ArtccConfigRoot? ArtccConfig
 );

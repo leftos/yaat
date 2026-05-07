@@ -27,10 +27,10 @@ Student types `N123AB PUSH FACE EAST`:
 [N123AB] Push approved facing east, N123AB.
 ```
 
-Continues `TAXI 28R`, `LUAW`, `CTOR CM 5000 FH 280`, `HOO` — every command produces a readback line. After `HOO`:
+Continues `TAXI 28R`, `LUAW`, `CTOR CM 5000 FH 280`, `HOO`, then `CT` (contact next controller — distinct from the radar handoff `HOO`, per FAA 7110.65 §7-6-11). Every command produces a readback line. After `CT`:
 
 ```
-[N123AB] Departure on one two five point three five, N123AB, good day.
+[N123AB] Departure on one two five point three five, november one two three alpha bravo, so long.
 ```
 
 Goal: **the student can fly an aircraft from gate to handoff without a human in the loop**, and the simulator feels alive. M10.1 ships the readback half. M10.1.x extend spawn check-ins for IFR + VFR. M10.2 lets the student *speak* ATC English instead of typing canonical. M10.3 adds the audible pilot voice. M10.4–M10.5 add genuine pilot autonomy.
@@ -88,7 +88,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.1.1** | [m10.1.1-ground-spawn-checkins.md](m10.1.1-ground-spawn-checkins.md) | Ground spawn check-ins (IFR + VFR): HoldingShort, LinedUp, OnFinal + drop M10.1's IFR-only gate |
 | [x] | **M10.1.2** | [m10.1.2-airborne-spawn-checkins.md](m10.1.2-airborne-spawn-checkins.md) | Airborne-spawn check-ins: VFR inbound, IFR airborne arrival, VFR overflight transition |
 | [x] | **M10.1.3** | [m10.1.3-vfr-pattern-work.md](m10.1.3-vfr-pattern-work.md) | VFR closed-traffic: initial-call request + uncleared-only reminders at midfield-downwind and short-final |
-| [ ] | **M10.1.4** | [m10.1.4-hoo-signoff.md](m10.1.4-hoo-signoff.md) | HOO accept / DROP sign-off speech ("Departure on 125.35, callsign, so long") |
+| [x] | **M10.1.4** | [m10.1.4-hoo-signoff.md](m10.1.4-hoo-signoff.md) | New `CT` and `FCA` commands for the frequency-change instruction (separate from HOO/ACCEPT per 7110.65 §7-6-11) |
 | [ ] | **M10.1.5** | [m10.1.5-vfr-airspace-respect.md](m10.1.5-vfr-airspace-respect.md) | VFR self-restrict outside Class B (no clearance) / Class C (no two-way comms) until gate satisfied |
 | [ ] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
 | [ ] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS layer (audible pilot voice + radio realism) |

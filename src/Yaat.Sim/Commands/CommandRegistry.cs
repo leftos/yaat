@@ -760,6 +760,18 @@ public static class CommandRegistry
             ),
             Bare(DropTrack, "Drop Track", "Track Operations", false, ["DROP"]),
             Cmd(
+                Contact,
+                "Contact",
+                "Track Operations",
+                false,
+                ["CT", "CONT"],
+                [
+                    O(null, [], "Contact next controller (auto-resolves to handoff target)"),
+                    O("Position", [R("position", "TCP code or position callsign")], "Contact specific position"),
+                ]
+            ),
+            Bare(FrequencyChangeApproved, "Frequency Change Approved", "Track Operations", false, ["FCA"]),
+            Cmd(
                 InitiateHandoff,
                 "Handoff",
                 "Track Operations",

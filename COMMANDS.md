@@ -364,6 +364,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Retract pointout | `PORT` | — | — |
 | Ack conflict alert | `CAACK` | — | — |
 | Inhibit conflict alert | `CAINH` | `CAI` | — |
+| Contact next controller | `CT OAK_TWR` / `CT 121.9` / `CT 3O` / `CT` | `CONT` | — |
+| Frequency change approved | `FCA` | — | — |
 | Ghost track (runway) | `GHOST N12345 28R` | — | Global; callsign in args |
 | Ghost track (airport+runway) | `GHOST N12345 KOAK 28R` | — | Global; callsign in args |
 | Ghost track (lat/lon) | `GHOST N12345 37.7 -122.2` | — | Global; callsign in args |
@@ -933,6 +935,11 @@ Changing your active position also updates the radar display:
 | `PORT` | Retract your outbound pending pointout |
 | `CAACK` | Acknowledge conflict alerts for this aircraft |
 | `CAINH` / `CAI` | Toggle conflict alert inhibit on/off |
+| `CT` | Tell pilot to contact the next controller — auto-resolves to the just-accepted handoff target |
+| `CT OAK_TWR` / `CT CONT OAK_TWR` | Tell pilot to contact a specific position by callsign (use to disambiguate when two positions share a STARS scope, e.g. OAK_TWR vs OAK_GND on 3O) |
+| `CT 121.9` | Tell pilot to contact a position by frequency in MHz (±5 kHz tolerance covers 25 kHz and 8.33 kHz spacing) |
+| `CT 3O` | Tell pilot to contact a position by TCP code; first match wins on ambiguity, prefer callsign or frequency forms when multiple positions share a TCP |
+| `FCA` | Frequency change approved — VFR dismissal when there is no next controller (FAA 7110.65 §7-6-11) |
 | `GHOST N12345 28R` | Create ghost track off 28R (auto-stagger, scenario airport) |
 | `GHOST N12345 KOAK 28R` | Create ghost track off 28R at KOAK |
 | `GHOST N12345 37.7 -122.2` | Create ghost track at exact position |

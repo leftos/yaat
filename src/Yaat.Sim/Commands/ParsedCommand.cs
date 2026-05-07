@@ -432,6 +432,22 @@ public record AcceptHandoffCommand(string? Callsign = null) : ParsedCommand;
 
 public record CancelHandoffCommand : ParsedCommand;
 
+/// <summary>
+/// CT — controller's frequency-change instruction to the pilot ("contact (facility) on (frequency)").
+/// Distinct from the radar handoff (HOO/ACCEPT) because in real ATC the radar transfer and the
+/// pilot frequency-change are two separate controller actions (FAA 7110.65 §7-6-11).
+/// <para><see cref="Target"/> is an optional position pointer — TCP code, position callsign, or
+/// facility id. When null, the handler auto-resolves to <c>Track.HandoffPeer</c> (HOO not yet
+/// accepted) or <c>Track.Owner</c> (post-accept).</para>
+/// </summary>
+public record ContactCommand(string? Target) : ParsedCommand;
+
+/// <summary>
+/// FCA — frequency change approved (FAA 7110.65 §7-6-11). Used for VFR transit aircraft leaving
+/// the area without a next sector to contact. No state mutation — pure pilot speech.
+/// </summary>
+public record FrequencyChangeApprovedCommand : ParsedCommand;
+
 public record AcceptAllHandoffsCommand : ParsedCommand;
 
 public record InitiateHandoffAllCommand(string TcpCode) : ParsedCommand;

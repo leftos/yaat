@@ -471,3 +471,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 - `OPS`/`STATS` (Operations statistics)
 - `SAYF` (Frequency message)
 - `SHOWPATH`/`HIDEPATH` (Debug path display)
+
+### Commands Added by YAAT
+- `CT [target]` — Contact next controller. Tells the simulated pilot to switch frequency. Distinct from the radar handoff (`HOO`/`ACCEPT`), matching the FAA 7110.65 §7-6-11 separation between radar coordination and the pilot frequency-change instruction. Optional argument is a position callsign (`OAK_TWR`), MHz frequency (`121.9`), or STARS TCP (`3O`); auto-resolves to the just-accepted handoff target when omitted. Required for the solo-training workflow because there's no second human controller to play the receiving sector.
+- `FCA` — Frequency change approved. VFR dismissal phraseology (FAA 7110.65 §7-6-11) for aircraft leaving without a next controller.

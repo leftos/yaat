@@ -212,6 +212,8 @@
         { "verb": "ONHO", "aliases": ["onh"], "description": "On handoff action" },
         { "verb": "CAACK", "aliases": [], "description": "Acknowledge conflict alert" },
         { "verb": "CAINH", "aliases": ["cai"], "description": "Inhibit conflict alert" },
+        { "verb": "CT", "aliases": ["cont"], "description": "Contact next controller [callsign|freq|tcp]" },
+        { "verb": "FCA", "aliases": [], "description": "Frequency change approved" },
         { "verb": "ACCEPTALL", "aliases": [], "description": "Accept all handoffs", "global": true },
         { "verb": "HOALL", "aliases": [], "description": "Handoff all to position", "global": true },
         { "verb": "GHOST", "aliases": [], "description": "Ghost track (cs rwy | cs apt rwy | cs lat lon)", "global": true }

@@ -85,6 +85,83 @@ public static class ArtccConfigResolver
     }
 
     /// <summary>
+    /// Looks up a position by its assigned radio frequency, in MHz. Match tolerance is 5 kHz so
+    /// callers using 25 kHz spacing ("121.9") or 8.33 kHz spacing ("128.525") both resolve cleanly.
+    /// Returns the first match in load order — multiple positions with the same frequency
+    /// (e.g. towers that share a channel with adjacent fields) yield whichever position the
+    /// facility tree lists first.
+    /// </summary>
+    public static PositionConfig? FindPositionByFrequency(this ArtccConfigRoot config, double frequencyMhz)
+    {
+        var frequencyHz = (long)Math.Round(frequencyMhz * 1_000_000.0);
+        return FindPositionByFrequencyRec(config.Facility, frequencyHz);
+    }
+
+    private static PositionConfig? FindPositionByFrequencyRec(FacilityConfig facility, long frequencyHz)
+    {
+        const long ToleranceHz = 5_000; // ±5 kHz covers 8.33 kHz spacing rounded to 25 kHz typing.
+        foreach (var pos in facility.Positions)
+        {
+            if (Math.Abs(pos.Frequency - frequencyHz) <= ToleranceHz)
+            {
+                return pos;
+            }
+        }
+        foreach (var child in facility.ChildFacilities)
+        {
+            var found = FindPositionByFrequencyRec(child, frequencyHz);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Searches every facility for all positions whose linked TCP matches the given
+    /// subset+sectorId code (e.g. "3O" → subset=3, sectorId="O"). Returns every match in tree
+    /// order. Multiple positions can link to the same TCP (e.g. OAK_TWR + OAK_GND on STARS
+    /// scope "3O"); callers should disambiguate via <see cref="FindPositionByCallsign"/> or
+    /// <see cref="FindPositionByFrequency"/> when the list contains more than one entry.
+    /// </summary>
+    public static IReadOnlyList<PositionConfig> FindPositionsByTcpCodeAnyFacility(this ArtccConfigRoot config, string tcpCode)
+    {
+        if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out var subset))
+        {
+            return Array.Empty<PositionConfig>();
+        }
+        var sectorId = tcpCode[^1..];
+        var matches = new List<PositionConfig>();
+        CollectPositionsByTcpCode(config.Facility, subset, sectorId, matches);
+        return matches;
+    }
+
+    private static void CollectPositionsByTcpCode(FacilityConfig facility, int subset, string sectorId, List<PositionConfig> result)
+    {
+        if (facility.StarsConfiguration is { } stars)
+        {
+            foreach (var tcp in stars.Tcps)
+            {
+                if (tcp.Subset == subset && tcp.SectorId.Equals(sectorId, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var pos in facility.Positions)
+                    {
+                        if (pos.StarsConfiguration?.TcpId == tcp.Id)
+                        {
+                            result.Add(pos);
+                        }
+                    }
+                }
+            }
+        }
+        foreach (var child in facility.ChildFacilities)
+        {
+            CollectPositionsByTcpCode(child, subset, sectorId, result);
+        }
+    }
+
+    /// <summary>
     /// Walks the facility tree to locate the position with a matching
     /// <c>EramConfiguration.SectorId</c>. Returns the owning facility id along
     /// with the position. Used by ERAM-code resolution (e.g. "C44").

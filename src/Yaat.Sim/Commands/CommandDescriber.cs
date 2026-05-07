@@ -216,6 +216,8 @@ public static class CommandDescriber
             ForceHandoffCommand => CanonicalCommandType.ForceHandoff,
             AcceptHandoffCommand => CanonicalCommandType.AcceptHandoff,
             CancelHandoffCommand => CanonicalCommandType.CancelHandoff,
+            ContactCommand => CanonicalCommandType.Contact,
+            FrequencyChangeApprovedCommand => CanonicalCommandType.FrequencyChangeApproved,
             AcceptAllHandoffsCommand => CanonicalCommandType.AcceptAllHandoffs,
             InitiateHandoffAllCommand => CanonicalCommandType.InitiateHandoffAll,
             PointOutCommand => CanonicalCommandType.PointOut,
@@ -933,7 +935,9 @@ public static class CommandDescriber
                 or CanonicalCommandType.ExpectApproach
                 or CanonicalCommandType.Expedite
                 or CanonicalCommandType.NormalRate
-                or CanonicalCommandType.DeleteQueuedCommands;
+                or CanonicalCommandType.DeleteQueuedCommands
+                or CanonicalCommandType.Contact
+                or CanonicalCommandType.FrequencyChangeApproved;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)

@@ -129,6 +129,8 @@ public enum CanonicalCommandType
     TemporaryAltitude,
     Cruise,
     OnHandoff,
+    Contact,
+    FrequencyChangeApproved,
 
     // Coordination
     CoordinationRelease,

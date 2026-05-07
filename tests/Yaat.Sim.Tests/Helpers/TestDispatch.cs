@@ -1,6 +1,7 @@
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Helpers;
@@ -22,6 +23,19 @@ internal static class TestDispatch
         Func<string, AircraftState?>? findAircraft = null,
         bool soloTrainingMode = false,
         bool rpoShowPilotSpeech = false,
-        Action<TerminalEntry>? terminalEmitter = null
-    ) => new(groundLayout, rng, weather, findAircraft, validateDctFixes, autoCrossRunway, soloTrainingMode, rpoShowPilotSpeech, terminalEmitter);
+        Action<TerminalEntry>? terminalEmitter = null,
+        ArtccConfigRoot? artccConfig = null
+    ) =>
+        new(
+            groundLayout,
+            rng,
+            weather,
+            findAircraft,
+            validateDctFixes,
+            autoCrossRunway,
+            soloTrainingMode,
+            rpoShowPilotSpeech,
+            terminalEmitter,
+            artccConfig
+        );
 }

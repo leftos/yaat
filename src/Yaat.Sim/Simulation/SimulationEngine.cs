@@ -1023,7 +1023,8 @@ public sealed class SimulationEngine
             Scenario?.AutoCrossRunway ?? false,
             Scenario?.SoloTrainingMode ?? false,
             Scenario?.RpoShowPilotSpeech ?? false,
-            _terminalEntries.Add
+            _terminalEntries.Add,
+            Scenario?.ArtccConfig
         );
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
 
@@ -1262,7 +1263,8 @@ public sealed class SimulationEngine
                     Scenario?.AutoCrossRunway ?? false,
                     Scenario?.SoloTrainingMode ?? false,
                     Scenario?.RpoShowPilotSpeech ?? false,
-                    _terminalEntries.Add
+                    _terminalEntries.Add,
+                    Scenario?.ArtccConfig
                 );
                 CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
             }
@@ -1570,7 +1572,8 @@ public sealed class SimulationEngine
                 scenario.AutoCrossRunway,
                 scenario.SoloTrainingMode,
                 scenario.RpoShowPilotSpeech,
-                _terminalEntries.Add
+                _terminalEntries.Add,
+                scenario.ArtccConfig
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
@@ -1669,7 +1672,8 @@ public sealed class SimulationEngine
             Scenario!.AutoCrossRunway,
             Scenario!.SoloTrainingMode,
             Scenario!.RpoShowPilotSpeech,
-            _terminalEntries.Add
+            _terminalEntries.Add,
+            Scenario!.ArtccConfig
         );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
@@ -1857,7 +1861,8 @@ public sealed class SimulationEngine
             Scenario?.AutoCrossRunway ?? false,
             Scenario?.SoloTrainingMode ?? false,
             Scenario?.RpoShowPilotSpeech ?? false,
-            _terminalEntries.Add
+            _terminalEntries.Add,
+            Scenario?.ArtccConfig
         );
         CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
     }

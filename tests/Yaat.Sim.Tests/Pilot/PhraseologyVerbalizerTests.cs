@@ -187,4 +187,58 @@ public class PhraseologyVerbalizerTests
         Assert.Equal("bravo six", PhraseologyVerbalizer.SpellTaxiway("B6"));
         Assert.Equal("alpha alpha", PhraseologyVerbalizer.SpellTaxiway("AA"));
     }
+
+    // --- Frequency formatting (FAA 7110.65 §2-4-16) ---
+
+    [Fact]
+    public void FrequencyToWords_TwoDecimalDigits()
+    {
+        Assert.Equal("one two five point three five", PhraseologyVerbalizer.FrequencyToWords(125.35));
+    }
+
+    [Fact]
+    public void FrequencyToWords_OneDecimalDigit_NoZeroPad()
+    {
+        // 7110.65 §2-4-16 example: 121.5 MHz → "One two one point five." Trailing zeros dropped.
+        Assert.Equal("one two one point five", PhraseologyVerbalizer.FrequencyToWords(121.5));
+    }
+
+    [Fact]
+    public void FrequencyToWords_ThirdDecimalTruncated()
+    {
+        // 7110.65 §2-4-16 example: 135.275 MHz → "One three five point two seven."
+        Assert.Equal("one three five point two seven", PhraseologyVerbalizer.FrequencyToWords(135.275));
+    }
+
+    [Fact]
+    public void FrequencyToWords_WholeNumber_SingleZeroAfterPoint()
+    {
+        // 7110.65 §2-4-16 example: 369.0 MHz → "Three six niner point zero." YAAT uses "nine"
+        // for digit 9 across all spoken numbers; see DigitToWord in AtcNumberParser.
+        Assert.Equal("three six nine point zero", PhraseologyVerbalizer.FrequencyToWords(369.0));
+    }
+
+    [Fact]
+    public void FrequencyToWords_LiveAtcExamples()
+    {
+        Assert.Equal("one one eight point two", PhraseologyVerbalizer.FrequencyToWords(118.2));
+        Assert.Equal("one one nine point six", PhraseologyVerbalizer.FrequencyToWords(119.6));
+        Assert.Equal("one two four point nine five", PhraseologyVerbalizer.FrequencyToWords(124.95));
+    }
+
+    [Fact]
+    public void FrequencyToWords_8_33kHzSpacing_DropsImpliedThirdDigit()
+    {
+        // 8.33 kHz channels: 128.525 reads as "one two eight point five two" — pilots and
+        // controllers omit the trailing 5 because it's implied by the channel spacing.
+        Assert.Equal("one two eight point five two", PhraseologyVerbalizer.FrequencyToWords(128.525));
+        Assert.Equal("one three two point zero one", PhraseologyVerbalizer.FrequencyToWords(132.015));
+    }
+
+    [Fact]
+    public void FrequencyToWords_FloatingPointTolerance()
+    {
+        // 119.6 represented as 119.60000000000001 (binary-fp drift) must not produce extra digits.
+        Assert.Equal("one one nine point six", PhraseologyVerbalizer.FrequencyToWords(119.60000000000001));
+    }
 }

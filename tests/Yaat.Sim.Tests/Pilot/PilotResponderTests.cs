@@ -248,6 +248,66 @@ public class PilotResponderTests
         );
     }
 
+    // --- BuildContactReadback ---
+
+    [Fact]
+    public void BuildContactReadback_FormatsFacilityFreqAndSignoff()
+    {
+        var ac = MakeAircraft("N123AB");
+
+        var result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35);
+
+        Assert.Equal("[N123AB] approach on one two five point three five, november one two three alpha bravo, so long.", result);
+    }
+
+    [Fact]
+    public void BuildContactReadback_AirlineCallsign_UsesTelephony()
+    {
+        var ac = MakeAircraft("AAL123");
+
+        var result = PilotResponder.BuildContactReadback(ac, "Departure", 119.6);
+
+        Assert.Equal("[AAL123] departure on one one nine point six, american one twenty three, so long.", result);
+    }
+
+    [Fact]
+    public void BuildContactReadback_LowercasesFacilityShortname()
+    {
+        var ac = MakeAircraft("N123AB");
+
+        // FacilityShortname.From returns "Tower" (capitalized); the readback lowercases it because
+        // pilot speech is rendered as continuous prose, not titled labels.
+        var result = PilotResponder.BuildContactReadback(ac, "Tower", 118.2);
+
+        Assert.Contains("tower on one one eight point two", result);
+        Assert.DoesNotContain("Tower", result);
+    }
+
+    // --- BuildFrequencyChangeApproved ---
+
+    [Fact]
+    public void BuildFrequencyChangeApproved_PilotSignsOff_DoesNotParrotControllerPhrase()
+    {
+        // Per AIM 4-2-3 ¶3, pilots acknowledge with a sign-off, not a verbatim recital of
+        // "frequency change approved" (which is the controller's phraseology in 7110.65 §7-6-11).
+        var ac = MakeAircraft("N123AB", isVfr: true);
+
+        var result = PilotResponder.BuildFrequencyChangeApproved(ac);
+
+        Assert.Equal("[N123AB] november one two three alpha bravo, good day.", result);
+        Assert.DoesNotContain("frequency change approved", result);
+    }
+
+    [Fact]
+    public void BuildFrequencyChangeApproved_AirlineCallsign_UsesTelephony()
+    {
+        var ac = MakeAircraft("AAL123");
+
+        var result = PilotResponder.BuildFrequencyChangeApproved(ac);
+
+        Assert.Equal("[AAL123] american one twenty three, good day.", result);
+    }
+
     // --- BuildMidfieldDownwindReminder ---
 
     [Fact]

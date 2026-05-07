@@ -490,6 +490,12 @@ public static class CommandDispatcher
                 );
                 return Ok("");
 
+            // --- Contact / Frequency change (M10.1.4) ---
+            case ContactCommand contactCmd:
+                return ContactCommandHandler.HandleContact(contactCmd, aircraft, ctx);
+            case FrequencyChangeApprovedCommand:
+                return ContactCommandHandler.HandleFrequencyChangeApproved(aircraft, ctx);
+
             // --- Navigation commands ---
             case JoinRadialOutboundCommand cmd:
                 return NavigationCommandHandler.DispatchJrado(cmd, aircraft);

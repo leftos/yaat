@@ -146,6 +146,31 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot readback for the controller's CT (contact next controller) instruction. The
+    /// controller side reads "contact (facility) on (frequency)"; the pilot drops the verb,
+    /// repeats the frequency for confirmation, and signs off. Output:
+    /// <c>"[N123AB] approach on one two five point three five, november one two three alpha bravo, so long."</c>
+    /// </summary>
+    public static string BuildContactReadback(AircraftState aircraft, string facilityShortname, double frequencyMhz)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var freq = PhraseologyVerbalizer.FrequencyToWords(frequencyMhz);
+        return $"[{aircraft.Callsign}] {facilityShortname.ToLowerInvariant()} on {freq}, {spoken}, so long.";
+    }
+
+    /// <summary>
+    /// Pilot acknowledgement for the controller's FCA (frequency change approved) dismissal.
+    /// "Frequency change approved" is the controller phraseology per FAA 7110.65 §7-6-11; pilots
+    /// don't recite it verbatim. Real readback (per AIM 4-2-3 ¶3) is a sign-off:
+    /// <c>"[N123AB] november one two three alpha bravo, good day."</c>
+    /// </summary>
+    public static string BuildFrequencyChangeApproved(AircraftState aircraft)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return $"[{aircraft.Callsign}] {spoken}, good day.";
+    }
+
+    /// <summary>
     /// Routes a sim-initiated pilot transmission. Three-way:
     /// <list type="bullet">
     ///   <item><description><see cref="AircraftState.PendingPilotSpeech"/> when in RPO mode (i.e.

@@ -257,6 +257,40 @@ public static class PhraseologyVerbalizer
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Spoken radio frequency per FAA 7110.65 §2-4-16: separate digits before and after the decimal,
+    /// "point" at the decimal. Truncates after the second fractional digit; drops trailing zeros so
+    /// 121.5 MHz reads "one two one point five" (not "...point five zero"). Whole numbers like
+    /// 369.0 read "three six nine point zero" (single zero after point).
+    /// </summary>
+    public static string FrequencyToWords(double mhz)
+    {
+        var integerPart = (int)Math.Floor(mhz);
+        var fractional = mhz - integerPart;
+        // 7110.65 §2-4-16: omit digits after the second decimal — truncate, don't round.
+        // The 1e-9 nudge absorbs binary-fp drift (e.g. 119.6 → 119.60000000000001) so
+        // 119.6 reads "point six" instead of "point five nine".
+        var hundredths = (int)Math.Floor(fractional * 100 + 1e-9);
+        var sb = new StringBuilder();
+        sb.Append(string.Join(' ', integerPart.ToString().Select(SpellDigit)));
+        sb.Append(" point ");
+        if (hundredths == 0)
+        {
+            sb.Append("zero");
+        }
+        else if (hundredths % 10 == 0)
+        {
+            // Single non-zero tenths digit (e.g. 121.5 → "five", not "five zero")
+            sb.Append(SpellDigit((char)('0' + hundredths / 10)));
+        }
+        else
+        {
+            sb.Append(string.Join(' ', hundredths.ToString("D2").Select(SpellDigit)));
+        }
+
+        return sb.ToString();
+    }
+
     private static string SpellDigit(char c) =>
         c switch
         {
