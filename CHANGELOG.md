@@ -13,6 +13,7 @@
 - The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.
 
 ### Fixed
+- Command history stores entries uppercase and collapses case-only duplicates.
 - Speed `UNTIL` accepts aliases and fires staged speed changes while earlier speed or phase-controlled work continues.
 - Solo-training pilot readbacks preserve runway assignments and pronounce navaids like `MOD` as published navaid names.
 - Solo-training `STBY`/`ROGER` stays silent, and departure relative turns use grouped-degree phraseology.

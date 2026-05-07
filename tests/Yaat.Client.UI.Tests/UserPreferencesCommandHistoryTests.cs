@@ -24,7 +24,7 @@ public class UserPreferencesCommandHistoryTests
     public void SetCommandHistory_RoundTripsThroughDisk()
     {
         const string scenarioId = "TEST-roundtrip-ABC";
-        var entries = new[] { "FH 270", "DH 5000", "ERD 28R" };
+        var entries = new[] { "fh 270", "DH 5000", "ERD 28R" };
 
         var writer = new UserPreferences();
         writer.SetCommandHistory(scenarioId, entries);
@@ -33,7 +33,20 @@ public class UserPreferencesCommandHistoryTests
         var reader = new UserPreferences();
         var loaded = reader.GetCommandHistory(scenarioId);
 
-        Assert.Equal(entries, loaded);
+        Assert.Equal(["FH 270", "DH 5000", "ERD 28R"], loaded);
+    }
+
+    [Fact]
+    public void SetCommandHistory_UppercasesAndDedupesCaseVariants()
+    {
+        const string scenarioId = "TEST-normalize-case-GHI";
+
+        var prefs = new UserPreferences();
+        prefs.SetCommandHistory(scenarioId, ["cland", "CLAND", "fh 270"]);
+
+        var loaded = new UserPreferences().GetCommandHistory(scenarioId);
+
+        Assert.Equal(["CLAND", "FH 270"], loaded);
     }
 
     [Fact]

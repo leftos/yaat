@@ -30,11 +30,11 @@ public class CommandHistoryFormatterTests
     }
 
     [Fact]
-    public void ImplicitTarget_PreservesRawLowercase()
+    public void ImplicitTarget_UppercasesRawInput()
     {
         var result = CommandHistoryFormatter.Format("fh 270", resolvedCallsign: null, canonicalCommand: "FH 270");
 
-        Assert.Equal("fh 270", result);
+        Assert.Equal("FH 270", result);
     }
 
     [Fact]

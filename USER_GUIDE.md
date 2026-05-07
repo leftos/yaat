@@ -1115,6 +1115,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 - **Up** — recall the previous command
 - **Down** — move forward through history (or restore what you were typing)
 - If you type something first, only history entries starting with that text are shown
+- Commands are stored in uppercase; retyping the same command with different casing updates one history entry
 
 ### Settings
 

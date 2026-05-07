@@ -2366,9 +2366,18 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void AddHistory(string entry)
+    internal void AddHistory(string entry)
     {
-        CommandHistory.Insert(0, entry);
+        var normalizedEntry = entry.ToUpperInvariant();
+        for (var i = CommandHistory.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(CommandHistory[i], normalizedEntry, StringComparison.OrdinalIgnoreCase))
+            {
+                CommandHistory.RemoveAt(i);
+            }
+        }
+
+        CommandHistory.Insert(0, normalizedEntry);
         while (CommandHistory.Count > 50)
         {
             CommandHistory.RemoveAt(CommandHistory.Count - 1);

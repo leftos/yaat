@@ -698,7 +698,7 @@ public sealed class UserPreferences
     /// </summary>
     public IReadOnlyList<string> GetCommandHistory(string scenarioId)
     {
-        return _data.ScenarioCommandHistory.TryGetValue(scenarioId, out var history) ? history : [];
+        return _data.ScenarioCommandHistory.TryGetValue(scenarioId, out var history) ? NormalizeCommandHistoryEntries(history) : [];
     }
 
     /// <summary>
@@ -708,8 +708,25 @@ public sealed class UserPreferences
     /// </summary>
     public void SetCommandHistory(string scenarioId, IEnumerable<string> entries)
     {
-        _data.ScenarioCommandHistory[scenarioId] = entries.ToList();
+        _data.ScenarioCommandHistory[scenarioId] = NormalizeCommandHistoryEntries(entries);
         Save();
+    }
+
+    private static List<string> NormalizeCommandHistoryEntries(IEnumerable<string> entries)
+    {
+        var normalized = new List<string>();
+        foreach (var entry in entries)
+        {
+            var value = entry.ToUpperInvariant();
+            if (normalized.Contains(value, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            normalized.Add(value);
+        }
+
+        return normalized;
     }
 
     public List<(string ScenarioId, string DisplayName)> GetSavedViewScenarioIds()

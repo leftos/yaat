@@ -14,15 +14,17 @@ internal static class CommandHistoryFormatter
     /// (the user typed a leading callsign token), the entry is the canonical command
     /// alone — any partial-match or lowercase input is replaced by the canonical form.
     /// When it is null (implicit target via the selected aircraft), the raw input is
-    /// kept verbatim since it already contains no callsign prefix to strip.
+    /// kept as the command text since it already contains no callsign prefix to strip.
+    /// Stored history entries are normalized to uppercase so case variants collapse
+    /// to the same recall entry.
     /// </summary>
     public static string Format(string rawInput, string? resolvedCallsign, string canonicalCommand)
     {
         if (string.IsNullOrEmpty(resolvedCallsign))
         {
-            return rawInput;
+            return rawInput.ToUpperInvariant();
         }
 
-        return canonicalCommand;
+        return canonicalCommand.ToUpperInvariant();
     }
 }
