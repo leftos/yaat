@@ -148,6 +148,7 @@ public sealed class UserPreferences
     }
 
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
+    public int FavoritePanelColumns => Math.Clamp(_data.FavoritePanelColumns, 1, 20);
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
     public string AircraftSelectKey => _data.AircraftSelectKey;
@@ -604,6 +605,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetFavoritePanelColumns(int columns)
+    {
+        _data.FavoritePanelColumns = Math.Clamp(columns, 1, 20);
+        Save();
+    }
+
     public void AddRecentScenario(string filePath, string name, string? apiId = null)
     {
         var key = apiId ?? filePath;
@@ -829,6 +836,7 @@ public sealed class UserPreferences
             RpoShowPilotSpeech = GetFieldOr(obj, "rpoShowPilotSpeech", false),
             RpoPilotSpeechAudibleAlert = GetFieldOr(obj, "rpoPilotSpeechAudibleAlert", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
+            FavoritePanelColumns = GetFieldOr(obj, "favoritePanelColumns", 6),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
             RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
             AircraftSelectKey = GetFieldOr(obj, "aircraftSelectKey", "Add"),
@@ -1047,6 +1055,7 @@ public sealed class UserPreferences
         public bool RpoShowPilotSpeech { get; set; }
         public bool RpoPilotSpeechAudibleAlert { get; set; }
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
+        public int FavoritePanelColumns { get; set; } = 6;
         public List<RecentScenario> RecentScenarios { get; set; } = [];
         public List<RecentWeather> RecentWeatherFiles { get; set; } = [];
         public string AircraftSelectKey { get; set; } = "Add";

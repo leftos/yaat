@@ -1095,7 +1095,7 @@ The favorites bar sits below the command input and provides quick-access buttons
 - **Right-click** a favorite to edit its label, command text, ground override, category, visibility scope, button colors, button size, or delete it.
 - Click **+** to add a new favorite.
 - Click **Panel** or use **View > Open Favorites Panel...** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs.
-- In the pop-out panel, click **Blank** to add a blank slot to the active tab. Blank slots reserve button-sized space so you can line up commands in predictable positions; right-click a favorite or blank slot to insert blanks before/after it, and right-click a blank slot to change its category, scope, size, or delete it.
+- In the pop-out panel, set **Cols** for a fixed grid, click **Batch** to add a screenful of blank slots to the active tab, then right-click each slot to fill in its label and command. Click **Blank** for a single extra slot. Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/scope/size, or delete. The same drag and move controls are available from the main favorites bar.
 - **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.
 
 ![Favorites panel](docs/user-guide/img/favorites-panel.png)

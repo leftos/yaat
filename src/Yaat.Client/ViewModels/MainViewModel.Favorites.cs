@@ -117,6 +117,20 @@ public partial class MainViewModel
         RefreshDisplayFavorites();
     }
 
+    public void AddFavorites(IEnumerable<FavoriteCommand> favorites)
+    {
+        var items = favorites.ToList();
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var list = _preferences.FavoriteCommands.ToList();
+        list.AddRange(items);
+        _preferences.SetFavoriteCommands(list);
+        RefreshDisplayFavorites();
+    }
+
     public void InsertFavoriteBefore(FavoriteCommand anchor, FavoriteCommand favorite)
     {
         InsertFavoriteNear(anchor, favorite, offset: 0);
@@ -125,6 +139,16 @@ public partial class MainViewModel
     public void InsertFavoriteAfter(FavoriteCommand anchor, FavoriteCommand favorite)
     {
         InsertFavoriteNear(anchor, favorite, offset: 1);
+    }
+
+    public void MoveFavoriteBefore(FavoriteCommand favorite, FavoriteCommand anchor)
+    {
+        MoveFavoriteNear(favorite, anchor, offset: 0);
+    }
+
+    public void MoveFavoriteAfter(FavoriteCommand favorite, FavoriteCommand anchor)
+    {
+        MoveFavoriteNear(favorite, anchor, offset: 1);
     }
 
     public void UpdateFavorite(FavoriteCommand old, FavoriteCommand updated)
@@ -150,6 +174,33 @@ public partial class MainViewModel
     private void InsertFavoriteNear(FavoriteCommand anchor, FavoriteCommand favorite, int offset)
     {
         var list = _preferences.FavoriteCommands.ToList();
+        var anchorIndex = list.IndexOf(anchor);
+        if (anchorIndex < 0)
+        {
+            list.Add(favorite);
+        }
+        else
+        {
+            list.Insert(anchorIndex + offset, favorite);
+        }
+
+        _preferences.SetFavoriteCommands(list);
+        RefreshDisplayFavorites();
+    }
+
+    private void MoveFavoriteNear(FavoriteCommand favorite, FavoriteCommand anchor, int offset)
+    {
+        if (ReferenceEquals(favorite, anchor))
+        {
+            return;
+        }
+
+        var list = _preferences.FavoriteCommands.ToList();
+        if (!list.Remove(favorite))
+        {
+            return;
+        }
+
         var anchorIndex = list.IndexOf(anchor);
         if (anchorIndex < 0)
         {

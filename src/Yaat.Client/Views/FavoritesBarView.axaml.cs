@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -27,7 +28,20 @@ public partial class FavoritesBarView : UserControl
     private WrapPanel? _panel;
     private TabControl? _tabControl;
     private Button? _addButton;
+    private NumericUpDown? _columnsBox;
     private FavoriteCommandCategory _selectedPaletteCategory = FavoriteCommandCategory.Air;
+    private FavoriteCommand? _pendingDragFavorite;
+    private FavoriteCommand? _activeDragFavorite;
+    private FavoriteCommand? _lastDragTarget;
+    private IPointer? _capturedPointer;
+    private Point _dragStartPoint;
+    private DateTime _dragPressUtc;
+    private DateTime _lastDragReorderUtc = DateTime.MinValue;
+    private bool _suppressNextFavoriteClick;
+
+    private static readonly TimeSpan DragHoldDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan DragReorderDebounce = TimeSpan.FromMilliseconds(175);
+    private const double DragStartDistance = 6;
 
     public bool IsPaletteMode
     {
@@ -38,6 +52,9 @@ public partial class FavoritesBarView : UserControl
     public FavoritesBarView()
     {
         InitializeComponent();
+        AddHandler(PointerMovedEvent, OnFavoritePointerMoved, RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnFavoritePointerReleased, RoutingStrategies.Tunnel);
+        AddHandler(PointerCaptureLostEvent, OnFavoritePointerCaptureLost, RoutingStrategies.Tunnel);
         RebuildRoot();
     }
 
@@ -72,6 +89,10 @@ public partial class FavoritesBarView : UserControl
             _boundVm = vm;
             vm.DisplayFavorites.CollectionChanged += OnFavoritesChanged;
             vm.PropertyChanged += OnViewModelPropertyChanged;
+            if (_columnsBox is not null)
+            {
+                _columnsBox.Value = vm.Preferences.FavoritePanelColumns;
+            }
             RebuildButtons();
         }
     }
@@ -106,6 +127,7 @@ public partial class FavoritesBarView : UserControl
         _panel = null;
         _tabControl = null;
         _addButton = null;
+        _columnsBox = null;
 
         if (IsPaletteMode)
         {
@@ -138,10 +160,39 @@ public partial class FavoritesBarView : UserControl
         DockPanel.SetDock(title, Dock.Left);
         header.Children.Add(title);
 
+        var columnsLabel = new TextBlock
+        {
+            Text = "Cols",
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brushes.Gray,
+            Margin = new Thickness(12, 0, 4, 0),
+        };
+        DockPanel.SetDock(columnsLabel, Dock.Right);
+        header.Children.Add(columnsLabel);
+
+        _columnsBox = new NumericUpDown
+        {
+            Value = DataContext is MainViewModel vm ? vm.Preferences.FavoritePanelColumns : 6,
+            Minimum = 1,
+            Maximum = 20,
+            Increment = 1,
+            FormatString = "0",
+            Width = 58,
+        };
+        _columnsBox.ValueChanged += OnPanelColumnsChanged;
+        DockPanel.SetDock(_columnsBox, Dock.Right);
+        header.Children.Add(_columnsBox);
+
         var blankButton = CreateAddBlankButton();
         blankButton.Margin = new Thickness(8, 0, 0, 0);
         DockPanel.SetDock(blankButton, Dock.Right);
         header.Children.Add(blankButton);
+
+        var batchButton = CreateBatchButton();
+        batchButton.Margin = new Thickness(8, 0, 0, 0);
+        DockPanel.SetDock(batchButton, Dock.Right);
+        header.Children.Add(batchButton);
 
         var addButton = CreateAddButton();
         addButton.Content = "Add";
@@ -199,7 +250,7 @@ public partial class FavoritesBarView : UserControl
 
         foreach (var category in PaletteCategories)
         {
-            var panel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8) };
+            var panel = new UniformGrid { Columns = GetPanelColumns(vm), Margin = new Thickness(8) };
 
             foreach (var fav in vm.DisplayFavorites.Where(f => NormalizeCategory(f) == category))
             {
@@ -335,6 +386,20 @@ public partial class FavoritesBarView : UserControl
         return btn;
     }
 
+    private Button CreateBatchButton()
+    {
+        var btn = new Button
+        {
+            Content = "Batch",
+            Padding = new Thickness(8, 2),
+            FontSize = 12,
+        };
+
+        ToolTip.SetTip(btn, "Add multiple blank slots to the active category");
+        btn.Click += OnBatchClick;
+        return btn;
+    }
+
     private void OnFavoritePointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not FavoriteCommand fav)
@@ -347,6 +412,7 @@ public partial class FavoritesBarView : UserControl
         // Right-click → edit flyout
         if (props.IsRightButtonPressed)
         {
+            ClearFavoriteDragState();
             e.Handled = true;
             if (fav.IsSpacer)
             {
@@ -362,11 +428,25 @@ public partial class FavoritesBarView : UserControl
         // Ctrl+Left-click → append to input
         if (!fav.IsSpacer && props.IsLeftButtonPressed && PlatformHelper.HasActionModifier(e.KeyModifiers))
         {
+            ClearFavoriteDragState();
             e.Handled = true;
             if (DataContext is MainViewModel vm)
             {
                 vm.AppendFavoriteToInput(fav);
             }
+            return;
+        }
+
+        if (props.IsLeftButtonPressed)
+        {
+            _pendingDragFavorite = fav;
+            _activeDragFavorite = null;
+            _lastDragTarget = null;
+            _dragStartPoint = e.GetPosition(this);
+            _dragPressUtc = DateTime.UtcNow;
+            _lastDragReorderUtc = DateTime.MinValue;
+            _capturedPointer = e.Pointer;
+            e.Pointer.Capture(this);
         }
     }
 
@@ -374,6 +454,12 @@ public partial class FavoritesBarView : UserControl
     {
         if (sender is not Button btn || btn.Tag is not FavoriteCommand fav)
         {
+            return;
+        }
+
+        if (_suppressNextFavoriteClick)
+        {
+            _suppressNextFavoriteClick = false;
             return;
         }
 
@@ -410,6 +496,16 @@ public partial class FavoritesBarView : UserControl
         );
     }
 
+    private void OnBatchClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn)
+        {
+            return;
+        }
+
+        ShowBatchFlyout(btn, GetActiveAddCategory());
+    }
+
     private void OnOpenPanelClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
@@ -426,6 +522,122 @@ public partial class FavoritesBarView : UserControl
         {
             _selectedPaletteCategory = category;
         }
+    }
+
+    private void OnPanelColumnsChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (!IsPaletteMode || DataContext is not MainViewModel vm || sender is not NumericUpDown box)
+        {
+            return;
+        }
+
+        var columns = Math.Clamp((int)Math.Round((double)(box.Value ?? 6)), 1, 20);
+        if (columns == vm.Preferences.FavoritePanelColumns)
+        {
+            return;
+        }
+
+        vm.Preferences.SetFavoritePanelColumns(columns);
+        RebuildButtons();
+    }
+
+    private void OnFavoritePointerMoved(object? sender, PointerEventArgs e)
+    {
+        var dragged = _activeDragFavorite ?? _pendingDragFavorite;
+        if (dragged is null || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var pointer = e.GetCurrentPoint(this);
+        if (!pointer.Properties.IsLeftButtonPressed)
+        {
+            EndFavoriteDrag();
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var currentPoint = e.GetPosition(this);
+        if (_activeDragFavorite is null)
+        {
+            var distance = currentPoint - _dragStartPoint;
+            if (now - _dragPressUtc < DragHoldDelay || Math.Abs(distance.X) < DragStartDistance && Math.Abs(distance.Y) < DragStartDistance)
+            {
+                return;
+            }
+
+            _activeDragFavorite = dragged;
+            _suppressNextFavoriteClick = true;
+        }
+
+        if (now - _lastDragReorderUtc < DragReorderDebounce)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var target = FindFavoriteAt(currentPoint);
+        if (target is null || ReferenceEquals(target, dragged) || ReferenceEquals(target, _lastDragTarget))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var reorderContext = GetReorderContext(vm, dragged).ToList();
+        var draggedIndex = reorderContext.IndexOf(dragged);
+        var targetIndex = reorderContext.IndexOf(target);
+        if (draggedIndex < 0 || targetIndex < 0)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (targetIndex < draggedIndex)
+        {
+            vm.MoveFavoriteBefore(dragged, target);
+        }
+        else
+        {
+            vm.MoveFavoriteAfter(dragged, target);
+        }
+
+        _lastDragTarget = target;
+        _lastDragReorderUtc = now;
+        e.Handled = true;
+    }
+
+    private void OnFavoritePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        EndFavoriteDrag();
+    }
+
+    private void OnFavoritePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        EndFavoriteDrag();
+    }
+
+    private FavoriteCommand? FindFavoriteAt(Point point)
+    {
+        return this.GetVisualsAt(point).OfType<Button>().Select(button => button.Tag).OfType<FavoriteCommand>().FirstOrDefault();
+    }
+
+    private void EndFavoriteDrag()
+    {
+        if (_activeDragFavorite is not null)
+        {
+            _suppressNextFavoriteClick = true;
+        }
+
+        ClearFavoriteDragState();
+    }
+
+    private void ClearFavoriteDragState()
+    {
+        _pendingDragFavorite = null;
+        _activeDragFavorite = null;
+        _lastDragTarget = null;
+        _capturedPointer?.Capture(null);
+        _capturedPointer = null;
     }
 
     private void ShowAddFlyout(Button target, string prefillCommand, FavoriteCommandCategory category)
@@ -544,9 +756,11 @@ public partial class FavoritesBarView : UserControl
 
         var deleteBtn = CreateDeleteButton();
         var saveBtn = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
+        var moveLeftBtn = CreateSmallActionButton("Move Left");
+        var moveRightBtn = CreateSmallActionButton("Move Right");
         var insertBeforeBtn = CreateInsertBlankButton("Blank Before");
         var insertAfterBtn = CreateInsertBlankButton("Blank After");
-        var footer = CreateEditFooter(deleteBtn, saveBtn, insertBeforeBtn, insertAfterBtn);
+        var footer = CreateEditFooter(deleteBtn, saveBtn, moveLeftBtn, moveRightBtn, insertBeforeBtn, insertAfterBtn);
 
         var panel = CreateEditorPanel(
             "Edit Favorite",
@@ -608,6 +822,9 @@ public partial class FavoritesBarView : UserControl
             flyout.Hide();
         };
 
+        moveLeftBtn.Click += (_, _) => MoveFavorite(fav, direction: -1, flyout);
+        moveRightBtn.Click += (_, _) => MoveFavorite(fav, direction: 1, flyout);
+
         flyout.ShowAt(target);
     }
 
@@ -619,38 +836,68 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
+        var labelBox = new TextBox
+        {
+            Watermark = "Label (leave blank for spacer)",
+            Width = 200,
+            Margin = new Thickness(0, 0, 0, 4),
+        };
+        var commandBox = new TextBox
+        {
+            Watermark = "Command text",
+            Width = 200,
+            Margin = new Thickness(0, 0, 0, 4),
+        };
+        var groundCommandBox = new TextBox
+        {
+            Watermark = "Ground command override (optional)",
+            Width = 200,
+            Margin = new Thickness(0, 0, 0, 4),
+        };
         var categoryBox = CreateCategoryBox(NormalizeCategory(fav));
+        var backgroundPicker = CreateColorPicker(FavoriteCommandDefaults.BackgroundColor);
+        var textPicker = CreateColorPicker(FavoriteCommandDefaults.TextColor);
         var widthBox = CreateDimensionBox(GetButtonWidth(fav), 70, 240);
         var heightBox = CreateDimensionBox(GetButtonHeight(fav), 24, 72);
         var scopeBox = CreateScopeBox(vm, GetFavoriteScope(fav));
         var deleteBtn = CreateDeleteButton();
         var saveBtn = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
+        var moveLeftBtn = CreateSmallActionButton("Move Left");
+        var moveRightBtn = CreateSmallActionButton("Move Right");
         var insertBeforeBtn = CreateInsertBlankButton("Blank Before");
         var insertAfterBtn = CreateInsertBlankButton("Blank After");
-        var footer = CreateEditFooter(deleteBtn, saveBtn, insertBeforeBtn, insertAfterBtn);
+        var footer = CreateEditFooter(deleteBtn, saveBtn, moveLeftBtn, moveRightBtn, insertBeforeBtn, insertAfterBtn);
 
-        var panel = new StackPanel { Width = 220 };
-        panel.Children.Add(
-            new TextBlock
-            {
-                Text = "Edit Blank Slot",
-                FontWeight = FontWeight.Bold,
-                Margin = new Thickness(0, 0, 0, 8),
-            }
+        var panel = CreateEditorPanel(
+            "Edit Slot",
+            labelBox,
+            commandBox,
+            groundCommandBox,
+            categoryBox,
+            backgroundPicker,
+            textPicker,
+            widthBox,
+            heightBox,
+            scopeBox,
+            footer
         );
-        panel.Children.Add(CreateLabeledControl("Category", categoryBox));
-        panel.Children.Add(CreateDimensionRow(widthBox, heightBox));
-        panel.Children.Add(CreateLabeledControl("Scope", scopeBox));
-        panel.Children.Add(footer);
 
         var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
 
         saveBtn.Click += (_, _) =>
         {
+            var label = labelBox.Text?.Trim() ?? "";
+            var cmdText = commandBox.Text?.Trim() ?? "";
+            var isFavorite = !string.IsNullOrEmpty(label) && !string.IsNullOrEmpty(cmdText);
             var updated = new FavoriteCommand
             {
-                IsSpacer = true,
+                IsSpacer = !isFavorite,
+                Label = isFavorite ? label : "",
+                CommandText = isFavorite ? cmdText : "",
+                GroundCommandText = isFavorite ? groundCommandBox.Text?.Trim() ?? "" : "",
                 Category = categoryBox.SelectedItem is FavoriteCommandCategory selected ? selected : NormalizeCategory(fav),
+                BackgroundColor = isFavorite ? ToHex(backgroundPicker.Color) : FavoriteCommandDefaults.BackgroundColor,
+                TextColor = isFavorite ? ToHex(textPicker.Color) : FavoriteCommandDefaults.TextColor,
                 ButtonWidth = GetDimensionValue(widthBox, GetButtonWidth(fav)),
                 ButtonHeight = GetDimensionValue(heightBox, GetButtonHeight(fav)),
             };
@@ -678,12 +925,73 @@ public partial class FavoritesBarView : UserControl
             flyout.Hide();
         };
 
+        moveLeftBtn.Click += (_, _) => MoveFavorite(fav, direction: -1, flyout);
+        moveRightBtn.Click += (_, _) => MoveFavorite(fav, direction: 1, flyout);
+
+        flyout.ShowAt(target);
+    }
+
+    private void ShowBatchFlyout(Button target, FavoriteCommandCategory category)
+    {
+        var vm = DataContext as MainViewModel;
+        if (vm is null)
+        {
+            return;
+        }
+
+        var countBox = CreateDimensionBox(12, 1, 100);
+        countBox.FormatString = "0";
+        countBox.Increment = 1;
+        var widthBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonWidth, 70, 240);
+        var heightBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonHeight, 24, 72);
+        var scopeBox = CreateScopeBox(vm, FavoriteScope.Global);
+        var saveBtn = new Button { Content = "Add Blanks", Margin = new Thickness(0, 4, 0, 0) };
+
+        var panel = new StackPanel { Width = 220 };
+        panel.Children.Add(
+            new TextBlock
+            {
+                Text = "Batch Add Blank Slots",
+                FontWeight = FontWeight.Bold,
+                Margin = new Thickness(0, 0, 0, 8),
+            }
+        );
+        panel.Children.Add(CreateLabeledControl("Slots", countBox));
+        panel.Children.Add(CreateDimensionRow(widthBox, heightBox));
+        panel.Children.Add(CreateLabeledControl("Scope", scopeBox));
+        panel.Children.Add(saveBtn);
+
+        var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
+        saveBtn.Click += (_, _) =>
+        {
+            var count = Math.Clamp((int)Math.Round(GetDimensionValue(countBox, 12)), 1, 100);
+            var width = GetDimensionValue(widthBox, FavoriteCommandDefaults.ButtonWidth);
+            var height = GetDimensionValue(heightBox, FavoriteCommandDefaults.ButtonHeight);
+            var blanks = Enumerable
+                .Range(0, count)
+                .Select(_ =>
+                {
+                    var blank = CreateBlankFavorite(category, scopeSource: null, width, height);
+                    ApplySelectedScope(blank, scopeBox, vm, previous: null);
+                    return blank;
+                })
+                .ToList();
+
+            vm.AddFavorites(blanks);
+            flyout.Hide();
+        };
+
         flyout.ShowAt(target);
     }
 
     private FavoriteCommandCategory GetActiveAddCategory()
     {
         return IsPaletteMode ? _selectedPaletteCategory : FavoriteCommandCategory.Air;
+    }
+
+    private static int GetPanelColumns(MainViewModel vm)
+    {
+        return Math.Clamp(vm.Preferences.FavoritePanelColumns, 1, 20);
     }
 
     private static StackPanel CreateEditorPanel(
@@ -790,6 +1098,11 @@ public partial class FavoritesBarView : UserControl
 
     private static Button CreateInsertBlankButton(string content)
     {
+        return CreateSmallActionButton(content);
+    }
+
+    private static Button CreateSmallActionButton(string content)
+    {
         return new Button
         {
             Content = content,
@@ -798,9 +1111,21 @@ public partial class FavoritesBarView : UserControl
         };
     }
 
-    private static Control CreateEditFooter(Button deleteBtn, Button saveBtn, Button insertBeforeBtn, Button insertAfterBtn)
+    private static Control CreateEditFooter(
+        Button deleteBtn,
+        Button saveBtn,
+        Button moveLeftBtn,
+        Button moveRightBtn,
+        Button insertBeforeBtn,
+        Button insertAfterBtn
+    )
     {
         var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+
+        var moveRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        moveRow.Children.Add(moveLeftBtn);
+        moveRow.Children.Add(moveRightBtn);
+        panel.Children.Add(moveRow);
 
         var insertRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
         insertRow.Children.Add(insertBeforeBtn);
@@ -809,6 +1134,41 @@ public partial class FavoritesBarView : UserControl
 
         panel.Children.Add(CreateEditButtonRow(deleteBtn, saveBtn));
         return panel;
+    }
+
+    private void MoveFavorite(FavoriteCommand favorite, int direction, Flyout flyout)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var orderedFavorites = GetReorderContext(vm, favorite).ToList();
+        var index = orderedFavorites.IndexOf(favorite);
+        var targetIndex = index + direction;
+        if (index < 0 || targetIndex < 0 || targetIndex >= orderedFavorites.Count)
+        {
+            return;
+        }
+
+        var target = orderedFavorites[targetIndex];
+        if (direction < 0)
+        {
+            vm.MoveFavoriteBefore(favorite, target);
+        }
+        else
+        {
+            vm.MoveFavoriteAfter(favorite, target);
+        }
+
+        flyout.Hide();
+    }
+
+    private IEnumerable<FavoriteCommand> GetReorderContext(MainViewModel vm, FavoriteCommand favorite)
+    {
+        return IsPaletteMode
+            ? vm.DisplayFavorites.Where(f => NormalizeCategory(f) == NormalizeCategory(favorite))
+            : vm.DisplayFavorites.Where(f => !f.IsSpacer);
     }
 
     private static DockPanel CreateEditButtonRow(Button deleteBtn, Button saveBtn)
