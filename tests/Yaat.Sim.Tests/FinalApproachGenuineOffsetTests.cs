@@ -35,6 +35,8 @@ public class FinalApproachGenuineOffsetTests
     [Fact]
     public void GenuineOffset_18Deg_AlignsToCenterlineByTouchdown()
     {
+        TestVnasData.EnsureInitialized();
+
         // KCCR VOR RWY 19R-like geometry. Runway heading 190° magnetic ≈ 177° true (with
         // ~13° east declination); FAC 172° magnetic ≈ 159° true; ~18° angular offset.
         // MAP is the runway pseudo-fix (RW19R) — anchor = threshold (no parallel offset).
