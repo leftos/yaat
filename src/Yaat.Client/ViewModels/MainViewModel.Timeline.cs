@@ -359,6 +359,7 @@ public partial class MainViewModel
     {
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;
+        ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(result.PrimaryAirportId);
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
         Radar.SetPrimaryAirportId(result.PrimaryAirportId);
         SetRadarAirportPosition(result.PrimaryAirportId);

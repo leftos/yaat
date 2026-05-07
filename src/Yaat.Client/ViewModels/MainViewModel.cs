@@ -214,6 +214,9 @@ public partial class MainViewModel : ObservableObject
     private string? _activeScenarioName;
 
     [ObservableProperty]
+    private string? _activeScenarioPrimaryAirportId;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     private string? _activeWeatherName;
 
@@ -1052,6 +1055,11 @@ public partial class MainViewModel : ObservableObject
     partial void OnActiveScenarioNameChanged(string? value)
     {
         OnPropertyChanged(nameof(WindowTitle));
+    }
+
+    partial void OnActiveScenarioPrimaryAirportIdChanged(string? value)
+    {
+        RefreshDisplayFavorites();
     }
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)

@@ -362,6 +362,7 @@ public partial class MainViewModel
     {
         ActiveScenarioId = bootstrap.ScenarioId;
         ActiveScenarioName = bootstrap.ScenarioName;
+        ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(bootstrap.PrimaryAirportId);
         if (bootstrap.ScenarioName is not null)
         {
             _preferences.SetScenarioName(bootstrap.ScenarioId, bootstrap.ScenarioName);
@@ -409,6 +410,7 @@ public partial class MainViewModel
     {
         ActiveScenarioId = null;
         ActiveScenarioName = null;
+        ActiveScenarioPrimaryAirportId = null;
         _studentPositionType = null;
         _isAutoClearedToLand = false;
         _commandInput.PrimaryAirportId = null;

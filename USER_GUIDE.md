@@ -1088,15 +1088,25 @@ Macros work anywhere in a compound command. Command history records the original
 
 The favorites bar sits below the command input and provides quick-access buttons for frequently used commands.
 
+![Favorites bar](docs/user-guide/img/favorites-bar.png)
+
 - **Click** a favorite to execute immediately. If text is in the command input (e.g., a callsign), the favorite command is appended.
 - **Ctrl+Click** a favorite to append its command text without sending (joined with `,`).
-- **Right-click** a favorite to edit its label, command text, or delete it.
+- **Right-click** a favorite to edit its label, command text, ground override, category, visibility scope, button colors, button size, or delete it.
 - Click **+** to add a new favorite.
+- Click **Panel** or use **View > Open Favorites Panel...** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs.
+- In the pop-out panel, click **Blank** to add a blank slot to the active tab. Blank slots reserve button-sized space so you can line up commands in predictable positions; right-click a favorite or blank slot to insert blanks before/after it, and right-click a blank slot to change its category, scope, size, or delete it.
 - **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.
 
-Each favorite has a **label** (displayed on the button) and **command text** (the command to execute). Favorites can be **scenario-specific** — check "Scenario-specific" when adding/editing to make it visible only when that scenario is loaded.
+![Favorites panel](docs/user-guide/img/favorites-panel.png)
 
-**Scenario-specific favorites** are useful for airport- or position-specific presets that don't apply elsewhere. For example, while running a FLL departure scenario you can save `T T3 B` as a favorite labeled "T3 B" with **Scenario-specific** ticked — that button only appears when the FLL scenario is loaded, keeping the bar uncluttered for other scenarios. Unscoped favorites (the default) appear in every scenario.
+Each favorite has a **label** (displayed on the button) and **command text** (the command to execute). A favorite can also have an optional **ground command override**. When the selected aircraft is on the ground, that override is sent instead of the default command. Favorites and blank slots have a **scope**:
+
+- **Global** favorites appear everywhere.
+- **Scenario** favorites appear only when the current scenario is loaded.
+- **Airport** favorites appear when the current scenario's primary airport matches, even across different scenarios for that airport.
+
+Airport-specific favorites are useful for airport- or position-specific presets that don't apply elsewhere. For example, while running a FLL departure scenario you can save `T T3 B` as a favorite labeled "T3 B" with **Airport (FLL)** selected — that button appears for other FLL scenarios too, while staying hidden at other airports.
 
 ### Command History
 

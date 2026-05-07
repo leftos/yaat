@@ -1184,9 +1184,33 @@ public sealed class SavedMacro
 
 public sealed class FavoriteCommand
 {
+    public bool IsSpacer { get; set; }
     public string Label { get; set; } = "";
     public string CommandText { get; set; } = "";
+    public string GroundCommandText { get; set; } = "";
     public string? ScenarioId { get; set; }
+    public string? AirportId { get; set; }
+    public FavoriteCommandCategory Category { get; set; } = FavoriteCommandCategory.Air;
+    public string BackgroundColor { get; set; } = FavoriteCommandDefaults.BackgroundColor;
+    public string TextColor { get; set; } = FavoriteCommandDefaults.TextColor;
+    public double ButtonWidth { get; set; } = FavoriteCommandDefaults.ButtonWidth;
+    public double ButtonHeight { get; set; } = FavoriteCommandDefaults.ButtonHeight;
+}
+
+public enum FavoriteCommandCategory
+{
+    Air,
+    Ground,
+    Vehicle,
+    Airport,
+}
+
+public static class FavoriteCommandDefaults
+{
+    public const string BackgroundColor = "#F3F3EE";
+    public const string TextColor = "#111111";
+    public const double ButtonWidth = 118;
+    public const double ButtonHeight = 32;
 }
 
 public sealed class SavedRadarSettings

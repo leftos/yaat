@@ -445,7 +445,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 ### Macros & Favorites
 - `!NAME` macros with parameters (positional/named)
 - Import/export macro files
-- Favorites bar with scenario-specific option
+- Favorites bar and pop-out panel with global/scenario/airport scopes, categories, colors, sizing, blank panel slots, and ground-command overrides
 
 ### Autocomplete
 - Context-aware suggestions for verbs, callsigns, fixes, runways, CTO modifiers, macros

@@ -148,7 +148,7 @@ Services/
   LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
   ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached)
   FdRegionMapping.cs            # Static ARTCC → FD region code mapping
-  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. SavedMacro list)
+  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. macros and favorite command scope/panel/spacer metadata)
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile
@@ -163,7 +163,7 @@ ViewModels/
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler
-  MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar, scenario-scoped)
+  MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
@@ -177,7 +177,8 @@ ViewModels/
 Views/
   MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
-  FavoritesBarView.axaml.cs     # Favorite command buttons bar (click/ctrl+click/right-click)
+  FavoritesBarView.axaml.cs     # Favorite command buttons bar and tabbed panel content (click/ctrl+click/right-click)
+  FavoritesPanelWindow.axaml.cs # Pop-out favorite commands panel with saved geometry
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
   DataGridView.ContextMenu.cs   # Partial: phase-aware right-click menu builders
   DataGridWindow.axaml.cs       # Pop-out data grid window
@@ -679,6 +680,7 @@ Scenes/                        # ScenarioSceneBase (connect → room → load �
                                # AircraftListScene / GroundViewScene / RadarViewScene / FlightStripsScene
                                # GroundViewPopoutScene / RadarViewPopoutScene
                                # FlightPlanEditorScene
+                               # FavoritesBarScene / FavoritesPanelScene
                                # ArrivalGeneratorsEditorScene
                                # StandaloneWindowSceneBase + Settings/LoadScenario/LoadWeather/Weather/About
 Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePickerService against the headless Window which is fine)

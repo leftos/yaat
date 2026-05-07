@@ -23,6 +23,8 @@ internal static class SceneCatalog
         // Strips + flight plan editor
         new FlightStripsScene(),
         new FlightPlanEditorScene(),
+        new FavoritesBarScene(),
+        new FavoritesPanelScene(),
         // Standalone dialogs / windows
         new SettingsWindowScene(),
         new LoadScenarioDialogScene(),

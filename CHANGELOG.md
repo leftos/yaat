@@ -7,6 +7,7 @@
 - `FCA` issues the VFR frequency-change-approved dismissal — pilot signs off without a follow-on handoff.
 - Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established.
 - Solo training mode accepts typed natural-language ATC commands and syncs the setting across rooms and recordings.
+- Favorite commands now support a pop-out panel with categories, airport scope, colors, sizing, ground overrides, and blank slots for layout.
 - The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.
 
 ### Fixed

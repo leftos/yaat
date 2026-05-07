@@ -60,6 +60,8 @@
                 <MenuItem Header="Pop Out _Radar View"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
+                <MenuItem Header="Open _Favorites Panel..."
+                          x:Name="FavoritesPanelMenuItem" />
                 <!-- Strips submenu is populated from code-behind to mirror
                      MainViewModel.StripsEntries. Each entry gets a checkable
                      'Pop Out Strips (X)' item; non-student entries also get a

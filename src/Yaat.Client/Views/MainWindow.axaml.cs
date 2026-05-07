@@ -149,6 +149,12 @@ public partial class MainWindow : Window
             copyViewItem.SubmenuOpened += OnCopyViewSettingsSubmenuOpened;
         }
 
+        var favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
+        if (favoritesPanelItem is not null)
+        {
+            favoritesPanelItem.Click += OnFavoritesPanelClick;
+        }
+
         var crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
         if (crcItem is not null)
         {
@@ -253,6 +259,14 @@ public partial class MainWindow : Window
     }
 
     private SpeechDebugWindow? _speechDebugWindow;
+
+    private void OnFavoritesPanelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            FavoritesPanelWindow.ShowOrActivate(vm, this);
+        }
+    }
 
     private void OnShowSpeechDebugClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
