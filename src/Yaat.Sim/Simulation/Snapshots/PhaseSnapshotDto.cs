@@ -201,6 +201,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(RunwayHoldingPhaseDto), "RunwayHolding")]
 [JsonDerivedType(typeof(MakeTurnPhaseDto), "MakeTurn")]
 [JsonDerivedType(typeof(VfrHoldPhaseDto), "VfrHold")]
+[JsonDerivedType(typeof(AirspaceBoundaryHoldPhaseDto), "AirspaceBoundaryHold")]
 [JsonDerivedType(typeof(STurnPhaseDto), "STurn")]
 [JsonDerivedType(typeof(StopAndGoPhaseDto), "StopAndGo")]
 [JsonDerivedType(typeof(TouchAndGoPhaseDto), "TouchAndGo")]
@@ -422,6 +423,23 @@ public sealed class VfrHoldPhaseDto : PhaseDto
     public required bool AtFix { get; init; }
     public required double CumulativeTurn { get; init; }
     public required double LastHeadingDeg { get; init; }
+}
+
+public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
+{
+    public required int AirspaceClass { get; init; }
+    public required string Ident { get; init; }
+    public required string NameText { get; init; }
+    public required double ReferenceLat { get; init; }
+    public required double ReferenceLon { get; init; }
+    public required int OrbitDirection { get; init; }
+    public List<NavigationTargetDto>? OriginalRoute { get; init; }
+    public double? OriginalTargetHeadingDeg { get; init; }
+    public int? OriginalTurnDirection { get; init; }
+    public double? OriginalTargetSpeed { get; init; }
+    public required double CumulativeTurn { get; init; }
+    public required double LastHeadingDeg { get; init; }
+    public required bool Started { get; init; }
 }
 
 public sealed class STurnPhaseDto : PhaseDto

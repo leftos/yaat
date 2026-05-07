@@ -199,7 +199,7 @@ public static class WhisperBiasingPrompt
 
                 // Strip the optional-marker suffix so "and?" → "and".
                 var literal = token.EndsWith('?') ? token[..^1] : token;
-                if (literal.Length > 0)
+                if (literal.Length > 0 && !NatoPhoneticAlphabet.WordSet.Contains(literal))
                 {
                     vocab.Add(literal);
                 }

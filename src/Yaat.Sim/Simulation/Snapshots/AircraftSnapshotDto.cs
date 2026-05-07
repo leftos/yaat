@@ -46,6 +46,18 @@ public sealed class AircraftSnapshotDto
     public bool HasMadeInitialContact { get; init; }
 
     /// <summary>
+    /// Controller callsign-use acknowledgement for VFR Class C entry. Non-required so older
+    /// snapshots deserialize cleanly with the default <see langword="false"/>.
+    /// </summary>
+    public bool HasControllerAcknowledgedInitialContact { get; init; }
+
+    /// <summary>
+    /// Explicit VFR Class Bravo clearance gate. Non-required so older snapshots deserialize
+    /// cleanly with the default <see langword="false"/>.
+    /// </summary>
+    public bool IsClearedIntoBravo { get; init; }
+
+    /// <summary>
     /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder has fired once.
     /// Non-required so older snapshots deserialize cleanly with the default
     /// <see langword="false"/>.

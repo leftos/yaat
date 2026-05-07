@@ -366,6 +366,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Inhibit conflict alert | `CAINH` | `CAI` | — |
 | Contact next controller | `CT OAK_TWR` / `CT 121.9` / `CT 3O` / `CT` | `CONT` | — |
 | Frequency change approved | `FCA` | — | — |
+| Cleared Bravo airspace | `CLBRV` | `CBRV`, `BRAVO` | — |
+| Acknowledge pilot contact | `STBY` | `STANDBY`, `ROGER`, `RGR` | — |
 | Ghost track (runway) | `GHOST N12345 28R` | — | Global; callsign in args |
 | Ghost track (airport+runway) | `GHOST N12345 KOAK 28R` | — | Global; callsign in args |
 | Ghost track (lat/lon) | `GHOST N12345 37.7 -122.2` | — | Global; callsign in args |
@@ -940,6 +942,8 @@ Changing your active position also updates the radar display:
 | `CT 121.9` | Tell pilot to contact a position by frequency in MHz (±5 kHz tolerance covers 25 kHz and 8.33 kHz spacing) |
 | `CT 3O` | Tell pilot to contact a position by TCP code; first match wins on ambiguity, prefer callsign or frequency forms when multiple positions share a TCP |
 | `FCA` | Frequency change approved — VFR dismissal when there is no next controller (FAA 7110.65 §7-6-11) |
+| `CLBRV` / `CBRV` / `BRAVO` | Cleared through/to enter/out of Bravo airspace. In solo training, satisfies the VFR Class B entry gate (FAA 7110.65 §7-9-2). |
+| `STBY` / `STANDBY` / `ROGER` / `RGR` | Acknowledge pilot contact without issuing a maneuver. In solo training, satisfies the VFR Class C two-way-comms gate when targeted at that aircraft (AIM 3-2-4; FAA 7110.65 §7-8-4). |
 | `GHOST N12345 28R` | Create ghost track off 28R (auto-stagger, scenario airport) |
 | `GHOST N12345 KOAK 28R` | Create ghost track off 28R at KOAK |
 | `GHOST N12345 37.7 -122.2` | Create ghost track at exact position |

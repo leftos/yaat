@@ -153,6 +153,19 @@ public class AircraftState
     public bool HasMadeInitialContact { get; set; }
 
     /// <summary>
+    /// Set when the controller has used this aircraft's callsign in a successful live command.
+    /// In solo training this satisfies the Class C "two-way radio communications established"
+    /// entry gate after the pilot's initial contact (AIM §3-2-4).
+    /// </summary>
+    public bool HasControllerAcknowledgedInitialContact { get; set; }
+
+    /// <summary>
+    /// Set when the controller has issued the explicit VFR Class Bravo clearance
+    /// (FAA 7110.65 §7-9-2). Snapshot-serialized so replays keep the entry gate state.
+    /// </summary>
+    public bool IsClearedIntoBravo { get; set; }
+
+    /// <summary>
     /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder fires once. Never
     /// cleared — a single LUAW is one logical event, so a touch-and-go's second LUAW does
     /// not re-fire the reminder. Snapshot-serialized.
@@ -218,6 +231,8 @@ public class AircraftState
             Transponder = AircraftTransponder.FromSnapshot(dto.Transponder),
             IsOnGround = dto.IsOnGround,
             HasMadeInitialContact = dto.HasMadeInitialContact,
+            HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
+            IsClearedIntoBravo = dto.IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             Track = AircraftTrack.FromSnapshot(dto.Track),
             Stars = AircraftStarsState.FromSnapshot(dto.Stars),
@@ -282,6 +297,8 @@ public class AircraftState
             Transponder = Transponder.ToSnapshot(),
             IsOnGround = IsOnGround,
             HasMadeInitialContact = HasMadeInitialContact,
+            HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
+            IsClearedIntoBravo = IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             Track = Track.ToSnapshot(),
             Stars = Stars.ToSnapshot(),

@@ -131,6 +131,8 @@ public enum CanonicalCommandType
     OnHandoff,
     Contact,
     FrequencyChangeApproved,
+    ClearedBravoAirspace,
+    AcknowledgePilotContact,
 
     // Coordination
     CoordinationRelease,

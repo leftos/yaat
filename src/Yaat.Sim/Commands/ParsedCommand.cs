@@ -448,6 +448,18 @@ public record ContactCommand(string? Target) : ParsedCommand;
 /// </summary>
 public record FrequencyChangeApprovedCommand : ParsedCommand;
 
+/// <summary>
+/// CLBRV — explicit VFR Class Bravo clearance. FAA 7110.65 §7-9-2 phraseology accepts
+/// "cleared through", "to enter", or "out of" Bravo airspace; YAAT stores one generic gate.
+/// </summary>
+public record ClearedBravoAirspaceCommand : ParsedCommand;
+
+/// <summary>
+/// STBY / ROGER - controller response that uses the aircraft callsign and establishes
+/// two-way radio communications for VFR Class C/D entry without issuing a maneuver.
+/// </summary>
+public record AcknowledgePilotContactCommand : ParsedCommand;
+
 public record AcceptAllHandoffsCommand : ParsedCommand;
 
 public record InitiateHandoffAllCommand(string TcpCode) : ParsedCommand;

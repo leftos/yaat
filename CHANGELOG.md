@@ -5,6 +5,7 @@
 ### Added
 - `CT [target]` tells the pilot to contact the next controller — accepts callsign, frequency, or TCP, or auto-resolves with no argument.
 - `FCA` issues the VFR frequency-change-approved dismissal — pilot signs off without a follow-on handoff.
+- Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established.
 
 ## v0.1.17-alpha [2026/05/06]
 

@@ -218,6 +218,8 @@ public static class CommandDescriber
             CancelHandoffCommand => CanonicalCommandType.CancelHandoff,
             ContactCommand => CanonicalCommandType.Contact,
             FrequencyChangeApprovedCommand => CanonicalCommandType.FrequencyChangeApproved,
+            ClearedBravoAirspaceCommand => CanonicalCommandType.ClearedBravoAirspace,
+            AcknowledgePilotContactCommand => CanonicalCommandType.AcknowledgePilotContact,
             AcceptAllHandoffsCommand => CanonicalCommandType.AcceptAllHandoffs,
             InitiateHandoffAllCommand => CanonicalCommandType.InitiateHandoffAll,
             PointOutCommand => CanonicalCommandType.PointOut,
@@ -495,6 +497,10 @@ public static class CommandDescriber
             SayAltitudeCommand => "SALT",
             SayHeadingCommand => "SHDG",
             SayPositionCommand => "SPOS",
+            ContactCommand cmd => cmd.Target is not null ? $"CT {cmd.Target}" : "CT",
+            FrequencyChangeApprovedCommand => "FCA",
+            ClearedBravoAirspaceCommand => "CLBRV",
+            AcknowledgePilotContactCommand => "STBY",
             ClearedApproachCommand cmd => FormatCappCanonical(cmd),
             JoinApproachCommand cmd => $"JAPP {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
             ClearedApproachStraightInCommand cmd => $"CAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
@@ -733,6 +739,10 @@ public static class CommandDescriber
             SayAltitudeCommand => "Say altitude",
             SayHeadingCommand => "Say heading",
             SayPositionCommand => "Say position",
+            ContactCommand cmd => cmd.Target is not null ? $"Contact {cmd.Target}" : "Contact next controller",
+            FrequencyChangeApprovedCommand => "Frequency change approved",
+            ClearedBravoAirspaceCommand => "Cleared into Bravo airspace",
+            AcknowledgePilotContactCommand => "Standby",
             UnsupportedCommand cmd => cmd.RawText,
             ClearedApproachCommand cmd => FormatCappNatural(cmd),
             JoinApproachCommand cmd => $"Join {cmd.ApproachId} approach{(cmd.AirportCode is not null ? $" at {cmd.AirportCode}" : "")}",
@@ -937,7 +947,9 @@ public static class CommandDescriber
                 or CanonicalCommandType.NormalRate
                 or CanonicalCommandType.DeleteQueuedCommands
                 or CanonicalCommandType.Contact
-                or CanonicalCommandType.FrequencyChangeApproved;
+                or CanonicalCommandType.FrequencyChangeApproved
+                or CanonicalCommandType.ClearedBravoAirspace
+                or CanonicalCommandType.AcknowledgePilotContact;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)

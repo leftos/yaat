@@ -692,9 +692,13 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `TAXI S T U` | Taxi via taxiways S, T, U |
 | `CLAND` | Cleared to land |
 | `CAPP ILS28R` | Cleared ILS Runway 28R approach |
+| `CLBRV` | Cleared through/to enter/out of Bravo airspace |
+| `STBY` | Acknowledge pilot contact without issuing a maneuver |
 | `ATXI @H1` | Helicopter air-taxi to helipad H1 |
 
 Commands support chaining (`;` sequential, `,` parallel), conditional triggers (`LV` at altitude, `AT` at fix), and aliases from both ATCTrainer and VICE.
+
+In solo training, VFR aircraft respect FAA Class B/C entry gates: Class B requires `CLBRV`; Class C requires the pilot's initial call plus a successful controller command using that aircraft's callsign. Use `STBY` or `ROGER` when you only want to establish two-way communications.
 
 **See the [Command Reference](COMMANDS.md) for the complete list of every command, alias, syntax detail, and example.**
 

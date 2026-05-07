@@ -495,6 +495,12 @@ public static class CommandDispatcher
                 return ContactCommandHandler.HandleContact(contactCmd, aircraft, ctx);
             case FrequencyChangeApprovedCommand:
                 return ContactCommandHandler.HandleFrequencyChangeApproved(aircraft, ctx);
+            case ClearedBravoAirspaceCommand:
+                aircraft.IsClearedIntoBravo = true;
+                return Ok("Cleared into Bravo airspace");
+            case AcknowledgePilotContactCommand:
+                aircraft.HasControllerAcknowledgedInitialContact = true;
+                return Ok("Radio contact acknowledged");
 
             // --- Navigation commands ---
             case JoinRadialOutboundCommand cmd:

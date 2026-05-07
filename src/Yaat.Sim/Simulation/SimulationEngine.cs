@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -475,6 +476,7 @@ public sealed class SimulationEngine
             foreach (var ac in World.GetSnapshot())
             {
                 Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
+                Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
             }
         }
 
@@ -1027,6 +1029,11 @@ public sealed class SimulationEngine
             Scenario?.ArtccConfig
         );
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
+
+        if (result.Success)
+        {
+            aircraft.HasControllerAcknowledgedInitialContact = true;
+        }
 
         // Emit pilot readback in solo-training mode. Single hook here in SendCommand (the
         // user-issued live path) means deferred / preset / replay dispatches don't re-fire

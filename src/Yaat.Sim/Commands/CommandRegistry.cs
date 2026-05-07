@@ -771,6 +771,8 @@ public static class CommandRegistry
                 ]
             ),
             Bare(FrequencyChangeApproved, "Frequency Change Approved", "Track Operations", false, ["FCA"]),
+            Bare(ClearedBravoAirspace, "Cleared Bravo Airspace", "Track Operations", false, ["CLBRV", "CBRV", "BRAVO"]),
+            Bare(AcknowledgePilotContact, "Acknowledge Pilot Contact", "Track Operations", false, ["STBY", "STANDBY", "ROGER", "RGR"]),
             Cmd(
                 InitiateHandoff,
                 "Handoff",

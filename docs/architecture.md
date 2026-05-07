@@ -47,6 +47,7 @@ AGENTS.md                         # Codex project wrapper; points Codex back to 
 Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironments.json
 tools/codex-yaat.ps1              # Launches Codex from X:\dev\yaat and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
+tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
 tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
 ```
@@ -418,6 +419,7 @@ TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
 MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s
 STurnPhase.cs                  # S-turn phase: alternating 30° deviations from final heading for spacing
 VfrHoldPhase.cs                # VFR hold: orbit at current position (HPP) or navigate-then-orbit at fix (HFIX)
+AirspaceBoundaryHoldPhase.cs   # Solo-training VFR boundary hold outside Class B/C until the Bravo clearance or two-way-comms gate is satisfied.
 
 # Phases/Approach/
 ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions + next-fix speed look-ahead
@@ -448,7 +450,7 @@ Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, Aircraft
                                # RouteRpoTransmission(aircraft, soloMode, rpoShowPilotSpeech, pilotSpeechText, warningText) — three-way helper
                                # used by every sim-initiated pilot transmission site to pick the right destination collection.
 Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode.
-                               # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Future home for pending-clearance reminders + DA/MDA missed-approach
+                               # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Also inserts solo-training VFR Class B/C boundary holds from FAA AIS airspace data.
 Pilot/PilotPersonality.cs      # Enum (Verbatim) controlling readback variation; Verbatim emits the textbook form for every command
 Pilot/PilotSayBuilder.cs       # Static: pilot-style transmission text for SAY-class verbs (SALT/SHDG/SPOS/SSPD/SMACH/SEAPP).
                                # AIM-compliant spoken phraseology (digit-by-digit, "thousand"/"hundred"/"flight level", "Mach point X").
@@ -484,6 +486,9 @@ Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading from
 Data/TaxiRouteDefinition.cs / TaxiRouteLoader.cs / TaxiRouteCatalog.cs  # Per-airport preset taxi routes from Data/ARTCCs/{ARTCC}/TaxiRoutes/*.json
                                # Validation against airport graph is lazy at menu-build time via TaxiPathfinder.ResolveExplicitPath.
                                # Right-click "Preset taxi route" submenu in GroundView surfaces applicable routes per aircraft.
+Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry.
+Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspacePoint.cs / AirspaceClass.cs # Airspace model primitives plus crossing result.
+Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
 Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, TaxiRoutes — see Data/ARTCCs/README.md).
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
@@ -718,7 +723,7 @@ src/Yaat.Server/
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
-    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
     CoordinationCommandHandler.cs # Stateless coordination logic (RD, RDH, RDR, RDACK, RDAUTO)
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic

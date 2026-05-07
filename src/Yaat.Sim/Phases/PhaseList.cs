@@ -352,6 +352,7 @@ public sealed class PhaseList
             RunwayHoldingPhaseDto d => RunwayHoldingPhase.FromSnapshot(d),
             MakeTurnPhaseDto d => MakeTurnPhase.FromSnapshot(d),
             VfrHoldPhaseDto d => VfrHoldPhase.FromSnapshot(d),
+            AirspaceBoundaryHoldPhaseDto d => AirspaceBoundaryHoldPhase.FromSnapshot(d),
             STurnPhaseDto d => STurnPhase.FromSnapshot(d),
             StopAndGoPhaseDto d => StopAndGoPhase.FromSnapshot(d),
             TouchAndGoPhaseDto d => TouchAndGoPhase.FromSnapshot(d),

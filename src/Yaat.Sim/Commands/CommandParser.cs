@@ -745,6 +745,8 @@ public static class CommandParser
             CanonicalCommandType.Contact when string.IsNullOrWhiteSpace(arg) => PR.Ok(new ContactCommand(null)),
             CanonicalCommandType.Contact => PR.Ok(new ContactCommand(arg.Trim().ToUpperInvariant())),
             CanonicalCommandType.FrequencyChangeApproved when arg is null => PR.Ok(new FrequencyChangeApprovedCommand()),
+            CanonicalCommandType.ClearedBravoAirspace when arg is null => PR.Ok(new ClearedBravoAirspaceCommand()),
+            CanonicalCommandType.AcknowledgePilotContact when arg is null => PR.Ok(new AcknowledgePilotContactCommand()),
             AcceptAllHandoffs when arg is null => PR.Ok(new AcceptAllHandoffsCommand()),
             InitiateHandoffAll => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
             PointOut => PR.Ok(new PointOutCommand(arg?.Trim().ToUpperInvariant())),

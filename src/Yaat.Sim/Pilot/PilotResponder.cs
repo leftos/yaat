@@ -433,6 +433,23 @@ public static class PilotResponder
         return BuildIfrAirborne(aircraft, facility, spoken, altitudeFt);
     }
 
+    /// <summary>
+    /// Pilot callout when solo-training AI self-restricts outside controlled airspace.
+    /// The pilot is reporting their compliance state, not reading back a controller phrase.
+    /// </summary>
+    public static string BuildAirspaceBoundaryHold(AircraftState aircraft, string airspaceLabel, string airportIdent, LatLon referencePosition)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        double distNm = GeoMath.DistanceNm(referencePosition, aircraft.Position);
+        int distMiles = Math.Max(1, (int)Math.Round(distNm));
+        double bearingFromReference = GeoMath.BearingTo(referencePosition, aircraft.Position);
+        string direction = BearingToCardinal8(bearingFromReference);
+        string distWords = SpellDistanceDigits(distMiles);
+        string airport = SpellAirportLetters(airportIdent);
+        string reason = airspaceLabel.Equals("charlie", StringComparison.OrdinalIgnoreCase) ? "awaiting two-way" : "awaiting clearance";
+        return $"[{aircraft.Callsign}] {spoken}, holding outside the {airspaceLabel}, {distWords} miles {direction} of {airport}, {reason}.";
+    }
+
     private static string BuildIfrAirborne(AircraftState aircraft, string facility, string spoken, int altitudeFt)
     {
         if (facility == "tower")

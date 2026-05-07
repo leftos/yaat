@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airspace;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Pilot;
@@ -64,4 +66,61 @@ public static class PilotProactive
         aircraft.PendingNotifications.Add(line);
         aircraft.HasMadeInitialContact = true;
     }
+
+    /// <summary>
+    /// Watches airborne VFR aircraft in solo training and inserts a self-clearing boundary
+    /// hold when the projected track would enter Class B/C before the required gate is met.
+    /// AIM §3-2-1.4 places responsibility on the pilot to meet Class B/C/D entry
+    /// requirements before entry; this models that responsibility for the student.
+    /// </summary>
+    public static void TickAirspaceBoundaryRespect(
+        AircraftState aircraft,
+        SimScenarioState scenario,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup
+    )
+    {
+        if (!scenario.SoloTrainingMode)
+        {
+            return;
+        }
+
+        if (aircraft.IsOnGround || !aircraft.FlightPlan.IsVfr)
+        {
+            return;
+        }
+
+        if (aircraft.Phases is { IsComplete: false })
+        {
+            return;
+        }
+
+        var crossing = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60);
+        if (crossing is null || EntryGateSatisfied(aircraft, crossing.Volume.Class))
+        {
+            return;
+        }
+
+        var reference = airportLookup(crossing.Volume.Ident) ?? airportLookup(crossing.Volume.IcaoId) ?? crossing.Intersection;
+        var phase = new AirspaceBoundaryHoldPhase
+        {
+            AirspaceClass = crossing.Volume.Class,
+            Ident = string.IsNullOrWhiteSpace(crossing.Volume.Ident) ? crossing.Volume.IcaoId : crossing.Volume.Ident,
+            NameText = crossing.Volume.Name,
+            ReferencePosition = reference,
+            OrbitDirection = TurnDirection.Right,
+        };
+
+        var phases = new PhaseList();
+        phases.Add(phase);
+        aircraft.Phases = phases;
+    }
+
+    private static bool EntryGateSatisfied(AircraftState aircraft, AirspaceClass airspaceClass) =>
+        airspaceClass switch
+        {
+            AirspaceClass.Bravo => aircraft.IsClearedIntoBravo,
+            AirspaceClass.Charlie => aircraft.HasMadeInitialContact && aircraft.HasControllerAcknowledgedInitialContact,
+            _ => true,
+        };
 }

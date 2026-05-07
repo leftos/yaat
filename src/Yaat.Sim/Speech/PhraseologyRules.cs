@@ -152,6 +152,16 @@ public static class PhraseologyRules
             new(["cleared", "low", "approach"], "LA", LowApproach),
             new(["cleared", "for", "the", "option"], "COPT", ClearedForOption),
             new(["cleared", "for", "option"], "COPT", ClearedForOption),
+            // FAA 7110.65 §7-9-2: CLEARED THROUGH/TO ENTER/OUT OF BRAVO AIRSPACE.
+            new(["cleared", "through", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
+            new(["cleared", "to", "enter", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
+            new(["cleared", "into", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
+            new(["cleared", "out", "of", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
+            new(["cleared", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
+            // AIM 3-2-4 / 3-2-5 and 7110.65 7-8-4: "(aircraft callsign) standby"
+            // establishes two-way radio communications for Class C/D entry.
+            new(["standby"], "STBY", AcknowledgePilotContact),
+            new(["roger"], "STBY", AcknowledgePilotContact),
         ];
 
     // --- Approach (CommandRegistry.ApproachCommands) ---
