@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Doc Check"
+  short_description: "Check YAAT architecture docs"
+  default_prompt: "Use $architecture-doc-check to verify docs/architecture.md for these changes."

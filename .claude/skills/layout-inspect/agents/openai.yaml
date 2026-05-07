@@ -1,0 +1,4 @@
+interface:
+  display_name: "YAAT Layout Inspect"
+  short_description: "Query YAAT airport ground layouts"
+  default_prompt: "Use $layout-inspect to inspect this airport layout or ground graph issue."

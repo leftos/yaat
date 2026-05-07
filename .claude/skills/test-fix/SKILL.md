@@ -1,6 +1,6 @@
 ---
 name: test-fix
-description: "TDD bug-fix workflow: write failing test, confirm failure, apply fix, confirm pass"
+description: "YAAT TDD bug-fix workflow: write failing test, confirm failure, apply fix, confirm pass"
 ---
 
 # TDD Bug-Fix Workflow

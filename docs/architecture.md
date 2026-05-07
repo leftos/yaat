@@ -43,7 +43,12 @@
 ## Root Scripts
 
 ```
+AGENTS.md                         # Codex project wrapper; points Codex back to CLAUDE.md and maps Claude agents/commands/hooks to Codex behavior.
 Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironments.json
+tools/codex-yaat.ps1              # Launches Codex from X:\dev\yaat and adds ..\yaat-server as an extra writable/readable directory.
+tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
+tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
+tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
 ```
 
 ## Yaat.Client.Strips — WASM-clean strip layer (`src/Yaat.Client.Strips/`)

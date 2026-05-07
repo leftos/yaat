@@ -1,0 +1,4 @@
+interface:
+  display_name: "YAAT Bug Bundle"
+  short_description: "Inspect YAAT bug bundles and recordings"
+  default_prompt: "Use $bug-bundle to inspect this YAAT bug bundle or recording."

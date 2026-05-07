@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare YAAT Release"
+  short_description: "Prepare YAAT release notes and tag"
+  default_prompt: "Use $prepare-release to prepare a YAAT release from the changelog."

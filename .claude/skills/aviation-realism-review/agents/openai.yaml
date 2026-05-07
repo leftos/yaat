@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aviation Realism Review"
+  short_description: "Review YAAT aviation realism"
+  default_prompt: "Use $aviation-realism-review to review this YAAT aviation change against local FAA references."

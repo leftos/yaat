@@ -1,0 +1,4 @@
+interface:
+  display_name: "YAAT Test Fix"
+  short_description: "Run YAAT's TDD bug-fix workflow"
+  default_prompt: "Use $test-fix to reproduce and fix this YAAT bug with a failing test first."

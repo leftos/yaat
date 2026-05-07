@@ -1,0 +1,4 @@
+interface:
+  display_name: "YAAT C# Review"
+  short_description: "Review YAAT C# code changes"
+  default_prompt: "Use $csharp-review to review these YAAT C# changes."

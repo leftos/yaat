@@ -1,0 +1,4 @@
+interface:
+  display_name: "YAAT Consolidate Recordings"
+  short_description: "Dedupe YAAT recording test data"
+  default_prompt: "Use $consolidate-recordings to consolidate duplicate YAAT recording fixtures."
