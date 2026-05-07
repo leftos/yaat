@@ -377,6 +377,12 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         await _connection!.InvokeAsync("SetRpoShowPilotSpeech", enabled);
     }
 
+    public async Task SetSoloTrainingModeAsync(bool enabled)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetSoloTrainingMode", enabled);
+    }
+
     public async Task SetAutoClearedToLandAsync(bool enabled)
     {
         EnsureConnected();
@@ -673,6 +679,7 @@ public record LoadScenarioResultDto(
     string? WeatherName = null,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     bool AutoClearedToLand = false,
+    bool SoloTrainingMode = false,
     bool IsStudentTowerPosition = true,
     string? StudentPositionType = null,
     FlightStripsConfigDto? FlightStripsConfig = null,
@@ -714,6 +721,7 @@ public record RoomStateDto(
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
     bool ValidateDctFixes = true,
+    bool SoloTrainingMode = false,
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null
 );
@@ -733,6 +741,7 @@ public record ScenarioLoadedDto(
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
     bool ValidateDctFixes = true,
+    bool SoloTrainingMode = false,
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
@@ -749,6 +758,7 @@ public record SessionSettingsDto(
     bool AutoClearedToLand,
     bool AutoCrossRunway,
     bool ValidateDctFixes,
+    bool SoloTrainingMode,
     bool RpoShowPilotSpeech
 );
 

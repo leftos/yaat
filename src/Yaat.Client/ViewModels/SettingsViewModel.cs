@@ -159,6 +159,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _autoCrossRunway;
 
     [ObservableProperty]
+    private bool _soloTrainingMode;
+
+    [ObservableProperty]
     private bool _rpoShowPilotSpeech;
 
     [ObservableProperty]
@@ -462,6 +465,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
         _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
         _autoCrossRunway = _preferences.AutoCrossRunway;
+        _soloTrainingMode = _preferences.SoloTrainingMode;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
         _rpoPilotSpeechAudibleAlert = _preferences.RpoPilotSpeechAudibleAlert;
         _aircraftSelectKeyName = _preferences.AircraftSelectKey;
@@ -562,6 +566,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         _preferences.SetValidateDctFixes(ValidateDctFixes);
         _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);
+        _preferences.SetSoloTrainingMode(SoloTrainingMode);
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);

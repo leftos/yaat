@@ -1944,6 +1944,12 @@ public sealed class SimulationEngine
                     scenario.ValidateDctFixes = validate;
                 }
                 break;
+            case "SoloTrainingMode":
+                if (bool.TryParse(setting.Value, out var soloTrainingMode))
+                {
+                    scenario.SoloTrainingMode = soloTrainingMode;
+                }
+                break;
             case "RpoShowPilotSpeech":
                 if (bool.TryParse(setting.Value, out var rpoShowPilotSpeech))
                 {

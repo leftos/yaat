@@ -138,6 +138,9 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionValidateDctFixes = true;
 
     [ObservableProperty]
+    private bool _sessionSoloTrainingMode;
+
+    [ObservableProperty]
     private bool _sessionRpoShowPilotSpeech;
 
     [ObservableProperty]
@@ -836,7 +839,7 @@ public partial class MainViewModel : ObservableObject
             _ruleMapper,
             _llmMapper,
             _llmCallsignResolver,
-            BuildSpeechContext
+            () => BuildSpeechContext()
         );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
         _speechService.CommandReady += HandleSpeechServiceCommandReady;
@@ -1066,11 +1069,11 @@ public partial class MainViewModel : ObservableObject
     /// free-text Whisper <c>initial_prompt</c> that biases recognition toward the ICAO + spoken
     /// forms of every active callsign plus the selected aircraft's fix names.
     /// </summary>
-    private SpeechContext BuildSpeechContext()
+    private SpeechContext BuildSpeechContext(AircraftModel? contextAircraft = null)
     {
         var snapshot = Aircraft.ToArray();
         var callsigns = snapshot.Select(a => a.Callsign).Where(cs => !string.IsNullOrEmpty(cs)).ToList();
-        var selected = SelectedAircraft;
+        var selected = contextAircraft ?? SelectedAircraft;
         IReadOnlyList<string> programmedFixes = [];
         if (selected is not null)
         {
@@ -1403,6 +1406,14 @@ public partial class MainViewModel : ObservableObject
         var compound = CommandSchemeParser.ParseCompound(commandText, scheme, out var parseFailure);
         if (compound is null)
         {
+            if (
+                SessionSoloTrainingMode
+                && await TryDispatchSoloNaturalCommandAsync(originalInput, commandText, target, resolvedCallsign, forceOverride)
+            )
+            {
+                return;
+            }
+
             if (parseFailure is not null)
             {
                 _log.LogWarning(
@@ -1497,6 +1508,89 @@ public partial class MainViewModel : ObservableObject
             _log.LogError(ex, "Command failed");
             StatusText = $"Command error: {ex.Message}";
         }
+    }
+
+    private async Task<bool> TryDispatchSoloNaturalCommandAsync(
+        string originalInput,
+        string commandText,
+        AircraftModel? currentTarget,
+        string? resolvedCallsign,
+        bool forceOverride
+    )
+    {
+        var allowLlmFallback = _preferences.SpeechEnabled && _llmService.IsConfigured;
+        var normalization = await NaturalCommandNormalizer.TryNormalizeAsync(
+            originalInput,
+            BuildSpeechContext(currentTarget),
+            _ruleMapper,
+            allowLlmFallback ? _llmMapper : null,
+            allowLlmFallback ? _llmCallsignResolver : null,
+            CancellationToken.None
+        );
+
+        if (normalization is null)
+        {
+            return false;
+        }
+
+        var scheme = _preferences.CommandScheme;
+        var mappedCompound = CommandSchemeParser.ParseCompound(normalization.CanonicalCommand, scheme, out var mappedFailure);
+        if (mappedCompound is null)
+        {
+            _log.LogDebug(
+                "Solo natural mapping did not produce a dispatchable command. Input='{Input}', Mapped='{Mapped}', Reason='{Reason}'",
+                commandText,
+                normalization.CanonicalCommand,
+                mappedFailure?.Reason ?? "parse failed"
+            );
+            return false;
+        }
+
+        var target = currentTarget;
+        var historyCallsign = resolvedCallsign;
+        if (!string.IsNullOrWhiteSpace(normalization.Callsign))
+        {
+            target = ResolveAircraft(normalization.Callsign);
+            if (target is null)
+            {
+                return false;
+            }
+            historyCallsign = normalization.Callsign;
+        }
+
+        if (target is null)
+        {
+            return false;
+        }
+
+        SelectedAircraft = target;
+
+        try
+        {
+            var canonical = forceOverride ? $"** {mappedCompound.CanonicalString}" : mappedCompound.CanonicalString;
+            _log.LogInformation(
+                "Solo natural command mapped: {Input} -> {Callsign} {Canonical} (LLM fallback: {UsedLlmFallback})",
+                originalInput,
+                target.Callsign,
+                canonical,
+                normalization.UsedLlmFallback
+            );
+            var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+
+            AddHistory(CommandHistoryFormatter.Format(originalInput, historyCallsign, mappedCompound.CanonicalString));
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+
+            StatusText = CommandStatusResolver.Resolve(result, target.Callsign);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Solo natural command failed");
+            StatusText = $"Command error: {ex.Message}";
+        }
+
+        return true;
     }
 
     private async Task HandleGlobalCommand(ParsedInput parsed)
@@ -1879,6 +1973,7 @@ public partial class MainViewModel : ObservableObject
             _ = SendAutoAcceptDelay();
             _ = SendAutoDeleteMode();
             _ = SendValidateDctFixes();
+            _ = SendSoloTrainingMode();
             _ = SendRpoShowPilotSpeech();
             _ = SendAutoClearedToLand();
             _ = SendAutoCrossRunway();
@@ -2034,6 +2129,7 @@ public partial class MainViewModel : ObservableObject
         SessionAutoClearedToLand = dto.AutoClearedToLand;
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionValidateDctFixes = dto.ValidateDctFixes;
+        SessionSoloTrainingMode = dto.SoloTrainingMode;
         SessionRpoShowPilotSpeech = dto.RpoShowPilotSpeech;
         _isApplyingSessionSettings = false;
 
@@ -2049,6 +2145,7 @@ public partial class MainViewModel : ObservableObject
                 state.AutoClearedToLand,
                 state.AutoCrossRunway,
                 state.ValidateDctFixes,
+                state.SoloTrainingMode,
                 state.RpoShowPilotSpeech
             )
         );
@@ -2063,6 +2160,7 @@ public partial class MainViewModel : ObservableObject
                 dto.AutoClearedToLand,
                 dto.AutoCrossRunway,
                 dto.ValidateDctFixes,
+                dto.SoloTrainingMode,
                 dto.RpoShowPilotSpeech
             )
         );
@@ -2113,6 +2211,14 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    partial void OnSessionSoloTrainingModeChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetSoloTrainingModeAsync(value);
+        }
+    }
+
     partial void OnSessionRpoShowPilotSpeechChanged(bool value)
     {
         if (!_isApplyingSessionSettings)
@@ -2160,6 +2266,18 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set RPO pilot-speech rendering");
+        }
+    }
+
+    private async Task SendSoloTrainingMode()
+    {
+        try
+        {
+            await _connection.SetSoloTrainingModeAsync(_preferences.SoloTrainingMode);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set solo training mode");
         }
     }
 

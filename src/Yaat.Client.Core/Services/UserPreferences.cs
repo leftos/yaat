@@ -131,6 +131,7 @@ public sealed class UserPreferences
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
     public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
     public bool AutoCrossRunway => _data.AutoCrossRunway;
+    public bool SoloTrainingMode => _data.SoloTrainingMode;
     public bool RpoShowPilotSpeech => _data.RpoShowPilotSpeech;
     public bool RpoPilotSpeechAudibleAlert => _data.RpoPilotSpeechAudibleAlert;
 
@@ -360,6 +361,12 @@ public sealed class UserPreferences
     public void SetRpoShowPilotSpeech(bool enabled)
     {
         _data.RpoShowPilotSpeech = enabled;
+        Save();
+    }
+
+    public void SetSoloTrainingMode(bool enabled)
+    {
+        _data.SoloTrainingMode = enabled;
         Save();
     }
 
@@ -818,6 +825,7 @@ public sealed class UserPreferences
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
             AutoClearedToLandCtr = GetFieldOr(obj, "autoClearedToLandCtr", true),
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
+            SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             RpoShowPilotSpeech = GetFieldOr(obj, "rpoShowPilotSpeech", false),
             RpoPilotSpeechAudibleAlert = GetFieldOr(obj, "rpoPilotSpeechAudibleAlert", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
@@ -1035,6 +1043,7 @@ public sealed class UserPreferences
         public bool AutoClearedToLandApp { get; set; } = true;
         public bool AutoClearedToLandCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
+        public bool SoloTrainingMode { get; set; }
         public bool RpoShowPilotSpeech { get; set; }
         public bool RpoPilotSpeechAudibleAlert { get; set; }
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];

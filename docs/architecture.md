@@ -133,6 +133,7 @@ Services/
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional &1 or named &hdg)
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
   CommandHistoryFormatter.cs    # Pure formatter — canonicalizes partial callsign prefix in up-arrow recall history
+  NaturalCommandNormalizer.cs   # Shared transcript-to-canonical normalizer for solo-mode typed natural-language ATC input
   TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
   (UpdateService.cs lives in Yaat.Client.Core; MainViewModel constructs it with channel: null)
   ArgumentSuggester.cs           # Command argument autocomplete from CommandRegistry metadata (literal options + contextual fix/runway suggestions)

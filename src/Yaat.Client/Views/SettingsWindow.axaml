@@ -162,6 +162,15 @@
                                    Margin="28,0,0,0" />
                     </StackPanel>
                     <StackPanel Spacing="4">
+                        <CheckBox Content="Solo training mode"
+                                  IsChecked="{Binding SoloTrainingMode}" />
+                        <TextBlock Text="Aircraft make their own pilot transmissions and typed natural-language ATC commands can be mapped to YAAT commands after normal parsing fails."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
                         <CheckBox Content="Show sim-initiated pilot transmissions as pilot speech (RPO mode)"
                                   IsChecked="{Binding RpoShowPilotSpeech}" />
                         <TextBlock Text="Renders auto-generated pilot reports (traffic in sight, holding short, going around, midfield/short-final reminders, etc.) as green pilot speech with the spelled-out spoken form. Default off — preserves the orange Warning text."

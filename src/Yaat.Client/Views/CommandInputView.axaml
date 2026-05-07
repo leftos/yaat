@@ -203,6 +203,9 @@
                         <CheckBox Content="Validate DCT Fixes"
                                   IsChecked="{Binding SessionValidateDctFixes}" />
 
+                        <CheckBox Content="Solo Training Mode"
+                                  IsChecked="{Binding SessionSoloTrainingMode}" />
+
                         <TextBlock Text="Changes apply to all RPOs in this session."
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="10"
