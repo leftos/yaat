@@ -35,7 +35,9 @@ public class ContactCommandHandlerTests
 
         Assert.True(result.Success);
         var notification = Assert.Single(ac.PendingNotifications);
-        Assert.StartsWith("tower on ", notification);
+        // CompactForTerminal compacts the spoken frequency to digits and the handler now uses
+        // Position.RadioName ("Oakland Tower") instead of the generic "tower" shortname.
+        Assert.StartsWith("Oakland Tower on 127.2,", notification);
         Assert.Contains(", N123AB, so long.", notification);
     }
 
@@ -56,9 +58,28 @@ public class ContactCommandHandlerTests
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac2, MakeCtx(config));
         var towerReadback = Assert.Single(ac2.PendingNotifications);
 
-        Assert.Contains("ground", groundReadback);
-        Assert.Contains("tower", towerReadback);
+        Assert.Contains("Oakland Ground", groundReadback);
+        Assert.Contains("Oakland Tower", towerReadback);
         Assert.NotEqual(groundReadback, towerReadback);
+    }
+
+    [Fact]
+    public void Contact_NorCalApproach_UsesRadioNameAndCompactsFrequency()
+    {
+        var config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        // OAK_G_APP at 125.35 MHz has RadioName "NorCal Approach" — the bug-bundle scenario
+        // showed this rendering as just lowercase "approach" with a spoken-digit frequency.
+        var ac = MakeAircraft();
+        var result = ContactCommandHandler.HandleContact(new ContactCommand("OAK_G_APP"), ac, MakeCtx(config));
+
+        Assert.True(result.Success);
+        var notification = Assert.Single(ac.PendingNotifications);
+        Assert.StartsWith("NorCal Approach on 125.35,", notification);
     }
 
     // --- Explicit target: frequency ---
@@ -85,7 +106,7 @@ public class ContactCommandHandlerTests
 
         Assert.True(result.Success);
         var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Contains("tower on ", notification);
+        Assert.Contains("Oakland Tower on ", notification);
     }
 
     // --- Explicit target: TCP code ---
@@ -250,7 +271,7 @@ public class ContactCommandHandlerTests
 
         Assert.True(result.Success);
         var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Contains("tower on ", notification);
+        Assert.Contains("Oakland Tower on ", notification);
     }
 
     [Fact]
@@ -270,7 +291,7 @@ public class ContactCommandHandlerTests
 
         Assert.True(result.Success);
         var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Contains("ground on ", notification);
+        Assert.Contains("Oakland Ground on ", notification);
     }
 
     [Fact]
@@ -354,10 +375,31 @@ public class ContactCommandHandlerTests
         Assert.Single(ac.PendingWarnings);
     }
 
-    // --- Frequency formatting matches FAA 7110.65 §2-4-16 ---
+    // --- Frequency formatting per FAA 7110.65 §2-4-16: spoken digit-by-digit for TTS,
+    //     compacted to numeric form for the terminal display. ---
 
     [Fact]
-    public void Contact_PositionFrequency_RendersInSpokenForm()
+    public void Contact_PositionFrequency_TerminalCompactsToDigits()
+    {
+        var config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        var oakTwr = config.FindPositionByCallsign("OAK_TWR");
+        Assert.NotNull(oakTwr);
+        var freqMhz = oakTwr.Frequency / 1_000_000.0;
+        var expectedDigits = freqMhz.ToString("0.0##", System.Globalization.CultureInfo.InvariantCulture);
+
+        var ac = MakeAircraft();
+        ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, MakeCtx(config));
+
+        Assert.Contains($"Oakland Tower on {expectedDigits}", ac.PendingNotifications[0]);
+    }
+
+    [Fact]
+    public void Contact_PositionFrequency_PilotSpeechKeepsSpokenForm()
     {
         var config = TestArtccConfig.LoadZoa();
         if (config is null)
@@ -373,6 +415,8 @@ public class ContactCommandHandlerTests
         var ac = MakeAircraft();
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, MakeCtx(config));
 
-        Assert.Contains($"tower on {expectedSpoken}", ac.PendingNotifications[0]);
+        // PendingPilotTransmissions feed TTS — must keep the digit-by-digit spoken form.
+        var transmission = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Contains($"Oakland Tower on {expectedSpoken}", transmission.SpeechText);
     }
 }

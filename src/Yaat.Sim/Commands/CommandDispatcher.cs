@@ -36,6 +36,23 @@ public static class CommandDispatcher
 
     public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
+        // A successful command issued to a ground aircraft is itself evidence of
+        // established controller-pilot contact (the pilot read back the clearance
+        // the controller spoke). Setting this here covers every dispatch path —
+        // user-typed (RoomEngine.SendCommandAsync) and replay (RecordingManager) —
+        // without each call site re-implementing the gate. Suppresses the spurious
+        // post-takeoff airborne check-in for departures cleared during taxi.
+        var wasOnGround = aircraft.IsOnGround;
+        var result = DispatchCompoundCore(compound, aircraft, ctx);
+        if (result.Success && wasOnGround)
+        {
+            aircraft.HasMadeInitialContact = true;
+        }
+        return result;
+    }
+
+    private static CommandResult DispatchCompoundCore(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
+    {
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
         // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
         // without touching phases or the command queue.

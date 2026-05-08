@@ -287,6 +287,59 @@ public class M102AirborneCheckInTests
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // Sub-100 ft altitude — AtcNumberParser.AltitudeToWords returns "".
+    // Format strings must drop the "at {altitudeWords}" / "level {altitudeWords}"
+    // clause rather than emit a dangling "at , " or "level , ".
+    // ─────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Vfr_Tower_DestinationDifferent_LowAltitude_OmitsAtAltitudeClause()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true, altitude: 50, destination: "KSQL", bearingFromAirport: 90, distanceNm: 1);
+        var sc = MakeScenario("TWR", primaryAirport: "KOAK");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("[N123AB] tower, november one two three alpha bravo one miles east, request transition, with information Alpha.", line);
+    }
+
+    [Fact]
+    public void Vfr_Tower_NoDestination_LowAltitude_OmitsAtAltitudeClause()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true, altitude: 50, destination: "", bearingFromAirport: 0, distanceNm: 1, headingDeg: 180);
+        var sc = MakeScenario("TWR", primaryAirport: "KOAK");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal(
+            "[N123AB] tower, november one two three alpha bravo one miles north of the field, VFR southbound, with information Alpha.",
+            line
+        );
+    }
+
+    [Fact]
+    public void Vfr_Center_DestinationDifferent_LowAltitude_OmitsAtAltitudeClause()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true, altitude: 50, destination: "KLAX", bearingFromAirport: 0, distanceNm: 15);
+        var sc = MakeScenario("CTR", primaryAirport: "KOAK");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("[N123AB] center, november one two three alpha bravo, one five miles north of kilo oscar alpha kilo, request transition.", line);
+    }
+
+    [Fact]
+    public void Ifr_Approach_LowAltitude_OmitsLevelAltitudeClause()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 50);
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("[AAL123] approach, american one twenty three, with information Alpha.", line);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // BuildAirborneCheckIn — skip / fall-through cases
     // ─────────────────────────────────────────────────────────────────────
 

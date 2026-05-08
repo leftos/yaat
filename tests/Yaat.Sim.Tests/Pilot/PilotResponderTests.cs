@@ -430,7 +430,9 @@ public class PilotResponderTests
 
         var result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35);
 
-        Assert.Equal("[N123AB] approach on one two five point three five, november one two three alpha bravo, so long.", result);
+        // Facility name preserves the caller's casing — sentence-initial after the bracket
+        // strip in CompactForTerminal, so capitalization matters for the terminal display.
+        Assert.Equal("[N123AB] Approach on one two five point three five, november one two three alpha bravo, so long.", result);
     }
 
     [Fact]
@@ -440,20 +442,19 @@ public class PilotResponderTests
 
         var result = PilotResponder.BuildContactReadback(ac, "Departure", 119.6);
 
-        Assert.Equal("[AAL123] departure on one one nine point six, american one twenty three, so long.", result);
+        Assert.Equal("[AAL123] Departure on one one nine point six, american one twenty three, so long.", result);
     }
 
     [Fact]
-    public void BuildContactReadback_LowercasesFacilityShortname()
+    public void BuildContactReadback_PreservesFacilityNameCasing()
     {
         var ac = MakeAircraft("N123AB");
 
-        // FacilityShortname.From returns "Tower" (capitalized); the readback lowercases it because
-        // pilot speech is rendered as continuous prose, not titled labels.
-        var result = PilotResponder.BuildContactReadback(ac, "Tower", 118.2);
+        // Caller may pass a Position.RadioName like "NorCal Approach" or "Oakland Tower" —
+        // multi-word natural casing must reach the terminal and TTS unchanged.
+        var result = PilotResponder.BuildContactReadback(ac, "NorCal Approach", 125.35);
 
-        Assert.Contains("tower on one one eight point two", result);
-        Assert.DoesNotContain("Tower", result);
+        Assert.Contains("NorCal Approach on", result);
     }
 
     // --- BuildFrequencyChangeApproved ---

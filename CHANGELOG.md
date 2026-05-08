@@ -19,6 +19,9 @@
 - Solo-training `STBY`/`ROGER` stays silent, and departure relative turns use grouped-degree phraseology.
 - VFR altitude restrictions support `CM A/B025` and `CM A/B2500` for at-or-above and at-or-below clearances.
 - Pilot terminal lines show controller-readable text while TTS receives callsign-stripped, hyphen-normalized speech.
+- Departures cleared for takeoff during taxi no longer emit a spurious airborne "request transition" check-in once they lift off.
+- Pilot airborne check-ins below 100 ft drop the "at altitude" clause instead of rendering a dangling "at ," in the readback.
+- `CT` readbacks identify the target controller by published radio name (e.g. "NorCal Approach") instead of the generic facility shortname, and render frequencies in digit form ("125.35") in the terminal while keeping spoken digits for TTS.
 
 ## v0.1.17-alpha [2026/05/06]
 

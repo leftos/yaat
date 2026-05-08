@@ -25,7 +25,7 @@ public static class ContactCommandHandler
 {
     public static CommandResult HandleContact(ContactCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        string facilityShortname;
+        string facilityName;
         double? frequencyMhz;
 
         if (cmd.Target is { Length: > 0 } target)
@@ -41,7 +41,7 @@ public static class ContactCommandHandler
                         $"ambiguous TCP {target.ToUpperInvariant()} — try {string.Join(" or ", a.Candidates.Select(p => p.Callsign))}"
                     );
                 case ResolvedTarget.Found found:
-                    facilityShortname = FacilityShortname.From(found.Position.Callsign);
+                    facilityName = ResolveFacilityName(found.Position);
                     frequencyMhz = found.Position.Frequency / 1_000_000.0;
                     break;
                 default:
@@ -55,17 +55,25 @@ public static class ContactCommandHandler
             {
                 return new CommandResult(false, "no handoff target — issue HOO first or specify position");
             }
-            facilityShortname = FacilityShortname.From(owner.Callsign);
             var pos = ctx.ArtccConfig?.FindPositionByCallsign(owner.Callsign);
+            facilityName = pos is not null ? ResolveFacilityName(pos) : FacilityShortname.From(owner.Callsign);
             frequencyMhz = pos is not null ? pos.Frequency / 1_000_000.0 : null;
         }
 
         var pilotSpeech = frequencyMhz is double freq
-            ? PilotResponder.BuildContactReadback(aircraft, facilityShortname, freq)
-            : BuildContactReadbackNoFreq(aircraft, facilityShortname);
-        var warning = $"[Contact] {facilityShortname}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
+            ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq)
+            : BuildContactReadbackNoFreq(aircraft, facilityName);
+        var warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
         Route(aircraft, ctx, pilotSpeech, warning);
         return new CommandResult(true, "");
+    }
+
+    // Prefer the position's published RadioName ("NorCal Approach", "Oakland Tower") over the
+    // generic FacilityShortname ("Approach", "Tower") so the readback identifies the actual
+    // facility. Falls back when RadioName is empty (rare in well-formed vNAS configs).
+    private static string ResolveFacilityName(PositionConfig position)
+    {
+        return string.IsNullOrWhiteSpace(position.RadioName) ? FacilityShortname.From(position.Callsign) : position.RadioName.Trim();
     }
 
     public static CommandResult HandleFrequencyChangeApproved(AircraftState aircraft, DispatchContext ctx)
@@ -85,10 +93,10 @@ public static class ContactCommandHandler
         PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech, warningText);
     }
 
-    private static string BuildContactReadbackNoFreq(AircraftState aircraft, string facilityShortname)
+    private static string BuildContactReadbackNoFreq(AircraftState aircraft, string facilityName)
     {
         var spoken = Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(aircraft.Callsign);
-        return $"[{aircraft.Callsign}] {facilityShortname.ToLowerInvariant()}, {spoken}, so long.";
+        return $"[{aircraft.Callsign}] {facilityName}, {spoken}, so long.";
     }
 
     private abstract record ResolvedTarget

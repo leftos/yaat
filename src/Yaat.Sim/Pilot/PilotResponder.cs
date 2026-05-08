@@ -380,11 +380,15 @@ public static class PilotResponder
     /// repeats the frequency for confirmation, and signs off. Output:
     /// <c>"[N123AB] approach on one two five point three five, november one two three alpha bravo, so long."</c>
     /// </summary>
-    public static string BuildContactReadback(AircraftState aircraft, string facilityShortname, double frequencyMhz)
+    public static string BuildContactReadback(AircraftState aircraft, string facilityName, double frequencyMhz)
     {
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         var freq = PhraseologyVerbalizer.FrequencyToWords(frequencyMhz);
-        return $"[{aircraft.Callsign}] {facilityShortname.ToLowerInvariant()} on {freq}, {spoken}, so long.";
+        // Caller decides casing — pass Position.RadioName ("NorCal Approach") or the
+        // capitalized FacilityShortname fallback ("Approach"). Don't lowercase here:
+        // CompactForTerminal strips the bracketed prefix so this phrase becomes
+        // sentence-initial in the terminal display.
+        return $"[{aircraft.Callsign}] {facilityName} on {freq}, {spoken}, so long.";
     }
 
     /// <summary>
@@ -695,15 +699,19 @@ public static class PilotResponder
         }
 
         bool isFlightLevel = altitudeFt >= 18000 && altitudeFt % 100 == 0;
-        var altitudePhrase = isFlightLevel ? AtcNumberParser.AltitudeToWords(altitudeFt) : "level " + AtcNumberParser.AltitudeToWords(altitudeFt);
+        var altitudeWords = AtcNumberParser.AltitudeToWords(altitudeFt);
+        // Sub-100 ft (or non-positive) altitudes render as empty — drop the clause entirely
+        // rather than emit "level , " or "flight level , ".
+        var altitudePhrase = string.IsNullOrEmpty(altitudeWords) ? "" : (isFlightLevel ? altitudeWords : "level " + altitudeWords);
+        var altitudeClause = altitudePhrase.Length == 0 ? "" : " " + altitudePhrase;
 
         if (positionType == "CTR" && isFlightLevel)
         {
             // Class A enroute — no airport ATIS reference.
-            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {altitudePhrase}.";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken}{altitudeClause}.";
         }
 
-        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {altitudePhrase}, with information Alpha.";
+        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken}{altitudeClause}, with information Alpha.";
     }
 
     private static string BuildVfrAirborne(
@@ -728,6 +736,12 @@ public static class PilotResponder
         bool noDest = string.IsNullOrEmpty(dest);
         bool inbound = !noDest && dest.Equals(primary, StringComparison.OrdinalIgnoreCase);
 
+        // Sub-100 ft altitudes render as empty — drop the "at {altitude}" clause rather
+        // than emit a dangling "at , ". Pilots who just lifted off a low-elevation field
+        // (or who otherwise read airborne while still in ground effect) shouldn't break the
+        // sentence shape.
+        string atAltitude = string.IsNullOrEmpty(altitudeWords) ? "" : " at " + altitudeWords;
+
         if (noDest)
         {
             // AIM 4-3-1 form: "VFR [Xbound] at [altitude]" is the canonical activity phrase. Stating
@@ -736,7 +750,7 @@ public static class PilotResponder
             string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
             string positionAnchor = positionType == "TWR" ? "the field" : SpellAirportLetters(scenario.PrimaryAirportId ?? "");
             string atisSuffix = positionType == "CTR" ? "" : ", with information Alpha";
-            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading} at {altitudeWords}{atisSuffix}.";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltitude}{atisSuffix}.";
         }
 
         string intent;
@@ -758,10 +772,10 @@ public static class PilotResponder
         if (positionType == "CTR")
         {
             var airportSpoken = SpellAirportLetters(scenario.PrimaryAirportId ?? "");
-            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} at {altitudeWords}, {distWords} miles {direction} of {airportSpoken}, {intent}.";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken}{atAltitude}, {distWords} miles {direction} of {airportSpoken}, {intent}.";
         }
 
-        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} at {altitudeWords}, {intent}, with information Alpha.";
+        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction}{atAltitude}, {intent}, with information Alpha.";
     }
 
     public static string? ResolveStudentRadioName(SimScenarioState? scenario)
@@ -931,6 +945,7 @@ public static class PilotResponder
         text = Regex.Replace(text, Regex.Escape(spoken), aircraft.Callsign, RegexOptions.IgnoreCase);
         text = CompactRunwayPhrases(text);
         text = CompactDistancePhrases(text);
+        text = CompactFrequencyPhrases(text);
         return text;
     }
 
@@ -976,6 +991,38 @@ public static class PilotResponder
             text,
             @"\b(?<n>one|two|three|four|five|six|seven|eight|nine|ten) miles\b",
             match => $"{NumberWordToInt(match.Groups["n"].Value)} miles",
+            RegexOptions.IgnoreCase
+        );
+    }
+
+    // Aviation VHF frequencies are spelled out digit-by-digit per FAA 7110.65 §2-4-16
+    // ("one two five point three five"). For terminal display, render as digits ("125.35")
+    // so controllers see the same form they typed in CT / pulled off the strip.
+    private static readonly string DigitWordPattern = "(?:zero|one|two|three|four|five|six|seven|eight|nine)";
+
+    private static string CompactFrequencyPhrases(string text)
+    {
+        return Regex.Replace(
+            text,
+            @"\b(?<int>"
+                + DigitWordPattern
+                + @"(?:\s+"
+                + DigitWordPattern
+                + @")+)\s+point\s+(?<frac>"
+                + DigitWordPattern
+                + @"(?:\s+"
+                + DigitWordPattern
+                + @")*)\b",
+            match =>
+            {
+                var integerDigits = string.Concat(
+                    match.Groups["int"].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(DigitWordToChar)
+                );
+                var fractionDigits = string.Concat(
+                    match.Groups["frac"].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(DigitWordToChar)
+                );
+                return $"{integerDigits}.{fractionDigits}";
+            },
             RegexOptions.IgnoreCase
         );
     }
