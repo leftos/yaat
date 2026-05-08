@@ -12,7 +12,7 @@ using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
-public record CommandResult(bool Success, string? Message = null);
+public record CommandResult(bool Success, string? Message = null, CanonicalCommandType? RejectedCommandType = null);
 
 public static class CommandDispatcher
 {
@@ -301,7 +301,7 @@ public static class CommandDispatcher
                 var result = ApplyCommand(cmd, aircraft, transparentCtx);
                 if (!result.Success)
                 {
-                    return result;
+                    return WithRejectedCommand(result, cmd);
                 }
 
                 if (!string.IsNullOrEmpty(result.Message))
@@ -338,6 +338,11 @@ public static class CommandDispatcher
         bool hadProcedure = aircraft.Procedure.ActiveSidId is not null || aircraft.Procedure.ActiveStarId is not null;
         bool hadViaMode = aircraft.Procedure.SidViaMode || aircraft.Procedure.StarViaMode;
         var result = ApplyCommand(command, aircraft, ctx);
+        if (!result.Success)
+        {
+            return WithRejectedCommand(result, command);
+        }
+
         CheckVectoringWarning(aircraft, [command], hadProcedure, hadViaMode);
         return result;
     }
@@ -730,7 +735,7 @@ public static class CommandDispatcher
                 var result = DryRunApplyCommand(cmd, clone, dryCtx);
                 if (!result.Success)
                 {
-                    return result;
+                    return WithRejectedCommand(result, cmd);
                 }
             }
         }
@@ -989,7 +994,7 @@ public static class CommandDispatcher
         {
             if (!towerResult.Success)
             {
-                return towerResult;
+                return WithRejectedCommand(towerResult, firstCmd);
             }
 
             // Dispatch remaining parallel commands in the same block (e.g. CLAND after EF 28L,
@@ -1018,7 +1023,7 @@ public static class CommandDispatcher
                         messages.Count > 0
                             ? $"{string.Join(", ", messages)}; but {subResult.Message}"
                             : subResult.Message ?? "Subsequent command failed";
-                    return new CommandResult(false, combinedFail);
+                    return WithRejectedCommand(new CommandResult(false, combinedFail), block.Commands[i]);
                 }
                 if (!string.IsNullOrEmpty(subResult.Message))
                 {
@@ -1035,7 +1040,7 @@ public static class CommandDispatcher
         if (acceptance.IsRejected)
         {
             var reason = acceptance.Reason ?? $"Cannot accept {CommandDescriber.DescribeNatural(firstCmd)} during {currentPhase.Name}";
-            return new CommandResult(false, reason);
+            return WithRejectedCommand(new CommandResult(false, reason), firstCmd);
         }
 
         if (acceptance.ClearsThePhase)
@@ -1711,7 +1716,7 @@ public static class CommandDispatcher
                 var result = ApplyCommand(cmd, ac, ctx);
                 if (!result.Success)
                 {
-                    return result;
+                    return WithRejectedCommand(result, cmd);
                 }
 
                 if (result.Message is not null)
@@ -1723,6 +1728,24 @@ public static class CommandDispatcher
             CheckVectoringWarning(ac, captured, hadProcedure, hadViaMode);
             var msg = messages.Count > 0 ? string.Join(", ", messages) : null;
             return new CommandResult(true, msg);
+        };
+    }
+
+    private static CommandResult WithRejectedCommand(CommandResult result, ParsedCommand command)
+    {
+        if (result.Success || result.RejectedCommandType is not null || command is UnsupportedCommand)
+        {
+            return result;
+        }
+
+        if (result.Message?.Contains(NoDispatcherArmMarker, StringComparison.Ordinal) == true)
+        {
+            return result;
+        }
+
+        return result with
+        {
+            RejectedCommandType = CommandDescriber.ToCanonicalType(command),
         };
     }
 

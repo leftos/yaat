@@ -95,7 +95,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency queue + activity-aware solo readback verbosity |
 | [x] | **M10.3.6** | [m10.3.6-scenario-pace-controls.md](m10.3.6-scenario-pace-controls.md) | Scenario-load training pace controls: parking initial call-up and arrival generator rate sliders |
 | [x] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pending-request reminders, including slower follow-up after standby |
-| [ ] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
+| [x] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
 | [ ] | **M10.6** | [m10.6-scenario-pack.md](m10.6-scenario-pack.md) | Solo training scenario pack + USER_GUIDE + cleanup |
 
 ## Decisions committed
@@ -165,9 +165,10 @@ After M10.3 (TTS):
 
 - Plug headphones in, run the same scenario. Confirm pilot voice speaks each readback. Issue commands to two aircraft within 1 s; confirm one finishes speaking before the other starts.
 
-After M10.5:
+M10.5:
 
-- Run scenario where landing clearance is intentionally never issued. Confirm "approaching minimums" warning at DA + 1000, then autonomous go-around at DA with prominent warning.
+- Run scenario where landing clearance is intentionally never issued. Confirm "approaching minimums" radio warning at DA/MDA + 1000, then autonomous go-around at DA/MDA with the normal go-around pilot transmission.
+- Issue an impossible live solo pilot command. Confirm the command fails and the pilot queues an "unable" readback; parse/admin failures remain silent.
 
 ## Open questions
 

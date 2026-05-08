@@ -3,6 +3,8 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -40,7 +42,13 @@ public class TowerPhaseTests
         return ac;
     }
 
-    private static PhaseContext Ctx(AircraftState ac, RunwayInfo? rwy = null, double dt = 1.0)
+    private static PhaseContext Ctx(
+        AircraftState ac,
+        RunwayInfo? rwy = null,
+        double dt = 1.0,
+        bool soloTrainingMode = false,
+        string? studentPositionType = null
+    )
     {
         rwy ??= DefaultRunway(ac.Altitude);
         return new PhaseContext
@@ -52,7 +60,29 @@ public class TowerPhaseTests
             Runway = rwy,
             FieldElevation = rwy.ElevationFt,
             Logger = NullLogger.Instance,
+            SoloTrainingMode = soloTrainingMode,
+            StudentPositionType = studentPositionType,
         };
+    }
+
+    private static FinalApproachPhase AddPublishedApproachFinal(AircraftState ac, RunwayInfo rwy, int? mapAltitudeFt)
+    {
+        var phase = new FinalApproachPhase();
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = rwy,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28",
+                AirportCode = "KTEST",
+                RunwayId = rwy.Designator,
+                FinalApproachCourse = rwy.TrueHeading,
+                MapAltitudeFt = mapAltitudeFt,
+                MapDistanceNm = 0.5,
+            },
+        };
+        ac.Phases.Add(phase);
+        return phase;
     }
 
     // -------------------------------------------------------------------------
@@ -407,6 +437,106 @@ public class TowerPhaseTests
     {
         var phase = new LowApproachPhase();
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
+    }
+
+    // -------------------------------------------------------------------------
+    // FinalApproachPhase minimums-aware no-clearance contingency
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void FinalApproach_PublishedMinimums_NoLandingClearance_WarnsAtMinimumsPlus1000()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        ac.Phases!.Start(ctx);
+        ac.PendingPilotTransmissions.Clear();
+
+        phase.OnTick(ctx);
+
+        var tx = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Equal(PilotTransmissionKind.Proactive, tx.Kind);
+        Assert.Contains("approaching minimums", tx.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no landing clearance", tx.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Same(phase, ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void FinalApproach_PublishedMinimums_NoLandingClearanceWarning_RoundTripsSnapshot()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        ac.Phases!.Start(ctx);
+        ac.PendingPilotTransmissions.Clear();
+        phase.OnTick(ctx);
+
+        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        Assert.True(dto.NoClearanceWarningIssued);
+
+        var restored = FinalApproachPhase.FromSnapshot(dto);
+        var restoredDto = Assert.IsType<FinalApproachPhaseDto>(restored.ToSnapshot());
+        Assert.True(restoredDto.NoClearanceWarningIssued);
+    }
+
+    [Fact]
+    public void FinalApproach_PublishedMinimums_LandingClearanceAfterWarning_PreventsGoAroundAtMinimums()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        ac.Phases!.Start(ctx);
+        ac.PendingPilotTransmissions.Clear();
+        phase.OnTick(ctx);
+        ac.PendingPilotTransmissions.Clear();
+
+        ac.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        ac.Altitude = 595;
+        phase.OnTick(ctx);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Same(phase, ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void FinalApproach_PublishedMinimums_NoLandingClearance_GoesAroundAtMinimums()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 595, onGround: false, ias: 140);
+        AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        ac.Phases!.Start(ctx);
+        ac.PendingPilotTransmissions.Clear();
+        var phase = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
+
+        phase.OnTick(ctx);
+
+        Assert.IsType<GoAroundPhase>(ac.Phases.CurrentPhase);
+        Assert.Contains(ac.PendingPilotTransmissions, tx => tx.Text.Contains("going around", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(ac.PendingPilotTransmissions, tx => tx.Text.Contains("no landing clearance at minimums", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void FinalApproach_NoPublishedMinimums_KeepsCurrentNoClearanceFallback()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 301, onGround: false, ias: 140);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        ac.Phases!.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        Assert.Same(phase, ac.Phases.CurrentPhase);
+        Assert.Single(ac.PendingPilotTransmissions);
+
+        ac.Altitude = 300;
+        phase.OnTick(ctx);
+
+        Assert.IsType<GoAroundPhase>(ac.Phases.CurrentPhase);
     }
 
     // -------------------------------------------------------------------------

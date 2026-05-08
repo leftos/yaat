@@ -155,6 +155,37 @@ public sealed class PilotTransmissionQueueTests
         Assert.Empty(aircraft.PendingPilotTransmissions);
     }
 
+    [Fact]
+    public void SendCommand_SoloTraining_FailedPilotCommandQueuesUnable()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
+        var aircraft = NewAircraft("N123AB");
+        aircraft.FlightPlan = new AircraftFlightPlan { FlightRules = "IFR" };
+        engine.World.AddAircraft(aircraft);
+
+        var result = engine.SendCommand("N123AB", "CM A025");
+
+        Assert.False(result.Success);
+        Assert.Contains("VFR aircraft", result.Message, StringComparison.OrdinalIgnoreCase);
+        var transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        Assert.Equal(PilotTransmissionKind.Readback, transmission.Kind);
+        Assert.Contains("unable", transmission.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("VFR aircraft", transmission.Text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_ParseFailureDoesNotQueueUnable()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
+        var aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+
+        var result = engine.SendCommand("N123AB", "NOTACMD");
+
+        Assert.False(result.Success);
+        Assert.Empty(aircraft.PendingPilotTransmissions);
+    }
+
     private static AircraftState NewAircraft(string callsign) => new() { Callsign = callsign, AircraftType = "C172" };
 
     private static SimScenarioState NewScenario(bool soloTrainingMode, double elapsedSeconds) =>

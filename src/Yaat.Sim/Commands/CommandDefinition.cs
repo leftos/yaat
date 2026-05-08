@@ -18,6 +18,8 @@ public record CommandDefinition(
     string[]? SyntaxPatterns = null
 )
 {
+    public bool ProducesPilotUnable { get; init; }
+
     public ArgMode ArgMode => DeriveArgMode();
 
     public string SampleArg => Overloads.SelectMany(o => o.Parameters).FirstOrDefault(p => !p.IsLiteral)?.TypeHint ?? "";

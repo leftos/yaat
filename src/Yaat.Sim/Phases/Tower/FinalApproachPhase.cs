@@ -10,7 +10,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// Tracks 3° glideslope from current position to threshold.
 /// Checks PhaseList-level landing clearance (CTL can be issued on
 /// downwind/base, well before this phase activates).
-/// Auto-triggers go-around if no clearance by 200ft AGL.
+/// Auto-triggers go-around if no clearance by published DA/MDA when available,
+/// otherwise by 200ft AGL.
 /// Completes when crossing the threshold.
 /// Checks for illegal approach intercept (7110.65 §5-9-1) on
 /// first tick when aircraft is established on the localizer.
@@ -21,6 +22,7 @@ public sealed class FinalApproachPhase : Phase
 
     private const double AutoGoAroundAgl = 200.0;
     private const double NoClearanceWarningDistNm = 1.0;
+    private const double MinimumsNoClearanceWarningBufferFt = 1000.0;
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
     private const double AimPointMinNm = 0.1;
@@ -654,50 +656,90 @@ public sealed class FinalApproachPhase : Phase
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);
 
-        // Warn at 1nm if no landing clearance (only when auto-CTL is off).
-        // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
-        // every other aircraft (IFR, non-pattern, RPO mode) keeps the controller-facing warning.
-        if ((distNm <= NoClearanceWarningDistNm) && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
+        var activeApproach = ctx.Aircraft.Phases?.ActiveApproach;
+        if (activeApproach?.MapAltitudeFt is { } mapAltitudeFt)
         {
-            _noClearanceWarningIssued = true;
-            if (ctx.SoloTrainingMode && _isPatternTraffic && ctx.Aircraft.FlightPlan.IsVfr)
+            double warningAltitudeFt = mapAltitudeFt + MinimumsNoClearanceWarningBufferFt;
+            if (
+                (ctx.Aircraft.Altitude <= warningAltitudeFt)
+                && (ctx.Aircraft.Altitude > mapAltitudeFt)
+                && !hasLandingClearance
+                && !_noClearanceWarningIssued
+            )
             {
-                string runwayId = ctx.Runway?.Designator ?? "the runway";
-                PilotResponder.QueueSoloPilotTransmission(
-                    ctx.Aircraft,
-                    PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
-                    PilotTransmissionKind.Proactive,
-                    PilotResponder.SourceResponse
-                );
-            }
-            else
-            {
-                string runwayId = ctx.Runway?.Designator ?? "the runway";
+                _noClearanceWarningIssued = true;
                 PilotResponder.RouteSoloOrRpoTransmission(
                     ctx.Aircraft,
                     ctx.SoloTrainingMode,
                     ctx.RpoShowPilotSpeech,
                     ctx.StudentPositionType,
-                    PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
-                    $"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance",
-                    PilotResponder.SoloPositionsTower
+                    PilotResponder.BuildApproachingMinimumsNoLandingClearance(ctx.Aircraft),
+                    $"{ctx.Aircraft.Callsign} approaching minimums without a landing clearance",
+                    PilotResponder.SoloPositionsTowerApproach
                 );
             }
-        }
 
-        // Auto go-around if no landing clearance by 200ft AGL
-        double aglForClearance = ctx.Aircraft.Altitude - _thresholdElevation;
-        if ((aglForClearance <= AutoGoAroundAgl) && !hasLandingClearance)
+            if ((ctx.Aircraft.Altitude <= mapAltitudeFt) && !hasLandingClearance)
+            {
+                _goAroundTriggered = true;
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at minimums: alt {Alt:F0}ft, MAP alt {MapAlt}ft, {Dist:F2}nm)",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.Altitude,
+                    mapAltitudeFt,
+                    distNm
+                );
+                TriggerGoAround(ctx, "no landing clearance at minimums");
+                return false;
+            }
+        }
+        else
         {
-            _goAroundTriggered = true;
-            Log.LogDebug(
-                "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Agl:F0}ft AGL, {Dist:F2}nm)",
-                ctx.Aircraft.Callsign,
-                aglForClearance,
-                distNm
-            );
-            TriggerGoAround(ctx, "no landing clearance");
-            return false;
+            // Warn at 1nm if no landing clearance (only when auto-CTL is off).
+            // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
+            // every other aircraft (IFR, non-pattern, RPO mode) keeps the controller-facing warning.
+            if ((distNm <= NoClearanceWarningDistNm) && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
+            {
+                _noClearanceWarningIssued = true;
+                if (ctx.SoloTrainingMode && _isPatternTraffic && ctx.Aircraft.FlightPlan.IsVfr)
+                {
+                    string runwayId = ctx.Runway?.Designator ?? "the runway";
+                    PilotResponder.QueueSoloPilotTransmission(
+                        ctx.Aircraft,
+                        PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
+                        PilotTransmissionKind.Proactive,
+                        PilotResponder.SourceResponse
+                    );
+                }
+                else
+                {
+                    string runwayId = ctx.Runway?.Designator ?? "the runway";
+                    PilotResponder.RouteSoloOrRpoTransmission(
+                        ctx.Aircraft,
+                        ctx.SoloTrainingMode,
+                        ctx.RpoShowPilotSpeech,
+                        ctx.StudentPositionType,
+                        PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
+                        $"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance",
+                        PilotResponder.SoloPositionsTower
+                    );
+                }
+            }
+
+            // Auto go-around if no landing clearance by 200ft AGL
+            double aglForClearance = ctx.Aircraft.Altitude - _thresholdElevation;
+            if ((aglForClearance <= AutoGoAroundAgl) && !hasLandingClearance)
+            {
+                _goAroundTriggered = true;
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Agl:F0}ft AGL, {Dist:F2}nm)",
+                    ctx.Aircraft.Callsign,
+                    aglForClearance,
+                    distNm
+                );
+                TriggerGoAround(ctx, "no landing clearance");
+                return false;
+            }
         }
 
         // Go-around if too high at the MAP to make it down safely

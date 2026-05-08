@@ -735,6 +735,53 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission when approaching published DA/MDA without a landing clearance.
+    /// Gives the solo-training controller a radio-visible chance to issue the clearance
+    /// before the aircraft reaches minimums and initiates the missed approach.
+    /// </summary>
+    public static string BuildApproachingMinimumsNoLandingClearance(AircraftState aircraft)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return $"[{aircraft.Callsign}] {spoken}, approaching minimums, no landing clearance.";
+    }
+
+    /// <summary>
+    /// Pilot response when a live solo-training controller instruction is rejected by
+    /// dispatch. Mirrors 7110.65 operational-request phraseology: "unable" plus a reason
+    /// when one is available.
+    /// </summary>
+    public static string BuildUnable(AircraftState aircraft, string? reason)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var cleanedReason = CleanUnableReason(reason);
+        if (string.IsNullOrEmpty(cleanedReason))
+        {
+            return $"[{aircraft.Callsign}] {spoken}, unable.";
+        }
+
+        return $"[{aircraft.Callsign}] {spoken}, unable, {cleanedReason}.";
+    }
+
+    private static string CleanUnableReason(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return "";
+        }
+
+        var cleaned = reason.Trim();
+        cleaned = cleaned.Replace("__NO_DISPATCHER_ARM__", "", StringComparison.Ordinal);
+        cleaned = Regex.Replace(cleaned, @"^\s*unable\b[:,\s-]*", "", RegexOptions.IgnoreCase);
+        cleaned = cleaned.Trim(' ', '.', ',', ';', ':', '-');
+        if (cleaned.Length == 0)
+        {
+            return "";
+        }
+
+        return cleaned;
+    }
+
+    /// <summary>
     /// Pilot transmission for a taxi-side hold-short report ("holding short of [label] at [taxiway]").
     /// Used when the ground phase reaches a hold-short node where the label is a generic identifier
     /// (taxiway intersection, ILS-critical area, etc.) rather than a specific runway designator.

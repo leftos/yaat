@@ -1058,6 +1058,10 @@ public sealed class SimulationEngine
                 PilotRequestTracker.ApplyControllerResponse(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
             }
         }
+        else if (dispatchCtx.SoloTrainingMode)
+        {
+            QueueSoloUnableIfNeeded(aircraft, result);
+        }
 
         // Emit pilot readback in solo-training mode. Single hook here in SendCommand (the
         // user-issued live path) means deferred / preset / replay dispatches don't re-fire
@@ -1081,6 +1085,23 @@ public sealed class SimulationEngine
         }
 
         return result;
+    }
+
+    private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)
+    {
+        if (result.RejectedCommandType is not { } rejectedType)
+        {
+            return;
+        }
+
+        var definition = CommandRegistry.Get(rejectedType);
+        if (definition?.ProducesPilotUnable != true)
+        {
+            return;
+        }
+
+        var transmission = PilotResponder.BuildUnable(aircraft, result.Message);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
     }
 
     public AircraftState? FindAircraft(string callsign)

@@ -1599,7 +1599,10 @@ public static class CommandRegistry
 
     private static CommandDefinition Bare(CanonicalCommandType type, string label, string category, bool isGlobal, string[] aliases)
     {
-        return new CommandDefinition(type, label, category, isGlobal, aliases, [O(null, [], null)]);
+        return new CommandDefinition(type, label, category, isGlobal, aliases, [O(null, [], null)])
+        {
+            ProducesPilotUnable = DefaultProducesPilotUnable(category, isGlobal),
+        };
     }
 
     private static CommandDefinition Cmd(
@@ -1613,7 +1616,10 @@ public static class CommandRegistry
         string[]? syntaxPatterns = null
     )
     {
-        return new CommandDefinition(type, label, category, isGlobal, aliases, overloads, modifiers, syntaxPatterns);
+        return new CommandDefinition(type, label, category, isGlobal, aliases, overloads, modifiers, syntaxPatterns)
+        {
+            ProducesPilotUnable = DefaultProducesPilotUnable(category, isGlobal),
+        };
     }
 
     private static CommandDefinition PatternEntry(CanonicalCommandType type, string label, string[] aliases)
@@ -1625,6 +1631,28 @@ public static class CommandRegistry
             false,
             aliases,
             [O(null, [], $"{label} for current runway"), O("Runway", [R("runway", "runway designator")], $"{label} for runway")]
-        );
+        )
+        {
+            ProducesPilotUnable = true,
+        };
+    }
+
+    private static bool DefaultProducesPilotUnable(string category, bool isGlobal)
+    {
+        if (isGlobal)
+        {
+            return false;
+        }
+
+        return category
+            is "Heading"
+                or "Altitude / Speed"
+                or "Navigation"
+                or "Tower"
+                or "Pattern"
+                or "Hold"
+                or "Helicopter"
+                or "Ground"
+                or "Approach";
     }
 }

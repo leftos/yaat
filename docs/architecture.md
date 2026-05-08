@@ -360,8 +360,8 @@ StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→
 # Commands/
 Commands/CanonicalCommandType.cs    # Enum of every command type
 Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition; includes server-only commands (DEL, PAUSE, ADD, etc.)
-Commands/CommandDefinition.cs       # ArgMode enum, CommandDefinition/CommandOverload/CompoundModifier records
-Commands/CommandRegistry.cs         # Single source of truth: CommandDefinition per type (label, category, aliases, overloads, modifiers)
+Commands/CommandDefinition.cs       # ArgMode enum, CommandDefinition/CommandOverload/CompoundModifier records; command metadata includes solo-pilot unable eligibility
+Commands/CommandRegistry.cs         # Single source of truth: CommandDefinition per type (label, category, aliases, overloads, modifiers, pilot-unable eligibility)
 Commands/CommandScheme.cs           # CanonicalCommandType → CommandPattern (aliases only); Default() from registry
 Commands/CommandSchemeParser.cs     # Parse/ParseCompound (;/, syntax); ExpandSpeedUntil; concatenation fallback; ToCanonical()
 Commands/CommandSignature.cs        # Records: CommandParameter, CommandSignature, CommandSignatureSet; FromDefinition factory
@@ -418,7 +418,7 @@ LineUpArcPlayback.cs           # Closed-form circular-arc playback (invariant I2
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode; RV SID heading hold until handoff+5s
-FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal intercept check (§5-9-1)
+FinalApproachPhase.cs          # Glideslope; no-clearance warning/go-around at DA/MDA when published, otherwise 200ft AGL; illegal intercept check (§5-9-1)
 LandingPhase.cs                # Flare→touchdown→rollout; continuous exit evaluation (resolve→brake→commit/abandon→relax preference); LAHSO-aware
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
 GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
@@ -458,7 +458,7 @@ Pilot/PilotRequestTracker.cs   # Records pilot-originated requests, applies cont
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
                                # Adds light deterministic Quiet-frequency flavor and preserves runway/callsign-critical readback content.
-                               # Also: BuildTrafficInSight / BuildFieldInSight / BuildHoldingShortCrossing / BuildClearOfRunway / BuildGoingAround / BuildLostSightOf*
+                               # Also: BuildTrafficInSight / BuildFieldInSight / BuildHoldingShortCrossing / BuildClearOfRunway / BuildGoingAround / BuildApproachingMinimumsNoLandingClearance / BuildUnable / BuildLostSightOf*
                                # / BuildUnableTo* — the spelled-out spoken forms used by RPO PilotSpeech routing.
                                # QueueSoloPilotTransmission / QueueSoloPilotReadback put solo pilot speech into PendingPilotTransmissions;
                                # command RSP lines stay immediate while delayed SAY lines represent what the pilot says on frequency.
