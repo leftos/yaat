@@ -1,19 +1,5 @@
 [
   {
-    "name": "San Mateo Bridge Toll Plaza",
-    "aliases": ["VP915", "TOLLPLAZA"],
-    "spokenPatterns": [
-      "san mateo bridge",
-      "the san mateo bridge",
-      "san mateo bridge toll plaza",
-      "the san mateo bridge toll plaza",
-      "toll plaza",
-      "the toll plaza"
-    ],
-    "lat": 37.61814825135482,
-    "lon": -122.15262493420477
-  },
-  {
     "name": "Oakland Runway 30 Numbers",
     "aliases": ["OAK30NUM"],
     "spokenPatterns": [

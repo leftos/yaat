@@ -202,6 +202,71 @@ public class PilotResponderTests
         Assert.Equal("[N436MS] proceed direct to Modesto VOR, november four three six mike sierra.", result);
     }
 
+    [Fact]
+    public void BuildReadback_DirectToMultipleFixes_ReadsAllJoinedWithThenDirect()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var ac = MakeAircraft("N172SP");
+        var compound = Compound(new DirectToCommand([new ResolvedFix("OAK30NUM", 0, 0), new ResolvedFix("VPMID", 0, 0)], []));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        // Variable-length DCT must read every fix; "then direct" joins later fixes.
+        Assert.Equal("[N172SP] proceed direct to oak30num, then direct vpmid, november one seven two sierra papa.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_DirectToFixWithCustomPronunciation_UsesPronunciation()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        // VPCOL is registered in ARTCCs/ZOA/FixPronunciations/visual.json with pronunciation "Oakland Colliseum".
+        var ac = MakeAircraft("N172SP");
+        var compound = Compound(new DirectToCommand([new ResolvedFix("VPCOL", 0, 0)], []));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[N172SP] proceed direct to Oakland Colliseum, november one seven two sierra papa.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_SequentialBlocks_JoinedWithThen()
+    {
+        var ac = MakeAircraft("AAL123");
+        // Two blocks separated by ; — controller said "DM 5000 ; FH 270".
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new DescendMaintainCommand(5000)]),
+            new ParsedBlock(null, [new TurnRightCommand(new MagneticHeading(270))]),
+        ]);
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[AAL123] descend and maintain five thousand, then turn right heading two seven zero, american one twenty three.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_ParallelBlock_JoinedWithCommaNotThen()
+    {
+        var ac = MakeAircraft("AAL123");
+        // Single block with two parallel commands — controller said "DM 5000, FH 270".
+        // Parallel commands stay comma-joined; "then" is sequential-only.
+        var compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.DoesNotContain("then", result!);
+        Assert.Equal("[AAL123] descend and maintain five thousand, turn right heading two seven zero, american one twenty three.", result);
+    }
+
     public static TheoryData<ParsedCommand, string> RunwayCriticalTowerReadbackCases() =>
         new()
         {

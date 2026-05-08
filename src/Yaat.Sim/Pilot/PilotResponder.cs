@@ -63,9 +63,14 @@ public static class PilotResponder
     /// </summary>
     public static string? BuildReadback(CompoundCommand compound, AircraftState aircraft)
     {
-        var clauses = new List<string>();
+        // Per-block clause lists are joined internally with ", " (parallel commands within
+        // a `,`-separated block); blocks themselves are joined with ", then " to mark the
+        // `;` (sequential) boundary the controller dictated. Without "then", TTS reads
+        // sequential and parallel clauses identically.
+        var blockTexts = new List<string>();
         foreach (var block in compound.Blocks)
         {
+            var blockClauses = new List<string>();
             var conditionLead = FormatCondition(block.Condition);
             foreach (var cmd in block.Commands)
             {
@@ -75,17 +80,22 @@ public static class PilotResponder
                     continue;
                 }
 
-                clauses.Add(conditionLead is null ? clause : conditionLead + " " + clause);
+                blockClauses.Add(conditionLead is null ? clause : conditionLead + " " + clause);
                 conditionLead = null; // condition is spoken once per block
+            }
+
+            if (blockClauses.Count > 0)
+            {
+                blockTexts.Add(string.Join(", ", blockClauses));
             }
         }
 
-        if (clauses.Count == 0)
+        if (blockTexts.Count == 0)
         {
             return null;
         }
 
-        return Format(aircraft, string.Join(", ", clauses));
+        return Format(aircraft, string.Join(", then ", blockTexts));
     }
 
     private static string? VerbalizeForReadback(ParsedCommand cmd, AircraftState aircraft) =>

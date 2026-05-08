@@ -10,5 +10,13 @@
   {
     "fix": "VPCBT",
     "pronunciations": ["Lake Chabot"]
+  },
+  {
+    "fix": "VPMID",
+    "pronunciations": ["Midspan San Mateo Bridge"]
+  },
+  {
+    "fix": "VPSMB",
+    "pronunciations": ["San Mateo Bridge Toll Plaza"]
   }
 ]

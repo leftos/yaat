@@ -108,12 +108,12 @@ public static class PhraseologyVerbalizer
             MachCommand m => Map("mach", MachWords(m.MachNumber)),
 
             // Navigation
-            DirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFix(d.Fixes[0].Name)),
-            ForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFix(d.Fixes[0].Name)),
-            AppendDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFix(d.Fixes[0].Name)),
-            AppendForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFix(d.Fixes[0].Name)),
-            TurnLeftDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFix(d.Fixes[0].Name)),
-            TurnRightDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFix(d.Fixes[0].Name)),
+            DirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
+            ForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
+            AppendDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
+            AppendForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
+            TurnLeftDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
+            TurnRightDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
             ExpectApproachCommand e => Map("rwy", SpellApproach(e.ApproachId)),
             JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", SpellApproach(id)),
 
@@ -364,9 +364,21 @@ public static class PhraseologyVerbalizer
 
     /// <summary>
     /// Spoken fix label for readbacks. Published VHF navaids use the same friendly name source as
-    /// SPOS position anchors ("MOD" -> "Modesto VOR"); ordinary intersections keep the concise
-    /// identifier form ("SUNOL" -> "sunol").
+    /// SPOS position anchors ("MOD" -> "Modesto VOR"); fixes registered in
+    /// <c>FixPronunciations/*.json</c> use the first published pronunciation
+    /// ("VPCOL" -> "Oakland Colliseum"); ordinary intersections keep the concise identifier form
+    /// ("SUNOL" -> "sunol").
     /// </summary>
+    /// <summary>
+    /// Spells multiple fixes for a single DCT-style command. The phraseology pattern's
+    /// <c>{fix}</c> placeholder accepts one rendered string, so multi-fix DCTs are expressed by
+    /// joining each fix with <c>", then direct "</c>: e.g. <c>DCT OAK30NUM VPMID</c> becomes
+    /// <c>"oak30num, then direct vpmid"</c>, which the rule pattern <c>"proceed direct to {fix}"</c>
+    /// then renders as <c>"proceed direct to oak30num, then direct vpmid"</c>.
+    /// </summary>
+    public static string SpellFixSequence(IEnumerable<ResolvedFix> fixes) =>
+        string.Join(", then direct ", fixes.Select(f => SpellFix(f.Name)).Where(s => !string.IsNullOrEmpty(s)));
+
     public static string SpellFix(string fix)
     {
         if (string.IsNullOrWhiteSpace(fix))
@@ -377,6 +389,15 @@ public static class PhraseologyVerbalizer
         var trimmed = fix.Trim();
         if (TryGetNavigationDatabase() is { } navDb)
         {
+            // Custom pronunciations win over auto-derived navaid/airport names: authors register
+            // them precisely to override the default speech for visual reporting points and
+            // hard-to-pronounce intersections (e.g. "VPCOL" → "Oakland Colliseum").
+            var pronunciations = navDb.GetFixPronunciations(trimmed);
+            if (pronunciations.Count > 0 && !string.IsNullOrWhiteSpace(pronunciations[0]))
+            {
+                return pronunciations[0];
+            }
+
             var navaidName = navDb.GetNavaidName(trimmed);
             if (!string.IsNullOrWhiteSpace(navaidName))
             {
