@@ -398,6 +398,15 @@ public static class PhraseologyVerbalizer
                 return pronunciations[0];
             }
 
+            // Custom-fix friendly name (e.g. "OAK30NUM" → "Oakland Runway 30 Numbers"). Authors
+            // who name their custom fix have already supplied the natural form pilots speak;
+            // there's no need to require a duplicate entry in FixPronunciations.
+            var customName = navDb.GetCustomFixName(trimmed);
+            if (!string.IsNullOrWhiteSpace(customName))
+            {
+                return customName;
+            }
+
             var navaidName = navDb.GetNavaidName(trimmed);
             if (!string.IsNullOrWhiteSpace(navaidName))
             {

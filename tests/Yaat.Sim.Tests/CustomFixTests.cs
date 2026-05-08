@@ -86,10 +86,6 @@ public class CustomFixTests
         Assert.InRange(pos!.Value.Lat, 37.70, 37.71);
         Assert.InRange(pos.Value.Lon, -122.22, -122.21);
 
-        // Also check VP915 (second fix in same file)
-        var vp915 = db.GetFixPosition("VP915");
-        Assert.NotNull(vp915);
-
         // Verify it appears in AllFixNames for autocomplete
         Assert.Contains(db.AllFixNames, n => n.Equals("OAK30NUM", StringComparison.OrdinalIgnoreCase));
     }

@@ -355,6 +355,14 @@ public sealed class NavigationDatabase
     /// </summary>
     private readonly Dictionary<string, List<string>> _fixPronunciations = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Friendly natural-language names for custom fixes, keyed by every alias the fix declared.
+    /// Sourced from the <c>name</c> field of <c>CustomFixes/*.json</c> definitions. Used by
+    /// pilot speech to render aliases like <c>OAK30NUM</c> as "Oakland Runway 30 Numbers"
+    /// instead of letter-by-letter.
+    /// </summary>
+    private readonly Dictionary<string, string> _customFixNames = new(StringComparer.OrdinalIgnoreCase);
+
     // ──────────────────────────────────────────────
     //  NavData lookups (eagerly built)
     // ──────────────────────────────────────────────
@@ -362,6 +370,15 @@ public sealed class NavigationDatabase
     public (double Lat, double Lon)? GetFixPosition(string name)
     {
         return _navDb.TryGetValue(name, out var pos) ? pos : null;
+    }
+
+    /// <summary>
+    /// Returns the friendly natural-language name for a custom fix alias (e.g. <c>OAK30NUM</c>
+    /// → "Oakland Runway 30 Numbers"), or null if the alias isn't a registered custom fix.
+    /// </summary>
+    public string? GetCustomFixName(string alias)
+    {
+        return _customFixNames.TryGetValue(alias, out var name) ? name : null;
     }
 
     /// <summary>
@@ -1384,6 +1401,11 @@ public sealed class NavigationDatabase
                 else
                 {
                     Log.LogWarning("Custom fix alias '{Alias}' conflicts with " + "existing entry", alias);
+                }
+
+                if (!string.IsNullOrWhiteSpace(def.Name))
+                {
+                    _customFixNames[alias] = def.Name;
                 }
             }
 

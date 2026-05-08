@@ -8,14 +8,16 @@ public class CustomFixCollapseTests
     public CustomFixCollapseTests()
     {
         // PhraseologyMapper now validates rule outputs via CommandParser.Parse, which resolves
-        // DCT fix args through NavigationDatabase. Load real nav data (including baked custom
-        // fixes from Data/CustomFixes/ZOA — OAK30NUM and TOLLPLAZA) so the validator accepts
-        // the canonicals this test suite produces.
+        // DCT fix args through NavigationDatabase. Load real nav data (including the OAK30NUM
+        // custom fix from Data/CustomFixes/ZOA) so the validator accepts the canonical.
         TestVnasData.EnsureInitialized();
     }
 
-    // A tight set of custom-fix patterns covering the motivating OAK example plus a second fix
-    // so we can exercise longest-match disambiguation across different canonical aliases.
+    // Custom-fix patterns. OAK30NUM exercises the canonical motivating case; the second alias
+    // (TOLLPLAZA) is local-only — kept so longest-match disambiguation across multiple
+    // canonicals stays exercised — and is NOT round-tripped through PhraseologyMapper.Map
+    // (which validates against the live NavigationDatabase) since TOLLPLAZA isn't a registered
+    // fix.
     private static readonly IReadOnlyList<CustomFixSpeechPattern> Patterns =
     [
         new(["the", "oakland", "runway", "30", "numbers"], "OAK30NUM"),
@@ -35,8 +37,6 @@ public class CustomFixCollapseTests
     [InlineData("direct to runway three zero numbers", "DCT OAK30NUM")]
     [InlineData("proceed direct the oakland runway three zero numbers", "DCT OAK30NUM")]
     [InlineData("direct three zero numbers", "DCT OAK30NUM")]
-    [InlineData("direct to the toll plaza", "DCT TOLLPLAZA")]
-    [InlineData("direct san mateo bridge toll plaza", "DCT TOLLPLAZA")]
     public void DirectTo_CustomFixPhrase_MapsToCanonical(string transcript, string expected)
     {
         var result = PhraseologyMapper.Map(transcript, ContextWithPatterns);

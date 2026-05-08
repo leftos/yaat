@@ -211,13 +211,19 @@ public class PilotResponderTests
         }
         using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
+        // Mix two real ZOA entries: OAK30NUM is a custom fix with friendly name "Oakland
+        // Runway 30 Numbers"; VPMID has a published pronunciation "Midspan San Mateo Bridge".
+        // Exercises both lookups within a single multi-fix DCT readback.
         var ac = MakeAircraft("N172SP");
         var compound = Compound(new DirectToCommand([new ResolvedFix("OAK30NUM", 0, 0), new ResolvedFix("VPMID", 0, 0)], []));
 
         var result = PilotResponder.BuildReadback(compound, ac);
 
         // Variable-length DCT must read every fix; "then direct" joins later fixes.
-        Assert.Equal("[N172SP] proceed direct to oak30num, then direct vpmid, november one seven two sierra papa.", result);
+        Assert.Equal(
+            "[N172SP] proceed direct to Oakland Runway 30 Numbers, then direct Midspan San Mateo Bridge, november one seven two sierra papa.",
+            result
+        );
     }
 
     [Fact]
@@ -236,6 +242,27 @@ public class PilotResponderTests
         var result = PilotResponder.BuildReadback(compound, ac);
 
         Assert.Equal("[N172SP] proceed direct to Oakland Colliseum, november one seven two sierra papa.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_DirectToCustomFixWithFriendlyName_UsesFriendlyName()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        // OAK30NUM is a CustomFix in ARTCCs/ZOA/CustomFixes/oak-landmarks.json with friendly
+        // name "Oakland Runway 30 Numbers" — the natural-language form pilots speak. With no
+        // explicit pronunciation entry, SpellFix should fall through to the custom-fix name
+        // rather than the literal alias spelled letter-by-letter.
+        var ac = MakeAircraft("N172SP");
+        var compound = Compound(new DirectToCommand([new ResolvedFix("OAK30NUM", 0, 0)], []));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[N172SP] proceed direct to Oakland Runway 30 Numbers, november one seven two sierra papa.", result);
     }
 
     [Fact]
