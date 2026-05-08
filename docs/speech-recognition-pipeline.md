@@ -1,10 +1,15 @@
-# YAAT Speech-to-Text Pipeline
+# YAAT Speech-Recognition Pipeline
 
-Reference for how push-to-talk (PTT) speech recognition works in YAAT today.
-Read this before changing anything under `src/Yaat.Sim/Speech/`,
-`src/Yaat.Client/Services/Whisper*`, `src/Yaat.Client/Services/LocalLlm*`,
+Reference for how push-to-talk (PTT) speech recognition works in YAAT today —
+the controller-side STT input pipeline. Read this before changing anything under
+`src/Yaat.Sim/Speech/`, `src/Yaat.Client/Services/Whisper*`,
+`src/Yaat.Client/Services/LocalLlm*`,
 `src/Yaat.Client/Services/SpeechRecognitionService.cs`, or
 `tools/Yaat.SpeechSandbox/`.
+
+For the solo-training pilot TTS output pipeline, see
+[`solo-training-pilot-speech.md`](solo-training-pilot-speech.md). The two pipelines
+share nothing beyond the radio metaphor.
 
 For the historical implementation design (decisions, phase breakdown, why
 LLamaSharp+Whisper.net was chosen and later replaced), see
