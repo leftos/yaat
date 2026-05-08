@@ -81,6 +81,15 @@ public class AircraftGroundOps
     /// </summary>
     public bool InitialCallupDecisionProcessed { get; set; }
 
+    /// <summary>
+    /// True when the scenario author preset a TAXI command on this parking aircraft.
+    /// The autonomous solo-training ready-to-taxi call-up is suppressed for these
+    /// aircraft — the scripted ground sequence covers what the pilot would otherwise
+    /// volunteer. Such aircraft also do not count toward
+    /// <c>HasSoloParkingInitialCallupSource</c> (the slider availability gate).
+    /// </summary>
+    public bool IsScriptedDeparture { get; set; }
+
     public AircraftGroundOpsDto ToSnapshot() =>
         new()
         {
@@ -96,6 +105,7 @@ public class AircraftGroundOps
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
+            IsScriptedDeparture = IsScriptedDeparture,
             IsExpeditingTaxi = IsExpeditingTaxi,
         };
 
@@ -115,6 +125,7 @@ public class AircraftGroundOps
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
+            IsScriptedDeparture = dto.IsScriptedDeparture,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
         };
 }

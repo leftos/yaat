@@ -179,6 +179,26 @@ public class M101GroundSpawnCheckInTests
     }
 
     [Fact]
+    public void AtParking_ScriptedDeparture_DoesNotFireCallupEvenAt100Rate()
+    {
+        // Scenario author preset a TAXI command on this parking aircraft. The
+        // autonomous ready-to-taxi call-up must stay silent so the scripted ground
+        // sequence isn't stepped on.
+        var ac = MakeAircraft();
+        ac.Ground.IsScriptedDeparture = true;
+        var phase = new AtParkingPhase();
+        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: 100);
+
+        phase.OnStart(ctx);
+        TickElapsed(phase, ctx, 10.0);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.False(ac.HasMadeInitialContact);
+        Assert.False(ac.Ground.HasAnnouncedReady);
+        Assert.True(ac.Ground.InitialCallupDecisionProcessed);
+    }
+
+    [Fact]
     public void AtParking_OneHundredRate_PacesInitialCallupsEveryTwentySeconds()
     {
         var scenario = NewScenario(parkingRatePercent: 100);

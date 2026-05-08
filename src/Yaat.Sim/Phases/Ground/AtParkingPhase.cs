@@ -25,6 +25,15 @@ public sealed class AtParkingPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
+        // Scenario-scripted departures (preset TAXI) skip the autonomous ready-to-taxi
+        // call-up. Marking the decision processed up front prevents OnTick's pacing path
+        // from ever firing on these aircraft, even at large preset timeOffsets where the
+        // aircraft genuinely sits at parking until the scripted preset fires.
+        if (ctx.Aircraft.Ground.IsScriptedDeparture)
+        {
+            ctx.Aircraft.Ground.InitialCallupDecisionProcessed = true;
+        }
+
         Log.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.Ground.ParkingSpot ?? "unknown");
     }
 

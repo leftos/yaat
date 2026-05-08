@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
 
@@ -131,7 +132,43 @@ public static class ScenarioDifficultyHelper
         foreach (var ac in aircraft)
         {
             var startingType = ac?["startingConditions"]?["type"]?.GetValue<string>();
-            if (string.Equals(startingType, "Parking", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(startingType, "Parking", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Mirror ScenarioLoader.HasTaxiPreset: a parking aircraft with a preset TAXI
+            // command is scenario-scripted and not a call-up source.
+            if (HasTaxiPreset(ac?["presetCommands"]?.AsArray()))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasTaxiPreset(JsonArray? presetCommands)
+    {
+        if (presetCommands is null)
+        {
+            return false;
+        }
+
+        foreach (var preset in presetCommands)
+        {
+            var command = preset?["command"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                continue;
+            }
+
+            var trimmed = command.Trim();
+            int spaceIdx = trimmed.IndexOf(' ');
+            var verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
+            if (CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, verb))
             {
                 return true;
             }

@@ -324,4 +324,67 @@ public class ScenarioDifficultyHelperTests
         Assert.False(plan.ShowParkingInitialCallupRate);
         Assert.False(plan.ShowArrivalGeneratorRate);
     }
+
+    // -------------------------------------------------------------------------
+    // HasParkingSpawns — preset TAXI filter
+    // -------------------------------------------------------------------------
+
+    private const string ParkingWithTaxiPreset = """
+        {
+          "aircraft": [
+            {
+              "callsign": "A1",
+              "startingConditions": { "type": "Parking", "parking": "A1" },
+              "presetCommands": [ { "id": "p1", "command": "TAXI VIA A B", "timeOffset": 0 } ]
+            }
+          ]
+        }
+        """;
+
+    private const string ParkingMixedScriptedAndUnscripted = """
+        {
+          "aircraft": [
+            {
+              "callsign": "A1",
+              "startingConditions": { "type": "Parking", "parking": "A1" },
+              "presetCommands": [ { "id": "p1", "command": "TAXI VIA A", "timeOffset": 0 } ]
+            },
+            {
+              "callsign": "A2",
+              "startingConditions": { "type": "Parking", "parking": "A2" }
+            }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void HasParkingSpawns_AllParkingAircraftScripted_ReturnsFalse()
+    {
+        Assert.False(ScenarioDifficultyHelper.HasParkingSpawns(ParkingWithTaxiPreset));
+    }
+
+    [Fact]
+    public void HasParkingSpawns_MixedScriptedAndUnscripted_ReturnsTrue()
+    {
+        Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(ParkingMixedScriptedAndUnscripted));
+    }
+
+    [Fact]
+    public void HasParkingSpawns_NoPresets_ReturnsTrue()
+    {
+        Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(EasyOnlyWithParking));
+    }
+
+    [Fact]
+    public void ScenarioSetupPlan_AllParkingScripted_HidesParkingSlider()
+    {
+        var plan = ScenarioSetupPlan.Create(
+            ParkingWithTaxiPreset,
+            soloTrainingMode: true,
+            parkingInitialCallupRatePercent: 55,
+            arrivalGeneratorRatePercent: 75
+        );
+
+        Assert.False(plan.ShowParkingInitialCallupRate);
+    }
 }

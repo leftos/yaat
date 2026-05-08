@@ -94,7 +94,9 @@ public static class ScenarioLoader
             DeferredAircraft = deferred,
             Triggers = scenario.InitializationTriggers,
             Generators = scenario.AircraftGenerators,
-            HasParkingSpawns = scenario.Aircraft.Any(ac => string.Equals(ac.StartingConditions.Type, "Parking", StringComparison.OrdinalIgnoreCase)),
+            HasParkingSpawns = scenario.Aircraft.Any(ac =>
+                string.Equals(ac.StartingConditions.Type, "Parking", StringComparison.OrdinalIgnoreCase) && !HasTaxiPreset(ac.PresetCommands)
+            ),
             HasArrivalGenerators = scenario.AircraftGenerators.Count > 0,
             AutoDeleteMode = scenario.AutoDeleteMode,
             Warnings = warnings,
@@ -504,6 +506,7 @@ public static class ScenarioLoader
         state.Phases = init.Phases;
         state.Ground.AutoDeleteExempt = true;
         state.Ground.Layout = layout;
+        state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
 
         return new LoadedAircraft
         {
@@ -512,6 +515,34 @@ public static class ScenarioLoader
             PresetCommands = ac.PresetCommands,
             AutoTrackConditions = ac.AutoTrackConditions,
         };
+    }
+
+    /// <summary>
+    /// True when any preset command on this aircraft is a TAXI command. Scenario authors
+    /// who script TAXI on a parking aircraft are taking over the ground sequence — the
+    /// autonomous solo-training ready-to-taxi call-up should not fire on top of it, and
+    /// the aircraft should not count toward the "has parking call-up source" gate that
+    /// shows the pacing slider.
+    /// </summary>
+    public static bool HasTaxiPreset(IEnumerable<PresetCommand> presets)
+    {
+        foreach (var preset in presets)
+        {
+            if (string.IsNullOrWhiteSpace(preset.Command))
+            {
+                continue;
+            }
+
+            var firstToken = preset.Command.AsSpan().Trim();
+            int spaceIdx = firstToken.IndexOf(' ');
+            var verb = (spaceIdx < 0 ? firstToken : firstToken[..spaceIdx]).ToString();
+            if (CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, verb))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static LoadedAircraft BuildDeferredAircraft(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach, string reason)
