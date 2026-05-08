@@ -18,6 +18,11 @@ public sealed class AirspaceVolume
             return false;
         }
 
+        return ContainsLateral(position);
+    }
+
+    public bool ContainsLateral(LatLon position)
+    {
         foreach (var ring in Rings)
         {
             if (PointInRing(position, ring))
@@ -39,6 +44,17 @@ public sealed class AirspaceVolume
             return false;
         }
 
+        foreach (var hit in FindLateralIntersections(from, to))
+        {
+            intersection = hit;
+            return true;
+        }
+
+        return false;
+    }
+
+    internal IEnumerable<LatLon> FindLateralIntersections(LatLon from, LatLon to)
+    {
         foreach (var ring in Rings)
         {
             if (ring.Count < 2)
@@ -53,13 +69,10 @@ public sealed class AirspaceVolume
                 var hit = GeoMath.SegmentsIntersect(from, to, a, b, excludeEndpoints: false);
                 if (hit is not null)
                 {
-                    intersection = hit.Value.Point;
-                    return true;
+                    yield return hit.Value.Point;
                 }
             }
         }
-
-        return false;
     }
 
     private static bool PointInRing(LatLon point, IReadOnlyList<AirspacePoint> ring)

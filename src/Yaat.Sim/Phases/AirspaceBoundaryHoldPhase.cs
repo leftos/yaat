@@ -24,6 +24,8 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     public string NameText { get; init; } = "";
     public LatLon ReferencePosition { get; init; }
     public TurnDirection OrbitDirection { get; init; } = TurnDirection.Right;
+    public int? VolumeLowerFtMsl { get; init; }
+    public int? VolumeUpperFtMsl { get; init; }
 
     public override string Name => AirspaceClass == AirspaceClass.Bravo ? "HoldOutsideBravo" : "HoldOutsideCharlie";
 
@@ -41,6 +43,8 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             ReferenceLat = ReferencePosition.Lat,
             ReferenceLon = ReferencePosition.Lon,
             OrbitDirection = (int)OrbitDirection,
+            VolumeLowerFtMsl = VolumeLowerFtMsl,
+            VolumeUpperFtMsl = VolumeUpperFtMsl,
             OriginalRoute = _originalRoute.Count > 0 ? _originalRoute.Select(t => t.ToSnapshot()).ToList() : null,
             OriginalTargetHeadingDeg = _originalTargetHeading?.Degrees,
             OriginalTurnDirection = _originalTurnDirection.HasValue ? (int)_originalTurnDirection.Value : null,
@@ -59,6 +63,8 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             NameText = dto.NameText,
             ReferencePosition = new LatLon(dto.ReferenceLat, dto.ReferenceLon),
             OrbitDirection = (TurnDirection)dto.OrbitDirection,
+            VolumeLowerFtMsl = dto.VolumeLowerFtMsl,
+            VolumeUpperFtMsl = dto.VolumeUpperFtMsl,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
@@ -109,6 +115,11 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         if (GateSatisfied(ctx.Aircraft))
+        {
+            return true;
+        }
+
+        if (!HeldVolumeCanStillBeEntered(ctx.Aircraft))
         {
             return true;
         }
@@ -175,6 +186,25 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             AirspaceClass.Charlie => aircraft.HasMadeInitialContact && aircraft.HasControllerAcknowledgedInitialContact,
             _ => true,
         };
+
+    private bool HeldVolumeCanStillBeEntered(AircraftState aircraft)
+    {
+        if (VolumeLowerFtMsl is null || VolumeUpperFtMsl is null)
+        {
+            return true;
+        }
+
+        if (aircraft.Altitude >= VolumeLowerFtMsl.Value && aircraft.Altitude <= VolumeUpperFtMsl.Value)
+        {
+            return true;
+        }
+
+        const double lookaheadSeconds = 60.0;
+        double projectedAltitude = AirspaceDatabase.ProjectAltitude(aircraft, lookaheadSeconds);
+        double low = Math.Min(aircraft.Altitude, projectedAltitude);
+        double high = Math.Max(aircraft.Altitude, projectedAltitude);
+        return (high >= VolumeLowerFtMsl.Value) && (low <= VolumeUpperFtMsl.Value);
+    }
 
     private static NavigationTarget CloneNavigationTarget(NavigationTarget target) => NavigationTarget.FromSnapshot(target.ToSnapshot());
 }

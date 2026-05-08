@@ -25,54 +25,144 @@ public sealed class AirspaceDatabase
 
     public AirspaceBoundaryCrossing? FindFirstProjectedEntry(AircraftState aircraft, double lookaheadSeconds)
     {
-        if (aircraft.GroundSpeed <= 1)
+        if (lookaheadSeconds <= 0)
         {
             return null;
         }
 
         var from = aircraft.Position;
-        double lookaheadNm = aircraft.GroundSpeed * lookaheadSeconds / 3600.0;
-        if (lookaheadNm <= 0)
-        {
-            return null;
-        }
-
-        var to = GeoMath.ProjectPoint(from, aircraft.TrueTrack, lookaheadNm);
+        var to = ProjectPosition(aircraft, lookaheadSeconds);
+        double projectedAltitude = ProjectAltitude(aircraft, lookaheadSeconds);
+        double lookaheadNm = GeoMath.DistanceNm(from, to);
         AirspaceBoundaryCrossing? best = null;
         foreach (var volume in Volumes)
         {
-            if (!volume.ContainsAltitude(aircraft.Altitude))
-            {
-                continue;
-            }
-
             if (volume.Contains(from, aircraft.Altitude))
             {
                 continue;
             }
 
-            bool projectedInside = volume.Contains(to, aircraft.Altitude);
-            bool crosses = volume.Crosses(from, to, aircraft.Altitude, out var intersection);
-            if (!projectedInside && !crosses)
+            if (volume.Contains(to, projectedAltitude))
             {
-                continue;
+                ConsiderCandidate(volume, to, lookaheadSeconds, projectedAltitude);
             }
 
-            var hit = crosses ? intersection : to;
-            double dist = GeoMath.DistanceNm(from, hit);
-            if (best is null || dist < best.DistanceNm)
+            if (lookaheadNm > 0)
+            {
+                foreach (var intersection in volume.FindLateralIntersections(from, to))
+                {
+                    double distanceNm = GeoMath.DistanceNm(from, intersection);
+                    double timeToEntrySeconds = Math.Clamp(distanceNm / lookaheadNm, 0.0, 1.0) * lookaheadSeconds;
+                    double altitudeAtIntersection = ProjectAltitude(aircraft, timeToEntrySeconds);
+                    if (volume.ContainsAltitude(altitudeAtIntersection))
+                    {
+                        ConsiderCandidate(volume, intersection, timeToEntrySeconds, altitudeAtIntersection);
+                    }
+                }
+            }
+
+            ConsiderVerticalEntry(volume, volume.LowerFtMsl);
+            ConsiderVerticalEntry(volume, volume.UpperFtMsl);
+        }
+
+        return best;
+
+        void ConsiderVerticalEntry(AirspaceVolume volume, double boundaryAltitudeFtMsl)
+        {
+            double currentAltitude = aircraft.Altitude;
+            double verticalSpeed = aircraft.VerticalSpeed;
+            if (Math.Abs(verticalSpeed) < 1.0)
+            {
+                return;
+            }
+
+            bool crossesBoundary =
+                ((currentAltitude < boundaryAltitudeFtMsl) && (projectedAltitude >= boundaryAltitudeFtMsl))
+                || ((currentAltitude > boundaryAltitudeFtMsl) && (projectedAltitude <= boundaryAltitudeFtMsl));
+            if (!crossesBoundary)
+            {
+                return;
+            }
+
+            double timeToEntrySeconds = Math.Abs((boundaryAltitudeFtMsl - currentAltitude) / verticalSpeed) * 60.0;
+            if (timeToEntrySeconds < 0 || timeToEntrySeconds > lookaheadSeconds)
+            {
+                return;
+            }
+
+            var position = ProjectPosition(aircraft, timeToEntrySeconds);
+            if (volume.ContainsLateral(position))
+            {
+                ConsiderCandidate(volume, position, timeToEntrySeconds, boundaryAltitudeFtMsl);
+            }
+        }
+
+        void ConsiderCandidate(AirspaceVolume volume, LatLon position, double timeToEntrySeconds, double altitudeFtMsl)
+        {
+            if (!volume.Contains(position, altitudeFtMsl))
+            {
+                return;
+            }
+
+            double distanceNm = GeoMath.DistanceNm(from, position);
+            if (best is null || timeToEntrySeconds < best.TimeToEntrySeconds)
             {
                 best = new AirspaceBoundaryCrossing
                 {
                     Volume = volume,
-                    Intersection = hit,
-                    DistanceNm = dist,
+                    Intersection = position,
+                    DistanceNm = distanceNm,
                     LookaheadSeconds = lookaheadSeconds,
+                    TimeToEntrySeconds = timeToEntrySeconds,
+                    EntryAltitudeFtMsl = altitudeFtMsl,
                 };
             }
         }
+    }
 
-        return best;
+    internal static LatLon ProjectPosition(AircraftState aircraft, double lookaheadSeconds)
+    {
+        double distanceNm = Math.Max(aircraft.GroundSpeed, 0.0) * lookaheadSeconds / 3600.0;
+        return distanceNm <= 0 ? aircraft.Position : GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueTrack, distanceNm);
+    }
+
+    internal static double ProjectAltitude(AircraftState aircraft, double lookaheadSeconds)
+    {
+        double current = aircraft.Altitude;
+        double projected = current + aircraft.VerticalSpeed * lookaheadSeconds / 60.0;
+        double? goal = ResolveAltitudeGoal(aircraft);
+        if (goal is null)
+        {
+            return projected;
+        }
+
+        if (aircraft.VerticalSpeed > 0 && goal.Value >= current)
+        {
+            return Math.Min(projected, goal.Value);
+        }
+
+        if (aircraft.VerticalSpeed < 0 && goal.Value <= current)
+        {
+            return Math.Max(projected, goal.Value);
+        }
+
+        return projected;
+    }
+
+    private static double? ResolveAltitudeGoal(AircraftState aircraft)
+    {
+        double? goal = aircraft.Targets.TargetAltitude;
+        if (aircraft.Targets.AltitudeFloor is { } floor)
+        {
+            goal = goal is null ? (aircraft.Altitude < floor ? floor : null) : Math.Max(goal.Value, floor);
+        }
+
+        if (aircraft.Targets.AltitudeCeiling is { } ceiling)
+        {
+            goal = goal is null ? (aircraft.Altitude > ceiling ? ceiling : null) : Math.Min(goal.Value, ceiling);
+        }
+
+        return goal;
     }
 
     public static AirspaceDatabase LoadDefault()

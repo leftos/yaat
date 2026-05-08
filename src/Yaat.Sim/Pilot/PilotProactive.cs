@@ -109,6 +109,8 @@ public static class PilotProactive
             NameText = crossing.Volume.Name,
             ReferencePosition = reference,
             OrbitDirection = TurnDirection.Right,
+            VolumeLowerFtMsl = crossing.Volume.LowerFtMsl,
+            VolumeUpperFtMsl = crossing.Volume.UpperFtMsl,
         };
 
         var phases = new PhaseList();

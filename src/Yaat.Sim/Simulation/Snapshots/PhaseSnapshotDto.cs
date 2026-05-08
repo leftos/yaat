@@ -433,6 +433,8 @@ public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
     public required double ReferenceLat { get; init; }
     public required double ReferenceLon { get; init; }
     public required int OrbitDirection { get; init; }
+    public int? VolumeLowerFtMsl { get; init; }
+    public int? VolumeUpperFtMsl { get; init; }
     public List<NavigationTargetDto>? OriginalRoute { get; init; }
     public double? OriginalTargetHeadingDeg { get; init; }
     public int? OriginalTurnDirection { get; init; }

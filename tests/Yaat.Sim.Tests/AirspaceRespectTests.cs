@@ -35,6 +35,46 @@ public sealed class AirspaceRespectTests
     }
 
     [Fact]
+    public void ProjectedEntry_FindsOakCharlieShelfAtShelfAltitude()
+    {
+        var ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 2000, speed: 120);
+
+        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
+
+        Assert.NotNull(crossing);
+        Assert.Equal(AirspaceClass.Charlie, crossing.Volume.Class);
+        Assert.Equal("OAK", crossing.Volume.Ident);
+        Assert.Equal(1500, crossing.Volume.LowerFtMsl);
+        Assert.InRange(crossing.EntryAltitudeFtMsl, 1500, 4000);
+    }
+
+    [Fact]
+    public void ProjectedEntry_SkipsOakCharlieShelfWhenProjectedBelowShelf()
+    {
+        var ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 1000, speed: 120);
+        ac.VerticalSpeed = -500;
+
+        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
+
+        Assert.Null(crossing);
+    }
+
+    [Fact]
+    public void ProjectedEntry_FindsVerticalEntryWhenClimbingInsideOakCharlieShelf()
+    {
+        var ac = CreateAirborneVfr(new LatLon(37.84, -122.30), heading: 90, altitude: 1000, speed: 0);
+        ac.VerticalSpeed = 600;
+
+        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
+
+        Assert.NotNull(crossing);
+        Assert.Equal(AirspaceClass.Charlie, crossing.Volume.Class);
+        Assert.Equal("OAK", crossing.Volume.Ident);
+        Assert.Equal(1500, crossing.Volume.LowerFtMsl);
+        Assert.Equal(1500, crossing.EntryAltitudeFtMsl);
+    }
+
+    [Fact]
     public void PilotProactive_InsertsCharlieHoldUntilControllerAcknowledges()
     {
         var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 600);
@@ -54,6 +94,28 @@ public sealed class AirspaceRespectTests
 
         var phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceClass.Charlie, phase.AirspaceClass);
+    }
+
+    [Fact]
+    public void PilotProactive_DoesNotHoldCharlieWhenProjectedBelowShelf()
+    {
+        var ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 1000, speed: 120);
+        ac.VerticalSpeed = -500;
+        ac.HasMadeInitialContact = true;
+        var scenario = new SimScenarioState
+        {
+            ScenarioId = "test",
+            ScenarioName = "Test",
+            RngSeed = 1,
+            OriginalScenarioJson = "{}",
+            SoloTrainingMode = true,
+            PrimaryAirportId = "OAK",
+            StudentPositionType = "APP",
+        };
+
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+
+        Assert.Null(ac.Phases);
     }
 
     [Fact]
@@ -142,6 +204,37 @@ public sealed class AirspaceRespectTests
         Assert.Contains("of Oakland Airport", transmission.SpeechText);
         Assert.DoesNotContain("oscar alpha kilo", transmission.SpeechText);
         Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void AirspaceBoundaryHoldPhase_CompletesWhenHeldShelfNoLongerVerticallyRelevant()
+    {
+        var ac = CreateAirborneVfr(new LatLon(37.84, -122.4300), heading: 90, altitude: 1000, speed: 120);
+        ac.VerticalSpeed = -500;
+        ac.HasMadeInitialContact = true;
+        var phase = new AirspaceBoundaryHoldPhase
+        {
+            AirspaceClass = AirspaceClass.Charlie,
+            Ident = "OAK",
+            ReferencePosition = new LatLon(37.7213, -122.2208),
+            OrbitDirection = TurnDirection.Right,
+            VolumeLowerFtMsl = 1500,
+            VolumeUpperFtMsl = 4000,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            SoloTrainingMode = true,
+            StudentPositionType = "APP",
+        };
+
+        phase.OnStart(ctx);
+
+        Assert.True(phase.OnTick(ctx));
     }
 
     [Fact]

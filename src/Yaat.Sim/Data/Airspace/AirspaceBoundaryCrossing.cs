@@ -6,4 +6,6 @@ public sealed class AirspaceBoundaryCrossing
     public required LatLon Intersection { get; init; }
     public required double DistanceNm { get; init; }
     public required double LookaheadSeconds { get; init; }
+    public required double TimeToEntrySeconds { get; init; }
+    public required double EntryAltitudeFtMsl { get; init; }
 }
