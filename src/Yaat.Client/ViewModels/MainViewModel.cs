@@ -142,6 +142,12 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionSoloTrainingMode;
 
     [ObservableProperty]
+    private int _sessionSoloParkingInitialCallupRatePercent = 100;
+
+    [ObservableProperty]
+    private int _sessionSoloArrivalGeneratorRatePercent = 100;
+
+    [ObservableProperty]
     private bool _sessionRpoShowPilotSpeech;
 
     [ObservableProperty]
@@ -231,7 +237,24 @@ public partial class MainViewModel : ObservableObject
     private bool _showScenarioSwitchConfirmation;
 
     [ObservableProperty]
-    private bool _showDifficultySelection;
+    private bool _showScenarioSetup;
+
+    public bool ShowScenarioSetupDifficulty => DifficultyOptions.Count > 0;
+
+    [ObservableProperty]
+    private bool _showScenarioSetupPacingControls;
+
+    [ObservableProperty]
+    private bool _showScenarioSetupParkingInitialCallupRate;
+
+    [ObservableProperty]
+    private bool _showScenarioSetupArrivalGeneratorRate;
+
+    [ObservableProperty]
+    private int _scenarioSetupParkingInitialCallupRatePercent = 100;
+
+    [ObservableProperty]
+    private int _scenarioSetupArrivalGeneratorRatePercent = 100;
 
     [ObservableProperty]
     private int _selectedDifficultyIndex;
@@ -2149,6 +2172,8 @@ public partial class MainViewModel : ObservableObject
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
+        SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
+        SessionSoloArrivalGeneratorRatePercent = dto.SoloArrivalGeneratorRatePercent;
         SessionRpoShowPilotSpeech = dto.RpoShowPilotSpeech;
         _isApplyingSessionSettings = false;
 
@@ -2165,6 +2190,8 @@ public partial class MainViewModel : ObservableObject
                 state.AutoCrossRunway,
                 state.ValidateDctFixes,
                 state.SoloTrainingMode,
+                state.SoloParkingInitialCallupRatePercent,
+                state.SoloArrivalGeneratorRatePercent,
                 state.RpoShowPilotSpeech
             )
         );
@@ -2180,6 +2207,8 @@ public partial class MainViewModel : ObservableObject
                 dto.AutoCrossRunway,
                 dto.ValidateDctFixes,
                 dto.SoloTrainingMode,
+                dto.SoloParkingInitialCallupRatePercent,
+                dto.SoloArrivalGeneratorRatePercent,
                 dto.RpoShowPilotSpeech
             )
         );

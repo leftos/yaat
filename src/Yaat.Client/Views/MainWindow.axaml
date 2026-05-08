@@ -362,43 +362,87 @@
         </StackPanel>
     </Border>
 
-    <!-- Difficulty selection overlay -->
-    <Border IsVisible="{Binding ShowDifficultySelection}"
+    <!-- Scenario setup overlay -->
+    <Border IsVisible="{Binding ShowScenarioSetup}"
             Background="#CC000000"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             CornerRadius="8"
             Padding="24"
-            MinWidth="350">
+            MinWidth="380">
         <StackPanel Spacing="12">
-            <TextBlock Text="Select Difficulty"
+            <TextBlock Text="Scenario Setup"
                        FontSize="16"
                        FontWeight="Bold"
                        Foreground="White" />
-            <TextBlock Text="Choose the maximum difficulty level. Higher levels include all lower ones."
-                       TextWrapping="Wrap"
-                       Foreground="LightGray" />
-            <ListBox
-                ItemsSource="{Binding DifficultyOptions}"
-                SelectedIndex="{Binding
-                    SelectedDifficultyIndex}">
-                <ListBox.ItemTemplate>
-                    <DataTemplate
-                        x:DataType="vm:DifficultyOption">
-                        <TextBlock
-                            Text="{Binding Display}" />
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <StackPanel Spacing="8"
+                        IsVisible="{Binding ShowScenarioSetupDifficulty}">
+                <TextBlock Text="Choose the maximum difficulty level. Higher levels include all lower ones."
+                        TextWrapping="Wrap"
+                        Foreground="LightGray" />
+                <ListBox
+                    ItemsSource="{Binding DifficultyOptions}"
+                    SelectedIndex="{Binding
+                        SelectedDifficultyIndex}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate
+                            x:DataType="vm:DifficultyOption">
+                            <TextBlock
+                                Text="{Binding Display}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+            <StackPanel Spacing="8"
+                        IsVisible="{Binding ShowScenarioSetupPacingControls}">
+                <StackPanel Spacing="8"
+                            IsVisible="{Binding ShowScenarioSetupParkingInitialCallupRate}">
+                    <TextBlock Text="Parking initial call-up rate"
+                               Foreground="White" />
+                    <Grid ColumnDefinitions="*,Auto"
+                          ColumnSpacing="10">
+                        <Slider Grid.Column="0"
+                                Minimum="0"
+                                Maximum="100"
+                                TickFrequency="5"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding ScenarioSetupParkingInitialCallupRatePercent}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ScenarioSetupParkingInitialCallupRatePercent, StringFormat='{}{0}%'}"
+                                   Foreground="LightGray"
+                                   VerticalAlignment="Center"
+                                   MinWidth="40" />
+                    </Grid>
+                </StackPanel>
+                <StackPanel Spacing="8"
+                            IsVisible="{Binding ShowScenarioSetupArrivalGeneratorRate}">
+                    <TextBlock Text="Arrival generator rate"
+                               Foreground="White" />
+                    <Grid ColumnDefinitions="*,Auto"
+                          ColumnSpacing="10">
+                        <Slider Grid.Column="0"
+                                Minimum="0"
+                                Maximum="100"
+                                TickFrequency="5"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding ScenarioSetupArrivalGeneratorRatePercent}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ScenarioSetupArrivalGeneratorRatePercent, StringFormat='{}{0}%'}"
+                                   Foreground="LightGray"
+                                   VerticalAlignment="Center"
+                                   MinWidth="40" />
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
             <StackPanel Orientation="Horizontal"
                         Spacing="8"
                         HorizontalAlignment="Right">
                 <Button Content="Load"
                         Command="{Binding
-                            ConfirmDifficultySelectionCommand}" />
+                            ConfirmScenarioSetupCommand}" />
                 <Button Content="Cancel"
                         Command="{Binding
-                            CancelDifficultySelectionCommand}" />
+                            CancelScenarioSetupCommand}" />
             </StackPanel>
         </StackPanel>
     </Border>

@@ -93,7 +93,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
 | [x] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS v1: typed pilot-transmission SignalR event + off-by-default local client voice |
 | [ ] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency queue foundation shipped; activity-aware verbosity pending |
-| [ ] | **M10.3.6** | [m10.3.6-scenario-pace-controls.md](m10.3.6-scenario-pace-controls.md) | Scenario-load training pace controls: parking initial call-up rate slider |
+| [x] | **M10.3.6** | [m10.3.6-scenario-pace-controls.md](m10.3.6-scenario-pace-controls.md) | Scenario-load training pace controls: parking initial call-up and arrival generator rate sliders |
 | [ ] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pilot expectations + pending-request reminders, including slower follow-up after standby |
 | [ ] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
 | [ ] | **M10.6** | [m10.6-scenario-pack.md](m10.6-scenario-pack.md) | Solo training scenario pack + USER_GUIDE + cleanup |
@@ -108,7 +108,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 - **Missed approach uses warn-early-then-miss-at-DA pattern** (M10.5).
 - **First production ship was M10.1; M10.1.1 + M10.1.2 + M10.1.3 form the VFR-emphasis pull-forward** (decided 2026-05-02 — moved airborne-spawn out of M10.4 to land alongside ground-spawn).
 - **Towered-field pilot speech is no-clearance-driven, not phase-entry-driven** (decided 2026-05-02 during M10.1.3 planning). At Class D / Class C tower fields, pilots in closed traffic do **not** self-announce every leg at phase entry. They speak twice: (1) initial contact with intent (`"request closed traffic"`) on first phase activation, and (2) reminder transmissions at midfield-downwind or short-final **only if** tower hasn't cleared them yet. The existing `_midfieldBroadcastIssued` block in `DownwindPhase` already encodes the right trigger; M10.1.3 branches its output by mode. Position reports go in `OnTick` with a clearance gate; intent declarations go in `OnStart`. Output channel branches on `SoloTrainingMode`: delayed `PendingPilotTransmissions` (pilot SAY/audio) in solo mode, `PendingWarnings` (controller nag, existing behavior) in RPO mode.
-- **Training pace controls live at scenario load** (M10.3.6). The existing difficulty overlay becomes a shared scenario setup modal. The parking initial call-up slider is per loaded session/scenario and remembers the previous value only as the next default.
+- **Training pace controls live at scenario load** (M10.3.6). The existing difficulty overlay becomes a shared scenario setup modal. The parking initial call-up and arrival generator rate sliders appear only for scenarios with the matching workload source, apply per loaded session/scenario, and remember previous values only as the next defaults.
 - **`STBY` acknowledges but does not satisfy a pending pilot request** (M10.4). It can still satisfy two-way radio communication requirements such as the M10.1.5 Class C gate, but the pilot should follow up later if the underlying request has not been handled.
 - **The old `docs/plans/pilot-ai-architecture.md` is deleted as part of M10.6.**
 

@@ -74,6 +74,13 @@ public class AircraftGroundOps
     /// </summary>
     public bool HasAnnouncedReady { get; set; }
 
+    /// <summary>
+    /// Set after AtParkingPhase evaluates whether this aircraft should make the automatic
+    /// solo-training ready-to-taxi call-up. Suppressed aircraft set only this flag so later
+    /// milestones can still tell they have not contacted ATC.
+    /// </summary>
+    public bool InitialCallupDecisionProcessed { get; set; }
+
     public AircraftGroundOpsDto ToSnapshot() =>
         new()
         {
@@ -88,6 +95,7 @@ public class AircraftGroundOps
             SpeedLimit = SpeedLimit,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
+            InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
             IsExpeditingTaxi = IsExpeditingTaxi,
         };
 
@@ -106,6 +114,7 @@ public class AircraftGroundOps
             SpeedLimit = dto.SpeedLimit,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
+            InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
         };
 }

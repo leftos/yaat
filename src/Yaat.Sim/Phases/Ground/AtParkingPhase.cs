@@ -1,6 +1,10 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -38,20 +42,47 @@ public sealed class AtParkingPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
 
-        if (ctx.SoloTrainingMode && !ctx.Aircraft.Ground.HasAnnouncedReady && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
+        if (ctx.SoloTrainingMode && !ctx.Aircraft.Ground.InitialCallupDecisionProcessed && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
         {
-            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "GND", "ground");
-            PilotResponder.QueueSoloPilotTransmission(
-                ctx.Aircraft,
-                PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName),
-                PilotTransmissionKind.Proactive,
-                PilotResponder.SourceResponse
-            );
-            ctx.Aircraft.Ground.HasAnnouncedReady = true;
-            ctx.Aircraft.HasMadeInitialContact = true;
+            if (ShouldMakeInitialCallup(ctx))
+            {
+                var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "GND", "ground");
+                PilotResponder.QueueSoloPilotTransmission(
+                    ctx.Aircraft,
+                    PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName),
+                    PilotTransmissionKind.Proactive,
+                    PilotResponder.SourceResponse
+                );
+                ctx.Aircraft.Ground.HasAnnouncedReady = true;
+                ctx.Aircraft.HasMadeInitialContact = true;
+            }
+            ctx.Aircraft.Ground.InitialCallupDecisionProcessed = true;
         }
 
         return false;
+    }
+
+    private static bool ShouldMakeInitialCallup(PhaseContext ctx)
+    {
+        var rate = Math.Clamp(ctx.SoloParkingInitialCallupRatePercent, 0, 100);
+        if (rate >= 100)
+        {
+            return true;
+        }
+        if (rate <= 0)
+        {
+            return false;
+        }
+
+        var scenarioIdentity =
+            !string.IsNullOrWhiteSpace(ctx.ScenarioId) ? ctx.ScenarioId
+            : !string.IsNullOrWhiteSpace(ctx.Aircraft.ScenarioId) ? ctx.Aircraft.ScenarioId
+            : "";
+        var scenarioId = ScenarioIdentity.Normalize(scenarioIdentity);
+        var callsign = ctx.Aircraft.Callsign.Trim().ToUpperInvariant();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{scenarioId}|{callsign}"));
+        var bucket = BinaryPrimitives.ReadUInt32BigEndian(hash.AsSpan(0, 4)) % 100;
+        return bucket < rate;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

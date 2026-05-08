@@ -30,7 +30,13 @@ public class M101GroundSpawnCheckInTests
         return ac;
     }
 
-    private static PhaseContext Ctx(AircraftState ac, RunwayInfo? rwy = null, bool soloMode = true, double dt = 1.0) =>
+    private static PhaseContext Ctx(
+        AircraftState ac,
+        RunwayInfo? rwy = null,
+        bool soloMode = true,
+        double dt = 1.0,
+        int soloParkingInitialCallupRatePercent = 100
+    ) =>
         new()
         {
             Aircraft = ac,
@@ -41,7 +47,20 @@ public class M101GroundSpawnCheckInTests
             FieldElevation = rwy?.ElevationFt ?? 0,
             Logger = NullLogger.Instance,
             SoloTrainingMode = soloMode,
+            ScenarioId = "TEST-SCENARIO",
+            SoloParkingInitialCallupRatePercent = soloParkingInitialCallupRatePercent,
         };
+
+    private static bool TicksParkingCallupAtRate(string callsign, int ratePercent)
+    {
+        var ac = MakeAircraft(callsign, parkingSpot: "KILO RAMP");
+        var phase = new AtParkingPhase();
+        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: ratePercent);
+
+        phase.OnStart(ctx);
+        TickElapsed(phase, ctx, 5.0);
+        return ac.PendingPilotTransmissions.Count > 0;
+    }
 
     private static void TickElapsed(Phase phase, PhaseContext ctx, double seconds)
     {
@@ -72,6 +91,7 @@ public class M101GroundSpawnCheckInTests
         Assert.Contains("with information alpha", PilotLineAt(ac, 0), StringComparison.OrdinalIgnoreCase);
         Assert.True(ac.HasMadeInitialContact);
         Assert.True(ac.Ground.HasAnnouncedReady);
+        Assert.True(ac.Ground.InitialCallupDecisionProcessed);
     }
 
     [Fact]
@@ -86,6 +106,7 @@ public class M101GroundSpawnCheckInTests
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
+        Assert.False(ac.Ground.InitialCallupDecisionProcessed);
     }
 
     [Fact]
@@ -101,6 +122,7 @@ public class M101GroundSpawnCheckInTests
         TickElapsed(phase, ctx, 10.0);
 
         Assert.Single(ac.PendingPilotTransmissions);
+        Assert.True(ac.Ground.InitialCallupDecisionProcessed);
     }
 
     [Fact]
@@ -115,6 +137,34 @@ public class M101GroundSpawnCheckInTests
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
+        Assert.False(ac.Ground.InitialCallupDecisionProcessed);
+    }
+
+    [Fact]
+    public void AtParking_ZeroPercent_SuppressesWithoutMarkingInitialContact()
+    {
+        var ac = MakeAircraft();
+        var phase = new AtParkingPhase();
+        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: 0);
+
+        phase.OnStart(ctx);
+        TickElapsed(phase, ctx, 10.0);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.False(ac.HasMadeInitialContact);
+        Assert.False(ac.Ground.HasAnnouncedReady);
+        Assert.True(ac.Ground.InitialCallupDecisionProcessed);
+    }
+
+    [Fact]
+    public void AtParking_MiddleRateDecision_IsStableForScenarioAndCallsign()
+    {
+        var outcomes = Enumerable.Range(10000, 40).Select(i => TicksParkingCallupAtRate($"N{i}", 50)).ToList();
+        var repeatedOutcomes = Enumerable.Range(10000, 40).Select(i => TicksParkingCallupAtRate($"N{i}", 50)).ToList();
+
+        Assert.Equal(outcomes, repeatedOutcomes);
+        Assert.Contains(true, outcomes);
+        Assert.Contains(false, outcomes);
     }
 
     // --- HoldingShortPhase ---

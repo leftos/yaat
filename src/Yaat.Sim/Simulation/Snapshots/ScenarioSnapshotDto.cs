@@ -22,6 +22,10 @@ public sealed class ScenarioSnapshotDto
     // topology). New snapshots always carry the current value.
     public bool SoloTrainingMode { get; init; }
 
+    public int SoloParkingInitialCallupRatePercent { get; init; } = 100;
+
+    public int SoloArrivalGeneratorRatePercent { get; init; } = 100;
+
     // Optional — defaults to false so older snapshots and bundles preserve the original
     // orange-Warning behavior for sim-initiated pilot transmissions.
     public bool RpoShowPilotSpeech { get; init; }

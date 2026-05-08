@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Tests;
 
@@ -21,6 +22,58 @@ public class ScenarioDifficultyHelperTests
           "aircraft": [
             { "callsign": "A1", "difficulty": "Easy" },
             { "callsign": "A2", "difficulty": "Easy" }
+          ]
+        }
+        """;
+
+    private const string EasyOnlyWithParking = """
+        {
+          "aircraft": [
+            {
+              "callsign": "A1",
+              "difficulty": "Easy",
+              "startingConditions": { "type": "Parking", "parking": "A1" }
+            }
+          ]
+        }
+        """;
+
+    private const string EasyOnlyWithArrivalGenerators = """
+        {
+          "aircraftGenerators": [
+            { "id": "G1", "runway": "30", "intervalTime": 300 }
+          ],
+          "aircraft": [
+            {
+              "callsign": "A1",
+              "difficulty": "Easy",
+              "startingConditions": { "type": "OnFinal", "runway": "30" }
+            }
+          ]
+        }
+        """;
+
+    private const string AllDifficultiesWithParkingAndArrivalGenerators = """
+        {
+          "aircraftGenerators": [
+            { "id": "G1", "runway": "30", "intervalTime": 300 }
+          ],
+          "aircraft": [
+            {
+              "callsign": "A1",
+              "difficulty": "Easy",
+              "startingConditions": { "type": "Parking", "parking": "A1" }
+            },
+            {
+              "callsign": "A2",
+              "difficulty": "Medium",
+              "startingConditions": { "type": "OnFinal", "runway": "30" }
+            },
+            {
+              "callsign": "A3",
+              "difficulty": "Hard",
+              "startingConditions": { "type": "OnFinal", "runway": "30" }
+            }
           ]
         }
         """;
@@ -171,5 +224,104 @@ public class ScenarioDifficultyHelperTests
 
         Assert.Empty(warnings);
         Assert.Contains("test", json);
+    }
+
+    [Fact]
+    public void ScenarioSetupPlan_DifficultyAndSoloMode_ShowsBothControls()
+    {
+        var plan = ScenarioSetupPlan.Create(
+            AllDifficultiesWithParkingAndArrivalGenerators,
+            soloTrainingMode: true,
+            parkingInitialCallupRatePercent: 55,
+            arrivalGeneratorRatePercent: 75
+        );
+
+        Assert.True(plan.RequiresSetup);
+        Assert.Equal(3, plan.DifficultyOptions.Count);
+        Assert.Equal(2, plan.SelectedDifficultyIndex);
+        Assert.True(plan.ShowPacingControls);
+        Assert.True(plan.ShowParkingInitialCallupRate);
+        Assert.True(plan.ShowArrivalGeneratorRate);
+        Assert.Equal(55, plan.ParkingInitialCallupRatePercent);
+        Assert.Equal(75, plan.ArrivalGeneratorRatePercent);
+    }
+
+    [Fact]
+    public void ScenarioSetupPlan_DifficultyOnly_ShowsDifficulty()
+    {
+        var plan = ScenarioSetupPlan.Create(
+            AllDifficultiesWithParkingAndArrivalGenerators,
+            soloTrainingMode: false,
+            parkingInitialCallupRatePercent: 55,
+            arrivalGeneratorRatePercent: 75
+        );
+
+        Assert.True(plan.RequiresSetup);
+        Assert.Equal(3, plan.DifficultyOptions.Count);
+        Assert.False(plan.ShowPacingControls);
+        Assert.False(plan.ShowParkingInitialCallupRate);
+        Assert.False(plan.ShowArrivalGeneratorRate);
+    }
+
+    [Fact]
+    public void ScenarioSetupPlan_SoloModeWithParkingOnly_ShowsParkingPacing()
+    {
+        var plan = ScenarioSetupPlan.Create(
+            EasyOnlyWithParking,
+            soloTrainingMode: true,
+            parkingInitialCallupRatePercent: -20,
+            arrivalGeneratorRatePercent: 125
+        );
+
+        Assert.True(plan.RequiresSetup);
+        Assert.Empty(plan.DifficultyOptions);
+        Assert.True(plan.ShowPacingControls);
+        Assert.True(plan.ShowParkingInitialCallupRate);
+        Assert.False(plan.ShowArrivalGeneratorRate);
+        Assert.Equal(0, plan.ParkingInitialCallupRatePercent);
+        Assert.Equal(100, plan.ArrivalGeneratorRatePercent);
+    }
+
+    [Fact]
+    public void ScenarioSetupPlan_SoloModeWithArrivalGeneratorsOnly_ShowsArrivalGeneratorPacing()
+    {
+        var plan = ScenarioSetupPlan.Create(
+            EasyOnlyWithArrivalGenerators,
+            soloTrainingMode: true,
+            parkingInitialCallupRatePercent: 55,
+            arrivalGeneratorRatePercent: 75
+        );
+
+        Assert.True(plan.RequiresSetup);
+        Assert.Empty(plan.DifficultyOptions);
+        Assert.True(plan.ShowPacingControls);
+        Assert.False(plan.ShowParkingInitialCallupRate);
+        Assert.True(plan.ShowArrivalGeneratorRate);
+        Assert.Equal(55, plan.ParkingInitialCallupRatePercent);
+        Assert.Equal(75, plan.ArrivalGeneratorRatePercent);
+    }
+
+    [Fact]
+    public void ScenarioSetupPlan_SoloModeWithoutParkingOrArrivalGenerators_SkipsSetup()
+    {
+        var plan = ScenarioSetupPlan.Create(EasyOnly, soloTrainingMode: true, parkingInitialCallupRatePercent: 55, arrivalGeneratorRatePercent: 75);
+
+        Assert.False(plan.RequiresSetup);
+        Assert.Empty(plan.DifficultyOptions);
+        Assert.False(plan.ShowPacingControls);
+        Assert.False(plan.ShowParkingInitialCallupRate);
+        Assert.False(plan.ShowArrivalGeneratorRate);
+    }
+
+    [Fact]
+    public void ScenarioSetupPlan_NoDifficultyAndInstructorMode_SkipsSetup()
+    {
+        var plan = ScenarioSetupPlan.Create(EasyOnly, soloTrainingMode: false, parkingInitialCallupRatePercent: 55, arrivalGeneratorRatePercent: 75);
+
+        Assert.False(plan.RequiresSetup);
+        Assert.Empty(plan.DifficultyOptions);
+        Assert.False(plan.ShowPacingControls);
+        Assert.False(plan.ShowParkingInitialCallupRate);
+        Assert.False(plan.ShowArrivalGeneratorRate);
     }
 }

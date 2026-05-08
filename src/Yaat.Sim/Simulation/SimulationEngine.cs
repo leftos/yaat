@@ -151,6 +151,8 @@ public sealed class SimulationEngine
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
+            Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
+            Scenario.SoloArrivalGeneratorRatePercent = scenarioDto.SoloArrivalGeneratorRatePercent;
             Scenario.RpoShowPilotSpeech = scenarioDto.RpoShowPilotSpeech;
             Scenario.IsPaused = scenarioDto.IsPaused;
             Scenario.SimRate = scenarioDto.SimRate;
@@ -331,7 +333,7 @@ public sealed class SimulationEngine
 
         Scenario = new SimScenarioState
         {
-            ScenarioId = result.Id,
+            ScenarioId = ScenarioIdentity.ResolveScenarioId(result.Id, json),
             ScenarioName = result.Name,
             RngSeed = rngSeed,
             OriginalScenarioJson = json,
@@ -1383,6 +1385,8 @@ public sealed class SimulationEngine
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
+            ScenarioId = Scenario?.ScenarioId,
+            SoloParkingInitialCallupRatePercent = Scenario?.SoloParkingInitialCallupRatePercent ?? 100,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
             StudentPositionType = Scenario?.StudentPositionType,
             StudentRadioName = PilotResponder.ResolveStudentRadioName(Scenario),
@@ -1432,6 +1436,11 @@ public sealed class SimulationEngine
 
         foreach (var gen in scenario.Generators)
         {
+            if (ScenarioPacing.ClampPercent(scenario.SoloArrivalGeneratorRatePercent) <= 0)
+            {
+                continue;
+            }
+
             if (gen.IsExhausted)
             {
                 continue;
@@ -1474,7 +1483,7 @@ public sealed class SimulationEngine
             if (state is null)
             {
                 _logger.LogWarning("Generator '{Id}' spawn failed at t={T}s: {Error}", gen.Config.Id, scenario.ElapsedSeconds, error);
-                AdvanceGenerator(gen, World.Rng);
+                AdvanceGenerator(gen, World.Rng, scenario.SoloArrivalGeneratorRatePercent);
                 continue;
             }
 
@@ -1496,13 +1505,19 @@ public sealed class SimulationEngine
                 scenario.ElapsedSeconds
             );
 
-            AdvanceGenerator(gen, World.Rng);
+            AdvanceGenerator(gen, World.Rng, scenario.SoloArrivalGeneratorRatePercent);
         }
     }
 
-    private static void AdvanceGenerator(GeneratorState gen, Random rng)
+    private static void AdvanceGenerator(GeneratorState gen, Random rng, int ratePercent)
     {
-        var interval = (double)gen.Config.IntervalTime;
+        if (ScenarioPacing.ClampPercent(ratePercent) <= 0)
+        {
+            gen.NextSpawnSeconds = double.PositiveInfinity;
+            return;
+        }
+
+        var interval = ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, ratePercent);
         if (gen.Config.RandomizeInterval)
         {
             double jitter = interval * 0.25;
@@ -1974,6 +1989,18 @@ public sealed class SimulationEngine
                     scenario.SoloTrainingMode = soloTrainingMode;
                 }
                 break;
+            case "SoloParkingInitialCallupRatePercent":
+                if (int.TryParse(setting.Value, out var parkingRate))
+                {
+                    scenario.SoloParkingInitialCallupRatePercent = ScenarioPacing.ClampPercent(parkingRate);
+                }
+                break;
+            case "SoloArrivalGeneratorRatePercent":
+                if (int.TryParse(setting.Value, out var arrivalRate))
+                {
+                    scenario.SoloArrivalGeneratorRatePercent = ScenarioPacing.ClampPercent(arrivalRate);
+                }
+                break;
             case "RpoShowPilotSpeech":
                 if (bool.TryParse(setting.Value, out var rpoShowPilotSpeech))
                 {
@@ -2034,7 +2061,9 @@ public sealed class SimulationEngine
                 {
                     Config = cfg,
                     Runway = runway,
-                    NextSpawnSeconds = scenario.ElapsedSeconds + cfg.IntervalTime,
+                    NextSpawnSeconds =
+                        scenario.ElapsedSeconds
+                        + ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(cfg.IntervalTime, scenario.SoloArrivalGeneratorRatePercent),
                     NextSpawnDistance = cfg.InitialDistance,
                     IsExhausted = false,
                 }

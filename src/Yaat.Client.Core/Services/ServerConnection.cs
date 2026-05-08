@@ -226,12 +226,21 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
 
     // --- Scenario lifecycle ---
 
-    public async Task<LoadScenarioResultDto> LoadScenarioAsync(string scenarioJson)
+    public async Task<LoadScenarioResultDto> LoadScenarioAsync(
+        string scenarioJson,
+        int soloParkingInitialCallupRatePercent,
+        int soloArrivalGeneratorRatePercent
+    )
     {
         EnsureConnected();
         var byteSize = System.Text.Encoding.UTF8.GetByteCount(scenarioJson);
         _log.LogInformation("Sending scenario JSON to server ({ByteSize} bytes)", byteSize);
-        return await _connection!.InvokeAsync<LoadScenarioResultDto>("LoadScenario", scenarioJson);
+        return await _connection!.InvokeAsync<LoadScenarioResultDto>(
+            "LoadScenario",
+            scenarioJson,
+            soloParkingInitialCallupRatePercent,
+            soloArrivalGeneratorRatePercent
+        );
     }
 
     // --- Flight-strips facility discovery ---
@@ -683,6 +692,8 @@ public record LoadScenarioResultDto(
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     bool AutoClearedToLand = false,
     bool SoloTrainingMode = false,
+    int SoloParkingInitialCallupRatePercent = 100,
+    int SoloArrivalGeneratorRatePercent = 100,
     bool IsStudentTowerPosition = true,
     string? StudentPositionType = null,
     FlightStripsConfigDto? FlightStripsConfig = null,
@@ -725,6 +736,8 @@ public record RoomStateDto(
     bool AutoCrossRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
+    int SoloParkingInitialCallupRatePercent = 100,
+    int SoloArrivalGeneratorRatePercent = 100,
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null
 );
@@ -745,6 +758,8 @@ public record ScenarioLoadedDto(
     bool AutoCrossRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
+    int SoloParkingInitialCallupRatePercent = 100,
+    int SoloArrivalGeneratorRatePercent = 100,
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
@@ -762,6 +777,8 @@ public record SessionSettingsDto(
     bool AutoCrossRunway,
     bool ValidateDctFixes,
     bool SoloTrainingMode,
+    int SoloParkingInitialCallupRatePercent,
+    int SoloArrivalGeneratorRatePercent,
     bool RpoShowPilotSpeech
 );
 

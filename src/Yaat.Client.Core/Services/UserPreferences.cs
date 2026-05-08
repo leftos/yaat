@@ -132,6 +132,8 @@ public sealed class UserPreferences
     public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
     public bool AutoCrossRunway => _data.AutoCrossRunway;
     public bool SoloTrainingMode => _data.SoloTrainingMode;
+    public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 100);
+    public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
     public bool RpoShowPilotSpeech => _data.RpoShowPilotSpeech;
     public bool RpoPilotSpeechAudibleAlert => _data.RpoPilotSpeechAudibleAlert;
     public bool PilotVoiceEnabled => _data.PilotVoiceEnabled;
@@ -371,6 +373,13 @@ public sealed class UserPreferences
     public void SetSoloTrainingMode(bool enabled)
     {
         _data.SoloTrainingMode = enabled;
+        Save();
+    }
+
+    public void SetSoloPacingRates(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent)
+    {
+        _data.SoloParkingInitialCallupRatePercent = Math.Clamp(parkingInitialCallupRatePercent, 0, 100);
+        _data.SoloArrivalGeneratorRatePercent = Math.Clamp(arrivalGeneratorRatePercent, 0, 100);
         Save();
     }
 
@@ -861,6 +870,8 @@ public sealed class UserPreferences
             AutoClearedToLandCtr = GetFieldOr(obj, "autoClearedToLandCtr", true),
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
+            SoloParkingInitialCallupRatePercent = GetFieldOr(obj, "soloParkingInitialCallupRatePercent", 100),
+            SoloArrivalGeneratorRatePercent = GetFieldOr(obj, "soloArrivalGeneratorRatePercent", 100),
             RpoShowPilotSpeech = GetFieldOr(obj, "rpoShowPilotSpeech", false),
             RpoPilotSpeechAudibleAlert = GetFieldOr(obj, "rpoPilotSpeechAudibleAlert", false),
             PilotVoiceEnabled = GetFieldOr(obj, "pilotVoiceEnabled", false),
@@ -1083,6 +1094,8 @@ public sealed class UserPreferences
         public bool AutoClearedToLandCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
         public bool SoloTrainingMode { get; set; }
+        public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
+        public int SoloArrivalGeneratorRatePercent { get; set; } = 100;
         public bool RpoShowPilotSpeech { get; set; }
         public bool RpoPilotSpeechAudibleAlert { get; set; }
         public bool PilotVoiceEnabled { get; set; }

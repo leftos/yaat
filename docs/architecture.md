@@ -563,6 +563,7 @@ CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSi
 ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
 ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
+ScenarioIdentity.cs            # Shared scenario ID fallback hashing/normalization for server load and sim replay
 ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by CLI tool + client
                                # ScenarioValidationResult, PresetParseFailure, ProcedureIssue, ProcedureIssueKind records
                                # Detects outdated procedure versions (VersionChanged) and missing procedures (NotFound)
@@ -576,6 +577,7 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
+ScenarioPacing.cs              # Shared percentage pacing helpers for solo-training load-time rate controls
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle
 RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)

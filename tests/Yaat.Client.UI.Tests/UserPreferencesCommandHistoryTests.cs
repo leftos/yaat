@@ -77,4 +77,16 @@ public class UserPreferencesCommandHistoryTests
         Assert.Equal(["A1", "A2"], reader.GetCommandHistory(scenarioA));
         Assert.Equal(["B1"], reader.GetCommandHistory(scenarioB));
     }
+
+    [Fact]
+    public void SoloPacingRates_PersistAndClamp()
+    {
+        var writer = new UserPreferences();
+        writer.SetSoloPacingRates(-10, 125);
+
+        var reader = new UserPreferences();
+
+        Assert.Equal(0, reader.SoloParkingInitialCallupRatePercent);
+        Assert.Equal(100, reader.SoloArrivalGeneratorRatePercent);
+    }
 }

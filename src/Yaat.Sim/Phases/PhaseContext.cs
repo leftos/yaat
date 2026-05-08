@@ -45,6 +45,10 @@ public sealed class PhaseContext
     /// </summary>
     public bool SoloTrainingMode { get; init; }
 
+    public string? ScenarioId { get; init; }
+
+    public int SoloParkingInitialCallupRatePercent { get; init; } = 100;
+
     /// <summary>
     /// When true (and <see cref="SoloTrainingMode"/> is false), sim-initiated pilot
     /// transmissions route to <c>AircraftState.PendingPilotSpeech</c> with the spoken form

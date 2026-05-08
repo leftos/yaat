@@ -50,6 +50,7 @@ public class SnapshotRoundTripTests
             IsClearedIntoBravo = true,
             HasAnnouncedLinedUpReady = true,
         };
+        ac.Ground.InitialCallupDecisionProcessed = true;
 
         ac.WindComponents = (5.0, -3.0);
         ac.Targets.TargetAltitude = 10000;
@@ -86,6 +87,7 @@ public class SnapshotRoundTripTests
         Assert.True(restored.HasControllerAcknowledgedInitialContact);
         Assert.True(restored.IsClearedIntoBravo);
         Assert.True(restored.HasAnnouncedLinedUpReady);
+        Assert.True(restored.Ground.InitialCallupDecisionProcessed);
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }
 
@@ -219,6 +221,7 @@ public class SnapshotRoundTripTests
                         AutoDeleteExempt = false,
                         ConflictBreakRemainingSeconds = 0,
                         HasAnnouncedReady = false,
+                        InitialCallupDecisionProcessed = true,
                     },
                     Track = new AircraftTrackDto { OnHandoff = false, HandoffAccepted = false },
                     Stars = new AircraftStarsStateDto
@@ -266,6 +269,9 @@ public class SnapshotRoundTripTests
                 AutoClearedToLand = false,
                 AutoCrossRunway = false,
                 ValidateDctFixes = true,
+                SoloTrainingMode = true,
+                SoloParkingInitialCallupRatePercent = 45,
+                SoloArrivalGeneratorRatePercent = 70,
                 IsPaused = false,
                 SimRate = 1,
                 AutoAcceptDelaySeconds = 5,
@@ -282,6 +288,9 @@ public class SnapshotRoundTripTests
         Assert.Equal(snapshot.Rng.S0, deserialized.Rng.S0);
         Assert.Single(deserialized.Aircraft);
         Assert.Equal("AAL100", deserialized.Aircraft[0].Callsign);
+        Assert.True(deserialized.Aircraft[0].Ground.InitialCallupDecisionProcessed);
+        Assert.Equal(45, deserialized.Scenario.SoloParkingInitialCallupRatePercent);
+        Assert.Equal(70, deserialized.Scenario.SoloArrivalGeneratorRatePercent);
         Assert.Equal(snapshot.SchemaVersion, deserialized.SchemaVersion);
     }
 

@@ -139,6 +139,46 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void SoloPacingRates_RoundTripThroughReplay()
+    {
+        const string bundlePath = "TestData/66fd6538542e.zip";
+        var baseline = RecordingLoader.Load(bundlePath);
+        if (baseline is null)
+        {
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var recording = new SessionRecording
+        {
+            Version = baseline.Version,
+            ScenarioJson = baseline.ScenarioJson,
+            RngSeed = baseline.RngSeed,
+            WeatherJson = baseline.WeatherJson,
+            Actions =
+            [
+                new RecordedSettingChange(0, "SoloParkingInitialCallupRatePercent", "35"),
+                new RecordedSettingChange(0, "SoloArrivalGeneratorRatePercent", "65"),
+            ],
+            TotalElapsedSeconds = 1,
+            ScenarioName = baseline.ScenarioName,
+            ScenarioId = baseline.ScenarioId,
+            ArtccId = baseline.ArtccId,
+        };
+
+        var engine = new SimulationEngine(new TestAirportGroundData());
+        engine.Replay(recording, 1);
+
+        Assert.Equal(35, engine.Scenario!.SoloParkingInitialCallupRatePercent);
+        Assert.Equal(65, engine.Scenario.SoloArrivalGeneratorRatePercent);
+    }
+
+    [Fact]
     public void AllFourSettingTypes_RoundTripThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";

@@ -31,6 +31,10 @@ public sealed class SimScenarioState
     // change.
     public bool SoloTrainingMode { get; set; }
 
+    public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
+
+    public int SoloArrivalGeneratorRatePercent { get; set; } = 100;
+
     // When true (and SoloTrainingMode is false), sim-initiated pilot transmissions
     // (RTIS/RFIS resolution, midfield/short-final-no-clearance reminders, holding-short and
     // clear-of-runway position reports, going-around, lost-sight, follow-cancel, etc.) are
@@ -103,6 +107,8 @@ public sealed class SimScenarioState
             AutoCrossRunway = AutoCrossRunway,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
+            SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,
+            SoloArrivalGeneratorRatePercent = SoloArrivalGeneratorRatePercent,
             RpoShowPilotSpeech = RpoShowPilotSpeech,
             IsPaused = IsPaused,
             SimRate = SimRate,

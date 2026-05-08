@@ -119,6 +119,34 @@ public static class ScenarioDifficultyHelper
         return (root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }), warnings);
     }
 
+    public static bool HasParkingSpawns(string json)
+    {
+        var root = JsonNode.Parse(json);
+        var aircraft = root?["aircraft"]?.AsArray();
+        if (aircraft is null)
+        {
+            return false;
+        }
+
+        foreach (var ac in aircraft)
+        {
+            var startingType = ac?["startingConditions"]?["type"]?.GetValue<string>();
+            if (string.Equals(startingType, "Parking", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool HasArrivalGenerators(string json)
+    {
+        var root = JsonNode.Parse(json);
+        var generators = root?["aircraftGenerators"]?.AsArray();
+        return generators is { Count: > 0 };
+    }
+
     /// <summary>
     /// Returns the rank of a difficulty level (0=Easy, 1=Medium, 2=Hard).
     /// Null/empty returns -1 (always included).

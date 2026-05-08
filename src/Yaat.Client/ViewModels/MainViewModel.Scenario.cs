@@ -64,7 +64,7 @@ public partial class MainViewModel
 
             _pendingScenarioSource = null;
             _pendingApiScenarioId = null;
-            await SendScenarioToServer(scenarioJson, apiId);
+            await SendScenarioToServer(scenarioJson, apiId, 100, 100);
         }
         catch (Exception ex)
         {
@@ -126,26 +126,35 @@ public partial class MainViewModel
                 json = await File.ReadAllTextAsync(ScenarioFilePath);
             }
 
-            var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
+            var setupPlan = ScenarioSetupPlan.Create(
+                json,
+                _preferences.SoloTrainingMode,
+                _preferences.SoloParkingInitialCallupRatePercent,
+                _preferences.SoloArrivalGeneratorRatePercent
+            );
 
-            if (difficulties.Count >= 2)
+            if (setupPlan.RequiresSetup)
             {
-                var counts = ScenarioDifficultyHelper.GetCountsPerCeiling(json, difficulties);
-
                 DifficultyOptions.Clear();
-                foreach (var level in difficulties)
+                foreach (var option in setupPlan.DifficultyOptions)
                 {
-                    DifficultyOptions.Add(new DifficultyOption(level, counts[level]));
+                    DifficultyOptions.Add(option);
                 }
 
-                SelectedDifficultyIndex = difficulties.Count - 1;
+                OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
+                SelectedDifficultyIndex = setupPlan.SelectedDifficultyIndex;
+                ShowScenarioSetupPacingControls = setupPlan.ShowPacingControls;
+                ShowScenarioSetupParkingInitialCallupRate = setupPlan.ShowParkingInitialCallupRate;
+                ShowScenarioSetupArrivalGeneratorRate = setupPlan.ShowArrivalGeneratorRate;
+                ScenarioSetupParkingInitialCallupRatePercent = setupPlan.ParkingInitialCallupRatePercent;
+                ScenarioSetupArrivalGeneratorRatePercent = setupPlan.ArrivalGeneratorRatePercent;
                 _pendingScenarioJson = json;
                 _pendingDifficultyApiId = apiId;
-                ShowDifficultySelection = true;
+                ShowScenarioSetup = true;
                 return;
             }
 
-            await SendScenarioToServer(json, apiId);
+            await SendScenarioToServer(json, apiId, 100, 100);
         }
         catch (Exception ex)
         {
@@ -155,30 +164,53 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private async Task ConfirmDifficultySelectionAsync()
+    private async Task ConfirmScenarioSetupAsync()
     {
-        ShowDifficultySelection = false;
+        ShowScenarioSetup = false;
         var json = _pendingScenarioJson;
         var apiId = _pendingDifficultyApiId;
         _pendingScenarioJson = null;
         _pendingDifficultyApiId = null;
 
-        if (json is null || SelectedDifficultyIndex < 0 || SelectedDifficultyIndex >= DifficultyOptions.Count)
+        if (json is null)
         {
             return;
         }
 
-        var selected = DifficultyOptions[SelectedDifficultyIndex];
-        var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, selected.Level);
-
-        foreach (var w in warnings)
+        var scenarioJson = json;
+        if (DifficultyOptions.Count > 0)
         {
-            AddWarningEntry($"[WARN] {w}");
+            if (SelectedDifficultyIndex < 0 || SelectedDifficultyIndex >= DifficultyOptions.Count)
+            {
+                return;
+            }
+
+            var selected = DifficultyOptions[SelectedDifficultyIndex];
+            var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, selected.Level);
+            scenarioJson = filtered;
+            foreach (var w in warnings)
+            {
+                AddWarningEntry($"[WARN] {w}");
+            }
         }
+
+        var parkingRate = Math.Clamp(ScenarioSetupParkingInitialCallupRatePercent, 0, 100);
+        var arrivalRate = Math.Clamp(ScenarioSetupArrivalGeneratorRatePercent, 0, 100);
+        var loadParkingRate = ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100;
+        var loadArrivalRate = ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100;
+        if (ShowScenarioSetupPacingControls)
+        {
+            _preferences.SetSoloPacingRates(
+                ShowScenarioSetupParkingInitialCallupRate ? parkingRate : _preferences.SoloParkingInitialCallupRatePercent,
+                ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : _preferences.SoloArrivalGeneratorRatePercent
+            );
+        }
+        DifficultyOptions.Clear();
+        OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
 
         try
         {
-            await SendScenarioToServer(filtered, apiId);
+            await SendScenarioToServer(scenarioJson, apiId, loadParkingRate, loadArrivalRate);
         }
         catch (Exception ex)
         {
@@ -188,18 +220,22 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void CancelDifficultySelection()
+    private void CancelScenarioSetup()
     {
-        ShowDifficultySelection = false;
+        ShowScenarioSetup = false;
         _pendingScenarioJson = null;
         _pendingDifficultyApiId = null;
         DifficultyOptions.Clear();
+        OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
+        ShowScenarioSetupPacingControls = false;
+        ShowScenarioSetupParkingInitialCallupRate = false;
+        ShowScenarioSetupArrivalGeneratorRate = false;
     }
 
-    private async Task SendScenarioToServer(string json, string? apiId)
+    private async Task SendScenarioToServer(string json, string? apiId, int soloParkingInitialCallupRatePercent, int soloArrivalGeneratorRatePercent)
     {
         StashLoadedScenarioJson(json);
-        var result = await _connection.LoadScenarioAsync(json);
+        var result = await _connection.LoadScenarioAsync(json, soloParkingInitialCallupRatePercent, soloArrivalGeneratorRatePercent);
 
         if (result.Success)
         {
@@ -420,11 +456,56 @@ public partial class MainViewModel
         Aircraft.Clear();
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
-        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true, false, false));
+        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true, false, 100, 100, false));
     }
 }
 
 public record DifficultyOption(string Level, int AircraftCount)
 {
     public string Display => $"{Level} — {AircraftCount} aircraft";
+}
+
+public sealed record ScenarioSetupPlan(
+    IReadOnlyList<DifficultyOption> DifficultyOptions,
+    int SelectedDifficultyIndex,
+    bool ShowPacingControls,
+    bool ShowParkingInitialCallupRate,
+    bool ShowArrivalGeneratorRate,
+    int ParkingInitialCallupRatePercent,
+    int ArrivalGeneratorRatePercent
+)
+{
+    public bool RequiresSetup => DifficultyOptions.Count > 0 || ShowPacingControls;
+
+    public static ScenarioSetupPlan Create(
+        string scenarioJson,
+        bool soloTrainingMode,
+        int parkingInitialCallupRatePercent,
+        int arrivalGeneratorRatePercent
+    )
+    {
+        var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
+        var options = new List<DifficultyOption>();
+        if (difficulties.Count >= 2)
+        {
+            var counts = ScenarioDifficultyHelper.GetCountsPerCeiling(scenarioJson, difficulties);
+            foreach (var level in difficulties)
+            {
+                options.Add(new DifficultyOption(level, counts[level]));
+            }
+        }
+
+        var showParkingInitialCallupRate = soloTrainingMode && ScenarioDifficultyHelper.HasParkingSpawns(scenarioJson);
+        var showArrivalGeneratorRate = soloTrainingMode && ScenarioDifficultyHelper.HasArrivalGenerators(scenarioJson);
+
+        return new ScenarioSetupPlan(
+            options,
+            options.Count > 0 ? options.Count - 1 : -1,
+            showParkingInitialCallupRate || showArrivalGeneratorRate,
+            showParkingInitialCallupRate,
+            showArrivalGeneratorRate,
+            Math.Clamp(parkingInitialCallupRatePercent, 0, 100),
+            Math.Clamp(arrivalGeneratorRatePercent, 0, 100)
+        );
+    }
 }
