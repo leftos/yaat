@@ -15,6 +15,11 @@ namespace Yaat.Sim.Tests.Pilot;
 /// </summary>
 public class M102AirborneCheckInTests
 {
+    public M102AirborneCheckInTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     // KOAK-ish reference; tests use ProjectPoint to place aircraft at exact bearings/distances.
     private static readonly LatLon AirportPos = new(37.7212, -122.2208);
 
@@ -197,10 +202,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal(
-            "[N123AB] tower, november one two three alpha bravo eight miles east at two thousand five hundred, request transition, with information Alpha.",
-            line
-        );
+        Assert.Equal("[N123AB] tower, november one two three alpha bravo eight miles east at two thousand five hundred, request transition.", line);
     }
 
     [Fact]
@@ -212,7 +214,7 @@ public class M102AirborneCheckInTests
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
         Assert.Equal(
-            "[N123AB] tower, november one two three alpha bravo four miles north of the field, VFR southbound at one thousand five hundred, with information Alpha.",
+            "[N123AB] tower, november one two three alpha bravo four miles north of the field, VFR southbound at one thousand five hundred.",
             line
         );
     }
@@ -240,7 +242,7 @@ public class M102AirborneCheckInTests
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
         Assert.Equal(
-            "[N123AB] approach, november one two three alpha bravo seven miles northeast at three thousand five hundred, request transition, with information Alpha.",
+            "[N123AB] approach, november one two three alpha bravo seven miles northeast at three thousand five hundred, request transition.",
             line
         );
     }
@@ -259,7 +261,7 @@ public class M102AirborneCheckInTests
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
         Assert.Equal(
-            "[N123AB] approach, november one two three alpha bravo six miles southeast of Oakland Airport, VFR northbound at four thousand five hundred, with information Alpha.",
+            "[N123AB] approach, november one two three alpha bravo six miles southeast of Oakland Airport, VFR northbound at four thousand five hundred.",
             line
         );
     }
@@ -316,7 +318,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("[N123AB] tower, november one two three alpha bravo one miles east, request transition, with information Alpha.", line);
+        Assert.Equal("[N123AB] tower, november one two three alpha bravo one miles east, request transition.", line);
     }
 
     [Fact]
@@ -327,10 +329,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal(
-            "[N123AB] tower, november one two three alpha bravo one miles north of the field, VFR southbound, with information Alpha.",
-            line
-        );
+        Assert.Equal("[N123AB] tower, november one two three alpha bravo one miles north of the field, VFR southbound.", line);
     }
 
     [Fact]

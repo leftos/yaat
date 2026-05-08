@@ -249,7 +249,7 @@ and VFR aircraft fire these — VFR ramp departures call ground too, etc. Templa
 `PilotResponder` (`BuildReadyToTaxi`, `BuildHoldingShortReady`, `BuildLinedUpReady`,
 `BuildOnFinal`).
 
-Assumes ATIS information Alpha is current at all fields (real ATIS modeling deferred).
+Assumes ATIS information Alpha is current at all fields for landing/departing airport operations (real ATIS modeling deferred).
 
 | Phase | Trigger | Template |
 |---|---|---|
@@ -289,8 +289,8 @@ westbound) over the aircraft's true heading. **Altitude** renders via
 
 | Student position | IFR | VFR inbound (dest=primary) | VFR transit (dest≠primary) | VFR no-dest (overflight) |
 |---|---|---|---|---|
-| `TWR` | Direct-to-tower (rare): `"[callsign] tower, [spoken] runway [rwy], with information Alpha."` (drops " runway [rwy]" when destination runway unknown) | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], inbound for landing, with information Alpha."` | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], request transition, with information Alpha."` | `"[callsign] tower, [spoken] [dist] miles [direction] of the field, VFR [heading]bound at [altitude], with information Alpha."` |
-| `APP` | sub-FL180: `"[callsign] approach, [spoken] level [altitude], with information Alpha."` / FL180+: `"... [spoken] flight level [FL], with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request landing, with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request transition, with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] of [airport-spelled], VFR [heading]bound at [altitude], with information Alpha."` |
+| `TWR` | Direct-to-tower (rare): `"[callsign] tower, [spoken] runway [rwy], with information Alpha."` (drops " runway [rwy]" when destination runway unknown) | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], inbound for landing, with information Alpha."` | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], request transition."` | `"[callsign] tower, [spoken] [dist] miles [direction] of the field, VFR [heading]bound at [altitude]."` |
+| `APP` | sub-FL180: `"[callsign] approach, [spoken] level [altitude], with information Alpha."` / FL180+: `"... [spoken] flight level [FL], with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request landing, with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request transition."` | `"[callsign] approach, [spoken] [dist] miles [direction] of [airport-spelled], VFR [heading]bound at [altitude]."` |
 | `CTR` | FL180+: `"[callsign] center, [spoken] flight level [FL]."` (no ATIS suffix — Class A enroute) / sub-FL180: `"... [spoken] level [altitude], with information Alpha."` | falls through to "request transition" — Center doesn't naturally handle landings | `"[callsign] center, [spoken] at [altitude], [dist] miles [direction] of [airport-spelled], request transition."` | `"[callsign] center, [spoken] [dist] miles [direction] of [airport-spelled], VFR [heading]bound at [altitude]."` |
 | `GND` | skip | skip | skip | skip |
 

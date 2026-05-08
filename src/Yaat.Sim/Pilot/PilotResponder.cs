@@ -906,8 +906,7 @@ public static class PilotResponder
             // adjacency that would read as contradicting the heading-of-flight.
             string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
             string positionAnchor = positionType == "TWR" ? "the field" : PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
-            string atisSuffix = positionType == "CTR" ? "" : ", with information Alpha";
-            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltitude}{atisSuffix}.";
+            return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltitude}.";
         }
 
         string intent;
@@ -932,7 +931,8 @@ public static class PilotResponder
             return $"[{aircraft.Callsign}] {facilityCallName}, {spoken}{atAltitude}, {distWords} miles {direction} of {airportSpoken}, {intent}.";
         }
 
-        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction}{atAltitude}, {intent}, with information Alpha.";
+        var atisSuffix = inbound ? ", with information Alpha" : "";
+        return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction}{atAltitude}, {intent}{atisSuffix}.";
     }
 
     public static string? ResolveStudentRadioName(SimScenarioState? scenario)
