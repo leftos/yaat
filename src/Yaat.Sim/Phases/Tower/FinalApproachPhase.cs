@@ -663,12 +663,14 @@ public sealed class FinalApproachPhase : Phase
             else
             {
                 string runwayId = ctx.Runway?.Designator ?? "the runway";
-                PilotResponder.RouteRpoTransmission(
+                PilotResponder.RouteSoloOrRpoTransmission(
                     ctx.Aircraft,
                     ctx.SoloTrainingMode,
                     ctx.RpoShowPilotSpeech,
+                    ctx.StudentPositionType,
                     PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
-                    $"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance"
+                    $"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance",
+                    PilotResponder.SoloPositionsTower
                 );
             }
         }

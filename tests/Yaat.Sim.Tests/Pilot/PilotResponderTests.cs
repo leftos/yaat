@@ -696,13 +696,16 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildClearOfRunway_NamesRunwayAndTaxiway()
+    public void BuildClearOfRunway_TerminalUsesIdentifierAndTtsUsesSpoken()
     {
         var ac = MakeAircraft("N569SX");
-        var result = PilotResponder.BuildClearOfRunway(ac, "28R", "G");
 
-        Assert.Contains("clear of runway two eight right", result);
-        Assert.Contains("at G", result);
+        var text = PilotResponder.BuildClearOfRunwayText(ac, "28R", "G");
+
+        // Terminal form: digit identifier, no NATO callsign expansion.
+        Assert.Equal("N569SX, clear of runway 28R at G.", text.Terminal);
+        // TTS form: spelled-out callsign + runway, AIM phraseology (NATO X = "xray", no hyphen).
+        Assert.Equal("november five six nine sierra xray, clear of runway two eight right at G.", text.Tts);
     }
 
     [Fact]

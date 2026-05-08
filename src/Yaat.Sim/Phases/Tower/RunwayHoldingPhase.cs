@@ -48,12 +48,14 @@ public sealed class RunwayHoldingPhase : Phase
 
         Log.LogDebug("[LAHSO] {Callsign}: holding short of runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
 
-        Pilot.PilotResponder.RouteRpoTransmission(
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
             Pilot.PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, _crossingRunwayId),
-            $"{ctx.Aircraft.Callsign} holding short runway {_crossingRunwayId}"
+            $"{ctx.Aircraft.Callsign} holding short runway {_crossingRunwayId}",
+            Pilot.PilotResponder.SoloPositionsTower
         );
     }
 

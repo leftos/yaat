@@ -92,10 +92,17 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         ctx.Targets.NavigationRoute.Clear();
         SetHoldingTargets(ctx);
 
-        var label = AirspaceClass == AirspaceClass.Bravo ? "bravo" : "charlie";
-        Pilot.PilotResponder.QueueSoloPilotTransmission(
+        // Airspace boundary holds are pilot self-reports. In solo mode the student is the
+        // controller; this transmission is broadcast in any TWR/APP context so the controller
+        // hears the pilot's status while they decide whether to issue the entry clearance.
+        var text = Pilot.PilotResponder.BuildAirspaceBoundaryHoldText(ctx.Aircraft, AirspaceClass, Ident, ReferencePosition);
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
-            Pilot.PilotResponder.BuildAirspaceBoundaryHold(ctx.Aircraft, label, Ident, ReferencePosition)
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            text,
+            Pilot.PilotResponder.SoloPositionsTowerApproach
         );
     }
 

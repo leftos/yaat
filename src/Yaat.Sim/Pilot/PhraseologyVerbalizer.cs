@@ -423,6 +423,35 @@ public static class PhraseologyVerbalizer
         return trimmed.ToLowerInvariant();
     }
 
+    /// <summary>
+    /// Spoken airport name for readbacks where the caller knows the identifier refers to an
+    /// airport (boundary holds tied to a Class B/C, primary-airport position anchors). Always
+    /// uses the airport-name lookup — distinct from <see cref="SpellFix"/> which prefers the
+    /// VOR/navaid name when the same code is published as both. Falls back to the bare
+    /// identifier (NOT NATO-spelled letters) when the lookup misses, since published
+    /// identifiers like "OAK" already read as a single word.
+    /// </summary>
+    public static string SpellAirportName(string airportIdent)
+    {
+        if (string.IsNullOrWhiteSpace(airportIdent))
+        {
+            return "";
+        }
+
+        var trimmed = airportIdent.Trim();
+        if (TryGetNavigationDatabase() is { } navDb)
+        {
+            // GetAirportName handles ICAO ↔ FAA key reconciliation (KOAK → OAK and back).
+            var airportName = navDb.GetAirportName(trimmed);
+            if (!string.IsNullOrWhiteSpace(airportName))
+            {
+                return PilotSayBuilder.FriendlyAirportName(airportName);
+            }
+        }
+
+        return trimmed.ToUpperInvariant();
+    }
+
     private static NavigationDatabase? TryGetNavigationDatabase()
     {
         try

@@ -26,12 +26,14 @@ internal static class GoAroundHelper
             return;
         }
 
-        Pilot.PilotResponder.RouteRpoTransmission(
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
             Pilot.PilotResponder.BuildGoingAround(ctx.Aircraft, reason),
-            $"{ctx.Aircraft.Callsign} is going around ({reason})"
+            $"{ctx.Aircraft.Callsign} is going around ({reason})",
+            Pilot.PilotResponder.SoloPositionsTower
         );
 
         // VFR aircraft without a pattern direction get a sensible default. For

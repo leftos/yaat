@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
@@ -75,6 +76,126 @@ public sealed class AirspaceRespectTests
         PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
 
         Assert.Null(ac.Phases);
+    }
+
+    [Fact]
+    public void BuildAirspaceBoundaryHold_TerminalUsesIdentifierAndTtsUsesAirportName()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
+
+        var text = PilotResponder.BuildAirspaceBoundaryHoldText(ac, AirspaceClass.Charlie, "OAK", new LatLon(37.7213, -122.2208));
+
+        // Terminal: identifier "OAK" + class label "Class C", no NATO-spelled letters.
+        Assert.Contains("Class C", text.Terminal);
+        Assert.Contains("of OAK", text.Terminal);
+        Assert.Contains("N123AB", text.Terminal);
+        Assert.DoesNotContain("the charlie", text.Terminal);
+
+        // TTS: AIM-style "the charlie" + airport spoken via the airport-name lookup
+        // ("Oakland Airport"), NOT NATO-spelled "oscar alpha kilo".
+        Assert.Contains("the charlie", text.Tts);
+        Assert.Contains("of Oakland Airport", text.Tts);
+        Assert.DoesNotContain("oscar alpha kilo", text.Tts);
+        Assert.Contains("november one two three alpha bravo", text.Tts);
+    }
+
+    [Fact]
+    public void AirspaceBoundaryHoldPhase_SoloTowerStudent_FiresTtsAndTerminal()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
+        var phase = new AirspaceBoundaryHoldPhase
+        {
+            AirspaceClass = AirspaceClass.Charlie,
+            Ident = "OAK",
+            ReferencePosition = new LatLon(37.7213, -122.2208),
+            OrbitDirection = TurnDirection.Right,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            SoloTrainingMode = true,
+            StudentPositionType = "TWR",
+        };
+
+        phase.OnStart(ctx);
+
+        // Solo TWR student should hear the pilot — both terminal and TTS queued.
+        var notification = Assert.Single(ac.PendingNotifications);
+        Assert.Contains("Class C", notification);
+        Assert.Contains("of OAK", notification);
+        var transmission = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Contains("the charlie", transmission.SpeechText);
+        Assert.Contains("of Oakland Airport", transmission.SpeechText);
+        Assert.DoesNotContain("oscar alpha kilo", transmission.SpeechText);
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void AirspaceBoundaryHoldPhase_SoloGroundStudent_TerminalOnly_NoTts()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
+        var phase = new AirspaceBoundaryHoldPhase
+        {
+            AirspaceClass = AirspaceClass.Charlie,
+            Ident = "OAK",
+            ReferencePosition = new LatLon(37.7213, -122.2208),
+            OrbitDirection = TurnDirection.Right,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            SoloTrainingMode = true,
+            StudentPositionType = "GND",
+        };
+
+        phase.OnStart(ctx);
+
+        // Ground student wouldn't hear an airspace-boundary callout — terminal only.
+        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
+        var warning = Assert.Single(ac.PendingWarnings);
+        Assert.Contains("Class C", warning);
+    }
+
+    [Fact]
+    public void BuildAirspaceBoundaryHold_BravoUsesAwaitingClearance()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        var ac = CreateAirborneVfr(new LatLon(37.6213, -122.5500), heading: 90, altitude: 3500, speed: 160);
+
+        var text = PilotResponder.BuildAirspaceBoundaryHoldText(ac, AirspaceClass.Bravo, "SFO", new LatLon(37.6213, -122.3790));
+
+        Assert.Contains("Class B", text.Terminal);
+        Assert.Contains("awaiting clearance", text.Terminal);
+        Assert.Contains("the bravo", text.Tts);
+        Assert.Contains("awaiting clearance", text.Tts);
     }
 
     [Fact]

@@ -31,6 +31,18 @@ public static class PilotResponder
     public const string SourceSayReadback = "SayReadback";
 
     /// <summary>
+    /// Solo-relevant student positions for transmissions that are tower-aviated
+    /// (clear-of-runway, holding-short ready, lined-up ready, on-final, etc.).
+    /// </summary>
+    public static readonly IReadOnlyCollection<string> SoloPositionsTower = ["TWR"];
+
+    /// <summary>
+    /// Solo-relevant student positions for transmissions controllers handle in either
+    /// the tower or terminal area (pattern reports, follow operations, going around).
+    /// </summary>
+    public static readonly IReadOnlyCollection<string> SoloPositionsTowerApproach = ["TWR", "APP"];
+
+    /// <summary>
     /// Queues a solo-training pilot line for the terminal response channel and for typed
     /// pilot-audio broadcast. The terminal gets compact text; audio gets the spoken form
     /// without the legacy bracketed callsign prefix.
@@ -447,6 +459,104 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Legacy bridge for sites whose builders still produce a single TTS string (compacted to
+    /// terminal via <see cref="CompactForTerminal"/>). Adds the solo-TTS branch with a
+    /// position-relevance gate so solo TWR/APP students hear sites that weren't yet migrated
+    /// to <see cref="PilotSpeechText"/>. New code should prefer the dual-output overload.
+    /// </summary>
+    public static void RouteSoloOrRpoTransmission(
+        AircraftState aircraft,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
+        string? studentPositionType,
+        string pilotSpeechText,
+        string warningText,
+        IReadOnlyCollection<string> soloRelevantPositions,
+        string sourceKind = SourceResponse
+    )
+    {
+        if (soloTrainingMode)
+        {
+            bool relevant = studentPositionType is { Length: > 0 } st && soloRelevantPositions.Contains(st, StringComparer.OrdinalIgnoreCase);
+            if (relevant)
+            {
+                QueueSoloPilotTransmission(aircraft, pilotSpeechText, sourceKind);
+            }
+            else
+            {
+                aircraft.PendingWarnings.Add(warningText);
+            }
+            return;
+        }
+
+        if (rpoShowPilotSpeech)
+        {
+            aircraft.PendingPilotSpeech.Add(pilotSpeechText);
+        }
+        else
+        {
+            aircraft.PendingWarnings.Add(warningText);
+        }
+    }
+
+    /// <summary>
+    /// Unified router for sim-initiated pilot transmissions. Takes a <see cref="PilotSpeechText"/>
+    /// (terminal + TTS forms produced independently by the builder, not by regex-compacting the
+    /// spoken string) plus the list of student positions for which the transmission is
+    /// audiable: e.g. clear-of-runway is tower-only, pattern reports and follow events are
+    /// tower-or-approach.
+    /// <list type="bullet">
+    ///   <item><description><b>Solo + student in <paramref name="soloRelevantPositions"/></b>:
+    ///   queue into <see cref="AircraftState.PendingNotifications"/> AND
+    ///   <see cref="AircraftState.PendingPilotTransmissions"/> so terminal shows the readable
+    ///   form and TTS speaks the spoken form.</description></item>
+    ///   <item><description><b>Solo + irrelevant position</b>: terminal warning only (no TTS) —
+    ///   the student isn't listening on this frequency.</description></item>
+    ///   <item><description><b>RPO with show-pilot-speech</b>: broadcast as
+    ///   <c>PilotSpeech</c> kind (green) with the TTS form.</description></item>
+    ///   <item><description><b>RPO default</b>: terminal warning with the readable form.</description></item>
+    /// </list>
+    /// </summary>
+    public static void RouteSoloOrRpoTransmission(
+        AircraftState aircraft,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
+        string? studentPositionType,
+        PilotSpeechText text,
+        IReadOnlyCollection<string> soloRelevantPositions,
+        string sourceKind = SourceResponse
+    )
+    {
+        if (soloTrainingMode)
+        {
+            bool studentIsRelevant =
+                studentPositionType is { Length: > 0 } st && soloRelevantPositions.Contains(st, StringComparer.OrdinalIgnoreCase);
+            if (studentIsRelevant)
+            {
+                aircraft.PendingNotifications.Add(text.Terminal);
+                aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text.Terminal, text.Tts, sourceKind));
+            }
+            else
+            {
+                // Solo mode but the student isn't on this frequency — show as a terminal
+                // warning so the controller can still see what the pilot would have said,
+                // but don't speak it.
+                aircraft.PendingWarnings.Add(text.Terminal);
+            }
+            return;
+        }
+
+        if (rpoShowPilotSpeech)
+        {
+            aircraft.PendingPilotSpeech.Add(text.Tts);
+        }
+        else
+        {
+            aircraft.PendingWarnings.Add(text.Terminal);
+        }
+    }
+
+    /// <summary>
     /// Routes a sim-initiated pilot readback for visual-acquisition events (RTIS / RFIS)
     /// onto the SAY channel rather than the orange Warning channel. Same RPO/solo logic
     /// as <see cref="RouteRpoTransmission"/>: if RPO mode + <c>RpoShowPilotSpeech</c> is
@@ -591,13 +701,16 @@ public static class PilotResponder
 
     /// <summary>
     /// Pilot transmission when the aircraft has fully exited the active runway after landing.
-    /// Reports the runway just vacated and the taxiway used.
+    /// Reports the runway just vacated and the taxiway used. Returns terminal + TTS forms
+    /// independently — terminal uses the digit runway designator, TTS uses the spelled form.
     /// </summary>
-    public static string BuildClearOfRunway(AircraftState aircraft, string runwayId, string taxiway)
+    public static PilotSpeechText BuildClearOfRunwayText(AircraftState aircraft, string runwayId, string taxiway)
     {
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
-        var rwy = PhraseologyVerbalizer.SpellRunway(runwayId);
-        return $"[{aircraft.Callsign}] {spoken}, clear of runway {rwy} at {taxiway}.";
+        var runwaySpoken = PhraseologyVerbalizer.SpellRunway(runwayId);
+        string terminal = $"{aircraft.Callsign}, clear of runway {runwayId} at {taxiway}.";
+        string tts = $"{spoken}, clear of runway {runwaySpoken} at {taxiway}.";
+        return new PilotSpeechText(terminal, tts);
     }
 
     /// <summary>
@@ -684,8 +797,15 @@ public static class PilotResponder
     /// <summary>
     /// Pilot callout when solo-training AI self-restricts outside controlled airspace.
     /// The pilot is reporting their compliance state, not reading back a controller phrase.
+    /// Returns terminal + TTS forms independently — terminal uses "Class C" / "OAK" while
+    /// TTS keeps "the charlie" / "oscar alpha kilo" for natural speech.
     /// </summary>
-    public static string BuildAirspaceBoundaryHold(AircraftState aircraft, string airspaceLabel, string airportIdent, LatLon referencePosition)
+    public static PilotSpeechText BuildAirspaceBoundaryHoldText(
+        AircraftState aircraft,
+        Yaat.Sim.Data.Airspace.AirspaceClass airspaceClass,
+        string airportIdent,
+        LatLon referencePosition
+    )
     {
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         double distNm = GeoMath.DistanceNm(referencePosition, aircraft.Position);
@@ -693,10 +813,37 @@ public static class PilotResponder
         double bearingFromReference = GeoMath.BearingTo(referencePosition, aircraft.Position);
         string direction = BearingToCardinal8(bearingFromReference);
         string distWords = SpellDistanceDigits(distMiles);
-        string airport = SpellAirportLetters(airportIdent);
-        string reason = airspaceLabel.Equals("charlie", StringComparison.OrdinalIgnoreCase) ? "awaiting two-way" : "awaiting clearance";
-        return $"[{aircraft.Callsign}] {spoken}, holding outside the {airspaceLabel}, {distWords} miles {direction} of {airport}, {reason}.";
+        // Airspace volume idents (OAK, SFO, …) are airport identifiers — Class B/C/D
+        // airspace is tied to an airport, not a VOR — so prefer the airport-name lookup
+        // ("Oakland Airport") over the navaid lookup that <see cref="PhraseologyVerbalizer.SpellFix"/>
+        // would do for direct-to-fix contexts.
+        string airportTts = PhraseologyVerbalizer.SpellAirportName(airportIdent);
+        string airportTerminal = airportIdent.ToUpperInvariant();
+        string airspaceLabel = AirspaceClassToLabel(airspaceClass);
+        string airspaceTts = $"the {airspaceLabel}";
+        string airspaceTerminal = $"Class {AirspaceClassToLetter(airspaceClass)}";
+        string reason = airspaceClass == Yaat.Sim.Data.Airspace.AirspaceClass.Charlie ? "awaiting two-way" : "awaiting clearance";
+
+        string terminal = $"{aircraft.Callsign}, holding outside {airspaceTerminal}, {distMiles} miles {direction} of {airportTerminal}, {reason}.";
+        string tts = $"{spoken}, holding outside {airspaceTts}, {distWords} miles {direction} of {airportTts}, {reason}.";
+        return new PilotSpeechText(terminal, tts);
     }
+
+    private static string AirspaceClassToLabel(Yaat.Sim.Data.Airspace.AirspaceClass airspaceClass) =>
+        airspaceClass switch
+        {
+            Yaat.Sim.Data.Airspace.AirspaceClass.Bravo => "bravo",
+            Yaat.Sim.Data.Airspace.AirspaceClass.Charlie => "charlie",
+            _ => airspaceClass.ToString().ToLowerInvariant(),
+        };
+
+    private static string AirspaceClassToLetter(Yaat.Sim.Data.Airspace.AirspaceClass airspaceClass) =>
+        airspaceClass switch
+        {
+            Yaat.Sim.Data.Airspace.AirspaceClass.Bravo => "B",
+            Yaat.Sim.Data.Airspace.AirspaceClass.Charlie => "C",
+            _ => airspaceClass.ToString(),
+        };
 
     private static string BuildIfrAirborne(AircraftState aircraft, string positionType, string facilityCallName, string spoken, int altitudeFt)
     {
@@ -758,7 +905,7 @@ public static class PilotResponder
             // position with an explicit "of the field"/"of [airport]" anchor avoids the bare-direction
             // adjacency that would read as contradicting the heading-of-flight.
             string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
-            string positionAnchor = positionType == "TWR" ? "the field" : SpellAirportLetters(scenario.PrimaryAirportId ?? "");
+            string positionAnchor = positionType == "TWR" ? "the field" : PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             string atisSuffix = positionType == "CTR" ? "" : ", with information Alpha";
             return $"[{aircraft.Callsign}] {facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltitude}{atisSuffix}.";
         }
@@ -781,7 +928,7 @@ public static class PilotResponder
 
         if (positionType == "CTR")
         {
-            var airportSpoken = SpellAirportLetters(scenario.PrimaryAirportId ?? "");
+            var airportSpoken = PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return $"[{aircraft.Callsign}] {facilityCallName}, {spoken}{atAltitude}, {distWords} miles {direction} of {airportSpoken}, {intent}.";
         }
 
@@ -910,8 +1057,6 @@ public static class PilotResponder
         }
         return "westbound";
     }
-
-    private static string SpellAirportLetters(string airport) => string.Join(' ', airport.Select(NatoPhoneticAlphabet.SpellChar));
 
     private static string SpellDistanceDigits(int miles)
     {

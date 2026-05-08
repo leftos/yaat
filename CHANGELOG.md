@@ -25,6 +25,9 @@
 - Pilot speech says "then" between sequential `;` compound blocks (matching the terminal display) instead of running them together with parallel `,` commands.
 - Multi-fix `DCT` readbacks read every fix joined by "then direct" (e.g. "proceed direct to OAK30NUM, then direct VPMID") instead of dropping all fixes after the first.
 - Pilot fix pronunciations (e.g. `VPCOL` → "Oakland Colliseum") from `FixPronunciations/*.json` are now used for TTS readbacks, not just Whisper STT biasing.
+- Custom-fix friendly names (e.g. `OAK30NUM` → "Oakland Runway 30 Numbers") now flow into TTS readbacks instead of being spelled letter-by-letter.
+- Pilot speech for the airspace-boundary self-hold and VFR airborne check-in renders the terminal as "Class C / OAK" while TTS speaks the airport by its published name ("Oakland Airport") via airport-name lookup, instead of NATO-spelling each letter.
+- Solo-training tower students now hear pilot transmissions for clear-of-runway, going-around, lost-sight-of-traffic, follow-target-landed, unable-to-catch-up, unable-to-exit, holding-short-crossing, and no-clearance short-final reminder. Previously only orange terminal warnings appeared without TTS.
 
 ## v0.1.17-alpha [2026/05/06]
 

@@ -86,11 +86,16 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
                 + "if zero entries appeared the routing may be broken."
         );
 
-        // Spot-check format: every entry should follow the [CALLSIGN] spoken-form pattern
-        // built by PilotResponder, never the terse "callsign holding short" form.
+        // Spot-check format: every entry should be a pilot-speech transmission containing
+        // the spoken-form callsign (NATO-spelled or telephony) for TTS. Legacy builders
+        // emit "[CALLSIGN] november one two three..."; dual-output builders emit
+        // "november one two three..., ..." — both contain the spoken callsign.
         foreach (var (cs, s) in allSpeech)
         {
-            Assert.StartsWith($"[{cs}]", s);
+            Assert.True(
+                s.Contains($"[{cs}]") || s.Contains(Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(cs), StringComparison.OrdinalIgnoreCase),
+                $"Expected pilot-speech entry to contain [{cs}] or its NATO-spoken form, got: {s}"
+            );
         }
     }
 

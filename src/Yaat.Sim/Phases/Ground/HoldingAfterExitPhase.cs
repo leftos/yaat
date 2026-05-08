@@ -52,15 +52,18 @@ public sealed class HoldingAfterExitPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        // Broadcast "clear of runway"
+        // Broadcast "clear of runway" — solo TWR students need the TTS so they can hand off
+        // to ground; solo GND students aren't on tower frequency at this point.
         string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
         string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
-        Pilot.PilotResponder.RouteRpoTransmission(
+        var text = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, rwy, twy);
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
-            Pilot.PilotResponder.BuildClearOfRunway(ctx.Aircraft, rwy, twy),
-            $"{ctx.Aircraft.Callsign} clear of runway {rwy} at {twy}"
+            ctx.StudentPositionType,
+            text,
+            Pilot.PilotResponder.SoloPositionsTower
         );
 
         Log.LogDebug(

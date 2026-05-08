@@ -74,12 +74,14 @@ public sealed class VfrFollowPhase : Phase
         {
             Log.LogDebug("[VfrFollow] {Callsign}: target {Target} not found, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
             ctx.Aircraft.Approach.FollowingCallsign = null;
-            Pilot.PilotResponder.RouteRpoTransmission(
+            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
                 ctx.Aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
                 Pilot.PilotResponder.BuildLostSightOfTraffic(ctx.Aircraft, TargetCallsign),
-                $"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow"
+                $"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow",
+                Pilot.PilotResponder.SoloPositionsTowerApproach
             );
             return true;
         }
@@ -88,12 +90,14 @@ public sealed class VfrFollowPhase : Phase
         {
             Log.LogDebug("[VfrFollow] {Callsign}: target {Target} on ground, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
             ctx.Aircraft.Approach.FollowingCallsign = null;
-            Pilot.PilotResponder.RouteRpoTransmission(
+            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
                 ctx.Aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
                 Pilot.PilotResponder.BuildTargetLanded(ctx.Aircraft, TargetCallsign),
-                $"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow"
+                $"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow",
+                Pilot.PilotResponder.SoloPositionsTowerApproach
             );
             return true;
         }
@@ -120,12 +124,14 @@ public sealed class VfrFollowPhase : Phase
                     gapNm
                 );
                 ctx.Aircraft.Approach.FollowingCallsign = null;
-                Pilot.PilotResponder.RouteRpoTransmission(
+                Pilot.PilotResponder.RouteSoloOrRpoTransmission(
                     ctx.Aircraft,
                     ctx.SoloTrainingMode,
                     ctx.RpoShowPilotSpeech,
+                    ctx.StudentPositionType,
                     Pilot.PilotResponder.BuildUnableToCatchUp(ctx.Aircraft, TargetCallsign),
-                    $"{ctx.Aircraft.Callsign} unable to catch up to {TargetCallsign}, cancelling follow"
+                    $"{ctx.Aircraft.Callsign} unable to catch up to {TargetCallsign}, cancelling follow",
+                    Pilot.PilotResponder.SoloPositionsTowerApproach
                 );
                 return true;
             }

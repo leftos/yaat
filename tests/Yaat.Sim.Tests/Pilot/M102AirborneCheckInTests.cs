@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -247,13 +248,18 @@ public class M102AirborneCheckInTests
     [Fact]
     public void Vfr_Approach_NoDestination_HeadingNorthbound_VfrTransition()
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
         var ac = MakeAircraft("N123AB", isVfr: true, altitude: 4500, destination: "", bearingFromAirport: 135, distanceNm: 6, headingDeg: 0);
         var sc = MakeScenario("APP", primaryAirport: "KOAK");
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
         Assert.Equal(
-            "[N123AB] approach, november one two three alpha bravo six miles southeast of kilo oscar alpha kilo, VFR northbound at four thousand five hundred, with information Alpha.",
+            "[N123AB] approach, november one two three alpha bravo six miles southeast of Oakland Airport, VFR northbound at four thousand five hundred, with information Alpha.",
             line
         );
     }
@@ -261,13 +267,18 @@ public class M102AirborneCheckInTests
     [Fact]
     public void Vfr_Center_DestinationDifferent_RequestTransition_AirportSpelled()
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
         var ac = MakeAircraft("N123AB", isVfr: true, altitude: 8500, destination: "KLAX", bearingFromAirport: 0, distanceNm: 15);
         var sc = MakeScenario("CTR", primaryAirport: "KOAK");
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
         Assert.Equal(
-            "[N123AB] center, november one two three alpha bravo at eight thousand five hundred, one five miles north of kilo oscar alpha kilo, request transition.",
+            "[N123AB] center, november one two three alpha bravo at eight thousand five hundred, one five miles north of Oakland Airport, request transition.",
             line
         );
     }
@@ -275,13 +286,18 @@ public class M102AirborneCheckInTests
     [Fact]
     public void Vfr_Center_NoDestination_HeadingEastbound_VfrTransition()
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
         var ac = MakeAircraft("N123AB", isVfr: true, altitude: 7500, destination: "", bearingFromAirport: 225, distanceNm: 12, headingDeg: 90);
         var sc = MakeScenario("CTR", primaryAirport: "KOAK");
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
         Assert.Equal(
-            "[N123AB] center, november one two three alpha bravo one two miles southwest of kilo oscar alpha kilo, VFR eastbound at seven thousand five hundred.",
+            "[N123AB] center, november one two three alpha bravo one two miles southwest of Oakland Airport, VFR eastbound at seven thousand five hundred.",
             line
         );
     }
@@ -320,12 +336,17 @@ public class M102AirborneCheckInTests
     [Fact]
     public void Vfr_Center_DestinationDifferent_LowAltitude_OmitsAtAltitudeClause()
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
         var ac = MakeAircraft("N123AB", isVfr: true, altitude: 50, destination: "KLAX", bearingFromAirport: 0, distanceNm: 15);
         var sc = MakeScenario("CTR", primaryAirport: "KOAK");
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("[N123AB] center, november one two three alpha bravo, one five miles north of kilo oscar alpha kilo, request transition.", line);
+        Assert.Equal("[N123AB] center, november one two three alpha bravo, one five miles north of Oakland Airport, request transition.", line);
     }
 
     [Fact]
