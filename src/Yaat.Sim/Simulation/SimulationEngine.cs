@@ -1079,7 +1079,7 @@ public sealed class SimulationEngine
             var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft, PilotPersonality.Varied, activityLevel);
             if (!string.IsNullOrEmpty(readback))
             {
-                World.ExpectPilotReadback(aircraft.Callsign);
+                World.ExpectPilotReadback(aircraft.Callsign, Scenario?.ElapsedSeconds ?? 0);
                 Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(
                     aircraft,
                     readback,

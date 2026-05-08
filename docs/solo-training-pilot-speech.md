@@ -10,7 +10,7 @@ Solo training puts one student on every frequency, playing every controller role
 
 The pipeline now serializes pilot speech the way a real radio works:
 
-- A pilot can be **awaited** for a readback — the controller just spoke to them, so the next mic key on the frequency is theirs.
+- A pilot can be **awaited** for a readback — the controller just spoke to them, so the next mic key on the frequency is theirs (with a bounded wait, not a freeze — see below).
 - Other pilots' proactive calls (ready-to-taxi, holding short, on final, going around, position reports) wait their turn.
 - Each transmission consumes airtime proportional to its word count. The next dequeue can't happen until the current transmission's airtime has elapsed.
 
@@ -37,7 +37,7 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
 `SimulationWorld.ActiveFrequency` is a single `FrequencyState` instance. Each tick, `SimulationEngine.TickPostPhysics` calls `World.DrainReadyPilotTransmissions(elapsedSeconds)`:
 
 1. **Drain.** Move every aircraft's `PendingPilotTransmissions` into the frequency's pending queue.
-2. **Awaited-readback gate.** If `_awaitingReadbackFrom` is set (the controller just spoke to a callsign), promote the matching readback to the head; nothing else dequeues until that readback emerges.
+2. **Awaited-readback gate.** If `_awaitingReadbackFrom` is set (the controller just spoke to a callsign), the matching readback gets airtime priority — if it's already in the queue, dequeue it first; if it isn't, hold other transmissions back so it can land. The gate has an `AwaitedReadbackTimeoutSeconds` ceiling (8 s); past that, it releases the frequency to FIFO so a missing readback (deleted aircraft, future bug, etc.) can never silence the airport indefinitely. The awaited callsign stays set — if the readback arrives later, it dequeues normally; the gate just stops vetoing others.
 3. **Airtime gate.** A transmission can only dequeue when `elapsedSeconds >= _nextAvailableAtSeconds`. After dequeue, set the next slot to `now + (~0.25 s/word, min 1 s)`.
 4. **Activity meter.** `FrequencyActivityMeter` records each transmitted message in a rolling 60-second window. Counts classify into Quiet (<5) / Moderate (≤12) / Busy (≤20) / Saturated.
 
@@ -50,12 +50,14 @@ When solo mode is OFF, `World.DiscardAllPilotTransmissions()` runs each tick to 
 Successful command dispatch in `SimulationEngine.SendCommand`:
 
 ```csharp
-World.ExpectPilotReadback(aircraft.Callsign);
+World.ExpectPilotReadback(aircraft.Callsign, scenario.ElapsedSeconds);
 PilotResponder.QueueSoloPilotTransmission(
     aircraft, readback, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
 ```
 
-The frequency holds back every other queued transmission until the readback dequeues. As soon as it does, `_awaitingReadbackFrom` clears and normal FIFO order resumes. Two consecutive controller commands to two different aircraft will queue both readbacks; the second waits for the first to clear.
+In normal operation the readback emerges on the very next drain (1 s) and `_awaitingReadbackFrom` clears immediately, so the gate is invisible. Two consecutive controller commands to two different aircraft will queue both readbacks; the second waits for the first to clear within the same drain window.
+
+If the awaited readback never arrives — aircraft deleted between dispatch and drain, or a future bug that calls `ExpectReadback` without a paired enqueue — the gate releases after `AwaitedReadbackTimeoutSeconds` (8 s) and other pilots resume mic'ing up under FIFO. **The gate is best-effort ordering, not a hard lock.** Real pilots get impatient too.
 
 ## Activity-aware readback shortening
 

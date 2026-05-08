@@ -86,13 +86,39 @@ public sealed class PilotTransmissionQueueTests
             PilotTransmissionKind.Readback,
             PilotResponder.SourceResponse
         );
-        world.ExpectPilotReadback("N100AA");
+        world.ExpectPilotReadback("N100AA", elapsedSeconds: 10);
 
         var drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
 
         var tx = Assert.Single(drained);
         Assert.Equal("N100AA", tx.Callsign);
         Assert.Equal(PilotTransmissionKind.Readback, tx.Kind);
+    }
+
+    [Fact]
+    public void DrainReadyPilotTransmissions_AwaitedReadbackTimesOut_OtherTransmissionsResume()
+    {
+        var world = new SimulationWorld();
+        var quiet = NewAircraft("N200BB");
+        world.AddAircraft(quiet);
+        PilotResponder.QueueSoloPilotTransmission(
+            quiet,
+            "tower, november two zero zero bravo bravo ready to taxi.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        // Controller spoke to N100AA at t=10 but the readback never lands (e.g. aircraft
+        // deleted between dispatch and drain). Without a timeout the gate would silence
+        // every other pilot forever.
+        world.ExpectPilotReadback("N100AA", elapsedSeconds: 10);
+
+        var blocked = world.DrainReadyPilotTransmissions(elapsedSeconds: 12);
+        Assert.Empty(blocked);
+
+        var released = world.DrainReadyPilotTransmissions(elapsedSeconds: 19);
+        var tx = Assert.Single(released);
+        Assert.Equal("N200BB", tx.Callsign);
     }
 
     [Fact]

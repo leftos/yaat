@@ -6,11 +6,24 @@ public sealed class FrequencyState
 {
     private const double MinimumAirtimeSeconds = 1.0;
     private const double SecondsPerWord = 0.25;
+
+    /// <summary>
+    /// Maximum wall-clock seconds the awaited-readback gate holds back other
+    /// transmissions. Real readbacks land in 1-2 seconds; this is generous to absorb
+    /// dispatch latency and a backlog of higher-priority transmissions, but bounded
+    /// so a missing readback (e.g. aircraft deleted between dispatch and drain) can
+    /// never silence every other pilot indefinitely. After the timeout, the gate
+    /// degrades to normal FIFO order — the readback can still emerge first if it's
+    /// already at the head, just without veto power over the rest of the queue.
+    /// </summary>
+    private const double AwaitedReadbackTimeoutSeconds = 8.0;
+
     private static readonly ILogger Log = SimLog.CreateLogger("FrequencyState");
 
     private readonly Queue<PilotTransmission> _pending = [];
     private double _nextAvailableAtSeconds;
     private string? _awaitingReadbackFrom;
+    private double _awaitingReadbackSinceSeconds;
 
     public FrequencyActivityMeter ActivityMeter { get; } = new();
     public int PendingCount => _pending.Count;
@@ -22,11 +35,12 @@ public sealed class FrequencyState
         return ActivityMeter.Level;
     }
 
-    public void ExpectReadback(string callsign)
+    public void ExpectReadback(string callsign, double elapsedSeconds)
     {
         if (!string.IsNullOrWhiteSpace(callsign))
         {
             _awaitingReadbackFrom = callsign;
+            _awaitingReadbackSinceSeconds = elapsedSeconds;
         }
     }
 
@@ -43,7 +57,7 @@ public sealed class FrequencyState
             return null;
         }
 
-        var index = SelectReadyIndex();
+        var index = SelectReadyIndex(elapsedSeconds);
         if (index < 0)
         {
             return null;
@@ -67,11 +81,12 @@ public sealed class FrequencyState
     {
         _pending.Clear();
         _awaitingReadbackFrom = null;
+        _awaitingReadbackSinceSeconds = 0;
         _nextAvailableAtSeconds = 0;
         ActivityMeter.Trim(double.PositiveInfinity);
     }
 
-    private int SelectReadyIndex()
+    private int SelectReadyIndex(double elapsedSeconds)
     {
         if (_awaitingReadbackFrom is { Length: > 0 } callsign)
         {
@@ -89,8 +104,27 @@ public sealed class FrequencyState
                 index++;
             }
 
-            Log.LogDebug("Waiting for readback from {Callsign}; {Count} pilot transmissions queued", callsign, _pending.Count);
-            return -1;
+            // The expected readback hasn't reached the queue yet. Hold other
+            // transmissions back so the readback gets airtime priority — but only
+            // for AwaitedReadbackTimeoutSeconds. Past that, fall through to FIFO so
+            // a missing readback (deleted aircraft, future bug, etc.) can't freeze
+            // the frequency. The awaited callsign stays set: if the readback shows
+            // up later it will dequeue normally; the gate just stops vetoing others.
+            double waitedSeconds = elapsedSeconds - _awaitingReadbackSinceSeconds;
+            if (waitedSeconds < AwaitedReadbackTimeoutSeconds)
+            {
+                Log.LogDebug(
+                    "Holding frequency for {Callsign} readback ({Waited:F1}s waited); {Count} other transmissions queued",
+                    callsign,
+                    waitedSeconds,
+                    _pending.Count
+                );
+                return -1;
+            }
+
+            Log.LogDebug("Awaited readback from {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO", callsign, waitedSeconds);
+            _awaitingReadbackFrom = null;
+            return _pending.Count > 0 ? 0 : -1;
         }
 
         return 0;

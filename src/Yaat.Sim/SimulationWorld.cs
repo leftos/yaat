@@ -267,9 +267,9 @@ public sealed class SimulationWorld
         return result;
     }
 
-    public void ExpectPilotReadback(string callsign)
+    public void ExpectPilotReadback(string callsign, double elapsedSeconds)
     {
-        ActiveFrequency.ExpectReadback(callsign);
+        ActiveFrequency.ExpectReadback(callsign, elapsedSeconds);
     }
 
     public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds)
