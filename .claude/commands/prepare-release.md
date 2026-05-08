@@ -26,11 +26,24 @@ Read `CHANGELOG.md`. Find the topmost version heading (a line starting with `## 
 - **Topmost heading matches a released tag** → there is no unreleased section. The CHANGELOG is stale relative to HEAD. **Offer to run the `update-changelog` skill inline now**, then re-read the file. Do not proceed past this step until the topmost heading is an unreleased section. Do not fall back to scraping git log.
 - **Topmost heading is `[Unreleased]` or an untagged version** (e.g. `## 0.2.0-alpha` with no matching `v0.2.0-alpha` tag) → that's the unreleased section. Capture its full body (everything from the heading up to but not including the next `## ` heading). This is the source of truth for the release notes.
 
-## Step 5: Pick highlights from the CHANGELOG section
+## Step 5: Audit the unreleased section, then pick highlights
 
-Read the unreleased section captured in Step 4. Select **3-4 user-impactful items** to surface as highlights:
+### 5a. Audit `### Fixed` for same-release follow-ups
 
-- Prefer items from `### Added` and `### Changed`. `### Fixed` items only if a fix is something users were waiting on.
+Before drafting highlights, scan the captured unreleased section for **`### Fixed` bullets that describe polish on features added in the same cycle**. These are `internal-fix` smell that `update-changelog` should have folded; they slip through when the changelog was drafted commit-by-commit.
+
+For each Fixed bullet, ask: *was the underlying feature itself added in this release?* (Check `### Added` / `### Changed` in the same section, plus the substance of the bullet.) If yes:
+
+- The user-observable behavior that the fix bullet describes belongs in the corresponding Added bullet, if it's not already implicit.
+- The Fixed bullet itself should be dropped — readers haven't seen the broken version, so "now works" is not news.
+
+Surface the candidates to the user as a focused diff (drop / fold / keep), apply the agreed cleanup to `CHANGELOG.md` before continuing. Do not auto-edit the unreleased section without confirmation.
+
+### 5b. Select highlights
+
+Read the (possibly-cleaned) unreleased section. Select **3-4 user-impactful items** to surface as highlights:
+
+- Prefer items from `### Added` and `### Changed`. `### Fixed` items only if a fix is something users were waiting on (i.e. the broken behavior shipped in a prior release).
 - Skip purely internal items even if they made it into the changelog (refactors, test infra, build plumbing).
 - Tighten each chosen bullet to a short, scannable one-liner — drop sub-clauses about how it works internally. The full detail stays in the Changelog section below the Highlights.
 - No marketing language (no "significantly", "robust", "comprehensive", etc.). State the change.
