@@ -1060,7 +1060,8 @@ public sealed class SimulationEngine
         // perspective.
         if (result.Success && dispatchCtx.SoloTrainingMode)
         {
-            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft);
+            var activityLevel = World.ActiveFrequency.GetActivityLevel(Scenario?.ElapsedSeconds ?? 0);
+            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft, PilotPersonality.Varied, activityLevel);
             if (!string.IsNullOrEmpty(readback))
             {
                 World.ExpectPilotReadback(aircraft.Callsign);

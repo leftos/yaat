@@ -30,6 +30,24 @@ public class PhraseologyVerbalizerTests
         Assert.Equal("climb and maintain flight level three three zero", result);
     }
 
+    [Fact]
+    public void Verbalize_VariedModerate_KeepsVerbatim()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, FrequencyActivityLevel.Moderate);
+
+        Assert.Equal("climb and maintain five thousand", result);
+    }
+
+    [Theory]
+    [InlineData(FrequencyActivityLevel.Busy)]
+    [InlineData(FrequencyActivityLevel.Saturated)]
+    public void Verbalize_VariedBusy_UsesShortestAltitudeShortcut(FrequencyActivityLevel activityLevel)
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, activityLevel);
+
+        Assert.Equal("up to five thousand", result);
+    }
+
     // --- Heading ---
 
     [Fact]
@@ -51,6 +69,18 @@ public class PhraseologyVerbalizerTests
     {
         var result = PhraseologyVerbalizer.Verbalize(new TurnRightCommand(new MagneticHeading(5)));
         Assert.Equal("turn right heading zero zero five", result);
+    }
+
+    [Fact]
+    public void Verbalize_VariedBusy_UsesShortestHeadingShortcut()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(
+            new TurnLeftCommand(new MagneticHeading(90)),
+            PilotPersonality.Varied,
+            FrequencyActivityLevel.Busy
+        );
+
+        Assert.Equal("left heading zero nine zero", result);
     }
 
     [Fact]
@@ -85,6 +115,14 @@ public class PhraseologyVerbalizerTests
         Assert.Equal("maintain two five zero knots", result);
     }
 
+    [Fact]
+    public void Verbalize_VariedBusy_SpeedShortcutKeepsKnots()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+
+        Assert.Equal("two five zero knots", result);
+    }
+
     // --- Transponder ---
 
     [Fact]
@@ -106,6 +144,14 @@ public class PhraseologyVerbalizerTests
     {
         // The rule is ["squawk", "ident"] (it's filed under transponder phraseology).
         var result = PhraseologyVerbalizer.Verbalize(new IdentCommand());
+        Assert.Equal("squawk ident", result);
+    }
+
+    [Fact]
+    public void Verbalize_VariedBusy_NoShortcutFallsBackToVerbatim()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new IdentCommand(), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+
         Assert.Equal("squawk ident", result);
     }
 

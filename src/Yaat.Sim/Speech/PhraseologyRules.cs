@@ -54,12 +54,12 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] HeadingRules() =>
         [
-            new(["turn", "left", "heading", "{hdg}"], "TL {hdg}", TurnLeft),
-            new(["turn", "right", "heading", "{hdg}"], "TR {hdg}", TurnRight),
+            new(["turn", "left", "heading", "{hdg}"], "TL {hdg}", TurnLeft, PilotShortcuts: ["left heading {hdg}"]),
+            new(["turn", "right", "heading", "{hdg}"], "TR {hdg}", TurnRight, PilotShortcuts: ["right heading {hdg}"]),
             // Relative turns — canonical 7110.65 5-6-2 form is "TURN (N) DEGREES LEFT/RIGHT".
-            new(["turn", "{deg}", "degrees", "left"], "RELL {deg}", RelativeLeft),
-            new(["turn", "{deg}", "degrees", "right"], "RELR {deg}", RelativeRight),
-            new(["fly", "heading", "{hdg}"], "FH {hdg}", FlyHeading),
+            new(["turn", "{deg}", "degrees", "left"], "RELL {deg}", RelativeLeft, PilotShortcuts: ["{deg} left"]),
+            new(["turn", "{deg}", "degrees", "right"], "RELR {deg}", RelativeRight, PilotShortcuts: ["{deg} right"]),
+            new(["fly", "heading", "{hdg}"], "FH {hdg}", FlyHeading, PilotShortcuts: ["heading {hdg}"]),
             new(["heading", "{hdg}"], "FH {hdg}", FlyHeading),
             new(["fly", "present", "heading"], "FPH", FlyPresentHeading),
             new(["maintain", "present", "heading"], "FPH", FlyPresentHeading),
@@ -70,12 +70,12 @@ public static class PhraseologyRules
     private static PhraseologyRule[] AltitudeSpeedRules() =>
         [
             // Climb forms
-            new(["climb", "and?", "maintain", "{alt}"], "CM {alt}", ClimbMaintain),
+            new(["climb", "and?", "maintain", "{alt}"], "CM {alt}", ClimbMaintain, PilotShortcuts: ["climbing to {alt}", "up to {alt}"]),
             new(["climb", "to?", "{alt}"], "CM {alt}", ClimbMaintain),
             new(["expedite", "climb", "to?", "{alt}"], "EXP {alt}", Expedite),
             new(["expedite", "climb"], "EXP", Expedite),
             // Descend forms
-            new(["descend", "and?", "maintain", "{alt}"], "DM {alt}", DescendMaintain),
+            new(["descend", "and?", "maintain", "{alt}"], "DM {alt}", DescendMaintain, PilotShortcuts: ["descending to {alt}", "down to {alt}"]),
             new(["descend", "to?", "{alt}"], "DM {alt}", DescendMaintain),
             new(["expedite", "descent", "to?", "{alt}"], "EXP {alt}", Expedite),
             new(["expedite", "descent"], "EXP", Expedite),
@@ -83,7 +83,7 @@ public static class PhraseologyRules
             // For now we emit CM; a future iteration can add context-sensitive dispatch.
             new(["maintain", "{alt}"], "CM {alt}", ClimbMaintain),
             // Speed — 7110.65 5-7-2 canonical form is "MAINTAIN (speed) KNOTS".
-            new(["maintain", "{spd}", "knots"], "SPD {spd}", Speed),
+            new(["maintain", "{spd}", "knots"], "SPD {spd}", Speed, PilotShortcuts: ["{spd} knots", "speed {spd} knots"]),
             new(["reduce", "speed", "to?", "{spd}"], "SPD {spd}", Speed),
             new(["increase", "speed", "to?", "{spd}"], "SPD {spd}", Speed),
             new(["maintain", "speed", "{spd}"], "SPD {spd}", Speed),
@@ -105,12 +105,12 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] NavigationRules() =>
         [
-            new(["proceed", "direct", "to?", "{fix}"], "DCT {fix}", DirectTo),
+            new(["proceed", "direct", "to?", "{fix}"], "DCT {fix}", DirectTo, PilotShortcuts: ["direct {fix}"]),
             new(["direct", "to?", "{fix}"], "DCT {fix}", DirectTo),
             new(["fly", "direct", "{fix}"], "DCT {fix}", DirectTo),
-            new(["turn", "left", "direct", "to?", "{fix}"], "TLDCT {fix}", TurnLeftDirectTo),
-            new(["turn", "right", "direct", "to?", "{fix}"], "TRDCT {fix}", TurnRightDirectTo),
-            new(["when", "able", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo),
+            new(["turn", "left", "direct", "to?", "{fix}"], "TLDCT {fix}", TurnLeftDirectTo, PilotShortcuts: ["left direct {fix}"]),
+            new(["turn", "right", "direct", "to?", "{fix}"], "TRDCT {fix}", TurnRightDirectTo, PilotShortcuts: ["right direct {fix}"]),
+            new(["when", "able", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo, PilotShortcuts: ["when able direct {fix}"]),
             new(["after", "{current}", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo),
         ];
 

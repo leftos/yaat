@@ -1,5 +1,7 @@
 using Xunit;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -109,5 +111,60 @@ public sealed class PilotTransmissionQueueTests
         Assert.Equal(FrequencyActivityLevel.Quiet, meter.Level);
     }
 
+    [Fact]
+    public void FrequencyState_GetActivityLevel_TrimsBeforeReturning()
+    {
+        var frequency = new FrequencyState();
+        for (int i = 0; i < 21; i++)
+        {
+            frequency.ActivityMeter.Record(i);
+        }
+
+        Assert.Equal(FrequencyActivityLevel.Saturated, frequency.GetActivityLevel(21));
+        Assert.Equal(FrequencyActivityLevel.Quiet, frequency.GetActivityLevel(80));
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_UsesVariedReadbackWithCurrentActivityLevel()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
+        var aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+        for (int i = 0; i < 21; i++)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(i);
+        }
+
+        var result = engine.SendCommand("N123AB", "DM 5000");
+
+        Assert.True(result.Success, result.Message);
+        var transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        Assert.Equal("[N123AB] down to five thousand, november one two three alpha bravo.", transmission.Text);
+    }
+
+    [Fact]
+    public void SendCommand_NonSolo_DoesNotQueueVariedReadback()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 30) };
+        var aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+
+        var result = engine.SendCommand("N123AB", "DM 5000");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Empty(aircraft.PendingPilotTransmissions);
+    }
+
     private static AircraftState NewAircraft(string callsign) => new() { Callsign = callsign, AircraftType = "C172" };
+
+    private static SimScenarioState NewScenario(bool soloTrainingMode, double elapsedSeconds) =>
+        new()
+        {
+            ScenarioId = "test",
+            ScenarioName = "Test",
+            RngSeed = 1,
+            OriginalScenarioJson = "{}",
+            ElapsedSeconds = elapsedSeconds,
+            SoloTrainingMode = soloTrainingMode,
+        };
 }

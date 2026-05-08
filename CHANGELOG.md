@@ -8,6 +8,7 @@
 - Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established.
 - Solo training mode accepts typed natural-language ATC commands, syncs across rooms and recordings, persists across runs, and labels windows as Solo/RPO mode.
 - Solo-training pilot voices use the optional Piper pack with per-aircraft speakers, radio effects, and logged TTS text for review.
+- Solo-training readbacks now shorten safe altitude, heading, speed, and direct-to responses as frequency load rises.
 - Scenario setup adds solo-training pace sliders for parked-aircraft call-ups and generated arrivals, shown only when the loaded scenario can use them.
 - Speech settings separate STT and TTS into collapsible panels, and TTS includes Piper voice-pack install and remove controls.
 - Favorite commands now support a fixed-grid pop-out panel with categories, airport scope, colors, sizing, ground overrides, batch blanks, and drag rearranging.

@@ -56,7 +56,9 @@ public static class PhraseologyVerbalizer
 
     private static bool IsCapture(string token) => token.StartsWith('{') && token.EndsWith('}');
 
-    public static string? Verbalize(ParsedCommand cmd)
+    public static string? Verbalize(ParsedCommand cmd) => Verbalize(cmd, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+
+    public static string? Verbalize(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel)
     {
         // UnsupportedCommand and similar non-canonical placeholders shouldn't crash the
         // verbalizer — they just have no pilot speech to render.
@@ -82,8 +84,51 @@ public static class PhraseologyVerbalizer
         }
 
         var args = ExtractArgs(cmd);
+        if (ShouldUseShortcut(personality, activityLevel) && TryRenderShortestShortcut(rule, args, out var shortcut))
+        {
+            return shortcut;
+        }
+
         return RenderPattern(rule.Pattern, args);
     }
+
+    private static bool ShouldUseShortcut(PilotPersonality personality, FrequencyActivityLevel activityLevel) =>
+        personality == PilotPersonality.Varied && activityLevel is FrequencyActivityLevel.Busy or FrequencyActivityLevel.Saturated;
+
+    private static bool TryRenderShortestShortcut(
+        PhraseologyRule rule,
+        IReadOnlyDictionary<string, string> args,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? shortcut
+    )
+    {
+        shortcut = null;
+        if (rule.PilotShortcuts is null || rule.PilotShortcuts.Length == 0)
+        {
+            return false;
+        }
+
+        var candidates = rule
+            .PilotShortcuts.Select(template => RenderShortcutTemplate(template, args))
+            .Where(rendered => !string.IsNullOrWhiteSpace(rendered) && !ContainsUnresolvedPlaceholder(rendered))
+            .OrderBy(WordCount)
+            .ThenBy(s => s.Length)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return false;
+        }
+
+        shortcut = candidates[0];
+        return true;
+    }
+
+    private static string RenderShortcutTemplate(string template, IReadOnlyDictionary<string, string> args) =>
+        RenderPattern(template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), args);
+
+    private static bool ContainsUnresolvedPlaceholder(string text) => text.Contains('{') || text.Contains('}');
+
+    private static int WordCount(string text) => text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
 
     /// <summary>
     /// Per-subtype extractor: pulls the command's parsed args into a capture-name → spoken-string

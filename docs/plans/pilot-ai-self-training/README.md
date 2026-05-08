@@ -63,7 +63,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
        │     parse controller speech (one source of truth)│
        │   • Concat clauses, append spoken callsign tail  │
        │   • Queue delayed PendingPilotTransmissions      │
-       │   • (M10.3.5) serialize delayed SAY/audio output │
+      │   • (M10.3.5) serialize and pace SAY/audio       │
        │   • (M10.4) update PilotExpectation              │
        └──────────────────────────────────────────────────┘
 
@@ -77,7 +77,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 
 **Key choice — pilot AI does not generate phases or build plans.** It dispatches canonical commands like the controller does, and the existing phase system handles the rest. This is the single biggest divergence from the old plan, which proposed a parallel `Intent → Plan → Phase` execution model.
 
-**Second key choice — pilot speech is inverted from the same `PhraseologyRules` that parse controller speech.** Real ATC convention is verbatim readback; the codebase already has the vocabulary as 163 input rules. Adding new readbacks happens by adding to `PhraseologyRules`, not by maintaining a parallel template table. Pilot-only utterances (spawn check-in, "going around" volunteered) live in `PilotResponder` directly — small set, no controller equivalent. Pilot shortcuts (e.g., "up to thirty-five" instead of "climb and maintain three thousand five hundred") are a future opt-in via `PhraseologyRule.PilotShortcuts` populated from `docs/pilot-phraseology-examples.md`.
+**Second key choice — pilot speech is inverted from the same `PhraseologyRules` that parse controller speech.** Real ATC convention is verbatim readback; the codebase already has the vocabulary as 163 input rules. Adding new readbacks happens by adding to `PhraseologyRules`, not by maintaining a parallel template table. Pilot-only utterances (spawn check-in, "going around" volunteered) live in `PilotResponder` directly — small set, no controller equivalent. Solo-training readbacks use `PilotPersonality.Varied` to shorten safe command families only when the frequency is busy.
 
 ## Milestone progress
 
@@ -92,7 +92,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.1.5** | [m10.1.5-vfr-airspace-respect.md](m10.1.5-vfr-airspace-respect.md) | VFR self-restrict outside FAA AIS Class B (no clearance) / Class C (no two-way comms) until gate satisfied |
 | [x] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
 | [x] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS v1: typed pilot-transmission SignalR event + off-by-default local client voice |
-| [ ] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency queue foundation shipped; activity-aware verbosity pending |
+| [x] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency queue + activity-aware solo readback verbosity |
 | [x] | **M10.3.6** | [m10.3.6-scenario-pace-controls.md](m10.3.6-scenario-pace-controls.md) | Scenario-load training pace controls: parking initial call-up and arrival generator rate sliders |
 | [ ] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pilot expectations + pending-request reminders, including slower follow-up after standby |
 | [ ] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
@@ -137,8 +137,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | **NLP-rich ATC parsing for solo students** | M10.2's PhraseologyMapper covers ~163 patterns. LLM fallback covers most else. Resist building a richer parser until production playtesting reveals what's actually missing. |
 | **Lost-comms 14 CFR 91.185 procedures** | Solo sessions never run that long. M10.4's pending-clearance reminders + M10.5's missed-approach autonomy cover the failure modes that matter. |
 | **Multi-frequency monitor-vs-active modeling, ATIS dynamic injection** | Adds modeling burden with near-zero training value beyond the single active-frequency queue. `HOO` already removes the aircraft from the controller's view; that's enough. |
-| **Pilot shortcuts / variable phraseology** | Architecture supports it (`PhraseologyRule.PilotShortcuts` field reserved, `PilotPersonality.Verbatim` is the default), but no shortcuts populated at MVP. Future work can populate from `docs/pilot-phraseology-examples.md` and add a `PilotPersonality.Varied` mode that picks one variant per-aircraft (seeded by scenario seed XOR callsign hash, same trick as TTS voice assignment for replay determinism). |
-| **Conditional pilot speech** | Callsign abbreviation after initial contact (FAA / ICAO rules differ), busy-radio frequency-formatting, "thanks"/"alright" personality wrappers — all need richer state (per-frequency busyness, `aircraft.HasEstablishedContactWith[facility]`, `PilotPersonality` enum beyond `Verbatim`). Documented in `docs/pilot-phraseology-examples.md` as future work. |
+| **Richer pilot personality / callsign abbreviation / frequency compression** | M10.3.5 ships activity-aware shortcuts for safe command families plus light quiet-frequency flavor. Broader style changes need more aircraft/frequency context to avoid ambiguous or nonstandard readbacks. |
 | **Response timing jitter** | Pure flavor; deterministic readbacks are easier to test and learn against. Defer indefinitely or add as a `PilotPersonality` knob if it ever matters. |
 | **AI-against-AI conflict resolution from the pilot side** | Phase system doesn't model TCAS RAs. Out of scope. |
 | **`SpeedRestrictionStack` from the old plan** | Existing `SpeedFloor` / `SpeedCeiling` + hardcoded 250-kt-below-10k regulatory cap is sufficient. Build the stack only when a real scenario forces it. |

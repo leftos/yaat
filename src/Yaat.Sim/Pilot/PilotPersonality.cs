@@ -8,4 +8,5 @@ namespace Yaat.Sim.Pilot;
 public enum PilotPersonality
 {
     Verbatim,
+    Varied,
 }

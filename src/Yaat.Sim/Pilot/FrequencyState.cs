@@ -16,6 +16,12 @@ public sealed class FrequencyState
     public int PendingCount => _pending.Count;
     public string? AwaitingReadbackFrom => _awaitingReadbackFrom;
 
+    public FrequencyActivityLevel GetActivityLevel(double elapsedSeconds)
+    {
+        ActivityMeter.Trim(elapsedSeconds);
+        return ActivityMeter.Level;
+    }
+
     public void ExpectReadback(string callsign)
     {
         if (!string.IsNullOrWhiteSpace(callsign))

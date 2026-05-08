@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Commands;
@@ -73,7 +74,15 @@ public static class PilotResponder
     /// don't repeat the lead-in. The readback fires once at dispatch acceptance for the entire
     /// compound, not again when a queued block's trigger fires.
     /// </summary>
-    public static string? BuildReadback(CompoundCommand compound, AircraftState aircraft)
+    public static string? BuildReadback(CompoundCommand compound, AircraftState aircraft) =>
+        BuildReadback(compound, aircraft, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+
+    public static string? BuildReadback(
+        CompoundCommand compound,
+        AircraftState aircraft,
+        PilotPersonality personality,
+        FrequencyActivityLevel activityLevel
+    )
     {
         // Per-block clause lists are joined internally with ", " (parallel commands within
         // a `,`-separated block); blocks themselves are joined with ", then " to mark the
@@ -86,7 +95,7 @@ public static class PilotResponder
             var conditionLead = FormatCondition(block.Condition);
             foreach (var cmd in block.Commands)
             {
-                var clause = VerbalizeForReadback(cmd, aircraft);
+                var clause = VerbalizeForReadback(cmd, aircraft, personality, activityLevel);
                 if (string.IsNullOrEmpty(clause))
                 {
                     continue;
@@ -107,15 +116,23 @@ public static class PilotResponder
             return null;
         }
 
-        return Format(aircraft, string.Join(", then ", blockTexts));
+        var body = string.Join(", then ", blockTexts);
+        body = ApplyQuietFlavor(aircraft.Callsign, body, personality, activityLevel);
+        return Format(aircraft, body);
     }
 
-    private static string? VerbalizeForReadback(ParsedCommand cmd, AircraftState aircraft) =>
+    private static string? VerbalizeForReadback(
+        ParsedCommand cmd,
+        AircraftState aircraft,
+        PilotPersonality personality,
+        FrequencyActivityLevel activityLevel
+    ) =>
         cmd switch
         {
             ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
                 BuildAltitudeRestrictionClause(aircraft, cm),
-            LineUpAndWaitCommand luaw => BuildRunwayInstructionClause(aircraft, "line up and wait") ?? PhraseologyVerbalizer.Verbalize(luaw),
+            LineUpAndWaitCommand luaw => BuildRunwayInstructionClause(aircraft, "line up and wait")
+                ?? PhraseologyVerbalizer.Verbalize(luaw, personality, activityLevel),
             ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
                 aircraft,
                 "cleared for takeoff",
@@ -131,26 +148,52 @@ public static class PilotResponder
                 includeRunway: false
             ),
             AcknowledgePilotContactCommand => null,
-            ClearedToLandCommand cland => BuildRunwayInstructionClause(aircraft, "cleared to land") ?? PhraseologyVerbalizer.Verbalize(cland),
+            ClearedToLandCommand cland => BuildRunwayInstructionClause(aircraft, "cleared to land")
+                ?? PhraseologyVerbalizer.Verbalize(cland, personality, activityLevel),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId) ?? PhraseologyVerbalizer.Verbalize(tg),
+                BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
+                    ?? PhraseologyVerbalizer.Verbalize(tg, personality, activityLevel),
                 tg.TrafficPattern
             ),
             StopAndGoCommand sg => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? PhraseologyVerbalizer.Verbalize(sg),
+                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? PhraseologyVerbalizer.Verbalize(sg, personality, activityLevel),
                 sg.TrafficPattern
             ),
             LowApproachCommand la => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? PhraseologyVerbalizer.Verbalize(la),
+                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? PhraseologyVerbalizer.Verbalize(la, personality, activityLevel),
                 la.TrafficPattern
             ),
             ClearedForOptionCommand option => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? PhraseologyVerbalizer.Verbalize(option),
+                BuildRunwayInstructionClause(aircraft, "cleared for the option")
+                    ?? PhraseologyVerbalizer.Verbalize(option, personality, activityLevel),
                 option.TrafficPattern
             ),
-            _ => PhraseologyVerbalizer.Verbalize(cmd),
+            _ => PhraseologyVerbalizer.Verbalize(cmd, personality, activityLevel),
         };
+
+    private static string ApplyQuietFlavor(string callsign, string body, PilotPersonality personality, FrequencyActivityLevel activityLevel)
+    {
+        if (personality != PilotPersonality.Varied || activityLevel != FrequencyActivityLevel.Quiet)
+        {
+            return body;
+        }
+
+        var bucket = StableBucket($"{callsign}|{body}", 100);
+        return bucket switch
+        {
+            < 5 => $"alright, {body}",
+            < 10 => $"{body}, thanks",
+            _ => body,
+        };
+    }
+
+    private static int StableBucket(string input, int modulo)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        uint value = ((uint)hash[0] << 24) | ((uint)hash[1] << 16) | ((uint)hash[2] << 8) | hash[3];
+        return (int)(value % modulo);
+    }
 
     private static string BuildAltitudeRestrictionClause(AircraftState aircraft, ClimbMaintainCommand cmd)
     {

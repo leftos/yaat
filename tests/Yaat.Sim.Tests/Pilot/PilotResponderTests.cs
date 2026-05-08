@@ -78,6 +78,64 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildReadback_VariedBusy_ShortensClausesAndKeepsCallsign()
+    {
+        var ac = MakeAircraft("AAL123");
+        var compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
+
+        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+
+        Assert.Equal("[AAL123] down to five thousand, right heading two seven zero, american one twenty three.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_VariedSaturated_DoesNotDropRunwayCriticalContent()
+    {
+        var ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
+        var compound = Compound(new LineUpAndWaitCommand());
+
+        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Saturated);
+
+        Assert.Equal("[N436MS] line up and wait runway two eight right, november four three six mike sierra.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_IsDeterministicAndRare()
+    {
+        var flavored = new List<string>();
+        for (int i = 0; i < 1000; i++)
+        {
+            var ac = MakeAircraft($"N{i:D3}AB");
+            var compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
+
+            var first = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet);
+            var second = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet);
+
+            Assert.Equal(first, second);
+            if (first!.Contains("alright", StringComparison.OrdinalIgnoreCase) || first.Contains("thanks", StringComparison.OrdinalIgnoreCase))
+            {
+                flavored.Add(first);
+            }
+        }
+
+        Assert.NotEmpty(flavored);
+        Assert.InRange(flavored.Count, 20, 150);
+    }
+
+    [Fact]
+    public void BuildReadback_VariedBusy_DisablesQuietFlavor()
+    {
+        var ac = MakeAircraft("N004AB");
+        var compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
+
+        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+
+        Assert.Equal("[N004AB] heading two seven zero, november zero zero four alpha bravo.", result);
+        Assert.DoesNotContain("alright", result);
+        Assert.DoesNotContain("thanks", result);
+    }
+
+    [Fact]
     public void BuildReadback_AtFixCondition_PrependsLeadingClause()
     {
         var ac = MakeAircraft("AAL123");
