@@ -96,5 +96,13 @@ jobs:
           }
           EOF
           )
-            curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
+            HTTP_CODE=$(curl -sS -o /tmp/discord-resp.txt -w "%{http_code}" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL")
+            if [[ "$HTTP_CODE" -ge 400 ]]; then
+              echo "::error::Discord webhook returned HTTP $HTTP_CODE for part ${PART}/${TOTAL_PARTS}"
+              cat /tmp/discord-resp.txt
+              exit 1
+            fi
+            echo "Posted part ${PART}/${TOTAL_PARTS} (HTTP $HTTP_CODE)"
           done
