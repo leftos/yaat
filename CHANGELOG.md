@@ -3,11 +3,12 @@
 ## Unreleased
 
 ### Added
-- `CT [target]` tells the pilot to contact the next controller — accepts callsign, frequency, or TCP, or auto-resolves with no argument.
+- `CT [target]` tells the pilot to contact the next controller — accepts callsign, frequency, or TCP, or auto-resolves with no argument. Identifies the target by published radio name (e.g. "NorCal Approach"); the terminal shows the digit frequency ("125.35") while TTS speaks digit-by-digit.
 - `FCA` issues the VFR frequency-change-approved dismissal — pilot signs off without a follow-on handoff.
-- Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established.
+- VFR altitude restrictions support `CM A/B025` and `CM A/B2500` for at-or-above and at-or-below clearances.
+- Solo-training VFR pilots hold outside FAA Class B/C airspace until `CLBRV` clearance or `STBY`/`ROGER` contact is established. Terminal renders as "Class C / OAK"; TTS speaks "the charlie / Oakland Airport".
 - Solo training mode accepts typed natural-language ATC commands, syncs across rooms and recordings, persists across runs, and labels windows as Solo/RPO mode.
-- Solo-training pilot voices use the optional Piper pack with per-aircraft speakers, radio effects, and logged TTS text for review.
+- Solo-training pilot voices use the optional Piper pack with per-aircraft speakers, radio effects, and logged TTS text for review. Custom-fix friendly names (e.g. `OAK30NUM` → "Oakland Runway 30 Numbers") and `FixPronunciations/*.json` entries (e.g. `VPCOL` → "Oakland Colliseum") flow into TTS instead of being spelled letter-by-letter. Pilot transmissions appear as delayed `SAY` radio transcripts (clear-of-runway, going-around, lost-sight-of-traffic, follow-target-landed, unable-to-catch-up, unable-to-exit, holding-short-crossing, no-clearance short-final reminder) while command confirmations stay immediate. Tower students now hear pilot speech that previously appeared only as orange terminal warnings.
 - Solo-training readbacks now shorten safe altitude, heading, speed, and direct-to responses as frequency load rises.
 - Scenario setup and the command-bar gear flyout pace solo parking call-ups by interval and adjust generated arrivals live.
 - Solo-training pilots repeat pending taxi, departure, landing, approach, and airspace-entry requests until handled, waiting longer after `STBY`/`ROGER`.
@@ -23,18 +24,10 @@
 - Speed `UNTIL` accepts aliases and fires staged speed changes while earlier speed or phase-controlled work continues.
 - Solo-training pilot readbacks preserve runway assignments and pronounce navaids like `MOD` as published navaid names.
 - Solo-training `STBY`/`ROGER` stays silent, and departure relative turns use grouped-degree phraseology.
-- VFR altitude restrictions support `CM A/B025` and `CM A/B2500` for at-or-above and at-or-below clearances.
-- Pilot terminal lines show controller-readable text while TTS receives callsign-stripped, hyphen-normalized speech.
 - Departures cleared for takeoff during taxi no longer emit a spurious airborne "request transition" check-in once they lift off.
 - Pilot airborne check-ins below 100 ft drop the "at altitude" clause instead of rendering a dangling "at ," in the readback.
-- `CT` readbacks identify the target controller by published radio name (e.g. "NorCal Approach") instead of the generic facility shortname, and render frequencies in digit form ("125.35") in the terminal while keeping spoken digits for TTS.
 - Pilot speech says "then" between sequential `;` compound blocks (matching the terminal display) instead of running them together with parallel `,` commands.
 - Multi-fix `DCT` readbacks read every fix joined by "then direct" (e.g. "proceed direct to OAK30NUM, then direct VPMID") instead of dropping all fixes after the first.
-- Pilot fix pronunciations (e.g. `VPCOL` → "Oakland Colliseum") from `FixPronunciations/*.json` are now used for TTS readbacks, not just Whisper STT biasing.
-- Custom-fix friendly names (e.g. `OAK30NUM` → "Oakland Runway 30 Numbers") now flow into TTS readbacks instead of being spelled letter-by-letter.
-- Pilot speech for the airspace-boundary self-hold and VFR airborne check-in renders the terminal as "Class C / OAK" while TTS speaks the airport by its published name ("Oakland Airport") via airport-name lookup, instead of NATO-spelling each letter.
-- Solo-training tower students now hear pilot transmissions for clear-of-runway, going-around, lost-sight-of-traffic, follow-target-landed, unable-to-catch-up, unable-to-exit, holding-short-crossing, and no-clearance short-final reminder. Previously only orange terminal warnings appeared without TTS.
-- Solo-training pilot speech appears as delayed `SAY` radio transcripts while `RSP` command confirmations stay immediate.
 
 ## v0.1.17-alpha [2026/05/06]
 
