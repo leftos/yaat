@@ -49,6 +49,8 @@ public sealed class PhaseContext
 
     public int SoloParkingInitialCallupRatePercent { get; init; } = 100;
 
+    public Func<double, bool>? TryReserveSoloParkingInitialCallupSlot { get; init; }
+
     /// <summary>
     /// When true (and <see cref="SoloTrainingMode"/> is false), sim-initiated pilot
     /// transmissions route to <c>AircraftState.PendingPilotSpeech</c> with the spoken form

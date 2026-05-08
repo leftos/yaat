@@ -397,21 +397,25 @@
                         IsVisible="{Binding ShowScenarioSetupPacingControls}">
                 <StackPanel Spacing="8"
                             IsVisible="{Binding ShowScenarioSetupParkingInitialCallupRate}">
-                    <TextBlock Text="Parking initial call-up rate"
+                    <TextBlock Text="Parking initial call-up interval"
                                Foreground="White" />
+                    <TextBlock Text="Choose how often parked aircraft make a ready-to-taxi call. Set to 0 to pause new parking call-ups."
+                               TextWrapping="Wrap"
+                               Foreground="LightGray"
+                               FontSize="11" />
                     <Grid ColumnDefinitions="*,Auto"
                           ColumnSpacing="10">
                         <Slider Grid.Column="0"
                                 Minimum="0"
-                                Maximum="100"
-                                TickFrequency="5"
+                                Maximum="120"
+                                TickFrequency="10"
                                 IsSnapToTickEnabled="True"
-                                Value="{Binding ScenarioSetupParkingInitialCallupRatePercent}" />
+                                Value="{Binding ScenarioSetupParkingInitialCallupIntervalSeconds}" />
                         <TextBlock Grid.Column="1"
-                                   Text="{Binding ScenarioSetupParkingInitialCallupRatePercent, StringFormat='{}{0}%'}"
+                                   Text="{Binding ScenarioSetupParkingInitialCallupIntervalLabel}"
                                    Foreground="LightGray"
                                    VerticalAlignment="Center"
-                                   MinWidth="40" />
+                                   MinWidth="96" />
                     </Grid>
                 </StackPanel>
                 <StackPanel Spacing="8"

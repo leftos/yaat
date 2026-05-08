@@ -145,7 +145,22 @@ public partial class MainViewModel : ObservableObject
     private int _sessionSoloParkingInitialCallupRatePercent = 100;
 
     [ObservableProperty]
+    private int _sessionSoloParkingInitialCallupIntervalSeconds = 20;
+
+    public string SessionSoloParkingInitialCallupIntervalLabel => FormatParkingInitialCallupInterval(SessionSoloParkingInitialCallupIntervalSeconds);
+
+    [ObservableProperty]
     private int _sessionSoloArrivalGeneratorRatePercent = 100;
+
+    [ObservableProperty]
+    private bool _sessionHasSoloParkingInitialCallupSource;
+
+    [ObservableProperty]
+    private bool _sessionHasSoloArrivalGeneratorSource;
+
+    public bool ShowSessionSoloParkingInitialCallupRate => SessionSoloTrainingMode && SessionHasSoloParkingInitialCallupSource;
+
+    public bool ShowSessionSoloArrivalGeneratorRate => SessionSoloTrainingMode && SessionHasSoloArrivalGeneratorSource;
 
     [ObservableProperty]
     private bool _sessionRpoShowPilotSpeech;
@@ -252,6 +267,12 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private int _scenarioSetupParkingInitialCallupRatePercent = 100;
+
+    [ObservableProperty]
+    private int _scenarioSetupParkingInitialCallupIntervalSeconds = 20;
+
+    public string ScenarioSetupParkingInitialCallupIntervalLabel =>
+        FormatParkingInitialCallupInterval(ScenarioSetupParkingInitialCallupIntervalSeconds);
 
     [ObservableProperty]
     private int _scenarioSetupArrivalGeneratorRatePercent = 100;
@@ -2173,11 +2194,30 @@ public partial class MainViewModel : ObservableObject
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
         SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
+        SessionSoloParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(dto.SoloParkingInitialCallupRatePercent);
         SessionSoloArrivalGeneratorRatePercent = dto.SoloArrivalGeneratorRatePercent;
+        SessionHasSoloParkingInitialCallupSource = dto.HasSoloParkingInitialCallupSource;
+        SessionHasSoloArrivalGeneratorSource = dto.HasSoloArrivalGeneratorSource;
         SessionRpoShowPilotSpeech = dto.RpoShowPilotSpeech;
         _isApplyingSessionSettings = false;
 
         ApplyAutoClearedToLandLocally(dto.AutoClearedToLand);
+    }
+
+    private void ApplySoloPacingSessionState(
+        int parkingInitialCallupRatePercent,
+        int arrivalGeneratorRatePercent,
+        bool hasParkingInitialCallupSource,
+        bool hasArrivalGeneratorSource
+    )
+    {
+        _isApplyingSessionSettings = true;
+        SessionSoloParkingInitialCallupRatePercent = parkingInitialCallupRatePercent;
+        SessionSoloParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(parkingInitialCallupRatePercent);
+        SessionSoloArrivalGeneratorRatePercent = arrivalGeneratorRatePercent;
+        SessionHasSoloParkingInitialCallupSource = hasParkingInitialCallupSource;
+        SessionHasSoloArrivalGeneratorSource = hasArrivalGeneratorSource;
+        _isApplyingSessionSettings = false;
     }
 
     private void ApplySessionSettingsFromRoom(RoomStateDto state)
@@ -2192,6 +2232,8 @@ public partial class MainViewModel : ObservableObject
                 state.SoloTrainingMode,
                 state.SoloParkingInitialCallupRatePercent,
                 state.SoloArrivalGeneratorRatePercent,
+                state.HasSoloParkingInitialCallupSource,
+                state.HasSoloArrivalGeneratorSource,
                 state.RpoShowPilotSpeech
             )
         );
@@ -2209,6 +2251,8 @@ public partial class MainViewModel : ObservableObject
                 dto.SoloTrainingMode,
                 dto.SoloParkingInitialCallupRatePercent,
                 dto.SoloArrivalGeneratorRatePercent,
+                dto.HasSoloParkingInitialCallupSource,
+                dto.HasSoloArrivalGeneratorSource,
                 dto.RpoShowPilotSpeech
             )
         );
@@ -2262,10 +2306,120 @@ public partial class MainViewModel : ObservableObject
     partial void OnSessionSoloTrainingModeChanged(bool value)
     {
         OnPropertyChanged(nameof(WindowTitle));
+        OnPropertyChanged(nameof(ShowSessionSoloParkingInitialCallupRate));
+        OnPropertyChanged(nameof(ShowSessionSoloArrivalGeneratorRate));
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetSoloTrainingModeAsync(value);
         }
+    }
+
+    partial void OnSessionSoloParkingInitialCallupRatePercentChanged(int value)
+    {
+        OnSessionSoloPacingRateChanged(value, 0, 200, isParkingRate: true);
+    }
+
+    partial void OnScenarioSetupParkingInitialCallupIntervalSecondsChanged(int value)
+    {
+        var clamped = NormalizeParkingInitialCallupIntervalSeconds(value);
+        if (clamped != value)
+        {
+            ScenarioSetupParkingInitialCallupIntervalSeconds = clamped;
+            return;
+        }
+
+        ScenarioSetupParkingInitialCallupRatePercent = ParkingInitialCallupIntervalSecondsToRate(clamped);
+        OnPropertyChanged(nameof(ScenarioSetupParkingInitialCallupIntervalLabel));
+    }
+
+    partial void OnSessionSoloParkingInitialCallupIntervalSecondsChanged(int value)
+    {
+        OnPropertyChanged(nameof(SessionSoloParkingInitialCallupIntervalLabel));
+        if (_isApplyingSessionSettings)
+        {
+            return;
+        }
+
+        var clamped = NormalizeParkingInitialCallupIntervalSeconds(value);
+        if (clamped != value)
+        {
+            SessionSoloParkingInitialCallupIntervalSeconds = clamped;
+            return;
+        }
+
+        _sessionSoloParkingInitialCallupRatePercent = ParkingInitialCallupIntervalSecondsToRate(clamped);
+        OnPropertyChanged(nameof(SessionSoloParkingInitialCallupRatePercent));
+        _ = _connection.SetSoloPacingRatesAsync(SessionSoloParkingInitialCallupRatePercent, SessionSoloArrivalGeneratorRatePercent);
+    }
+
+    partial void OnSessionSoloArrivalGeneratorRatePercentChanged(int value)
+    {
+        OnSessionSoloPacingRateChanged(value, 0, 100, isParkingRate: false);
+    }
+
+    partial void OnSessionHasSoloParkingInitialCallupSourceChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowSessionSoloParkingInitialCallupRate));
+    }
+
+    partial void OnSessionHasSoloArrivalGeneratorSourceChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowSessionSoloArrivalGeneratorRate));
+    }
+
+    private void OnSessionSoloPacingRateChanged(int value, int minimum, int maximum, bool isParkingRate)
+    {
+        if (_isApplyingSessionSettings)
+        {
+            return;
+        }
+
+        var clamped = Math.Clamp(value, minimum, maximum);
+        if (clamped != value)
+        {
+            if (isParkingRate)
+            {
+                SessionSoloParkingInitialCallupRatePercent = clamped;
+            }
+            else
+            {
+                SessionSoloArrivalGeneratorRatePercent = clamped;
+            }
+            return;
+        }
+
+        _ = _connection.SetSoloPacingRatesAsync(SessionSoloParkingInitialCallupRatePercent, SessionSoloArrivalGeneratorRatePercent);
+    }
+
+    private static int NormalizeParkingInitialCallupIntervalSeconds(int seconds) => seconds <= 0 ? 0 : Math.Clamp(seconds, 10, 120);
+
+    private static int ParkingInitialCallupRateToIntervalSeconds(int ratePercent)
+    {
+        var rate = Math.Clamp(ratePercent, 0, 200);
+        if (rate <= 0)
+        {
+            return 0;
+        }
+
+        var seconds = (int)(Math.Round((2000.0 / rate) / 10.0) * 10);
+        return NormalizeParkingInitialCallupIntervalSeconds(seconds);
+    }
+
+    private static int ParkingInitialCallupIntervalSecondsToRate(int seconds)
+    {
+        var interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
+        if (interval <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Clamp((int)Math.Round(2000.0 / interval), 0, 200);
+    }
+
+    private static string FormatParkingInitialCallupInterval(int seconds)
+    {
+        var interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
+        return interval <= 0 ? "Paused" : $"Once per {interval} sec";
     }
 
     partial void OnSessionRpoShowPilotSpeechChanged(bool value)

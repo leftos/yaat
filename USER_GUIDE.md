@@ -27,6 +27,13 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Weather Editor](#weather-editor)
   - [Weather Timelines (V2 Format)](#weather-timelines-v2-format)
   - [Arrival Generators Editor](#arrival-generators-editor)
+- [Solo Training](#solo-training)
+  - [Enable Solo Training](#enable-solo-training)
+  - [Load and Pace a Solo Session](#load-and-pace-a-solo-session)
+  - [Work the Frequency](#work-the-frequency)
+  - [Pilot-Initiated Requests](#pilot-initiated-requests)
+  - [Built-In Pilot Safeguards](#built-in-pilot-safeguards)
+  - [Scenario Author Notes](#scenario-author-notes)
 - [Commands](#commands)
   - [Compound Commands](#compound-commands)
   - [Helicopter operations](#helicopter-operations)
@@ -557,6 +564,8 @@ Use **View > Copy View Settings From...** to apply another scenario's Ground and
 
 Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
 
+When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** dialog before loading. In solo training, the same dialog can also show workload pacing sliders for scenarios that have parking spawns or arrival generators. See [Solo Training](#solo-training).
+
 Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading.
 
 ### Unloading a Scenario
@@ -675,6 +684,91 @@ The editor has two panels:
 **Recording / replay:** Edits are recorded as a `RecordedArrivalGeneratorsChange` action and replay deterministically with the same reschedule semantics.
 
 **Validation:** Empty/duplicate ids, unknown engine types, unknown weight categories, or runways that don't exist on the active airport are reported in the status line and prevent the apply.
+
+---
+
+## Solo Training
+
+Solo Training lets one controller run a session without separate RPOs. The simulator plays the pilots: it generates text readbacks, optional spoken pilot audio, pilot-initiated requests, and a small set of autonomous safety behaviors. It works with existing ARTCC scenarios from vNAS and local ATCTrainer-format scenario files; YAAT does not ship official ARTCC training scenarios or replace facility training-staff curriculum.
+
+### Enable Solo Training
+
+Open **Settings > Scenarios** and enable **Solo training mode** before loading a scenario. This is your default preference for future scenario loads.
+
+After a scenario is loaded, use the gear button next to the command bar to toggle **Solo Training Mode** for the active session. Session settings are shared with everyone in the room, so changing this toggle affects the live room, not just your local client.
+
+Solo Training Mode changes three main behaviors:
+
+- Successful commands generate pilot readbacks.
+- Typed natural-language ATC can be mapped to canonical YAAT commands after normal parsing fails.
+- The simulator can create pilot-initiated transmissions and autonomous pilot safeguards.
+
+Pilot audio is optional. Open **Settings > Speech**, enable **Text-to-speech (TTS)** in the Solo pilot voice section, and install the Piper voice pack if prompted. With TTS off, solo pilot transmissions still appear in the terminal.
+
+### Load and Pace a Solo Session
+
+Load a scenario from **Scenario > Load Scenario...** using either **ARTCC Scenarios** or **Local Files**. Solo training uses the scenario's normal aircraft, routes, generators, handoff data, and difficulty levels.
+
+If the scenario supports setup choices, YAAT shows **Scenario Setup** before loading:
+
+- **Difficulty** appears when the scenario defines multiple difficulty levels.
+- **Parking initial call-up interval** appears only when Solo Training Mode is on and the scenario has aircraft spawned at parking.
+- **Arrival generator rate** appears only when Solo Training Mode is on and the scenario has arrival generators.
+
+The parking slider controls how often parked aircraft make the initial ready-to-taxi call-up. **Once per 20 sec** is the default; lower intervals release calls faster, higher intervals release calls more slowly, and **Paused** stops new parking call-ups until you raise the interval again. Parked aircraft are not excluded by this setting; aircraft that remain parked can still call later when the pacing allows it.
+
+The arrival generator slider still controls the percentage of generated arrivals that will spawn. It is capped at 100%; lower values reduce workload without editing the scenario file.
+
+Changing these sliders in Scenario Setup affects the session being loaded. YAAT remembers those values as defaults for the next load. After the scenario starts, use the gear button next to the command bar to adjust the live session's parking call-up interval or arrival generator rate without reloading.
+
+### Work the Frequency
+
+In solo training, terminal entries split immediate command feedback from delayed pilot radio traffic:
+
+- **RSP** is the immediate command response: whether YAAT accepted the command and what it applied.
+- **SAY** is what the pilot says on frequency. Readbacks, pilot requests, and reminders arrive here after the frequency queue has room.
+
+For example, issuing `N123AB DM 050` returns an immediate `RSP` confirming the command and queues a pilot `SAY` readback. If several aircraft respond at once, YAAT serializes their pilot transmissions so they do not speak over each other. On a busy frequency, safe readbacks such as heading, altitude, speed, and direct-to instructions can become shorter.
+
+You can still type canonical commands (`N123AB FH 270`) or natural ATC-style instructions (`N123AB fly heading two seven zero`). Normal canonical parsing runs first; the natural-language mapper is a fallback.
+
+### Pilot-Initiated Requests
+
+Solo pilots make requests when the scenario and phase call for them. Common examples:
+
+- Parked departures call ready to taxi after the initial delay.
+- Airborne arrivals or VFR inbound aircraft call with their position and request.
+- VFR pattern aircraft request closed traffic and remind tower when landing clearance is still missing.
+- Aircraft clear of the runway report clear when they exit.
+
+Requests remain pending until the controller handles the underlying need. `STBY` and `ROGER` acknowledge the radio call, but they do not satisfy the request. A pilot who was told to stand by will wait longer before following up.
+
+`STBY` and `ROGER` can still establish two-way communications for Class C airspace. That is separate from satisfying a taxi, departure, landing, approach, or airspace-entry request.
+
+### Built-In Pilot Safeguards
+
+Solo pilots keep a few aviation-facing safeguards active:
+
+- VFR aircraft hold outside Class B airspace until cleared with `CLBRV`.
+- VFR aircraft hold outside Class C airspace until two-way communication is established.
+- Aircraft on a published approach warn near DA/MDA if no landing clearance exists, then go around at minimums if still uncleared.
+- Aircraft on approaches without published minimums keep the legacy short-final warning and 200 ft AGL no-clearance go-around.
+- Live solo maneuver clearances that the aircraft cannot accept produce an `unable` pilot readback with the reason when YAAT has one.
+
+These safeguards are not a substitute for controlling the traffic. They make common training failures visible on the frequency instead of silently mutating the scenario.
+
+### Scenario Author Notes
+
+Existing ARTCC and local scenarios can work in solo training without changes. The following content makes a scenario more useful for solo practice:
+
+- **Parking spawns** for departure practice. Aircraft at parking can call ready to taxi, and the setup dialog can slow, speed up, or pause their initial call-up interval.
+- **Arrival generators** for sustained arrival practice. The setup dialog can reduce generator rate without editing the scenario.
+- **Expected approaches and destination/runway data** so arrival requests, approach readbacks, and DA/MDA behavior have the right context.
+- **Handoff and frequency data** so `CT`, `FCA`, and controller-target readbacks use published radio names and frequencies.
+- **Difficulty levels** for progressive workload. YAAT loads the selected maximum difficulty and includes the lower levels.
+- **Representative VFR traffic near Class B/C shelves** if the scenario is meant to practice VFR airspace entry and two-way communication requirements.
+
+YAAT should document these expectations, but official scenario design belongs to each ARTCC's training staff. Avoid treating generic solo scenarios as facility curriculum unless the facility has reviewed and adopted them.
 
 ---
 
@@ -1124,9 +1218,10 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 Open **Settings** to configure:
 
 - **Identity** — VATSIM CID, user initials (required), and [ARTCC](#glossary) ID
-- **Scenarios** — Auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
+- **Scenarios** — Solo Training Mode, auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
 - **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
+- **Speech** — STT and TTS settings, including optional solo pilot voice and the Piper voice-pack install/remove controls
 - **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, and ground labels (each independently configurable, range 8–24); command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); ground display options (start with datablocks hidden); per-window always-on-top toggles
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
 - **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode

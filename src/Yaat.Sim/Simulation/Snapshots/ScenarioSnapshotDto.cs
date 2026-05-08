@@ -26,6 +26,12 @@ public sealed class ScenarioSnapshotDto
 
     public int SoloArrivalGeneratorRatePercent { get; init; } = 100;
 
+    public bool HasSoloParkingInitialCallupSource { get; init; }
+
+    public bool HasSoloArrivalGeneratorSource { get; init; }
+
+    public double NextSoloParkingInitialCallupSlotSeconds { get; init; }
+
     // Optional — defaults to false so older snapshots and bundles preserve the original
     // orange-Warning behavior for sim-initiated pilot transmissions.
     public bool RpoShowPilotSpeech { get; init; }

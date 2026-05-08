@@ -132,7 +132,7 @@ public sealed class UserPreferences
     public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
     public bool AutoCrossRunway => _data.AutoCrossRunway;
     public bool SoloTrainingMode => _data.SoloTrainingMode;
-    public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 100);
+    public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 200);
     public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
     public bool RpoShowPilotSpeech => _data.RpoShowPilotSpeech;
     public bool RpoPilotSpeechAudibleAlert => _data.RpoPilotSpeechAudibleAlert;
@@ -378,7 +378,7 @@ public sealed class UserPreferences
 
     public void SetSoloPacingRates(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent)
     {
-        _data.SoloParkingInitialCallupRatePercent = Math.Clamp(parkingInitialCallupRatePercent, 0, 100);
+        _data.SoloParkingInitialCallupRatePercent = Math.Clamp(parkingInitialCallupRatePercent, 0, 200);
         _data.SoloArrivalGeneratorRatePercent = Math.Clamp(arrivalGeneratorRatePercent, 0, 100);
         Save();
     }

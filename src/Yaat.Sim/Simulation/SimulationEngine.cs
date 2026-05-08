@@ -153,6 +153,9 @@ public sealed class SimulationEngine
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
             Scenario.SoloArrivalGeneratorRatePercent = scenarioDto.SoloArrivalGeneratorRatePercent;
+            Scenario.HasSoloParkingInitialCallupSource = scenarioDto.HasSoloParkingInitialCallupSource;
+            Scenario.HasSoloArrivalGeneratorSource = scenarioDto.HasSoloArrivalGeneratorSource;
+            Scenario.NextSoloParkingInitialCallupSlotSeconds = scenarioDto.NextSoloParkingInitialCallupSlotSeconds;
             Scenario.RpoShowPilotSpeech = scenarioDto.RpoShowPilotSpeech;
             Scenario.IsPaused = scenarioDto.IsPaused;
             Scenario.SimRate = scenarioDto.SimRate;
@@ -338,6 +341,8 @@ public sealed class SimulationEngine
             RngSeed = rngSeed,
             OriginalScenarioJson = json,
             PrimaryAirportId = result.PrimaryAirportId,
+            HasSoloParkingInitialCallupSource = result.HasParkingSpawns,
+            HasSoloArrivalGeneratorSource = result.HasArrivalGenerators,
         };
 
         // Add immediate aircraft and dispatch their presets
@@ -1415,6 +1420,7 @@ public sealed class SimulationEngine
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
             ScenarioId = Scenario?.ScenarioId,
             SoloParkingInitialCallupRatePercent = Scenario?.SoloParkingInitialCallupRatePercent ?? 100,
+            TryReserveSoloParkingInitialCallupSlot = TryReserveSoloParkingInitialCallupSlot,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
             StudentPositionType = Scenario?.StudentPositionType,
             StudentRadioName = PilotResponder.ResolveStudentRadioName(Scenario),
@@ -1464,7 +1470,7 @@ public sealed class SimulationEngine
 
         foreach (var gen in scenario.Generators)
         {
-            if (ScenarioPacing.ClampPercent(scenario.SoloArrivalGeneratorRatePercent) <= 0)
+            if (ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent) <= 0)
             {
                 continue;
             }
@@ -1539,7 +1545,7 @@ public sealed class SimulationEngine
 
     private static void AdvanceGenerator(GeneratorState gen, Random rng, int ratePercent)
     {
-        if (ScenarioPacing.ClampPercent(ratePercent) <= 0)
+        if (ScenarioPacing.ClampArrivalGeneratorPercent(ratePercent) <= 0)
         {
             gen.NextSpawnSeconds = double.PositiveInfinity;
             return;
@@ -1559,6 +1565,87 @@ public sealed class SimulationEngine
         if (gen.NextSpawnDistance > gen.Config.MaxDistance)
         {
             gen.NextSpawnDistance = gen.Config.InitialDistance;
+        }
+    }
+
+    private bool TryReserveSoloParkingInitialCallupSlot(double nowSeconds)
+    {
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            return true;
+        }
+
+        return ScenarioPacing.TryReserveParkingInitialCallupSlot(scenario, nowSeconds);
+    }
+
+    public void ApplySoloPacingRates(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent, bool rescheduleFromNow)
+    {
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            return;
+        }
+
+        var oldParkingRate = ScenarioPacing.ClampParkingInitialCallupPercent(scenario.SoloParkingInitialCallupRatePercent);
+        var newParkingRate = ScenarioPacing.ClampParkingInitialCallupPercent(parkingInitialCallupRatePercent);
+        var parkingChanged = oldParkingRate != newParkingRate;
+        var oldArrivalRate = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
+        var newArrivalRate = ScenarioPacing.ClampArrivalGeneratorPercent(arrivalGeneratorRatePercent);
+        var arrivalChanged = oldArrivalRate != newArrivalRate;
+
+        scenario.SoloParkingInitialCallupRatePercent = newParkingRate;
+        scenario.SoloArrivalGeneratorRatePercent = newArrivalRate;
+
+        if (rescheduleFromNow && parkingChanged)
+        {
+            RescheduleSoloParkingInitialCallupsFromNow(scenario, oldParkingRate, newParkingRate);
+        }
+
+        if (rescheduleFromNow && arrivalChanged)
+        {
+            RescheduleArrivalGeneratorsFromNow(scenario);
+        }
+    }
+
+    private static void RescheduleSoloParkingInitialCallupsFromNow(SimScenarioState scenario, int oldRate, int newRate)
+    {
+        if (newRate <= 0)
+        {
+            scenario.NextSoloParkingInitialCallupSlotSeconds = double.PositiveInfinity;
+            return;
+        }
+
+        var now = scenario.ElapsedSeconds;
+        if ((oldRate <= 0) || (newRate > oldRate))
+        {
+            scenario.NextSoloParkingInitialCallupSlotSeconds = now;
+            return;
+        }
+
+        if (newRate < oldRate)
+        {
+            var slowerSlot = now + ScenarioPacing.EffectiveParkingInitialCallupIntervalSeconds(newRate);
+            scenario.NextSoloParkingInitialCallupSlotSeconds = double.IsPositiveInfinity(scenario.NextSoloParkingInitialCallupSlotSeconds)
+                ? slowerSlot
+                : Math.Max(scenario.NextSoloParkingInitialCallupSlotSeconds, slowerSlot);
+        }
+    }
+
+    private static void RescheduleArrivalGeneratorsFromNow(SimScenarioState scenario)
+    {
+        var rate = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
+        foreach (var gen in scenario.Generators)
+        {
+            if (gen.IsExhausted)
+            {
+                continue;
+            }
+
+            gen.NextSpawnSeconds =
+                rate <= 0
+                    ? double.PositiveInfinity
+                    : scenario.ElapsedSeconds + ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, rate);
         }
     }
 
@@ -2027,13 +2114,13 @@ public sealed class SimulationEngine
             case "SoloParkingInitialCallupRatePercent":
                 if (int.TryParse(setting.Value, out var parkingRate))
                 {
-                    scenario.SoloParkingInitialCallupRatePercent = ScenarioPacing.ClampPercent(parkingRate);
+                    ApplySoloPacingRates(parkingRate, scenario.SoloArrivalGeneratorRatePercent, rescheduleFromNow: setting.ElapsedSeconds > 0);
                 }
                 break;
             case "SoloArrivalGeneratorRatePercent":
                 if (int.TryParse(setting.Value, out var arrivalRate))
                 {
-                    scenario.SoloArrivalGeneratorRatePercent = ScenarioPacing.ClampPercent(arrivalRate);
+                    ApplySoloPacingRates(scenario.SoloParkingInitialCallupRatePercent, arrivalRate, rescheduleFromNow: setting.ElapsedSeconds > 0);
                 }
                 break;
             case "RpoShowPilotSpeech":

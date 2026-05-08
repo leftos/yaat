@@ -182,6 +182,46 @@
                         <CheckBox Content="Solo Training Mode"
                                   IsChecked="{Binding SessionSoloTrainingMode}" />
 
+                        <StackPanel Spacing="2"
+                                    IsVisible="{Binding ShowSessionSoloParkingInitialCallupRate}">
+                            <TextBlock Text="Parking call-up interval:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            <Grid ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="8">
+                                <Slider Grid.Column="0"
+                                        Minimum="0"
+                                        Maximum="120"
+                                        TickFrequency="10"
+                                        IsSnapToTickEnabled="True"
+                                        Value="{Binding SessionSoloParkingInitialCallupIntervalSeconds}" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding SessionSoloParkingInitialCallupIntervalLabel}"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           MinWidth="80" />
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Spacing="2"
+                                    IsVisible="{Binding ShowSessionSoloArrivalGeneratorRate}">
+                            <TextBlock Text="Arrival generator rate:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            <Grid ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="8">
+                                <Slider Grid.Column="0"
+                                        Minimum="0"
+                                        Maximum="100"
+                                        TickFrequency="5"
+                                        IsSnapToTickEnabled="True"
+                                        Value="{Binding SessionSoloArrivalGeneratorRatePercent}" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding SessionSoloArrivalGeneratorRatePercent, StringFormat='{}{0}%'}"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           MinWidth="36" />
+                            </Grid>
+                        </StackPanel>
+
                         <StackPanel Spacing="2">
                             <TextBlock Text="Auto-Delete:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
                             <ComboBox ItemsSource="{Binding SessionAutoDeleteOptions}"

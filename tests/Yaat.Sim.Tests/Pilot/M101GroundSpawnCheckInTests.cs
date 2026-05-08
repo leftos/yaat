@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -35,7 +36,8 @@ public class M101GroundSpawnCheckInTests
         RunwayInfo? rwy = null,
         bool soloMode = true,
         double dt = 1.0,
-        int soloParkingInitialCallupRatePercent = 100
+        int soloParkingInitialCallupRatePercent = 100,
+        SimScenarioState? scenario = null
     ) =>
         new()
         {
@@ -48,18 +50,38 @@ public class M101GroundSpawnCheckInTests
             Logger = NullLogger.Instance,
             SoloTrainingMode = soloMode,
             ScenarioId = "TEST-SCENARIO",
+            ScenarioElapsedSeconds = scenario?.ElapsedSeconds ?? 0,
             SoloParkingInitialCallupRatePercent = soloParkingInitialCallupRatePercent,
+            TryReserveSoloParkingInitialCallupSlot = scenario is not null
+                ? now => ScenarioPacing.TryReserveParkingInitialCallupSlot(scenario, now)
+                : null,
         };
 
-    private static bool TicksParkingCallupAtRate(string callsign, int ratePercent)
-    {
-        var ac = MakeAircraft(callsign, parkingSpot: "KILO RAMP");
-        var phase = new AtParkingPhase();
-        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: ratePercent);
+    private static SimScenarioState NewScenario(int parkingRatePercent, double elapsedSeconds = 0) =>
+        new()
+        {
+            ScenarioId = "TEST-SCENARIO",
+            ScenarioName = "Test",
+            RngSeed = 1,
+            OriginalScenarioJson = "{}",
+            SoloTrainingMode = true,
+            SoloParkingInitialCallupRatePercent = parkingRatePercent,
+            ElapsedSeconds = elapsedSeconds,
+        };
 
-        phase.OnStart(ctx);
-        TickElapsed(phase, ctx, 5.0);
-        return ac.PendingPilotTransmissions.Count > 0;
+    private static bool TickParkingCallupWithScenario(
+        AircraftState ac,
+        AtParkingPhase phase,
+        SimScenarioState scenario,
+        double phaseElapsed,
+        double scenarioElapsed
+    )
+    {
+        scenario.ElapsedSeconds = scenarioElapsed;
+        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: scenario.SoloParkingInitialCallupRatePercent, scenario: scenario);
+
+        TickElapsed(phase, ctx, phaseElapsed);
+        return ac.Ground.InitialCallupDecisionProcessed;
     }
 
     private static void TickElapsed(Phase phase, PhaseContext ctx, double seconds)
@@ -141,7 +163,7 @@ public class M101GroundSpawnCheckInTests
     }
 
     [Fact]
-    public void AtParking_ZeroPercent_SuppressesWithoutMarkingInitialContact()
+    public void AtParking_ZeroRate_PausesWithoutMarkingDecisionProcessed()
     {
         var ac = MakeAircraft();
         var phase = new AtParkingPhase();
@@ -153,18 +175,62 @@ public class M101GroundSpawnCheckInTests
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
         Assert.False(ac.Ground.HasAnnouncedReady);
-        Assert.True(ac.Ground.InitialCallupDecisionProcessed);
+        Assert.False(ac.Ground.InitialCallupDecisionProcessed);
     }
 
     [Fact]
-    public void AtParking_MiddleRateDecision_IsStableForScenarioAndCallsign()
+    public void AtParking_OneHundredRate_PacesInitialCallupsEveryTwentySeconds()
     {
-        var outcomes = Enumerable.Range(10000, 40).Select(i => TicksParkingCallupAtRate($"N{i}", 50)).ToList();
-        var repeatedOutcomes = Enumerable.Range(10000, 40).Select(i => TicksParkingCallupAtRate($"N{i}", 50)).ToList();
+        var scenario = NewScenario(parkingRatePercent: 100);
+        var aircraft = Enumerable.Range(1, 3).Select(i => MakeAircraft($"N{i}", parkingSpot: "KILO RAMP")).ToArray();
+        var phases = aircraft.Select(_ => new AtParkingPhase()).ToArray();
+        for (var i = 0; i < aircraft.Length; i++)
+        {
+            phases[i].OnStart(Ctx(aircraft[i], soloParkingInitialCallupRatePercent: 100, scenario: scenario));
+        }
 
-        Assert.Equal(outcomes, repeatedOutcomes);
-        Assert.Contains(true, outcomes);
-        Assert.Contains(false, outcomes);
+        Assert.True(TickParkingCallupWithScenario(aircraft[0], phases[0], scenario, 5, 5));
+        Assert.False(TickParkingCallupWithScenario(aircraft[1], phases[1], scenario, 5, 5));
+        Assert.False(TickParkingCallupWithScenario(aircraft[2], phases[2], scenario, 5, 24.9));
+        Assert.True(TickParkingCallupWithScenario(aircraft[1], phases[1], scenario, 25, 25));
+        Assert.True(TickParkingCallupWithScenario(aircraft[2], phases[2], scenario, 45, 45));
+
+        Assert.Single(aircraft[0].PendingPilotTransmissions);
+        Assert.Single(aircraft[1].PendingPilotTransmissions);
+        Assert.Single(aircraft[2].PendingPilotTransmissions);
+    }
+
+    [Theory]
+    [InlineData(200, 15)]
+    [InlineData(50, 45)]
+    public void AtParking_PacingRateControlsSpacing(int ratePercent, double secondCallElapsedSeconds)
+    {
+        var scenario = NewScenario(ratePercent);
+        var first = MakeAircraft("N1", parkingSpot: "KILO RAMP");
+        var second = MakeAircraft("N2", parkingSpot: "KILO RAMP");
+        var phase1 = new AtParkingPhase();
+        var phase2 = new AtParkingPhase();
+        phase1.OnStart(Ctx(first, soloParkingInitialCallupRatePercent: ratePercent, scenario: scenario));
+        phase2.OnStart(Ctx(second, soloParkingInitialCallupRatePercent: ratePercent, scenario: scenario));
+
+        Assert.True(TickParkingCallupWithScenario(first, phase1, scenario, 5, 5));
+        Assert.False(TickParkingCallupWithScenario(second, phase2, scenario, 5, secondCallElapsedSeconds - 0.1));
+        Assert.True(TickParkingCallupWithScenario(second, phase2, scenario, secondCallElapsedSeconds, secondCallElapsedSeconds));
+    }
+
+    [Fact]
+    public void AtParking_RaisingFromZeroResumesWaitingAircraft()
+    {
+        var scenario = NewScenario(parkingRatePercent: 0, elapsedSeconds: 10);
+        var ac = MakeAircraft("N1", parkingSpot: "KILO RAMP");
+        var phase = new AtParkingPhase();
+        phase.OnStart(Ctx(ac, soloParkingInitialCallupRatePercent: 0, scenario: scenario));
+
+        Assert.False(TickParkingCallupWithScenario(ac, phase, scenario, 10, 10));
+        scenario.SoloParkingInitialCallupRatePercent = 100;
+        scenario.NextSoloParkingInitialCallupSlotSeconds = 10;
+
+        Assert.True(TickParkingCallupWithScenario(ac, phase, scenario, 11, 11));
     }
 
     // --- HoldingShortPhase ---

@@ -580,7 +580,7 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
-ScenarioPacing.cs              # Shared percentage pacing helpers for solo-training load-time rate controls
+ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle
 RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)

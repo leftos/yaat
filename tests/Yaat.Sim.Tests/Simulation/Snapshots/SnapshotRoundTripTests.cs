@@ -289,6 +289,9 @@ public class SnapshotRoundTripTests
                 SoloTrainingMode = true,
                 SoloParkingInitialCallupRatePercent = 45,
                 SoloArrivalGeneratorRatePercent = 70,
+                HasSoloParkingInitialCallupSource = true,
+                HasSoloArrivalGeneratorSource = true,
+                NextSoloParkingInitialCallupSlotSeconds = 85,
                 IsPaused = false,
                 SimRate = 1,
                 AutoAcceptDelaySeconds = 5,
@@ -308,6 +311,9 @@ public class SnapshotRoundTripTests
         Assert.True(deserialized.Aircraft[0].Ground.InitialCallupDecisionProcessed);
         Assert.Equal(45, deserialized.Scenario.SoloParkingInitialCallupRatePercent);
         Assert.Equal(70, deserialized.Scenario.SoloArrivalGeneratorRatePercent);
+        Assert.True(deserialized.Scenario.HasSoloParkingInitialCallupSource);
+        Assert.True(deserialized.Scenario.HasSoloArrivalGeneratorSource);
+        Assert.Equal(85, deserialized.Scenario.NextSoloParkingInitialCallupSlotSeconds);
         Assert.Equal(snapshot.SchemaVersion, deserialized.SchemaVersion);
     }
 

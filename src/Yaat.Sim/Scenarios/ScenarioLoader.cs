@@ -21,6 +21,8 @@ public class ScenarioLoadResult
     public List<LoadedAircraft> DeferredAircraft { get; init; } = [];
     public List<InitializationTrigger> Triggers { get; init; } = [];
     public List<ScenarioGeneratorConfig> Generators { get; init; } = [];
+    public bool HasParkingSpawns { get; init; }
+    public bool HasArrivalGenerators { get; init; }
     public string? AutoDeleteMode { get; init; }
     public List<string> Warnings { get; init; } = [];
 }
@@ -92,6 +94,8 @@ public static class ScenarioLoader
             DeferredAircraft = deferred,
             Triggers = scenario.InitializationTriggers,
             Generators = scenario.AircraftGenerators,
+            HasParkingSpawns = scenario.Aircraft.Any(ac => string.Equals(ac.StartingConditions.Type, "Parking", StringComparison.OrdinalIgnoreCase)),
+            HasArrivalGenerators = scenario.AircraftGenerators.Count > 0,
             AutoDeleteMode = scenario.AutoDeleteMode,
             Warnings = warnings,
         };

@@ -147,6 +147,9 @@ public partial class MainViewModel
                 ShowScenarioSetupParkingInitialCallupRate = setupPlan.ShowParkingInitialCallupRate;
                 ShowScenarioSetupArrivalGeneratorRate = setupPlan.ShowArrivalGeneratorRate;
                 ScenarioSetupParkingInitialCallupRatePercent = setupPlan.ParkingInitialCallupRatePercent;
+                ScenarioSetupParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(
+                    setupPlan.ParkingInitialCallupRatePercent
+                );
                 ScenarioSetupArrivalGeneratorRatePercent = setupPlan.ArrivalGeneratorRatePercent;
                 _pendingScenarioJson = json;
                 _pendingDifficultyApiId = apiId;
@@ -194,7 +197,7 @@ public partial class MainViewModel
             }
         }
 
-        var parkingRate = Math.Clamp(ScenarioSetupParkingInitialCallupRatePercent, 0, 100);
+        var parkingRate = ParkingInitialCallupIntervalSecondsToRate(ScenarioSetupParkingInitialCallupIntervalSeconds);
         var arrivalRate = Math.Clamp(ScenarioSetupArrivalGeneratorRatePercent, 0, 100);
         var loadParkingRate = ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100;
         var loadArrivalRate = ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100;
@@ -345,6 +348,12 @@ public partial class MainViewModel
         );
         StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.Positions);
         ApplySimState(result.IsPaused, result.SimRate);
+        ApplySoloPacingSessionState(
+            result.SoloParkingInitialCallupRatePercent,
+            result.SoloArrivalGeneratorRatePercent,
+            result.HasSoloParkingInitialCallupSource,
+            result.HasSoloArrivalGeneratorSource
+        );
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
@@ -456,7 +465,7 @@ public partial class MainViewModel
         Aircraft.Clear();
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
-        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true, false, 100, 100, false));
+        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true, false, 100, 100, false, false, false));
     }
 }
 
@@ -504,7 +513,7 @@ public sealed record ScenarioSetupPlan(
             showParkingInitialCallupRate || showArrivalGeneratorRate,
             showParkingInitialCallupRate,
             showArrivalGeneratorRate,
-            Math.Clamp(parkingInitialCallupRatePercent, 0, 100),
+            Math.Clamp(parkingInitialCallupRatePercent, 0, 200),
             Math.Clamp(arrivalGeneratorRatePercent, 0, 100)
         );
     }

@@ -395,6 +395,12 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         await _connection!.InvokeAsync("SetSoloTrainingMode", enabled);
     }
 
+    public async Task SetSoloPacingRatesAsync(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetSoloPacingRates", parkingInitialCallupRatePercent, arrivalGeneratorRatePercent);
+    }
+
     public async Task SetAutoClearedToLandAsync(bool enabled)
     {
         EnsureConnected();
@@ -694,6 +700,8 @@ public record LoadScenarioResultDto(
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
     int SoloArrivalGeneratorRatePercent = 100,
+    bool HasSoloParkingInitialCallupSource = false,
+    bool HasSoloArrivalGeneratorSource = false,
     bool IsStudentTowerPosition = true,
     string? StudentPositionType = null,
     FlightStripsConfigDto? FlightStripsConfig = null,
@@ -738,6 +746,8 @@ public record RoomStateDto(
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
     int SoloArrivalGeneratorRatePercent = 100,
+    bool HasSoloParkingInitialCallupSource = false,
+    bool HasSoloArrivalGeneratorSource = false,
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null
 );
@@ -760,6 +770,8 @@ public record ScenarioLoadedDto(
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
     int SoloArrivalGeneratorRatePercent = 100,
+    bool HasSoloParkingInitialCallupSource = false,
+    bool HasSoloArrivalGeneratorSource = false,
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
@@ -779,6 +791,8 @@ public record SessionSettingsDto(
     bool SoloTrainingMode,
     int SoloParkingInitialCallupRatePercent,
     int SoloArrivalGeneratorRatePercent,
+    bool HasSoloParkingInitialCallupSource,
+    bool HasSoloArrivalGeneratorSource,
     bool RpoShowPilotSpeech
 );
 
