@@ -64,6 +64,12 @@ public sealed class AircraftSnapshotDto
     /// </summary>
     public bool HasAnnouncedLinedUpReady { get; init; }
 
+    /// <summary>
+    /// Solo-training pilot-originated request awaiting a controller response. Non-required
+    /// so older snapshots deserialize with no pending request.
+    /// </summary>
+    public PilotPendingRequestDto? PendingPilotRequest { get; init; }
+
     public required AircraftTrackDto Track { get; init; }
     public required AircraftStarsStateDto Stars { get; init; }
 
@@ -143,6 +149,21 @@ public sealed class PositionDto
 {
     public required double Lat { get; init; }
     public required double Lon { get; init; }
+}
+
+public sealed class PilotPendingRequestDto
+{
+    public required int Kind { get; init; }
+    public required int ResponseState { get; init; }
+    public required double FirstRequestedAtSeconds { get; init; }
+    public required double LastRequestedAtSeconds { get; init; }
+    public required double NextFollowUpDueSeconds { get; init; }
+    public required string LastPilotLine { get; init; }
+    public string? RunwayId { get; init; }
+    public string? FacilityCallName { get; init; }
+    public string? AirspaceClass { get; init; }
+    public string? AirspaceIdent { get; init; }
+    public LatLon? AirspaceReferencePosition { get; init; }
 }
 
 public sealed class ApproachScoreDto

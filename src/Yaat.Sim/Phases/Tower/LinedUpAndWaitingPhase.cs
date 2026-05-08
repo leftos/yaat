@@ -85,11 +85,14 @@ public sealed class LinedUpAndWaitingPhase : Phase
         )
         {
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
-            PilotResponder.QueueSoloPilotTransmission(
+            var line = PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+            PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
-                PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName),
-                PilotTransmissionKind.Proactive,
-                PilotResponder.SourceResponse
+                PilotPendingRequestKind.Takeoff,
+                ctx.ScenarioElapsedSeconds,
+                line,
+                PilotRequestContext.Runway(rwy.Designator, facilityCallName)
             );
             ctx.Aircraft.HasAnnouncedLinedUpReady = true;
             ctx.Aircraft.HasMadeInitialContact = true;

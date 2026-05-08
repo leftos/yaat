@@ -367,11 +367,14 @@ public sealed class FinalApproachPhase : Phase
             var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
             var distMiles = (int)Math.Round(startDist);
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
-            PilotResponder.QueueSoloPilotTransmission(
+            var line = PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles, facilityCallName);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+            PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
-                PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles, facilityCallName),
-                PilotTransmissionKind.Proactive,
-                PilotResponder.SourceResponse
+                PilotPendingRequestKind.Landing,
+                ctx.ScenarioElapsedSeconds,
+                line,
+                PilotRequestContext.Runway(rwyId, facilityCallName)
             );
             ctx.Aircraft.HasMadeInitialContact = true;
         }

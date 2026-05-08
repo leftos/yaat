@@ -110,6 +110,28 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             text,
             Pilot.PilotResponder.SoloPositionsTowerApproach
         );
+        if (!ctx.SoloTrainingMode)
+        {
+            return;
+        }
+
+        if (ctx.StudentPositionType is not { } positionType)
+        {
+            return;
+        }
+
+        if (!Pilot.PilotResponder.SoloPositionsTowerApproach.Contains(positionType))
+        {
+            return;
+        }
+
+        Pilot.PilotRequestTracker.RecordRequest(
+            ctx.Aircraft,
+            Pilot.PilotPendingRequestKind.AirspaceEntry,
+            ctx.ScenarioElapsedSeconds,
+            text.Terminal,
+            Pilot.PilotRequestContext.Airspace(AirspaceClass, Ident, ReferencePosition)
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)

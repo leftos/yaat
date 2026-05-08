@@ -65,11 +65,14 @@ public sealed class HoldingShortPhase : Phase
         )
         {
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
-            PilotResponder.QueueSoloPilotTransmission(
+            var line = PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId, facilityCallName);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+            PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
-                PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId, facilityCallName),
-                PilotTransmissionKind.Proactive,
-                PilotResponder.SourceResponse
+                PilotPendingRequestKind.Takeoff,
+                ctx.ScenarioElapsedSeconds,
+                line,
+                PilotRequestContext.Runway(runwayId, facilityCallName)
             );
             _hasAnnouncedReady = true;
             ctx.Aircraft.HasMadeInitialContact = true;

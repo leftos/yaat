@@ -6,8 +6,8 @@ namespace Yaat.Sim.Pilot;
 
 /// <summary>
 /// Proactive pilot transmissions that fire on simulator state alone (no controller command
-/// to react to). Currently houses the airborne-spawn check-in; later milestones add
-/// pending-clearance reminders and DA/MDA missed-approach contingency handling.
+/// to react to). Houses airborne-spawn check-ins, arrival approach requests, controlled-airspace
+/// boundary holds, and pending-request follow-up reminders.
 ///
 /// Each entry point is idempotent: it consults the aircraft's <see cref="AircraftState.HasMadeInitialContact"/>
 /// (or feature-specific flag) so it fires once per logical event.
@@ -65,6 +65,100 @@ public static class PilotProactive
 
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
         aircraft.HasMadeInitialContact = true;
+    }
+
+    public static void TickArrivalApproachRequest(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
+    {
+        if (!scenario.SoloTrainingMode)
+        {
+            return;
+        }
+
+        if (aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        if (aircraft.FlightPlan.IsVfr)
+        {
+            return;
+        }
+
+        if (!aircraft.HasMadeInitialContact)
+        {
+            return;
+        }
+
+        if (aircraft.PendingPilotRequest is { IsOpen: true })
+        {
+            return;
+        }
+
+        if (aircraft.PendingPilotTransmissions.Count > 0)
+        {
+            return;
+        }
+
+        if (aircraft.Phases?.ActiveApproach is not null)
+        {
+            return;
+        }
+
+        if (aircraft.Phases?.LandingClearance is not null)
+        {
+            return;
+        }
+
+        var destination = !string.IsNullOrWhiteSpace(aircraft.FlightPlan.Destination) ? aircraft.FlightPlan.Destination : scenario.PrimaryAirportId;
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            return;
+        }
+
+        var destinationPosition = airportLookup(destination);
+        if (destinationPosition is null)
+        {
+            return;
+        }
+
+        var distanceNm = GeoMath.DistanceNm(destinationPosition.Value, aircraft.Position);
+        if (distanceNm > 10.0)
+        {
+            return;
+        }
+
+        var positionType = scenario.StudentPositionType;
+        if (string.IsNullOrWhiteSpace(positionType))
+        {
+            return;
+        }
+
+        if (positionType is "GND" or "TWR")
+        {
+            return;
+        }
+
+        var facilityCallName = PilotResponder.ResolveStudentFacilityCallName(scenario, positionType, positionType == "CTR" ? "center" : "approach");
+        var runwayId = aircraft.Procedure.DestinationRunway ?? aircraft.Phases?.AssignedRunway?.Designator;
+        var line = PilotResponder.BuildArrivalApproachRequest(aircraft, runwayId, (int)Math.Round(distanceNm), facilityCallName);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.Approach,
+            scenario.ElapsedSeconds,
+            line,
+            PilotRequestContext.Runway(runwayId, facilityCallName)
+        );
+    }
+
+    public static void TickPendingRequests(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (!scenario.SoloTrainingMode)
+        {
+            return;
+        }
+
+        PilotRequestTracker.TryQueueFollowUp(aircraft, scenario.ElapsedSeconds);
     }
 
     /// <summary>

@@ -47,11 +47,14 @@ public sealed class AtParkingPhase : Phase
             if (ShouldMakeInitialCallup(ctx))
             {
                 var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "GND", "ground");
-                PilotResponder.QueueSoloPilotTransmission(
+                var line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName);
+                PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+                PilotRequestTracker.RecordRequest(
                     ctx.Aircraft,
-                    PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName),
-                    PilotTransmissionKind.Proactive,
-                    PilotResponder.SourceResponse
+                    PilotPendingRequestKind.Taxi,
+                    ctx.ScenarioElapsedSeconds,
+                    line,
+                    PilotRequestContext.Facility(facilityCallName)
                 );
                 ctx.Aircraft.Ground.HasAnnouncedReady = true;
                 ctx.Aircraft.HasMadeInitialContact = true;

@@ -64,7 +64,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
        │   • Concat clauses, append spoken callsign tail  │
        │   • Queue delayed PendingPilotTransmissions      │
       │   • (M10.3.5) serialize and pace SAY/audio       │
-       │   • (M10.4) update PilotExpectation              │
+       │   • (M10.4) record pending pilot requests        │
        └──────────────────────────────────────────────────┘
 
        ┌──────────────────────────────────────────────────┐ ◄── M10.4
@@ -94,7 +94,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS v1: typed pilot-transmission SignalR event + off-by-default local client voice |
 | [x] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency queue + activity-aware solo readback verbosity |
 | [x] | **M10.3.6** | [m10.3.6-scenario-pace-controls.md](m10.3.6-scenario-pace-controls.md) | Scenario-load training pace controls: parking initial call-up and arrival generator rate sliders |
-| [ ] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pilot expectations + pending-request reminders, including slower follow-up after standby |
+| [x] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pending-request reminders, including slower follow-up after standby |
 | [ ] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
 | [ ] | **M10.6** | [m10.6-scenario-pack.md](m10.6-scenario-pack.md) | Solo training scenario pack + USER_GUIDE + cleanup |
 
@@ -121,7 +121,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 - **Phase system** — the autonomous pilot brain. Auto-exit selection, auto-glideslope capture, auto-pattern entry, auto-holding entry — all already work.
 - **`AirlineTelephony`** + **`AtcNumberParser`** + **`CallsignParser`** — reused for spoken callsign formatting.
 - **`CommandDescriber`** — extension point for readback templates.
-- **`AircraftState.HasFlightPlan` / `Destination` / `ActiveSidId` / `ExpectedApproach`** — already populated. Seed inputs for `PilotExpectation` (M10.4).
+- **`AircraftState.HasFlightPlan` / `Destination` / `ActiveSidId` / `ExpectedApproach`** — already populated. Seed inputs for pending-request triggers such as M10.4's arrival/approach reminder.
 - **`ApproachClearance.MissedApproachFixes`** + **`MapAltitudeFt`** — already populated from CIFP. M10.5's missed-approach autonomy reads them.
 - **`PiperVoiceInstaller`** (`src/Yaat.Client/Services/`) — Settings download/remove flow for the Piper LibriTTS-R voice pack.
 - **`tools/Yaat.SpeechSandbox` TTS tab** — built during M10.0; live-tunable testbed for radio-FX parameters.

@@ -180,6 +180,12 @@ public class AircraftState
     /// </summary>
     public bool HasAnnouncedLinedUpReady { get; set; }
 
+    /// <summary>
+    /// Latest solo-training pilot-originated request still waiting on controller action.
+    /// Snapshot-serialized so replay/export preserves follow-up timing.
+    /// </summary>
+    public PilotPendingRequest? PendingPilotRequest { get; set; }
+
     public NavTickDiag? LastNavDiag { get; set; }
 
     public AircraftTrack Track { get; set; } = new();
@@ -242,6 +248,7 @@ public class AircraftState
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
             IsClearedIntoBravo = dto.IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
+            PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
             Track = AircraftTrack.FromSnapshot(dto.Track),
             Stars = AircraftStarsState.FromSnapshot(dto.Stars),
             Approach = AircraftApproachState.FromSnapshot(dto.Approach),
@@ -308,6 +315,7 @@ public class AircraftState
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             IsClearedIntoBravo = IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
+            PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),
             Track = Track.ToSnapshot(),
             Stars = Stars.ToSnapshot(),
             Approach = Approach.ToSnapshot(),

@@ -2,6 +2,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -49,6 +50,17 @@ public class SnapshotRoundTripTests
             HasControllerAcknowledgedInitialContact = true,
             IsClearedIntoBravo = true,
             HasAnnouncedLinedUpReady = true,
+            PendingPilotRequest = new PilotPendingRequest
+            {
+                Kind = PilotPendingRequestKind.Approach,
+                ResponseState = PilotPendingRequestResponseState.Standby,
+                FirstRequestedAtSeconds = 20,
+                LastRequestedAtSeconds = 40,
+                NextFollowUpDueSeconds = 340,
+                LastPilotLine = "[AAL100] approach, american one hundred ten miles to land runway two eight right.",
+                RunwayId = "28R",
+                FacilityCallName = "approach",
+            },
         };
         ac.Ground.InitialCallupDecisionProcessed = true;
 
@@ -88,6 +100,11 @@ public class SnapshotRoundTripTests
         Assert.True(restored.IsClearedIntoBravo);
         Assert.True(restored.HasAnnouncedLinedUpReady);
         Assert.True(restored.Ground.InitialCallupDecisionProcessed);
+        Assert.NotNull(restored.PendingPilotRequest);
+        Assert.Equal(PilotPendingRequestKind.Approach, restored.PendingPilotRequest.Kind);
+        Assert.Equal(PilotPendingRequestResponseState.Standby, restored.PendingPilotRequest.ResponseState);
+        Assert.Equal(340, restored.PendingPilotRequest.NextFollowUpDueSeconds);
+        Assert.Equal("28R", restored.PendingPilotRequest.RunwayId);
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }
 

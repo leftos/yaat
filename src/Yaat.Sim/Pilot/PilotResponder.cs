@@ -416,6 +416,20 @@ public static class PilotResponder
         return $"[{aircraft.Callsign}] {facility}, {spoken} {SpellMiles(miles)}-mile final runway {rwy}, with information Alpha.";
     }
 
+    public static string BuildArrivalApproachRequest(AircraftState aircraft, string? runwayId, int distanceMiles, string facilityCallName)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var facility = CleanFacilityCallName(facilityCallName, "approach");
+        var miles = Math.Max(1, distanceMiles);
+        var distance = $"{SpellMiles(miles)} miles";
+        if (!string.IsNullOrWhiteSpace(runwayId))
+        {
+            return $"[{aircraft.Callsign}] {facility}, {spoken} {distance} to land runway {PhraseologyVerbalizer.SpellRunway(runwayId)}.";
+        }
+
+        return $"[{aircraft.Callsign}] {facility}, {spoken} {distance} from the airport, request approach.";
+    }
+
     /// <summary>
     /// Initial-contact check-in for VFR aircraft joining a towered field's traffic pattern for
     /// closed traffic. Fired by <c>PatternEntryPhase</c> on entry in solo-training mode, gated

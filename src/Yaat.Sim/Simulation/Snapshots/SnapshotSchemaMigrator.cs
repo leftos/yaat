@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -59,6 +59,8 @@ public static class SnapshotSchemaMigrator
         //   Legacy snapshots default the new field to "". Seed it from the parent aircraft's
         //   AircraftType so STARS/ASDE-X/FP-Editor still display a type when replaying old
         //   recordings (where filed and actual were always the same single field).
+        // V4→V5: Added AircraftSnapshotDto.PendingPilotRequest. No data transformation —
+        //   older snapshots default to null, meaning no unsatisfied pilot request was active.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

@@ -479,7 +479,9 @@ public sealed class SimulationEngine
             foreach (var ac in World.GetSnapshot())
             {
                 Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
+                Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
+                Pilot.PilotProactive.TickPendingRequests(ac, scenario);
             }
         }
 
@@ -1051,6 +1053,10 @@ public sealed class SimulationEngine
         if (result.Success)
         {
             aircraft.HasControllerAcknowledgedInitialContact = true;
+            if (dispatchCtx.SoloTrainingMode)
+            {
+                PilotRequestTracker.ApplyControllerResponse(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
+            }
         }
 
         // Emit pilot readback in solo-training mode. Single hook here in SendCommand (the
@@ -1911,7 +1917,14 @@ public sealed class SimulationEngine
             _terminalEntries.Add,
             Scenario?.ArtccConfig
         );
-        CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
+        var replayDispatchResult = CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
+        if (replayDispatchResult.Success)
+        {
+            if (replayCtx.SoloTrainingMode)
+            {
+                PilotRequestTracker.ApplyControllerResponse(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
+            }
+        }
     }
 
     private void HandleSpawnNow(string callsign)

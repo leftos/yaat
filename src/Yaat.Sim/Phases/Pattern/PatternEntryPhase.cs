@@ -139,11 +139,14 @@ public sealed class PatternEntryPhase : Phase
             var airportPos = new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude);
             int altitudeFt = (int)Math.Round(ctx.Aircraft.Altitude);
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
-            PilotResponder.QueueSoloPilotTransmission(
+            var line = PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+            PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
-                PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName),
-                PilotTransmissionKind.Proactive,
-                PilotResponder.SourceResponse
+                PilotPendingRequestKind.Landing,
+                ctx.ScenarioElapsedSeconds,
+                line,
+                PilotRequestContext.Runway(ctx.Runway.Designator, facilityCallName)
             );
             _hasAnnouncedInitialCall = true;
             ctx.Aircraft.HasMadeInitialContact = true;

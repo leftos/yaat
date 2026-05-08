@@ -453,6 +453,8 @@ Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given a
 Pilot/FrequencyActivityMeter.cs # Rolling 60-second pilot-transmission counter; classifies active frequency load as Quiet/Moderate/Busy/Saturated.
 Pilot/FrequencyState.cs        # Sim-level active-frequency queue. Serializes solo pilot SAY/audio transmissions and gives awaited command readbacks priority over proactive calls.
 Pilot/PilotTransmission.cs     # Record: Callsign, Text, SpeechText, SourceKind, Kind. Transient typed side queue for solo-training SAY/audio broadcasts.
+Pilot/PilotPendingRequest.cs   # Snapshot-serialized pending pilot request model for solo-training follow-up reminders.
+Pilot/PilotRequestTracker.cs   # Records pilot-originated requests, applies controller responses, and schedules normal/standby follow-up reminders.
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
                                # Adds light deterministic Quiet-frequency flavor and preserves runway/callsign-critical readback content.
@@ -463,7 +465,7 @@ Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, Aircraft
                                # RouteRpoTransmission(aircraft, soloMode, rpoShowPilotSpeech, pilotSpeechText, warningText) — three-way helper
                                # used by every sim-initiated pilot transmission site to pick the right destination collection.
 Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode.
-                               # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Also inserts solo-training VFR Class B/C boundary holds from FAA AIS airspace data.
+                               # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Also inserts solo-training VFR Class B/C boundary holds from FAA AIS airspace data and ticks pending-request reminders.
 Pilot/PilotPersonality.cs      # Enum controlling readback variation. Verbatim emits textbook form; Varied enables activity-aware solo-training shortcuts.
 Pilot/PilotSayBuilder.cs       # Static: pilot-style transmission text for SAY-class verbs (SALT/SHDG/SPOS/SSPD/SMACH/SEAPP).
                                # AIM-compliant spoken phraseology (digit-by-digit, "thousand"/"hundred"/"flight level", "Mach point X").
