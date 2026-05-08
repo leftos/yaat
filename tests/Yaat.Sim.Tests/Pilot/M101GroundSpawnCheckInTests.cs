@@ -50,6 +50,10 @@ public class M101GroundSpawnCheckInTests
         phase.OnTick(ctx);
     }
 
+    private static string? SinglePilotLine(AircraftState ac) => ac.PendingPilotTransmissions.SingleOrDefault()?.Text;
+
+    private static string PilotLineAt(AircraftState ac, int index) => ac.PendingPilotTransmissions[index].Text;
+
     // --- AtParkingPhase ---
 
     [Fact]
@@ -63,9 +67,9 @@ public class M101GroundSpawnCheckInTests
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 5.0);
 
-        Assert.Single(ac.PendingNotifications);
-        Assert.Contains("N123AB at kilo ramp", ac.PendingNotifications[0]);
-        Assert.Contains("with information Alpha", ac.PendingNotifications[0]);
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Contains("november one two three alpha bravo at kilo ramp", PilotLineAt(ac, 0), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("with information alpha", PilotLineAt(ac, 0), StringComparison.OrdinalIgnoreCase);
         Assert.True(ac.HasMadeInitialContact);
         Assert.True(ac.Ground.HasAnnouncedReady);
     }
@@ -80,7 +84,7 @@ public class M101GroundSpawnCheckInTests
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 4.9);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
 
@@ -96,7 +100,7 @@ public class M101GroundSpawnCheckInTests
         TickElapsed(phase, ctx, 6.0);
         TickElapsed(phase, ctx, 10.0);
 
-        Assert.Single(ac.PendingNotifications);
+        Assert.Single(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -109,7 +113,7 @@ public class M101GroundSpawnCheckInTests
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 10.0);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
 
@@ -130,9 +134,9 @@ public class M101GroundSpawnCheckInTests
 
         phase.OnStart(ctx);
 
-        var pilotLine = ac.PendingNotifications.SingleOrDefault();
+        var pilotLine = SinglePilotLine(ac);
         Assert.NotNull(pilotLine);
-        Assert.Contains("holding short runway 28R", pilotLine);
+        Assert.Contains("holding short runway two eight right", pilotLine, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("ready for departure", pilotLine);
         Assert.True(ac.HasMadeInitialContact);
     }
@@ -153,7 +157,7 @@ public class M101GroundSpawnCheckInTests
         phase.OnStart(ctx);
 
         // Sim warning still fires; pilot check-in does NOT.
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.NotEmpty(ac.PendingWarnings);
         Assert.False(ac.HasMadeInitialContact);
     }
@@ -172,7 +176,7 @@ public class M101GroundSpawnCheckInTests
             }
         );
         phase1.OnStart(Ctx(ac));
-        Assert.Single(ac.PendingNotifications);
+        Assert.Single(ac.PendingPilotTransmissions);
 
         // Different hold-short location → different phase instance → re-fires.
         var phase2 = new HoldingShortPhase(
@@ -185,9 +189,9 @@ public class M101GroundSpawnCheckInTests
         );
         phase2.OnStart(Ctx(ac));
 
-        Assert.Equal(2, ac.PendingNotifications.Count);
-        Assert.Contains("holding short runway 28L", ac.PendingNotifications[0]);
-        Assert.Contains("holding short runway 28R", ac.PendingNotifications[1]);
+        Assert.Equal(2, ac.PendingPilotTransmissions.Count);
+        Assert.Contains("holding short runway two eight left", PilotLineAt(ac, 0), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("holding short runway two eight right", PilotLineAt(ac, 1), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -205,7 +209,7 @@ public class M101GroundSpawnCheckInTests
 
         phase.OnStart(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     // --- LinedUpAndWaitingPhase ---
@@ -221,7 +225,7 @@ public class M101GroundSpawnCheckInTests
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 89.9);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -235,15 +239,15 @@ public class M101GroundSpawnCheckInTests
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 90.0);
 
-        Assert.Single(ac.PendingNotifications);
-        Assert.Contains("runway 28R, ready", ac.PendingNotifications[0]);
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Contains("runway two eight right, ready", PilotLineAt(ac, 0), StringComparison.OrdinalIgnoreCase);
         Assert.True(ac.HasAnnouncedLinedUpReady);
         Assert.True(ac.HasMadeInitialContact);
 
         // Subsequent ticks must not re-fire.
         TickElapsed(phase, ctx, 95.0);
         TickElapsed(phase, ctx, 180.0);
-        Assert.Single(ac.PendingNotifications);
+        Assert.Single(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -258,7 +262,7 @@ public class M101GroundSpawnCheckInTests
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 120.0);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasAnnouncedLinedUpReady);
     }
 
@@ -286,7 +290,7 @@ public class M101GroundSpawnCheckInTests
 
         phase.OnStart(ctx);
 
-        var line = ac.PendingNotifications.SingleOrDefault();
+        var line = SinglePilotLine(ac);
         Assert.NotNull(line);
         Assert.Contains("ILS two eight right", line);
         Assert.True(ac.HasMadeInitialContact);
@@ -308,10 +312,10 @@ public class M101GroundSpawnCheckInTests
 
         phase.OnStart(ctx);
 
-        var line = ac.PendingNotifications.SingleOrDefault();
+        var line = SinglePilotLine(ac);
         Assert.NotNull(line);
-        Assert.Contains("final runway 28R", line);
-        Assert.Contains("with information Alpha", line);
+        Assert.Contains("final runway two eight right", line, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("with information alpha", line, StringComparison.OrdinalIgnoreCase);
         Assert.True(ac.HasMadeInitialContact);
     }
 
@@ -332,6 +336,6 @@ public class M101GroundSpawnCheckInTests
 
         phase.OnStart(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 }

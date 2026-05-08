@@ -338,8 +338,8 @@ PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhy
                                # Re-runs VisualAcquisition.TryAcquireTraffic / TryAcquireAirport; on success sets the matching
                                # HasReported* flag and pushes the in-sight pilot readback through PilotResponder.RouteRpoSayReadback:
                                # RPO+RpoShowPilotSpeech → PendingPilotSpeech (green spelled-out via BuildTrafficInSight/BuildFieldInSight),
-                               # solo → PendingPilotReadbacks + typed PendingPilotTransmissions for audio; RPO default →
-                               # PendingPilotReadbacks only (SAY channel, "Have <target> in sight" / "Have the field in sight").
+                               # solo → typed PendingPilotTransmissions for delayed SAY/audio; RPO default → PendingPilotReadbacks only
+                               # (SAY channel, "Have <target> in sight" / "Have the field in sight").
                                # Silently drops observations whose target has left the sim or whose
                                # destination is no longer lookupable.
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
@@ -450,13 +450,15 @@ HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", f
 # Pilot/ — solo-training pilot AI (deterministic readbacks)
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → spoken-English readback string.
                                # Picks the first-declared rule per CanonicalCommandType (textbook form), substitutes captures via AtcNumberParser
-Pilot/PilotTransmission.cs     # Record: Callsign, Text, SourceKind. Transient typed side queue for solo-training audio broadcasts.
+Pilot/FrequencyActivityMeter.cs # Rolling 60-second pilot-transmission counter; classifies active frequency load as Quiet/Moderate/Busy/Saturated.
+Pilot/FrequencyState.cs        # Sim-level active-frequency queue. Serializes solo pilot SAY/audio transmissions and gives awaited command readbacks priority over proactive calls.
+Pilot/PilotTransmission.cs     # Record: Callsign, Text, SpeechText, SourceKind, Kind. Transient typed side queue for solo-training SAY/audio broadcasts.
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
                                # Also: BuildTrafficInSight / BuildFieldInSight / BuildHoldingShortCrossing / BuildClearOfRunway / BuildGoingAround / BuildLostSightOf*
                                # / BuildUnableTo* — the spelled-out spoken forms used by RPO PilotSpeech routing.
-                               # QueueSoloPilotTransmission / QueueSoloPilotReadback mirror solo terminal queues into PendingPilotTransmissions
-                               # without changing spoken text or terminal behavior.
+                               # QueueSoloPilotTransmission / QueueSoloPilotReadback put solo pilot speech into PendingPilotTransmissions;
+                               # command RSP lines stay immediate while delayed SAY lines represent what the pilot says on frequency.
                                # RouteRpoTransmission(aircraft, soloMode, rpoShowPilotSpeech, pilotSpeechText, warningText) — three-way helper
                                # used by every sim-initiated pilot transmission site to pick the right destination collection.
 Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode.
@@ -734,7 +736,7 @@ src/Yaat.Server/
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
-    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack; drains solo PendingPilotTransmissions after terminal broadcasts and emits PilotTransmissionBroadcast
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack; drains ready solo frequency transmissions as SAY entries and emits PilotTransmissionBroadcast
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
     CoordinationCommandHandler.cs # Stateless coordination logic (RD, RDH, RDR, RDACK, RDAUTO)
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic

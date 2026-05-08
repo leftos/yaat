@@ -70,10 +70,10 @@ public class PilotTransmissionRoutingTests
 
         phase.OnStart(ctx);
 
-        // Solo path: terse warning still fires (preserves current behavior),
-        // and the existing solo "ready for departure" pilot announcement also fires.
+        // Solo path: terse warning still fires immediately; the pilot announcement waits
+        // in the radio queue and later appears as SAY/voice.
         Assert.Equal("N172SP holding short runway 28R at B", Assert.Single(ac.PendingWarnings));
-        Assert.Equal("tower, N172SP holding short runway 28R, ready for departure.", Assert.Single(ac.PendingNotifications));
+        Assert.Empty(ac.PendingNotifications);
         Assert.Equal(PilotResponder.BuildHoldingShortReady(ac, "28R"), Assert.Single(ac.PendingPilotTransmissions).Text);
         Assert.Empty(ac.PendingPilotSpeech);
     }

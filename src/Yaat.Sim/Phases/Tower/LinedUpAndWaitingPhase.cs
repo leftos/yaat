@@ -85,7 +85,12 @@ public sealed class LinedUpAndWaitingPhase : Phase
         )
         {
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
-            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName));
+            PilotResponder.QueueSoloPilotTransmission(
+                ctx.Aircraft,
+                PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName),
+                PilotTransmissionKind.Proactive,
+                PilotResponder.SourceResponse
+            );
             ctx.Aircraft.HasAnnouncedLinedUpReady = true;
             ctx.Aircraft.HasMadeInitialContact = true;
         }

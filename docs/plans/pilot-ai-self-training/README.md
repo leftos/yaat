@@ -62,8 +62,8 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
        │     using the same PhraseologyRules that         │
        │     parse controller speech (one source of truth)│
        │   • Concat clauses, append spoken callsign tail  │
-       │   • Push to AircraftState.PendingNotifications   │
-       │   • (M10.3) mirror typed PilotTransmission event │
+       │   • Queue delayed PendingPilotTransmissions      │
+       │   • (M10.3.5) serialize delayed SAY/audio output │
        │   • (M10.4) update PilotExpectation              │
        └──────────────────────────────────────────────────┘
 
@@ -92,7 +92,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.1.5** | [m10.1.5-vfr-airspace-respect.md](m10.1.5-vfr-airspace-respect.md) | VFR self-restrict outside FAA AIS Class B (no clearance) / Class C (no two-way comms) until gate satisfied |
 | [x] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
 | [x] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS v1: typed pilot-transmission SignalR event + off-by-default local client voice |
-| [ ] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency contention + transmission queue + activity-aware verbosity |
+| [ ] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency queue foundation shipped; activity-aware verbosity pending |
 | [ ] | **M10.3.6** | [m10.3.6-scenario-pace-controls.md](m10.3.6-scenario-pace-controls.md) | Scenario-load training pace controls: parking initial call-up rate slider |
 | [ ] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pilot expectations + pending-request reminders, including slower follow-up after standby |
 | [ ] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
@@ -102,11 +102,12 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 
 - **`SoloTrainingMode` gates everything.** All pilot behavior is preference-gated so instructor-mode users see zero behavior change.
 - **TTS v1 is event-driven and client-side.** The sim emits typed `PilotTransmission` metadata alongside existing terminal queues; the server broadcasts `PilotTransmissionBroadcast`; the client speaks it only when the user enables Pilot Voice and the active session is solo training.
+- **`RSP` and `SAY` are separate solo-training channels.** `RSP` is immediate command parse/dispatch feedback. `SAY` is the delayed radio transcript of what the pilot says on frequency; one command can produce both.
 - **TTS engine: sherpa-onnx + Piper LibriTTS-R 904-speaker model + NAudio radio DSP + PortAudio playback.** This keeps M10.3 cross-platform and aligned with the M10.0 spike.
 - **Pilot speech inverts `PhraseologyRules`** — single source of truth; one rule covers both controller-input parsing (M10.2) and pilot-readback generation (M10.1+).
 - **Missed approach uses warn-early-then-miss-at-DA pattern** (M10.5).
 - **First production ship was M10.1; M10.1.1 + M10.1.2 + M10.1.3 form the VFR-emphasis pull-forward** (decided 2026-05-02 — moved airborne-spawn out of M10.4 to land alongside ground-spawn).
-- **Towered-field pilot speech is no-clearance-driven, not phase-entry-driven** (decided 2026-05-02 during M10.1.3 planning). At Class D / Class C tower fields, pilots in closed traffic do **not** self-announce every leg at phase entry. They speak twice: (1) initial contact with intent (`"request closed traffic"`) on first phase activation, and (2) reminder transmissions at midfield-downwind or short-final **only if** tower hasn't cleared them yet. The existing `_midfieldBroadcastIssued` block in `DownwindPhase` already encodes the right trigger; M10.1.3 branches its output by mode. Position reports go in `OnTick` with a clearance gate; intent declarations go in `OnStart`. Output channel branches on `SoloTrainingMode`: `PendingNotifications` (pilot speech) in solo mode, `PendingWarnings` (controller nag, existing behavior) in RPO mode.
+- **Towered-field pilot speech is no-clearance-driven, not phase-entry-driven** (decided 2026-05-02 during M10.1.3 planning). At Class D / Class C tower fields, pilots in closed traffic do **not** self-announce every leg at phase entry. They speak twice: (1) initial contact with intent (`"request closed traffic"`) on first phase activation, and (2) reminder transmissions at midfield-downwind or short-final **only if** tower hasn't cleared them yet. The existing `_midfieldBroadcastIssued` block in `DownwindPhase` already encodes the right trigger; M10.1.3 branches its output by mode. Position reports go in `OnTick` with a clearance gate; intent declarations go in `OnStart`. Output channel branches on `SoloTrainingMode`: delayed `PendingPilotTransmissions` (pilot SAY/audio) in solo mode, `PendingWarnings` (controller nag, existing behavior) in RPO mode.
 - **Training pace controls live at scenario load** (M10.3.6). The existing difficulty overlay becomes a shared scenario setup modal. The parking initial call-up slider is per loaded session/scenario and remembers the previous value only as the next default.
 - **`STBY` acknowledges but does not satisfy a pending pilot request** (M10.4). It can still satisfy two-way radio communication requirements such as the M10.1.5 Class C gate, but the pilot should follow up later if the underlying request has not been handled.
 - **The old `docs/plans/pilot-ai-architecture.md` is deleted as part of M10.6.**
@@ -116,7 +117,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 - **`CommandDispatcher.DispatchCompound`** — single integration point. M10.1's hook is one function call after success.
 - **`PhraseologyRules`** + **`PhraseologyMapper`** — single source of ATC vocabulary, used both directions.
 - **`LocalLlmCommandMapper`** — LLM fallback for the M10.2 student-input parser. Already grammar-constrained.
-- **`PendingNotifications` / `PendingWarnings`** (`AircraftState`) — the talkback channel. Terminal already drains them.
+- **`PendingNotifications` / `PendingWarnings`** (`AircraftState`) — immediate non-radio talkback and warning channels. Terminal already drains them.
 - **Phase system** — the autonomous pilot brain. Auto-exit selection, auto-glideslope capture, auto-pattern entry, auto-holding entry — all already work.
 - **`AirlineTelephony`** + **`AtcNumberParser`** + **`CallsignParser`** — reused for spoken callsign formatting.
 - **`CommandDescriber`** — extension point for readback templates.
@@ -124,7 +125,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 - **`ApproachClearance.MissedApproachFixes`** + **`MapAltitudeFt`** — already populated from CIFP. M10.5's missed-approach autonomy reads them.
 - **`PiperVoiceInstaller`** (`src/Yaat.Client/Services/`) — Settings download/remove flow for the Piper LibriTTS-R voice pack.
 - **`tools/Yaat.SpeechSandbox` TTS tab** — built during M10.0; live-tunable testbed for radio-FX parameters.
-- **PilotTransmission queue** — transient side queue on `AircraftState`; mirrors terminal pilot text into typed audio metadata without changing phraseology or terminal behavior.
+- **PilotTransmission queue + FrequencyState** — transient side queue on `AircraftState` plus sim-level active-frequency serializer. Solo pilot speech drains later as `SAY` and typed audio metadata; command `RSP` remains immediate.
 - **Pattern phases** (`src/Yaat.Sim/Phases/Pattern/`) — `DownwindPhase`, `BasePhase`, `UpwindPhase`, `CrosswindPhase`, `PatternEntryPhase`, `VfrFollowPhase`. Pattern plumbing already exists; M10.1.3 only adds pilot speech.
 - **Scenario difficulty overlay** (`MainViewModel.Scenario` + `MainWindow.axaml`) — reused by M10.3.6 as the shared scenario setup modal rather than adding another load-time dialog.
 
@@ -135,7 +136,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | **Default plan / autonomous taxi-without-clearance** | Anti-feature for ATC training. The student must own every clearance. The "do nothing without a command" baseline is a feature, not a bug. |
 | **NLP-rich ATC parsing for solo students** | M10.2's PhraseologyMapper covers ~163 patterns. LLM fallback covers most else. Resist building a richer parser until production playtesting reveals what's actually missing. |
 | **Lost-comms 14 CFR 91.185 procedures** | Solo sessions never run that long. M10.4's pending-clearance reminders + M10.5's missed-approach autonomy cover the failure modes that matter. |
-| **Frequency state machine (multi-frequency, monitor-vs-active), ATIS dynamic injection** | Adds modeling burden with near-zero training value when there's no actual radio. `HOO` already removes the aircraft from the controller's view; that's enough. |
+| **Multi-frequency monitor-vs-active modeling, ATIS dynamic injection** | Adds modeling burden with near-zero training value beyond the single active-frequency queue. `HOO` already removes the aircraft from the controller's view; that's enough. |
 | **Pilot shortcuts / variable phraseology** | Architecture supports it (`PhraseologyRule.PilotShortcuts` field reserved, `PilotPersonality.Verbatim` is the default), but no shortcuts populated at MVP. Future work can populate from `docs/pilot-phraseology-examples.md` and add a `PilotPersonality.Varied` mode that picks one variant per-aircraft (seeded by scenario seed XOR callsign hash, same trick as TTS voice assignment for replay determinism). |
 | **Conditional pilot speech** | Callsign abbreviation after initial contact (FAA / ICAO rules differ), busy-radio frequency-formatting, "thanks"/"alright" personality wrappers — all need richer state (per-frequency busyness, `aircraft.HasEstablishedContactWith[facility]`, `PilotPersonality` enum beyond `Verbatim`). Documented in `docs/pilot-phraseology-examples.md` as future work. |
 | **Response timing jitter** | Pure flavor; deterministic readbacks are easier to test and learn against. Defer indefinitely or add as a `PilotPersonality` knob if it ever matters. |

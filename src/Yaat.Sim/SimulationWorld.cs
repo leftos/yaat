@@ -16,6 +16,7 @@ public sealed class SimulationWorld
     public SerializableRandom Rng { get; set; } = new SerializableRandom(0);
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
+    public FrequencyState ActiveFrequency { get; } = new();
 
     /// <summary>
     /// Student TCP. Handoff accepts to this position do not trigger ONHO conditions.
@@ -266,7 +267,12 @@ public sealed class SimulationWorld
         return result;
     }
 
-    public List<PilotTransmission> DrainAllPilotTransmissions()
+    public void ExpectPilotReadback(string callsign)
+    {
+        ActiveFrequency.ExpectReadback(callsign);
+    }
+
+    public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds)
     {
         var result = new List<PilotTransmission>();
         lock (_lock)
@@ -275,13 +281,35 @@ public sealed class SimulationWorld
             {
                 if (ac.PendingPilotTransmissions.Count > 0)
                 {
-                    result.AddRange(ac.PendingPilotTransmissions);
+                    foreach (var transmission in ac.PendingPilotTransmissions)
+                    {
+                        ActiveFrequency.Enqueue(transmission);
+                    }
+
                     ac.PendingPilotTransmissions.Clear();
                 }
+            }
+
+            while (ActiveFrequency.TryDequeueReady(elapsedSeconds) is { } transmission)
+            {
+                result.Add(transmission);
             }
         }
 
         return result;
+    }
+
+    public void DiscardAllPilotTransmissions()
+    {
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                ac.PendingPilotTransmissions.Clear();
+            }
+
+            ActiveFrequency.Clear();
+        }
     }
 
     public List<ApproachScore> DrainAllApproachScores()

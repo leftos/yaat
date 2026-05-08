@@ -495,8 +495,23 @@ public sealed class SimulationEngine
             EmitTerminal("SayReadback", callsign, readback);
         }
 
+        if (Scenario is { SoloTrainingMode: true } activeScenario)
+        {
+            foreach (var transmission in World.DrainReadyPilotTransmissions(activeScenario.ElapsedSeconds))
+            {
+                EmitTerminal(ToSayKind(transmission), transmission.Callsign, transmission.SpeechText);
+            }
+        }
+        else
+        {
+            World.DiscardAllPilotTransmissions();
+        }
+
         World.DrainAllApproachScores();
     }
+
+    private static string ToSayKind(PilotTransmission transmission) =>
+        transmission.Kind == PilotTransmissionKind.SayReadback ? "SayReadback" : "SayPilot";
 
     private static LatLon? LookupAirportPosition(string airportId)
     {
@@ -1046,7 +1061,13 @@ public sealed class SimulationEngine
             var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft);
             if (!string.IsNullOrEmpty(readback))
             {
-                Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(aircraft, readback);
+                World.ExpectPilotReadback(aircraft.Callsign);
+                Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(
+                    aircraft,
+                    readback,
+                    Yaat.Sim.Pilot.PilotTransmissionKind.Readback,
+                    Yaat.Sim.Pilot.PilotResponder.SourceResponse
+                );
             }
         }
 

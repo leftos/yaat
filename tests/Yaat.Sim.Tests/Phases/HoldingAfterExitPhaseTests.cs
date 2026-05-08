@@ -35,16 +35,16 @@ public class HoldingAfterExitPhaseTests
         };
 
     [Fact]
-    public void OnStart_SoloTowerStudent_QueuesTerminalAndTts()
+    public void OnStart_SoloTowerStudent_QueuesDelayedSayAndTts()
     {
         var ac = MakeAircraft();
         var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null);
 
         phase.OnStart(MakeContext(ac, "TWR"));
 
-        var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Equal("N569SX, clear of runway 28R at E.", notification);
+        Assert.Empty(ac.PendingNotifications);
         var transmission = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Equal("N569SX, clear of runway 28R at E.", transmission.Text);
         Assert.Contains("clear of runway two eight right", transmission.SpeechText);
         Assert.Empty(ac.PendingWarnings);
     }

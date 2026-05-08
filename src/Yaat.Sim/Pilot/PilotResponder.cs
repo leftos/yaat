@@ -10,8 +10,8 @@ namespace Yaat.Sim.Pilot;
 
 /// <summary>
 /// Builds deterministic pilot-readback strings from accepted dispatched commands. Used by
-/// <see cref="CommandDispatcher"/> in solo-training mode to push readbacks into
-/// <see cref="AircraftState.PendingNotifications"/>.
+/// <see cref="CommandDispatcher"/> in solo-training mode to queue readbacks for the
+/// delayed SAY/audio channel.
 ///
 /// Most readbacks come from inverting <see cref="PhraseologyRule"/>s via
 /// <see cref="PhraseologyVerbalizer"/> — controllers and pilots share the same vocabulary,
@@ -43,24 +43,24 @@ public static class PilotResponder
     public static readonly IReadOnlyCollection<string> SoloPositionsTowerApproach = ["TWR", "APP"];
 
     /// <summary>
-    /// Queues a solo-training pilot line for the terminal response channel and for typed
-    /// pilot-audio broadcast. The terminal gets compact text; audio gets the spoken form
-    /// without the legacy bracketed callsign prefix.
+    /// Queues a solo-training pilot line for delayed radio transcript and typed pilot-audio
+    /// broadcast. Immediate controller responses stay on the Response channel; this queue
+    /// represents what the pilot says when the frequency is available.
     /// </summary>
-    public static void QueueSoloPilotTransmission(AircraftState aircraft, string text, string sourceKind = SourceResponse)
+    public static void QueueSoloPilotTransmission(AircraftState aircraft, string text, PilotTransmissionKind kind, string sourceKind)
     {
-        aircraft.PendingNotifications.Add(CompactForTerminal(aircraft, text));
-        aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text, PrepareForTts(aircraft, text), sourceKind));
+        aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text, PrepareForTts(aircraft, text), sourceKind, kind));
     }
 
     /// <summary>
-    /// Queues a solo-training SAY-channel readback and mirrors it to the typed
+    /// Queues a solo-training SAY-channel readback for delayed radio transcript and typed
     /// pilot-audio broadcast.
     /// </summary>
-    public static void QueueSoloPilotReadback(AircraftState aircraft, string text, string sourceKind = SourceSayReadback)
+    public static void QueueSoloPilotReadback(AircraftState aircraft, string text, string sourceKind)
     {
-        aircraft.PendingPilotReadbacks.Add(text);
-        aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text, PrepareForTts(aircraft, text), sourceKind));
+        aircraft.PendingPilotTransmissions.Add(
+            new PilotTransmission(aircraft.Callsign, text, PrepareForTts(aircraft, text), sourceKind, PilotTransmissionKind.SayReadback)
+        );
     }
 
     /// <summary>
@@ -436,7 +436,7 @@ public static class PilotResponder
     ///   <c>Warning</c> kind (orange) with the existing terse controller-debug text. This is the
     ///   default when neither toggle is set, preserving prior behavior.</description></item>
     /// </list>
-    /// Solo-mode pilot-speech routing (into <see cref="AircraftState.PendingNotifications"/>) is
+    /// Solo-mode pilot-speech routing (into <see cref="AircraftState.PendingPilotTransmissions"/>) is
     /// the caller's responsibility — branch on <paramref name="soloTrainingMode"/> first if the
     /// site has a dedicated solo flow, then fall through to this helper for the non-solo case.
     /// </summary>
@@ -459,8 +459,7 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// Legacy bridge for sites whose builders still produce a single TTS string (compacted to
-    /// terminal via <see cref="CompactForTerminal"/>). Adds the solo-TTS branch with a
+    /// Legacy bridge for sites whose builders still produce a single TTS string. Adds the solo-TTS branch with a
     /// position-relevance gate so solo TWR/APP students hear sites that weren't yet migrated
     /// to <see cref="PilotSpeechText"/>. New code should prefer the dual-output overload.
     /// </summary>
@@ -480,7 +479,7 @@ public static class PilotResponder
             bool relevant = studentPositionType is { Length: > 0 } st && soloRelevantPositions.Contains(st, StringComparer.OrdinalIgnoreCase);
             if (relevant)
             {
-                QueueSoloPilotTransmission(aircraft, pilotSpeechText, sourceKind);
+                QueueSoloPilotTransmission(aircraft, pilotSpeechText, PilotTransmissionKind.Proactive, sourceKind);
             }
             else
             {
@@ -507,9 +506,8 @@ public static class PilotResponder
     /// tower-or-approach.
     /// <list type="bullet">
     ///   <item><description><b>Solo + student in <paramref name="soloRelevantPositions"/></b>:
-    ///   queue into <see cref="AircraftState.PendingNotifications"/> AND
-    ///   <see cref="AircraftState.PendingPilotTransmissions"/> so terminal shows the readable
-    ///   form and TTS speaks the spoken form.</description></item>
+    ///   queue into <see cref="AircraftState.PendingPilotTransmissions"/> so delayed SAY
+    ///   and TTS use the spoken pilot line.</description></item>
     ///   <item><description><b>Solo + irrelevant position</b>: terminal warning only (no TTS) —
     ///   the student isn't listening on this frequency.</description></item>
     ///   <item><description><b>RPO with show-pilot-speech</b>: broadcast as
@@ -533,8 +531,9 @@ public static class PilotResponder
                 studentPositionType is { Length: > 0 } st && soloRelevantPositions.Contains(st, StringComparer.OrdinalIgnoreCase);
             if (studentIsRelevant)
             {
-                aircraft.PendingNotifications.Add(text.Terminal);
-                aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text.Terminal, text.Tts, sourceKind));
+                aircraft.PendingPilotTransmissions.Add(
+                    new PilotTransmission(aircraft.Callsign, text.Terminal, text.Tts, sourceKind, PilotTransmissionKind.Proactive)
+                );
             }
             else
             {
@@ -579,7 +578,7 @@ public static class PilotResponder
         }
         else if (soloTrainingMode)
         {
-            QueueSoloPilotReadback(aircraft, sayReadbackText);
+            QueueSoloPilotReadback(aircraft, sayReadbackText, SourceSayReadback);
         }
         else
         {

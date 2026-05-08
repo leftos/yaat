@@ -19,6 +19,8 @@ public class ContactCommandHandlerTests
     private static DispatchContext MakeCtx(ArtccConfigRoot? config, bool soloTrainingMode = true, bool rpoShowPilotSpeech = false) =>
         TestDispatch.Context(new Random(0), soloTrainingMode: soloTrainingMode, rpoShowPilotSpeech: rpoShowPilotSpeech, artccConfig: config);
 
+    private static PilotTransmission SingleTransmission(AircraftState ac) => Assert.Single(ac.PendingPilotTransmissions);
+
     // --- Explicit target: position callsign ---
 
     [Fact]
@@ -34,11 +36,10 @@ public class ContactCommandHandlerTests
         var result = ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, MakeCtx(config));
 
         Assert.True(result.Success);
-        var notification = Assert.Single(ac.PendingNotifications);
-        // CompactForTerminal compacts the spoken frequency to digits and the handler now uses
-        // Position.RadioName ("Oakland Tower") instead of the generic "tower" shortname.
-        Assert.StartsWith("Oakland Tower on 127.2,", notification);
-        Assert.Contains(", N123AB, so long.", notification);
+        var transmission = SingleTransmission(ac);
+        Assert.Empty(ac.PendingNotifications);
+        Assert.StartsWith("Oakland Tower on one two seven point two,", transmission.SpeechText);
+        Assert.Contains(", november one two three alpha bravo, so long.", transmission.SpeechText);
     }
 
     [Fact]
@@ -52,11 +53,11 @@ public class ContactCommandHandlerTests
 
         var ac1 = MakeAircraft();
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_GND"), ac1, MakeCtx(config));
-        var groundReadback = Assert.Single(ac1.PendingNotifications);
+        var groundReadback = SingleTransmission(ac1).SpeechText;
 
         var ac2 = MakeAircraft();
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac2, MakeCtx(config));
-        var towerReadback = Assert.Single(ac2.PendingNotifications);
+        var towerReadback = SingleTransmission(ac2).SpeechText;
 
         Assert.Contains("Oakland Ground", groundReadback);
         Assert.Contains("Oakland Tower", towerReadback);
@@ -78,8 +79,8 @@ public class ContactCommandHandlerTests
         var result = ContactCommandHandler.HandleContact(new ContactCommand("OAK_G_APP"), ac, MakeCtx(config));
 
         Assert.True(result.Success);
-        var notification = Assert.Single(ac.PendingNotifications);
-        Assert.StartsWith("NorCal Approach on 125.35,", notification);
+        var transmission = SingleTransmission(ac);
+        Assert.StartsWith("NorCal Approach on one two five point three five,", transmission.SpeechText);
     }
 
     // --- Explicit target: frequency ---
@@ -105,8 +106,8 @@ public class ContactCommandHandlerTests
         );
 
         Assert.True(result.Success);
-        var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Contains("Oakland Tower on ", notification);
+        var transmission = SingleTransmission(ac);
+        Assert.Contains("Oakland Tower on ", transmission.SpeechText);
     }
 
     // --- Explicit target: TCP code ---
@@ -132,7 +133,7 @@ public class ContactCommandHandlerTests
         var result = ContactCommandHandler.HandleContact(new ContactCommand(unambiguous), ac, MakeCtx(config));
 
         Assert.True(result.Success);
-        Assert.Single(ac.PendingNotifications);
+        SingleTransmission(ac);
     }
 
     [Fact]
@@ -162,7 +163,7 @@ public class ContactCommandHandlerTests
         {
             Assert.Contains(c.Callsign, result.Message ?? "");
         }
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     private static string? FindUnambiguousTcpCode(ArtccConfigRoot config)
@@ -239,7 +240,7 @@ public class ContactCommandHandlerTests
 
         Assert.False(result.Success);
         Assert.Contains("unknown position", result.Message ?? "");
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     // --- Auto-resolve (no arg) ---
@@ -252,7 +253,7 @@ public class ContactCommandHandlerTests
 
         Assert.False(result.Success);
         Assert.Contains("no handoff target", result.Message ?? "");
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -270,8 +271,8 @@ public class ContactCommandHandlerTests
         var result = ContactCommandHandler.HandleContact(new ContactCommand(null), ac, MakeCtx(config));
 
         Assert.True(result.Success);
-        var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Contains("Oakland Tower on ", notification);
+        var transmission = SingleTransmission(ac);
+        Assert.Contains("Oakland Tower on ", transmission.SpeechText);
     }
 
     [Fact]
@@ -290,8 +291,8 @@ public class ContactCommandHandlerTests
         var result = ContactCommandHandler.HandleContact(new ContactCommand(null), ac, MakeCtx(config));
 
         Assert.True(result.Success);
-        var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Contains("Oakland Ground on ", notification);
+        var transmission = SingleTransmission(ac);
+        Assert.Contains("Oakland Ground on ", transmission.SpeechText);
     }
 
     [Fact]
@@ -303,7 +304,7 @@ public class ContactCommandHandlerTests
         var result = ContactCommandHandler.HandleContact(new ContactCommand(null), ac, MakeCtx(null));
 
         Assert.False(result.Success);
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     // --- Idempotence ---
@@ -321,7 +322,7 @@ public class ContactCommandHandlerTests
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, MakeCtx(config));
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, MakeCtx(config));
 
-        Assert.Equal(2, ac.PendingNotifications.Count);
+        Assert.Equal(2, ac.PendingPilotTransmissions.Count);
     }
 
     // --- FCA ---
@@ -333,8 +334,8 @@ public class ContactCommandHandlerTests
         var result = ContactCommandHandler.HandleFrequencyChangeApproved(ac, MakeCtx(null));
 
         Assert.True(result.Success);
-        var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Equal("N123AB, good day.", notification);
+        var transmission = SingleTransmission(ac);
+        Assert.Equal("november one two three alpha bravo, good day.", transmission.SpeechText);
     }
 
     // --- Routing: solo / RPO+flag / RPO ---
@@ -352,7 +353,7 @@ public class ContactCommandHandlerTests
         var ctx = MakeCtx(config, soloTrainingMode: false, rpoShowPilotSpeech: true);
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Single(ac.PendingPilotSpeech);
         Assert.Empty(ac.PendingWarnings);
     }
@@ -370,7 +371,7 @@ public class ContactCommandHandlerTests
         var ctx = MakeCtx(config, soloTrainingMode: false, rpoShowPilotSpeech: false);
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Empty(ac.PendingPilotSpeech);
         Assert.Single(ac.PendingWarnings);
     }
@@ -379,7 +380,7 @@ public class ContactCommandHandlerTests
     //     compacted to numeric form for the terminal display. ---
 
     [Fact]
-    public void Contact_PositionFrequency_TerminalCompactsToDigits()
+    public void Contact_PositionFrequency_DelayedSayKeepsSpokenForm()
     {
         var config = TestArtccConfig.LoadZoa();
         if (config is null)
@@ -390,12 +391,13 @@ public class ContactCommandHandlerTests
         var oakTwr = config.FindPositionByCallsign("OAK_TWR");
         Assert.NotNull(oakTwr);
         var freqMhz = oakTwr.Frequency / 1_000_000.0;
-        var expectedDigits = freqMhz.ToString("0.0##", System.Globalization.CultureInfo.InvariantCulture);
+        var expectedSpoken = PhraseologyVerbalizer.FrequencyToWords(freqMhz);
 
         var ac = MakeAircraft();
         ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, MakeCtx(config));
 
-        Assert.Contains($"Oakland Tower on {expectedDigits}", ac.PendingNotifications[0]);
+        Assert.Empty(ac.PendingNotifications);
+        Assert.Contains($"Oakland Tower on {expectedSpoken}", SingleTransmission(ac).SpeechText);
     }
 
     [Fact]

@@ -60,6 +60,8 @@ public class M102AirborneCheckInTests
             StudentPositionType = positionType,
         };
 
+    private static string PilotLineAt(AircraftState ac, int index) => ac.PendingPilotTransmissions[index].Text;
+
     private static SimScenarioState MakeScenarioWithStudentRadioName(string positionType, string callsign, string radioName)
     {
         var scenario = MakeScenario(positionType);
@@ -449,8 +451,8 @@ public class M102AirborneCheckInTests
 
         PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
 
-        Assert.Single(ac.PendingNotifications);
-        Assert.Contains("approach", ac.PendingNotifications[0]);
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Contains("approach", PilotLineAt(ac, 0));
         Assert.True(ac.HasMadeInitialContact);
     }
 
@@ -465,7 +467,7 @@ public class M102AirborneCheckInTests
         PilotProactive.TickAirborneCheckIn(ac, sc, lookup);
         PilotProactive.TickAirborneCheckIn(ac, sc, lookup);
 
-        Assert.Single(ac.PendingNotifications);
+        Assert.Single(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -477,7 +479,7 @@ public class M102AirborneCheckInTests
 
         PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
 
@@ -490,7 +492,7 @@ public class M102AirborneCheckInTests
 
         PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -501,7 +503,7 @@ public class M102AirborneCheckInTests
 
         PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
 
@@ -513,7 +515,7 @@ public class M102AirborneCheckInTests
 
         PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -524,7 +526,7 @@ public class M102AirborneCheckInTests
 
         PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -538,7 +540,7 @@ public class M102AirborneCheckInTests
         // no fire.
         PilotProactive.TickAirborneCheckIn(ac, sc, _ => null);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
 }

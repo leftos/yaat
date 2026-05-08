@@ -141,7 +141,9 @@ public sealed class PatternEntryPhase : Phase
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
             PilotResponder.QueueSoloPilotTransmission(
                 ctx.Aircraft,
-                PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName)
+                PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName),
+                PilotTransmissionKind.Proactive,
+                PilotResponder.SourceResponse
             );
             _hasAnnouncedInitialCall = true;
             ctx.Aircraft.HasMadeInitialContact = true;

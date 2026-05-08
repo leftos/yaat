@@ -132,7 +132,7 @@ public sealed class DownwindPhase : Phase
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
 
         // Midfield downwind broadcast: remind controller if no landing clearance.
-        // Solo-training VFR pattern aircraft voice the reminder as pilot speech (PendingNotifications);
+        // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
         // RPO mode keeps the controller-facing warning (PendingWarnings).
         if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)
         {
@@ -145,7 +145,12 @@ public sealed class DownwindPhase : Phase
                     string runwayId = ctx.Runway?.Designator ?? "unknown";
                     if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)
                     {
-                        PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId));
+                        PilotResponder.QueueSoloPilotTransmission(
+                            ctx.Aircraft,
+                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
+                            PilotTransmissionKind.Proactive,
+                            PilotResponder.SourceResponse
+                        );
                     }
                     else
                     {

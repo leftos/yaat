@@ -753,7 +753,7 @@ public class PilotResponderTests
     [Fact]
     public void RouteRpoTransmission_SoloMode_RoutesToWarnings_NotPilotSpeech()
     {
-        // Caller is responsible for solo→PendingNotifications routing; this helper only
+        // Caller is responsible for solo→PendingPilotTransmissions routing; this helper only
         // handles the RPO branch. In solo mode it falls through to warnings (the old default).
         var ac = MakeAircraft("AAL123");
 
@@ -789,7 +789,7 @@ public class PilotResponderTests
     public void RouteRpoTransmission_SoloMode_OverridesRpoFlag()
     {
         // Solo mode wins even if rpoShowPilotSpeech happens to be true — solo paths handle
-        // their own routing via PendingNotifications, so this helper conservatively falls
+        // their own routing via PendingPilotTransmissions, so this helper conservatively falls
         // back to warning text.
         var ac = MakeAircraft("AAL123");
 

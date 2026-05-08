@@ -41,7 +41,12 @@ public sealed class AtParkingPhase : Phase
         if (ctx.SoloTrainingMode && !ctx.Aircraft.Ground.HasAnnouncedReady && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
         {
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "GND", "ground");
-            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName));
+            PilotResponder.QueueSoloPilotTransmission(
+                ctx.Aircraft,
+                PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName),
+                PilotTransmissionKind.Proactive,
+                PilotResponder.SourceResponse
+            );
             ctx.Aircraft.Ground.HasAnnouncedReady = true;
             ctx.Aircraft.HasMadeInitialContact = true;
         }

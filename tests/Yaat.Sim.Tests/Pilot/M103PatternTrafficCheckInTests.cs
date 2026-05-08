@@ -64,6 +64,8 @@ public class M103PatternTrafficCheckInTests
         };
     }
 
+    private static string? SinglePilotLine(AircraftState ac) => ac.PendingPilotTransmissions.SingleOrDefault()?.Text;
+
     // ─────────────────────────────────────────────────────────────────────
     // PatternEntryPhase — initial closed-traffic request
     // ─────────────────────────────────────────────────────────────────────
@@ -87,10 +89,10 @@ public class M103PatternTrafficCheckInTests
         var phase = MakePatternEntry();
         phase.OnStart(Ctx(ac));
 
-        var line = ac.PendingNotifications.SingleOrDefault();
+        var line = SinglePilotLine(ac);
         Assert.NotNull(line);
         Assert.Contains("N123AB", line);
-        Assert.Contains("3 miles south at one thousand five hundred", line);
+        Assert.Contains("three miles south at one thousand five hundred", line, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("request closed traffic", line);
         Assert.Contains("with information Alpha", line);
         Assert.True(ac.HasMadeInitialContact);
@@ -106,7 +108,7 @@ public class M103PatternTrafficCheckInTests
         var phase = MakePatternEntry();
         phase.OnStart(Ctx(ac));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -116,7 +118,7 @@ public class M103PatternTrafficCheckInTests
         var phase = MakePatternEntry();
         phase.OnStart(Ctx(ac));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
 
@@ -127,7 +129,7 @@ public class M103PatternTrafficCheckInTests
         var phase = MakePatternEntry();
         phase.OnStart(Ctx(ac, soloMode: false));
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
 
@@ -151,7 +153,7 @@ public class M103PatternTrafficCheckInTests
 
         phase.OnStart(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -171,7 +173,7 @@ public class M103PatternTrafficCheckInTests
         ac2.Position = GeoMath.ProjectPoint(new LatLon(37.7212, -122.2208), new TrueHeading(180), 3);
         restored.OnStart(Ctx(ac2));
 
-        Assert.Empty(ac2.PendingNotifications);
+        Assert.Empty(ac2.PendingPilotTransmissions);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -212,9 +214,9 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildDownwindAtMidfield();
         phase.OnTick(ctx);
 
-        var line = ac.PendingNotifications.SingleOrDefault();
+        var line = SinglePilotLine(ac);
         Assert.NotNull(line);
-        Assert.Contains("midfield downwind runway 28R", line);
+        Assert.Contains("midfield downwind runway two eight right", line, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -224,7 +226,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildDownwindAtMidfield(soloMode: false);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         var warning = ac.PendingWarnings.SingleOrDefault();
         Assert.NotNull(warning);
         Assert.Contains("midfield downwind runway 28R", warning);
@@ -237,7 +239,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildDownwindAtMidfield(isVfr: false);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.NotEmpty(ac.PendingWarnings);
     }
 
@@ -247,7 +249,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildDownwindAtMidfield(cleared: true);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -257,7 +259,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildDownwindAtMidfield(autoClearedToLand: true);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -269,7 +271,7 @@ public class M103PatternTrafficCheckInTests
         phase.OnTick(ctx);
         phase.OnTick(ctx);
 
-        Assert.Single(ac.PendingNotifications);
+        Assert.Single(ac.PendingPilotTransmissions);
     }
 
     [Fact]
@@ -278,7 +280,7 @@ public class M103PatternTrafficCheckInTests
         // First lap.
         var (phase1, ac, ctx1) = BuildDownwindAtMidfield();
         phase1.OnTick(ctx1);
-        Assert.Single(ac.PendingNotifications);
+        Assert.Single(ac.PendingPilotTransmissions);
 
         // Second lap: fresh DownwindPhase instance built by PatternBuilder.BuildNextCircuit().
         var wp = DefaultWaypoints();
@@ -291,7 +293,7 @@ public class M103PatternTrafficCheckInTests
         phase2.OnStart(ctx2);
         phase2.OnTick(ctx2);
 
-        Assert.Equal(2, ac.PendingNotifications.Count);
+        Assert.Equal(2, ac.PendingPilotTransmissions.Count);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -342,13 +344,13 @@ public class M103PatternTrafficCheckInTests
     {
         var (phase, ac, ctx) = BuildShortFinal();
         // Pattern traffic with HasMadeInitialContact already true → M10.1.1 OnFinal does NOT fire on OnStart.
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
 
         phase.OnTick(ctx);
 
-        var line = ac.PendingNotifications.SingleOrDefault();
+        var line = SinglePilotLine(ac);
         Assert.NotNull(line);
-        Assert.Contains("short final runway 28R", line);
+        Assert.Contains("short final runway two eight right", line, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -358,7 +360,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildShortFinal(soloMode: false);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         var warning = ac.PendingWarnings.SingleOrDefault();
         Assert.NotNull(warning);
         Assert.Contains("1nm from the threshold without a landing clearance", warning);
@@ -372,7 +374,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildShortFinal(isPatternTraffic: false);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.NotEmpty(ac.PendingWarnings);
     }
 
@@ -383,7 +385,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildShortFinal(isVfr: false);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.NotEmpty(ac.PendingWarnings);
     }
 
@@ -393,7 +395,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildShortFinal(cleared: true);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -404,7 +406,7 @@ public class M103PatternTrafficCheckInTests
         var (phase, ac, ctx) = BuildShortFinal(distNm: 2.0);
         phase.OnTick(ctx);
 
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -426,6 +428,6 @@ public class M103PatternTrafficCheckInTests
         phase.OnStart(ctx);
 
         // M10.1.1 OnStart spawn-on-final speech should NOT fire for pattern traffic.
-        Assert.Empty(ac.PendingNotifications);
+        Assert.Empty(ac.PendingPilotTransmissions);
     }
 }

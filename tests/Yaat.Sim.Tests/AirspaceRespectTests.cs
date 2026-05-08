@@ -195,11 +195,11 @@ public sealed class AirspaceRespectTests
 
         phase.OnStart(ctx);
 
-        // Solo TWR student should hear the pilot — both terminal and TTS queued.
-        var notification = Assert.Single(ac.PendingNotifications);
-        Assert.Contains("Class C", notification);
-        Assert.Contains("of OAK", notification);
+        // Solo TWR student should hear the pilot on the delayed SAY/audio queue.
+        Assert.Empty(ac.PendingNotifications);
         var transmission = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Contains("Class C", transmission.Text);
+        Assert.Contains("of OAK", transmission.Text);
         Assert.Contains("the charlie", transmission.SpeechText);
         Assert.Contains("of Oakland Airport", transmission.SpeechText);
         Assert.DoesNotContain("oscar alpha kilo", transmission.SpeechText);

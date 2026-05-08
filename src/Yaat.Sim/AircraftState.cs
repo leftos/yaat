@@ -124,9 +124,9 @@ public class AircraftState
     /// Pilot transmissions emitted by the sim in RPO mode when the
     /// <c>RpoShowPilotSpeech</c> scenario setting is on. Drained per tick into the
     /// terminal as <c>PilotSpeech</c>-kind entries (green), rendered with the spelled-out
-    /// spoken form built by <see cref="Pilot.PilotResponder"/>. Solo mode keeps using
-    /// <see cref="PendingNotifications"/>; RPO with the setting off keeps using
-    /// <see cref="PendingWarnings"/>. Transient — not snapshot-serialized.
+    /// spoken form built by <see cref="Pilot.PilotResponder"/>. Solo mode queues delayed
+    /// SAY/audio entries in <see cref="PendingPilotTransmissions"/>; RPO with the setting
+    /// off keeps using <see cref="PendingWarnings"/>. Transient — not snapshot-serialized.
     /// </summary>
     public List<string> PendingPilotSpeech { get; } = [];
 
@@ -136,8 +136,8 @@ public class AircraftState
     /// terminal as a <c>SayReadback</c>-kind entry (the kind starts with "Say" so the
     /// client routes it to the SAY channel just like the SPOS / SALT verb output).
     /// Used when the spelled-out <see cref="PendingPilotSpeech"/> path is not active —
-    /// solo mode and RPO mode without <c>RpoShowPilotSpeech</c> both land here. Transient —
-    /// not snapshot-serialized.
+    /// RPO mode without <c>RpoShowPilotSpeech</c> lands here. Solo mode uses the delayed
+    /// <see cref="PendingPilotTransmissions"/> queue. Transient — not snapshot-serialized.
     /// </summary>
     public List<string> PendingPilotReadbacks { get; } = [];
 

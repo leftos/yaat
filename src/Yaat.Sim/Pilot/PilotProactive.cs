@@ -19,7 +19,7 @@ public static class PilotProactive
     /// observed airborne in solo-training mode and has not yet spoken to ATC. No-op when any
     /// gate fails: solo mode off, on the ground, already made initial contact, student
     /// position is GND or unknown, primary airport unknown, or the airport lookup returns null.
-    /// On success, pushes the check-in line into <see cref="AircraftState.PendingNotifications"/>
+    /// On success, queues the check-in line into <see cref="AircraftState.PendingPilotTransmissions"/>
     /// and sets <see cref="AircraftState.HasMadeInitialContact"/> so subsequent ticks no-op.
     /// </summary>
     public static void TickAirborneCheckIn(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
@@ -63,7 +63,7 @@ public static class PilotProactive
             return;
         }
 
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
         aircraft.HasMadeInitialContact = true;
     }
 

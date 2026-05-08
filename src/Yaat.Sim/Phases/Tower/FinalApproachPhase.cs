@@ -369,7 +369,9 @@ public sealed class FinalApproachPhase : Phase
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
             PilotResponder.QueueSoloPilotTransmission(
                 ctx.Aircraft,
-                PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles, facilityCallName)
+                PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles, facilityCallName),
+                PilotTransmissionKind.Proactive,
+                PilotResponder.SourceResponse
             );
             ctx.Aircraft.HasMadeInitialContact = true;
         }
@@ -650,7 +652,7 @@ public sealed class FinalApproachPhase : Phase
         bool hasLandingClearance = HasLandingClearance(ctx);
 
         // Warn at 1nm if no landing clearance (only when auto-CTL is off).
-        // Solo-training VFR pattern aircraft voice the reminder as pilot speech (PendingNotifications);
+        // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
         // every other aircraft (IFR, non-pattern, RPO mode) keeps the controller-facing warning.
         if ((distNm <= NoClearanceWarningDistNm) && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
         {
@@ -658,7 +660,12 @@ public sealed class FinalApproachPhase : Phase
             if (ctx.SoloTrainingMode && _isPatternTraffic && ctx.Aircraft.FlightPlan.IsVfr)
             {
                 string runwayId = ctx.Runway?.Designator ?? "the runway";
-                PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId));
+                PilotResponder.QueueSoloPilotTransmission(
+                    ctx.Aircraft,
+                    PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
+                    PilotTransmissionKind.Proactive,
+                    PilotResponder.SourceResponse
+                );
             }
             else
             {

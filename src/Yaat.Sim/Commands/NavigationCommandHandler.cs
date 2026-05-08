@@ -1049,7 +1049,11 @@ internal static class NavigationCommandHandler
         aircraft.PendingObservations.Add(new FieldAcquisitionObservation());
         if (ctx.SoloTrainingMode)
         {
-            Pilot.PilotResponder.QueueSoloPilotReadback(aircraft, FormatFieldLookingNotification(result, destination));
+            Pilot.PilotResponder.QueueSoloPilotReadback(
+                aircraft,
+                FormatFieldLookingNotification(result, destination),
+                Pilot.PilotResponder.SourceSayReadback
+            );
         }
         else
         {
@@ -1118,7 +1122,11 @@ internal static class NavigationCommandHandler
         aircraft.PendingObservations.Add(new TrafficAcquisitionObservation(targetCallsignUpper));
         if (ctx.SoloTrainingMode)
         {
-            Pilot.PilotResponder.QueueSoloPilotReadback(aircraft, FormatTrafficLookingNotification(result, target));
+            Pilot.PilotResponder.QueueSoloPilotReadback(
+                aircraft,
+                FormatTrafficLookingNotification(result, target),
+                Pilot.PilotResponder.SourceSayReadback
+            );
         }
         else
         {

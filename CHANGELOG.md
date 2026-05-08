@@ -28,6 +28,7 @@
 - Custom-fix friendly names (e.g. `OAK30NUM` → "Oakland Runway 30 Numbers") now flow into TTS readbacks instead of being spelled letter-by-letter.
 - Pilot speech for the airspace-boundary self-hold and VFR airborne check-in renders the terminal as "Class C / OAK" while TTS speaks the airport by its published name ("Oakland Airport") via airport-name lookup, instead of NATO-spelling each letter.
 - Solo-training tower students now hear pilot transmissions for clear-of-runway, going-around, lost-sight-of-traffic, follow-target-landed, unable-to-catch-up, unable-to-exit, holding-short-crossing, and no-clearance short-final reminder. Previously only orange terminal warnings appeared without TTS.
+- Solo-training pilot speech appears as delayed `SAY` radio transcripts while `RSP` command confirmations stay immediate.
 
 ## v0.1.17-alpha [2026/05/06]
 
