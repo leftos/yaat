@@ -259,6 +259,7 @@ public partial class MainWindow : Window
     }
 
     private SpeechDebugWindow? _speechDebugWindow;
+    private SessionReportWindow? _sessionReportWindow;
 
     private void OnFavoritesPanelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -1667,6 +1668,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_sessionReportWindow is { } existing)
+        {
+            existing.Activate();
+            return;
+        }
+
         try
         {
             var report = await vm.Connection.GetSessionReportAsync();
@@ -1677,9 +1684,11 @@ public partial class MainWindow : Window
             }
 
             var window = new SessionReportWindow(vm.Connection.GetSessionReportAsync);
+            window.Closed += (_, _) => _sessionReportWindow = null;
+            _sessionReportWindow = window;
             new WindowGeometryHelper(window, vm.Preferences, "SessionReport", 1000, 700).Restore();
             await window.StartAsync();
-            await window.ShowDialog(this);
+            window.Show(this);
         }
         catch (Exception ex)
         {
