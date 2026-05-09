@@ -1,13 +1,10 @@
 [CmdletBinding()]
-param(
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]] $CodexArgs
-)
+param()
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$serverRoot = (Resolve-Path (Join-Path $repoRoot "..\yaat-server") -ErrorAction SilentlyContinue)
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$envFile = Join-Path $repoRoot ".env"
 
 function Import-AllowedEnvFromDotEnv {
     param(
@@ -38,7 +35,7 @@ function Import-AllowedEnvFromDotEnv {
     }
 }
 
-Import-AllowedEnvFromDotEnv -Path (Join-Path $repoRoot ".env") -Names @(
+Import-AllowedEnvFromDotEnv -Path $envFile -Names @(
     "API_MARKET_KEY",
     "AERODATABOX_APIMARKET_KEY"
 )
@@ -47,18 +44,13 @@ if ([string]::IsNullOrWhiteSpace($env:API_MARKET_KEY) -and (-not [string]::IsNul
     $env:API_MARKET_KEY = $env:AERODATABOX_APIMARKET_KEY
 }
 
-if (-not $serverRoot) {
-    Write-Warning "Sibling repo ..\yaat-server was not found. Launching with YAAT only."
+if ([string]::IsNullOrWhiteSpace($env:API_MARKET_KEY)) {
+    throw "API_MARKET_KEY or AERODATABOX_APIMARKET_KEY is required for the AeroDataBox MCP server."
 }
 
-$arguments = @("-C", $repoRoot)
-if ($serverRoot) {
-    $arguments += @("--add-dir", $serverRoot.Path)
+if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
+    throw "npx is required to launch mcp-remote for AeroDataBox MCP."
 }
 
-if ($CodexArgs) {
-    $arguments += $CodexArgs
-}
-
-& codex @arguments
+& npx -y mcp-remote "https://prod.api.market/api/mcp/aedbx/aerodatabox" "--header" 'x-api-market-key:${API_MARKET_KEY}'
 exit $LASTEXITCODE

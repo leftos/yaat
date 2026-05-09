@@ -15,7 +15,9 @@ Do not move or fork those sources casually. Codex wrappers should point back to 
 ## YAAT Rules To Preserve
 
 - Run from `X:\dev\yaat`; the sibling server repo is `..\yaat-server`.
-- Do not read secrets or credential files such as `.env`, `.key`, `.pem`, `.pfx`, `.p12`, `credentials`, or `secrets`.
+- Do not inspect, print, summarize, copy, or expose secrets or credential files such as `.env`, `.key`, `.pem`, `.pfx`, `.p12`, `credentials`, or `secrets`.
+- Tooling or scripts may load environment variables from those files into the process environment when needed for local commands, as long as secret values are not displayed in tool output, included in prompts, written to logs, committed, or otherwise surfaced to the agent/user conversation.
+- Prefer loading only the specific variables needed for the task. Verify secret presence with boolean checks only; never echo or print secret values.
 - Do not perform unsafe deletes or resets. Never use `git reset --hard` or broad checkout/revert commands unless explicitly requested.
 - Tee all `dotnet build`, `dotnet test`, and `dotnet run` output into `.tmp/`.
 - Wrap `dotnet test` with a timeout to catch hangs.

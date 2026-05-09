@@ -201,6 +201,32 @@ function Test-McpRegistered {
     return $script:ExistingMcpNames -contains $Name
 }
 
+function Test-EnvFileVariable {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string[]] $Names
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    foreach ($line in (Get-Content -LiteralPath $Path)) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+            continue
+        }
+
+        foreach ($name in $Names) {
+            if ($trimmed -match ("^\s*" + [regex]::Escape($name) + "\s*=\s*(.*?)\s*$") -and (-not [string]::IsNullOrWhiteSpace($Matches[1]))) {
+                return $true
+            }
+        }
+    }
+
+    return $false
+}
+
 function Register-McpServers {
     Write-Host "Skipping standalone GitHub and Hugging Face MCP registration; use the official Codex plugins for those providers."
 
@@ -218,6 +244,18 @@ function Register-McpServers {
     else {
         Write-Warning "EXA_API_KEY is not set; registering Exa hosted MCP without an API key."
         Invoke-CodexMcpAdd -Name "exa" -Arguments @("--url", "https://mcp.exa.ai/mcp")
+    }
+
+    $aeroDataBoxKeyAvailable =
+        (-not [string]::IsNullOrWhiteSpace($env:API_MARKET_KEY)) -or
+        (-not [string]::IsNullOrWhiteSpace($env:AERODATABOX_APIMARKET_KEY)) -or
+        (Test-EnvFileVariable -Path (Join-Path $RepoRoot ".env") -Names @("API_MARKET_KEY", "AERODATABOX_APIMARKET_KEY"))
+
+    if ($aeroDataBoxKeyAvailable) {
+        Invoke-CodexMcpAdd -Name "aedbx-aerodatabox" -Arguments @("--", $PowershellExe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $RepoRoot "tools\mcp\aerodatabox-stdio.ps1"))
+    }
+    else {
+        Write-Warning "API_MARKET_KEY/AERODATABOX_APIMARKET_KEY is not set; skipping AeroDataBox MCP registration."
     }
 }
 
