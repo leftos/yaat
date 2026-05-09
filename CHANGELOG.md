@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.2.0-alpha [2026/05/08]
+
+### Highlights
+- Solo training mode — type natural-language ATC and YAAT plays the pilots, with optional Piper voices, plain-English readbacks, paced arrivals, and typed commands that persist across runs.
+- Live Session Report — separation, wake, traffic-advisory, and Class C scoring grounded in 7110.65; opens non-modal so you can keep working the radar.
+- `CT [target]` / `FCA` / VFR `CM A/B025` — new pilot dispatch verbs: contact next controller (auto-resolved, or by callsign/freq/TCP), VFR sign-off without handoff, and at-or-above / at-or-below altitude restrictions.
+- Favorite commands pop-out — fixed-grid panel with categories, airport scope, colors, sizing, ground overrides, batch blanks, and drag rearranging.
 
 ### Added
 - `CT [target]` tells the pilot to contact the next controller — accepts callsign, frequency, or TCP, or auto-resolves with no argument. Identifies the target by published radio name (e.g. "NorCal Approach"); the terminal shows the digit frequency ("125.35") while TTS speaks digit-by-digit.
@@ -28,12 +34,6 @@
 ### Fixed
 - Command history stores entries uppercase and collapses case-only duplicates.
 - Speed `UNTIL` accepts aliases and fires staged speed changes while earlier speed or phase-controlled work continues.
-- Solo-training pilot readbacks preserve runway assignments and pronounce navaids like `MOD` as published navaid names.
-- Solo-training `STBY`/`ROGER` stays silent, and departure relative turns use grouped-degree phraseology.
-- Departures cleared for takeoff during taxi no longer emit a spurious airborne "request transition" check-in once they lift off.
-- Pilot airborne check-ins below 100 ft drop the "at altitude" clause instead of rendering a dangling "at ," in the readback.
-- Pilot speech says "then" between sequential `;` compound blocks (matching the terminal display) instead of running them together with parallel `,` commands.
-- Multi-fix `DCT` readbacks read every fix joined by "then direct" (e.g. "proceed direct to OAK30NUM, then direct VPMID") instead of dropping all fixes after the first.
 - Generated piston arrivals (Cherokee, Skyhawk) decelerate and touch down at piston speeds (~70 kt) instead of jet speeds and overshooting the runway.
 - Generated airline callsigns match operator fleet — regional carriers no longer pair with widebodies, single-fleet carriers no longer get Cherokees.
 
