@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue-amx-followg-at-spot-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/sfo-s1-ground-control-28-01-recording.yaat-bug-report-bundle.zip";
 
     // t=722 is after AMX669 reaches spot 2 and before the recorded TAXI B M1 1L at t=760.
     private const int ReplayTime = 722;
