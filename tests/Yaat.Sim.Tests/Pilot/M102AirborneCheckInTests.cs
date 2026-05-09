@@ -543,4 +543,28 @@ public class M102AirborneCheckInTests
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
     }
+
+    [Fact]
+    public void TickAirborneCheckIn_ApproachStudent_WaitsForAcceptedHandoff()
+    {
+        var student = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
+        var previousOwner = TrackOwner.CreateStars("ZOA_CTR", "ZOA", 1, "C");
+        var ac = MakeAircraft("AAL123", altitude: 6000);
+        ac.Track.Owner = previousOwner;
+        ac.Track.HandoffPeer = student;
+        var sc = MakeScenario("APP", primaryAirport: "KOAK");
+        sc.StudentPosition = student;
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.False(ac.HasMadeInitialContact);
+
+        ac.Track.Owner = student;
+        ac.Track.HandoffPeer = null;
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.True(ac.HasMadeInitialContact);
+    }
 }

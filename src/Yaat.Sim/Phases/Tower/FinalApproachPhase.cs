@@ -363,7 +363,21 @@ public sealed class FinalApproachPhase : Phase
         // HasMadeInitialContact gate excludes them. Pattern traffic is also excluded:
         // PatternEntryPhase fires its own initial-call (closed-traffic request), and the
         // uncleared short-final reminder below handles the mid-final pilot speech.
-        if (ctx.SoloTrainingMode && !ctx.Aircraft.HasMadeInitialContact && !_isPatternTraffic)
+        if (
+            ctx.SoloTrainingMode
+            && !ctx.Aircraft.HasMadeInitialContact
+            && !_isPatternTraffic
+            && PilotInitialContactEligibility.CanInitiateWithStudent(
+                ctx.Aircraft,
+                new InitialContactEligibilityContext(
+                    ctx.StudentPosition,
+                    ctx.StudentPositionType,
+                    ctx.ArtccId,
+                    ctx.PrimaryAirportId,
+                    ctx.InitialContactTransfers
+                )
+            )
+        )
         {
             var rwyId = ctx.Runway?.Designator ?? clearance?.RunwayId ?? "the runway";
             var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;

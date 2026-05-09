@@ -1,0 +1,9 @@
+[
+  {
+    "airportId": "SFO",
+    "fromPositionType": "APP",
+    "toPositionType": "TWR",
+    "allowsWithoutTrackHandoff": true,
+    "notes": "NCT/SFO LOA: approach may transfer arrivals to SFO Tower without a STARS track handoff."
+  }
+]

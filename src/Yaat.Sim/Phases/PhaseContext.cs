@@ -66,6 +66,18 @@ public sealed class PhaseContext
     /// </summary>
     public string? StudentPositionType { get; init; }
 
+    /// <summary>Student controller track owner, if the scenario selected a student TCP.</summary>
+    public TrackOwner? StudentPosition { get; init; }
+
+    /// <summary>Scenario ARTCC id used to resolve ARTCC-scoped custom SOP data.</summary>
+    public string? ArtccId { get; init; }
+
+    /// <summary>Scenario primary airport id used when an aircraft lacks a filed destination.</summary>
+    public string? PrimaryAirportId { get; init; }
+
+    /// <summary>ARTCC-specific SOP exceptions for initial pilot contact transfer.</summary>
+    public InitialContactTransferCatalog InitialContactTransfers { get; init; } = InitialContactTransferCatalog.Empty;
+
     /// <summary>
     /// vNAS radio name for the student position, e.g. "Oakland Tower". Null falls back to
     /// generic "tower", "ground", "approach", or "center" wording.

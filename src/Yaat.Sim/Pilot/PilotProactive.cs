@@ -45,6 +45,11 @@ public static class PilotProactive
             return;
         }
 
+        if (!PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, scenario))
+        {
+            return;
+        }
+
         var primaryAirport = scenario.PrimaryAirportId;
         if (string.IsNullOrEmpty(primaryAirport))
         {

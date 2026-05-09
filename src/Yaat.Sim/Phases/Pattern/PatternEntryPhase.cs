@@ -134,6 +134,16 @@ public sealed class PatternEntryPhase : Phase
             && !_hasAnnouncedInitialCall
             && !ctx.Aircraft.HasMadeInitialContact
             && ctx.Runway is not null
+            && PilotInitialContactEligibility.CanInitiateWithStudent(
+                ctx.Aircraft,
+                new InitialContactEligibilityContext(
+                    ctx.StudentPosition,
+                    ctx.StudentPositionType,
+                    ctx.ArtccId,
+                    ctx.PrimaryAirportId,
+                    ctx.InitialContactTransfers
+                )
+            )
         )
         {
             var airportPos = new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude);

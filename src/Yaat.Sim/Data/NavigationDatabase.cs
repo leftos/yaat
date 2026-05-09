@@ -111,6 +111,7 @@ public sealed class NavigationDatabase
         LoadCifpNavaids(cifpFilePath);
         LoadCustomFixes(artccsBaseDir);
         LoadFixPronunciations(artccsBaseDir);
+        InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
         TaxiRoutes = LoadTaxiRoutes(artccsBaseDir);
         AllFixNames = BuildSortedNames();
     }
@@ -121,6 +122,7 @@ public sealed class NavigationDatabase
     private NavigationDatabase()
     {
         _cifpFilePath = "";
+        InitialContactTransfers = InitialContactTransferCatalog.Empty;
         TaxiRoutes = TaxiRouteCatalog.Empty;
         AllFixNames = [];
     }
@@ -131,6 +133,12 @@ public sealed class NavigationDatabase
     /// aircraft right-click menu to surface SOP-aligned taxi routes per airport.
     /// </summary>
     public TaxiRouteCatalog TaxiRoutes { get; }
+
+    /// <summary>
+    /// ARTCC-specific pilot initial-contact transfer exceptions, indexed by ARTCC, airport,
+    /// and source/destination position type. Loaded from <c>Data/ARTCCs/{ARTCC}/InitialContactTransfers/*.json</c>.
+    /// </summary>
+    public InitialContactTransferCatalog InitialContactTransfers { get; }
 
     /// <summary>
     /// Creates a NavigationDatabase pre-populated with test data. Intended only for unit tests.
@@ -1493,6 +1501,20 @@ public sealed class NavigationDatabase
         Log.LogInformation("Taxi routes: {Count} loaded from {BaseDir}", loadResult.Routes.Count, baseDir);
 
         return new TaxiRouteCatalog(loadResult.Routes);
+    }
+
+    private static InitialContactTransferCatalog LoadInitialContactTransfers(string baseDir)
+    {
+        var loadResult = InitialContactTransferLoader.LoadAll(baseDir);
+
+        foreach (var warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Initial contact transfer: {Warning}", warning);
+        }
+
+        Log.LogInformation("Initial contact transfers: {Count} rule(s) loaded from {BaseDir}", loadResult.Rules.Count, baseDir);
+
+        return new InitialContactTransferCatalog(loadResult.Rules);
     }
 
     private string[] BuildSortedNames()

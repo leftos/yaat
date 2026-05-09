@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Training;
 
@@ -58,6 +59,11 @@ public sealed record SoloTrainingReportData(
     List<string> CoachingNotes,
     ApproachReportData ApproachReport
 );
+
+public sealed record SoloTrainingServiceContext(InitialContactEligibilityContext InitialContactEligibility)
+{
+    public static SoloTrainingServiceContext Empty { get; } = new(InitialContactEligibilityContext.Empty);
+}
 
 public sealed class SoloTrainingEvaluator
 {
@@ -117,7 +123,7 @@ public sealed class SoloTrainingEvaluator
 
     public List<SoloTrainingEvent> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, AirspaceDatabase airspace)
     {
-        return Evaluate(aircraft, scenarioElapsedSeconds, airspace, studentPosition: null);
+        return Evaluate(aircraft, scenarioElapsedSeconds, airspace, SoloTrainingServiceContext.Empty);
     }
 
     public List<SoloTrainingEvent> Evaluate(
@@ -125,6 +131,23 @@ public sealed class SoloTrainingEvaluator
         double scenarioElapsedSeconds,
         AirspaceDatabase airspace,
         TrackOwner? studentPosition
+    )
+    {
+        return Evaluate(
+            aircraft,
+            scenarioElapsedSeconds,
+            airspace,
+            new SoloTrainingServiceContext(
+                new InitialContactEligibilityContext(studentPosition, null, null, null, InitialContactTransferCatalog.Empty)
+            )
+        );
+    }
+
+    public List<SoloTrainingEvent> Evaluate(
+        List<AircraftState> aircraft,
+        double scenarioElapsedSeconds,
+        AirspaceDatabase airspace,
+        SoloTrainingServiceContext serviceContext
     )
     {
         var notices = new List<SoloTrainingEvent>();
@@ -154,7 +177,7 @@ public sealed class SoloTrainingEvaluator
                         notices.Add(notice);
                     }
 
-                    foreach (var advisorySample in SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, studentPosition))
+                    foreach (var advisorySample in SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, serviceContext))
                     {
                         observedThisTick.Add(advisorySample.Id);
                         var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
@@ -166,7 +189,7 @@ public sealed class SoloTrainingEvaluator
                 }
                 else
                 {
-                    foreach (var advisorySample in SampleNoMinimaAdvisoryPair(a, b, airspace, scenarioElapsedSeconds, studentPosition))
+                    foreach (var advisorySample in SampleNoMinimaAdvisoryPair(a, b, airspace, scenarioElapsedSeconds, serviceContext))
                     {
                         observedThisTick.Add(advisorySample.Id);
                         var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
@@ -181,7 +204,7 @@ public sealed class SoloTrainingEvaluator
 
         foreach (var aircraftState in eligible)
         {
-            var visualSample = SampleVisualApproach(aircraftState, scenarioElapsedSeconds, studentPosition);
+            var visualSample = SampleVisualApproach(aircraftState, scenarioElapsedSeconds, serviceContext);
             if (visualSample is null)
             {
                 continue;
@@ -555,30 +578,30 @@ public sealed class SoloTrainingEvaluator
         SeparationRequirement requirement,
         TrainingEventSample separationSample,
         double scenarioElapsedSeconds,
-        TrackOwner? studentPosition
+        SoloTrainingServiceContext serviceContext
     )
     {
         var samples = new List<TrainingEventSample>(capacity: 2);
         if (separationSample.Severity == SoloTrainingEventSeverity.Safety)
         {
-            if (IsStudentServiceRecipient(a, studentPosition) && !HasSafetyAlertProof(a.Callsign, b.Callsign))
+            if (IsStudentServiceRecipient(a, serviceContext) && !HasSafetyAlertProof(a.Callsign, b.Callsign))
             {
                 samples.Add(CreateSafetyAlertSample(a, b, requirement, separationSample, scenarioElapsedSeconds));
             }
 
-            if (IsStudentServiceRecipient(b, studentPosition) && !HasSafetyAlertProof(b.Callsign, a.Callsign))
+            if (IsStudentServiceRecipient(b, serviceContext) && !HasSafetyAlertProof(b.Callsign, a.Callsign))
             {
                 samples.Add(CreateSafetyAlertSample(b, a, requirement, separationSample, scenarioElapsedSeconds));
             }
         }
         else
         {
-            if (IsStudentServiceRecipient(a, studentPosition) && !HasTrafficAdvisoryProof(a.Callsign, b.Callsign))
+            if (IsStudentServiceRecipient(a, serviceContext) && !HasTrafficAdvisoryProof(a.Callsign, b.Callsign))
             {
                 samples.Add(CreateAdvisorySample(a, b, requirement, separationSample, scenarioElapsedSeconds));
             }
 
-            if (IsStudentServiceRecipient(b, studentPosition) && !HasTrafficAdvisoryProof(b.Callsign, a.Callsign))
+            if (IsStudentServiceRecipient(b, serviceContext) && !HasTrafficAdvisoryProof(b.Callsign, a.Callsign))
             {
                 samples.Add(CreateAdvisorySample(b, a, requirement, separationSample, scenarioElapsedSeconds));
             }
@@ -592,7 +615,7 @@ public sealed class SoloTrainingEvaluator
         AircraftState b,
         AirspaceDatabase airspace,
         double scenarioElapsedSeconds,
-        TrackOwner? studentPosition
+        SoloTrainingServiceContext serviceContext
     )
     {
         var current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
@@ -633,12 +656,16 @@ public sealed class SoloTrainingEvaluator
             null
         );
 
-        return SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, studentPosition);
+        return SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, serviceContext);
     }
 
-    private TrainingEventSample? SampleVisualApproach(AircraftState aircraft, double scenarioElapsedSeconds, TrackOwner? studentPosition)
+    private TrainingEventSample? SampleVisualApproach(
+        AircraftState aircraft,
+        double scenarioElapsedSeconds,
+        SoloTrainingServiceContext serviceContext
+    )
     {
-        if ((!IsStudentServiceRecipient(aircraft, studentPosition)) || (!IsVisualApproachWithoutFollow(aircraft)) || (HasFieldInSightProof(aircraft)))
+        if ((!IsStudentServiceRecipient(aircraft, serviceContext)) || (!IsVisualApproachWithoutFollow(aircraft)) || (HasFieldInSightProof(aircraft)))
         {
             return null;
         }
@@ -670,14 +697,14 @@ public sealed class SoloTrainingEvaluator
     private bool HasFieldInSightProof(AircraftState aircraft) =>
         (aircraft.Approach.HasReportedFieldInSight) || (_fieldAdvisoryProofs.Contains(NormalizeCallsign(aircraft.Callsign)));
 
-    private static bool IsStudentServiceRecipient(AircraftState aircraft, TrackOwner? studentPosition)
+    private static bool IsStudentServiceRecipient(AircraftState aircraft, SoloTrainingServiceContext serviceContext)
     {
         if ((!aircraft.HasMadeInitialContact) || (aircraft.HasLeftStudentFrequency))
         {
             return false;
         }
 
-        return (studentPosition is null) || (aircraft.Track.Owner is null) || (aircraft.Track.Owner.MatchesPosition(studentPosition));
+        return PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, serviceContext.InitialContactEligibility);
     }
 
     private bool HasTrafficAdvisoryProof(string recipientCallsign, string targetCallsign) =>

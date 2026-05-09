@@ -5,6 +5,7 @@
 ### Added
 - Arrival generators use recent airport-service data and fleet matching so callsigns fit both destination and aircraft type.
 - Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
+- Solo-training pilots now follow handoff-aware initial contact rules, with ARTCC airport exceptions for APP-to-TWR transfers.
 
 ### Fixed
 - The terminal-panel settings flyout now populates correctly after scenario load, room join, and scenario-default auto-delete.

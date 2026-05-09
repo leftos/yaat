@@ -50,6 +50,11 @@ public sealed class AtParkingPhase : Phase
 
         if (ctx.SoloTrainingMode && !ctx.Aircraft.Ground.InitialCallupDecisionProcessed && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
         {
+            if (!PilotInitialContactEligibility.CanInitiateWithStudent(ctx.Aircraft, BuildEligibilityContext(ctx)))
+            {
+                return false;
+            }
+
             if (TryReserveInitialCallupSlot(ctx))
             {
                 var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "GND", "ground");
@@ -80,6 +85,9 @@ public sealed class AtParkingPhase : Phase
 
         return ctx.TryReserveSoloParkingInitialCallupSlot?.Invoke(ctx.ScenarioElapsedSeconds) ?? true;
     }
+
+    private static InitialContactEligibilityContext BuildEligibilityContext(PhaseContext ctx) =>
+        new(ctx.StudentPosition, ctx.StudentPositionType, ctx.ArtccId, ctx.PrimaryAirportId, ctx.InitialContactTransfers);
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

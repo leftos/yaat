@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Training;
 
@@ -636,6 +637,24 @@ public sealed class SoloTrainingEvaluatorTests
         var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed");
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void Evaluate_TowerStudentScoresRecipientWhenOriginatingControllerHasInitiatedHandoff()
+    {
+        var (a, b) = CreateClosingIfrPair();
+        var student = TrackOwner.CreateStars("SFO_TWR", "SFO", 3, "T");
+        a.Track.Owner = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
+        a.Track.HandoffPeer = student;
+        b.Track.Owner = student;
+        var evaluator = new SoloTrainingEvaluator();
+        var serviceContext = new SoloTrainingServiceContext(
+            new InitialContactEligibilityContext(student, "TWR", "ZOA", "KSFO", InitialContactTransferCatalog.Empty)
+        );
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, serviceContext);
+
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"));
     }
 
     [Fact]

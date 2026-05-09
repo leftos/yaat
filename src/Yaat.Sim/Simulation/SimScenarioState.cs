@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Snapshots;
@@ -95,6 +96,10 @@ public sealed class SimScenarioState
     // Not snapshotted — set by the loader / replay entry point and preserved across snapshot
     // restores (RestoreFromSnapshot leaves this field untouched).
     public ArtccConfigRoot? ArtccConfig { get; set; }
+
+    // ARTCC-specific SOP exceptions for initial pilot contact transfer. Runtime data loaded
+    // alongside navigation/custom data; not snapshotted.
+    public InitialContactTransferCatalog InitialContactTransfers { get; set; } = InitialContactTransferCatalog.Empty;
 
     // Timing and settings
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);

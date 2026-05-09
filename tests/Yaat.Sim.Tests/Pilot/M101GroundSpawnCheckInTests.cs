@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -52,6 +53,11 @@ public class M101GroundSpawnCheckInTests
             ScenarioId = "TEST-SCENARIO",
             ScenarioElapsedSeconds = scenario?.ElapsedSeconds ?? 0,
             SoloParkingInitialCallupRatePercent = soloParkingInitialCallupRatePercent,
+            StudentPosition = scenario?.StudentPosition,
+            StudentPositionType = scenario?.StudentPositionType,
+            ArtccId = scenario?.ArtccId,
+            PrimaryAirportId = scenario?.PrimaryAirportId,
+            InitialContactTransfers = scenario?.InitialContactTransfers ?? InitialContactTransferCatalog.Empty,
             TryReserveSoloParkingInitialCallupSlot = scenario is not null
                 ? now => ScenarioPacing.TryReserveParkingInitialCallupSlot(scenario, now)
                 : null,
@@ -176,6 +182,35 @@ public class M101GroundSpawnCheckInTests
         Assert.False(ac.HasMadeInitialContact);
         Assert.False(ac.Ground.HasAnnouncedReady);
         Assert.False(ac.Ground.InitialCallupDecisionProcessed);
+    }
+
+    [Fact]
+    public void AtParking_TrackOwnedByOtherTcp_WaitsForTowerHandoffBeforeCallup()
+    {
+        var student = TrackOwner.CreateStars("SFO_TWR", "SFO", 3, "T");
+        var approach = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
+        var scenario = NewScenario(parkingRatePercent: 100, elapsedSeconds: 5);
+        scenario.StudentPosition = student;
+        scenario.StudentPositionType = "TWR";
+        scenario.ArtccId = "ZOA";
+        scenario.PrimaryAirportId = "KSFO";
+        var ac = MakeAircraft("N123AB", isVfr: true, parkingSpot: "FBO");
+        ac.Track.Owner = approach;
+        var phase = new AtParkingPhase();
+
+        phase.OnStart(Ctx(ac, scenario: scenario));
+        TickElapsed(phase, Ctx(ac, scenario: scenario), 5.0);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.False(ac.HasMadeInitialContact);
+        Assert.False(ac.Ground.InitialCallupDecisionProcessed);
+
+        ac.Track.HandoffPeer = student;
+        TickElapsed(phase, Ctx(ac, scenario: scenario), 6.0);
+
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.True(ac.HasMadeInitialContact);
+        Assert.True(ac.Ground.InitialCallupDecisionProcessed);
     }
 
     [Fact]

@@ -12,6 +12,8 @@ ARTCCs/
       visual.json
     TaxiRoutes/
       koak-routes.json
+    InitialContactTransfers/
+      sfo-app-twr.json
   ZMA/
     TaxiRoutes/
       kfll-routes.json
@@ -167,3 +169,39 @@ Each file is a JSON object scoped to one airport. The `path` is whatever you'd t
 At most one of the three `destination*` fields may be set on a single route. Routes whose path can't be walked from the aircraft's current position are silently dropped from the menu — so a KOAK route won't surface when right-clicking an aircraft at KSFO.
 
 Restart YAAT to pick up edits to route JSONs.
+
+---
+
+## InitialContactTransfers
+
+Facility-specific SOP exceptions for solo-training pilot initial contact. By default, a pilot whose track is owned by another TCP may not initiate initial contact with the student until the originating controller starts or completes the handoff:
+
+- TWR student positions may receive the initial call after the originating controller has initiated the track handoff to the student.
+- APP student positions require the track handoff to be accepted before communications transfer.
+- This category models airport-specific APP-to-TWR exceptions where local SOP permits the APP controller to transfer communications to tower without a STARS track handoff.
+
+Each file is a JSON array of transfer rules:
+
+```json
+[
+  {
+    "airportId": "SFO",
+    "fromPositionType": "APP",
+    "toPositionType": "TWR",
+    "allowsWithoutTrackHandoff": true,
+    "notes": "ZOA/SFO local SOP: approach may transfer arrivals to SFO Tower without a STARS track handoff."
+  }
+]
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `airportId` | string | Yes | Airport the exception applies to; FAA and ICAO forms are normalized. |
+| `fromPositionType` | string | Yes | Originating controller position type (`APP`, `DEP`, `TWR`, `LC`, etc.; aliases normalize to `APP`, `TWR`, or `GND`). |
+| `toPositionType` | string | Yes | Student/controller position type receiving communications. |
+| `allowsWithoutTrackHandoff` | boolean | Yes | Must be `true` for the exception to allow pilot contact without a pending/accepted track handoff. |
+| `notes` | string | No | Human-readable SOP note/source. |
+
+Restart YAAT to pick up edits to initial-contact transfer JSONs.
