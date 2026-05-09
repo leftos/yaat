@@ -309,7 +309,7 @@ AircraftPerformance.cs         # Unified perf API: profile-first with category f
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
-Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation coaching events, active timeline, report buckets
+Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, same-runway, traffic-advisory events, active timeline, report buckets
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation

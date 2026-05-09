@@ -17,6 +17,7 @@
 - Solo training adds a live Session Report with FAA-grounded separation scoring, coaching notes, approach outcomes, and runway statistics.
 - The Session Report now scores actual same-runway separation losses for departures and arrivals using 7110.65 SRS rules.
 - The Session Report now scores same-runway and close-parallel wake losses using 7110.65 CWT interval and mile-based minima.
+- The Session Report now scores missing traffic-advisory proof for aircraft pairs already covered by live separation minima, using accepted `RTIS`/`RTISF` commands as directed proof.
 - Speech settings separate STT and TTS into collapsible panels, and TTS includes Piper voice-pack install and remove controls.
 - Favorite commands now support a fixed-grid pop-out panel with categories, airport scope, colors, sizing, ground overrides, batch blanks, and drag rearranging.
 - The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.

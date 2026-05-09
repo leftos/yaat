@@ -1065,6 +1065,7 @@ public sealed class SimulationEngine
             aircraft.HasControllerAcknowledgedInitialContact = true;
             if (dispatchCtx.SoloTrainingMode)
             {
+                SoloTrainingEvaluator.RecordControllerCommand(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
                 PilotRequestTracker.ApplyControllerResponse(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
                 // The controller has just spoken to this aircraft, so the
                 // awaiting-controller-response gate (if it was set after this pilot's
@@ -2040,6 +2041,7 @@ public sealed class SimulationEngine
         {
             if (replayCtx.SoloTrainingMode)
             {
+                SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
                 PilotRequestTracker.ApplyControllerResponse(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
             }
         }

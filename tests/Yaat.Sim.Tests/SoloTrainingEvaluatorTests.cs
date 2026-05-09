@@ -1,10 +1,12 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests;
@@ -33,10 +35,10 @@ public sealed class SoloTrainingEvaluatorTests
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
         var report = evaluator.BuildReport(true, 100, new ApproachReportData([], [], 100, "N/A"));
 
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
         Assert.Contains("7110.65 §5-5-4", notice.RuleReference);
-        Assert.Single(report.ActiveEvents);
+        Assert.Single(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.True(report.Score < 100);
     }
 
@@ -101,6 +103,161 @@ public sealed class SoloTrainingEvaluatorTests
 
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_MissingTrafficAdvisoryForProjectedSeparationLoss_RecordsAdvisoryEvents()
+    {
+        var (a, b) = CreateClosingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        var advisories = notices.Where(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual).ToList();
+        Assert.Equal(2, advisories.Count);
+        Assert.All(advisories, e => Assert.Equal(SoloTrainingEventSeverity.Warning, e.Severity));
+        Assert.All(advisories, e => Assert.Contains("7110.65 §2-1-21", e.RuleReference));
+        Assert.All(advisories, e => Assert.Contains("RTIS/RTISF", e.ActualText));
+    }
+
+    [Fact]
+    public void Evaluate_RtisProofSuppressesOnlyDirectedAdvisory()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 5);
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void Evaluate_RtisfProofSuppressesAdvisoryScoring()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightForcedCommand(b.Callsign)), scenarioElapsedSeconds: 5);
+        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6);
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+    }
+
+    [Fact]
+    public void Evaluate_BareRtisCountsWhenLastReportedTrafficCallsignResolves()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        a.Approach.LastReportedTrafficCallsign = b.Callsign;
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(null)), scenarioElapsedSeconds: 5);
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void Evaluate_QueuedRtisDoesNotCountBeforeDispatch()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        var queuedCommand = new CompoundCommand([
+            new ParsedBlock(null, [new WaitCommand(10)]),
+            new ParsedBlock(null, [new ReportTrafficInSightCommand(b.Callsign)]),
+        ]);
+        evaluator.RecordControllerCommand(a, queuedCommand, scenarioElapsedSeconds: 5);
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+    }
+
+    [Fact]
+    public void Evaluate_AdvisoryProofAfterActiveEventClearsOnNextEvaluation()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 11);
+        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightCommand(a.Callsign)), scenarioElapsedSeconds: 11);
+        evaluator.Evaluate([a, b], scenarioElapsedSeconds: 12, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"));
+
+        Assert.DoesNotContain(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(2, report.Timeline.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+    }
+
+    [Fact]
+    public void Evaluate_WrongRtisTargetDoesNotSuppressAdvisory()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightForcedCommand("DAL9")), scenarioElapsedSeconds: 5);
+        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6);
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(a.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(b.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void Evaluate_MissingTrafficAdvisory_DedupesAcrossRepeatedTicks()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+
+        var first = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        var second = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"));
+
+        Assert.Equal(2, first.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+        Assert.Empty(second);
+        Assert.Equal(2, report.Timeline.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+    }
+
+    [Fact]
+    public void Reset_ClearsTrafficAdvisoryProofAndEvents()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightForcedCommand(b.Callsign)), scenarioElapsedSeconds: 5);
+        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6);
+        Assert.DoesNotContain(
+            evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default),
+            e => e.Category == SoloTrainingEventCategory.AdvisoryVisual
+        );
+
+        evaluator.Reset();
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
+
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+    }
+
+    [Fact]
+    public void SendCommand_RtisfRecordsTrafficAdvisoryProofIntoEvaluator()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5) };
+        engine.World.AddAircraft(a);
+        engine.World.AddAircraft(b);
+
+        var result = engine.SendCommand(a.Callsign, $"RTISF {b.Callsign}");
+        var notices = engine.SoloTrainingEvaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.True(result.Success, result.Message);
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
 
     [Fact]
@@ -536,6 +693,51 @@ public sealed class SoloTrainingEvaluatorTests
                 AircraftType = type,
                 FlightRules = flightRules,
             },
+        };
+
+    private static (AircraftState A, AircraftState B) CreateConflictingIfrPair()
+    {
+        var a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
+        var b = CreateAircraft(
+            "UAL2",
+            "A320",
+            flightRules: "IFR",
+            GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 2.5),
+            altitude: 5000,
+            isOnGround: false
+        );
+        return (a, b);
+    }
+
+    private static (AircraftState A, AircraftState B) CreateClosingIfrPair()
+    {
+        var a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
+        var b = CreateAircraft(
+            "UAL2",
+            "A320",
+            flightRules: "IFR",
+            GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 5.0),
+            altitude: 5000,
+            isOnGround: false
+        );
+        a.TrueHeading = new TrueHeading(90);
+        a.TrueTrack = new TrueHeading(90);
+        b.TrueHeading = new TrueHeading(270);
+        b.TrueTrack = new TrueHeading(270);
+        return (a, b);
+    }
+
+    private static CompoundCommand SingleCommand(ParsedCommand command) => new([new ParsedBlock(null, [command])]);
+
+    private static SimScenarioState NewScenario(bool soloTrainingMode, double elapsedSeconds) =>
+        new()
+        {
+            ScenarioId = "solo-training-evaluator-test",
+            ScenarioName = "Solo Training Evaluator Test",
+            RngSeed = 1,
+            OriginalScenarioJson = "{}",
+            ElapsedSeconds = elapsedSeconds,
+            SoloTrainingMode = soloTrainingMode,
         };
 
     private static RunwayInfo CreateRunway() =>

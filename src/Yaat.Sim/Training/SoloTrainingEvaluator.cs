@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
@@ -69,7 +70,23 @@ public sealed class SoloTrainingEvaluator
     private const double CoachLookaheadSeconds = 60.0;
 
     private readonly Dictionary<string, TrackedEvent> _events = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _advisoryProofs = new(StringComparer.OrdinalIgnoreCase);
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
+
+    public void RecordControllerCommand(AircraftState aircraft, CompoundCommand command, double scenarioElapsedSeconds)
+    {
+        foreach (var parsedCommand in EnumerateImmediatelyAppliedCommands(command))
+        {
+            string? targetCallsign = ResolveTrafficAdvisoryTarget(aircraft, parsedCommand);
+            if (string.IsNullOrWhiteSpace(targetCallsign))
+            {
+                continue;
+            }
+
+            string key = MakeAdvisoryProofKey(aircraft.Callsign, targetCallsign);
+            _advisoryProofs.Add(key);
+        }
+    }
 
     public List<SoloTrainingEvent> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, AirspaceDatabase airspace)
     {
@@ -104,6 +121,16 @@ public sealed class SoloTrainingEvaluator
                 if (notice is not null)
                 {
                     notices.Add(notice);
+                }
+
+                foreach (var advisorySample in SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds))
+                {
+                    observedThisTick.Add(advisorySample.Id);
+                    var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
+                    if (advisoryNotice is not null)
+                    {
+                        notices.Add(advisoryNotice);
+                    }
                 }
             }
         }
@@ -169,6 +196,7 @@ public sealed class SoloTrainingEvaluator
     public void Reset()
     {
         _events.Clear();
+        _advisoryProofs.Clear();
         _sameRunwayTracker.Reset();
     }
 
@@ -254,6 +282,57 @@ public sealed class SoloTrainingEvaluator
         return aFollowingB || bFollowingA;
     }
 
+    private static string? ResolveTrafficAdvisoryTarget(AircraftState aircraft, ParsedCommand command) =>
+        command switch
+        {
+            ReportTrafficInSightCommand rtis => ResolveTrafficAdvisoryTarget(aircraft, rtis.TargetCallsign),
+            ReportTrafficInSightForcedCommand rtisf => ResolveTrafficAdvisoryTarget(aircraft, rtisf.TargetCallsign),
+            _ => null,
+        };
+
+    private static string? ResolveTrafficAdvisoryTarget(AircraftState aircraft, string? commandTarget) =>
+        !string.IsNullOrWhiteSpace(commandTarget) ? commandTarget.Trim().ToUpperInvariant()
+        : !string.IsNullOrWhiteSpace(aircraft.Approach.LastReportedTrafficCallsign)
+            ? aircraft.Approach.LastReportedTrafficCallsign.Trim().ToUpperInvariant()
+        : null;
+
+    private static IEnumerable<ParsedCommand> EnumerateImmediatelyAppliedCommands(CompoundCommand command)
+    {
+        if (IsUnconditionedTransparentCompound(command))
+        {
+            return command.Blocks.SelectMany(block => block.Commands);
+        }
+
+        var firstBlock = command.Blocks.FirstOrDefault();
+        return firstBlock?.Condition is null ? firstBlock?.Commands ?? [] : [];
+    }
+
+    private static bool IsUnconditionedTransparentCompound(CompoundCommand command)
+    {
+        foreach (var block in command.Blocks)
+        {
+            if (block.Condition is not null)
+            {
+                return false;
+            }
+
+            foreach (var commandInBlock in block.Commands)
+            {
+                if (commandInBlock is UnsupportedCommand)
+                {
+                    return false;
+                }
+
+                if (!CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(commandInBlock)))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return command.Blocks.Count > 0;
+    }
+
     private static TrainingEventSample? SamplePair(AircraftState a, AircraftState b, SeparationRequirement requirement, double scenarioElapsedSeconds)
     {
         var current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
@@ -300,6 +379,70 @@ public sealed class SoloTrainingEvaluator
             null
         );
     }
+
+    private List<TrainingEventSample> SampleAdvisoryPair(
+        AircraftState a,
+        AircraftState b,
+        SeparationRequirement requirement,
+        TrainingEventSample separationSample,
+        double scenarioElapsedSeconds
+    )
+    {
+        var samples = new List<TrainingEventSample>(capacity: 2);
+        if (!HasTrafficAdvisoryProof(a.Callsign, b.Callsign))
+        {
+            samples.Add(CreateAdvisorySample(a, b, requirement, separationSample, scenarioElapsedSeconds));
+        }
+
+        if (!HasTrafficAdvisoryProof(b.Callsign, a.Callsign))
+        {
+            samples.Add(CreateAdvisorySample(b, a, requirement, separationSample, scenarioElapsedSeconds));
+        }
+
+        return samples;
+    }
+
+    private bool HasTrafficAdvisoryProof(string recipientCallsign, string targetCallsign) =>
+        _advisoryProofs.Contains(MakeAdvisoryProofKey(recipientCallsign, targetCallsign));
+
+    private static TrainingEventSample CreateAdvisorySample(
+        AircraftState recipient,
+        AircraftState target,
+        SeparationRequirement requirement,
+        TrainingEventSample separationSample,
+        double scenarioElapsedSeconds
+    )
+    {
+        string id = MakeAdvisoryEventId(requirement.Name, recipient.Callsign, target.Callsign);
+        string requiredText = requirement.Name.StartsWith("Class B", StringComparison.OrdinalIgnoreCase)
+            ? "Issue a mandatory Class B traffic advisory before proximity diminishes below applicable separation minima."
+            : "Issue a traffic advisory before proximity diminishes below applicable separation minima.";
+        string actualText = $"No accepted RTIS/RTISF proof for {recipient.Callsign} about {target.Callsign}.";
+        string description =
+            $"{recipient.Callsign}: issue traffic advisory for {target.Callsign}; {requirement.CoachingText} Current spacing is "
+            + $"{separationSample.ActualHorizontalNm:F1} NM and {separationSample.ActualVerticalFt:F0} ft.";
+
+        return new TrainingEventSample(
+            id,
+            SoloTrainingEventCategory.AdvisoryVisual,
+            separationSample.Severity,
+            separationSample.Severity == SoloTrainingEventSeverity.Safety ? "Traffic advisory missing" : "Traffic advisory needed",
+            description,
+            AdvisoryRuleReference(requirement),
+            scenarioElapsedSeconds,
+            [recipient.Callsign, target.Callsign],
+            null,
+            null,
+            null,
+            null,
+            null,
+            requiredText,
+            actualText
+        );
+    }
+
+    private static string AdvisoryRuleReference(SeparationRequirement requirement) =>
+        requirement.Name.StartsWith("Class B", StringComparison.OrdinalIgnoreCase) ? "7110.65 §7-9-5, §2-1-21" : "7110.65 §2-1-21";
 
     private static (double HorizontalNm, double VerticalFt) ComputeSeparation(AircraftState a, AircraftState b, double lookaheadSeconds)
     {
@@ -349,6 +492,15 @@ public sealed class SoloTrainingEvaluator
         string second = cmp <= 0 ? callsignB : callsignA;
         string normalizedRule = ruleName.Replace(' ', '_').Replace('/', '_');
         return $"{normalizedRule}_{first}_{second}".ToUpperInvariant();
+    }
+
+    private static string MakeAdvisoryProofKey(string recipientCallsign, string targetCallsign) =>
+        $"{recipientCallsign.Trim().ToUpperInvariant()}>{targetCallsign.Trim().ToUpperInvariant()}";
+
+    private static string MakeAdvisoryEventId(string ruleName, string recipientCallsign, string targetCallsign)
+    {
+        string normalizedRule = ruleName.Replace(' ', '_').Replace('/', '_');
+        return $"TRAFFIC_ADVISORY_{normalizedRule}_{recipientCallsign}_{targetCallsign}".ToUpperInvariant();
     }
 
     private static int ComputeEventLoss(List<SoloTrainingEvent> events, SoloTrainingEventCategory category)

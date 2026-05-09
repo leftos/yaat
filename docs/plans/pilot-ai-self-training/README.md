@@ -97,7 +97,7 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pending-request reminders, including slower follow-up after standby |
 | [x] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
 | [x] | **M10.6** | [m10.6-scenario-pack.md](m10.6-scenario-pack.md) | Solo training USER_GUIDE + scenario-author notes + cleanup |
-| [x] | **M10.7** | [m10.7-session-report-separation-scoring.md](m10.7-session-report-separation-scoring.md) | Live Session Report + FAA-grounded airborne, runway, and wake separation scoring |
+| [x] | **M10.7** | [m10.7-session-report-separation-scoring.md](m10.7-session-report-separation-scoring.md) | Live Session Report + FAA-grounded airborne, runway, wake, and advisory scoring |
 
 ## Decisions committed
 
