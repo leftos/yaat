@@ -274,6 +274,244 @@ public sealed class SoloTrainingEvaluatorTests
         Assert.Empty(report.Timeline);
     }
 
+    [Fact]
+    public void Evaluate_DepartureWakeIntervalBeforeRequiredTime_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §3-9-6(f)", notice.RuleReference);
+        Assert.Contains("2 minutes", notice.RequiredText);
+        Assert.Contains("60 seconds", notice.ActualText);
+    }
+
+    [Fact]
+    public void Evaluate_DepartureWakeIntervalAfterRequiredTime_DoesNotRecordViolation()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 221, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 221, new ApproachReportData([], [], 221, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_DepartureWakeIntervalBeforeRequiredTime_DoesNotRecordWhenCwtDistanceExists()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 6.0 * GeoMath.FeetPerNm);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_ParallelRunwayUnderWakeThreshold_AppliesDepartureWakeInterval()
+    {
+        var leadRunway = CreateRunway();
+        var followerRunway = CreateParallelRunway("28L", offsetFt: 1000);
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(leadRunway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, leadRunway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(followerRunway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, followerRunway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(leadRunway, leadRunway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, leadRunway, new InitialClimbPhase());
+        SetPhase(follower, followerRunway, new TakeoffPhase());
+
+        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default));
+        Assert.Contains("7110.65 §3-9-6(f)", notice.RuleReference);
+        Assert.Contains("parallel runways less than 2,500 ft", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_ParallelRunwayOutsideWakeThreshold_DoesNotApplyDepartureWakeInterval()
+    {
+        var leadRunway = CreateRunway();
+        var followerRunway = CreateParallelRunway("28L", offsetFt: 3000);
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(leadRunway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, leadRunway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(followerRunway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, followerRunway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(leadRunway, leadRunway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, leadRunway, new InitialClimbPhase());
+        SetPhase(follower, followerRunway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_IntersectionDepartureWakeInterval_UsesSection397()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("UAL1", "B752", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 220, AirspaceDatabase.Default));
+        Assert.Contains("7110.65 §3-9-7(a)", notice.RuleReference);
+        Assert.Contains("3 minutes", notice.RequiredText);
+        Assert.Contains("120 seconds", notice.ActualText);
+    }
+
+    [Fact]
+    public void Evaluate_IntersectionDepartureWakeIntervalWithoutMileAlternative_ReportsTimeOnly()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("FFT1", "A320", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default));
+        Assert.Contains("7110.65 §3-9-7(a)", notice.RuleReference);
+        Assert.Contains("3 minutes", notice.RequiredText);
+        Assert.DoesNotContain("CWT spacing", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_TerminalApproachCwtSpacingInsideRequiredDistance_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
+        SetPhase(lead, runway, new FinalApproachPhase());
+        var follower = CreateAircraft(
+            "SWA2",
+            "B738",
+            flightRules: "IFR",
+            PositionOnRunway(runway, -6.0 * GeoMath.FeetPerNm),
+            altitude: 700,
+            isOnGround: false
+        );
+        SetPhase(follower, runway, new FinalApproachPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 300, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 0);
+        SetPhase(lead, runway, new LandingPhase());
+
+        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default));
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §5-5-4(h)", notice.RuleReference);
+        Assert.Contains("7 NM", notice.RequiredText);
+        Assert.Contains("6.0 NM", notice.ActualText);
+    }
+
+    [Fact]
+    public void Evaluate_TerminalApproachCwtSpacingAtRequiredDistance_DoesNotRecordViolation()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
+        SetPhase(lead, runway, new FinalApproachPhase());
+        var follower = CreateAircraft(
+            "SWA2",
+            "B738",
+            flightRules: "IFR",
+            PositionOnRunway(runway, -8.0 * GeoMath.FeetPerNm),
+            altitude: 700,
+            isOnGround: false
+        );
+        SetPhase(follower, runway, new FinalApproachPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 300, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 0);
+        SetPhase(lead, runway, new LandingPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 301, new ApproachReportData([], [], 301, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_WakeIntervalViolation_DedupesAcrossRepeatedTicks()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 161, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 161, new ApproachReportData([], [], 161, "N/A"));
+
+        Assert.Single(first);
+        Assert.Empty(second);
+        Assert.Single(report.Timeline);
+        Assert.Single(report.ActiveEvents);
+    }
+
     private static AircraftState CreateAircraft(
         string callsign,
         string type,
@@ -317,6 +555,29 @@ public sealed class SoloTrainingEvaluatorTests
             LengthFt = 10000,
             WidthFt = 150,
         };
+
+    private static RunwayInfo CreateParallelRunway(string designator, double offsetFt)
+    {
+        var baseRunway = CreateRunway();
+        var start = GeoMath.ProjectPoint(new LatLon(baseRunway.Lat1, baseRunway.Lon1), new TrueHeading(0), offsetFt / GeoMath.FeetPerNm);
+        var end = GeoMath.ProjectPoint(new LatLon(baseRunway.Lat2, baseRunway.Lon2), new TrueHeading(0), offsetFt / GeoMath.FeetPerNm);
+        return new RunwayInfo
+        {
+            AirportId = baseRunway.AirportId,
+            Id = new RunwayIdentifier(designator, "10R"),
+            Designator = designator,
+            Lat1 = start.Lat,
+            Lon1 = start.Lon,
+            Elevation1Ft = baseRunway.Elevation1Ft,
+            TrueHeading1 = baseRunway.TrueHeading1,
+            Lat2 = end.Lat,
+            Lon2 = end.Lon,
+            Elevation2Ft = baseRunway.Elevation2Ft,
+            TrueHeading2 = baseRunway.TrueHeading2,
+            LengthFt = baseRunway.LengthFt,
+            WidthFt = baseRunway.WidthFt,
+        };
+    }
 
     private static LatLon PositionOnRunway(RunwayInfo runway, double alongFt) =>
         GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading, alongFt / GeoMath.FeetPerNm);
