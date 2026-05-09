@@ -26,6 +26,13 @@ public static class AircraftProfileDatabase
     }
 
     /// <summary>
+    /// Reset the per-type "used sibling fallback" warning set. Called when the
+    /// sibling map is reloaded so a now-resolvable type warns again if it falls
+    /// back to a different sibling in the new map.
+    /// </summary>
+    internal static void ClearSiblingFallbackWarnings() => _siblingFallbackWarned.Clear();
+
+    /// <summary>
     /// Get the performance profile for an ICAO type designator.
     /// Strips prefixes like "H/" and suffixes like "/L" automatically. Falls back
     /// to the sibling map (e.g. <c>B789 -&gt; B788</c>) if there is no direct hit.
