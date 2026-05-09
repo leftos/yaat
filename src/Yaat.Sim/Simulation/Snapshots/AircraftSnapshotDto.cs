@@ -52,6 +52,12 @@ public sealed class AircraftSnapshotDto
     public bool HasControllerAcknowledgedInitialContact { get; init; }
 
     /// <summary>
+    /// Solo-training frequency-service gate. Non-required so older snapshots deserialize
+    /// with the default <see langword="false"/>.
+    /// </summary>
+    public bool HasLeftStudentFrequency { get; init; }
+
+    /// <summary>
     /// Explicit VFR Class Bravo clearance gate. Non-required so older snapshots deserialize
     /// cleanly with the default <see langword="false"/>.
     /// </summary>

@@ -214,7 +214,7 @@ Most commands work the same in Solo Training and RPO mode, but a few matter more
 | Acknowledge without a maneuver | `STBY` / `ROGER` | No forced shortcut |
 | Use visual follow | structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | forced traffic-in-sight shortcuts |
 
-The full syntax and behavior details live in [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences), [Pattern Commands](COMMANDS.md#pattern-commands), and [Approach Control Commands](COMMANDS.md#approach-control-commands).
+The full syntax and behavior details live in [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences), [Pattern Commands](COMMANDS.md#pattern-commands), and [Approach Control Commands](COMMANDS.md#approach-control-commands). Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. Bare `RFIS` and `RFISF` stay RPO-only shortcuts.
 
 ## Built-In Safeguards
 
@@ -241,7 +241,9 @@ Open **Scenario > Session Report** during a room session. In Solo Training Mode,
 
 The Session Report is not the same as CRC conflict alerts. CRC alerts remain controller-facing alerts. Session Report rows are coaching and debrief material generated from YAAT's scoring model.
 
-Current scoring covers IFR radar separation, Class B/C VFR-related separation where applicable, runway and wake events, structured traffic-advisory proof, safety-alert proof, visual-follow states, and related runway/approach outcomes. The report uses accepted solo-mode commands as evidence, which is why structured `RTIS` and `SAFAL` matter for scored advisory/safety-alert proof. Structured `RFIS` keeps field advisories descriptive for visual-approach workflow.
+Current scoring covers IFR radar separation, Class B/C VFR-related separation where applicable, Class C outer-area IFR/VFR advisory service using YAAT's 20 NM training approximation, runway and wake events, structured traffic-advisory proof, safety-alert proof, field-in-sight proof, visual-follow states, and related runway/approach outcomes. VFR/VFR and other no-minima proximity cases can appear as Advisory / Visual findings rather than Separation findings.
+
+The report uses accepted solo-mode commands as evidence, which is why structured `RTIS`, `SAFAL`, and `RFIS` matter for scored advisory, safety-alert, and visual-approach proof. Advisory proof is only required for aircraft still in the student's service: they have made initial contact, have not been transferred away with `CT` or `FCA`, and are not owned by another student position when position ownership is available.
 
 ## Scenario Author Notes
 

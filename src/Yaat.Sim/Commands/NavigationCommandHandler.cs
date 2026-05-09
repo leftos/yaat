@@ -997,6 +997,11 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, "Use RFIS <clock> <miles> in solo training");
         }
 
+        return DispatchReportFieldInSightCore(aircraft, ctx);
+    }
+
+    private static CommandResult DispatchReportFieldInSightCore(AircraftState aircraft, DispatchContext ctx)
+    {
         // Fast path: if the tick processor has already confirmed acquisition on a
         // visual approach, just echo the in-sight response.
         if (aircraft.Approach.HasReportedFieldInSight)
@@ -1069,7 +1074,8 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportFieldAdvisory(ReportFieldAdvisoryCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        return CommandDispatcher.Ok(CommandDescriber.FormatFieldAdvisoryPhrase(cmd.Details));
+        var acquisition = DispatchReportFieldInSightCore(aircraft, ctx);
+        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatFieldAdvisoryPhrase(cmd.Details)) : acquisition;
     }
 
     internal static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)

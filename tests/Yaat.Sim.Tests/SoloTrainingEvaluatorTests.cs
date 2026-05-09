@@ -122,8 +122,9 @@ public sealed class SoloTrainingEvaluatorTests
         var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
         var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"));
 
-        Assert.Empty(notices);
-        Assert.Empty(report.Timeline);
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+        Assert.DoesNotContain(report.Timeline, e => e.Category == SoloTrainingEventCategory.Separation);
     }
 
     [Fact]
@@ -143,8 +144,9 @@ public sealed class SoloTrainingEvaluatorTests
         var notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
         var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"));
 
-        Assert.Empty(notices);
-        Assert.Empty(report.Timeline);
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+        Assert.All(report.Timeline, e => Assert.Equal(SoloTrainingEventCategory.AdvisoryVisual, e.Category));
     }
 
     [Fact]
@@ -165,13 +167,16 @@ public sealed class SoloTrainingEvaluatorTests
         vfr.IndicatedAirspeed = 120;
         var evaluator = new SoloTrainingEvaluator();
 
-        Assert.Null(SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default));
-        Assert.NotNull(SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default, lookaheadSeconds: 60));
+        var currentRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default);
+        var projectedRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default, lookaheadSeconds: 60);
+        Assert.NotNull(currentRequirement);
+        Assert.Contains("outer-area", currentRequirement.Name);
+        Assert.NotNull(projectedRequirement);
 
         var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
 
         var separation = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
-        Assert.Equal(SoloTrainingEventSeverity.Coach, separation.Severity);
+        Assert.Equal(SoloTrainingEventSeverity.Safety, separation.Severity);
         Assert.Contains("7110.65 §7-8-3", separation.RuleReference);
     }
 
@@ -188,7 +193,9 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
 
-        Assert.Null(SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default));
+        var currentRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default);
+        Assert.NotNull(currentRequirement);
+        Assert.Contains("outer-area", currentRequirement.Name);
 
         ifr.VerticalSpeed = 600;
         vfr.VerticalSpeed = 600;
@@ -289,8 +296,8 @@ public sealed class SoloTrainingEvaluatorTests
     {
         var (a, b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 5);
-        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6);
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 5, [a, b]);
+        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6, [a, b]);
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
@@ -303,7 +310,7 @@ public sealed class SoloTrainingEvaluatorTests
         var (a, b) = CreateClosingIfrPair();
         a.Approach.LastReportedTrafficCallsign = b.Callsign;
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(null)), scenarioElapsedSeconds: 5);
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(null)), scenarioElapsedSeconds: 5, [a, b]);
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
@@ -433,6 +440,200 @@ public sealed class SoloTrainingEvaluatorTests
 
         Assert.True(result.Success, result.Message);
         var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void Replay_StructuredRtisRecordsTrafficAdvisoryProofUsingFullSnapshot()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData());
+        var recording = new SessionRecording
+        {
+            ScenarioJson = BuildReplayProofScenarioJson(),
+            RngSeed = 1,
+            TotalElapsedSeconds = 2,
+            Actions =
+            [
+                new RecordedSettingChange(0, "SoloTrainingMode", "True"),
+                new RecordedCommand(1, "AAL1", "RTIS 12 2 W A320 050", "TS", "test-conn"),
+            ],
+        };
+
+        engine.Replay(recording, 2);
+        var a = engine.FindAircraft("AAL1");
+        var b = engine.FindAircraft("UAL2");
+        Assert.NotNull(a);
+        Assert.NotNull(b);
+        a.HasMadeInitialContact = true;
+        b.HasMadeInitialContact = true;
+
+        var notices = engine.SoloTrainingEvaluator.Evaluate([a, b], scenarioElapsedSeconds: 2, AirspaceDatabase.Default);
+
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void SendCommand_StructuredRfisRecordsProofAndStartsFieldAcquisition()
+    {
+        var aircraft = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(38.10, -122.70), altitude: 5000, isOnGround: false);
+        aircraft.FlightPlan.Destination = "KOAK";
+        var other = CreateAircraft("UAL2", "A320", flightRules: "IFR", new LatLon(39.00, -123.00), altitude: 7000, isOnGround: false);
+        var runway = CreateRunway();
+        aircraft.Phases = new PhaseList
+        {
+            AssignedRunway = runway,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "VIS28R",
+                AirportCode = "KOAK",
+                RunwayId = "28R",
+                FinalApproachCourse = runway.TrueHeading,
+            },
+        };
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5) };
+        engine.World.AddAircraft(aircraft);
+        engine.World.AddAircraft(other);
+
+        var result = engine.SendCommand(aircraft.Callsign, "RFIS 12 12");
+        var notices = engine.SoloTrainingEvaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(
+            aircraft.Approach.HasReportedFieldInSight || aircraft.PendingObservations.Any(o => o is FieldAcquisitionObservation),
+            "Structured RFIS should either resolve field acquisition immediately or arm the soft-fail observation."
+        );
+        Assert.DoesNotContain(notices, e => e.Title == "Visual approach field proof missing");
+    }
+
+    [Fact]
+    public void Evaluate_CvaWithoutFieldProofRecordsVisualWarningUntilRfisProof()
+    {
+        var (aircraft, other) = CreateClosingIfrPair();
+        other.Position = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading(90), 10.0);
+        var runway = CreateRunway();
+        aircraft.Phases = new PhaseList
+        {
+            AssignedRunway = runway,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "VIS28R",
+                AirportCode = "KOAK",
+                RunwayId = "28R",
+                FinalApproachCourse = runway.TrueHeading,
+            },
+        };
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        var visual = Assert.Single(notices, e => e.Title == "Visual approach field proof missing");
+        Assert.Contains("7110.65 §7-4-3", visual.RuleReference);
+
+        evaluator.RecordControllerCommand(
+            aircraft,
+            SingleCommand(new ReportFieldAdvisoryCommand(new FieldAdvisoryDetails(12, 10))),
+            scenarioElapsedSeconds: 11,
+            [aircraft, other]
+        );
+        evaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 12, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"));
+
+        Assert.DoesNotContain(report.ActiveEvents, e => e.Title == "Visual approach field proof missing");
+    }
+
+    [Fact]
+    public void Evaluate_CvaWithoutFieldProofScoresOnceWithoutTrafficPair()
+    {
+        var aircraft = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(38.10, -122.70), altitude: 5000, isOnGround: false);
+        var runway = CreateRunway();
+        aircraft.Phases = new PhaseList
+        {
+            AssignedRunway = runway,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "VIS28R",
+                AirportCode = "KOAK",
+                RunwayId = "28R",
+                FinalApproachCourse = runway.TrueHeading,
+            },
+        };
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([aircraft], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.Single(notices, e => e.Title == "Visual approach field proof missing");
+    }
+
+    [Fact]
+    public void ResolveRequirement_ClassCOuterAreaIfrVfrPair_AppliesTargetResolution()
+    {
+        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.95, -122.22), altitude: 2500, isOnGround: false);
+        var vfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(ifr.Position, new TrueHeading(90), 0.2),
+            altitude: 2500,
+            isOnGround: false
+        );
+
+        var requirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default);
+
+        Assert.NotNull(requirement);
+        Assert.Contains("outer-area", requirement.Name);
+        Assert.Contains("AIM §3-2-4", requirement.RuleReference);
+        Assert.Equal(SoloTrainingEventCategory.Separation, requirement.Category);
+    }
+
+    [Fact]
+    public void Evaluate_NoMinimaProximityCreatesAdvisoryOnlyEvents()
+    {
+        var first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.0000, -121.0000), altitude: 2500, isOnGround: false);
+        var second = CreateAircraft(
+            "N456CD",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(first.Position, new TrueHeading(90), 2.0),
+            altitude: 2500,
+            isOnGround: false
+        );
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
+        Assert.All(notices, e => Assert.Contains("7110.65 §2-1-21", e.RuleReference));
+    }
+
+    [Fact]
+    public void Evaluate_TransferredAwayRecipientDoesNotReceiveMissingAdvisoryScoring()
+    {
+        var (a, b) = CreateClosingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(a, SingleCommand(new FrequencyChangeApprovedCommand()), scenarioElapsedSeconds: 5, [a, b]);
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed");
+        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void Evaluate_DifferentOwnerRecipientDoesNotReceiveMissingAdvisoryScoringWhenStudentPositionKnown()
+    {
+        var (a, b) = CreateClosingIfrPair();
+        var student = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+        a.Track.Owner = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
+        b.Track.Owner = student;
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, student);
+
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed");
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
@@ -905,6 +1106,7 @@ public sealed class SoloTrainingEvaluatorTests
             Altitude = altitude,
             IndicatedAirspeed = 180,
             IsOnGround = isOnGround,
+            HasMadeInitialContact = true,
             FlightPlan = new AircraftFlightPlan
             {
                 HasFlightPlan = true,
@@ -957,6 +1159,70 @@ public sealed class SoloTrainingEvaluatorTests
             ElapsedSeconds = elapsedSeconds,
             SoloTrainingMode = soloTrainingMode,
         };
+
+    private static string BuildReplayProofScenarioJson() =>
+        """
+            {
+              "name": "Replay Proof Scenario",
+              "primaryAirportId": "OAK",
+              "aircraft": [
+                {
+                  "id": "test-ac-1",
+                  "aircraftId": "AAL1",
+                  "aircraftType": "B738",
+                  "transponderMode": "C",
+                  "startingConditions": {
+                    "type": "Coordinates",
+                    "coordinates": { "lat": 37.6213, "lon": -122.3790 },
+                    "altitude": 5000,
+                    "heading": 90,
+                    "speed": 180
+                  },
+                  "flightplan": {
+                    "rules": "VFR",
+                    "departure": "KSFO",
+                    "destination": "KOAK",
+                    "cruiseAltitude": 5000,
+                    "cruiseSpeed": 250,
+                    "route": "",
+                    "remarks": "",
+                    "aircraftType": "B738"
+                  },
+                  "presetCommands": [],
+                  "spawnDelay": 0,
+                  "airportId": "OAK",
+                  "difficulty": "Easy"
+                },
+                {
+                  "id": "test-ac-2",
+                  "aircraftId": "UAL2",
+                  "aircraftType": "A320",
+                  "transponderMode": "C",
+                  "startingConditions": {
+                    "type": "Coordinates",
+                    "coordinates": { "lat": 37.6213, "lon": -122.3350 },
+                    "altitude": 5000,
+                    "heading": 270,
+                    "speed": 180
+                  },
+                  "flightplan": {
+                    "rules": "VFR",
+                    "departure": "KSJC",
+                    "destination": "KOAK",
+                    "cruiseAltitude": 5000,
+                    "cruiseSpeed": 220,
+                    "route": "",
+                    "remarks": "",
+                    "aircraftType": "A320"
+                  },
+                  "presetCommands": [],
+                  "spawnDelay": 0,
+                  "airportId": "OAK",
+                  "difficulty": "Easy"
+                }
+              ]
+            }
+            """;
 
     private static RunwayInfo CreateRunway() =>
         new()

@@ -309,7 +309,7 @@ AircraftPerformance.cs         # Unified perf API: profile-first with category f
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
-Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, same-runway, structured traffic-advisory/safety-alert events, active timeline, report buckets
+Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, same-runway, structured traffic-advisory/safety-alert/field-proof events, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation
@@ -608,7 +608,7 @@ ConsolidationState.cs          # Thread-safe manual consolidation overrides
 
 # Simulation/Snapshots/
 StateSnapshotDto.cs            # Top-level snapshot DTO + TimedSnapshot (elapsed + action index + state)
-AircraftSnapshotDto.cs         # Aircraft state DTO (~100 fields) + nested DTOs (TrackOwner, Tcp, Pointout, SharedState, etc.)
+AircraftSnapshotDto.cs         # Aircraft state DTO (~100 fields) + nested DTOs (TrackOwner, Tcp, Pointout, SharedState, student-frequency eligibility, etc.)
 ControlTargetsDto.cs           # Control targets + NavigationTarget + altitude/speed restriction DTOs
 CommandQueueDto.cs             # CommandBlock/TrackedCommand/BlockTrigger/DeferredDispatch DTOs
 PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for all ~35 Phase subclasses

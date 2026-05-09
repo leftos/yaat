@@ -168,6 +168,13 @@ public class AircraftState
     public bool HasControllerAcknowledgedInitialContact { get; set; }
 
     /// <summary>
+    /// Set after solo-training CT/FCA releases the aircraft from the student's frequency.
+    /// Snapshot-serialized so session-report advisory scoring does not re-score aircraft
+    /// after replay/rewind restores post-transfer state.
+    /// </summary>
+    public bool HasLeftStudentFrequency { get; set; }
+
+    /// <summary>
     /// Set when the controller has issued the explicit VFR Class Bravo clearance
     /// (FAA 7110.65 §7-9-2). Snapshot-serialized so replays keep the entry gate state.
     /// </summary>
@@ -246,6 +253,7 @@ public class AircraftState
             IsOnGround = dto.IsOnGround,
             HasMadeInitialContact = dto.HasMadeInitialContact,
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
+            HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
             IsClearedIntoBravo = dto.IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
@@ -313,6 +321,7 @@ public class AircraftState
             IsOnGround = IsOnGround,
             HasMadeInitialContact = HasMadeInitialContact,
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
+            HasLeftStudentFrequency = HasLeftStudentFrequency,
             IsClearedIntoBravo = IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),

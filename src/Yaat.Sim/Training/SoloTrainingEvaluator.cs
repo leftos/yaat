@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
@@ -73,26 +74,30 @@ public sealed class SoloTrainingEvaluator
 
     private readonly Dictionary<string, TrackedEvent> _events = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _advisoryProofs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _fieldAdvisoryProofs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<SafetyAlertProof> _safetyAlertProofs = [];
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
-
-    public void RecordControllerCommand(AircraftState aircraft, CompoundCommand command, double scenarioElapsedSeconds)
-    {
-        RecordControllerCommand(aircraft, command, scenarioElapsedSeconds, [aircraft]);
-    }
 
     public void RecordControllerCommand(
         AircraftState aircraft,
         CompoundCommand command,
         double scenarioElapsedSeconds,
-        IReadOnlyList<AircraftState> aircraftOnFrequency
+        IReadOnlyList<AircraftState> knownAircraft
     )
     {
         foreach (var parsedCommand in EnumerateImmediatelyAppliedCommands(command))
         {
-            if (parsedCommand is ReportTrafficAdvisoryCommand rtis)
+            if (parsedCommand is ContactCommand or FrequencyChangeApprovedCommand)
             {
-                var target = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, aircraftOnFrequency, out _);
+                aircraft.HasLeftStudentFrequency = true;
+            }
+            else if (parsedCommand is ReportFieldAdvisoryCommand)
+            {
+                _fieldAdvisoryProofs.Add(NormalizeCallsign(aircraft.Callsign));
+            }
+            else if (parsedCommand is ReportTrafficAdvisoryCommand rtis)
+            {
+                var target = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, knownAircraft, out _);
                 if (target is not null)
                 {
                     string key = MakeAdvisoryProofKey(aircraft.Callsign, target.Callsign);
@@ -101,7 +106,7 @@ public sealed class SoloTrainingEvaluator
             }
             else if (parsedCommand is SafetyAlertCommand safetyAlert)
             {
-                var target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, safetyAlert.Details, aircraftOnFrequency, out _);
+                var target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, safetyAlert.Details, knownAircraft, out _);
                 if (target is not null)
                 {
                     _safetyAlertProofs.Add(new SafetyAlertProof(aircraft.Callsign, target.Callsign, scenarioElapsedSeconds));
@@ -111,6 +116,16 @@ public sealed class SoloTrainingEvaluator
     }
 
     public List<SoloTrainingEvent> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, AirspaceDatabase airspace)
+    {
+        return Evaluate(aircraft, scenarioElapsedSeconds, airspace, studentPosition: null);
+    }
+
+    public List<SoloTrainingEvent> Evaluate(
+        List<AircraftState> aircraft,
+        double scenarioElapsedSeconds,
+        AirspaceDatabase airspace,
+        TrackOwner? studentPosition
+    )
     {
         var notices = new List<SoloTrainingEvent>();
         var observedThisTick = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -128,29 +143,55 @@ public sealed class SoloTrainingEvaluator
                 }
 
                 var separationSample = SamplePair(a, b, airspace, scenarioElapsedSeconds);
-                if (separationSample is null)
+                if (separationSample is not null)
                 {
-                    continue;
-                }
-
-                var sample = separationSample.Event;
-                var requirement = separationSample.Requirement;
-                observedThisTick.Add(sample.Id);
-                var notice = Upsert(sample, scenarioElapsedSeconds);
-                if (notice is not null)
-                {
-                    notices.Add(notice);
-                }
-
-                foreach (var advisorySample in SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds))
-                {
-                    observedThisTick.Add(advisorySample.Id);
-                    var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
-                    if (advisoryNotice is not null)
+                    var sample = separationSample.Event;
+                    var requirement = separationSample.Requirement;
+                    observedThisTick.Add(sample.Id);
+                    var notice = Upsert(sample, scenarioElapsedSeconds);
+                    if (notice is not null)
                     {
-                        notices.Add(advisoryNotice);
+                        notices.Add(notice);
+                    }
+
+                    foreach (var advisorySample in SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, studentPosition))
+                    {
+                        observedThisTick.Add(advisorySample.Id);
+                        var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
+                        if (advisoryNotice is not null)
+                        {
+                            notices.Add(advisoryNotice);
+                        }
                     }
                 }
+                else
+                {
+                    foreach (var advisorySample in SampleNoMinimaAdvisoryPair(a, b, airspace, scenarioElapsedSeconds, studentPosition))
+                    {
+                        observedThisTick.Add(advisorySample.Id);
+                        var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
+                        if (advisoryNotice is not null)
+                        {
+                            notices.Add(advisoryNotice);
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (var aircraftState in eligible)
+        {
+            var visualSample = SampleVisualApproach(aircraftState, scenarioElapsedSeconds, studentPosition);
+            if (visualSample is null)
+            {
+                continue;
+            }
+
+            observedThisTick.Add(visualSample.Id);
+            var visualNotice = Upsert(visualSample, scenarioElapsedSeconds);
+            if (visualNotice is not null)
+            {
+                notices.Add(visualNotice);
             }
         }
 
@@ -226,6 +267,7 @@ public sealed class SoloTrainingEvaluator
     {
         _events.Clear();
         _advisoryProofs.Clear();
+        _fieldAdvisoryProofs.Clear();
         _safetyAlertProofs.Clear();
         _sameRunwayTracker.Reset();
     }
@@ -278,12 +320,14 @@ public sealed class SoloTrainingEvaluator
             );
         }
 
-        if (applicableClasses.Contains(AirspaceClass.Charlie) && (aVfr != bVfr))
+        if ((applicableClasses.Contains(AirspaceClass.Charlie) || IsClassCOuterAreaPair(a, b, airspace, lookaheadSeconds)) && (aVfr != bVfr))
         {
             return new SeparationRequirement(
-                "Class C IFR/VFR target-resolution separation",
+                applicableClasses.Contains(AirspaceClass.Charlie)
+                    ? "Class C IFR/VFR target-resolution separation"
+                    : "Class C outer-area IFR/VFR target-resolution separation",
                 SoloTrainingEventCategory.Separation,
-                "7110.65 §7-8-3",
+                "7110.65 §7-8-2; 7110.65 §7-8-3; AIM §3-2-4",
                 ClassCTargetResolutionNm,
                 ClassCVerticalFt,
                 "VFR aircraft in Class C require target resolution, 500 ft vertical, or visual separation from IFR aircraft."
@@ -291,6 +335,39 @@ public sealed class SoloTrainingEvaluator
         }
 
         return null;
+    }
+
+    private static bool IsClassCOuterAreaPair(AircraftState a, AircraftState b, AirspaceDatabase airspace, double lookaheadSeconds) =>
+        (IsInClassCOuterArea(a, airspace, lookaheadSeconds)) || (IsInClassCOuterArea(b, airspace, lookaheadSeconds));
+
+    private static bool IsInClassCOuterArea(AircraftState aircraft, AirspaceDatabase airspace, double lookaheadSeconds)
+    {
+        var position = ProjectPosition(aircraft, lookaheadSeconds);
+        double altitude = ProjectAltitude(aircraft, lookaheadSeconds);
+        var navDb = NavigationDatabase.Instance;
+
+        foreach (
+            var group in airspace
+                .Volumes.Where(v => v.Class == AirspaceClass.Charlie)
+                .GroupBy(v => !string.IsNullOrWhiteSpace(v.IcaoId) ? v.IcaoId : v.Ident)
+        )
+        {
+            var airportId = group.Key;
+            var airport = navDb.GetFixPosition(airportId) ?? navDb.GetFixPosition("K" + airportId);
+            if (airport is null)
+            {
+                continue;
+            }
+
+            var airportPosition = new LatLon(airport.Value.Lat, airport.Value.Lon);
+            double ceiling = group.Max(v => v.UpperFtMsl);
+            if (GeoMath.DistanceNm(position, airportPosition) <= 20.0 && altitude <= ceiling)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsEligibleAirborneTarget(AircraftState aircraft) =>
@@ -477,36 +554,130 @@ public sealed class SoloTrainingEvaluator
         AircraftState b,
         SeparationRequirement requirement,
         TrainingEventSample separationSample,
-        double scenarioElapsedSeconds
+        double scenarioElapsedSeconds,
+        TrackOwner? studentPosition
     )
     {
         var samples = new List<TrainingEventSample>(capacity: 2);
         if (separationSample.Severity == SoloTrainingEventSeverity.Safety)
         {
-            if (!HasSafetyAlertProof(a.Callsign, b.Callsign))
+            if (IsStudentServiceRecipient(a, studentPosition) && !HasSafetyAlertProof(a.Callsign, b.Callsign))
             {
                 samples.Add(CreateSafetyAlertSample(a, b, requirement, separationSample, scenarioElapsedSeconds));
             }
 
-            if (!HasSafetyAlertProof(b.Callsign, a.Callsign))
+            if (IsStudentServiceRecipient(b, studentPosition) && !HasSafetyAlertProof(b.Callsign, a.Callsign))
             {
                 samples.Add(CreateSafetyAlertSample(b, a, requirement, separationSample, scenarioElapsedSeconds));
             }
         }
         else
         {
-            if (!HasTrafficAdvisoryProof(a.Callsign, b.Callsign))
+            if (IsStudentServiceRecipient(a, studentPosition) && !HasTrafficAdvisoryProof(a.Callsign, b.Callsign))
             {
                 samples.Add(CreateAdvisorySample(a, b, requirement, separationSample, scenarioElapsedSeconds));
             }
 
-            if (!HasTrafficAdvisoryProof(b.Callsign, a.Callsign))
+            if (IsStudentServiceRecipient(b, studentPosition) && !HasTrafficAdvisoryProof(b.Callsign, a.Callsign))
             {
                 samples.Add(CreateAdvisorySample(b, a, requirement, separationSample, scenarioElapsedSeconds));
             }
         }
 
         return samples;
+    }
+
+    private List<TrainingEventSample> SampleNoMinimaAdvisoryPair(
+        AircraftState a,
+        AircraftState b,
+        AirspaceDatabase airspace,
+        double scenarioElapsedSeconds,
+        TrackOwner? studentPosition
+    )
+    {
+        var current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
+        if ((current.HorizontalNm > TerminalRadarHorizontalNm) || (current.VerticalFt > IfrVerticalFt))
+        {
+            return [];
+        }
+
+        bool classCContext =
+            (FindApplicableAirspaceClasses(a, b, airspace, lookaheadSeconds: 0.0).Contains(AirspaceClass.Charlie))
+            || (IsClassCOuterAreaPair(a, b, airspace, lookaheadSeconds: 0.0));
+        var requirement = new SeparationRequirement(
+            classCContext ? "Class C traffic advisory service" : "Traffic advisory service",
+            SoloTrainingEventCategory.AdvisoryVisual,
+            classCContext ? "7110.65 §7-8-2, §2-1-21" : "7110.65 §2-1-21",
+            TerminalRadarHorizontalNm,
+            IfrVerticalFt,
+            classCContext
+                ? "Provide Class C traffic advisories to participating aircraft when traffic is proximate."
+                : "Provide traffic advisories to participating aircraft when traffic is proximate and workload permits."
+        );
+        var sample = new TrainingEventSample(
+            MakePairEventId(requirement.Name, a.Callsign, b.Callsign),
+            SoloTrainingEventCategory.AdvisoryVisual,
+            SoloTrainingEventSeverity.Warning,
+            "Traffic advisory service needed",
+            $"{a.Callsign} and {b.Callsign}: {requirement.CoachingText} Current spacing is {current.HorizontalNm:F1} NM "
+                + $"and {current.VerticalFt:F0} ft.",
+            requirement.RuleReference,
+            scenarioElapsedSeconds,
+            [a.Callsign, b.Callsign],
+            null,
+            null,
+            current.HorizontalNm,
+            null,
+            current.VerticalFt,
+            null,
+            null
+        );
+
+        return SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, studentPosition);
+    }
+
+    private TrainingEventSample? SampleVisualApproach(AircraftState aircraft, double scenarioElapsedSeconds, TrackOwner? studentPosition)
+    {
+        if ((!IsStudentServiceRecipient(aircraft, studentPosition)) || (!IsVisualApproachWithoutFollow(aircraft)) || (HasFieldInSightProof(aircraft)))
+        {
+            return null;
+        }
+
+        string id = $"VISUAL_APPROACH_FIELD_PROOF_{NormalizeCallsign(aircraft.Callsign)}";
+        return new TrainingEventSample(
+            id,
+            SoloTrainingEventCategory.AdvisoryVisual,
+            SoloTrainingEventSeverity.Warning,
+            "Visual approach field proof missing",
+            $"{aircraft.Callsign}: accepted CVA without field-in-sight proof.",
+            "7110.65 §7-4-3; AIM §5-4-23",
+            scenarioElapsedSeconds,
+            [aircraft.Callsign],
+            aircraft.Phases?.AssignedRunway?.Designator,
+            null,
+            null,
+            null,
+            null,
+            "Confirm the airport is in sight before issuing a visual approach clearance.",
+            "No accepted structured RFIS proof and the aircraft has not reported the field in sight."
+        );
+    }
+
+    private static bool IsVisualApproachWithoutFollow(AircraftState aircraft) =>
+        (aircraft.Phases?.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.OrdinalIgnoreCase) == true)
+        && (string.IsNullOrWhiteSpace(aircraft.Approach.FollowingCallsign));
+
+    private bool HasFieldInSightProof(AircraftState aircraft) =>
+        (aircraft.Approach.HasReportedFieldInSight) || (_fieldAdvisoryProofs.Contains(NormalizeCallsign(aircraft.Callsign)));
+
+    private static bool IsStudentServiceRecipient(AircraftState aircraft, TrackOwner? studentPosition)
+    {
+        if ((!aircraft.HasMadeInitialContact) || (aircraft.HasLeftStudentFrequency))
+        {
+            return false;
+        }
+
+        return (studentPosition is null) || (aircraft.Track.Owner is null) || (aircraft.Track.Owner.MatchesPosition(studentPosition));
     }
 
     private bool HasTrafficAdvisoryProof(string recipientCallsign, string targetCallsign) =>
@@ -691,6 +862,8 @@ public sealed class SoloTrainingEvaluator
 
     private static string MakeAdvisoryProofKey(string recipientCallsign, string targetCallsign) =>
         $"{recipientCallsign.Trim().ToUpperInvariant()}>{targetCallsign.Trim().ToUpperInvariant()}";
+
+    private static string NormalizeCallsign(string callsign) => callsign.Trim().ToUpperInvariant();
 
     private static string MakeAdvisoryEventId(string ruleName, string recipientCallsign, string targetCallsign)
     {

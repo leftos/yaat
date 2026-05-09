@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
+
+### Fixed
+- Structured RTIS and SAFAL proof resolve targets from the full live and replay aircraft snapshot.
+
 ## v0.2.0-alpha [2026/05/08]
 
 ### Highlights

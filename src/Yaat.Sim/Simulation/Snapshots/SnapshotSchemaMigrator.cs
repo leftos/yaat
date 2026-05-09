@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -61,6 +61,8 @@ public static class SnapshotSchemaMigrator
         //   recordings (where filed and actual were always the same single field).
         // V4→V5: Added AircraftSnapshotDto.PendingPilotRequest. No data transformation —
         //   older snapshots default to null, meaning no unsatisfied pilot request was active.
+        // V5→V6: Added AircraftSnapshotDto.HasLeftStudentFrequency. No data transformation —
+        //   older snapshots default to false, preserving previous in-service behavior.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

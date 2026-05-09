@@ -87,6 +87,7 @@ public static class ContactCommandHandler
     {
         if (ctx.SoloTrainingMode)
         {
+            aircraft.HasLeftStudentFrequency = true;
             PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
             return;
         }

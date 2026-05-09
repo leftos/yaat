@@ -2046,7 +2046,7 @@ public sealed class SimulationEngine
         {
             if (replayCtx.SoloTrainingMode)
             {
-                SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
+                SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
                 PilotRequestTracker.ApplyControllerResponse(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
             }
         }
