@@ -1,0 +1,88 @@
+{
+  "files": [
+    {
+      "file": "World_Fleet_listing_issue_123_North_America.pdf",
+      "sha256": "72bafa2672f22355d5a62ecaff105c6cc711647ba383873d51909fe5501cc812",
+      "size_bytes": 978891,
+      "issue": "123",
+      "region": "North_America",
+      "airlines_total": 132,
+      "airlines_with_icao": 128,
+      "aircraft_mapped": 8589,
+      "aircraft_unmapped": 28
+    },
+    {
+      "file": "World_Fleet_listing_issue_123_Europe.pdf",
+      "sha256": "4aac5acc977caed31920da47dcffdc0b6168cfd5528ea27401c5e6124ce09bc1",
+      "size_bytes": 864087,
+      "issue": "123",
+      "region": "Europe",
+      "airlines_total": 302,
+      "airlines_with_icao": 301,
+      "aircraft_mapped": 5680,
+      "aircraft_unmapped": 16
+    },
+    {
+      "file": "World_Fleet_listing_issue_123_Asia.pdf",
+      "sha256": "10c9a698df1fb632313148ff7efec7eaf941815afa1b9a88b35e20b6be46893d",
+      "size_bytes": 1039629,
+      "issue": "123",
+      "region": "Asia",
+      "airlines_total": 243,
+      "airlines_with_icao": 238,
+      "aircraft_mapped": 8228,
+      "aircraft_unmapped": 12
+    },
+    {
+      "file": "World_Fleet_listing_issue_123_Africa.pdf",
+      "sha256": "b253ce0c464432158a982f319a54bf9e84f4dc6fed7b50bc46dd7f1ade1f59ee",
+      "size_bytes": 257093,
+      "issue": "123",
+      "region": "Africa",
+      "airlines_total": 119,
+      "airlines_with_icao": 113,
+      "aircraft_mapped": 954,
+      "aircraft_unmapped": 17
+    },
+    {
+      "file": "World_Fleet_listing_issue_123_Eurasia_Middle_East.pdf",
+      "sha256": "d8e47ad553a4259a155fa6371bd57df92f5fe6a3332ae6cb5b1369301f35023a",
+      "size_bytes": 496217,
+      "issue": "123",
+      "region": "Eurasia_Middle_East",
+      "airlines_total": 160,
+      "airlines_with_icao": 158,
+      "aircraft_mapped": 3169,
+      "aircraft_unmapped": 3
+    },
+    {
+      "file": "World_Fleet_listing_issue_123_South_America.pdf",
+      "sha256": "3eb444c6d71cd1b4262adf80d4ca737efa210d1322ed48d08ecee4de0402963c",
+      "size_bytes": 295859,
+      "issue": "123",
+      "region": "South_America",
+      "airlines_total": 110,
+      "airlines_with_icao": 108,
+      "aircraft_mapped": 1722,
+      "aircraft_unmapped": 0
+    },
+    {
+      "file": "World_Fleet_listing_issue_123_Oceania.pdf",
+      "sha256": "63f57eb0dab07cebb5ed5a478fc8d142bab8367b2ffc07b92fcc55b1f0a0e0d6",
+      "size_bytes": 155176,
+      "issue": "123",
+      "region": "Oceania",
+      "airlines_total": 40,
+      "airlines_with_icao": 35,
+      "aircraft_mapped": 667,
+      "aircraft_unmapped": 18
+    }
+  ],
+  "duplicates_skipped": [],
+  "totals": {
+    "airlines": 1053,
+    "types": 77,
+    "aircraft_total": 29009,
+    "aircraft_unmapped": 94
+  }
+}

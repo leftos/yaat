@@ -450,6 +450,47 @@ public class RecordingArchiveTests
     }
 
     [Fact]
+    public void ToBaseSessionRecording_SynthesizesAircraftSpawnActionsFromSnapshots()
+    {
+        var recording = new SessionRecording
+        {
+            Version = 2,
+            ScenarioJson = "{}",
+            RngSeed = 1,
+            WeatherJson = null,
+            Actions = [],
+            TotalElapsedSeconds = 5,
+            Snapshots =
+            [
+                new TimedSnapshot
+                {
+                    ElapsedSeconds = 0,
+                    ActionIndex = -1,
+                    State = CreateMinimalSnapshot(0),
+                },
+                new TimedSnapshot
+                {
+                    ElapsedSeconds = 5,
+                    ActionIndex = -1,
+                    State = CreateSnapshotWithAircraft(5, "ENY3196", "P28A"),
+                },
+            ],
+        };
+
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        var baseRecording = archive.ToBaseSessionRecording();
+        var spawn = Assert.Single(baseRecording.Actions.OfType<RecordedAircraftSpawn>());
+        Assert.Equal(5, spawn.ElapsedSeconds);
+        Assert.Equal("ENY3196", spawn.Aircraft.Callsign);
+        Assert.Equal("P28A", spawn.Aircraft.AircraftType);
+        Assert.Null(baseRecording.Snapshots);
+    }
+
+    [Fact]
     public void WriteLayout_CreatesLayoutEntry()
     {
         var layout = new AirportGroundLayout { AirportId = "KOAK" };
@@ -599,5 +640,12 @@ public class RecordingArchiveTests
         var ac = new AircraftState { Callsign = "AAL100", AircraftType = "B738" };
 
         Assert.Null(ac.Ground.LayoutAirportId);
+    }
+
+    private static StateSnapshotDto CreateSnapshotWithAircraft(double elapsed, string callsign, string aircraftType)
+    {
+        var snapshot = CreateMinimalSnapshot(elapsed);
+        snapshot.Aircraft.Add(new AircraftState { Callsign = callsign, AircraftType = aircraftType }.ToSnapshot());
+        return snapshot;
     }
 }

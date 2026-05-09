@@ -48,6 +48,8 @@ Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironm
 tools/codex-yaat.ps1              # Launches Codex from X:\dev\yaat and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
+tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-fleets.json + .meta provenance sidecar.
+tools/parse_airfleets.py          # pdfplumber parser used by refresh-airline-fleets.py; maps fleet variants to ICAO Doc 8643 types.
 tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
 ```
@@ -539,6 +541,11 @@ HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; Comp
 AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json)
 AircraftProfileDatabase.cs     # Static lookup: Get(aircraftType) → AircraftProfile?; 163 types
 AircraftProfiles.json          # ATCTrainer per-type perf data: altitude-banded climb/descent, Mach speeds
+AirlineFleets.cs               # Static map: airline ICAO ↔ ICAO Doc 8643 aircraft type with airframe counts
+                               # Both directions pre-computed; loaded lazily from airline-fleets.json
+                               # Refresh via tools/refresh-airline-fleets.py — see docs/airline-fleets.md
+airline-fleets.json            # Generated map (Airfleets World Fleet Listing, paid quarterly snapshot)
+airline-fleets.meta            # Provenance sidecar (per-PDF SHA-256, parsed counts) — committed alongside
 
 # Data/Faa/
 FaaAircraftRecord.cs           # Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, classifications
@@ -585,7 +592,7 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle
-RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange
+RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange, AircraftSpawn
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)
                                # static fn. Drives the switch in both SimulationEngine.ReplayCommand and the server's
                                # RecordingManager.ReplayCommand so the parse-and-decide flow stays in lockstep across repos.

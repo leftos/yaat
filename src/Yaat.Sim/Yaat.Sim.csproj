@@ -31,6 +31,9 @@
     <Content Include="Data\AircraftProfileSiblings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\airline-fleets.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Data\Airspace\*.geojson*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

@@ -25,40 +25,17 @@ public static class AircraftGenerator
 
     private static readonly string[] Airlines = ["UAL", "AAL", "DAL", "SWA", "JBU", "ASA", "NKS", "SKW", "ENY", "RPA"];
 
-    /// <summary>
-    /// Per-airline (weight, engine) compatibility map. A regional carrier (ENY/SKW/RPA)
-    /// flying an A380 is a head-scratcher; SWA flying a Cherokee is impossible.
-    /// When the bucket the request belongs to is not in the airline's allowed list, a
-    /// different airline is picked. Unlisted airlines are treated as wildcard
-    /// (mainline + regional + GA) but the runtime list above is exhaustive.
-    /// </summary>
-    private static readonly Dictionary<string, (WeightClass Weight, EngineKind Engine)[]> AirlineBuckets = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Mainline (narrowbody + widebody)
-        ["UAL"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Heavy, EngineKind.Jet)],
-        ["AAL"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Heavy, EngineKind.Jet)],
-        ["DAL"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Heavy, EngineKind.Jet)],
-        // Mainline narrowbody-only US carriers
-        ["ASA"] = [(WeightClass.Large, EngineKind.Jet)],
-        ["JBU"] = [(WeightClass.Large, EngineKind.Jet)],
-        ["NKS"] = [(WeightClass.Large, EngineKind.Jet)],
-        ["SWA"] = [(WeightClass.Large, EngineKind.Jet)],
-        // Regional carriers (regional jets + turboprops)
-        ["SKW"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Large, EngineKind.Turboprop)],
-        ["ENY"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Large, EngineKind.Turboprop)],
-        ["RPA"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Large, EngineKind.Turboprop)],
-    };
-
     public static string[]? GetTypesForCombo(WeightClass weight, EngineKind engine) => TypeTable.GetValueOrDefault((weight, engine));
 
     public static IReadOnlyList<string> GetAirlines() => Airlines;
 
     /// <summary>
     /// Verify that every type listed in <see cref="TypeTable"/> resolves through both
-    /// <see cref="AircraftProfileDatabase"/> and <see cref="AircraftCategorization"/>.
-    /// Call once at startup AFTER the data DBs have been initialized — fails loudly
-    /// rather than silently degrading to category-default Jet performance for a
-    /// mistyped or unprofiled code.
+    /// <see cref="AircraftProfileDatabase"/> and <see cref="AircraftCategorization"/>,
+    /// and that every airline in <see cref="Airlines"/> has fleet data in
+    /// <see cref="AirlineFleets"/>. Call once at startup AFTER the data DBs have been
+    /// initialized — fails loudly rather than silently degrading to category-default
+    /// performance or pairing aircraft with airlines that don't operate them.
     /// </summary>
     public static void AssertEveryTypeResolves()
     {
@@ -85,16 +62,32 @@ public static class AircraftGenerator
                 }
             }
         }
+
+        // Every curated airline must be in AirlineFleets. Without fleet data we have no
+        // way to constrain type pairing, so the airline would silently land on the
+        // bucket pool and we'd be back to "SWA flying an A320".
+        if (AirlineFleets.AirlineCount > 0)
+        {
+            foreach (var airline in Airlines)
+            {
+                if (!AirlineFleets.TryGetAirline(airline, out _))
+                {
+                    problems.Add(
+                        $"airline '{airline}' is in AircraftGenerator.Airlines but absent from AirlineFleets — type pairing cannot be constrained"
+                    );
+                }
+            }
+        }
+
         if (problems.Count > 0)
         {
-            throw new InvalidOperationException(
-                "AircraftGenerator.TypeTable has entries that do not resolve through the data DBs:\n  - " + string.Join("\n  - ", problems)
-            );
+            throw new InvalidOperationException("AircraftGenerator data validation failed:\n  - " + string.Join("\n  - ", problems));
         }
         Log.LogInformation(
-            "AircraftGenerator type table validated: {Count} types across {Buckets} buckets",
+            "AircraftGenerator type table validated: {Count} types across {Buckets} buckets, {Airlines} airlines",
             TypeTable.Sum(kv => kv.Value.Length),
-            TypeTable.Count
+            TypeTable.Count,
+            Airlines.Length
         );
     }
 
@@ -173,13 +166,23 @@ public static class AircraftGenerator
     )
     {
         var r = rng;
-        var aircraftType = ResolveType(request, r);
+
+        // For IFR aircraft we pick the airline first so that the type can be
+        // constrained to that airline's actual fleet (e.g. SWA never gets paired
+        // with an A320). VFR uses N-numbers and has no airline.
+        string? airline = null;
+        if (request.Rules == FlightRulesKind.Ifr)
+        {
+            airline = request.ExplicitAirline ?? PickCompatibleAirline(request.Weight, request.Engine, r);
+        }
+
+        var aircraftType = ResolveType(request, airline, r);
         if (aircraftType is null)
         {
             return (null, $"No aircraft types defined for {request.Weight}+{request.Engine}");
         }
 
-        var callsign = GenerateCallsign(request, existingAircraft, r);
+        var callsign = GenerateCallsign(request, airline, existingAircraft, r);
         var category = AircraftCategorization.Categorize(aircraftType);
         // Airborne and on-runway spawns squawk Mode C (real-world airborne traffic, including
         // VFR/1200, is altitude-reporting; runway spawns are about to take off with the
@@ -534,43 +537,74 @@ public static class AircraftGenerator
         return (state, null);
     }
 
-    private static string? ResolveType(SpawnRequest request, Random rng)
+    /// <summary>
+    /// Pick an aircraft type for the requested bucket, optionally constrained to types
+    /// the given airline actually operates (per <see cref="AirlineFleets"/>). Falls back
+    /// to the bucket pool when no airline is provided or the airline has no fleet entry.
+    /// If the airline operates *no* type in the bucket pool, logs a warning and uses the
+    /// bucket pool — that situation should not occur for curated airlines but stays
+    /// defensive.
+    /// </summary>
+    private static string? ResolveType(SpawnRequest request, string? airline, Random rng)
     {
         if (request.ExplicitType is not null)
         {
             return request.ExplicitType;
         }
 
-        if (!TypeTable.TryGetValue((request.Weight, request.Engine), out var types))
+        if (!TypeTable.TryGetValue((request.Weight, request.Engine), out var bucketTypes))
         {
             return null;
         }
 
-        return types[rng.Next(types.Length)];
+        if (airline is null || !AirlineFleets.TryGetTypes(airline, out var fleetTypes))
+        {
+            return bucketTypes[rng.Next(bucketTypes.Length)];
+        }
+
+        var compatible = bucketTypes.Where(t => fleetTypes.ContainsKey(t)).ToArray();
+        if (compatible.Length == 0)
+        {
+            Log.LogWarning(
+                "[ArrivalGen] {Airline} fleet has no overlap with TypeTable[{Weight}+{Engine}]={Types}; using bucket pool",
+                airline,
+                request.Weight,
+                request.Engine,
+                string.Join(",", bucketTypes)
+            );
+            return bucketTypes[rng.Next(bucketTypes.Length)];
+        }
+        return compatible[rng.Next(compatible.Length)];
     }
 
-    private static string GenerateCallsign(SpawnRequest request, IReadOnlyCollection<AircraftState> existingAircraft, Random rng)
+    private static string GenerateCallsign(SpawnRequest request, string? airline, IReadOnlyCollection<AircraftState> existingAircraft, Random rng)
     {
         var existing = new HashSet<string>(existingAircraft.Select(a => a.Callsign), StringComparer.OrdinalIgnoreCase);
 
-        if (request.Rules == FlightRulesKind.Vfr)
+        if (request.Rules == FlightRulesKind.Vfr || airline is null)
         {
             return GenerateNNumber(existing, rng);
         }
-
-        var airline = request.ExplicitAirline ?? PickCompatibleAirline(request.Weight, request.Engine, rng);
         return GenerateAirlineCallsign(airline, existing, rng);
     }
 
     /// <summary>
-    /// Pick an airline whose <see cref="AirlineBuckets"/> entry includes the requested
-    /// (weight, engine). Falls back to any airline if none match — that should never
-    /// happen for the curated lists, but stays defensive.
+    /// Pick an airline that actually operates at least one aircraft type in
+    /// <c>TypeTable[(weight, engine)]</c> per <see cref="AirlineFleets"/>. Returns null
+    /// when no curated airline matches (e.g. a turboprop bucket where every airline in
+    /// <see cref="Airlines"/> has divested turboprops) — caller should fall back to a
+    /// VFR N-number callsign in that case.
     /// </summary>
-    private static string PickCompatibleAirline(WeightClass weight, EngineKind engine, Random rng)
+    private static string? PickCompatibleAirline(WeightClass weight, EngineKind engine, Random rng)
     {
-        var compatible = Airlines.Where(a => !AirlineBuckets.TryGetValue(a, out var buckets) || buckets.Contains((weight, engine))).ToArray();
-        return compatible.Length > 0 ? compatible[rng.Next(compatible.Length)] : Airlines[rng.Next(Airlines.Length)];
+        if (!TypeTable.TryGetValue((weight, engine), out var bucketTypes))
+        {
+            return null;
+        }
+
+        var compatible = Airlines.Where(a => AirlineFleets.TryGetTypes(a, out var fleet) && bucketTypes.Any(t => fleet.ContainsKey(t))).ToArray();
+
+        return compatible.Length > 0 ? compatible[rng.Next(compatible.Length)] : null;
     }
 
     private static string GenerateAirlineCallsign(string airline, HashSet<string> existing, Random rng)

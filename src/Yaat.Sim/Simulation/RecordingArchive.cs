@@ -110,6 +110,18 @@ public sealed class RecordingArchive : IDisposable
             ?? throw new InvalidOperationException("Failed to deserialize actions from recording archive.");
     }
 
+    public List<RecordedAction> ReadActionsForReplay()
+    {
+        var actions = ReadActions();
+        if (actions.Any(static a => a is RecordedAircraftSpawn))
+        {
+            return actions;
+        }
+
+        var scenarioJson = ReadScenarioJson();
+        return AddSyntheticAircraftSpawnsFromSnapshots(actions, LoadSnapshotAircraftForSpawnSynthesis(), ReadScenarioAircraftCallsigns(scenarioJson));
+    }
+
     /// <summary>
     /// Load a single snapshot by its ordinal index (0-based, matching the manifest's Snapshots list).
     /// </summary>
@@ -230,11 +242,12 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public SessionRecording ToBaseSessionRecording()
     {
-        var actions = ReadActions();
+        var actions = ReadActionsForReplay();
+        var scenarioJson = ReadScenarioJson();
         return new SessionRecording
         {
             Version = Manifest.Version,
-            ScenarioJson = ReadScenarioJson(),
+            ScenarioJson = scenarioJson,
             RngSeed = Manifest.RngSeed,
             WeatherJson = ReadWeatherJson(),
             ArtccConfigJson = ReadArtccConfigJson(),
@@ -258,6 +271,7 @@ public sealed class RecordingArchive : IDisposable
     {
         var layouts = ReadAllLayouts();
         var actions = ReadActions();
+        var scenarioJson = ReadScenarioJson();
 
         List<TimedSnapshot>? snapshots = null;
         if (Manifest.Snapshots.Count > 0)
@@ -270,11 +284,12 @@ public sealed class RecordingArchive : IDisposable
                 snapshots.Add(timed);
             }
         }
+        actions = AddSyntheticAircraftSpawnsFromSnapshots(actions, snapshots, ReadScenarioAircraftCallsigns(scenarioJson));
 
         return new SessionRecording
         {
             Version = Manifest.Version,
-            ScenarioJson = ReadScenarioJson(),
+            ScenarioJson = scenarioJson,
             RngSeed = Manifest.RngSeed,
             WeatherJson = ReadWeatherJson(),
             ArtccConfigJson = ReadArtccConfigJson(),
@@ -309,6 +324,88 @@ public sealed class RecordingArchive : IDisposable
                 aircraft.State.Ground.Layout = layout;
             }
         }
+    }
+
+    private List<TimedSnapshot> LoadSnapshotAircraftForSpawnSynthesis()
+    {
+        if (Manifest.Snapshots.Count < 2)
+        {
+            return [];
+        }
+
+        var snapshots = new List<TimedSnapshot>(Manifest.Snapshots.Count);
+        for (int i = 0; i < Manifest.Snapshots.Count; i++)
+        {
+            snapshots.Add(ReadTimedSnapshot(i));
+        }
+
+        return snapshots;
+    }
+
+    private static List<RecordedAction> AddSyntheticAircraftSpawnsFromSnapshots(
+        List<RecordedAction> actions,
+        IReadOnlyList<TimedSnapshot>? snapshots,
+        IReadOnlySet<string> scenarioAircraftCallsigns
+    )
+    {
+        if (actions.Any(static a => a is RecordedAircraftSpawn) || snapshots is not { Count: >= 2 })
+        {
+            return actions;
+        }
+
+        var result = actions.ToList();
+        var seen = snapshots[0].State.Aircraft.Select(static a => a.Callsign).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 1; i < snapshots.Count; i++)
+        {
+            var snapshot = snapshots[i];
+            foreach (var aircraft in snapshot.State.Aircraft)
+            {
+                if (seen.Add(aircraft.Callsign) && !scenarioAircraftCallsigns.Contains(aircraft.Callsign))
+                {
+                    result.Add(new RecordedAircraftSpawn(snapshot.ElapsedSeconds, aircraft) { IsSynthetic = true });
+                }
+            }
+        }
+
+        return result
+            .Select((action, index) => new { Action = action, Index = index })
+            .OrderBy(static entry => entry.Action.ElapsedSeconds)
+            .ThenBy(static entry => entry.Action is RecordedAircraftSpawn ? 0 : 1)
+            .ThenBy(static entry => entry.Index)
+            .Select(static entry => entry.Action)
+            .ToList();
+    }
+
+    private static HashSet<string> ReadScenarioAircraftCallsigns(string scenarioJson)
+    {
+        var callsigns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var doc = JsonDocument.Parse(scenarioJson);
+            if (!doc.RootElement.TryGetProperty("aircraft", out var aircraftElement) || aircraftElement.ValueKind is not JsonValueKind.Array)
+            {
+                return callsigns;
+            }
+
+            foreach (var aircraft in aircraftElement.EnumerateArray())
+            {
+                if (aircraft.TryGetProperty("aircraftId", out var idElement) && idElement.ValueKind is JsonValueKind.String)
+                {
+                    var callsign = idElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(callsign))
+                    {
+                        callsigns.Add(callsign);
+                    }
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            return callsigns;
+        }
+
+        return callsigns;
     }
 
     public void Dispose()

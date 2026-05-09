@@ -3,9 +3,11 @@
 ## Unreleased
 
 ### Added
+- Arrival generators use fleet data so airline callsigns spawn with aircraft types their operators fly.
 - Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
 
 ### Fixed
+- Recording replays preserve generator-spawned aircraft so callsigns and aircraft state stay stable across generator changes.
 - Structured RTIS and SAFAL proof resolve targets from the full live and replay aircraft snapshot.
 
 ## v0.2.0-alpha [2026/05/08]

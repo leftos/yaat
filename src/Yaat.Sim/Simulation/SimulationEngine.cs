@@ -35,6 +35,10 @@ public sealed class SimulationEngine
     // Replay cursor state — set by Replay(), consumed by ReplayOneSecond()
     private List<RecordedAction>? _replayActions;
     private int _replayActionCursor;
+    private int _replayPreTickActionCursor;
+    private readonly HashSet<int> _replayPreTickAppliedActionIndexes = [];
+    private bool _isReplayingRecordedActions;
+    private bool _replayHasRecordedAircraftSpawns;
 
     // Replay-time track applier: routes track commands and AS-prefixed compounds through
     // the shared Sim helpers (TrackEngine.Dispatch + TrackResolver) during Replay/ReplayRange
@@ -616,9 +620,16 @@ public sealed class SimulationEngine
 
         _replayActions = actions;
         _replayActionCursor = 0;
+        _replayPreTickActionCursor = 0;
+        _replayPreTickAppliedActionIndexes.Clear();
+        _replayHasRecordedAircraftSpawns = _replayActions.Any(static a => a is RecordedAircraftSpawn);
         while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= targetSeconds)
         {
             _replayActionCursor++;
+        }
+        while (_replayPreTickActionCursor < _replayActions.Count && _replayActions[_replayPreTickActionCursor].ElapsedSeconds <= targetSeconds)
+        {
+            _replayPreTickActionCursor++;
         }
     }
 
@@ -666,86 +677,116 @@ public sealed class SimulationEngine
             _replayTrackApplier.Reset();
         }
         actionApplier ??= ApplyRecordedAction;
+        bool previousReplayState = _isReplayingRecordedActions;
+        bool previousReplaySpawnState = _replayHasRecordedAircraftSpawns;
+        _isReplayingRecordedActions = true;
+        _replayHasRecordedAircraftSpawns = actions.Any(static a => a is RecordedAircraftSpawn);
 
-        var verifyByTimestamp = new Dictionary<int, int>();
-        if (archiveForVerification is not null && drifts is not null)
+        try
         {
-            for (int i = 0; i < archiveForVerification.SnapshotTimestamps.Count; i++)
+            var verifyByTimestamp = new Dictionary<int, int>();
+            if (archiveForVerification is not null && drifts is not null)
             {
-                int ts = (int)archiveForVerification.SnapshotTimestamps[i].ElapsedSeconds;
-                if (ts > startSeconds && ts <= targetSeconds && !verifyByTimestamp.ContainsKey(ts))
+                for (int i = 0; i < archiveForVerification.SnapshotTimestamps.Count; i++)
                 {
-                    verifyByTimestamp[ts] = i;
+                    int ts = (int)archiveForVerification.SnapshotTimestamps[i].ElapsedSeconds;
+                    if (ts > startSeconds && ts <= targetSeconds && !verifyByTimestamp.ContainsKey(ts))
+                    {
+                        verifyByTimestamp[ts] = i;
+                    }
                 }
             }
-        }
 
-        int actionCursor = 0;
+            int actionCursor = 0;
+            int preTickActionCursor = 0;
+            var preTickAppliedActionIndexes = new HashSet<int>();
 
-        if (startSeconds == 0)
-        {
-            // Apply actions at t=0 first (settings, immediate commands)
-            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
+            if (startSeconds == 0)
             {
-                actionApplier(actions[actionCursor]);
-                actionCursor++;
+                ApplyRecordedAircraftSpawnsBeforeTick(actions, ref preTickActionCursor, 0, actionApplier, preTickAppliedActionIndexes);
+
+                // Apply actions at t=0 first (settings, immediate commands)
+                while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
+                {
+                    if (!preTickAppliedActionIndexes.Contains(actionCursor))
+                    {
+                        actionApplier(actions[actionCursor]);
+                    }
+
+                    actionCursor++;
+                }
             }
-        }
-        else
-        {
-            // Skip actions before the start time
-            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= startSeconds)
+            else
             {
-                actionCursor++;
+                // Skip actions before the start time
+                while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= startSeconds)
+                {
+                    actionCursor++;
+                }
+
+                while (preTickActionCursor < actions.Count && actions[preTickActionCursor].ElapsedSeconds <= startSeconds)
+                {
+                    preTickActionCursor++;
+                }
             }
-        }
 
-        double subDelta = 1.0 / PhysicsSubTickRate;
-        var sw = new Stopwatch();
-        for (int t = startSeconds + 1; t <= targetSeconds; t++)
-        {
-            Scenario!.ElapsedSeconds = t;
-
-            sw.Restart();
-            TickPrePhysics();
-            AccumulateTiming("PrePhysics", sw);
-
-            for (int sub = 0; sub < PhysicsSubTickRate; sub++)
+            double subDelta = 1.0 / PhysicsSubTickRate;
+            var sw = new Stopwatch();
+            for (int t = startSeconds + 1; t <= targetSeconds; t++)
             {
+                Scenario!.ElapsedSeconds = t;
+
                 sw.Restart();
-                TickPhysics(subDelta);
-                AccumulateTiming("Physics", sw);
-            }
+                ApplyRecordedAircraftSpawnsBeforeTick(actions, ref preTickActionCursor, t, actionApplier, preTickAppliedActionIndexes);
+                TickPrePhysics();
+                AccumulateTiming("PrePhysics", sw);
 
-            sw.Restart();
-            TickPostPhysics();
-            AccumulateTiming("PostPhysics", sw);
-            _terminalEntries.Clear();
-
-            // Advance weather timeline if active
-            if (Scenario!.WeatherTimeline is { } timeline)
-            {
-                World.Weather = timeline.GetWeatherAt(t);
-            }
-
-            // Apply actions at this time
-            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= t)
-            {
-                actionApplier(actions[actionCursor]);
-                actionCursor++;
-            }
-
-            if (archiveForVerification is not null && drifts is not null && verifyByTimestamp.TryGetValue(t, out var snapIdx))
-            {
-                var snap = archiveForVerification.ReadSnapshot(snapIdx);
-                var report = SnapshotDiff.Compare(t, snap, World.GetSnapshot());
-                if (report.AircraftDrifts.Count > 0)
+                for (int sub = 0; sub < PhysicsSubTickRate; sub++)
                 {
-                    drifts.Add(report);
+                    sw.Restart();
+                    TickPhysics(subDelta);
+                    AccumulateTiming("Physics", sw);
                 }
-            }
 
-            FireTickCompleted(t);
+                sw.Restart();
+                TickPostPhysics();
+                AccumulateTiming("PostPhysics", sw);
+                _terminalEntries.Clear();
+
+                // Advance weather timeline if active
+                if (Scenario!.WeatherTimeline is { } timeline)
+                {
+                    World.Weather = timeline.GetWeatherAt(t);
+                }
+
+                // Apply actions at this time
+                while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= t)
+                {
+                    if (!preTickAppliedActionIndexes.Contains(actionCursor))
+                    {
+                        actionApplier(actions[actionCursor]);
+                    }
+
+                    actionCursor++;
+                }
+
+                if (archiveForVerification is not null && drifts is not null && verifyByTimestamp.TryGetValue(t, out var snapIdx))
+                {
+                    var snap = archiveForVerification.ReadSnapshot(snapIdx);
+                    var report = SnapshotDiff.Compare(t, snap, World.GetSnapshot());
+                    if (report.AircraftDrifts.Count > 0)
+                    {
+                        drifts.Add(report);
+                    }
+                }
+
+                FireTickCompleted(t);
+            }
+        }
+        finally
+        {
+            _isReplayingRecordedActions = previousReplayState;
+            _replayHasRecordedAircraftSpawns = previousReplaySpawnState;
         }
     }
 
@@ -820,47 +861,72 @@ public sealed class SimulationEngine
         Action<double, int, StateSnapshotDto> snapshotCallback
     )
     {
-        // Capture initial state at t=0
-        int actionCursor = 0;
-        while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
+        bool previousReplayState = _isReplayingRecordedActions;
+        bool previousReplaySpawnState = _replayHasRecordedAircraftSpawns;
+        _isReplayingRecordedActions = true;
+        _replayHasRecordedAircraftSpawns = actions.Any(static a => a is RecordedAircraftSpawn);
+
+        try
         {
-            actionApplier(actions[actionCursor]);
-            actionCursor++;
-        }
-
-        snapshotCallback(0, actionCursor - 1, CaptureSnapshot(actionCursor - 1));
-
-        double subDelta = 1.0 / PhysicsSubTickRate;
-        for (int t = 1; t <= targetSeconds; t++)
-        {
-            Scenario!.ElapsedSeconds = t;
-
-            TickPrePhysics();
-
-            for (int sub = 0; sub < PhysicsSubTickRate; sub++)
+            // Capture initial state at t=0
+            int actionCursor = 0;
+            int preTickActionCursor = 0;
+            var preTickAppliedActionIndexes = new HashSet<int>();
+            ApplyRecordedAircraftSpawnsBeforeTick(actions, ref preTickActionCursor, 0, actionApplier, preTickAppliedActionIndexes);
+            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
             {
-                TickPhysics(subDelta);
-            }
+                if (!preTickAppliedActionIndexes.Contains(actionCursor))
+                {
+                    actionApplier(actions[actionCursor]);
+                }
 
-            TickPostPhysics();
-            _terminalEntries.Clear();
-
-            if (Scenario!.WeatherTimeline is { } timeline)
-            {
-                World.Weather = timeline.GetWeatherAt(t);
-            }
-
-            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= t)
-            {
-                actionApplier(actions[actionCursor]);
                 actionCursor++;
             }
 
-            if ((t % SnapshotIntervalSeconds == 0) || (t == targetSeconds))
+            snapshotCallback(0, actionCursor - 1, CaptureSnapshot(actionCursor - 1));
+
+            double subDelta = 1.0 / PhysicsSubTickRate;
+            for (int t = 1; t <= targetSeconds; t++)
             {
-                int idx = Math.Max(0, actionCursor - 1);
-                snapshotCallback(t, idx, CaptureSnapshot(idx));
+                Scenario!.ElapsedSeconds = t;
+
+                ApplyRecordedAircraftSpawnsBeforeTick(actions, ref preTickActionCursor, t, actionApplier, preTickAppliedActionIndexes);
+                TickPrePhysics();
+
+                for (int sub = 0; sub < PhysicsSubTickRate; sub++)
+                {
+                    TickPhysics(subDelta);
+                }
+
+                TickPostPhysics();
+                _terminalEntries.Clear();
+
+                if (Scenario!.WeatherTimeline is { } timeline)
+                {
+                    World.Weather = timeline.GetWeatherAt(t);
+                }
+
+                while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= t)
+                {
+                    if (!preTickAppliedActionIndexes.Contains(actionCursor))
+                    {
+                        actionApplier(actions[actionCursor]);
+                    }
+
+                    actionCursor++;
+                }
+
+                if ((t % SnapshotIntervalSeconds == 0) || (t == targetSeconds))
+                {
+                    int idx = Math.Max(0, actionCursor - 1);
+                    snapshotCallback(t, idx, CaptureSnapshot(idx));
+                }
             }
+        }
+        finally
+        {
+            _isReplayingRecordedActions = previousReplayState;
+            _replayHasRecordedAircraftSpawns = previousReplaySpawnState;
         }
     }
 
@@ -911,10 +977,17 @@ public sealed class SimulationEngine
         // Store replay cursor so ReplayOneSecond() can continue from here
         _replayActions = recording.Actions;
         _replayActionCursor = 0;
+        _replayPreTickActionCursor = 0;
+        _replayPreTickAppliedActionIndexes.Clear();
+        _replayHasRecordedAircraftSpawns = _replayActions.Any(static a => a is RecordedAircraftSpawn);
         int target = (int)targetSeconds;
         while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= target)
         {
             _replayActionCursor++;
+        }
+        while (_replayPreTickActionCursor < _replayActions.Count && _replayActions[_replayPreTickActionCursor].ElapsedSeconds <= target)
+        {
+            _replayPreTickActionCursor++;
         }
     }
 
@@ -935,36 +1008,56 @@ public sealed class SimulationEngine
         int t = (int)scenario.ElapsedSeconds;
 
         var sw = new Stopwatch();
+        bool previousReplayState = _isReplayingRecordedActions;
+        _isReplayingRecordedActions = true;
 
-        sw.Restart();
-        TickPrePhysics();
-        AccumulateTiming("PrePhysics", sw);
-
-        double subDelta = 1.0 / PhysicsSubTickRate;
-        for (int sub = 0; sub < PhysicsSubTickRate; sub++)
+        try
         {
             sw.Restart();
-            TickPhysics(subDelta);
-            AccumulateTiming("Physics", sw);
+            ApplyRecordedAircraftSpawnsBeforeTick(
+                _replayActions,
+                ref _replayPreTickActionCursor,
+                t,
+                ApplyRecordedAction,
+                _replayPreTickAppliedActionIndexes
+            );
+            TickPrePhysics();
+            AccumulateTiming("PrePhysics", sw);
+
+            double subDelta = 1.0 / PhysicsSubTickRate;
+            for (int sub = 0; sub < PhysicsSubTickRate; sub++)
+            {
+                sw.Restart();
+                TickPhysics(subDelta);
+                AccumulateTiming("Physics", sw);
+            }
+
+            sw.Restart();
+            TickPostPhysics();
+            AccumulateTiming("PostPhysics", sw);
+            _terminalEntries.Clear();
+
+            if (scenario.WeatherTimeline is { } timeline)
+            {
+                World.Weather = timeline.GetWeatherAt(t);
+            }
+
+            while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= t)
+            {
+                if (!_replayPreTickAppliedActionIndexes.Contains(_replayActionCursor))
+                {
+                    ApplyRecordedAction(_replayActions[_replayActionCursor]);
+                }
+
+                _replayActionCursor++;
+            }
+
+            FireTickCompleted(t);
         }
-
-        sw.Restart();
-        TickPostPhysics();
-        AccumulateTiming("PostPhysics", sw);
-        _terminalEntries.Clear();
-
-        if (scenario.WeatherTimeline is { } timeline)
+        finally
         {
-            World.Weather = timeline.GetWeatherAt(t);
+            _isReplayingRecordedActions = previousReplayState;
         }
-
-        while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= t)
-        {
-            ApplyRecordedAction(_replayActions[_replayActionCursor]);
-            _replayActionCursor++;
-        }
-
-        FireTickCompleted(t);
     }
 
     /// <summary>
@@ -997,35 +1090,56 @@ public sealed class SimulationEngine
         // "We just finished an integer second" — the new ElapsedSeconds lands
         // exactly on an integer, so this sub-tick is the last of four.
         bool atSecondEnd = Math.Abs(scenario.ElapsedSeconds - Math.Round(scenario.ElapsedSeconds)) < eps;
+        bool previousReplayState = _isReplayingRecordedActions;
+        _isReplayingRecordedActions = true;
 
-        if (atSecondStart)
+        try
         {
-            TickPrePhysics();
+            if (atSecondStart)
+            {
+                int t = (int)Math.Ceiling(scenario.ElapsedSeconds);
+                ApplyRecordedAircraftSpawnsBeforeTick(
+                    _replayActions,
+                    ref _replayPreTickActionCursor,
+                    t,
+                    ApplyRecordedAction,
+                    _replayPreTickAppliedActionIndexes
+                );
+                TickPrePhysics();
+            }
+
+            TickPhysics(subDelta);
+
+            if (atSecondEnd)
+            {
+                // Snap away any floating-point drift accumulated across sub-ticks.
+                scenario.ElapsedSeconds = Math.Round(scenario.ElapsedSeconds);
+                int t = (int)scenario.ElapsedSeconds;
+
+                TickPostPhysics();
+                _terminalEntries.Clear();
+
+                if (scenario.WeatherTimeline is { } timeline)
+                {
+                    World.Weather = timeline.GetWeatherAt(t);
+                }
+
+                while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= t)
+                {
+                    if (!_replayPreTickAppliedActionIndexes.Contains(_replayActionCursor))
+                    {
+                        ApplyRecordedAction(_replayActions[_replayActionCursor]);
+                    }
+
+                    _replayActionCursor++;
+                }
+
+                FireTickCompleted(t);
+            }
         }
-
-        TickPhysics(subDelta);
-
-        if (atSecondEnd)
+        finally
         {
-            // Snap away any floating-point drift accumulated across sub-ticks.
-            scenario.ElapsedSeconds = Math.Round(scenario.ElapsedSeconds);
-            int t = (int)scenario.ElapsedSeconds;
-
-            TickPostPhysics();
-            _terminalEntries.Clear();
-
-            if (scenario.WeatherTimeline is { } timeline)
-            {
-                World.Weather = timeline.GetWeatherAt(t);
-            }
-
-            while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= t)
-            {
-                ApplyRecordedAction(_replayActions[_replayActionCursor]);
-                _replayActionCursor++;
-            }
-
-            FireTickCompleted(t);
+            _isReplayingRecordedActions = previousReplayState;
         }
     }
 
@@ -1480,6 +1594,13 @@ public sealed class SimulationEngine
     private void ProcessGenerators(List<AircraftState> spawned)
     {
         var scenario = Scenario!;
+        if (
+            (_isReplayingRecordedActions && _replayHasRecordedAircraftSpawns)
+            || (scenario.IsPlaybackMode && scenario.ActionLog.Any(static a => a is RecordedAircraftSpawn))
+        )
+        {
+            return;
+        }
 
         foreach (var gen in scenario.Generators)
         {
@@ -1539,6 +1660,7 @@ public sealed class SimulationEngine
 
             World.AddAircraft(state);
             spawned.Add(state);
+            RecordGeneratedAircraftSpawn(state);
 
             EmitTerminal("System", state.Callsign, $"[Spawn] Generated ({gen.Config.Id})");
 
@@ -1916,10 +2038,44 @@ public sealed class SimulationEngine
 
     // --- Replay helpers ---
 
+    private void RecordGeneratedAircraftSpawn(AircraftState state)
+    {
+        var scenario = Scenario;
+        if (scenario is null || _isReplayingRecordedActions || scenario.IsPlaybackMode)
+        {
+            return;
+        }
+
+        scenario.ActionLog.Add(new RecordedAircraftSpawn(scenario.ElapsedSeconds, state.ToSnapshot()));
+    }
+
+    private static void ApplyRecordedAircraftSpawnsBeforeTick(
+        List<RecordedAction> actions,
+        ref int actionCursor,
+        int elapsedSeconds,
+        Action<RecordedAction> actionApplier,
+        HashSet<int> appliedActionIndexes
+    )
+    {
+        while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= elapsedSeconds)
+        {
+            if (actions[actionCursor] is RecordedAircraftSpawn spawn)
+            {
+                actionApplier(spawn);
+                appliedActionIndexes.Add(actionCursor);
+            }
+
+            actionCursor++;
+        }
+    }
+
     private void ApplyRecordedAction(RecordedAction action)
     {
         switch (action)
         {
+            case RecordedAircraftSpawn spawn:
+                ApplyRecordedAircraftSpawn(spawn);
+                break;
             case RecordedCommand cmd:
                 ReplayCommand(cmd);
                 break;
@@ -1946,6 +2102,57 @@ public sealed class SimulationEngine
             case RecordedArrivalGeneratorsChange generators:
                 ApplyArrivalGeneratorsJson(generators.GeneratorsJson);
                 break;
+        }
+    }
+
+    private void ApplyRecordedAircraftSpawn(RecordedAircraftSpawn spawn)
+    {
+        AirportGroundLayout? groundLayout = null;
+        if (spawn.Aircraft.Ground.LayoutAirportId is { } layoutAirportId)
+        {
+            groundLayout = _groundData.GetLayout(layoutAirportId);
+        }
+        else if (Scenario?.PrimaryAirportId is { } primaryAirportId)
+        {
+            groundLayout = _groundData.GetLayout(primaryAirportId);
+        }
+
+        var state = AircraftState.FromSnapshot(spawn.Aircraft, groundLayout);
+        if (spawn.IsSynthetic)
+        {
+            NormalizeSyntheticAircraftSpawn(state);
+        }
+
+        World.AddAircraft(state);
+    }
+
+    private static void NormalizeSyntheticAircraftSpawn(AircraftState state)
+    {
+        var baseType = AircraftState.StripTypePrefix(state.AircraftType).Trim().ToUpperInvariant();
+        if (!AircraftSiblingMap.TryResolve(baseType, out var sibling))
+        {
+            return;
+        }
+
+        state.AircraftType = sibling;
+        if (
+            string.IsNullOrWhiteSpace(state.FlightPlan.AircraftType)
+            || state.FlightPlan.AircraftType.Equals(baseType, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            state.FlightPlan.AircraftType = sibling;
+        }
+
+        var category = AircraftCategorization.Categorize(sibling);
+        var defaultSpeed = AircraftPerformance.DefaultSpeed(sibling, category, state.Altitude, targetAltitude: null);
+        if (!state.IsOnGround && state.IndicatedAirspeed > defaultSpeed)
+        {
+            state.IndicatedAirspeed = defaultSpeed;
+        }
+
+        if (state.Targets.TargetSpeed is { } targetSpeed && targetSpeed > defaultSpeed)
+        {
+            state.Targets.TargetSpeed = defaultSpeed;
         }
     }
 
