@@ -1,0 +1,33 @@
+[
+  {
+    "fromPositionType": "APP",
+    "toPositionType": "TWR",
+    "contactAllowedWhen": "handoffInitiated",
+    "notes": "ZOA default: approach-originated tower communication transfer may occur once a handoff is initiated."
+  },
+  {
+    "fromPositionType": "CTR",
+    "toPositionType": "TWR",
+    "contactAllowedWhen": "handoffInitiated",
+    "notes": "ZOA default: center-originated tower communication transfer may occur once a handoff is initiated."
+  },
+  {
+    "fromPositionType": "APP",
+    "toPositionType": "APP",
+    "contactAllowedWhen": "handoffAccepted",
+    "notes": "ZOA default: approach-to-approach communication transfer requires accepted track ownership."
+  },
+  {
+    "fromPositionType": "CTR",
+    "toPositionType": "APP",
+    "contactAllowedWhen": "handoffAccepted",
+    "notes": "ZOA default: center-to-approach communication transfer requires accepted track ownership."
+  },
+  {
+    "airportId": "SFO",
+    "fromPositionType": "APP",
+    "toCallsign": "SFO_TWR",
+    "contactAllowedWhen": "noHandoffNecessary",
+    "notes": "NCT/SFO LOA: approach may transfer arrivals to SFO Tower without a STARS track handoff."
+  }
+]

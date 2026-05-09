@@ -69,31 +69,83 @@ public static class InitialContactTransferLoader
             var rule = rules[i];
             var location = $"{filePath}[{i}]";
 
-            if (string.IsNullOrWhiteSpace(rule.AirportId))
+            if (string.IsNullOrWhiteSpace(rule.FromPositionType) && string.IsNullOrWhiteSpace(rule.FromCallsign))
             {
-                result.Warnings.Add($"{location}: missing airportId, skipping");
+                result.Warnings.Add($"{location}: missing fromPositionType/fromCallsign, skipping");
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(rule.FromPositionType))
+            if (string.IsNullOrWhiteSpace(rule.ToPositionType) && string.IsNullOrWhiteSpace(rule.ToCallsign))
             {
-                result.Warnings.Add($"{location} ({rule.AirportId}): missing fromPositionType, skipping");
+                result.Warnings.Add($"{location}: missing toPositionType/toCallsign, skipping");
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(rule.ToPositionType))
+            if (!TryResolveTiming(rule, out var timing))
             {
-                result.Warnings.Add($"{location} ({rule.AirportId}): missing toPositionType, skipping");
+                result.Warnings.Add($"{location}: invalid or missing contactAllowedWhen, skipping");
                 continue;
             }
 
             rule.ArtccId = artccId;
-            rule.AirportId = NavigationDatabase.NormalizeAirport(rule.AirportId);
-            rule.FromPositionType = NormalizePositionType(rule.FromPositionType);
-            rule.ToPositionType = NormalizePositionType(rule.ToPositionType);
+            rule.AirportId = !string.IsNullOrWhiteSpace(rule.AirportId) ? NavigationDatabase.NormalizeAirport(rule.AirportId) : null;
+            rule.FromCallsign = NormalizeOptionalCallsign(rule.FromCallsign);
+            rule.FromPositionType = NormalizeOptionalPositionType(rule.FromPositionType);
+            rule.ToCallsign = NormalizeOptionalCallsign(rule.ToCallsign);
+            rule.ToPositionType = NormalizeOptionalPositionType(rule.ToPositionType);
+            rule.Timing = timing;
+            rule.ContactAllowedWhen = NormalizeTimingName(timing);
             result.Rules.Add(rule);
         }
     }
+
+    private static bool TryResolveTiming(InitialContactTransferRule rule, out InitialContactTransferTiming timing)
+    {
+        if (rule.AllowsWithoutTrackHandoff == true && string.IsNullOrWhiteSpace(rule.ContactAllowedWhen))
+        {
+            timing = InitialContactTransferTiming.NoHandoffNecessary;
+            return true;
+        }
+
+        return TryParseTiming(rule.ContactAllowedWhen, out timing);
+    }
+
+    private static bool TryParseTiming(string? value, out InitialContactTransferTiming timing)
+    {
+        var normalized = value?.Trim().Replace("-", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal).ToUpperInvariant();
+        switch (normalized)
+        {
+            case "HANDOFFINITIATED":
+            case "ONHANDOFFINITIATED":
+                timing = InitialContactTransferTiming.HandoffInitiated;
+                return true;
+            case "HANDOFFACCEPTED":
+            case "ONHANDOFFACCEPTED":
+                timing = InitialContactTransferTiming.HandoffAccepted;
+                return true;
+            case "NOHANDOFF":
+            case "NOHANDOFFNECESSARY":
+            case "WITHOUTHANDOFF":
+                timing = InitialContactTransferTiming.NoHandoffNecessary;
+                return true;
+            default:
+                timing = default;
+                return false;
+        }
+    }
+
+    private static string NormalizeTimingName(InitialContactTransferTiming timing) =>
+        timing switch
+        {
+            InitialContactTransferTiming.HandoffInitiated => "handoffInitiated",
+            InitialContactTransferTiming.HandoffAccepted => "handoffAccepted",
+            InitialContactTransferTiming.NoHandoffNecessary => "noHandoffNecessary",
+            _ => "",
+        };
+
+    private static string? NormalizeOptionalCallsign(string? value) => !string.IsNullOrWhiteSpace(value) ? value.Trim().ToUpperInvariant() : null;
+
+    private static string? NormalizeOptionalPositionType(string? value) => !string.IsNullOrWhiteSpace(value) ? NormalizePositionType(value) : null;
 
     private static string NormalizePositionType(string value) =>
         value.Trim().ToUpperInvariant() switch

@@ -13,7 +13,7 @@ ARTCCs/
     TaxiRoutes/
       koak-routes.json
     InitialContactTransfers/
-      sfo-app-twr.json
+      zoa-initial-contact-transfers.json
   ZMA/
     TaxiRoutes/
       kfll-routes.json
@@ -174,22 +174,35 @@ Restart YAAT to pick up edits to route JSONs.
 
 ## InitialContactTransfers
 
-Facility-specific SOP exceptions for solo-training pilot initial contact. By default, a pilot whose track is owned by another TCP may not initiate initial contact with the student until the originating controller starts or completes the handoff:
+Facility-specific SOP rules for solo-training pilot initial contact. When a pilot's track is owned by another TCP, these rules decide whether the pilot can initiate contact with the student when a handoff is initiated, only after it is accepted, or without a track handoff.
 
-- TWR student positions may receive the initial call after the originating controller has initiated the track handoff to the student.
-- APP student positions require the track handoff to be accepted before communications transfer.
-- This category models airport-specific APP-to-TWR exceptions where local SOP permits the APP controller to transfer communications to tower without a STARS track handoff.
+Rules may match broad position-type pairs such as `APP` → `TWR`, or exact callsigns such as `SFO_APP` → `SFO_TWR`. If an ARTCC has no JSON rules in this category, YAAT uses fallback defaults matching the common training model: `APP` / `CTR` → `TWR` on handoff initiated, and `APP` → `APP` / `CTR` → `APP` on handoff accepted.
 
 Each file is a JSON array of transfer rules:
 
 ```json
 [
   {
-    "airportId": "SFO",
     "fromPositionType": "APP",
     "toPositionType": "TWR",
-    "allowsWithoutTrackHandoff": true,
-    "notes": "ZOA/SFO local SOP: approach may transfer arrivals to SFO Tower without a STARS track handoff."
+    "contactAllowedWhen": "handoffInitiated"
+  },
+  {
+    "fromPositionType": "CTR",
+    "toPositionType": "TWR",
+    "contactAllowedWhen": "handoffInitiated"
+  },
+  {
+    "fromPositionType": "APP",
+    "toPositionType": "APP",
+    "contactAllowedWhen": "handoffAccepted"
+  },
+  {
+    "airportId": "SFO",
+    "fromPositionType": "APP",
+    "toCallsign": "SFO_TWR",
+    "contactAllowedWhen": "noHandoffNecessary",
+    "notes": "NCT/SFO LOA: approach may transfer arrivals to SFO Tower without a STARS track handoff."
   }
 ]
 ```
@@ -198,10 +211,12 @@ Each file is a JSON array of transfer rules:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `airportId` | string | Yes | Airport the exception applies to; FAA and ICAO forms are normalized. |
-| `fromPositionType` | string | Yes | Originating controller position type (`APP`, `DEP`, `TWR`, `LC`, etc.; aliases normalize to `APP`, `TWR`, or `GND`). |
-| `toPositionType` | string | Yes | Student/controller position type receiving communications. |
-| `allowsWithoutTrackHandoff` | boolean | Yes | Must be `true` for the exception to allow pilot contact without a pending/accepted track handoff. |
+| `airportId` | string | No | Airport the rule applies to; FAA and ICAO forms are normalized. Omit for ARTCC-wide behavior. |
+| `fromPositionType` | string | If no `fromCallsign` | Originating controller position type (`APP`, `DEP`, `TWR`, `LC`, etc.; aliases normalize to `APP`, `TWR`, or `GND`). |
+| `fromCallsign` | string | If no `fromPositionType` | Exact originating controller callsign, e.g. `"SFO_APP"`. |
+| `toPositionType` | string | If no `toCallsign` | Student/controller position type receiving communications. |
+| `toCallsign` | string | If no `toPositionType` | Exact receiving controller callsign, e.g. `"SFO_TWR"`. |
+| `contactAllowedWhen` | string | Yes | One of `handoffInitiated`, `handoffAccepted`, or `noHandoffNecessary`. |
 | `notes` | string | No | Human-readable SOP note/source. |
 
 Restart YAAT to pick up edits to initial-contact transfer JSONs.

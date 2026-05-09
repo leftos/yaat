@@ -17,9 +17,9 @@ public sealed class InitialContactTransferLoaderTests
             [
               {
                 "airportId": "SFO",
-                "fromPositionType": "DEP",
-                "toPositionType": "LC",
-                "allowsWithoutTrackHandoff": true
+                "fromCallsign": "nct_app",
+                "toCallsign": "sfo_twr",
+                "contactAllowedWhen": "noHandoffNecessary"
               }
             ]
             """
@@ -32,7 +32,9 @@ public sealed class InitialContactTransferLoaderTests
 
             Assert.Empty(result.Warnings);
             Assert.Single(result.Rules);
-            Assert.True(catalog.AllowsWithoutTrackHandoff("ZOA", "KSFO", "APP", "TWR"));
+            Assert.True(
+                catalog.AllowsInitialContact("ZOA", ["KSFO"], "APP", "NCT_APP", "TWR", "SFO_TWR", InitialContactTransferTiming.NoHandoffNecessary)
+            );
         }
         finally
         {

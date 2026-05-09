@@ -9,6 +9,7 @@ public sealed class PilotInitialContactEligibilityTests
     private static readonly TrackOwner StudentTower = TrackOwner.CreateStars("SFO_TWR", "SFO", 3, "T");
     private static readonly TrackOwner StudentApproach = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
     private static readonly TrackOwner OtherApproach = TrackOwner.CreateStars("NCT_APP", "NCT", 5, "B");
+    private static readonly TrackOwner OtherCenter = TrackOwner.CreateEram("ZOA_CTR", "ZOA", "C");
 
     [Fact]
     public void CanInitiate_TowerStudent_AllowsPendingHandoff()
@@ -61,8 +62,9 @@ public sealed class PilotInitialContactEligibilityTests
                 ArtccId = "ZOA",
                 AirportId = "SFO",
                 FromPositionType = "APP",
-                ToPositionType = "TWR",
-                AllowsWithoutTrackHandoff = true,
+                ToCallsign = "SFO_TWR",
+                Timing = InitialContactTransferTiming.NoHandoffNecessary,
+                ContactAllowedWhen = "noHandoffNecessary",
             },
         ]);
 
@@ -72,6 +74,96 @@ public sealed class PilotInitialContactEligibilityTests
         );
 
         Assert.True(allowed);
+    }
+
+    [Fact]
+    public void CanInitiate_CustomArtccRulesOverrideFallbackDefaults()
+    {
+        var aircraft = MakeAircraft(destination: "KSFO");
+        aircraft.Track.Owner = OtherApproach;
+        aircraft.Track.HandoffPeer = StudentTower;
+        var transfers = new InitialContactTransferCatalog([
+            new InitialContactTransferRule
+            {
+                ArtccId = "ZOA",
+                FromPositionType = "APP",
+                ToPositionType = "APP",
+                Timing = InitialContactTransferTiming.HandoffAccepted,
+                ContactAllowedWhen = "handoffAccepted",
+            },
+        ]);
+
+        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+            aircraft,
+            new InitialContactEligibilityContext(StudentTower, "TWR", "ZOA", "KSFO", transfers)
+        );
+
+        Assert.False(allowed);
+    }
+
+    [Fact]
+    public void CanInitiate_FallbackDefaultsApplyWhenArtccHasNoCustomRules()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherApproach;
+        aircraft.Track.HandoffPeer = StudentTower;
+        var transfers = new InitialContactTransferCatalog([]);
+
+        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+            aircraft,
+            new InitialContactEligibilityContext(StudentTower, "TWR", "ZAB", "KSFO", transfers)
+        );
+
+        Assert.True(allowed);
+    }
+
+    [Fact]
+    public void CanInitiate_FallbackDefaultsAllowCenterToTowerOnInitiatedHandoff()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherCenter;
+        aircraft.Track.HandoffPeer = StudentTower;
+        var transfers = new InitialContactTransferCatalog([]);
+
+        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+            aircraft,
+            new InitialContactEligibilityContext(StudentTower, "TWR", "ZAB", "KSFO", transfers)
+        );
+
+        Assert.True(allowed);
+    }
+
+    [Fact]
+    public void CanInitiate_CustomRulesRequireAcceptedCenterToApproachHandoff()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherCenter;
+        aircraft.Track.HandoffPeer = StudentApproach;
+        var transfers = new InitialContactTransferCatalog([
+            new InitialContactTransferRule
+            {
+                ArtccId = "ZOA",
+                FromPositionType = "CTR",
+                ToPositionType = "APP",
+                Timing = InitialContactTransferTiming.HandoffAccepted,
+                ContactAllowedWhen = "handoffAccepted",
+            },
+        ]);
+
+        var pendingAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+            aircraft,
+            new InitialContactEligibilityContext(StudentApproach, "APP", "ZOA", "KSFO", transfers)
+        );
+
+        aircraft.Track.Owner = StudentApproach;
+        aircraft.Track.HandoffPeer = null;
+        var acceptedAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+            aircraft,
+            new InitialContactEligibilityContext(StudentApproach, "APP", "ZOA", "KSFO", transfers)
+        );
+
+        Assert.False(pendingAllowed);
+        Assert.True(acceptedAllowed);
     }
 
     private static AircraftState MakeAircraft(string destination = "") =>

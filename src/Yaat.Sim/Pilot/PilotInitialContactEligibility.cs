@@ -45,31 +45,22 @@ public static class PilotInitialContactEligibility
             return true;
         }
 
-        if (aircraft.Track.HandoffPeer?.MatchesPosition(studentPosition) == true)
-        {
-            return context.StudentPositionType == "TWR";
-        }
-
-        if (context.StudentPositionType != "TWR")
-        {
-            return false;
-        }
-
         var ownerPositionType = AtcPositionTypeClassifier.Classify(owner.Callsign);
-        if (string.IsNullOrWhiteSpace(ownerPositionType))
-        {
-            return false;
-        }
+        var studentPositionType = context.StudentPositionType ?? AtcPositionTypeClassifier.Classify(studentPosition.Callsign);
+        var observedTiming =
+            aircraft.Track.HandoffPeer?.MatchesPosition(studentPosition) == true
+                ? InitialContactTransferTiming.HandoffInitiated
+                : InitialContactTransferTiming.NoHandoffNecessary;
 
-        foreach (var airportId in CandidateAirportIds(aircraft, context.PrimaryAirportId))
-        {
-            if (context.InitialContactTransfers.AllowsWithoutTrackHandoff(context.ArtccId, airportId, ownerPositionType, context.StudentPositionType))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return context.InitialContactTransfers.AllowsInitialContact(
+            context.ArtccId,
+            CandidateAirportIds(aircraft, context.PrimaryAirportId).ToList(),
+            ownerPositionType,
+            owner.Callsign,
+            studentPositionType,
+            studentPosition.Callsign,
+            observedTiming
+        );
     }
 
     private static IEnumerable<string> CandidateAirportIds(AircraftState aircraft, string? primaryAirportId)
