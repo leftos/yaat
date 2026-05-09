@@ -115,8 +115,8 @@
                 <MenuItem Header="Edit Arrival _Generators..."
                           x:Name="EditArrivalGeneratorsMenuItem" />
                 <Separator />
-                <MenuItem Header="_Approach Report"
-                          x:Name="ApproachReportMenuItem"
+                <MenuItem Header="_Session Report"
+                          x:Name="SessionReportMenuItem"
                           IsEnabled="{Binding IsInRoom}" />
                 <Separator />
                 <MenuItem Header="Load Reco_rding..."

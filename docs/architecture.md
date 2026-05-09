@@ -196,6 +196,7 @@ Views/
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
+  SessionReportWindow.axaml.cs  # Live solo-training session report: score, coaching notes, separation timeline, approach/runway grids
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
@@ -308,6 +309,7 @@ AircraftPerformance.cs         # Unified perf API: profile-first with category f
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
+Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation coaching events, active timeline, report buckets
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation

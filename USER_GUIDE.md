@@ -732,6 +732,12 @@ For example, issuing `N123AB DM 050` returns an immediate `RSP` confirming the c
 
 You can still type canonical commands (`N123AB FH 270`) or natural ATC-style instructions (`N123AB fly heading two seven zero`). Normal canonical parsing runs first; the natural-language mapper is a fallback.
 
+### Session Report
+
+Open **Scenario > Session Report** at any time during a room session. In Solo Training Mode, the report updates live and shows the current score, grade, active safety/separation issues, coaching notes, approach outcomes, and runway statistics.
+
+The report separates controller-authentic alerts from training feedback. CRC conflict alerts still behave like controller alerts; Session Report items are student coaching/debrief entries. Separation scoring currently covers terminal IFR radar separation and Class B VFR separation rules, with visual-follow states recognized when traffic has been reported in sight and a follow instruction is active.
+
 ### Pilot-Initiated Requests
 
 Solo pilots make requests when the scenario and phase call for them. Common examples:

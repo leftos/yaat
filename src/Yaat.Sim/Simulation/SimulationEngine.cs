@@ -13,6 +13,7 @@ using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
 
@@ -49,6 +50,7 @@ public sealed class SimulationEngine
     public SimScenarioState? Scenario { get; set; }
     public ConsolidationState ConsolidationState { get; } = new();
     public ApproachEvaluator ApproachEvaluator { get; } = new();
+    public SoloTrainingEvaluator SoloTrainingEvaluator { get; } = new();
     public BeaconCodePool BeaconCodePool { get; } = new();
     public TowerListTracker TowerListTracker { get; } = new();
     public ConflictAlertState ConflictAlerts { get; } = new();
@@ -250,6 +252,7 @@ public sealed class SimulationEngine
         // Reset engine-level state, then restore from snapshot if available
         ConsolidationState.Clear();
         ConflictAlerts.Conflicts.Clear();
+        SoloTrainingEvaluator.Reset();
         BeaconCodePool.Clear();
 
         if (snapshot.Server is not null)
@@ -331,6 +334,8 @@ public sealed class SimulationEngine
     {
         World.Clear();
         World.Rng = new SerializableRandom(rngSeed);
+        ApproachEvaluator.Reset();
+        SoloTrainingEvaluator.Reset();
 
         var result = ScenarioLoader.Load(json, _groundData, World.Rng);
 

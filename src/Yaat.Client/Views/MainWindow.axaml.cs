@@ -87,10 +87,10 @@ public partial class MainWindow : Window
             loadWeatherItem.Click += OnLoadWeatherClick;
         }
 
-        var approachReportItem = this.FindControl<MenuItem>("ApproachReportMenuItem");
-        if (approachReportItem is not null)
+        var sessionReportItem = this.FindControl<MenuItem>("SessionReportMenuItem");
+        if (sessionReportItem is not null)
         {
-            approachReportItem.Click += OnApproachReportClick;
+            sessionReportItem.Click += OnSessionReportClick;
         }
 
         var newWeatherItem = this.FindControl<MenuItem>("NewWeatherMenuItem");
@@ -1660,7 +1660,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnApproachReportClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnSessionReportClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm || !vm.IsConnected)
         {
@@ -1669,21 +1669,21 @@ public partial class MainWindow : Window
 
         try
         {
-            var report = await vm.Connection.GetApproachReportAsync();
+            var report = await vm.Connection.GetSessionReportAsync();
             if (report is null)
             {
-                vm.StatusText = "No approach data available";
+                vm.StatusText = "No session report available";
                 return;
             }
 
-            var window = new ApproachReportWindow();
-            new WindowGeometryHelper(window, vm.Preferences, "ApproachReport", 700, 500).Restore();
-            window.LoadReport(report);
+            var window = new SessionReportWindow(vm.Connection.GetSessionReportAsync);
+            new WindowGeometryHelper(window, vm.Preferences, "SessionReport", 1000, 700).Restore();
+            await window.StartAsync();
             await window.ShowDialog(this);
         }
         catch (Exception ex)
         {
-            vm.StatusText = $"Approach report error: {ex.Message}";
+            vm.StatusText = $"Session report error: {ex.Message}";
         }
     }
 

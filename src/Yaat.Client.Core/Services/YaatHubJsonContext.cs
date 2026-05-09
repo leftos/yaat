@@ -66,6 +66,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(GroundLayoutDto))]
 [JsonSerializable(typeof(FacilityVideoMapsDto))]
 [JsonSerializable(typeof(ApproachReportDto))]
+[JsonSerializable(typeof(SessionReportDto))]
 [JsonSerializable(typeof(List<CrcLobbyClientDto>))]
 [JsonSerializable(typeof(List<CrcRoomMemberDto>))]
 // --- Method argument types beyond primitives. ---
@@ -93,4 +94,6 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(AssignableMemberDto))]
 [JsonSerializable(typeof(ApproachScoreDto))]
 [JsonSerializable(typeof(RunwayStatsDto))]
+[JsonSerializable(typeof(SoloTrainingScoreBucketDto))]
+[JsonSerializable(typeof(SoloTrainingEventDto))]
 internal partial class YaatHubJsonContext : JsonSerializerContext;

@@ -512,6 +512,12 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         return await _connection!.InvokeAsync<ApproachReportDto?>("GetApproachReport");
     }
 
+    public async Task<SessionReportDto?> GetSessionReportAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<SessionReportDto?>("GetSessionReport");
+    }
+
     // --- Admin ---
 
     public async Task<bool> AdminAuthenticateAsync(string password)
@@ -929,6 +935,39 @@ public record ApproachReportDto(
     List<RunwayStatsDto> RunwayStats,
     double ScenarioElapsedSeconds,
     string OverallGrade
+);
+
+public record SoloTrainingScoreBucketDto(string Name, int PointsAvailable, int PointsLost);
+
+public record SoloTrainingEventDto(
+    string Id,
+    string Category,
+    string Severity,
+    string Title,
+    string Description,
+    string RuleReference,
+    double StartedAtSeconds,
+    double LastObservedAtSeconds,
+    double ExposureSeconds,
+    bool IsActive,
+    List<string> Callsigns,
+    string? RunwayId,
+    double? RequiredHorizontalNm,
+    double? ActualHorizontalNm,
+    double? RequiredVerticalFt,
+    double? ActualVerticalFt
+);
+
+public record SessionReportDto(
+    bool SoloTrainingMode,
+    double ScenarioElapsedSeconds,
+    int Score,
+    string Grade,
+    List<SoloTrainingScoreBucketDto> ScoreBuckets,
+    List<SoloTrainingEventDto> ActiveEvents,
+    List<SoloTrainingEventDto> Timeline,
+    List<string> CoachingNotes,
+    ApproachReportDto ApproachReport
 );
 
 public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlayback, bool IsAvailable);

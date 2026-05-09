@@ -1,0 +1,208 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.SessionReportWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Session Report"
+        Width="1120"
+        Height="760"
+        MinWidth="900"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button Content="Refresh"
+                    x:Name="RefreshButton"
+                    Width="96" />
+            <Button Content="Close"
+                    x:Name="CloseButton"
+                    Width="80" />
+        </StackPanel>
+
+        <Grid DockPanel.Dock="Top"
+              ColumnDefinitions="Auto,*,Auto"
+              Margin="0,0,0,14">
+            <Border Width="120"
+                    Height="120"
+                    CornerRadius="6"
+                    Background="#1E293B"
+                    BorderBrush="#334155"
+                    BorderThickness="1">
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center">
+                    <TextBlock x:Name="GradeText"
+                               FontSize="44"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="ScoreText"
+                               Foreground="{DynamicResource SubtleTextBrush}"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Column="1"
+                        Margin="16,0,0,0"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Session Report"
+                           FontSize="26"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="ModeText"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           Margin="0,4,0,0" />
+                <TextBlock x:Name="SummaryText"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Right">
+                <TextBlock x:Name="ElapsedText"
+                           FontSize="16"
+                           HorizontalAlignment="Right" />
+                <TextBlock x:Name="UpdatedText"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           HorizontalAlignment="Right"
+                           Margin="0,4,0,0" />
+            </StackPanel>
+        </Grid>
+
+        <TabControl>
+            <TabItem Header="Overview">
+                <Grid RowDefinitions="Auto,*"
+                      RowSpacing="14"
+                      Margin="0,12,0,0">
+                    <ItemsControl x:Name="ScoreBucketsItems">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,10,0"
+                                        Padding="12"
+                                        CornerRadius="6"
+                                        Background="#111827"
+                                        BorderBrush="#243044"
+                                        BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Summary}"
+                                                   FontSize="20"
+                                                   FontWeight="Bold"
+                                                   Margin="0,6,0,0" />
+                                        <ProgressBar Minimum="0"
+                                                     Maximum="100"
+                                                     Value="{Binding PercentKept}"
+                                                     Height="8"
+                                                     Margin="0,8,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid Grid.Row="1"
+                          ColumnDefinitions="*,*"
+                          ColumnSpacing="16">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top"
+                                       Text="Coaching Notes"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,6" />
+                            <ListBox x:Name="CoachingNotesList" />
+                        </DockPanel>
+
+                        <DockPanel Grid.Column="1">
+                            <TextBlock DockPanel.Dock="Top"
+                                       Text="Active Issues"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,6" />
+                            <DataGrid x:Name="ActiveEventsGrid"
+                                      AutoGenerateColumns="False"
+                                      GridLinesVisibility="Horizontal"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Issue" Binding="{Binding Title}" Width="*" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Traffic" Binding="{Binding CallsignsText}" Width="120" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Exposure" Binding="{Binding ExposureText}" Width="90" IsReadOnly="True" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Safety &amp; Separation">
+                <DataGrid x:Name="TimelineGrid"
+                          Margin="0,12,0,0"
+                          AutoGenerateColumns="False"
+                          GridLinesVisibility="Horizontal"
+                          CanUserResizeColumns="True"
+                          CanUserSortColumns="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Time" Binding="{Binding StartedText}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="110" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Traffic" Binding="{Binding CallsignsText}" Width="130" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Required" Binding="{Binding RequiredText}" Width="130" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Actual" Binding="{Binding ActualText}" Width="130" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Rule" Binding="{Binding RuleReference}" Width="150" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Coaching" Binding="{Binding Description}" Width="*" IsReadOnly="True" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Approaches">
+                <Grid RowDefinitions="*,Auto"
+                      RowSpacing="14"
+                      Margin="0,12,0,0">
+                    <DataGrid x:Name="ApproachScoresGrid"
+                              AutoGenerateColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              CanUserResizeColumns="True"
+                              CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Grade" Binding="{Binding Grade}" Width="60" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Callsign" Binding="{Binding Callsign}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="70" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Approach" Binding="{Binding ApproachId}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Rwy" Binding="{Binding RunwayId}" Width="60" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Angle" Binding="{Binding InterceptAngleDeg, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Dist" Binding="{Binding InterceptDistanceNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                            <DataGridTextColumn Header="GS Dev" Binding="{Binding GlideSlopeDeviationFt, StringFormat={}{0:+0;-0;0}}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Speed" Binding="{Binding SpeedAtInterceptKts, StringFormat={}{0:F0}}" Width="80" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Sep" Binding="{Binding SeparationNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <DataGrid Grid.Row="1"
+                              x:Name="RunwayStatsGrid"
+                              AutoGenerateColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              CanUserResizeColumns="False"
+                              CanUserSortColumns="False"
+                              MaxHeight="150">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Runway" Binding="{Binding RunwayId}" Width="100" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Landings" Binding="{Binding LandingCount}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Rate/hr" Binding="{Binding ArrivalRatePerHour, StringFormat={}{0:F1}}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Avg Spacing" Binding="{Binding AverageTimeBetweenLandingsSec, StringFormat={}{0:F0}}" Width="120" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Min Sep" Binding="{Binding MinSeparationNm, StringFormat={}{0:F1}}" Width="100" IsReadOnly="True" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>
