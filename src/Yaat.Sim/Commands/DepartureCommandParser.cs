@@ -20,9 +20,10 @@ internal static class DepartureCommandParser
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        bool cautionWakeTurbulence = TryStripCautionWakeTurbulence(ref tokens);
         if (tokens.Length == 0)
         {
-            return new ClearedForTakeoffCommand(new DefaultDeparture());
+            return new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = cautionWakeTurbulence };
         }
 
         var mod = tokens[0].ToUpperInvariant();
@@ -31,17 +32,17 @@ internal static class DepartureCommandParser
         // Special case: TLDCT/TRDCT/DCT require a fix name (and optional altitude after)
         if (mod == "TLDCT")
         {
-            return ParseCtoDct(tokens, TurnDirection.Left);
+            return ApplyCautionWakeTurbulence(ParseCtoDct(tokens, TurnDirection.Left), cautionWakeTurbulence);
         }
 
         if (mod == "TRDCT")
         {
-            return ParseCtoDct(tokens, TurnDirection.Right);
+            return ApplyCautionWakeTurbulence(ParseCtoDct(tokens, TurnDirection.Right), cautionWakeTurbulence);
         }
 
         if (mod == "DCT")
         {
-            return ParseCtoDct(tokens, null);
+            return ApplyCautionWakeTurbulence(ParseCtoDct(tokens, null), cautionWakeTurbulence);
         }
 
         // Try to parse as a named modifier (MRC, MRD, RH, OC, H270, etc.)
@@ -51,23 +52,40 @@ internal static class DepartureCommandParser
             // For closed traffic: CTO MLT [runway] [altitude]
             if (departure is ClosedTrafficDeparture ct)
             {
-                return ParseCtoClosedTraffic(ct, tokens);
+                return ApplyCautionWakeTurbulence(ParseCtoClosedTraffic(ct, tokens), cautionWakeTurbulence);
             }
 
             int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
-            return new ClearedForTakeoffCommand(departure, alt);
+            return new ClearedForTakeoffCommand(departure, alt) { CautionWakeTurbulence = cautionWakeTurbulence };
         }
 
         // Bare number: first number is heading (1-360), second is altitude
         if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
         {
             int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
-            return new ClearedForTakeoffCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt);
+            return new ClearedForTakeoffCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt)
+            {
+                CautionWakeTurbulence = cautionWakeTurbulence,
+            };
         }
 
         // Unrecognized — treat as default
-        return new ClearedForTakeoffCommand(new DefaultDeparture());
+        return new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = cautionWakeTurbulence };
     }
+
+    private static bool TryStripCautionWakeTurbulence(ref string[] tokens)
+    {
+        if (tokens.Length == 0 || !tokens[^1].Equals("CWT", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        tokens = tokens[..^1];
+        return true;
+    }
+
+    private static ParsedCommand ApplyCautionWakeTurbulence(ParsedCommand command, bool cautionWakeTurbulence) =>
+        command is ClearedForTakeoffCommand cto ? cto with { CautionWakeTurbulence = cautionWakeTurbulence } : command;
 
     /// <summary>
     /// Parses a single CTO modifier token into a DepartureInstruction,

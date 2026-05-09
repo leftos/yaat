@@ -238,6 +238,18 @@ public class PhaseTransparentCommandTests
     }
 
     [Fact]
+    public void CwtDuringPattern_PreservesPhases()
+    {
+        var ac = MakeAircraftInUpwind();
+
+        var result = DispatchSingle(ac, new WakeAdvisoryCommand());
+
+        Assert.True(result.Success);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
     public void RfisForcedDuringFinalApproach_PreservesPhase()
     {
         var ac = MakeAircraftOnFinalApproach();

@@ -144,6 +144,7 @@ public static class CommandDescriber
             ReportTrafficAdvisoryCommand => CanonicalCommandType.ReportTrafficInSight,
             ReportTrafficInSightForcedCommand => CanonicalCommandType.ReportTrafficInSightForced,
             SafetyAlertCommand => CanonicalCommandType.SafetyAlert,
+            WakeAdvisoryCommand => CanonicalCommandType.WakeAdvisory,
             WaitCommand => CanonicalCommandType.Wait,
             WaitDistanceCommand => CanonicalCommandType.WaitDistance,
             DeleteQueuedCommand => CanonicalCommandType.DeleteQueuedCommands,
@@ -385,6 +386,7 @@ public static class CommandDescriber
             ReportTrafficAdvisoryCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightForcedCommand => TrackedCommandType.Immediate,
             SafetyAlertCommand => TrackedCommandType.Immediate,
+            WakeAdvisoryCommand => TrackedCommandType.Immediate,
             DeleteQueuedCommand => TrackedCommandType.Immediate,
             ShowQueuedCommand => TrackedCommandType.Immediate,
             _ => TrackedCommandType.Immediate,
@@ -440,7 +442,7 @@ public static class CommandDescriber
             LineUpAndWaitCommand => "LUAW",
             ClearedForTakeoffCommand cto => FormatCtoCanonical(cto),
             CancelTakeoffClearanceCommand => "CTOC",
-            ClearedToLandCommand => "CLAND",
+            ClearedToLandCommand cmd => FormatClearedToLandCanonical(cmd),
             LandAndHoldShortCommand cmd => $"LAHSO {cmd.CrossingRunwayId}",
             CancelLandingClearanceCommand => "CLC",
             GoAroundCommand ga => FormatGaCanonical(ga),
@@ -538,6 +540,7 @@ public static class CommandDescriber
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null ? $"RTISF {cmd.TargetCallsign}" : "RTISF",
             SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertCanonical(cmd),
             SafetyAlertCommand => "SAFAL",
+            WakeAdvisoryCommand => "CWT",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"DELAT {del.BlockNumber}" : "DELAT",
             ShowQueuedCommand => "SHOWAT",
             ChangeDestinationCommand cmd => $"APT {cmd.Airport}",
@@ -687,7 +690,7 @@ public static class CommandDescriber
             SquawkStandbyAllCommand => "Squawk standby all",
             ClearedForTakeoffCommand cto => DescribeCtoNatural(cto),
             CancelTakeoffClearanceCommand => "Cancel takeoff clearance",
-            ClearedToLandCommand => "Cleared to land",
+            ClearedToLandCommand cmd => DescribeClearedToLandNatural(cmd),
             LandAndHoldShortCommand cmd => $"Cleared to land, hold short runway {cmd.CrossingRunwayId}",
             CancelLandingClearanceCommand => "Cancel landing clearance",
             GoAroundCommand ga => DescribeGaNatural(ga),
@@ -793,6 +796,7 @@ public static class CommandDescriber
                 : "Report traffic in sight (forced)",
             SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertPhrase(cmd.Details),
             SafetyAlertCommand => "Safety alert",
+            WakeAdvisoryCommand => "Caution wake turbulence",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"Delete queued block {del.BlockNumber}" : "Delete all queued commands",
             ShowQueuedCommand => "Show queued commands",
             ChangeDestinationCommand cmd => $"Change destination to {cmd.Airport}",
@@ -962,6 +966,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.ReportTrafficInSight
                 or CanonicalCommandType.ReportTrafficInSightForced
                 or CanonicalCommandType.SafetyAlert
+                or CanonicalCommandType.WakeAdvisory
                 or CanonicalCommandType.ListApproaches
                 or CanonicalCommandType.ExpectApproach
                 or CanonicalCommandType.Expedite
@@ -1131,8 +1136,25 @@ public static class CommandDescriber
         };
 
         var alt = cto.AssignedAltitude is not null ? $" {cto.AssignedAltitude}" : "";
+        var cwt = cto.CautionWakeTurbulence ? " CWT" : "";
 
-        return $"CTO{suffix}{alt}";
+        return $"CTO{suffix}{alt}{cwt}";
+    }
+
+    private static string FormatClearedToLandCanonical(ClearedToLandCommand cmd)
+    {
+        var parts = new List<string> { "CLAND" };
+        if (cmd.NoDelete)
+        {
+            parts.Add("NODEL");
+        }
+
+        if (cmd.CautionWakeTurbulence)
+        {
+            parts.Add("CWT");
+        }
+
+        return string.Join(' ', parts);
     }
 
     private static string DescribeCtoNatural(ClearedForTakeoffCommand cto)
@@ -1163,6 +1185,21 @@ public static class CommandDescriber
         {
             msg += $", climb and maintain {cto.AssignedAltitude:N0}";
         }
+        if (cto.CautionWakeTurbulence)
+        {
+            msg += ", caution wake turbulence";
+        }
+        return msg;
+    }
+
+    private static string DescribeClearedToLandNatural(ClearedToLandCommand cmd)
+    {
+        var msg = "Cleared to land";
+        if (cmd.CautionWakeTurbulence)
+        {
+            msg += ", caution wake turbulence";
+        }
+
         return msg;
     }
 

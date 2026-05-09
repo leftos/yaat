@@ -588,6 +588,8 @@ public static class CommandDispatcher
                 return NavigationCommandHandler.DispatchReportTrafficInSightForced(aircraft, cmd.TargetCallsign, ctx);
             case SafetyAlertCommand cmd:
                 return NavigationCommandHandler.DispatchSafetyAlert(cmd, aircraft, ctx);
+            case WakeAdvisoryCommand:
+                return Ok("Caution wake turbulence");
 
             // --- Pattern entry commands ---
             case EnterLeftDownwindCommand cmd:
@@ -1068,6 +1070,7 @@ public static class CommandDispatcher
             CanonicalCommandType.ReportTrafficInSight => true,
             CanonicalCommandType.ReportTrafficInSightForced => true,
             CanonicalCommandType.SafetyAlert => true,
+            CanonicalCommandType.WakeAdvisory => true,
             _ => false,
         };
 

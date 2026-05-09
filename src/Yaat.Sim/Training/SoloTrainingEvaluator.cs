@@ -82,6 +82,7 @@ public sealed class SoloTrainingEvaluator
     private readonly Dictionary<string, TrackedEvent> _events = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _advisoryProofs = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _fieldAdvisoryProofs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<WakeAdvisoryProof> _wakeAdvisoryProofs = [];
     private readonly List<SafetyAlertProof> _safetyAlertProofs = [];
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
 
@@ -118,6 +119,27 @@ public sealed class SoloTrainingEvaluator
                 {
                     _safetyAlertProofs.Add(new SafetyAlertProof(aircraft.Callsign, target.Callsign, scenarioElapsedSeconds));
                 }
+            }
+            else if (parsedCommand is WakeAdvisoryCommand)
+            {
+                var currentWakeContexts = _sameRunwayTracker
+                    .SampleActiveViolations([.. knownAircraft], scenarioElapsedSeconds)
+                    .Where(sample =>
+                        IsWakeAdvisoryContext(sample)
+                        && sample.Callsigns.Count >= 2
+                        && sample.Callsigns[1].Equals(aircraft.Callsign, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .ToList();
+                if (currentWakeContexts.Count == 1)
+                {
+                    _wakeAdvisoryProofs.Add(new WakeAdvisoryProof(aircraft.Callsign, scenarioElapsedSeconds, currentWakeContexts[0].Id));
+                }
+            }
+            else if (
+                parsedCommand is ClearedForTakeoffCommand { CautionWakeTurbulence: true } or ClearedToLandCommand { CautionWakeTurbulence: true }
+            )
+            {
+                _wakeAdvisoryProofs.Add(new WakeAdvisoryProof(aircraft.Callsign, scenarioElapsedSeconds, sourceEventId: null));
             }
         }
     }
@@ -229,7 +251,18 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        foreach (var sample in _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds))
+        var runwaySamples = _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds);
+        foreach (var wakeAdvisorySample in SampleWakeAdvisoryProofs(runwaySamples, aircraft, scenarioElapsedSeconds, serviceContext))
+        {
+            observedThisTick.Add(wakeAdvisorySample.Id);
+            var notice = Upsert(wakeAdvisorySample, scenarioElapsedSeconds);
+            if (notice is not null)
+            {
+                notices.Add(notice);
+            }
+        }
+
+        foreach (var sample in runwaySamples)
         {
             observedThisTick.Add(sample.Id);
             var notice = Upsert(sample, scenarioElapsedSeconds);
@@ -292,6 +325,7 @@ public sealed class SoloTrainingEvaluator
         _events.Clear();
         _advisoryProofs.Clear();
         _fieldAdvisoryProofs.Clear();
+        _wakeAdvisoryProofs.Clear();
         _safetyAlertProofs.Clear();
         _sameRunwayTracker.Reset();
     }
@@ -728,6 +762,94 @@ public sealed class SoloTrainingEvaluator
         return false;
     }
 
+    private List<TrainingEventSample> SampleWakeAdvisoryProofs(
+        List<TrainingEventSample> runwaySamples,
+        List<AircraftState> aircraft,
+        double scenarioElapsedSeconds,
+        SoloTrainingServiceContext serviceContext
+    )
+    {
+        var candidates = new List<WakeAdvisoryCandidate>();
+        foreach (var sample in runwaySamples)
+        {
+            if (!IsWakeAdvisoryContext(sample) || sample.Callsigns.Count < 2)
+            {
+                continue;
+            }
+
+            var recipient = aircraft.FirstOrDefault(a => a.Callsign.Equals(sample.Callsigns[1], StringComparison.OrdinalIgnoreCase));
+            var target = aircraft.FirstOrDefault(a => a.Callsign.Equals(sample.Callsigns[0], StringComparison.OrdinalIgnoreCase));
+            if (recipient is null || target is null || !IsStudentServiceRecipient(recipient, serviceContext))
+            {
+                continue;
+            }
+
+            candidates.Add(new WakeAdvisoryCandidate(sample, recipient, target));
+        }
+
+        var countByRecipient = candidates
+            .GroupBy(candidate => NormalizeCallsign(candidate.Recipient.Callsign), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+        var results = new List<TrainingEventSample>();
+        foreach (var candidate in candidates)
+        {
+            string recipientKey = NormalizeCallsign(candidate.Recipient.Callsign);
+            if (countByRecipient[recipientKey] == 1 && HasWakeAdvisoryProof(candidate))
+            {
+                continue;
+            }
+
+            results.Add(CreateWakeAdvisorySample(candidate, scenarioElapsedSeconds));
+        }
+
+        return results;
+    }
+
+    private static bool IsWakeAdvisoryContext(TrainingEventSample sample) =>
+        sample.Category == SoloTrainingEventCategory.RunwayWake
+        && (
+            sample.Title.Contains("wake", StringComparison.OrdinalIgnoreCase)
+            || sample.RuleReference.Contains("§5-5-4", StringComparison.OrdinalIgnoreCase)
+        );
+
+    private bool HasWakeAdvisoryProof(WakeAdvisoryCandidate candidate)
+    {
+        foreach (var proof in _wakeAdvisoryProofs)
+        {
+            if (
+                proof.RecipientCallsign.Equals(candidate.Recipient.Callsign, StringComparison.OrdinalIgnoreCase)
+                && proof.CanApplyTo(candidate.Source.Id)
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static TrainingEventSample CreateWakeAdvisorySample(WakeAdvisoryCandidate candidate, double scenarioElapsedSeconds)
+    {
+        string id = $"WAKE_ADVISORY_{NormalizeCallsign(candidate.Recipient.Callsign)}_{candidate.Source.Id}";
+        return new TrainingEventSample(
+            id,
+            SoloTrainingEventCategory.AdvisoryVisual,
+            SoloTrainingEventSeverity.Warning,
+            "Wake turbulence advisory missing",
+            $"{candidate.Recipient.Callsign}: issue caution wake turbulence for {candidate.Target.Callsign} before the wake-sensitive operation.",
+            $"7110.65 §2-1-20; {candidate.Source.RuleReference}",
+            scenarioElapsedSeconds,
+            [candidate.Recipient.Callsign, candidate.Target.Callsign],
+            candidate.Source.RunwayId,
+            null,
+            candidate.Source.ActualHorizontalNm,
+            null,
+            candidate.Source.ActualVerticalFt,
+            "Issue caution wake turbulence when wake from the preceding aircraft may affect the succeeding aircraft.",
+            $"No accepted CWT proof for {candidate.Recipient.Callsign}."
+        );
+    }
+
     private static TrainingEventSample CreateAdvisorySample(
         AircraftState recipient,
         AircraftState target,
@@ -993,6 +1115,26 @@ public sealed class SoloTrainingEvaluator
 
     private sealed record SeparationTrainingSample(TrainingEventSample Event, SeparationRequirement Requirement);
 
+    private sealed record WakeAdvisoryCandidate(TrainingEventSample Source, AircraftState Recipient, AircraftState Target);
+
+    private sealed class WakeAdvisoryProof(string recipientCallsign, double scenarioElapsedSeconds, string? sourceEventId)
+    {
+        public string RecipientCallsign { get; } = recipientCallsign.Trim().ToUpperInvariant();
+        public double ScenarioElapsedSeconds { get; } = scenarioElapsedSeconds;
+        public string? SourceEventId { get; private set; } = sourceEventId;
+
+        public bool CanApplyTo(string sourceEventId)
+        {
+            if (SourceEventId is null)
+            {
+                SourceEventId = sourceEventId;
+                return true;
+            }
+
+            return SourceEventId.Equals(sourceEventId, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     private sealed class SafetyAlertProof(string recipientCallsign, string targetCallsign, double scenarioElapsedSeconds)
     {
         public string RecipientCallsign { get; } = recipientCallsign.Trim().ToUpperInvariant();
@@ -1159,6 +1301,21 @@ public sealed class SoloTrainingEvaluator
             foreach (var state in currentStates.Values)
             {
                 _previousStates[state.Callsign] = state;
+            }
+
+            return samples;
+        }
+
+        public List<TrainingEventSample> SampleActiveViolations(List<AircraftState> aircraft, double scenarioElapsedSeconds)
+        {
+            var samples = new List<TrainingEventSample>();
+            var currentStates = BuildCurrentStates(aircraft);
+            foreach (var violation in _activeViolations.Values)
+            {
+                if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
+                {
+                    samples.Add(sample);
+                }
             }
 
             return samples;
@@ -1393,7 +1550,11 @@ public sealed class SoloTrainingEvaluator
             return operation.Kind switch
             {
                 OperationKind.Departure => CreateDepartureWakeViolations(operation, states, scenarioElapsedSeconds),
-                OperationKind.Landing => CreateApproachWakeViolations(operation, states, scenarioElapsedSeconds),
+                OperationKind.Landing =>
+                [
+                    .. CreateApproachWakeViolations(operation, states, scenarioElapsedSeconds),
+                    .. CreateArrivalCrossingWakeViolations(operation, states, scenarioElapsedSeconds),
+                ],
                 _ => [],
             };
         }
@@ -1410,7 +1571,7 @@ public sealed class SoloTrainingEvaluator
                 return violations;
             }
 
-            foreach (var preceding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
+            foreach (var preceding in _recentOperations.Where(o => o.Kind is OperationKind.Departure or OperationKind.Landing))
             {
                 if (string.Equals(preceding.Callsign, succeeding.Callsign, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1422,13 +1583,17 @@ public sealed class SoloTrainingEvaluator
                     continue;
                 }
 
-                if (TryResolveDepartureWakeRequirement(preceding, succeeding, precedingState, succeedingState) is not { } requirement)
+                var relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
+                if (TryResolveDepartureWakeRequirement(preceding, succeeding, precedingState, succeedingState, relation) is not { } requirement)
                 {
                     continue;
                 }
 
                 double elapsedSeconds = Math.Max(0.0, scenarioElapsedSeconds - preceding.TriggeredAtSeconds);
-                double? cwtDistanceNm = RequiredDirectlyBehindWakeNm(preceding.CwtCategory, succeeding.CwtCategory);
+                double? cwtDistanceNm =
+                    relation.Kind == RunwayRelationKind.SameActive
+                        ? RequiredDirectlyBehindWakeNm(preceding.CwtCategory, succeeding.CwtCategory)
+                        : null;
                 bool timeSatisfied = elapsedSeconds >= requirement.RequiredSeconds;
                 bool distanceSatisfied = cwtDistanceNm.HasValue && (DistanceBetween(precedingState, succeedingState) >= cwtDistanceNm.Value);
                 if (timeSatisfied || distanceSatisfied)
@@ -1447,7 +1612,8 @@ public sealed class SoloTrainingEvaluator
                         requiredText,
                         requirement.RequiredSeconds,
                         cwtDistanceNm,
-                        scenarioElapsedSeconds
+                        scenarioElapsedSeconds,
+                        relation
                     )
                 );
             }
@@ -1508,7 +1674,64 @@ public sealed class SoloTrainingEvaluator
                         $"{relationText}: {requiredNm.Value:N0} NM CWT spacing by Table 5-5-2.",
                         null,
                         requiredNm,
-                        scenarioElapsedSeconds
+                        scenarioElapsedSeconds,
+                        RunwayRelation.SameActive()
+                    )
+                );
+            }
+
+            return violations;
+        }
+
+        private List<ActiveSameRunwayViolation> CreateArrivalCrossingWakeViolations(
+            RunwayOperation succeeding,
+            Dictionary<string, AircraftRunwayState> states,
+            double scenarioElapsedSeconds
+        )
+        {
+            var violations = new List<ActiveSameRunwayViolation>();
+            if (!states.ContainsKey(succeeding.Callsign))
+            {
+                return violations;
+            }
+
+            foreach (var preceding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
+            {
+                if (!states.ContainsKey(preceding.Callsign))
+                {
+                    continue;
+                }
+
+                if (TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) is not { } relation || !IsProjectedOrPhysicalIntersection(relation))
+                {
+                    continue;
+                }
+
+                if (
+                    TryResolveProjectedFlightPathWakeRequirement(preceding, succeeding, relation, arrivalBehindDeparture: true) is not { } requirement
+                )
+                {
+                    continue;
+                }
+
+                double elapsedSeconds = Math.Max(0.0, scenarioElapsedSeconds - preceding.TriggeredAtSeconds);
+                if (elapsedSeconds >= requirement.RequiredSeconds)
+                {
+                    continue;
+                }
+
+                violations.Add(
+                    BuildWakeViolation(
+                        preceding,
+                        succeeding,
+                        SameRunwayRule.DepartureWakeInterval,
+                        "Arrival wake interval",
+                        requirement.RuleReference,
+                        FormatDepartureWakeRequired(requirement, cwtDistanceNm: null),
+                        requirement.RequiredSeconds,
+                        requiredDistanceNm: null,
+                        scenarioElapsedSeconds,
+                        relation
                     )
                 );
             }
@@ -1983,10 +2206,11 @@ public sealed class SoloTrainingEvaluator
             string requiredText,
             double? requiredTimeSeconds,
             double? requiredDistanceNm,
-            double scenarioElapsedSeconds
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
         )
         {
-            string id = MakeRunwayEventId(preceding, succeeding, ruleReference, RunwayRelation.SameActive(), scenarioElapsedSeconds);
+            string id = MakeRunwayEventId(preceding, succeeding, ruleReference, relation, scenarioElapsedSeconds);
             return new ActiveSameRunwayViolation(
                 id,
                 rule,
@@ -1998,7 +2222,7 @@ public sealed class SoloTrainingEvaluator
                 null,
                 requiredTimeSeconds,
                 requiredDistanceNm,
-                RunwayRelation.SameActive()
+                relation
             );
         }
 
@@ -2006,9 +2230,20 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation preceding,
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
-            AircraftRunwayState succeedingState
+            AircraftRunwayState succeedingState,
+            RunwayRelation relation
         )
         {
+            if (IsProjectedOrPhysicalIntersection(relation))
+            {
+                return TryResolveProjectedFlightPathWakeRequirement(preceding, succeeding, relation, arrivalBehindDeparture: false);
+            }
+
+            if (relation.Kind == RunwayRelationKind.OppositeDirectionSamePavement || preceding.Kind != OperationKind.Departure)
+            {
+                return null;
+            }
+
             bool sameRunway = IsSameRunway(preceding.Runway, succeeding.Runway);
             double? parallelSpacingFt = sameRunway ? null : ParallelRunwaySpacingFt(preceding.Runway, succeeding.Runway);
             bool parallelUnder700 = parallelSpacingFt is < 700.0;
@@ -2078,6 +2313,68 @@ public sealed class SoloTrainingEvaluator
             if ((preceding.CwtCategory == CwtCategory.C) && IsCategoryRange(succeeding.CwtCategory, CwtCategory.E, CwtCategory.I))
             {
                 return new DepartureWakeRequirement(120.0, "7110.65 §3-9-6(f)", WakeRelationText(sameRunway, parallelSpacingFt));
+            }
+
+            return null;
+        }
+
+        private static DepartureWakeRequirement? TryResolveProjectedFlightPathWakeRequirement(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            RunwayRelation relation,
+            bool arrivalBehindDeparture
+        )
+        {
+            if (!IsProjectedOrPhysicalIntersection(relation))
+            {
+                return null;
+            }
+
+            if (arrivalBehindDeparture && (preceding.Kind != OperationKind.Departure || succeeding.Kind != OperationKind.Landing))
+            {
+                return null;
+            }
+
+            if (!arrivalBehindDeparture && (succeeding.Kind != OperationKind.Departure))
+            {
+                return null;
+            }
+
+            double? requiredSeconds = RequiredProjectedFlightPathWakeSeconds(preceding.CwtCategory, succeeding.CwtCategory);
+            if (!requiredSeconds.HasValue)
+            {
+                return null;
+            }
+
+            string ruleReference =
+                arrivalBehindDeparture ? "7110.65 §3-10-4(a)(3)"
+                : relation.Kind == RunwayRelationKind.ProjectedConverging ? "7110.65 §3-9-9(a)(3)"
+                : "7110.65 §3-9-8(a)(4)";
+            string relationText =
+                relation.Kind == RunwayRelationKind.ProjectedConverging ? "projected converging flight paths" : "intersecting flight paths";
+            return new DepartureWakeRequirement(requiredSeconds.Value, ruleReference, relationText);
+        }
+
+        private static double? RequiredProjectedFlightPathWakeSeconds(CwtCategory preceding, CwtCategory succeeding)
+        {
+            if ((preceding == CwtCategory.A) && IsCategoryRange(succeeding, CwtCategory.B, CwtCategory.I))
+            {
+                return 180.0;
+            }
+
+            if ((preceding is CwtCategory.B or CwtCategory.D) && IsCategoryRange(succeeding, CwtCategory.B, CwtCategory.I))
+            {
+                return 120.0;
+            }
+
+            if ((preceding == CwtCategory.C) && IsCategoryRange(succeeding, CwtCategory.E, CwtCategory.I))
+            {
+                return 120.0;
+            }
+
+            if ((preceding == CwtCategory.E) && (succeeding == CwtCategory.I))
+            {
+                return 120.0;
             }
 
             return null;

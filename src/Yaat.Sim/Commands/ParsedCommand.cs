@@ -219,13 +219,19 @@ public record LineUpAndWaitCommand : ParsedCommand;
 /// <summary>
 /// CTO with departure instruction and optional altitude override.
 /// </summary>
-public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand;
+public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand
+{
+    public bool CautionWakeTurbulence { get; init; }
+}
 
 public record CancelTakeoffClearanceCommand : ParsedCommand;
 
 public record GoAroundCommand(MagneticHeading? AssignedMagneticHeading, int? TargetAltitude, PatternDirection? TrafficPattern) : ParsedCommand;
 
-public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand;
+public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand
+{
+    public bool CautionWakeTurbulence { get; init; }
+}
 
 public record LandAndHoldShortCommand(string CrossingRunwayId) : ParsedCommand;
 
@@ -710,6 +716,8 @@ public record ReportTrafficAdvisoryCommand(TrafficAdvisoryDetails Details) : Par
 public record ReportTrafficInSightForcedCommand(string? TargetCallsign) : ParsedCommand;
 
 public record SafetyAlertCommand(SafetyAlertDetails Details) : ParsedCommand;
+
+public record WakeAdvisoryCommand : ParsedCommand;
 
 // Queue meta-commands
 public record DeleteQueuedCommand(int? BlockNumber = null) : ParsedCommand;

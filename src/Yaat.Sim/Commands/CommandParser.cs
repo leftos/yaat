@@ -656,10 +656,7 @@ public static class CommandParser
             ClearedForTakeoff => PR.Ok(DepartureCommandParser.ParseCtoArg(arg)),
             CancelTakeoffClearance when arg is null => PR.Ok(new CancelTakeoffClearanceCommand()),
             GoAround => ParseGoAround(arg),
-            ClearedToLand when arg is null or "NODEL" => PR.Ok(
-                new ClearedToLandCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true)
-            ),
-            ClearedToLand => PR.Fail("CL does not accept a runway argument; assign runway first with a pattern entry command"),
+            ClearedToLand => ParseClearedToLand(arg),
             LandAndHoldShort when arg is not null => PR.Ok(new LandAndHoldShortCommand(arg.Trim().ToUpperInvariant())),
             CancelLandingClearance when arg is null => PR.Ok(new CancelLandingClearanceCommand()),
             // Pattern
@@ -751,6 +748,7 @@ public static class CommandParser
             ReportTrafficInSight => ParseReportTrafficInSight(arg),
             ReportTrafficInSightForced => PR.Ok(new ReportTrafficInSightForcedCommand(arg?.Trim().ToUpperInvariant())),
             SafetyAlert => ParseSafetyAlert(arg),
+            WakeAdvisory when arg is null => PR.Ok(new WakeAdvisoryCommand()),
             // Track operations
             SetActivePosition => ParseTcpArg(arg, tcp => new SetActivePositionCommand(tcp)),
             TrackAircraft => PR.Ok(new TrackAircraftCommand(arg?.Trim().ToUpperInvariant())),
@@ -1717,6 +1715,35 @@ public static class CommandParser
     {
         int? altitude = AltitudeResolver.Resolve(arg);
         return altitude is null ? PR.Fail($"invalid altitude '{arg}'") : PR.Ok(factory(altitude.Value));
+    }
+
+    private static PR ParseClearedToLand(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new ClearedToLandCommand());
+        }
+
+        var tokens = SplitTokens(arg);
+        bool noDelete = false;
+        bool cautionWakeTurbulence = false;
+        foreach (var token in tokens)
+        {
+            if (token.Equals("NODEL", StringComparison.OrdinalIgnoreCase) && !noDelete)
+            {
+                noDelete = true;
+            }
+            else if (token.Equals("CWT", StringComparison.OrdinalIgnoreCase) && !cautionWakeTurbulence)
+            {
+                cautionWakeTurbulence = true;
+            }
+            else
+            {
+                return PR.Fail("CL does not accept a runway argument; assign runway first with a pattern entry command");
+            }
+        }
+
+        return PR.Ok(new ClearedToLandCommand(noDelete) { CautionWakeTurbulence = cautionWakeTurbulence });
     }
 
     private static PR ParseReportFieldInSight(string? arg)

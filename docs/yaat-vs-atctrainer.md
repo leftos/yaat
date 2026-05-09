@@ -155,6 +155,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | GA heading (± alt) | — | `GA 270`, `GA 270 5000`, `GA RH 2000` | **YAAT-only** |
 | GA + traffic pattern | — | `GA MRT`, `GA MLT` (VFR/visual only) | **YAAT-only** |
 | Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND`/`CL` | **YAAT-only** optional explicit landing clearance |
+| Wake advisory | — | `CWT`, `CTO ... CWT`, `CLAND ... CWT` | **YAAT-only** standalone caution-wake-turbulence advisory and clearance suffix |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
 | Cleared for option | — | `COPT` | **YAAT-only** |
 | Option + traffic pattern | — | `TG MLT`, `SG MRT`, `LA MLT`, `COPT MRT` | **YAAT-only** — set traffic direction on the go |
@@ -177,6 +178,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Turn left/right DCT | `CTO TLDCT SUNOL`, `CTO TRDCT OAK` | YAAT-only: direct to fix with turn direction preference |
 | Cross-runway pattern | `CTO MRT 28R` | Pattern for different runway than takeoff |
 | Altitude suffix | `CTO 270 050` | Any modifier + altitude |
+| Wake advisory suffix | `CTO 270 CWT` | Adds "caution wake turbulence" to the takeoff clearance |
 
 ### Approach
 

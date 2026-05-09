@@ -715,7 +715,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
         Assert.Equal("28R", notice.RunwayId);
@@ -759,7 +759,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 21, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7110.65 §3-9-6(b)", notice.RuleReference);
         Assert.Contains("clear of the runway", notice.RequiredText);
     }
@@ -779,7 +779,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new LandingPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 31, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7110.65 §3-10-3(a)(2)", notice.RuleReference);
         Assert.Contains("6,000 ft", notice.RequiredText);
     }
@@ -799,7 +799,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new LandingPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 41, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7110.65 §3-10-3(a)(1)", notice.RuleReference);
         Assert.Contains("3,000 ft", notice.RequiredText);
 
@@ -838,10 +838,10 @@ public sealed class SoloTrainingEvaluatorTests
         var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 62, AirspaceDatabase.Default);
         var report = evaluator.BuildReport(true, 62, new ApproachReportData([], [], 62, "N/A"));
 
-        Assert.Single(first);
+        Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
-        Assert.Single(report.Timeline);
-        Assert.Single(report.ActiveEvents);
+        Assert.Single(report.Timeline, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        Assert.Single(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.RunwayWake);
     }
 
     [Fact]
@@ -887,7 +887,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway10L, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 74, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
         Assert.Equal("28R/10L", notice.RunwayId);
@@ -937,7 +937,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, crossing, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 78, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-8", notice.RuleReference);
         Assert.Contains("intersecting-runway", notice.Title);
@@ -983,7 +983,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, crossing, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-8", notice.RuleReference);
         Assert.Contains("Departure behind landing intersecting-runway", notice.Title);
@@ -1006,7 +1006,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, crossing, new LandingPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
         Assert.Contains("Arrival behind departure intersecting-runway", notice.Title);
@@ -1029,7 +1029,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, crossing, new LandingPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
         Assert.Contains("intersecting-runway", notice.Title);
@@ -1054,7 +1054,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, converging, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 86, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Equal("28R/16", notice.RunwayId);
         Assert.Contains("7110.65 §3-9-9", notice.RuleReference);
@@ -1101,7 +1101,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, converging, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 90, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-9", notice.RuleReference);
         Assert.Contains("Departure behind landing converging-runway", notice.Title);
@@ -1124,7 +1124,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, converging, new LandingPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 92, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
         Assert.Contains("Arrival behind departure converging-runway", notice.Title);
@@ -1152,10 +1152,10 @@ public sealed class SoloTrainingEvaluatorTests
         var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 95, AirspaceDatabase.Default);
         var report = evaluator.BuildReport(true, 95, new ApproachReportData([], [], 95, "N/A"));
 
-        Assert.Single(first);
+        Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
-        Assert.Single(report.Timeline);
-        Assert.Single(report.ActiveEvents);
+        Assert.Single(report.Timeline, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        Assert.Single(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.RunwayWake);
     }
 
     [Fact]
@@ -1198,11 +1198,142 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices);
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-6(f)", notice.RuleReference);
         Assert.Contains("2 minutes", notice.RequiredText);
         Assert.Contains("60 seconds", notice.ActualText);
+    }
+
+    [Fact]
+    public void Evaluate_DepartureWakeIntervalWithoutCwtProof_RecordsAdvisoryEvent()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+
+        Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
+        var advisory = Assert.Single(
+            notices,
+            e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing"
+        );
+        Assert.Equal(follower.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(lead.Callsign, advisory.Callsigns[1]);
+        Assert.Contains("7110.65 §2-1-20", advisory.RuleReference);
+    }
+
+    [Fact]
+    public void Evaluate_CwtProofSuppressesSingleWakeAdvisoryContext()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+        evaluator.RecordControllerCommand(
+            follower,
+            SingleCommand(new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = true }),
+            159,
+            [lead, follower]
+        );
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+
+        Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+    }
+
+    [Fact]
+    public void Evaluate_BareCwtProofSuppressesCurrentSingleWakeAdvisoryContext()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        Assert.Contains(first, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+
+        evaluator.RecordControllerCommand(follower, SingleCommand(new WakeAdvisoryCommand()), scenarioElapsedSeconds: 161, [lead, follower]);
+        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 162, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 162, new ApproachReportData([], [], 162, "N/A"));
+
+        Assert.DoesNotContain(second, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+        Assert.DoesNotContain(
+            report.ActiveEvents,
+            e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing"
+        );
+    }
+
+    [Fact]
+    public void Evaluate_EarlyBareCwtProofDoesNotSuppressLaterWakeAdvisoryContext()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+        evaluator.RecordControllerCommand(follower, SingleCommand(new WakeAdvisoryCommand()), scenarioElapsedSeconds: 120, [lead, follower]);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+
+        Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+    }
+
+    [Fact]
+    public void Evaluate_QueuedCwtProofDoesNotCountBeforeDispatch()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+        var queuedCommand = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10)]), new ParsedBlock(null, [new WakeAdvisoryCommand()])]);
+        evaluator.RecordControllerCommand(follower, queuedCommand, scenarioElapsedSeconds: 159, [lead, follower]);
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+
+        Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
     }
 
     [Fact]
@@ -1266,7 +1397,10 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, leadRunway, new InitialClimbPhase());
         SetPhase(follower, followerRunway, new TakeoffPhase());
 
-        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default));
+        var notice = Assert.Single(
+            evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default),
+            e => e.Category == SoloTrainingEventCategory.RunwayWake
+        );
         Assert.Contains("7110.65 §3-9-6(f)", notice.RuleReference);
         Assert.Contains("parallel runways less than 2,500 ft", notice.RequiredText);
     }
@@ -1310,7 +1444,10 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 220, AirspaceDatabase.Default));
+        var notice = Assert.Single(
+            evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 220, AirspaceDatabase.Default),
+            e => e.Category == SoloTrainingEventCategory.RunwayWake
+        );
         Assert.Contains("7110.65 §3-9-7(a)", notice.RuleReference);
         Assert.Contains("3 minutes", notice.RequiredText);
         Assert.Contains("120 seconds", notice.ActualText);
@@ -1332,7 +1469,10 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default));
+        var notice = Assert.Single(
+            evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default),
+            e => e.Category == SoloTrainingEventCategory.RunwayWake
+        );
         Assert.Contains("7110.65 §3-9-7(a)", notice.RuleReference);
         Assert.Contains("3 minutes", notice.RequiredText);
         Assert.DoesNotContain("CWT spacing", notice.RequiredText);
@@ -1359,7 +1499,10 @@ public sealed class SoloTrainingEvaluatorTests
         lead.Position = PositionOnRunway(runway, 0);
         SetPhase(lead, runway, new LandingPhase());
 
-        var notice = Assert.Single(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default));
+        var notice = Assert.Single(
+            evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default),
+            e => e.Category == SoloTrainingEventCategory.RunwayWake
+        );
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §5-5-4(h)", notice.RuleReference);
         Assert.Contains("7 NM", notice.RequiredText);
@@ -1413,10 +1556,10 @@ public sealed class SoloTrainingEvaluatorTests
         var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 161, AirspaceDatabase.Default);
         var report = evaluator.BuildReport(true, 161, new ApproachReportData([], [], 161, "N/A"));
 
-        Assert.Single(first);
+        Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
-        Assert.Single(report.Timeline);
-        Assert.Single(report.ActiveEvents);
+        Assert.Single(report.Timeline, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        Assert.Single(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.RunwayWake);
     }
 
     private static AircraftState CreateAircraft(

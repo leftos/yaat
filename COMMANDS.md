@@ -11,6 +11,7 @@ Most commands work the same in Solo Training and RPO mode. The differences below
 | Traffic advisory | `RTIS <clock> <miles> <direction> <type> <altitude>` | `RTIS <callsign>`, bare `RTIS`, and `RTISF` are RPO conveniences | The structured form records the advisory content for Session Report scoring. Accepted soft-fails still count as advisory proof because the instruction was issued. |
 | Field advisory | `RFIS <clock> <miles>` | Bare `RFIS` and `RFISF` are RPO conveniences | The structured form gives the pilot field-position information, records visual-approach field proof, and runs the normal field-acquisition flow. |
 | Safety alert | `SAFAL <clock> <miles> [L\|R] [C\|D]` | Same syntax | Resolves a target by clock position and whole-mile distance. It proves a safety alert for that recipient-target pair, but does not set traffic in sight or satisfy `FOLLOW`. |
+| Wake advisory | `CWT`, `CTO ... CWT`, or `CLAND [NODEL] CWT` | Same syntax | Records caution-wake-turbulence proof. Bare `CWT` proves only when the Session Report sees exactly one current wake-advisory context for that aircraft. |
 | VFR Class B entry | `CLBRV`, `CBRV`, or `BRAVO` | Same syntax | In Solo Training, this satisfies the VFR Class B entry gate. |
 | Class C contact without a maneuver | `STBY`, `STANDBY`, `ROGER`, or `RGR` | Same syntax | In Solo Training, this can establish two-way communications for Class C when targeted at that aircraft. It does not satisfy a separate pending pilot request. |
 | Visual follow | Structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | RPO mode can use forced traffic-in-sight shortcuts | The aircraft must have reported the traffic in sight before visual follow behavior can start. |
@@ -313,6 +314,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Report traffic | `RTIS 3 5 W B737 024` | `RTIS` (RPO shorthand) | Descriptive form required in solo training |
 | Report traffic (forced) | `RTISF` | — | RPO-only |
 | Safety alert | `SAFAL 12 1 L D` | — | Optional `L`/`R` and `C`/`D` action tokens |
+| Wake advisory | `CWT` | — | Caution wake turbulence; phase-transparent proof command |
 | List approaches | `APPS` | `APPS OAK` | — |
 
 ### Tower
@@ -320,9 +322,9 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Line up and wait | `LUAW` | `POS`, `LU`, `PH` | — |
-| Cleared for takeoff | `CTO` | — | — |
+| Cleared for takeoff | `CTO` | — | Optional `CWT` suffix |
 | Cancel takeoff | `CTOC` | — | — |
-| Cleared to land | `CLAND` | `CL`, `FS` | — |
+| Cleared to land | `CLAND` | `CL`, `FS` | Optional `CWT` suffix |
 | Land and hold short | `LAHSO` | — | — |
 | Cancel landing | `CLC` | `CTLC` | — |
 | Go around | `GA` | — | — |
@@ -585,9 +587,12 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO MRT 28R` | Cleared for takeoff, make right traffic runway 28R (cross-runway pattern) |
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) |
 | `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) |
+| `CTO CWT` / `CTO 270 CWT` / `CTO DCT SUNOL CWT` | Cleared for takeoff and caution wake turbulence. `CWT` can follow any `CTO` form. |
 | `CTOC` | Cancel takeoff clearance. Mid-roll abort works below V1 (≈ Vr − 5 kts); above V1 the aircraft is committed and CTOC is rejected. |
 | `CLAND` / `CL` / `FS` | Cleared to land (full stop). Requires airborne aircraft with an assigned runway; rejected with feedback otherwise. |
 | `CLAND NODEL` | Cleared to land (exempt from auto-delete after landing) |
+| `CLAND CWT` / `CLAND NODEL CWT` | Cleared to land and caution wake turbulence. |
+| `CWT` | Caution wake turbulence. Phase-transparent; in solo training it records wake-advisory proof when there is exactly one current wake context for the selected aircraft. |
 | `LAHSO 33` | Cleared to land, hold short of runway 33 (LAHSO). Includes landing clearance. Aircraft stops before the intersecting runway and waits for a taxi/cross command. |
 | `CLC` / `CTLC` | Cancel landing clearance |
 | `GA` | Go around (instrument: fly published missed approach; otherwise: runway heading, 2,000 AGL) |
@@ -607,6 +612,8 @@ When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a h
 #### CTO Departure Modifiers
 
 All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see [Altitude Arguments](#altitude-arguments)). A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.
+
+Append `CWT` after any CTO form to include "caution wake turbulence" in the takeoff clearance and record wake-advisory proof: `CTO CWT`, `CTO 270 CWT`, `CTO DCT SUNOL CWT`.
 
 **IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a heading (`CTO 270`, `CTO RH`, `CTO H270`, etc.). Pattern exit modifiers (`MRC`, `MRD`, `OC`, `MLT`, `DCT`, etc.) are VFR-only.
 
@@ -790,6 +797,8 @@ The `FOLLOW` option requires the pilot to have reported traffic in sight first (
 `RTIS` and `RFIS` **fail soft**: if the pilot can't acquire the target on the first check, the command still succeeds, the pilot reports a diagnostic-free readback (e.g. *"Negative contact, LEAD, looking"*, *"Negative contact, KOAK, on top, looking"*, *"in the turn, looking"*, *"field's behind us, looking"*), and the pilot keeps re-checking acquisition each tick. When the target becomes acquirable — traffic enters the forward hemisphere, pilot rolls out of the turn, ownship descends through a deck, distance closes — the pilot reports *"traffic in sight"* / *"field in sight"* (announced via orange WRN notifications so the controller sees the resolution) and the look-state clears. The specific failure reason (cloud layer code, distance, hemisphere, bank state) is surfaced to the RPO through the command response only — never to the pilot readback. A second visual-acquisition command replaces the prior looking state; target leaving the simulation, destination cleared, or an approach-procedure reset silently clear it. Hard failures are still hard: an unmatched or ambiguous structured `RTIS`, bare `RTIS` with no callsign, a callsign not on frequency, or `RFIS` with no destination / destination not in the nav database returns an immediate error. The forced variants `RTISF` / `RFISF` set the flag directly with no acquisition check and no looking state, and are rejected in solo training mode.
 
 **Safety alerts:** `SAFAL <clock> <miles> [L|R] [C|D]` issues an aircraft-conflict safety alert. Examples: `SAFAL 12 1`, `SAFAL 12 1 L`, `SAFAL 12 1 D`, and `SAFAL 12 1 R C`. The command resolves a target by clock position and distance, but it does not set traffic-in-sight and does not satisfy `FOLLOW` or `CVA FOLLOW`; it exists for 7110.65 §2-1-6 safety-alert proof in solo training.
+
+**Wake advisories:** `CWT` issues "caution wake turbulence" without changing the aircraft's flight path. `CTO ... CWT` and `CLAND [NODEL] CWT` include the same advisory inside the takeoff or landing clearance readback. In solo training, these forms record wake-advisory proof. Bare `CWT` is intentionally conservative: it suppresses a missing-advisory finding only when the Session Report has exactly one current wake-advisory context for that aircraft.
 
 **Bank angle affects initial acquisition:** A pilot in a turn cannot initially spot targets hidden by the high wing. Time your traffic calls for when the pilot can actually see the target — not during a turn that blocks the view. Once the pilot has the target in sight, they can track it through subsequent turns.
 

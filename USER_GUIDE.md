@@ -714,6 +714,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `CM 100; LV 050 FH 270` | Climb to 10,000; at 5,000 ft, turn heading 270 |
 | `TAXI S T U` | Taxi via taxiways S, T, U |
 | `CLAND` | Cleared to land |
+| `CWT` | Caution wake turbulence |
 | `CAPP ILS28R` | Cleared ILS Runway 28R approach |
 | `CLBRV` | Cleared through/to enter/out of Bravo airspace |
 | `STBY` | Acknowledge pilot contact without issuing a maneuver |

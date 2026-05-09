@@ -4,7 +4,9 @@
 
 ### Added
 - Arrival generators use recent airport-service data and fleet matching so callsigns fit both destination and aircraft type.
+- `CWT`, `CTO ... CWT`, and `CLAND ... CWT` issue caution wake turbulence and feed Session Report proof scoring.
 - Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
+- Session Report scores projected/intersecting flight-path wake intervals and missing wake-advisory proof.
 - Session Report scores reciprocal same-pavement, intersecting, and nonintersecting converging runway operations with FAA-grounded runway-separation evidence.
 - Solo-training initial contact rules now support ARTCC-specific handoff timing, position-type pairs, and exact callsign exceptions.
 

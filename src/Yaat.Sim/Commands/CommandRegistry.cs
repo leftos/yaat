@@ -370,7 +370,8 @@ public static class CommandRegistry
                     O("MR270", [L("MR270"), Opt("altitude", "alt")], "Right 270 on departure"),
                     O("ML270", [L("ML270"), Opt("altitude", "alt")], "Left 270 on departure"),
                     O("360", [L("360"), Opt("altitude", "alt")], "360 overhead on departure"),
-                ]
+                ],
+                [Mod("CWT", null, false)]
             ),
             Bare(CancelTakeoffClearance, "Cancel Takeoff Clearance", "Tower", false, ["CTOC"]),
             Cmd(
@@ -396,7 +397,7 @@ public static class CommandRegistry
                 false,
                 ["CLAND", "CL", "FS"],
                 [O(null, [], "Cleared to land")],
-                [Mod("NODEL", null, false)]
+                [Mod("NODEL", null, false), Mod("CWT", null, false)]
             ),
             Cmd(
                 LandAndHoldShort,
@@ -1516,6 +1517,7 @@ public static class CommandRegistry
                     ),
                 ]
             ),
+            Bare(WakeAdvisory, "Caution Wake Turbulence", "Approach", true, ["CWT"]),
         ];
 
     private static CommandDefinition[] QueueCommands() =>

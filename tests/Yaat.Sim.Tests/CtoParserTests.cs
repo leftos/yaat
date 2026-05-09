@@ -26,6 +26,44 @@ public class CtoParserTests : IDisposable
         var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<DefaultDeparture>(cto.Departure);
         Assert.Null(cto.AssignedAltitude);
+        Assert.False(cto.CautionWakeTurbulence);
+    }
+
+    [Fact]
+    public void Cto_CwtSuffix_ParsesAsDefaultDepartureWithWakeAdvisory()
+    {
+        var cmd = CommandParser.Parse("CTO CWT");
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        Assert.IsType<DefaultDeparture>(cto.Departure);
+        Assert.True(cto.CautionWakeTurbulence);
+        Assert.Equal("CTO CWT", CommandDescriber.DescribeCommand(cto));
+        Assert.Equal("Cleared for takeoff, caution wake turbulence", CommandDescriber.DescribeNatural(cto));
+    }
+
+    [Fact]
+    public void Cto_ModifierWithCwtSuffix_PreservesModifierAndAltitude()
+    {
+        var cmd = CommandParser.Parse("CTO MRH 050 CWT");
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        Assert.IsType<RunwayHeadingDeparture>(cto.Departure);
+        Assert.Equal(5000, cto.AssignedAltitude);
+        Assert.True(cto.CautionWakeTurbulence);
+        Assert.Equal("CTO MRH 5000 CWT", CommandDescriber.DescribeCommand(cto));
+    }
+
+    [Fact]
+    public void Cto_DctWithCwtSuffix_PreservesFix()
+    {
+        _scope.Dispose();
+        using var _ = NavigationDatabase.ScopedOverride(
+            NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
+        );
+
+        var cmd = CommandParser.Parse("CTO DCT SUNOL CWT");
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        var dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
+        Assert.Equal("SUNOL", dfd.FixName);
+        Assert.True(cto.CautionWakeTurbulence);
     }
 
     [Fact]

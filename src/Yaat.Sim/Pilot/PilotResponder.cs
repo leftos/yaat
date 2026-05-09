@@ -138,18 +138,22 @@ public static class PilotResponder
                 "cleared for takeoff",
                 cto.Departure,
                 cto.AssignedAltitude,
-                includeRunway: true
+                includeRunway: true,
+                cto.CautionWakeTurbulence
             ),
             ClearedTakeoffPresentCommand ctopp => BuildTakeoffClearanceClause(
                 aircraft,
                 "cleared for takeoff, present position",
                 ctopp.Departure,
                 ctopp.AssignedAltitude,
-                includeRunway: false
+                includeRunway: false,
+                cautionWakeTurbulence: false
             ),
             AcknowledgePilotContactCommand => null,
-            ClearedToLandCommand cland => BuildRunwayInstructionClause(aircraft, "cleared to land")
-                ?? PhraseologyVerbalizer.Verbalize(cland, personality, activityLevel),
+            ClearedToLandCommand cland => AppendWakeAdvisoryClause(
+                BuildRunwayInstructionClause(aircraft, "cleared to land"),
+                cland.CautionWakeTurbulence
+            ) ?? PhraseologyVerbalizer.Verbalize(cland, personality, activityLevel),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
@@ -207,7 +211,8 @@ public static class PilotResponder
         string lead,
         DepartureInstruction departure,
         int? assignedAltitude,
-        bool includeRunway
+        bool includeRunway,
+        bool cautionWakeTurbulence
     )
     {
         var sb = new StringBuilder(lead);
@@ -229,6 +234,11 @@ public static class PilotResponder
         {
             sb.Append(", climb and maintain ");
             sb.Append(PhraseologyVerbalizer.AltitudeWords(altitude));
+        }
+
+        if (cautionWakeTurbulence)
+        {
+            sb.Append(", caution wake turbulence");
         }
 
         return sb.ToString();
@@ -253,6 +263,16 @@ public static class PilotResponder
         }
 
         return $"{lead} runway {PhraseologyVerbalizer.SpellRunway(runwayId)}";
+    }
+
+    private static string? AppendWakeAdvisoryClause(string? clause, bool cautionWakeTurbulence)
+    {
+        if (clause is null || !cautionWakeTurbulence)
+        {
+            return clause;
+        }
+
+        return $"{clause}, caution wake turbulence";
     }
 
     private static string BuildLandAndHoldShortClause(AircraftState aircraft, LandAndHoldShortCommand command)

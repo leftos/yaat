@@ -48,6 +48,29 @@ public sealed class StructuredAdvisoryCommandTests
         Assert.Equal(expected, CommandDescriber.DescribeNatural(command));
     }
 
+    [Fact]
+    public void Parse_Cwt_ProducesCanonicalPhrase()
+    {
+        var result = CommandParser.Parse("CWT");
+
+        var command = Assert.IsType<WakeAdvisoryCommand>(result.Value);
+        Assert.Equal("CWT", CommandDescriber.DescribeCommand(command));
+        Assert.Equal("Caution wake turbulence", CommandDescriber.DescribeNatural(command));
+    }
+
+    [Theory]
+    [InlineData("CLAND CWT", false)]
+    [InlineData("CLAND NODEL CWT", true)]
+    public void Parse_ClearedToLandCwtSuffix_PreservesNoDelete(string text, bool expectedNoDelete)
+    {
+        var result = CommandParser.Parse(text);
+
+        var command = Assert.IsType<ClearedToLandCommand>(result.Value);
+        Assert.Equal(expectedNoDelete, command.NoDelete);
+        Assert.True(command.CautionWakeTurbulence);
+        Assert.Equal(text, CommandDescriber.DescribeCommand(command));
+    }
+
     [Theory]
     [InlineData("RTIS 3 5 W")]
     [InlineData("RTIS 13 5 W B737 024")]
@@ -112,6 +135,19 @@ public sealed class StructuredAdvisoryCommandTests
         Assert.True(result.Success, result.Message);
         Assert.Equal("Traffic alert, 12 o'clock, 1 mile, advise you turn left immediately.", result.Message);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
+    }
+
+    [Fact]
+    public void Dispatch_Cwt_DoesNotSetTrafficInSight()
+    {
+        var ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
+
+        var result = CommandDispatcher.Dispatch(new WakeAdvisoryCommand(), ownship, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Caution wake turbulence", result.Message);
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
+        Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
     }
 
     [Fact]
