@@ -48,6 +48,7 @@ Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironm
 tools/codex-yaat.ps1              # Launches Codex from X:\dev\yaat and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
+tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.
 tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-fleets.json + .meta provenance sidecar.
 tools/parse_airfleets.py          # pdfplumber parser used by refresh-airline-fleets.py; maps fleet variants to ICAO Doc 8643 types.
 tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
@@ -546,6 +547,11 @@ AirlineFleets.cs               # Static map: airline ICAO ↔ ICAO Doc 8643 airc
                                # Refresh via tools/refresh-airline-fleets.py — see docs/airline-fleets.md
 airline-fleets.json            # Generated map (Airfleets World Fleet Listing, paid quarterly snapshot)
 airline-fleets.meta            # Provenance sidecar (per-PDF SHA-256, parsed counts) — committed alongside
+AirportAirlines.cs             # Static map: airport IATA/ICAO -> served airline ICAO list for arrival-generator callsign selection
+                               # Loaded lazily from airport-airlines.json.br; normalizes K/P-prefixed U.S. ICAOs to local IDs
+airport-airlines.json.br       # Generated Brotli fixture from BTS T-100 segment data for current generator airports
+                               # OpenFlights route backfill is used only for airports missing BTS carrier hits
+airport-airlines.meta          # Provenance sidecar with source ZIP row counts, target airports, and unmapped BTS carriers
 
 # Data/Faa/
 FaaAircraftRecord.cs           # Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, classifications

@@ -62,7 +62,7 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
         // Track spawns over a 30-minute window. Each generator fires every
         // 240s ±25% (180-300s), so we should see 6-10 spawns per generator.
         var initialCallsigns = engine.World.GetSnapshot().Select(a => a.Callsign).ToHashSet();
-        var spawnedCallsigns = new List<string>();
+        var spawnedAircraft = new List<(string Callsign, bool IsOnGround, double Altitude)>();
 
         const int totalSeconds = 30 * 60;
         for (int t = 0; t < totalSeconds; t++)
@@ -73,30 +73,30 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
             {
                 if (!pre.Contains(ac.Callsign) && !initialCallsigns.Contains(ac.Callsign))
                 {
-                    spawnedCallsigns.Add(ac.Callsign);
+                    spawnedAircraft.Add((ac.Callsign, ac.IsOnGround, ac.Altitude));
                     output.WriteLine($"t={t + 1}s spawn {ac.Callsign} type={ac.AircraftType} alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0}");
                 }
             }
         }
 
         // Both generators should produce arrivals.
-        Assert.NotEmpty(spawnedCallsigns);
+        Assert.NotEmpty(spawnedAircraft);
 
         // 30 minutes / (240s * 1.25 max) = 6 minimum spawns per generator if both fire reliably.
         // With 2 generators and 6 minimum each, expect at least 10 total spawns (slack for the
         // first interval being startTimeOffset + intervalTime, which delays the first ~240s).
-        Assert.True(spawnedCallsigns.Count >= 8, $"Expected ≥8 spawns over 30min from 2 generators @240s, got {spawnedCallsigns.Count}");
+        Assert.True(spawnedAircraft.Count >= 8, $"Expected ≥8 spawns over 30min from 2 generators @240s, got {spawnedAircraft.Count}");
 
         // Every spawned aircraft should have come in on final approach to either runway 30 or
-        // 28R — generators always use SpawnPositionType.OnFinal.
-        foreach (var cs in spawnedCallsigns)
+        // 28R — generators always use SpawnPositionType.OnFinal. Assert against the spawn-time
+        // snapshot, not the post-run state, since early arrivals can land before the 30-minute
+        // window finishes.
+        foreach (var ac in spawnedAircraft)
         {
-            var ac = engine.FindAircraft(cs);
-            Assert.NotNull(ac);
-            Assert.False(ac.IsOnGround, $"{cs} should be airborne (OnFinal spawn), but IsOnGround=true");
-            Assert.True(ac.Altitude > 1000, $"{cs} should be at approach altitude, got {ac.Altitude}");
+            Assert.False(ac.IsOnGround, $"{ac.Callsign} should be airborne (OnFinal spawn), but IsOnGround=true");
+            Assert.True(ac.Altitude > 1000, $"{ac.Callsign} should be at approach altitude, got {ac.Altitude}");
         }
 
-        output.WriteLine($"Total generator spawns over {totalSeconds}s: {spawnedCallsigns.Count}");
+        output.WriteLine($"Total generator spawns over {totalSeconds}s: {spawnedAircraft.Count}");
     }
 }

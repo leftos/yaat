@@ -137,6 +137,61 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void PreferredAirportConstrainsGeneratedAirline()
+    {
+        TestVnasData.EnsureInitialized();
+        if (!AircraftProfileDatabase.IsInitialized)
+        {
+            output.WriteLine("AircraftProfileDatabase not initialized; skipping");
+            return;
+        }
+        if (AirlineFleets.AirlineCount == 0 || AirportAirlines.AirportCount == 0)
+        {
+            output.WriteLine("Airline or airport-airline data not loaded; skipping");
+            return;
+        }
+
+        Assert.True(AirportAirlines.TryGetAirlinesForAirport("OAK", out var oakAirlines));
+        var bucketTypes = AircraftGenerator.GetTypesForCombo(WeightClass.Large, EngineKind.Jet);
+        Assert.NotNull(bucketTypes);
+
+        var compatibleOakAirlines = oakAirlines
+            .Where(a => AirlineFleets.TryGetTypes(a.Icao, out var fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
+            .Select(a => a.Icao)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.NotEmpty(compatibleOakAirlines);
+
+        var rng = new Random(0xA110CA7);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < 100; i++)
+        {
+            var request = new SpawnRequest
+            {
+                Rules = FlightRulesKind.Ifr,
+                Weight = WeightClass.Large,
+                Engine = EngineKind.Jet,
+                PositionType = SpawnPositionType.Bearing,
+                Bearing = 270,
+                DistanceNm = 30,
+                Altitude = 8000,
+                PreferredAirlineAirportId = "OAK",
+            };
+
+            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng);
+            Assert.Null(error);
+            Assert.NotNull(state);
+
+            var airline = ExtractAirlineIcao(state.Callsign);
+            Assert.NotNull(airline);
+            seen.Add(airline);
+            Assert.Contains(airline, compatibleOakAirlines);
+            Assert.True(AirlineFleets.Operates(airline, state.AircraftType), $"{airline} paired with {state.AircraftType}");
+        }
+
+        output.WriteLine($"OAK generated airline sample: {string.Join(", ", seen.Order())}");
+    }
+
     private static string? ExtractAirlineIcao(string callsign)
     {
         if (string.IsNullOrWhiteSpace(callsign) || callsign.Length < 4)

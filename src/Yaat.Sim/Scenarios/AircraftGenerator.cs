@@ -173,7 +173,10 @@ public static class AircraftGenerator
         string? airline = null;
         if (request.Rules == FlightRulesKind.Ifr)
         {
-            airline = request.ExplicitAirline ?? PickCompatibleAirline(request.Weight, request.Engine, r);
+            airline =
+                request.ExplicitAirline
+                ?? PickCompatibleAirportAirline(request.PreferredAirlineAirportId, request.Weight, request.Engine, r)
+                ?? PickCompatibleAirline(request.Weight, request.Engine, r);
         }
 
         var aircraftType = ResolveType(request, airline, r);
@@ -605,6 +608,40 @@ public static class AircraftGenerator
         var compatible = Airlines.Where(a => AirlineFleets.TryGetTypes(a, out var fleet) && bucketTypes.Any(t => fleet.ContainsKey(t))).ToArray();
 
         return compatible.Length > 0 ? compatible[rng.Next(compatible.Length)] : null;
+    }
+
+    private static string? PickCompatibleAirportAirline(string? airportId, WeightClass weight, EngineKind engine, Random rng)
+    {
+        if (!TypeTable.TryGetValue((weight, engine), out var bucketTypes))
+        {
+            return null;
+        }
+
+        if (airportId is null || !AirportAirlines.TryGetAirlinesForAirport(airportId, out var airportAirlines))
+        {
+            return null;
+        }
+
+        var compatible = airportAirlines
+            .Where(a => AirlineFleets.TryGetTypes(a.Icao, out var fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
+            .ToArray();
+        if (compatible.Length == 0)
+        {
+            return null;
+        }
+
+        var totalWeight = compatible.Sum(a => Math.Sqrt(Math.Max(1, a.Arrivals)));
+        var pick = rng.NextDouble() * totalWeight;
+        foreach (var entry in compatible)
+        {
+            pick -= Math.Sqrt(Math.Max(1, entry.Arrivals));
+            if (pick <= 0)
+            {
+                return entry.Icao;
+            }
+        }
+
+        return compatible[^1].Icao;
     }
 
     private static string GenerateAirlineCallsign(string airline, HashSet<string> existing, Random rng)

@@ -56,4 +56,7 @@ public sealed class SpawnRequest
     // Optional overrides
     public string? ExplicitType { get; init; }
     public string? ExplicitAirline { get; init; }
+
+    // Airport whose recent/route airline cache should constrain generated IFR callsigns.
+    public string? PreferredAirlineAirportId { get; init; }
 }

@@ -1642,6 +1642,7 @@ public sealed class SimulationEngine
                 PositionType = SpawnPositionType.OnFinal,
                 RunwayId = gen.Config.Runway,
                 FinalDistanceNm = gen.NextSpawnDistance,
+                PreferredAirlineAirportId = scenario.PrimaryAirportId,
             };
 
             var existing = World.GetSnapshot();

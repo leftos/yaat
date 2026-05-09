@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Added
-- Arrival generators use fleet data so airline callsigns spawn with aircraft types their operators fly.
+- Arrival generators use recent airport-service data and fleet matching so callsigns fit both destination and aircraft type.
 - Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
 
 ### Fixed
