@@ -1037,6 +1037,128 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_ConvergingDepartureBehindDepartureBeforeProjectedIntersection_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var converging = CreateProjectedConvergingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, converging, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 85, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 5000);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, converging, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 86, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Equal("28R/16", notice.RunwayId);
+        Assert.Contains("7110.65 §3-9-9", notice.RuleReference);
+        Assert.Contains("converging-runway", notice.Title);
+        Assert.Contains("projected intersection", notice.RequiredText);
+        Assert.Contains("before converging-runway separation existed", notice.Description);
+    }
+
+    [Fact]
+    public void Evaluate_ConvergingDepartureBehindDepartureAfterProjectedIntersection_DoesNotRecordViolation()
+    {
+        var runway = CreateRunway();
+        var converging = CreateProjectedConvergingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, converging, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 87, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 9500);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, converging, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 88, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 88, new ApproachReportData([], [], 88, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_ConvergingDepartureBehindLandingBeforeProjectedIntersection_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var converging = CreateProjectedConvergingRunway();
+        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 5000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new LandingPhase());
+        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, converging, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 89, AirspaceDatabase.Default);
+
+        SetPhase(follower, converging, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 90, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §3-9-9", notice.RuleReference);
+        Assert.Contains("Departure behind landing converging-runway", notice.Title);
+        Assert.Contains("clear of runway or passed the projected intersection", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_ConvergingArrivalBehindDepartureBeforeProjectedIntersection_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var converging = CreateProjectedConvergingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 5000), altitude: 500, isOnGround: false);
+        SetPhase(lead, runway, new InitialClimbPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, -500), altitude: 100, isOnGround: false);
+        SetPhase(follower, converging, new FinalApproachPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 91, AirspaceDatabase.Default);
+
+        follower.Position = PositionOnRunway(converging, 100);
+        SetPhase(follower, converging, new LandingPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 92, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
+        Assert.Contains("Arrival behind departure converging-runway", notice.Title);
+        Assert.Contains("passed the projected intersection/flight path", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_ConvergingRunwayViolation_DedupesAcrossRepeatedTicks()
+    {
+        var runway = CreateRunway();
+        var converging = CreateProjectedConvergingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, converging, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 93, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 5000);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, converging, new TakeoffPhase());
+
+        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 94, AirspaceDatabase.Default);
+        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 95, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 95, new ApproachReportData([], [], 95, "N/A"));
+
+        Assert.Single(first);
+        Assert.Empty(second);
+        Assert.Single(report.Timeline);
+        Assert.Single(report.ActiveEvents);
+    }
+
+    [Fact]
     public void Evaluate_NonIntersectingConvergingRunways_DoNotRecordRunwayConflict()
     {
         var runway = CreateRunway();
@@ -1488,6 +1610,24 @@ public sealed class SoloTrainingEvaluatorTests
             Lon2 = -122.205000,
             Elevation2Ft = 10,
             TrueHeading2 = new TrueHeading(0),
+            LengthFt = 10000,
+            WidthFt = 150,
+        };
+
+    private static RunwayInfo CreateProjectedConvergingRunway() =>
+        new()
+        {
+            AirportId = "KOAK",
+            Id = new RunwayIdentifier("16", "34"),
+            Designator = "16",
+            Lat1 = 37.735000,
+            Lon1 = -122.205000,
+            Elevation1Ft = 10,
+            TrueHeading1 = new TrueHeading(160),
+            Lat2 = 37.725000,
+            Lon2 = -122.195000,
+            Elevation2Ft = 10,
+            TrueHeading2 = new TrueHeading(340),
             LengthFt = 10000,
             WidthFt = 150,
         };

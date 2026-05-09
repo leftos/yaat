@@ -13,6 +13,7 @@ public static class AircraftProfileDatabase
 
     private static Dictionary<string, AircraftProfile> _lookup = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> _siblingFallbackWarned = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object SiblingFallbackWarnedLock = new();
 
     public static bool IsInitialized => _lookup.Count > 0;
 
@@ -21,7 +22,7 @@ public static class AircraftProfileDatabase
     public static void Initialize(Dictionary<string, AircraftProfile> lookup)
     {
         _lookup = new Dictionary<string, AircraftProfile>(lookup, StringComparer.OrdinalIgnoreCase);
-        _siblingFallbackWarned.Clear();
+        ClearSiblingFallbackWarnings();
         Log.LogInformation("Loaded {Count} aircraft profiles", _lookup.Count);
     }
 
@@ -30,7 +31,13 @@ public static class AircraftProfileDatabase
     /// sibling map is reloaded so a now-resolvable type warns again if it falls
     /// back to a different sibling in the new map.
     /// </summary>
-    internal static void ClearSiblingFallbackWarnings() => _siblingFallbackWarned.Clear();
+    internal static void ClearSiblingFallbackWarnings()
+    {
+        lock (SiblingFallbackWarnedLock)
+        {
+            _siblingFallbackWarned.Clear();
+        }
+    }
 
     /// <summary>
     /// Get the performance profile for an ICAO type designator.
@@ -52,7 +59,13 @@ public static class AircraftProfileDatabase
 
         if (AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.TryGetValue(sibling, out var sibProfile))
         {
-            if (_siblingFallbackWarned.Add(baseType))
+            bool shouldWarn;
+            lock (SiblingFallbackWarnedLock)
+            {
+                shouldWarn = _siblingFallbackWarned.Add(baseType);
+            }
+
+            if (shouldWarn)
             {
                 Log.LogWarning(
                     "No profile for type {Type}; using sibling {Sibling}'s profile. Consider adding a real entry to AircraftProfiles.json.",

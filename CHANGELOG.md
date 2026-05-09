@@ -5,12 +5,13 @@
 ### Added
 - Arrival generators use recent airport-service data and fleet matching so callsigns fit both destination and aircraft type.
 - Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
-- Session Report scores reciprocal same-pavement and intersecting runway operations with FAA-grounded runway-separation evidence.
+- Session Report scores reciprocal same-pavement, intersecting, and nonintersecting converging runway operations with FAA-grounded runway-separation evidence.
 - Solo-training initial contact rules now support ARTCC-specific handoff timing, position-type pairs, and exact callsign exceptions.
 
 ### Fixed
 - The terminal-panel settings flyout now populates correctly after scenario load, room join, and scenario-default auto-delete.
 - Recording replays preserve generator-spawned aircraft so callsigns and aircraft state stay stable across generator changes.
+- Scenario and replay loads no longer race when multiple missing aircraft profiles use sibling fallback.
 - Structured RTIS and SAFAL proof resolve targets from the full live and replay aircraft snapshot.
 
 ## v0.2.0-alpha [2026/05/08]

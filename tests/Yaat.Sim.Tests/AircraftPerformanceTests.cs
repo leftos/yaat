@@ -41,6 +41,23 @@ public sealed class AircraftPerformanceTests
     }
 
     [Fact]
+    public void ProfileDatabase_Get_SiblingFallback_IsSafeUnderParallelAccess()
+    {
+        Data.AircraftProfileDatabase.ClearSiblingFallbackWarnings();
+
+        Parallel.For(
+            0,
+            200,
+            _ =>
+            {
+                var profile = Data.AircraftProfileDatabase.Get("A10");
+                Assert.NotNull(profile);
+                Assert.Equal("E145", profile.TypeCode);
+            }
+        );
+    }
+
+    [Fact]
     public void ProfileDatabase_Get_UnknownType_ReturnsNull()
     {
         Assert.Null(Data.AircraftProfileDatabase.Get("ZZZZ"));

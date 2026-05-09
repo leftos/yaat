@@ -40,6 +40,34 @@ public static class RunwayIntersectionCalculator
     }
 
     /// <summary>
+    /// Finds where two active runway centerlines would cross when projected up to
+    /// <paramref name="maxBeyondDepartureEndNm"/> beyond each departure end.
+    /// </summary>
+    public static (double Lat, double Lon, double FirstDistFromThresholdNm, double SecondDistFromThresholdNm)? FindProjectedFlightPathIntersection(
+        RunwayInfo firstRunway,
+        RunwayInfo secondRunway,
+        double maxBeyondDepartureEndNm
+    )
+    {
+        double firstLengthNm = (firstRunway.LengthFt / GeoMath.FeetPerNm) + maxBeyondDepartureEndNm;
+        double secondLengthNm = (secondRunway.LengthFt / GeoMath.FeetPerNm) + maxBeyondDepartureEndNm;
+        var firstThreshold = new LatLon(firstRunway.ThresholdLatitude, firstRunway.ThresholdLongitude);
+        var secondThreshold = new LatLon(secondRunway.ThresholdLatitude, secondRunway.ThresholdLongitude);
+        var firstProjectedEnd = GeoMath.ProjectPoint(firstThreshold, firstRunway.TrueHeading, firstLengthNm);
+        var secondProjectedEnd = GeoMath.ProjectPoint(secondThreshold, secondRunway.TrueHeading, secondLengthNm);
+
+        var result = GeoMath.SegmentsIntersect(firstThreshold, firstProjectedEnd, secondThreshold, secondProjectedEnd);
+        if (result is null)
+        {
+            return null;
+        }
+
+        double firstDistanceNm = GeoMath.DistanceNm(firstThreshold, result.Value.Point);
+        double secondDistanceNm = GeoMath.DistanceNm(secondThreshold, result.Value.Point);
+        return (result.Value.Point.Lat, result.Value.Point.Lon, firstDistanceNm, secondDistanceNm);
+    }
+
+    /// <summary>
     /// Finds the intersection point of two runway centerlines.
     /// Returns null if the runways are parallel (no intersection) or
     /// if the intersection falls outside both runway extents.
