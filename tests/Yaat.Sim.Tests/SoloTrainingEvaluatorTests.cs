@@ -83,6 +83,146 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_ClassCIfrVfrPairInsideCharlie_UsesTargetResolutionOrFiveHundredFeet()
+    {
+        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
+        var vfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(ifr.Position, new TrueHeading(90), 0.2),
+            altitude: 1000,
+            isOnGround: false
+        );
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+
+        var separation = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        Assert.Equal(SoloTrainingEventSeverity.Safety, separation.Severity);
+        Assert.Contains("7110.65 §7-8-3", separation.RuleReference);
+        Assert.Equal(0.25, separation.RequiredHorizontalNm);
+        Assert.Equal(500.0, separation.RequiredVerticalFt);
+    }
+
+    [Fact]
+    public void Evaluate_ClassCIfrVfrPairOutsideCharlie_DoesNotRecordSeparationEvent()
+    {
+        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.0000, -121.0000), altitude: 2500, isOnGround: false);
+        var vfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(ifr.Position, new TrueHeading(90), 0.2),
+            altitude: 2500,
+            isOnGround: false
+        );
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"));
+
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_ClassCVfrPairInsideCharlie_DoesNotRecordSeparationEvent()
+    {
+        var first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
+        var second = CreateAircraft(
+            "N456CD",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(first.Position, new TrueHeading(90), 0.2),
+            altitude: 1000,
+            isOnGround: false
+        );
+        var evaluator = new SoloTrainingEvaluator();
+
+        var notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"));
+
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_ProjectedClassCEntryUsesProjectedAirspaceForCoach()
+    {
+        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.8300, -122.4200), altitude: 2000, isOnGround: false);
+        var vfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(ifr.Position, new TrueHeading(90), 0.2),
+            altitude: 2000,
+            isOnGround: false
+        );
+        ifr.TrueTrack = new TrueHeading(90);
+        ifr.IndicatedAirspeed = 120;
+        vfr.TrueTrack = new TrueHeading(90);
+        vfr.IndicatedAirspeed = 120;
+        var evaluator = new SoloTrainingEvaluator();
+
+        Assert.Null(SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default));
+        Assert.NotNull(SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default, lookaheadSeconds: 60));
+
+        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+
+        var separation = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        Assert.Equal(SoloTrainingEventSeverity.Coach, separation.Severity);
+        Assert.Contains("7110.65 §7-8-3", separation.RuleReference);
+    }
+
+    [Fact]
+    public void ResolveRequirement_SkipsClassCShelfUntilProjectedAltitudeEntersVolume()
+    {
+        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.8400, -122.3000), altitude: 1000, isOnGround: false);
+        var vfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(ifr.Position, new TrueHeading(90), 0.2),
+            altitude: 1000,
+            isOnGround: false
+        );
+
+        Assert.Null(SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default));
+
+        ifr.VerticalSpeed = 600;
+        vfr.VerticalSpeed = 600;
+
+        var projectedRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default, lookaheadSeconds: 60);
+        Assert.NotNull(projectedRequirement);
+        Assert.Contains("7110.65 §7-8-3", projectedRequirement.RuleReference);
+    }
+
+    [Fact]
+    public void Evaluate_ClassCMissingTrafficAdvisoryUsesDirectedRtisProof()
+    {
+        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
+        var vfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(ifr.Position, new TrueHeading(90), 0.2),
+            altitude: 1000,
+            isOnGround: false
+        );
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(ifr, SingleCommand(new ReportTrafficInSightCommand(vfr.Callsign)), scenarioElapsedSeconds: 19);
+
+        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+
+        Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(vfr.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(ifr.Callsign, advisory.Callsigns[1]);
+        Assert.Contains("7110.65 §7-8-2", advisory.RuleReference);
+    }
+
+    [Fact]
     public void Evaluate_VisualFollowPair_DoesNotRecordSeparationEvent()
     {
         var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 2500, isOnGround: false);

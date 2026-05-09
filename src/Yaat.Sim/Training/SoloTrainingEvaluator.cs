@@ -65,6 +65,8 @@ public sealed class SoloTrainingEvaluator
     private const double ClassBHeavyOrTurbojetHorizontalNm = 1.5;
     private const double ClassBTargetResolutionNm = 0.25;
     private const double ClassBVerticalFt = 500.0;
+    private const double ClassCTargetResolutionNm = 0.25;
+    private const double ClassCVerticalFt = 500.0;
     private const double WarningMargin = 1.10;
     private const double WarningLookaheadSeconds = 30.0;
     private const double CoachLookaheadSeconds = 60.0;
@@ -100,22 +102,19 @@ public sealed class SoloTrainingEvaluator
             {
                 var a = eligible[i];
                 var b = eligible[j];
-                if (ResolveRequirement(a, b, airspace) is not { } requirement)
-                {
-                    continue;
-                }
-
                 if (IsCoveredByVisualFollow(a, b))
                 {
                     continue;
                 }
 
-                var sample = SamplePair(a, b, requirement, scenarioElapsedSeconds);
-                if (sample is null)
+                var separationSample = SamplePair(a, b, airspace, scenarioElapsedSeconds);
+                if (separationSample is null)
                 {
                     continue;
                 }
 
+                var sample = separationSample.Event;
+                var requirement = separationSample.Requirement;
                 observedThisTick.Add(sample.Id);
                 var notice = Upsert(sample, scenarioElapsedSeconds);
                 if (notice is not null)
@@ -202,6 +201,11 @@ public sealed class SoloTrainingEvaluator
 
     internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace)
     {
+        return ResolveRequirement(a, b, airspace, lookaheadSeconds: 0.0);
+    }
+
+    internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace, double lookaheadSeconds)
+    {
         bool aVfr = a.FlightPlan.IsVfr;
         bool bVfr = b.FlightPlan.IsVfr;
 
@@ -217,15 +221,22 @@ public sealed class SoloTrainingEvaluator
             );
         }
 
-        bool classBApplies = IsInBravo(a, airspace) || IsInBravo(b, airspace);
-        if (!classBApplies)
+        var applicableClasses = FindApplicableAirspaceClasses(a, b, airspace, lookaheadSeconds);
+        if (applicableClasses.Contains(AirspaceClass.Bravo))
         {
-            return null;
-        }
+            bool heavyOrTurbojetPair = IsLargeOrTurbojet(a) || IsLargeOrTurbojet(b);
+            if (!heavyOrTurbojetPair)
+            {
+                return new SeparationRequirement(
+                    "Class B target-resolution separation",
+                    SoloTrainingEventCategory.Separation,
+                    "7110.65 §7-9-4",
+                    ClassBTargetResolutionNm,
+                    ClassBVerticalFt,
+                    "VFR aircraft in Class B require target resolution, 500 ft vertical, or visual separation from aircraft 19,000 lb or less."
+                );
+            }
 
-        bool heavyOrTurbojetPair = IsLargeOrTurbojet(a) || IsLargeOrTurbojet(b);
-        if (heavyOrTurbojetPair)
-        {
             return new SeparationRequirement(
                 "Class B large/turbojet separation",
                 SoloTrainingEventCategory.Separation,
@@ -236,21 +247,55 @@ public sealed class SoloTrainingEvaluator
             );
         }
 
-        return new SeparationRequirement(
-            "Class B target-resolution separation",
-            SoloTrainingEventCategory.Separation,
-            "7110.65 §7-9-4",
-            ClassBTargetResolutionNm,
-            ClassBVerticalFt,
-            "VFR aircraft in Class B require target resolution, 500 ft vertical, or visual separation from aircraft 19,000 lb or less."
-        );
+        if (applicableClasses.Contains(AirspaceClass.Charlie) && (aVfr != bVfr))
+        {
+            return new SeparationRequirement(
+                "Class C IFR/VFR target-resolution separation",
+                SoloTrainingEventCategory.Separation,
+                "7110.65 §7-8-3",
+                ClassCTargetResolutionNm,
+                ClassCVerticalFt,
+                "VFR aircraft in Class C require target resolution, 500 ft vertical, or visual separation from IFR aircraft."
+            );
+        }
+
+        return null;
     }
 
     private static bool IsEligibleAirborneTarget(AircraftState aircraft) =>
         !aircraft.IsOnGround && aircraft.Transponder.Mode.Equals("C", StringComparison.OrdinalIgnoreCase) && !aircraft.Ghost.IsUnsupported;
 
-    private static bool IsInBravo(AircraftState aircraft, AirspaceDatabase airspace) =>
-        airspace.FindContaining(aircraft.Position, aircraft.Altitude).Any(v => v.Class == AirspaceClass.Bravo);
+    private static HashSet<AirspaceClass> FindApplicableAirspaceClasses(
+        AircraftState a,
+        AircraftState b,
+        AirspaceDatabase airspace,
+        double lookaheadSeconds
+    )
+    {
+        var classes = new HashSet<AirspaceClass>();
+        foreach (var volume in FindContainingProjectedAirspace(a, airspace, lookaheadSeconds))
+        {
+            classes.Add(volume.Class);
+        }
+
+        foreach (var volume in FindContainingProjectedAirspace(b, airspace, lookaheadSeconds))
+        {
+            classes.Add(volume.Class);
+        }
+
+        return classes;
+    }
+
+    private static IEnumerable<AirspaceVolume> FindContainingProjectedAirspace(
+        AircraftState aircraft,
+        AirspaceDatabase airspace,
+        double lookaheadSeconds
+    )
+    {
+        var position = ProjectPosition(aircraft, lookaheadSeconds);
+        double altitude = ProjectAltitude(aircraft, lookaheadSeconds);
+        return airspace.FindContaining(position, altitude);
+    }
 
     private static bool IsLargeOrTurbojet(AircraftState aircraft)
     {
@@ -333,50 +378,66 @@ public sealed class SoloTrainingEvaluator
         return command.Blocks.Count > 0;
     }
 
-    private static TrainingEventSample? SamplePair(AircraftState a, AircraftState b, SeparationRequirement requirement, double scenarioElapsedSeconds)
+    private static SeparationTrainingSample? SamplePair(AircraftState a, AircraftState b, AirspaceDatabase airspace, double scenarioElapsedSeconds)
     {
         var current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
         var projected30 = ComputeSeparation(a, b, WarningLookaheadSeconds);
         var projected60 = ComputeSeparation(a, b, CoachLookaheadSeconds);
+        var currentRequirement = ResolveRequirement(a, b, airspace, lookaheadSeconds: 0.0);
+        var projected30Requirement = ResolveRequirement(a, b, airspace, WarningLookaheadSeconds);
+        var projected60Requirement = ResolveRequirement(a, b, airspace, CoachLookaheadSeconds);
 
-        bool currentViolation = Violates(current.HorizontalNm, current.VerticalFt, requirement);
-        bool warningViolation = Violates(projected30.HorizontalNm, projected30.VerticalFt, requirement);
-        bool coachViolation = Violates(projected60.HorizontalNm, projected60.VerticalFt, requirement);
-        bool warningMargin = WithinWarningMargin(current.HorizontalNm, current.VerticalFt, requirement);
+        bool currentViolation = (currentRequirement is not null) && Violates(current.HorizontalNm, current.VerticalFt, currentRequirement);
+        bool warningViolation =
+            (projected30Requirement is not null) && Violates(projected30.HorizontalNm, projected30.VerticalFt, projected30Requirement);
+        bool coachViolation =
+            (projected60Requirement is not null) && Violates(projected60.HorizontalNm, projected60.VerticalFt, projected60Requirement);
+        bool warningMargin = (currentRequirement is not null) && WithinWarningMargin(current.HorizontalNm, current.VerticalFt, currentRequirement);
 
         SoloTrainingEventSeverity? severity =
             currentViolation ? SoloTrainingEventSeverity.Safety
             : warningViolation || warningMargin ? SoloTrainingEventSeverity.Warning
             : coachViolation ? SoloTrainingEventSeverity.Coach
             : null;
+        var trigger =
+            currentViolation || warningMargin ? new SampledSeparation(0.0, current.HorizontalNm, current.VerticalFt, currentRequirement)
+            : warningViolation
+                ? new SampledSeparation(WarningLookaheadSeconds, projected30.HorizontalNm, projected30.VerticalFt, projected30Requirement)
+            : coachViolation ? new SampledSeparation(CoachLookaheadSeconds, projected60.HorizontalNm, projected60.VerticalFt, projected60Requirement)
+            : null;
 
-        if (severity is null)
+        if (severity is null || trigger?.Requirement is null)
         {
             return null;
         }
 
+        var requirement = trigger.Requirement;
         string id = MakePairEventId(requirement.Name, a.Callsign, b.Callsign);
         string title = severity == SoloTrainingEventSeverity.Safety ? $"{requirement.Name} loss" : $"{requirement.Name} risk";
+        string spacingLabel = trigger.LookaheadSeconds <= 0.0 ? "Current spacing" : $"{trigger.LookaheadSeconds:F0}-second projected spacing";
         string description =
-            $"{a.Callsign} and {b.Callsign}: {requirement.CoachingText} Current spacing is "
-            + $"{current.HorizontalNm:F1} NM and {current.VerticalFt:F0} ft.";
+            $"{a.Callsign} and {b.Callsign}: {requirement.CoachingText} {spacingLabel} is "
+            + $"{trigger.HorizontalNm:F1} NM and {trigger.VerticalFt:F0} ft.";
 
-        return new TrainingEventSample(
-            id,
-            requirement.Category,
-            severity.Value,
-            title,
-            description,
-            requirement.RuleReference,
-            scenarioElapsedSeconds,
-            [a.Callsign, b.Callsign],
-            null,
-            requirement.RequiredHorizontalNm,
-            current.HorizontalNm,
-            requirement.RequiredVerticalFt,
-            current.VerticalFt,
-            null,
-            null
+        return new SeparationTrainingSample(
+            new TrainingEventSample(
+                id,
+                requirement.Category,
+                severity.Value,
+                title,
+                description,
+                requirement.RuleReference,
+                scenarioElapsedSeconds,
+                [a.Callsign, b.Callsign],
+                null,
+                requirement.RequiredHorizontalNm,
+                trigger.HorizontalNm,
+                requirement.RequiredVerticalFt,
+                trigger.VerticalFt,
+                null,
+                null
+            ),
+            requirement
         );
     }
 
@@ -414,8 +475,11 @@ public sealed class SoloTrainingEvaluator
     )
     {
         string id = MakeAdvisoryEventId(requirement.Name, recipient.Callsign, target.Callsign);
-        string requiredText = requirement.Name.StartsWith("Class B", StringComparison.OrdinalIgnoreCase)
-            ? "Issue a mandatory Class B traffic advisory before proximity diminishes below applicable separation minima."
+        string requiredText =
+            requirement.Name.StartsWith("Class B", StringComparison.OrdinalIgnoreCase)
+                ? "Issue a mandatory Class B traffic advisory before proximity diminishes below applicable separation minima."
+            : requirement.Name.StartsWith("Class C", StringComparison.OrdinalIgnoreCase)
+                ? "Issue a Class C traffic advisory before proximity diminishes below applicable IFR/VFR separation minima."
             : "Issue a traffic advisory before proximity diminishes below applicable separation minima.";
         string actualText = $"No accepted RTIS/RTISF proof for {recipient.Callsign} about {target.Callsign}.";
         string description =
@@ -442,16 +506,21 @@ public sealed class SoloTrainingEvaluator
     }
 
     private static string AdvisoryRuleReference(SeparationRequirement requirement) =>
-        requirement.Name.StartsWith("Class B", StringComparison.OrdinalIgnoreCase) ? "7110.65 §7-9-5, §2-1-21" : "7110.65 §2-1-21";
+        requirement.Name.StartsWith("Class B", StringComparison.OrdinalIgnoreCase) ? "7110.65 §7-9-5, §2-1-21"
+        : requirement.Name.StartsWith("Class C", StringComparison.OrdinalIgnoreCase) ? "7110.65 §7-8-2, §2-1-21"
+        : "7110.65 §2-1-21";
 
     private static (double HorizontalNm, double VerticalFt) ComputeSeparation(AircraftState a, AircraftState b, double lookaheadSeconds)
     {
         var aPosition = ProjectPosition(a, lookaheadSeconds);
         var bPosition = ProjectPosition(b, lookaheadSeconds);
-        double aAltitude = a.Altitude + (a.VerticalSpeed * lookaheadSeconds / 60.0);
-        double bAltitude = b.Altitude + (b.VerticalSpeed * lookaheadSeconds / 60.0);
+        double aAltitude = ProjectAltitude(a, lookaheadSeconds);
+        double bAltitude = ProjectAltitude(b, lookaheadSeconds);
         return (GeoMath.DistanceNm(aPosition, bPosition), Math.Abs(aAltitude - bAltitude));
     }
+
+    private static double ProjectAltitude(AircraftState aircraft, double lookaheadSeconds) =>
+        aircraft.Altitude + (aircraft.VerticalSpeed * lookaheadSeconds / 60.0);
 
     private static LatLon ProjectPosition(AircraftState aircraft, double lookaheadSeconds)
     {
@@ -586,6 +655,10 @@ public sealed class SoloTrainingEvaluator
         double RequiredVerticalFt,
         string CoachingText
     );
+
+    private sealed record SampledSeparation(double LookaheadSeconds, double HorizontalNm, double VerticalFt, SeparationRequirement? Requirement);
+
+    private sealed record SeparationTrainingSample(TrainingEventSample Event, SeparationRequirement Requirement);
 
     private sealed record TrainingEventSample(
         string Id,
