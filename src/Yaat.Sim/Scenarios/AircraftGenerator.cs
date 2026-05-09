@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
@@ -5,20 +6,97 @@ namespace Yaat.Sim.Scenarios;
 
 public static class AircraftGenerator
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("AircraftGenerator");
+
+    /// <summary>
+    /// Curated pool of common-today ICAO type codes per (weight, engine) bucket. Every
+    /// entry must resolve through both <see cref="AircraftProfileDatabase"/> and
+    /// <see cref="AircraftCategorization"/>; <see cref="AssertEveryTypeResolves"/>
+    /// enforces this at startup.
+    /// </summary>
     private static readonly Dictionary<(WeightClass, EngineKind), string[]> TypeTable = new()
     {
-        [(WeightClass.Small, EngineKind.Piston)] = ["C172", "C182", "PA28", "SR22"],
-        [(WeightClass.Small, EngineKind.Turboprop)] = ["C208", "PC12", "BE20"],
-        [(WeightClass.Large, EngineKind.Turboprop)] = ["DH8D", "AT76", "AT72"],
-        [(WeightClass.Large, EngineKind.Jet)] = ["B738", "A320", "E170", "E175", "CRJ9"],
-        [(WeightClass.Heavy, EngineKind.Jet)] = ["B77L", "B772", "A332", "B789", "B744", "A359"],
+        [(WeightClass.Small, EngineKind.Piston)] = ["C172", "C182", "P28A", "SR22", "BE36", "C150", "C152"],
+        [(WeightClass.Small, EngineKind.Turboprop)] = ["C208", "PC12", "BE20", "P180"],
+        [(WeightClass.Large, EngineKind.Turboprop)] = ["AT72", "DH8C", "B190", "SF34"],
+        [(WeightClass.Large, EngineKind.Jet)] = ["CRJ7", "CRJ9", "E170", "E145", "B737", "B738", "B739", "A319", "A320", "A321"],
+        [(WeightClass.Heavy, EngineKind.Jet)] = ["A332", "A333", "B763", "B764", "B772", "B788", "B744"],
     };
 
     private static readonly string[] Airlines = ["UAL", "AAL", "DAL", "SWA", "JBU", "ASA", "NKS", "SKW", "ENY", "RPA"];
 
+    /// <summary>
+    /// Per-airline (weight, engine) compatibility map. A regional carrier (ENY/SKW/RPA)
+    /// flying an A380 is a head-scratcher; SWA flying a Cherokee is impossible.
+    /// When the bucket the request belongs to is not in the airline's allowed list, a
+    /// different airline is picked. Unlisted airlines are treated as wildcard
+    /// (mainline + regional + GA) but the runtime list above is exhaustive.
+    /// </summary>
+    private static readonly Dictionary<string, (WeightClass Weight, EngineKind Engine)[]> AirlineBuckets = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Mainline (narrowbody + widebody)
+        ["UAL"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Heavy, EngineKind.Jet)],
+        ["AAL"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Heavy, EngineKind.Jet)],
+        ["DAL"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Heavy, EngineKind.Jet)],
+        // Mainline narrowbody-only US carriers
+        ["ASA"] = [(WeightClass.Large, EngineKind.Jet)],
+        ["JBU"] = [(WeightClass.Large, EngineKind.Jet)],
+        ["NKS"] = [(WeightClass.Large, EngineKind.Jet)],
+        ["SWA"] = [(WeightClass.Large, EngineKind.Jet)],
+        // Regional carriers (regional jets + turboprops)
+        ["SKW"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Large, EngineKind.Turboprop)],
+        ["ENY"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Large, EngineKind.Turboprop)],
+        ["RPA"] = [(WeightClass.Large, EngineKind.Jet), (WeightClass.Large, EngineKind.Turboprop)],
+    };
+
     public static string[]? GetTypesForCombo(WeightClass weight, EngineKind engine) => TypeTable.GetValueOrDefault((weight, engine));
 
     public static IReadOnlyList<string> GetAirlines() => Airlines;
+
+    /// <summary>
+    /// Verify that every type listed in <see cref="TypeTable"/> resolves through both
+    /// <see cref="AircraftProfileDatabase"/> and <see cref="AircraftCategorization"/>.
+    /// Call once at startup AFTER the data DBs have been initialized — fails loudly
+    /// rather than silently degrading to category-default Jet performance for a
+    /// mistyped or unprofiled code.
+    /// </summary>
+    public static void AssertEveryTypeResolves()
+    {
+        var problems = new List<string>();
+        foreach (var ((weight, engine), types) in TypeTable)
+        {
+            foreach (var type in types)
+            {
+                if (AircraftProfileDatabase.Get(type) is null)
+                {
+                    problems.Add($"{weight}+{engine}: type '{type}' has no AircraftProfileDatabase entry (and no sibling fallback)");
+                }
+                var cat = AircraftCategorization.Categorize(type);
+                var expectedCat = engine switch
+                {
+                    EngineKind.Piston => AircraftCategory.Piston,
+                    EngineKind.Turboprop => AircraftCategory.Turboprop,
+                    EngineKind.Jet => AircraftCategory.Jet,
+                    _ => AircraftCategory.Jet,
+                };
+                if (cat != expectedCat)
+                {
+                    problems.Add($"{weight}+{engine}: type '{type}' categorized as {cat}, expected {expectedCat}");
+                }
+            }
+        }
+        if (problems.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "AircraftGenerator.TypeTable has entries that do not resolve through the data DBs:\n  - " + string.Join("\n  - ", problems)
+            );
+        }
+        Log.LogInformation(
+            "AircraftGenerator type table validated: {Count} types across {Buckets} buckets",
+            TypeTable.Sum(kv => kv.Value.Length),
+            TypeTable.Count
+        );
+    }
 
     /// <summary>
     /// Builds the FP record for an ADD-spawned aircraft. VFR ADD = cold call: blank fields,
@@ -47,6 +125,46 @@ public static class AircraftGenerator
     }
 
     public static (AircraftState? State, string? Error) Generate(
+        SpawnRequest request,
+        string? primaryAirportId,
+        IReadOnlyCollection<AircraftState> existingAircraft,
+        AirportGroundLayout? groundLayout,
+        Random rng
+    )
+    {
+        var result = GenerateCore(request, primaryAirportId, existingAircraft, groundLayout, rng);
+        if (result.State is null)
+        {
+            Log.LogWarning(
+                "[ArrivalGen] spawn FAILED ({Weight}/{Engine} {Position} rwy={Runway}): {Error}",
+                request.Weight,
+                request.Engine,
+                request.PositionType,
+                request.RunwayId ?? "-",
+                result.Error ?? "(unknown)"
+            );
+        }
+        else
+        {
+            var s = result.State;
+            var cat = AircraftCategorization.Categorize(s.AircraftType);
+            Log.LogInformation(
+                "[ArrivalGen] spawned {Callsign} type={Type} cat={Cat} (req={Weight}/{Engine}) on {Position} rwy={Runway} alt={Alt:F0}ft ias={Ias:F0}kts",
+                s.Callsign,
+                s.AircraftType,
+                cat,
+                request.Weight,
+                request.Engine,
+                request.PositionType,
+                request.RunwayId ?? "-",
+                s.Altitude,
+                s.IndicatedAirspeed
+            );
+        }
+        return result;
+    }
+
+    private static (AircraftState? State, string? Error) GenerateCore(
         SpawnRequest request,
         string? primaryAirportId,
         IReadOnlyCollection<AircraftState> existingAircraft,
@@ -440,8 +558,19 @@ public static class AircraftGenerator
             return GenerateNNumber(existing, rng);
         }
 
-        var airline = request.ExplicitAirline ?? Airlines[rng.Next(Airlines.Length)];
+        var airline = request.ExplicitAirline ?? PickCompatibleAirline(request.Weight, request.Engine, rng);
         return GenerateAirlineCallsign(airline, existing, rng);
+    }
+
+    /// <summary>
+    /// Pick an airline whose <see cref="AirlineBuckets"/> entry includes the requested
+    /// (weight, engine). Falls back to any airline if none match — that should never
+    /// happen for the curated lists, but stays defensive.
+    /// </summary>
+    private static string PickCompatibleAirline(WeightClass weight, EngineKind engine, Random rng)
+    {
+        var compatible = Airlines.Where(a => !AirlineBuckets.TryGetValue(a, out var buckets) || buckets.Contains((weight, engine))).ToArray();
+        return compatible.Length > 0 ? compatible[rng.Next(compatible.Length)] : Airlines[rng.Next(Airlines.Length)];
     }
 
     private static string GenerateAirlineCallsign(string airline, HashSet<string> existing, Random rng)

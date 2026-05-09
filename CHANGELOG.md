@@ -33,6 +33,8 @@
 - Pilot airborne check-ins below 100 ft drop the "at altitude" clause instead of rendering a dangling "at ," in the readback.
 - Pilot speech says "then" between sequential `;` compound blocks (matching the terminal display) instead of running them together with parallel `,` commands.
 - Multi-fix `DCT` readbacks read every fix joined by "then direct" (e.g. "proceed direct to OAK30NUM, then direct VPMID") instead of dropping all fixes after the first.
+- Generated piston arrivals (Cherokee, Skyhawk) decelerate and touch down at piston speeds (~70 kt) instead of jet speeds and overshooting the runway.
+- Generated airline callsigns match operator fleet — regional carriers no longer pair with widebodies, single-fleet carriers no longer get Cherokees.
 
 ## v0.1.17-alpha [2026/05/06]
 

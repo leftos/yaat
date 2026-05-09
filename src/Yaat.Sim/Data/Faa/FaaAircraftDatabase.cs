@@ -29,6 +29,16 @@ public static class FaaAircraftDatabase
         }
 
         var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
-        return _lookup.TryGetValue(baseType, out var record) ? record : null;
+        if (_lookup.TryGetValue(baseType, out var record))
+        {
+            return record;
+        }
+
+        if (AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.TryGetValue(sibling, out var sibRecord))
+        {
+            return sibRecord;
+        }
+
+        return null;
     }
 }

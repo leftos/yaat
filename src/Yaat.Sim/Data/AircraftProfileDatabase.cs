@@ -12,6 +12,7 @@ public static class AircraftProfileDatabase
     private static readonly ILogger Log = SimLog.CreateLogger("AircraftProfileDatabase");
 
     private static Dictionary<string, AircraftProfile> _lookup = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> _siblingFallbackWarned = new(StringComparer.OrdinalIgnoreCase);
 
     public static bool IsInitialized => _lookup.Count > 0;
 
@@ -20,12 +21,14 @@ public static class AircraftProfileDatabase
     public static void Initialize(Dictionary<string, AircraftProfile> lookup)
     {
         _lookup = new Dictionary<string, AircraftProfile>(lookup, StringComparer.OrdinalIgnoreCase);
+        _siblingFallbackWarned.Clear();
         Log.LogInformation("Loaded {Count} aircraft profiles", _lookup.Count);
     }
 
     /// <summary>
     /// Get the performance profile for an ICAO type designator.
-    /// Strips prefixes like "H/" and suffixes like "/L" automatically.
+    /// Strips prefixes like "H/" and suffixes like "/L" automatically. Falls back
+    /// to the sibling map (e.g. <c>B789 -&gt; B788</c>) if there is no direct hit.
     /// </summary>
     public static AircraftProfile? Get(string? aircraftType)
     {
@@ -35,7 +38,25 @@ public static class AircraftProfileDatabase
         }
 
         var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
-        return _lookup.TryGetValue(baseType, out var profile) ? profile : null;
+        if (_lookup.TryGetValue(baseType, out var profile))
+        {
+            return profile;
+        }
+
+        if (AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.TryGetValue(sibling, out var sibProfile))
+        {
+            if (_siblingFallbackWarned.Add(baseType))
+            {
+                Log.LogWarning(
+                    "No profile for type {Type}; using sibling {Sibling}'s profile. Consider adding a real entry to AircraftProfiles.json.",
+                    baseType,
+                    sibling
+                );
+            }
+            return sibProfile;
+        }
+
+        return null;
     }
 
     /// <summary>

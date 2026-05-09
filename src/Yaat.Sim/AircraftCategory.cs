@@ -1,3 +1,4 @@
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim;
@@ -34,7 +35,17 @@ public static class AircraftCategorization
     {
         var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
 
-        return _lookup.TryGetValue(baseType, out var cat) ? cat : AircraftCategory.Jet;
+        if (_lookup.TryGetValue(baseType, out var cat))
+        {
+            return cat;
+        }
+
+        if (AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.TryGetValue(sibling, out var sibCat))
+        {
+            return sibCat;
+        }
+
+        return AircraftCategory.Jet;
     }
 }
 

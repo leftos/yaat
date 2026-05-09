@@ -350,6 +350,13 @@ public static class TestVnasData
         var profiles = AircraftProfileDatabase.LoadFromFile(path);
         AircraftProfileDatabase.Initialize(profiles);
 
+        var siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
+        if (File.Exists(siblingPath))
+        {
+            var siblings = AircraftSiblingMap.LoadFromFile(siblingPath);
+            AircraftSiblingMap.Initialize(siblings);
+        }
+
         AircraftPerformance.SetProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter());
     }
 }

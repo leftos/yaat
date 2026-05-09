@@ -75,6 +75,18 @@ public sealed class VnasDataService : IDisposable
         // EurocontrolProfileCorrectionAdapter.cs for methodology and validation.
         AircraftPerformance.SetProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter());
 
+        // Verify the AircraftGenerator type pool resolves end-to-end through the data
+        // DBs we just loaded. Catches the next time someone adds a non-ICAO string
+        // (the original 'PA28' instead of 'P28A') or a code lacking profile data.
+        try
+        {
+            Yaat.Sim.Scenarios.AircraftGenerator.AssertEveryTypeResolves();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.LogError(ex, "AircraftGenerator type validation failed — generated arrivals may use jet defaults");
+        }
+
         SaveManifest(config, manifest);
 
         LogSummary();
@@ -351,6 +363,20 @@ public sealed class VnasDataService : IDisposable
         catch (Exception ex)
         {
             Log.LogWarning(ex, "Failed to load aircraft profiles; category defaults will be used");
+        }
+
+        try
+        {
+            var siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
+            if (File.Exists(siblingPath))
+            {
+                var siblings = AircraftSiblingMap.LoadFromFile(siblingPath);
+                AircraftSiblingMap.Initialize(siblings);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to load aircraft sibling map; missing-profile types will fall through to category defaults");
         }
     }
 
