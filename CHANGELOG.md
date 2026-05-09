@@ -22,7 +22,7 @@
 - Speech settings separate STT and TTS into collapsible panels, and TTS includes Piper voice-pack install and remove controls.
 - Favorite commands now support a fixed-grid pop-out panel with categories, airport scope, colors, sizing, ground overrides, batch blanks, and drag rearranging.
 - The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.
-- The user guide now explains solo training, pilot requests, pacing controls, safeguards, and scenario-author notes.
+- A standalone Solo Training guide now explains pilot requests, pacing controls, safeguards, solo/RPO command differences, scenario-author notes, and Discord docs posting.
 
 ### Fixed
 - Command history stores entries uppercase and collapses case-only duplicates.

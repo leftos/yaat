@@ -9,6 +9,7 @@ on:
       - "USER_GUIDE.md"
       - "GETTING_STARTED.md"
       - "COMMANDS.md"
+      - "SOLO_TRAINING.md"
       - "docs/yaat-vs-atctrainer.md"
   workflow_dispatch:
 
@@ -37,6 +38,7 @@ jobs:
           GETTINGSTARTED_CHANNEL: "1491542249492840538"
           COMMANDS_WEBHOOK: ${{ secrets.DISCORD_COMMANDS_WEBHOOK_URL }}
           COMMANDS_CHANNEL: "1491542448575611000"
+          SOLOTRAINING_WEBHOOK: ${{ secrets.DISCORD_SOLOTRAINING_WEBHOOK_URL }}
           COMPARISON_WEBHOOK: ${{ secrets.DISCORD_COMPARISON_WEBHOOK_URL }}
           COMPARISON_CHANNEL: "1480989023311757426"
           REPO_URL: "https://github.com/${{ github.repository }}/blob/${{ github.sha }}"
@@ -62,6 +64,24 @@ jobs:
                   time.sleep(0.5)
               print(f'Deleted {len(msgs)} message(s) from {channel}')
           " "$DISCORD_BOT_TOKEN" "$channel"
+          }
+
+          webhook_channel() {
+            local webhook="$1"
+            python3 -c "
+          import json, re, sys, urllib.request
+          webhook = sys.argv[1]
+          match = re.search(r'/webhooks/([^/]+)/([^/?]+)', webhook)
+          if not match:
+              raise SystemExit('Invalid Discord webhook URL')
+          webhook_id, webhook_token = match.groups()
+          req = urllib.request.Request(
+              f'https://discord.com/api/v10/webhooks/{webhook_id}/{webhook_token}',
+              headers={'User-Agent': 'YAAT-Discord-Docs/1.0'}
+          )
+          data = json.loads(urllib.request.urlopen(req).read())
+          print(data['channel_id'])
+          " "$webhook"
           }
 
           post_chunks() {
@@ -261,12 +281,24 @@ jobs:
             post_toc "$file" "$webhook" "$title" "$file_path"
           }
 
+          sync_toc_from_webhook() {
+            local file="$1" webhook="$2" title="$3" file_path="$4"
+            if [ -z "$webhook" ]; then
+              echo "::warning::Skipping $file because its Discord webhook secret is not configured."
+              return
+            fi
+            local channel
+            channel="$(webhook_channel "$webhook")"
+            sync_toc "$file" "$webhook" "$channel" "$title" "$file_path"
+          }
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL"
             sync_full "README.md" "$README_WEBHOOK" "$README_CHANNEL"
             sync_full "GETTING_STARTED.md" "$GETTINGSTARTED_WEBHOOK" "$GETTINGSTARTED_CHANNEL"
             sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md"
             sync_toc "COMMANDS.md" "$COMMANDS_WEBHOOK" "$COMMANDS_CHANNEL" "YAAT Command Reference" "COMMANDS.md"
+            sync_toc_from_webhook "SOLO_TRAINING.md" "$SOLOTRAINING_WEBHOOK" "YAAT Solo Training Guide" "SOLO_TRAINING.md"
             sync_toc "docs/yaat-vs-atctrainer.md" "$COMPARISON_WEBHOOK" "$COMPARISON_CHANNEL" "YAAT vs ATCTrainer" "docs/yaat-vs-atctrainer.md"
           else
             CHANGED=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "")
@@ -275,5 +307,6 @@ jobs:
             echo "$CHANGED" | grep -q "GETTING_STARTED.md" && sync_full "GETTING_STARTED.md" "$GETTINGSTARTED_WEBHOOK" "$GETTINGSTARTED_CHANNEL" || true
             echo "$CHANGED" | grep -q "USER_GUIDE.md" && sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md" || true
             echo "$CHANGED" | grep -q "COMMANDS.md" && sync_toc "COMMANDS.md" "$COMMANDS_WEBHOOK" "$COMMANDS_CHANNEL" "YAAT Command Reference" "COMMANDS.md" || true
+            echo "$CHANGED" | grep -q "SOLO_TRAINING.md" && sync_toc_from_webhook "SOLO_TRAINING.md" "$SOLOTRAINING_WEBHOOK" "YAAT Solo Training Guide" "SOLO_TRAINING.md" || true
             echo "$CHANGED" | grep -q "docs/yaat-vs-atctrainer.md" && sync_toc "docs/yaat-vs-atctrainer.md" "$COMPARISON_WEBHOOK" "$COMPARISON_CHANNEL" "YAAT vs ATCTrainer" "docs/yaat-vs-atctrainer.md" || true
           fi

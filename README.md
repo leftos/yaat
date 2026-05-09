@@ -42,6 +42,7 @@ See the [Installation Guide](INSTALL.md) for step-by-step instructions. If you w
 | **[Installation Guide](INSTALL.md)** | New users | Download the installer, or build from source if you want to host a server or develop locally |
 | **[Getting Started](GETTING_STARTED.md)** | First-time users | First connection, identity setup, loading your first scenario |
 | **[User Guide](USER_GUIDE.md)** | Active users | Interface, views, scenarios, weather, settings, and workflows |
+| **[Solo Training Guide](SOLO_TRAINING.md)** | Student controllers | Single-student workflow, pilot readbacks, workload pacing, Session Report, and solo-mode command differences |
 | **[Command Reference](COMMANDS.md)** | Active users | Complete command reference — every verb, alias, and example |
 | **[Contributing](CONTRIBUTING.md)** | Developers | Development setup, code style, and formatting |
 
