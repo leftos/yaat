@@ -22,7 +22,7 @@
 - Speech settings separate STT and TTS into collapsible panels, and TTS includes Piper voice-pack install and remove controls.
 - Favorite commands now support a fixed-grid pop-out panel with categories, airport scope, colors, sizing, ground overrides, batch blanks, and drag rearranging.
 - The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.
-- A standalone Solo Training guide now explains pilot requests, pacing controls, safeguards, solo/RPO command differences, scenario-author notes, and Discord docs posting.
+- A standalone Solo Training guide now explains pilot requests, pacing controls, safeguards, solo/RPO command differences, scenario-author notes, the recommended CRC + popped-out YAAT terminal layout, and Discord docs posting.
 - Session Report opens as a non-modal window so the controller can keep working the radar while it refreshes.
 
 ### Fixed

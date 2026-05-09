@@ -10,6 +10,7 @@ This guide is written for students who may never have worked as an RPO in YAAT, 
 - [The Mental Model](#the-mental-model)
 - [If You Have Never Used An RPO Tool](#if-you-have-never-used-an-rpo-tool)
 - [Start a Solo Session](#start-a-solo-session)
+- [Recommended Setup: CRC for the Scope, YAAT for Pilot Control](#recommended-setup-crc-for-the-scope-yaat-for-pilot-control)
 - [Scenario Setup And Pacing](#scenario-setup-and-pacing)
 - [Working The Frequency](#working-the-frequency)
 - [First Session Flow](#first-session-flow)
@@ -25,6 +26,7 @@ This guide is written for students who may never have worked as an RPO in YAAT, 
 - [Getting Started](GETTING_STARTED.md) - installation, identity setup, and first scenario load.
 - [User Guide: Command Bar](USER_GUIDE.md#command-bar) - where to type commands and how feedback appears.
 - [User Guide: Loading a Scenario](USER_GUIDE.md#loading-a-scenario) - ARTCC scenarios, local files, and Scenario Setup.
+- [User Guide: Connecting CRC for Students](USER_GUIDE.md#connecting-crc-for-students) - CRC environment setup details.
 - [Command Reference](COMMANDS.md) - every command, alias, argument, and example.
 - [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences) - solo/RPO mode differences.
 
@@ -78,6 +80,52 @@ After you press **Enter**, check the terminal. `RSP` tells you whether YAAT acce
 6. Open **Scenario > Session Report** during or after the run to review score, active issues, coaching notes, and runway/approach outcomes.
 
 After a scenario is loaded, the gear button next to the command bar controls live session settings, including the active Solo Training Mode toggle and any workload pacing sliders. These settings affect the room session, not only your local window.
+
+## Recommended Setup: CRC for the Scope, YAAT for Pilot Control
+
+In a real training or live session, you would not have YAAT's radar view, ground view, aircraft list, or flight-strip editors. You would have a CRC scope and the procedural information your facility makes available. Practicing with the full YAAT UI gives you flight-plan tables, route fixes, ground-truth aircraft positions, and trajectory previews that hide gaps in scan, judgment, and procedure recall.
+
+Solo Training is most useful when you mirror the real working environment: drive the radar from CRC and use YAAT only for pilot interaction. YAAT acts as the simulated RPO; CRC is your scope.
+
+### One-Time CRC Setup
+
+1. Install CRC normally and sign in once with your VATSIM credentials so the per-user config exists.
+2. In YAAT, open **Tools > Configure CRC Environments**. This writes (or updates) CRC's `DevEnvironments.json` with the YAAT environments. The hosted server entry is **YAAT1** (`https://yaat1.leftos.dev`); the local-development entry is **YAAT Local** (`http://localhost:5000`).
+3. Restart CRC so it picks up the new environment list.
+4. In CRC's environment selector, choose **YAAT1** (or **YAAT Local** if you are running a server on this machine), then connect with your VATSIM credentials.
+
+If you skip step 2, the [User Guide: Connecting CRC for Students](USER_GUIDE.md#connecting-crc-for-students) section covers the manual `DevEnvironments.json` edit and the PowerShell setup script.
+
+### Per-Session Layout
+
+Once CRC is connected:
+
+1. Load a scenario in YAAT (Solo Training mode on).
+2. In YAAT, click the **Pop Out** button at the top right of the terminal panel. The terminal becomes its own window so you can keep it on top of CRC.
+3. Minimize or move the rest of the YAAT main window off-screen. You will not need its radar view, ground view, or aircraft list during the session. Keep the **Session Report** window open if you want live coaching feedback alongside CRC.
+4. Position the popped-out terminal where you can see both the YAAT pilot replies (`SAY`) and CRC's scope.
+5. From CRC, take the position the scenario expects. CRC will see and own the simulated traffic that YAAT is feeding the room.
+
+### What You Use Each Tool For
+
+| Tool | Use it for |
+|------|------------|
+| CRC | Radar (STARS / ERAM), Tower Cab, flight strips, scratchpads, leader lines, datablock interaction, conflict alerts. This is your operating picture. |
+| YAAT terminal | Issue commands as the simulated RPO. Read pilot transmissions (`SAY`) and command results (`RSP`). Acknowledge pilot requests. |
+| YAAT Session Report (optional) | Live coaching, scoring, missed advisories, runway and approach outcomes. Treat this as debrief material, not as a real-time control aid. |
+
+The YAAT command bar is the only YAAT UI you should rely on during the session. Treat the radar view, ground view, and aircraft list as scenario-author and debugging tools, not student aids - they expose information a real controller would not have on the scope.
+
+### Working CRC With Solo YAAT
+
+Inside this layout, the workflow is:
+
+- The student manipulates CRC normally - track, accept handoffs, scratchpad, etc. CRC interactions that YAAT supports are reflected back into the simulation.
+- Anything the student would say to a pilot becomes a YAAT command in the popped-out terminal: callsign plus a canonical command or an ATC-style instruction (Solo Training accepts both).
+- Pilot readbacks and pilot-initiated calls land in the terminal as `SAY` lines. Optional Solo pilot voice (Settings > Speech) lets these play out loud.
+- Avoid the YAAT radar view, ground view, and aircraft list for control decisions. If you need them at all - usually for setup or debriefing - bring the YAAT main window back, then minimize it again.
+
+If a student insists on using the YAAT radar instead of CRC, the session is no longer a faithful CRC practice run. Use that as a training cue, not as a workflow.
 
 ## Scenario Setup And Pacing
 
