@@ -15,6 +15,7 @@
 - Solo-training pilots warn near DA/MDA and go around at published minimums if landing clearance is still missing.
 - Solo-training pilots answer rejected live maneuver clearances with an audible `unable` readback and reason when available.
 - Solo training adds a live Session Report with FAA-grounded separation scoring, coaching notes, approach outcomes, and runway statistics.
+- The Session Report now scores actual same-runway separation losses for departures and arrivals using 7110.65 SRS rules.
 - Speech settings separate STT and TTS into collapsible panels, and TTS includes Piper voice-pack install and remove controls.
 - Favorite commands now support a fixed-grid pop-out panel with categories, airport scope, colors, sizing, ground overrides, batch blanks, and drag rearranging.
 - The user guide now explains compound-command sequencing, conditional triggers, speed `UNTIL`, and queue/phase clearing.

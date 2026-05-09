@@ -1,6 +1,8 @@
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Training;
 
@@ -36,7 +38,9 @@ public sealed record SoloTrainingEvent(
     double? RequiredHorizontalNm,
     double? ActualHorizontalNm,
     double? RequiredVerticalFt,
-    double? ActualVerticalFt
+    double? ActualVerticalFt,
+    string? RequiredText,
+    string? ActualText
 );
 
 public sealed record SoloTrainingScoreBucket(string Name, int PointsAvailable, int PointsLost);
@@ -65,6 +69,7 @@ public sealed class SoloTrainingEvaluator
     private const double CoachLookaheadSeconds = 60.0;
 
     private readonly Dictionary<string, TrackedEvent> _events = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
 
     public List<SoloTrainingEvent> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, AirspaceDatabase airspace)
     {
@@ -100,6 +105,16 @@ public sealed class SoloTrainingEvaluator
                 {
                     notices.Add(notice);
                 }
+            }
+        }
+
+        foreach (var sample in _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds))
+        {
+            observedThisTick.Add(sample.Id);
+            var notice = Upsert(sample, scenarioElapsedSeconds);
+            if (notice is not null)
+            {
+                notices.Add(notice);
             }
         }
 
@@ -154,6 +169,7 @@ public sealed class SoloTrainingEvaluator
     public void Reset()
     {
         _events.Clear();
+        _sameRunwayTracker.Reset();
     }
 
     internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace)
@@ -238,7 +254,7 @@ public sealed class SoloTrainingEvaluator
         return aFollowingB || bFollowingA;
     }
 
-    private static PairSample? SamplePair(AircraftState a, AircraftState b, SeparationRequirement requirement, double scenarioElapsedSeconds)
+    private static TrainingEventSample? SamplePair(AircraftState a, AircraftState b, SeparationRequirement requirement, double scenarioElapsedSeconds)
     {
         var current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
         var projected30 = ComputeSeparation(a, b, WarningLookaheadSeconds);
@@ -263,9 +279,10 @@ public sealed class SoloTrainingEvaluator
         string id = MakePairEventId(requirement.Name, a.Callsign, b.Callsign);
         string title = severity == SoloTrainingEventSeverity.Safety ? $"{requirement.Name} loss" : $"{requirement.Name} risk";
         string description =
-            $"{a.Callsign} and {b.Callsign}: {requirement.CoachingText} Current spacing is {current.HorizontalNm:F1} NM and {current.VerticalFt:F0} ft.";
+            $"{a.Callsign} and {b.Callsign}: {requirement.CoachingText} Current spacing is "
+            + $"{current.HorizontalNm:F1} NM and {current.VerticalFt:F0} ft.";
 
-        return new PairSample(
+        return new TrainingEventSample(
             id,
             requirement.Category,
             severity.Value,
@@ -274,10 +291,13 @@ public sealed class SoloTrainingEvaluator
             requirement.RuleReference,
             scenarioElapsedSeconds,
             [a.Callsign, b.Callsign],
+            null,
             requirement.RequiredHorizontalNm,
             current.HorizontalNm,
             requirement.RequiredVerticalFt,
-            current.VerticalFt
+            current.VerticalFt,
+            null,
+            null
         );
     }
 
@@ -307,7 +327,7 @@ public sealed class SoloTrainingEvaluator
     private static bool WithinWarningMargin(double horizontalNm, double verticalFt, SeparationRequirement requirement) =>
         (horizontalNm < requirement.RequiredHorizontalNm * WarningMargin) && (verticalFt < requirement.RequiredVerticalFt * WarningMargin);
 
-    private SoloTrainingEvent? Upsert(PairSample sample, double scenarioElapsedSeconds)
+    private SoloTrainingEvent? Upsert(TrainingEventSample sample, double scenarioElapsedSeconds)
     {
         if (!_events.TryGetValue(sample.Id, out var tracked))
         {
@@ -415,7 +435,7 @@ public sealed class SoloTrainingEvaluator
         string CoachingText
     );
 
-    private sealed record PairSample(
+    private sealed record TrainingEventSample(
         string Id,
         SoloTrainingEventCategory Category,
         SoloTrainingEventSeverity Severity,
@@ -424,10 +444,13 @@ public sealed class SoloTrainingEvaluator
         string RuleReference,
         double ObservedAtSeconds,
         List<string> Callsigns,
-        double RequiredHorizontalNm,
-        double ActualHorizontalNm,
-        double RequiredVerticalFt,
-        double ActualVerticalFt
+        string? RunwayId,
+        double? RequiredHorizontalNm,
+        double? ActualHorizontalNm,
+        double? RequiredVerticalFt,
+        double? ActualVerticalFt,
+        string? RequiredText,
+        string? ActualText
     );
 
     private sealed class TrackedEvent
@@ -447,8 +470,10 @@ public sealed class SoloTrainingEvaluator
         public double? ActualHorizontalNm { get; set; }
         public double? RequiredVerticalFt { get; set; }
         public double? ActualVerticalFt { get; set; }
+        public string? RequiredText { get; set; }
+        public string? ActualText { get; set; }
 
-        public static TrackedEvent FromSample(PairSample sample) =>
+        public static TrackedEvent FromSample(TrainingEventSample sample) =>
             new()
             {
                 Id = sample.Id,
@@ -460,13 +485,16 @@ public sealed class SoloTrainingEvaluator
                 StartedAtSeconds = sample.ObservedAtSeconds,
                 LastObservedAtSeconds = sample.ObservedAtSeconds,
                 Callsigns = sample.Callsigns,
+                RunwayId = sample.RunwayId,
                 RequiredHorizontalNm = sample.RequiredHorizontalNm,
                 ActualHorizontalNm = sample.ActualHorizontalNm,
                 RequiredVerticalFt = sample.RequiredVerticalFt,
                 ActualVerticalFt = sample.ActualVerticalFt,
+                RequiredText = sample.RequiredText,
+                ActualText = sample.ActualText,
             };
 
-        public void Update(PairSample sample, double scenarioElapsedSeconds)
+        public void Update(TrainingEventSample sample, double scenarioElapsedSeconds)
         {
             Severity = sample.Severity > Severity ? sample.Severity : Severity;
             Title = sample.Title;
@@ -477,6 +505,8 @@ public sealed class SoloTrainingEvaluator
             ActualHorizontalNm = sample.ActualHorizontalNm;
             RequiredVerticalFt = sample.RequiredVerticalFt;
             ActualVerticalFt = sample.ActualVerticalFt;
+            RequiredText = sample.RequiredText;
+            ActualText = sample.ActualText;
         }
 
         public SoloTrainingEvent ToEvent() =>
@@ -496,7 +526,648 @@ public sealed class SoloTrainingEvaluator
                 RequiredHorizontalNm,
                 ActualHorizontalNm,
                 RequiredVerticalFt,
-                ActualVerticalFt
+                ActualVerticalFt,
+                RequiredText,
+                ActualText
             );
+    }
+
+    private sealed class SameRunwaySeparationTracker
+    {
+        private readonly Dictionary<string, AircraftRunwayState> _previousStates = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, RunwayOperation> _lastOperationByRunway = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ActiveSameRunwayViolation> _activeViolations = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<TrainingEventSample> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds)
+        {
+            var samples = new List<TrainingEventSample>();
+            var currentStates = BuildCurrentStates(aircraft);
+
+            foreach (var violation in _activeViolations.Values.ToList())
+            {
+                if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
+                {
+                    samples.Add(sample);
+                }
+                else
+                {
+                    _activeViolations.Remove(violation.Id);
+                }
+            }
+
+            foreach (var state in currentStates.Values.OrderBy(s => s.Callsign, StringComparer.OrdinalIgnoreCase))
+            {
+                bool firstObservation = !_previousStates.TryGetValue(state.Callsign, out var previous);
+                var operation = DetectOperation(state, previous, firstObservation, scenarioElapsedSeconds);
+                if (operation is null)
+                {
+                    continue;
+                }
+
+                if (!firstObservation && _lastOperationByRunway.TryGetValue(operation.RunwayKey, out var preceding))
+                {
+                    if (TryCreateViolation(preceding, operation, currentStates, scenarioElapsedSeconds) is { } violation)
+                    {
+                        _activeViolations[violation.Id] = violation;
+                        if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
+                        {
+                            samples.Add(sample);
+                        }
+                    }
+                }
+
+                _lastOperationByRunway[operation.RunwayKey] = operation;
+            }
+
+            _previousStates.Clear();
+            foreach (var state in currentStates.Values)
+            {
+                _previousStates[state.Callsign] = state;
+            }
+
+            return samples;
+        }
+
+        public void Reset()
+        {
+            _previousStates.Clear();
+            _lastOperationByRunway.Clear();
+            _activeViolations.Clear();
+        }
+
+        private static Dictionary<string, AircraftRunwayState> BuildCurrentStates(List<AircraftState> aircraft)
+        {
+            var states = new Dictionary<string, AircraftRunwayState>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ac in aircraft)
+            {
+                if (TryBuildState(ac) is { } state)
+                {
+                    states[state.Callsign] = state;
+                }
+            }
+
+            return states;
+        }
+
+        private static AircraftRunwayState? TryBuildState(AircraftState aircraft)
+        {
+            var runway = aircraft.Phases?.AssignedRunway;
+            if (runway is null)
+            {
+                return null;
+            }
+
+            double alongThresholdFt =
+                GeoMath.AlongTrackDistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading)
+                * GeoMath.FeetPerNm;
+            var phase = aircraft.Phases?.CurrentPhase;
+            string runwayKey = BuildRunwayKey(runway);
+            return new AircraftRunwayState(
+                aircraft.Callsign,
+                aircraft.AircraftType,
+                aircraft.IsOnGround,
+                aircraft.Position,
+                phase,
+                runway,
+                runwayKey,
+                alongThresholdFt,
+                ResolveSrsCategory(aircraft)
+            );
+        }
+
+        private static RunwayOperation? DetectOperation(
+            AircraftRunwayState state,
+            AircraftRunwayState? previous,
+            bool firstObservation,
+            double scenarioElapsedSeconds
+        )
+        {
+            if (firstObservation)
+            {
+                return TrySeedOperation(state, scenarioElapsedSeconds);
+            }
+
+            if (
+                (previous is not null)
+                && !previous.IsTakeoffRoll
+                && state.IsTakeoffRoll
+                && string.Equals(previous.RunwayKey, state.RunwayKey, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return RunwayOperation.FromState(OperationKind.Departure, state, scenarioElapsedSeconds);
+            }
+
+            if (
+                (previous is not null)
+                && previous.IsArrivalApproach
+                && state.IsArrivalOrLanding
+                && string.Equals(previous.RunwayKey, state.RunwayKey, StringComparison.OrdinalIgnoreCase)
+                && (previous.AlongThresholdFt < 0.0)
+                && (state.AlongThresholdFt >= 0.0)
+            )
+            {
+                return RunwayOperation.FromState(OperationKind.Landing, state, scenarioElapsedSeconds);
+            }
+
+            return null;
+        }
+
+        private static RunwayOperation? TrySeedOperation(AircraftRunwayState state, double scenarioElapsedSeconds)
+        {
+            if (state.IsDepartureAfterRollStart)
+            {
+                return RunwayOperation.FromState(OperationKind.Departure, state, scenarioElapsedSeconds);
+            }
+
+            if (state.IsLandingAfterThreshold)
+            {
+                return RunwayOperation.FromState(OperationKind.Landing, state, scenarioElapsedSeconds);
+            }
+
+            return null;
+        }
+
+        private static ActiveSameRunwayViolation? TryCreateViolation(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            Dictionary<string, AircraftRunwayState> states,
+            double scenarioElapsedSeconds
+        )
+        {
+            if (!states.TryGetValue(preceding.Callsign, out var precedingState) || !states.TryGetValue(succeeding.Callsign, out var succeedingState))
+            {
+                return null;
+            }
+
+            return (succeeding.Kind, preceding.Kind) switch
+            {
+                (OperationKind.Departure, OperationKind.Departure) => TryCreateDepartureBehindDeparture(
+                    preceding,
+                    succeeding,
+                    precedingState,
+                    succeedingState,
+                    scenarioElapsedSeconds
+                ),
+                (OperationKind.Departure, OperationKind.Landing) => TryCreateDepartureBehindLanding(
+                    preceding,
+                    succeeding,
+                    precedingState,
+                    succeedingState,
+                    scenarioElapsedSeconds
+                ),
+                (OperationKind.Landing, OperationKind.Departure) => TryCreateArrivalBehindDeparture(
+                    preceding,
+                    succeeding,
+                    precedingState,
+                    succeedingState,
+                    scenarioElapsedSeconds
+                ),
+                (OperationKind.Landing, OperationKind.Landing) => TryCreateArrivalBehindLanding(
+                    preceding,
+                    succeeding,
+                    precedingState,
+                    succeedingState,
+                    scenarioElapsedSeconds
+                ),
+                _ => null,
+            };
+        }
+
+        private static ActiveSameRunwayViolation? TryCreateDepartureBehindDeparture(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            AircraftRunwayState precedingState,
+            AircraftRunwayState succeedingState,
+            double scenarioElapsedSeconds
+        )
+        {
+            double requiredFt = RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
+            if (DepartureBehindDepartureSatisfied(precedingState, succeedingState, requiredFt))
+            {
+                return null;
+            }
+
+            return BuildViolation(
+                preceding,
+                succeeding,
+                "Departure behind departure same-runway separation",
+                "7110.65 §3-9-6(a)",
+                $"Preceding departure crossed DER/runway end or airborne with {requiredFt:N0} ft spacing.",
+                scenarioElapsedSeconds
+            );
+        }
+
+        private static ActiveSameRunwayViolation? TryCreateDepartureBehindLanding(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            AircraftRunwayState precedingState,
+            AircraftRunwayState succeedingState,
+            double scenarioElapsedSeconds
+        )
+        {
+            if (IsLandingClearOfRunway(precedingState))
+            {
+                return null;
+            }
+
+            return BuildViolation(
+                preceding,
+                succeeding,
+                "Departure behind landing same-runway separation",
+                "7110.65 §3-9-6(b)",
+                "Preceding landing aircraft clear of the runway.",
+                scenarioElapsedSeconds
+            );
+        }
+
+        private static ActiveSameRunwayViolation? TryCreateArrivalBehindDeparture(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            AircraftRunwayState precedingState,
+            AircraftRunwayState succeedingState,
+            double scenarioElapsedSeconds
+        )
+        {
+            double requiredFt = RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
+            if (ArrivalBehindDepartureSatisfied(precedingState, requiredFt))
+            {
+                return null;
+            }
+
+            return BuildViolation(
+                preceding,
+                succeeding,
+                "Arrival behind departure same-runway separation",
+                "7110.65 §3-10-3(a)(2)",
+                $"Preceding departure crossed DER/runway end or airborne at least {requiredFt:N0} ft from landing threshold.",
+                scenarioElapsedSeconds
+            );
+        }
+
+        private static ActiveSameRunwayViolation? TryCreateArrivalBehindLanding(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            AircraftRunwayState precedingState,
+            AircraftRunwayState succeedingState,
+            double scenarioElapsedSeconds
+        )
+        {
+            double? exceptionFt = RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory);
+            if (ArrivalBehindLandingSatisfied(precedingState, exceptionFt))
+            {
+                return null;
+            }
+
+            string required = exceptionFt.HasValue
+                ? $"Preceding landing aircraft clear of runway or landed at least {exceptionFt.Value:N0} ft from landing threshold."
+                : "Preceding landing aircraft clear of the runway.";
+            return BuildViolation(
+                preceding,
+                succeeding,
+                "Arrival behind landing same-runway separation",
+                "7110.65 §3-10-3(a)(1)",
+                required,
+                scenarioElapsedSeconds
+            );
+        }
+
+        private static TrainingEventSample? TrySampleViolation(
+            ActiveSameRunwayViolation violation,
+            Dictionary<string, AircraftRunwayState> states,
+            double scenarioElapsedSeconds
+        )
+        {
+            if (!states.TryGetValue(violation.Preceding.Callsign, out var precedingState))
+            {
+                return null;
+            }
+
+            if (!states.TryGetValue(violation.Succeeding.Callsign, out var succeedingState))
+            {
+                return null;
+            }
+
+            string actualText;
+            bool satisfied;
+            switch (violation.Rule)
+            {
+                case SameRunwayRule.DepartureBehindDeparture:
+                    satisfied = DepartureBehindDepartureSatisfied(precedingState, succeedingState, violation.RequiredDistanceFt!.Value);
+                    actualText = FormatDepartureSpacingActual(precedingState, succeedingState);
+                    break;
+
+                case SameRunwayRule.DepartureBehindLanding:
+                    satisfied = IsLandingClearOfRunway(precedingState);
+                    actualText = FormatRunwayClearActual(precedingState);
+                    break;
+
+                case SameRunwayRule.ArrivalBehindDeparture:
+                    satisfied = ArrivalBehindDepartureSatisfied(precedingState, violation.RequiredDistanceFt!.Value);
+                    actualText = FormatThresholdDistanceActual(precedingState);
+                    break;
+
+                case SameRunwayRule.ArrivalBehindLanding:
+                    satisfied = ArrivalBehindLandingSatisfied(precedingState, violation.RequiredDistanceFt);
+                    actualText = FormatRunwayClearOrThresholdActual(precedingState);
+                    break;
+
+                default:
+                    satisfied = true;
+                    actualText = "";
+                    break;
+            }
+
+            if (satisfied)
+            {
+                return null;
+            }
+
+            string description =
+                $"{violation.Succeeding.Callsign} used runway {violation.RunwayId} behind "
+                + $"{violation.Preceding.Callsign} before same-runway separation existed.";
+
+            return new TrainingEventSample(
+                violation.Id,
+                SoloTrainingEventCategory.RunwayWake,
+                SoloTrainingEventSeverity.Safety,
+                violation.Title,
+                description,
+                violation.RuleReference,
+                scenarioElapsedSeconds,
+                [violation.Preceding.Callsign, violation.Succeeding.Callsign],
+                violation.RunwayId,
+                null,
+                null,
+                null,
+                null,
+                violation.RequiredText,
+                actualText
+            );
+        }
+
+        private static ActiveSameRunwayViolation BuildViolation(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            string title,
+            string ruleReference,
+            string requiredText,
+            double scenarioElapsedSeconds
+        )
+        {
+            var rule = (succeeding.Kind, preceding.Kind) switch
+            {
+                (OperationKind.Departure, OperationKind.Departure) => SameRunwayRule.DepartureBehindDeparture,
+                (OperationKind.Departure, OperationKind.Landing) => SameRunwayRule.DepartureBehindLanding,
+                (OperationKind.Landing, OperationKind.Departure) => SameRunwayRule.ArrivalBehindDeparture,
+                (OperationKind.Landing, OperationKind.Landing) => SameRunwayRule.ArrivalBehindLanding,
+                _ => SameRunwayRule.DepartureBehindDeparture,
+            };
+            double? requiredDistanceFt = rule switch
+            {
+                SameRunwayRule.DepartureBehindDeparture => RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
+                SameRunwayRule.ArrivalBehindDeparture => RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
+                SameRunwayRule.ArrivalBehindLanding => RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory),
+                _ => null,
+            };
+            string id = MakeSameRunwayEventId(preceding, succeeding, ruleReference, scenarioElapsedSeconds);
+            return new ActiveSameRunwayViolation(id, rule, preceding, succeeding, title, ruleReference, requiredText, requiredDistanceFt);
+        }
+
+        private static bool DepartureBehindDepartureSatisfied(
+            AircraftRunwayState precedingState,
+            AircraftRunwayState succeedingState,
+            double requiredFt
+        )
+        {
+            if (HasCrossedRunwayEnd(precedingState))
+            {
+                return true;
+            }
+
+            double spacingFt = precedingState.AlongThresholdFt - succeedingState.AlongThresholdFt;
+            return !precedingState.IsOnGround && (spacingFt >= requiredFt);
+        }
+
+        private static bool ArrivalBehindDepartureSatisfied(AircraftRunwayState precedingState, double requiredFt) =>
+            HasCrossedRunwayEnd(precedingState) || (!precedingState.IsOnGround && (precedingState.AlongThresholdFt >= requiredFt));
+
+        private static bool ArrivalBehindLandingSatisfied(AircraftRunwayState precedingState, double? requiredExceptionFt)
+        {
+            if (IsLandingClearOfRunway(precedingState))
+            {
+                return true;
+            }
+
+            return requiredExceptionFt.HasValue && precedingState.IsOnGround && (precedingState.AlongThresholdFt >= requiredExceptionFt.Value);
+        }
+
+        private static bool HasCrossedRunwayEnd(AircraftRunwayState state) => state.AlongThresholdFt >= state.Runway.LengthFt;
+
+        private static bool IsLandingClearOfRunway(AircraftRunwayState state)
+        {
+            if (!state.IsOnGround)
+            {
+                return true;
+            }
+
+            return state.Phase is not (LandingPhase or RunwayExitPhase or StopAndGoPhase or TouchAndGoPhase);
+        }
+
+        private static double RequiredDepartureBehindDepartureFt(SrsCategory preceding, SrsCategory succeeding)
+        {
+            if (preceding == SrsCategory.III || succeeding == SrsCategory.III)
+            {
+                return 6000.0;
+            }
+
+            if (preceding == SrsCategory.II || succeeding == SrsCategory.II)
+            {
+                return 4500.0;
+            }
+
+            return 3000.0;
+        }
+
+        private static double RequiredArrivalBehindDepartureFt(SrsCategory preceding, SrsCategory succeeding)
+        {
+            if (preceding == SrsCategory.III || succeeding == SrsCategory.III)
+            {
+                return 6000.0;
+            }
+
+            return succeeding == SrsCategory.II ? 4500.0 : 3000.0;
+        }
+
+        private static double? RequiredLandingBehindLandingExceptionFt(SrsCategory preceding, SrsCategory succeeding)
+        {
+            if (preceding == SrsCategory.III || succeeding == SrsCategory.III)
+            {
+                return null;
+            }
+
+            return succeeding == SrsCategory.II ? 4500.0 : 3000.0;
+        }
+
+        private static SrsCategory ResolveSrsCategory(AircraftState aircraft)
+        {
+            var record = FaaAircraftDatabase.Get(aircraft.AircraftType);
+            if (record?.Srs is { Length: > 0 } srs)
+            {
+                if (srs.Equals("I", StringComparison.OrdinalIgnoreCase))
+                {
+                    return SrsCategory.I;
+                }
+
+                if (srs.Equals("II", StringComparison.OrdinalIgnoreCase))
+                {
+                    return SrsCategory.II;
+                }
+
+                if (srs.Equals("III", StringComparison.OrdinalIgnoreCase))
+                {
+                    return SrsCategory.III;
+                }
+            }
+
+            if (record is not null)
+            {
+                bool small = (record.MtowLb ?? double.MaxValue) <= 12500.0;
+                bool prop =
+                    (record.PhysicalClassEngine?.Contains("Piston", StringComparison.OrdinalIgnoreCase) == true)
+                    || (record.PhysicalClassEngine?.Contains("Prop", StringComparison.OrdinalIgnoreCase) == true);
+                bool helicopter =
+                    (record.Class?.Contains("Helicopter", StringComparison.OrdinalIgnoreCase) == true)
+                    || (record.PhysicalClassEngine?.Contains("Turboshaft", StringComparison.OrdinalIgnoreCase) == true);
+
+                if (helicopter || (small && prop && record.NumEngines == 1))
+                {
+                    return SrsCategory.I;
+                }
+
+                if (small && prop && record.NumEngines == 2)
+                {
+                    return SrsCategory.II;
+                }
+            }
+
+            return AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter ? SrsCategory.I : SrsCategory.III;
+        }
+
+        private static string FormatDepartureSpacingActual(AircraftRunwayState precedingState, AircraftRunwayState succeedingState)
+        {
+            if (HasCrossedRunwayEnd(precedingState))
+            {
+                return "preceding departure crossed DER/runway end";
+            }
+
+            double spacingFt = Math.Max(0.0, precedingState.AlongThresholdFt - succeedingState.AlongThresholdFt);
+            return precedingState.IsOnGround
+                ? $"preceding departure still on runway, {spacingFt:N0} ft ahead"
+                : $"airborne, {spacingFt:N0} ft spacing";
+        }
+
+        private static string FormatThresholdDistanceActual(AircraftRunwayState state)
+        {
+            if (HasCrossedRunwayEnd(state))
+            {
+                return "preceding departure crossed DER/runway end";
+            }
+
+            return state.IsOnGround
+                ? $"preceding departure still on runway, {state.AlongThresholdFt:N0} ft from threshold"
+                : $"{state.AlongThresholdFt:N0} ft from threshold";
+        }
+
+        private static string FormatRunwayClearActual(AircraftRunwayState state) =>
+            IsLandingClearOfRunway(state)
+                ? "preceding landing clear of runway"
+                : $"preceding landing still on runway ({state.Phase?.Name ?? "unknown"})";
+
+        private static string FormatRunwayClearOrThresholdActual(AircraftRunwayState state) =>
+            IsLandingClearOfRunway(state) ? "preceding landing clear of runway" : $"preceding landing {state.AlongThresholdFt:N0} ft from threshold";
+
+        private static string BuildRunwayKey(RunwayInfo runway) => $"{runway.AirportId}/{runway.Designator}".ToUpperInvariant();
+
+        private static string MakeSameRunwayEventId(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            string ruleReference,
+            double scenarioElapsedSeconds
+        )
+        {
+            string normalizedRule = ruleReference.Replace(' ', '_').Replace('/', '_').Replace('§', 'S').Replace('(', '_').Replace(')', '_');
+            string runway = preceding.RunwayKey.Replace('/', '_');
+            return $"SRS_{runway}_{preceding.Callsign}_{succeeding.Callsign}_{normalizedRule}_{scenarioElapsedSeconds:F0}".ToUpperInvariant();
+        }
+
+        private sealed record AircraftRunwayState(
+            string Callsign,
+            string AircraftType,
+            bool IsOnGround,
+            LatLon Position,
+            Phase? Phase,
+            RunwayInfo Runway,
+            string RunwayKey,
+            double AlongThresholdFt,
+            SrsCategory SrsCategory
+        )
+        {
+            public bool IsTakeoffRoll => IsOnGround && Phase is TakeoffPhase;
+            public bool IsDepartureAfterRollStart => Phase is TakeoffPhase or InitialClimbPhase;
+            public bool IsArrivalApproach => Phase is FinalApproachPhase or LandingPhase;
+            public bool IsArrivalOrLanding => Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase;
+            public bool IsLandingAfterThreshold => (AlongThresholdFt >= 0.0) && (Phase is LandingPhase or RunwayExitPhase or HoldingAfterExitPhase);
+        }
+
+        private sealed record RunwayOperation(
+            OperationKind Kind,
+            string Callsign,
+            string AircraftType,
+            RunwayInfo Runway,
+            string RunwayKey,
+            SrsCategory SrsCategory,
+            double TriggeredAtSeconds
+        )
+        {
+            public string RunwayId => Runway.Designator;
+
+            public static RunwayOperation FromState(OperationKind kind, AircraftRunwayState state, double scenarioElapsedSeconds) =>
+                new(kind, state.Callsign, state.AircraftType, state.Runway, state.RunwayKey, state.SrsCategory, scenarioElapsedSeconds);
+        }
+
+        private sealed record ActiveSameRunwayViolation(
+            string Id,
+            SameRunwayRule Rule,
+            RunwayOperation Preceding,
+            RunwayOperation Succeeding,
+            string Title,
+            string RuleReference,
+            string RequiredText,
+            double? RequiredDistanceFt
+        )
+        {
+            public string RunwayId => Preceding.RunwayId;
+        }
+
+        private enum OperationKind
+        {
+            Departure,
+            Landing,
+        }
+
+        private enum SameRunwayRule
+        {
+            DepartureBehindDeparture,
+            DepartureBehindLanding,
+            ArrivalBehindDeparture,
+            ArrivalBehindLanding,
+        }
+
+        private enum SrsCategory
+        {
+            I,
+            II,
+            III,
+        }
     }
 }

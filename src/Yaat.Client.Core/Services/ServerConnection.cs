@@ -955,7 +955,9 @@ public record SoloTrainingEventDto(
     double? RequiredHorizontalNm,
     double? ActualHorizontalNm,
     double? RequiredVerticalFt,
-    double? ActualVerticalFt
+    double? ActualVerticalFt,
+    string? RequiredText,
+    string? ActualText
 );
 
 public record SessionReportDto(

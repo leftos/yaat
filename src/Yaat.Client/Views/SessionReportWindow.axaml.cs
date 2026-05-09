@@ -139,8 +139,12 @@ public partial class SessionReportWindow : Window
         {
             var started = TimeSpan.FromSeconds(dto.StartedAtSeconds);
             var exposure = TimeSpan.FromSeconds(dto.ExposureSeconds);
-            string required = FormatRequirement(dto.RequiredHorizontalNm, dto.RequiredVerticalFt);
-            string actual = FormatRequirement(dto.ActualHorizontalNm, dto.ActualVerticalFt);
+            string required = !string.IsNullOrWhiteSpace(dto.RequiredText)
+                ? dto.RequiredText
+                : FormatRequirement(dto.RequiredHorizontalNm, dto.RequiredVerticalFt);
+            string actual = !string.IsNullOrWhiteSpace(dto.ActualText)
+                ? dto.ActualText
+                : FormatRequirement(dto.ActualHorizontalNm, dto.ActualVerticalFt);
             return new EventRow(
                 started.ToString(@"h\:mm\:ss"),
                 dto.Severity,
