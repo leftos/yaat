@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.2.1-alpha [2026/05/09]
+
+### Highlights
+- `CWT`, `CTO ... CWT`, and `CLAND ... CWT` issue caution wake turbulence; Session Report flags missing wake-advisory proof.
+- Session Report adds runway-separation scoring for same-pavement, intersecting, and converging operations, plus projected/intersecting wake intervals and Class C outer-area service.
+- Generated arrival callsigns now match destination and aircraft type using recent airport service data and fleet matching.
+- Solo-training initial contact rules support ARTCC-specific handoff timing, position-type pairs, and exact callsign exceptions.
 
 ### Added
 - Arrival generators use recent airport-service data and fleet matching so callsigns fit both destination and aircraft type.
