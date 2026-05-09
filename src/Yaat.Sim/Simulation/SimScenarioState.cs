@@ -101,6 +101,10 @@ public sealed class SimScenarioState
     // alongside navigation/custom data; not snapshotted.
     public InitialContactTransferCatalog InitialContactTransfers { get; set; } = InitialContactTransferCatalog.Empty;
 
+    // ARTCC-specific static wake scoring directives and waivers. Runtime data loaded
+    // alongside navigation/custom data; not snapshotted.
+    public WakeDirectiveCatalog WakeDirectives { get; set; } = WakeDirectiveCatalog.Empty;
+
     // Timing and settings
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
     public bool IsStudentTowerPosition { get; set; }

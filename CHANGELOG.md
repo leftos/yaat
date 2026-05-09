@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- ARTCC `WakeDirectives` folders let facilities adjust Session Report wake scoring for documented local waivers and wake-advisory directives.
+
 ## v0.2.1-alpha [2026/05/09]
 
 ### Highlights

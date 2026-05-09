@@ -61,9 +61,9 @@ public sealed record SoloTrainingReportData(
     ApproachReportData ApproachReport
 );
 
-public sealed record SoloTrainingServiceContext(InitialContactEligibilityContext InitialContactEligibility)
+public sealed record SoloTrainingServiceContext(InitialContactEligibilityContext InitialContactEligibility, WakeDirectiveCatalog WakeDirectives)
 {
-    public static SoloTrainingServiceContext Empty { get; } = new(InitialContactEligibilityContext.Empty);
+    public static SoloTrainingServiceContext Empty { get; } = new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty);
 }
 
 public sealed class SoloTrainingEvaluator
@@ -123,16 +123,12 @@ public sealed class SoloTrainingEvaluator
             else if (parsedCommand is WakeAdvisoryCommand)
             {
                 var currentWakeContexts = _sameRunwayTracker
-                    .SampleActiveViolations([.. knownAircraft], scenarioElapsedSeconds)
-                    .Where(sample =>
-                        IsWakeAdvisoryContext(sample)
-                        && sample.Callsigns.Count >= 2
-                        && sample.Callsigns[1].Equals(aircraft.Callsign, StringComparison.OrdinalIgnoreCase)
-                    )
+                    .SampleActiveWakeContexts([.. knownAircraft], scenarioElapsedSeconds)
+                    .Where(context => context.SucceedingCallsign.Equals(aircraft.Callsign, StringComparison.OrdinalIgnoreCase))
                     .ToList();
                 if (currentWakeContexts.Count == 1)
                 {
-                    _wakeAdvisoryProofs.Add(new WakeAdvisoryProof(aircraft.Callsign, scenarioElapsedSeconds, currentWakeContexts[0].Id));
+                    _wakeAdvisoryProofs.Add(new WakeAdvisoryProof(aircraft.Callsign, scenarioElapsedSeconds, currentWakeContexts[0].SourceEventId));
                 }
             }
             else if (
@@ -161,7 +157,8 @@ public sealed class SoloTrainingEvaluator
             scenarioElapsedSeconds,
             airspace,
             new SoloTrainingServiceContext(
-                new InitialContactEligibilityContext(studentPosition, null, null, null, InitialContactTransferCatalog.Empty)
+                new InitialContactEligibilityContext(studentPosition, null, null, null, InitialContactTransferCatalog.Empty),
+                WakeDirectiveCatalog.Empty
             )
         );
     }
@@ -251,8 +248,16 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        var runwaySamples = _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds);
-        foreach (var wakeAdvisorySample in SampleWakeAdvisoryProofs(runwaySamples, aircraft, scenarioElapsedSeconds, serviceContext))
+        var runwayEvaluation = _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds, serviceContext);
+        foreach (
+            var wakeAdvisorySample in SampleWakeAdvisoryProofs(
+                runwayEvaluation.RunwayEvents,
+                runwayEvaluation.WakeContexts,
+                aircraft,
+                scenarioElapsedSeconds,
+                serviceContext
+            )
+        )
         {
             observedThisTick.Add(wakeAdvisorySample.Id);
             var notice = Upsert(wakeAdvisorySample, scenarioElapsedSeconds);
@@ -262,7 +267,7 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        foreach (var sample in runwaySamples)
+        foreach (var sample in runwayEvaluation.RunwayEvents.Select(e => e.Sample))
         {
             observedThisTick.Add(sample.Id);
             var notice = Upsert(sample, scenarioElapsedSeconds);
@@ -763,15 +768,29 @@ public sealed class SoloTrainingEvaluator
     }
 
     private List<TrainingEventSample> SampleWakeAdvisoryProofs(
-        List<TrainingEventSample> runwaySamples,
+        IReadOnlyList<RunwayEventSample> runwaySamples,
+        IReadOnlyList<WakeDirectiveContext> wakeContexts,
         List<AircraftState> aircraft,
         double scenarioElapsedSeconds,
         SoloTrainingServiceContext serviceContext
     )
     {
         var candidates = new List<WakeAdvisoryCandidate>();
-        foreach (var sample in runwaySamples)
+        var contextIdsWithRunwaySamples = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var runwaySample in runwaySamples)
         {
+            var sample = runwaySample.Sample;
+            if (runwaySample.WakeContext is not null)
+            {
+                contextIdsWithRunwaySamples.Add(runwaySample.WakeContext.SourceEventId);
+            }
+
+            var wakeContext = ApplyServiceContext(runwaySample.WakeContext, serviceContext);
+            if (wakeContext is not null && serviceContext.WakeDirectives.FindMatches(wakeContext).Any(HasSuppressWakeAdvisoryEffect))
+            {
+                continue;
+            }
+
             if (!IsWakeAdvisoryContext(sample) || sample.Callsigns.Count < 2)
             {
                 continue;
@@ -784,7 +803,47 @@ public sealed class SoloTrainingEvaluator
                 continue;
             }
 
-            candidates.Add(new WakeAdvisoryCandidate(sample, recipient, target));
+            candidates.Add(
+                new WakeAdvisoryCandidate(
+                    sample.Id,
+                    recipient,
+                    target,
+                    sample.RuleReference,
+                    sample.RunwayId,
+                    sample.ActualHorizontalNm,
+                    sample.ActualVerticalFt
+                )
+            );
+        }
+
+        foreach (var context in wakeContexts)
+        {
+            if (contextIdsWithRunwaySamples.Contains(context.SourceEventId))
+            {
+                continue;
+            }
+
+            var resolvedContext = ApplyServiceContext(context, serviceContext);
+            var matches = serviceContext.WakeDirectives.FindMatches(resolvedContext!);
+            if (!matches.Any(HasRequireWakeAdvisoryEffect) || matches.Any(HasSuppressWakeAdvisoryEffect))
+            {
+                continue;
+            }
+
+            var recipient = aircraft.FirstOrDefault(a => a.Callsign.Equals(context.SucceedingCallsign, StringComparison.OrdinalIgnoreCase));
+            var target = aircraft.FirstOrDefault(a => a.Callsign.Equals(context.PrecedingCallsign, StringComparison.OrdinalIgnoreCase));
+            if (recipient is null || target is null || !IsStudentServiceRecipient(recipient, serviceContext))
+            {
+                continue;
+            }
+
+            string ruleReference =
+                matches.FirstOrDefault(rule => !string.IsNullOrWhiteSpace(rule.RuleReference))?.RuleReference ?? context.SourceRuleReference;
+            string runwayId =
+                resolvedContext!.Relation == WakeDirectiveRelation.SameRunway
+                    ? resolvedContext.PrecedingRunwayId
+                    : $"{resolvedContext.PrecedingRunwayId}/{resolvedContext.SucceedingRunwayId}";
+            candidates.Add(new WakeAdvisoryCandidate(resolvedContext.SourceEventId, recipient, target, ruleReference, runwayId, null, null));
         }
 
         var countByRecipient = candidates
@@ -805,6 +864,19 @@ public sealed class SoloTrainingEvaluator
         return results;
     }
 
+    private static bool HasRequireWakeAdvisoryEffect(WakeDirectiveRule rule) => rule.Effects.Contains(WakeDirectiveEffect.RequireWakeAdvisory);
+
+    private static bool HasSuppressWakeAdvisoryEffect(WakeDirectiveRule rule) => rule.Effects.Contains(WakeDirectiveEffect.SuppressWakeAdvisory);
+
+    private static WakeDirectiveContext? ApplyServiceContext(WakeDirectiveContext? context, SoloTrainingServiceContext serviceContext) =>
+        context is null
+            ? null
+            : context with
+            {
+                ArtccId = serviceContext.InitialContactEligibility.ArtccId ?? context.ArtccId,
+                AirportId = context.AirportId ?? serviceContext.InitialContactEligibility.PrimaryAirportId,
+            };
+
     private static bool IsWakeAdvisoryContext(TrainingEventSample sample) =>
         sample.Category == SoloTrainingEventCategory.RunwayWake
         && (
@@ -818,7 +890,7 @@ public sealed class SoloTrainingEvaluator
         {
             if (
                 proof.RecipientCallsign.Equals(candidate.Recipient.Callsign, StringComparison.OrdinalIgnoreCase)
-                && proof.CanApplyTo(candidate.Source.Id)
+                && proof.CanApplyTo(candidate.SourceEventId)
             )
             {
                 return true;
@@ -830,21 +902,21 @@ public sealed class SoloTrainingEvaluator
 
     private static TrainingEventSample CreateWakeAdvisorySample(WakeAdvisoryCandidate candidate, double scenarioElapsedSeconds)
     {
-        string id = $"WAKE_ADVISORY_{NormalizeCallsign(candidate.Recipient.Callsign)}_{candidate.Source.Id}";
+        string id = $"WAKE_ADVISORY_{NormalizeCallsign(candidate.Recipient.Callsign)}_{candidate.SourceEventId}";
         return new TrainingEventSample(
             id,
             SoloTrainingEventCategory.AdvisoryVisual,
             SoloTrainingEventSeverity.Warning,
             "Wake turbulence advisory missing",
             $"{candidate.Recipient.Callsign}: issue caution wake turbulence for {candidate.Target.Callsign} before the wake-sensitive operation.",
-            $"7110.65 §2-1-20; {candidate.Source.RuleReference}",
+            $"7110.65 §2-1-20; {candidate.SourceRuleReference}",
             scenarioElapsedSeconds,
             [candidate.Recipient.Callsign, candidate.Target.Callsign],
-            candidate.Source.RunwayId,
+            candidate.RunwayId,
             null,
-            candidate.Source.ActualHorizontalNm,
+            candidate.ActualHorizontalNm,
             null,
-            candidate.Source.ActualVerticalFt,
+            candidate.ActualVerticalFt,
             "Issue caution wake turbulence when wake from the preceding aircraft may affect the succeeding aircraft.",
             $"No accepted CWT proof for {candidate.Recipient.Callsign}."
         );
@@ -1115,7 +1187,19 @@ public sealed class SoloTrainingEvaluator
 
     private sealed record SeparationTrainingSample(TrainingEventSample Event, SeparationRequirement Requirement);
 
-    private sealed record WakeAdvisoryCandidate(TrainingEventSample Source, AircraftState Recipient, AircraftState Target);
+    private sealed record WakeAdvisoryCandidate(
+        string SourceEventId,
+        AircraftState Recipient,
+        AircraftState Target,
+        string SourceRuleReference,
+        string? RunwayId,
+        double? ActualHorizontalNm,
+        double? ActualVerticalFt
+    );
+
+    private sealed record RunwayEvaluationResult(IReadOnlyList<RunwayEventSample> RunwayEvents, IReadOnlyList<WakeDirectiveContext> WakeContexts);
+
+    private sealed record RunwayEventSample(TrainingEventSample Sample, WakeDirectiveContext? WakeContext);
 
     private sealed class WakeAdvisoryProof(string recipientCallsign, double scenarioElapsedSeconds, string? sourceEventId)
     {
@@ -1249,16 +1333,25 @@ public sealed class SoloTrainingEvaluator
         private readonly Dictionary<string, ActiveSameRunwayViolation> _activeViolations = new(StringComparer.OrdinalIgnoreCase);
         private const double ProjectedConvergingRunwayLimitNm = 1.0;
 
-        public List<TrainingEventSample> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds)
+        public RunwayEvaluationResult Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, SoloTrainingServiceContext serviceContext)
         {
-            var samples = new List<TrainingEventSample>();
+            var samples = new List<RunwayEventSample>();
+            var wakeContexts = new Dictionary<string, WakeDirectiveContext>(StringComparer.OrdinalIgnoreCase);
             var currentStates = BuildCurrentStates(aircraft);
 
             foreach (var violation in _activeViolations.Values.ToList())
             {
+                if (violation.WakeContext is not null)
+                {
+                    wakeContexts[violation.WakeContext.SourceEventId] = violation.WakeContext;
+                }
+
                 if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
                 {
-                    samples.Add(sample);
+                    if (!IsWakeIntervalSuppressed(violation.WakeContext, serviceContext))
+                    {
+                        samples.Add(new RunwayEventSample(sample, violation.WakeContext));
+                    }
                 }
                 else
                 {
@@ -1280,16 +1373,24 @@ public sealed class SoloTrainingEvaluator
                     _activeViolations[violation.Id] = violation;
                     if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
                     {
-                        samples.Add(sample);
+                        samples.Add(new RunwayEventSample(sample, null));
                     }
                 }
 
                 foreach (var violation in CreateWakeViolations(operation, currentStates, scenarioElapsedSeconds))
                 {
                     _activeViolations[violation.Id] = violation;
+                    if (violation.WakeContext is not null)
+                    {
+                        wakeContexts[violation.WakeContext.SourceEventId] = violation.WakeContext;
+                    }
+
                     if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
                     {
-                        samples.Add(sample);
+                        if (!IsWakeIntervalSuppressed(violation.WakeContext, serviceContext))
+                        {
+                            samples.Add(new RunwayEventSample(sample, violation.WakeContext));
+                        }
                     }
                 }
 
@@ -1303,22 +1404,32 @@ public sealed class SoloTrainingEvaluator
                 _previousStates[state.Callsign] = state;
             }
 
-            return samples;
+            foreach (var context in SamplePotentialWakeContexts(currentStates, scenarioElapsedSeconds))
+            {
+                wakeContexts[context.SourceEventId] = context;
+            }
+
+            return new RunwayEvaluationResult(samples, wakeContexts.Values.ToList());
         }
 
-        public List<TrainingEventSample> SampleActiveViolations(List<AircraftState> aircraft, double scenarioElapsedSeconds)
+        public List<WakeDirectiveContext> SampleActiveWakeContexts(List<AircraftState> aircraft, double scenarioElapsedSeconds)
         {
-            var samples = new List<TrainingEventSample>();
+            var contexts = new Dictionary<string, WakeDirectiveContext>(StringComparer.OrdinalIgnoreCase);
             var currentStates = BuildCurrentStates(aircraft);
             foreach (var violation in _activeViolations.Values)
             {
-                if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
+                if (violation.WakeContext is not null && TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is not null)
                 {
-                    samples.Add(sample);
+                    contexts[violation.WakeContext.SourceEventId] = violation.WakeContext;
                 }
             }
 
-            return samples;
+            foreach (var context in SamplePotentialWakeContexts(currentStates, scenarioElapsedSeconds))
+            {
+                contexts[context.SourceEventId] = context;
+            }
+
+            return contexts.Values.ToList();
         }
 
         public void Reset()
@@ -1328,6 +1439,10 @@ public sealed class SoloTrainingEvaluator
             _recentOperations.Clear();
             _activeViolations.Clear();
         }
+
+        private static bool IsWakeIntervalSuppressed(WakeDirectiveContext? context, SoloTrainingServiceContext serviceContext) =>
+            ApplyServiceContext(context, serviceContext) is { } resolved
+            && serviceContext.WakeDirectives.FindMatches(resolved).Any(rule => rule.Effects.Contains(WakeDirectiveEffect.SuppressWakeInterval));
 
         private static Dictionary<string, AircraftRunwayState> BuildCurrentStates(List<AircraftState> aircraft)
         {
@@ -1737,6 +1852,103 @@ public sealed class SoloTrainingEvaluator
             }
 
             return violations;
+        }
+
+        private List<WakeDirectiveContext> SamplePotentialWakeContexts(Dictionary<string, AircraftRunwayState> states, double scenarioElapsedSeconds)
+        {
+            var contexts = new Dictionary<string, WakeDirectiveContext>(StringComparer.OrdinalIgnoreCase);
+            foreach (var succeeding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
+            {
+                if (!states.TryGetValue(succeeding.Callsign, out var succeedingState))
+                {
+                    continue;
+                }
+
+                foreach (var preceding in _recentOperations.Where(o => o.Kind is OperationKind.Departure or OperationKind.Landing))
+                {
+                    if (
+                        string.Equals(preceding.Callsign, succeeding.Callsign, StringComparison.OrdinalIgnoreCase)
+                        || (preceding.TriggeredAtSeconds > succeeding.TriggeredAtSeconds)
+                        || !states.TryGetValue(preceding.Callsign, out var precedingState)
+                    )
+                    {
+                        continue;
+                    }
+
+                    var relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
+                    if (TryResolveDepartureWakeRequirement(preceding, succeeding, precedingState, succeedingState, relation) is not { } requirement)
+                    {
+                        continue;
+                    }
+
+                    string id = MakeRunwayEventId(preceding, succeeding, requirement.RuleReference, relation, succeeding.TriggeredAtSeconds);
+                    contexts[id] = BuildWakeDirectiveContext(id, preceding, succeeding, requirement.RuleReference, relation);
+                }
+            }
+
+            foreach (var preceding in _recentOperations.Where(o => o.Kind == OperationKind.Landing))
+            {
+                if (!states.TryGetValue(preceding.Callsign, out var precedingState))
+                {
+                    continue;
+                }
+
+                foreach (var succeedingState in states.Values)
+                {
+                    if (
+                        string.Equals(preceding.Callsign, succeedingState.Callsign, StringComparison.OrdinalIgnoreCase)
+                        || !succeedingState.IsArrivalApproach
+                        || !RunwaysShareApproachWake(preceding.Runway, succeedingState.Runway)
+                    )
+                    {
+                        continue;
+                    }
+
+                    if (RequiredApproachWakeNm(preceding.CwtCategory, succeedingState.CwtCategory) is null)
+                    {
+                        continue;
+                    }
+
+                    var succeeding = RunwayOperation.FromState(OperationKind.Landing, succeedingState, scenarioElapsedSeconds);
+                    string ruleReference = "7110.65 §5-5-4(h)";
+                    string id = MakeRunwayEventId(preceding, succeeding, ruleReference, RunwayRelation.SameActive(), scenarioElapsedSeconds);
+                    contexts[id] = BuildWakeDirectiveContext(id, preceding, succeeding, ruleReference, RunwayRelation.SameActive());
+                }
+            }
+
+            foreach (var succeeding in _recentOperations.Where(o => o.Kind == OperationKind.Landing))
+            {
+                if (!states.ContainsKey(succeeding.Callsign))
+                {
+                    continue;
+                }
+
+                foreach (var preceding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
+                {
+                    if (
+                        string.Equals(preceding.Callsign, succeeding.Callsign, StringComparison.OrdinalIgnoreCase)
+                        || (preceding.TriggeredAtSeconds > succeeding.TriggeredAtSeconds)
+                    )
+                    {
+                        continue;
+                    }
+
+                    if (
+                        TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) is not { } relation
+                        || !IsProjectedOrPhysicalIntersection(relation)
+                        || TryResolveProjectedFlightPathWakeRequirement(preceding, succeeding, relation, arrivalBehindDeparture: true)
+                            is not { } requirement
+                    )
+                    {
+                        continue;
+                    }
+
+                    string id = MakeRunwayEventId(preceding, succeeding, requirement.RuleReference, relation, succeeding.TriggeredAtSeconds);
+                    contexts[id] = BuildWakeDirectiveContext(id, preceding, succeeding, requirement.RuleReference, relation);
+                }
+            }
+
+            return contexts.Values.ToList();
         }
 
         private static ActiveSameRunwayViolation? TryCreateDepartureBehindDeparture(
@@ -2193,7 +2405,8 @@ public sealed class SoloTrainingEvaluator
                 requiredDistanceFt,
                 null,
                 null,
-                relation
+                relation,
+                null
             );
         }
 
@@ -2211,6 +2424,7 @@ public sealed class SoloTrainingEvaluator
         )
         {
             string id = MakeRunwayEventId(preceding, succeeding, ruleReference, relation, scenarioElapsedSeconds);
+            var context = BuildWakeDirectiveContext(id, preceding, succeeding, ruleReference, relation);
             return new ActiveSameRunwayViolation(
                 id,
                 rule,
@@ -2222,9 +2436,64 @@ public sealed class SoloTrainingEvaluator
                 null,
                 requiredTimeSeconds,
                 requiredDistanceNm,
-                relation
+                relation,
+                context
             );
         }
+
+        private static WakeDirectiveContext BuildWakeDirectiveContext(
+            string sourceEventId,
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            string ruleReference,
+            RunwayRelation relation
+        )
+        {
+            string? airportId = !string.IsNullOrWhiteSpace(preceding.Runway.AirportId)
+                ? NavigationDatabase.NormalizeAirport(preceding.Runway.AirportId)
+                : null;
+            return new WakeDirectiveContext(
+                sourceEventId,
+                null,
+                airportId,
+                preceding.RunwayId,
+                succeeding.RunwayId,
+                preceding.Callsign,
+                succeeding.Callsign,
+                ResolveWakeDirectiveOperation(preceding.Kind, succeeding.Kind, ruleReference),
+                ResolveWakeDirectiveRelation(preceding.Runway, succeeding.Runway, relation),
+                CwtToChar(preceding.CwtCategory),
+                CwtToChar(succeeding.CwtCategory),
+                ruleReference
+            );
+        }
+
+        private static WakeDirectiveOperation ResolveWakeDirectiveOperation(
+            OperationKind preceding,
+            OperationKind succeeding,
+            string ruleReference
+        ) =>
+            ruleReference.Contains("§5-5-4", StringComparison.OrdinalIgnoreCase)
+                ? WakeDirectiveOperation.ApproachBehindArrival
+                : (succeeding, preceding) switch
+                {
+                    (OperationKind.Departure, OperationKind.Departure) => WakeDirectiveOperation.DepartureBehindDeparture,
+                    (OperationKind.Departure, OperationKind.Landing) => WakeDirectiveOperation.DepartureBehindLanding,
+                    (OperationKind.Landing, OperationKind.Departure) => WakeDirectiveOperation.ArrivalBehindDeparture,
+                    (OperationKind.Landing, OperationKind.Landing) => WakeDirectiveOperation.ArrivalBehindLanding,
+                    _ => WakeDirectiveOperation.Any,
+                };
+
+        private static WakeDirectiveRelation ResolveWakeDirectiveRelation(RunwayInfo preceding, RunwayInfo succeeding, RunwayRelation relation) =>
+            relation.Kind switch
+            {
+                RunwayRelationKind.Intersecting => WakeDirectiveRelation.Intersecting,
+                RunwayRelationKind.ProjectedConverging => WakeDirectiveRelation.ProjectedConverging,
+                RunwayRelationKind.OppositeDirectionSamePavement => WakeDirectiveRelation.OppositeDirection,
+                _ => IsSameRunway(preceding, succeeding) ? WakeDirectiveRelation.SameRunway : WakeDirectiveRelation.CloseParallel,
+            };
+
+        private static char CwtToChar(CwtCategory category) => category.ToString()[0];
 
         private static DepartureWakeRequirement? TryResolveDepartureWakeRequirement(
             RunwayOperation preceding,
@@ -2887,7 +3156,8 @@ public sealed class SoloTrainingEvaluator
             double? RequiredDistanceFt,
             double? RequiredTimeSeconds,
             double? RequiredDistanceNm,
-            RunwayRelation Relation
+            RunwayRelation Relation,
+            WakeDirectiveContext? WakeContext
         )
         {
             public string RunwayId =>

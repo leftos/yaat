@@ -312,7 +312,7 @@ AircraftPerformance.cs         # Unified perf API: profile-first with category f
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
-Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
+Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation
@@ -509,10 +509,12 @@ Data/TaxiRouteDefinition.cs / TaxiRouteLoader.cs / TaxiRouteCatalog.cs  # Per-ai
                                # Right-click "Preset taxi route" submenu in GroundView surfaces applicable routes per aircraft.
 Data/InitialContactTransferRule.cs / InitialContactTransferLoader.cs / InitialContactTransferCatalog.cs
                                # ARTCC/airport SOP exceptions for pilot initial-contact comm transfer, loaded from Data/ARTCCs/{ARTCC}/InitialContactTransfers/*.json.
+Data/WakeDirectiveRule.cs / WakeDirectiveLoader.cs / WakeDirectiveCatalog.cs
+                               # ARTCC static wake waivers and wake-advisory scoring directives, loaded from Data/ARTCCs/{ARTCC}/WakeDirectives/*.json.
 Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry.
 Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspacePoint.cs / AirspaceClass.cs # Airspace model primitives plus crossing result.
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
-Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, TaxiRoutes, InitialContactTransfers — see Data/ARTCCs/README.md).
+Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, TaxiRoutes, InitialContactTransfers, WakeDirectives — see Data/ARTCCs/README.md).
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model

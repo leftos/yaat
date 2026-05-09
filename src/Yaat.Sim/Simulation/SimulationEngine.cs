@@ -350,6 +350,9 @@ public sealed class SimulationEngine
             RngSeed = rngSeed,
             OriginalScenarioJson = json,
             PrimaryAirportId = result.PrimaryAirportId,
+            ArtccId = result.ArtccId,
+            InitialContactTransfers = NavigationDatabase.Instance.InitialContactTransfers,
+            WakeDirectives = NavigationDatabase.Instance.WakeDirectives,
             HasSoloParkingInitialCallupSource = result.HasParkingSpawns,
             HasSoloArrivalGeneratorSource = result.HasArrivalGenerators,
         };

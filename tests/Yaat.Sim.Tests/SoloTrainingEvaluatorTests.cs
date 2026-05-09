@@ -649,7 +649,8 @@ public sealed class SoloTrainingEvaluatorTests
         b.Track.Owner = student;
         var evaluator = new SoloTrainingEvaluator();
         var serviceContext = new SoloTrainingServiceContext(
-            new InitialContactEligibilityContext(student, "TWR", "ZOA", "KSFO", InitialContactTransferCatalog.Empty)
+            new InitialContactEligibilityContext(student, "TWR", "ZOA", "KSFO", InitialContactTransferCatalog.Empty),
+            WakeDirectiveCatalog.Empty
         );
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, serviceContext);
@@ -1337,6 +1338,176 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_WakeDirectiveSuppressesMatchingWakeIntervalButKeepsAdvisoryRequirement()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 100,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(SuppressWakeIntervalRule())
+        );
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 160,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(SuppressWakeIntervalRule())
+        );
+
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
+        var advisory = Assert.Single(
+            notices,
+            e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing"
+        );
+        Assert.Equal(follower.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(lead.Callsign, advisory.Callsigns[1]);
+        Assert.Contains("facility directive", advisory.RuleReference);
+    }
+
+    [Fact]
+    public void Evaluate_WakeDirectiveDoesNotSuppressNonMatchingCwtCategory()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 100,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(NonMatchingCwtRule())
+        );
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 160,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(NonMatchingCwtRule())
+        );
+
+        Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
+    }
+
+    [Fact]
+    public void Evaluate_WakeDirectiveRequiresAdvisoryWhenWakeIntervalIsSatisfied()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 100,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(RequireWakeAdvisoryRule())
+        );
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 230,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(RequireWakeAdvisoryRule())
+        );
+
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+    }
+
+    [Fact]
+    public void Evaluate_WakeDirectiveAdvisoryIsSuppressedByCwtProof()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 100,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(RequireWakeAdvisoryRule())
+        );
+        evaluator.RecordControllerCommand(
+            follower,
+            SingleCommand(new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = true }),
+            scenarioElapsedSeconds: 229,
+            [lead, follower]
+        );
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 230,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(RequireWakeAdvisoryRule())
+        );
+
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+    }
+
+    [Fact]
+    public void Evaluate_WakeDirectiveSuppressesAdvisoryOnly()
+    {
+        var runway = CreateRunway();
+        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 100,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(SuppressWakeAdvisoryRule())
+        );
+
+        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate(
+            [lead, follower],
+            scenarioElapsedSeconds: 160,
+            AirspaceDatabase.Default,
+            WakeDirectiveServiceContext(SuppressWakeAdvisoryRule())
+        );
+
+        Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+    }
+
+    [Fact]
     public void Evaluate_DepartureWakeIntervalAfterRequiredTime_DoesNotRecordViolation()
     {
         var runway = CreateRunway();
@@ -1620,6 +1791,52 @@ public sealed class SoloTrainingEvaluatorTests
         b.TrueTrack = new TrueHeading(270);
         return (a, b);
     }
+
+    private static SoloTrainingServiceContext WakeDirectiveServiceContext(params WakeDirectiveRule[] rules) =>
+        new(new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty), new WakeDirectiveCatalog(rules));
+
+    private static WakeDirectiveRule SuppressWakeIntervalRule() =>
+        WakeDirectiveRule("test-suppress-wake-interval", WakeDirectiveEffect.SuppressWakeInterval, WakeDirectiveEffect.RequireWakeAdvisory);
+
+    private static WakeDirectiveRule RequireWakeAdvisoryRule() =>
+        WakeDirectiveRule("test-require-wake-advisory", WakeDirectiveEffect.RequireWakeAdvisory);
+
+    private static WakeDirectiveRule SuppressWakeAdvisoryRule() =>
+        WakeDirectiveRule("test-suppress-wake-advisory", WakeDirectiveEffect.SuppressWakeAdvisory);
+
+    private static WakeDirectiveRule NonMatchingCwtRule() =>
+        new()
+        {
+            Id = "test-nonmatching-cwt",
+            ArtccId = "ZOA",
+            AirportId = "KOAK",
+            Runways = ["28R"],
+            Operation = WakeDirectiveOperation.DepartureBehindDeparture,
+            Relation = WakeDirectiveRelation.SameRunway,
+            PrecedingCwt = ['B'],
+            SucceedingCwt = ['I'],
+            SourceRuleReferences = ["7110.65 §3-9-6(f)"],
+            Effects = [WakeDirectiveEffect.SuppressWakeInterval],
+            RuleReference = "7110.65 §2-1-20; facility directive",
+            Notes = "Unit test directive",
+        };
+
+    private static WakeDirectiveRule WakeDirectiveRule(string id, params WakeDirectiveEffect[] effects) =>
+        new()
+        {
+            Id = id,
+            ArtccId = "ZOA",
+            AirportId = "KOAK",
+            Runways = ["28R"],
+            Operation = WakeDirectiveOperation.DepartureBehindDeparture,
+            Relation = WakeDirectiveRelation.SameRunway,
+            PrecedingCwt = ['B'],
+            SucceedingCwt = ['F'],
+            SourceRuleReferences = ["7110.65 §3-9-6(f)"],
+            Effects = [.. effects],
+            RuleReference = "7110.65 §2-1-20; facility directive",
+            Notes = "Unit test directive",
+        };
 
     private static CompoundCommand SingleCommand(ParsedCommand command) => new([new ParsedBlock(null, [command])]);
 

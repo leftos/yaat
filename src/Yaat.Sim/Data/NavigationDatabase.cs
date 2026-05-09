@@ -112,6 +112,7 @@ public sealed class NavigationDatabase
         LoadCustomFixes(artccsBaseDir);
         LoadFixPronunciations(artccsBaseDir);
         InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
+        WakeDirectives = LoadWakeDirectives(artccsBaseDir);
         TaxiRoutes = LoadTaxiRoutes(artccsBaseDir);
         AllFixNames = BuildSortedNames();
     }
@@ -123,6 +124,7 @@ public sealed class NavigationDatabase
     {
         _cifpFilePath = "";
         InitialContactTransfers = InitialContactTransferCatalog.Empty;
+        WakeDirectives = WakeDirectiveCatalog.Empty;
         TaxiRoutes = TaxiRouteCatalog.Empty;
         AllFixNames = [];
     }
@@ -139,6 +141,12 @@ public sealed class NavigationDatabase
     /// and source/destination position type. Loaded from <c>Data/ARTCCs/{ARTCC}/InitialContactTransfers/*.json</c>.
     /// </summary>
     public InitialContactTransferCatalog InitialContactTransfers { get; }
+
+    /// <summary>
+    /// ARTCC-specific wake scoring directives and static waivers, loaded from
+    /// <c>Data/ARTCCs/{ARTCC}/WakeDirectives/*.json</c>.
+    /// </summary>
+    public WakeDirectiveCatalog WakeDirectives { get; }
 
     /// <summary>
     /// Creates a NavigationDatabase pre-populated with test data. Intended only for unit tests.
@@ -1515,6 +1523,20 @@ public sealed class NavigationDatabase
         Log.LogInformation("Initial contact transfers: {Count} rule(s) loaded from {BaseDir}", loadResult.Rules.Count, baseDir);
 
         return new InitialContactTransferCatalog(loadResult.Rules);
+    }
+
+    private static WakeDirectiveCatalog LoadWakeDirectives(string baseDir)
+    {
+        var loadResult = WakeDirectiveLoader.LoadAll(baseDir);
+
+        foreach (var warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Wake directive: {Warning}", warning);
+        }
+
+        Log.LogInformation("Wake directives: {Count} rule(s) loaded from {BaseDir}", loadResult.Rules.Count, baseDir);
+
+        return new WakeDirectiveCatalog(loadResult.Rules);
     }
 
     private string[] BuildSortedNames()
