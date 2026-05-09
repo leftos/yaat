@@ -2183,11 +2183,11 @@ public partial class MainViewModel : ObservableObject
         Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));
     }
 
-    private void ApplySessionSettings(SessionSettingsDto dto)
+    internal void ApplySessionSettings(SessionSettingsDto dto)
     {
         _isApplyingSessionSettings = true;
-        ActiveAutoDeleteMode = dto.AutoDeleteMode;
-        SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteMode);
+        ActiveAutoDeleteMode = dto.EffectiveAutoDeleteMode;
+        SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteOverride);
         SessionAutoAcceptDelaySeconds = dto.AutoAcceptDelaySeconds;
         SessionAutoClearedToLand = dto.AutoClearedToLand;
         SessionAutoCrossRunway = dto.AutoCrossRunway;
@@ -2204,27 +2204,12 @@ public partial class MainViewModel : ObservableObject
         ApplyAutoClearedToLandLocally(dto.AutoClearedToLand);
     }
 
-    private void ApplySoloPacingSessionState(
-        int parkingInitialCallupRatePercent,
-        int arrivalGeneratorRatePercent,
-        bool hasParkingInitialCallupSource,
-        bool hasArrivalGeneratorSource
-    )
-    {
-        _isApplyingSessionSettings = true;
-        SessionSoloParkingInitialCallupRatePercent = parkingInitialCallupRatePercent;
-        SessionSoloParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(parkingInitialCallupRatePercent);
-        SessionSoloArrivalGeneratorRatePercent = arrivalGeneratorRatePercent;
-        SessionHasSoloParkingInitialCallupSource = hasParkingInitialCallupSource;
-        SessionHasSoloArrivalGeneratorSource = hasArrivalGeneratorSource;
-        _isApplyingSessionSettings = false;
-    }
-
     private void ApplySessionSettingsFromRoom(RoomStateDto state)
     {
         ApplySessionSettings(
             new SessionSettingsDto(
-                state.AutoDeleteMode,
+                state.AutoDeleteOverride,
+                state.EffectiveAutoDeleteMode,
                 state.AutoAcceptDelaySeconds,
                 state.AutoClearedToLand,
                 state.AutoCrossRunway,
@@ -2243,7 +2228,8 @@ public partial class MainViewModel : ObservableObject
     {
         ApplySessionSettings(
             new SessionSettingsDto(
-                dto.AutoDeleteMode,
+                dto.AutoDeleteOverride,
+                dto.EffectiveAutoDeleteMode,
                 dto.AutoAcceptDelaySeconds,
                 dto.AutoClearedToLand,
                 dto.AutoCrossRunway,
@@ -2254,6 +2240,26 @@ public partial class MainViewModel : ObservableObject
                 dto.HasSoloParkingInitialCallupSource,
                 dto.HasSoloArrivalGeneratorSource,
                 dto.RpoShowPilotSpeech
+            )
+        );
+    }
+
+    internal void ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto result)
+    {
+        ApplySessionSettings(
+            new SessionSettingsDto(
+                result.AutoDeleteOverride,
+                result.EffectiveAutoDeleteMode,
+                result.AutoAcceptDelaySeconds,
+                result.AutoClearedToLand,
+                result.AutoCrossRunway,
+                result.ValidateDctFixes,
+                result.SoloTrainingMode,
+                result.SoloParkingInitialCallupRatePercent,
+                result.SoloArrivalGeneratorRatePercent,
+                result.HasSoloParkingInitialCallupSource,
+                result.HasSoloArrivalGeneratorSource,
+                result.RpoShowPilotSpeech
             )
         );
     }

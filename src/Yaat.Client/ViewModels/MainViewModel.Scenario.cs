@@ -348,12 +348,7 @@ public partial class MainViewModel
         );
         StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.Positions);
         ApplySimState(result.IsPaused, result.SimRate);
-        ApplySoloPacingSessionState(
-            result.SoloParkingInitialCallupRatePercent,
-            result.SoloArrivalGeneratorRatePercent,
-            result.HasSoloParkingInitialCallupSource,
-            result.HasSoloArrivalGeneratorSource
-        );
+        ApplySessionSettingsFromLoadScenarioResult(result);
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
@@ -465,7 +460,7 @@ public partial class MainViewModel
         Aircraft.Clear();
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
-        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true, false, 100, 100, false, false, false));
+        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, false, 100, 100, false, false, false));
     }
 }
 

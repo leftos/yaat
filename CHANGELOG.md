@@ -7,6 +7,7 @@
 - Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
 
 ### Fixed
+- The terminal-panel settings flyout now populates correctly after scenario load, room join, and scenario-default auto-delete.
 - Recording replays preserve generator-spawned aircraft so callsigns and aircraft state stay stable across generator changes.
 - Structured RTIS and SAFAL proof resolve targets from the full live and replay aircraft snapshot.
 
