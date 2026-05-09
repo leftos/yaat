@@ -10,7 +10,7 @@ Most commands work the same in Solo Training and RPO mode. The differences below
 |-----------|--------------------|-------------------------------|-------|
 | Traffic advisory | `RTIS <clock> <miles> <direction> <type> <altitude>` | `RTIS <callsign>`, bare `RTIS`, and `RTISF` are RPO conveniences | The structured form records the advisory content for Session Report scoring. Accepted soft-fails still count as advisory proof because the instruction was issued. |
 | Field advisory | `RFIS <clock> <miles>` | Bare `RFIS` and `RFISF` are RPO conveniences | The structured form gives the pilot field-position information and keeps solo visual-approach workflow descriptive. |
-| Safety alert | `SAFAL <clock> <miles> [L|R] [C|D]` | Same syntax | Resolves a target by clock position and whole-mile distance. It proves a safety alert for that recipient-target pair, but does not set traffic in sight or satisfy `FOLLOW`. |
+| Safety alert | `SAFAL <clock> <miles> [L\|R] [C\|D]` | Same syntax | Resolves a target by clock position and whole-mile distance. It proves a safety alert for that recipient-target pair, but does not set traffic in sight or satisfy `FOLLOW`. |
 | VFR Class B entry | `CLBRV`, `CBRV`, or `BRAVO` | Same syntax | In Solo Training, this satisfies the VFR Class B entry gate. |
 | Class C contact without a maneuver | `STBY`, `STANDBY`, `ROGER`, or `RGR` | Same syntax | In Solo Training, this can establish two-way communications for Class C when targeted at that aircraft. It does not satisfy a separate pending pilot request. |
 | Visual follow | Structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | RPO mode can use forced traffic-in-sight shortcuts | The aircraft must have reported the traffic in sight before visual follow behavior can start. |

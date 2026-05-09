@@ -161,7 +161,7 @@ Most commands work the same in Solo Training and RPO mode, but a few matter more
 |-----------|----------------------|-----------------------|
 | Issue traffic information | `RTIS <clock> <miles> <direction> <type> <altitude>` | `RTIS <callsign>`, bare `RTIS`, `RTISF` |
 | Issue field information | `RFIS <clock> <miles>` | bare `RFIS`, `RFISF` |
-| Issue a safety alert | `SAFAL <clock> <miles> [L|R] [C|D]` | No forced shortcut |
+| Issue a safety alert | `SAFAL <clock> <miles> [L\|R] [C\|D]` | No forced shortcut |
 | Clear VFR through Class B | `CLBRV` / `CBRV` / `BRAVO` | No forced shortcut |
 | Acknowledge without a maneuver | `STBY` / `ROGER` | No forced shortcut |
 | Use visual follow | structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | forced traffic-in-sight shortcuts |
