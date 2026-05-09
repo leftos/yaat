@@ -8,15 +8,16 @@ public sealed class FrequencyState
     private const double SecondsPerWord = 0.25;
 
     /// <summary>
-    /// Maximum wall-clock seconds the awaited-readback gate holds back other
-    /// transmissions. Real readbacks land in 1-2 seconds; this is generous to absorb
-    /// dispatch latency and a backlog of higher-priority transmissions, but bounded
-    /// so a missing readback (e.g. aircraft deleted between dispatch and drain) can
-    /// never silence every other pilot indefinitely. After the timeout, the gate
-    /// degrades to normal FIFO order — the readback can still emerge first if it's
+    /// Maximum wall-clock seconds either gate (awaited-readback or
+    /// awaited-controller-response) holds back other transmissions. Real readbacks land in
+    /// 1-2 seconds; controllers typically respond in a few seconds. This is generous to
+    /// absorb dispatch latency and a backlog of higher-priority transmissions, but bounded
+    /// so a missing readback / unresponsive controller (e.g. aircraft deleted, scenario
+    /// quirk) can never silence every other pilot indefinitely. After the timeout the gate
+    /// degrades to normal FIFO order — the held transmission can still emerge first if it's
     /// already at the head, just without veto power over the rest of the queue.
     /// </summary>
-    private const double AwaitedReadbackTimeoutSeconds = 8.0;
+    private const double AwaitedTimeoutSeconds = 8.0;
 
     private static readonly ILogger Log = SimLog.CreateLogger("FrequencyState");
 
@@ -24,10 +25,13 @@ public sealed class FrequencyState
     private double _nextAvailableAtSeconds;
     private string? _awaitingReadbackFrom;
     private double _awaitingReadbackSinceSeconds;
+    private string? _awaitingControllerResponseTo;
+    private double _awaitingControllerResponseSinceSeconds;
 
     public FrequencyActivityMeter ActivityMeter { get; } = new();
     public int PendingCount => _pending.Count;
     public string? AwaitingReadbackFrom => _awaitingReadbackFrom;
+    public string? AwaitingControllerResponseTo => _awaitingControllerResponseTo;
 
     public FrequencyActivityLevel GetActivityLevel(double elapsedSeconds)
     {
@@ -41,6 +45,20 @@ public sealed class FrequencyState
         {
             _awaitingReadbackFrom = callsign;
             _awaitingReadbackSinceSeconds = elapsedSeconds;
+        }
+    }
+
+    /// <summary>
+    /// Clears the awaiting-controller-response gate when the callsign matches. Called from
+    /// <see cref="SimulationWorld.AcknowledgeControllerResponse"/> after a successful
+    /// solo-mode controller dispatch, so other pilots can resume mic'ing up.
+    /// </summary>
+    public void AcknowledgeControllerResponse(string callsign)
+    {
+        if (!string.IsNullOrWhiteSpace(callsign) && string.Equals(_awaitingControllerResponseTo, callsign, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.LogInformation("Controller acknowledged {Callsign}; releasing awaiting-controller-response gate", callsign);
+            _awaitingControllerResponseTo = null;
         }
     }
 
@@ -72,7 +90,33 @@ public sealed class FrequencyState
             _awaitingReadbackFrom = null;
         }
 
-        _nextAvailableAtSeconds = elapsedSeconds + EstimateAirtimeSeconds(transmission.SpeechText);
+        double airtime = EstimateAirtimeSeconds(transmission.SpeechText);
+        _nextAvailableAtSeconds = elapsedSeconds + airtime;
+
+        // A pilot-initiated call (Proactive/Report) is implicitly addressed to the
+        // controller and expects a response. Hold other pilots' proactive calls until
+        // the controller dispatches to this callsign (gate cleared by
+        // SimulationEngine.SendCommand → SimulationWorld.AcknowledgeControllerResponse)
+        // or until the AwaitedTimeoutSeconds ceiling falls through to FIFO.
+        //
+        // Start the timer at end-of-transmission, not start, so the airtime doesn't
+        // eat into the controller's response window — the timeout means "N seconds of
+        // silence after the pilot stops speaking", which is what radio etiquette
+        // models.
+        if (transmission.Kind is PilotTransmissionKind.Proactive or PilotTransmissionKind.Report)
+        {
+            _awaitingControllerResponseTo = transmission.Callsign;
+            _awaitingControllerResponseSinceSeconds = _nextAvailableAtSeconds;
+            Log.LogInformation(
+                "Awaiting controller response from {Callsign} ({Kind} ends at t={EndSeconds:F1}s, airtime={Airtime:F1}s); other-pilot proactive/report transmissions held until response or {Timeout}s of silence",
+                transmission.Callsign,
+                transmission.Kind,
+                _nextAvailableAtSeconds,
+                airtime,
+                AwaitedTimeoutSeconds
+            );
+        }
+
         ActivityMeter.Record(elapsedSeconds);
         return transmission;
     }
@@ -82,6 +126,8 @@ public sealed class FrequencyState
         _pending.Clear();
         _awaitingReadbackFrom = null;
         _awaitingReadbackSinceSeconds = 0;
+        _awaitingControllerResponseTo = null;
+        _awaitingControllerResponseSinceSeconds = 0;
         _nextAvailableAtSeconds = 0;
         ActivityMeter.Trim(double.PositiveInfinity);
     }
@@ -106,12 +152,12 @@ public sealed class FrequencyState
 
             // The expected readback hasn't reached the queue yet. Hold other
             // transmissions back so the readback gets airtime priority — but only
-            // for AwaitedReadbackTimeoutSeconds. Past that, fall through to FIFO so
+            // for AwaitedTimeoutSeconds. Past that, fall through to FIFO so
             // a missing readback (deleted aircraft, future bug, etc.) can't freeze
             // the frequency. The awaited callsign stays set: if the readback shows
             // up later it will dequeue normally; the gate just stops vetoing others.
             double waitedSeconds = elapsedSeconds - _awaitingReadbackSinceSeconds;
-            if (waitedSeconds < AwaitedReadbackTimeoutSeconds)
+            if (waitedSeconds < AwaitedTimeoutSeconds)
             {
                 Log.LogDebug(
                     "Holding frequency for {Callsign} readback ({Waited:F1}s waited); {Count} other transmissions queued",
@@ -124,6 +170,50 @@ public sealed class FrequencyState
 
             Log.LogDebug("Awaited readback from {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO", callsign, waitedSeconds);
             _awaitingReadbackFrom = null;
+            // Fall through to the controller-response gate / FIFO below.
+        }
+
+        if (_awaitingControllerResponseTo is { Length: > 0 } awaitingCallsign)
+        {
+            // Allow anything that isn't another pilot's proactive/report through.
+            // The awaiting pilot themselves can keep talking (follow-ups, additional
+            // requests). Readbacks and SayReadback are responses to controller-issued
+            // commands and aren't gated here.
+            int index = 0;
+            foreach (var transmission in _pending)
+            {
+                bool isOtherPilotProactiveOrReport =
+                    transmission.Kind is PilotTransmissionKind.Proactive or PilotTransmissionKind.Report
+                    && !string.Equals(transmission.Callsign, awaitingCallsign, StringComparison.OrdinalIgnoreCase);
+
+                if (!isOtherPilotProactiveOrReport)
+                {
+                    return index;
+                }
+
+                index++;
+            }
+
+            // Only other-pilot proactive/report transmissions are queued. Hold them
+            // back until the controller responds or the timeout falls through.
+            double waitedSeconds = elapsedSeconds - _awaitingControllerResponseSinceSeconds;
+            if (waitedSeconds < AwaitedTimeoutSeconds)
+            {
+                Log.LogInformation(
+                    "Holding frequency for controller response to {Callsign} ({Waited:F1}s waited); {Count} other-pilot transmissions queued",
+                    awaitingCallsign,
+                    waitedSeconds,
+                    _pending.Count
+                );
+                return -1;
+            }
+
+            Log.LogWarning(
+                "Awaited controller response to {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO",
+                awaitingCallsign,
+                waitedSeconds
+            );
+            _awaitingControllerResponseTo = null;
             return _pending.Count > 0 ? 0 : -1;
         }
 

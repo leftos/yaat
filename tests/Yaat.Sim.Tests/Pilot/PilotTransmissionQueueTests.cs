@@ -122,6 +122,185 @@ public sealed class PilotTransmissionQueueTests
     }
 
     [Fact]
+    public void DrainReadyPilotTransmissions_ProactiveSetsControllerResponseGate_HoldsOtherPilotProactive()
+    {
+        var world = new SimulationWorld();
+        var first = NewAircraft("N100AA");
+        var second = NewAircraft("N200BB");
+        world.AddAircraft(first);
+        world.AddAircraft(second);
+        PilotResponder.QueueSoloPilotTransmission(
+            first,
+            "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        // First pilot transmits at t=2.
+        var firstDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+        Assert.Single(firstDrain);
+        Assert.Equal("N100AA", firstDrain[0].Callsign);
+
+        // Second pilot queues a proactive call at t=5 — should be held back because
+        // the controller hasn't responded to the first call yet.
+        PilotResponder.QueueSoloPilotTransmission(
+            second,
+            "tower, november two zero zero bravo bravo holding short runway two eight right, ready for departure.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        // First pilot's airtime is ~3.5s, so drain at t=10 is past airtime but
+        // the controller-response gate (set at end-of-airtime ~5.5, 8s timeout)
+        // is still active until ~13.5s.
+        var heldDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        Assert.Empty(heldDrain);
+
+        // After airtime + 8s of silence, the gate falls through to FIFO.
+        var releasedDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 14);
+        var tx = Assert.Single(releasedDrain);
+        Assert.Equal("N200BB", tx.Callsign);
+    }
+
+    [Fact]
+    public void DrainReadyPilotTransmissions_ControllerResponseGate_ClearedByAcknowledgeControllerResponse()
+    {
+        var world = new SimulationWorld();
+        var first = NewAircraft("N100AA");
+        var second = NewAircraft("N200BB");
+        world.AddAircraft(first);
+        world.AddAircraft(second);
+        PilotResponder.QueueSoloPilotTransmission(
+            first,
+            "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+
+        PilotResponder.QueueSoloPilotTransmission(
+            second,
+            "tower, november two zero zero bravo bravo holding short runway two eight right, ready for departure.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        Assert.Empty(world.DrainReadyPilotTransmissions(elapsedSeconds: 6));
+
+        // Controller acknowledges/responds to the first pilot — gate clears.
+        world.AcknowledgeControllerResponse("N100AA");
+
+        var released = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        var tx = Assert.Single(released);
+        Assert.Equal("N200BB", tx.Callsign);
+    }
+
+    [Fact]
+    public void DrainReadyPilotTransmissions_ControllerResponseGate_DoesNotBlockSamePilotFollowUp()
+    {
+        var world = new SimulationWorld();
+        var pilot = NewAircraft("N100AA");
+        world.AddAircraft(pilot);
+        PilotResponder.QueueSoloPilotTransmission(
+            pilot,
+            "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+
+        // Same pilot follow-up — should not be held back by the gate (it's the awaiting pilot).
+        PilotResponder.QueueSoloPilotTransmission(
+            pilot,
+            "tower, november one zero zero alpha alpha, did you hear that.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        var drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        var tx = Assert.Single(drain);
+        Assert.Equal("N100AA", tx.Callsign);
+    }
+
+    [Fact]
+    public void DrainReadyPilotTransmissions_ControllerResponseGate_DoesNotBlockReadbacks()
+    {
+        var world = new SimulationWorld();
+        var first = NewAircraft("N100AA");
+        var second = NewAircraft("N200BB");
+        world.AddAircraft(first);
+        world.AddAircraft(second);
+        PilotResponder.QueueSoloPilotTransmission(
+            first,
+            "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+
+        world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+
+        // A different aircraft's readback should not be blocked by the controller-response
+        // gate — readbacks are responses to controller-issued commands, not new requests.
+        PilotResponder.QueueSoloPilotTransmission(
+            second,
+            "[N200BB] descend and maintain five thousand, november two zero zero bravo bravo.",
+            PilotTransmissionKind.Readback,
+            PilotResponder.SourceResponse
+        );
+
+        var drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        var tx = Assert.Single(drain);
+        Assert.Equal("N200BB", tx.Callsign);
+        Assert.Equal(PilotTransmissionKind.Readback, tx.Kind);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_SuccessfulDispatchClearsControllerResponseGate()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 2) };
+        var first = NewAircraft("N100AA");
+        var second = NewAircraft("N200BB");
+        engine.World.AddAircraft(first);
+        engine.World.AddAircraft(second);
+
+        // First pilot calls up.
+        PilotResponder.QueueSoloPilotTransmission(
+            first,
+            "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+        engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+
+        // Second pilot queues a proactive — held back by the gate.
+        PilotResponder.QueueSoloPilotTransmission(
+            second,
+            "tower, november two zero zero bravo bravo holding short runway two eight right, ready for departure.",
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
+        Assert.Empty(engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 6));
+
+        // Controller dispatches a command to the first pilot — gate clears.
+        engine.Scenario!.ElapsedSeconds = 6;
+        var result = engine.SendCommand("N100AA", "DM 5000");
+        Assert.True(result.Success, result.Message);
+
+        // The readback fires first (it's higher-priority via the readback gate). After
+        // its airtime elapses the second pilot's proactive can finally drain.
+        var firstResults = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        Assert.Single(firstResults);
+        Assert.Equal("N100AA", firstResults[0].Callsign);
+        Assert.Equal(PilotTransmissionKind.Readback, firstResults[0].Kind);
+
+        var released = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 20);
+        var tx = Assert.Single(released);
+        Assert.Equal("N200BB", tx.Callsign);
+    }
+
+    [Fact]
     public void FrequencyActivityMeter_ClassifiesRollingWindow()
     {
         var meter = new FrequencyActivityMeter();

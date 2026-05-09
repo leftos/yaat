@@ -1061,6 +1061,11 @@ public sealed class SimulationEngine
             if (dispatchCtx.SoloTrainingMode)
             {
                 PilotRequestTracker.ApplyControllerResponse(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
+                // The controller has just spoken to this aircraft, so the
+                // awaiting-controller-response gate (if it was set after this pilot's
+                // last proactive call) clears. Commands that produce a readback also
+                // arm the readback gate just below; both gates are independent.
+                World.AcknowledgeControllerResponse(aircraft.Callsign);
             }
         }
         else if (dispatchCtx.SoloTrainingMode)

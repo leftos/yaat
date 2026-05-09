@@ -57,7 +57,20 @@ PilotResponder.QueueSoloPilotTransmission(
 
 In normal operation the readback emerges on the very next drain (1 s) and `_awaitingReadbackFrom` clears immediately, so the gate is invisible. Two consecutive controller commands to two different aircraft will queue both readbacks; the second waits for the first to clear within the same drain window.
 
-If the awaited readback never arrives — aircraft deleted between dispatch and drain, or a future bug that calls `ExpectReadback` without a paired enqueue — the gate releases after `AwaitedReadbackTimeoutSeconds` (8 s) and other pilots resume mic'ing up under FIFO. **The gate is best-effort ordering, not a hard lock.** Real pilots get impatient too.
+If the awaited readback never arrives — aircraft deleted between dispatch and drain, or a future bug that calls `ExpectReadback` without a paired enqueue — the gate releases after `AwaitedTimeoutSeconds` (8 s) and other pilots resume mic'ing up under FIFO. **The gate is best-effort ordering, not a hard lock.** Real pilots get impatient too.
+
+## Awaiting controller response after a proactive call
+
+The mirror-image gate: when a pilot keys up proactively (initial check-in, ready-for-departure, midfield-downwind reminder, etc.), the controller is expected to respond. Other pilots' proactive/report transmissions hold back so they don't step on the unanswered call.
+
+`FrequencyState._awaitingControllerResponseTo` is set on every `Proactive` or `Report` dequeue (in `TryDequeueReady`) and cleared by `SimulationEngine.SendCommand` calling `World.AcknowledgeControllerResponse(callsign)` after a successful dispatch. The same 8-second `AwaitedTimeoutSeconds` ceiling applies — past that, FIFO resumes so a non-responsive controller never silences the airport. **The timer starts at end-of-airtime, not start** — so the timeout means "8 seconds of silence after the pilot stops talking", not "8 seconds total including the pilot's transmission". Otherwise the airtime (3-5 s) would eat into the controller's response window.
+
+What still passes the gate:
+
+- The awaiting pilot's own follow-up calls (same callsign).
+- Any `Readback` or `SayReadback` from any pilot — those are responses to controller-issued commands, not new requests.
+
+For commands that *produce* a readback, both gates run sequentially: dispatch clears `_awaitingControllerResponseTo` (controller has spoken) and arms `_awaitingReadbackFrom` (waiting for the reply). For commands that don't produce a readback (e.g. `ROGER`/`STBY` via `AcknowledgePilotContactCommand`), the controller-response gate clears and other pilots can mic up immediately.
 
 ## Activity-aware readback shortening
 

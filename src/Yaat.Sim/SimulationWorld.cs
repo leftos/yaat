@@ -272,6 +272,18 @@ public sealed class SimulationWorld
         ActiveFrequency.ExpectReadback(callsign, elapsedSeconds);
     }
 
+    /// <summary>
+    /// Clears the awaiting-controller-response gate when the controller dispatches a
+    /// command to <paramref name="callsign"/> in solo-training mode. If the command also
+    /// produces a readback the readback gate independently takes over for ordering;
+    /// either way other pilots' proactive transmissions are no longer held by the
+    /// controller-response gate for this callsign.
+    /// </summary>
+    public void AcknowledgeControllerResponse(string callsign)
+    {
+        ActiveFrequency.AcknowledgeControllerResponse(callsign);
+    }
+
     public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds)
     {
         var result = new List<PilotTransmission>();
