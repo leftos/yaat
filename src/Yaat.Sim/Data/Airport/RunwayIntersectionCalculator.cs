@@ -1,3 +1,5 @@
+using Yaat.Sim.Phases;
+
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
@@ -7,6 +9,36 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 public static class RunwayIntersectionCalculator
 {
+    /// <summary>
+    /// Finds the centerline intersection between two directional <see cref="RunwayInfo"/> instances.
+    /// Distances are measured from each runway's active threshold.
+    /// </summary>
+    public static (double Lat, double Lon, double FirstDistFromThresholdNm, double SecondDistFromThresholdNm)? FindIntersection(
+        RunwayInfo firstRunway,
+        RunwayInfo secondRunway
+    )
+    {
+        var result = GeoMath.SegmentsIntersect(
+            firstRunway.Lat1,
+            firstRunway.Lon1,
+            firstRunway.Lat2,
+            firstRunway.Lon2,
+            secondRunway.Lat1,
+            secondRunway.Lon1,
+            secondRunway.Lat2,
+            secondRunway.Lon2
+        );
+        if (result is null)
+        {
+            return null;
+        }
+
+        var intersection = new LatLon(result.Value.Lat, result.Value.Lon);
+        double firstDistanceNm = GeoMath.DistanceNm(new LatLon(firstRunway.ThresholdLatitude, firstRunway.ThresholdLongitude), intersection);
+        double secondDistanceNm = GeoMath.DistanceNm(new LatLon(secondRunway.ThresholdLatitude, secondRunway.ThresholdLongitude), intersection);
+        return (result.Value.Lat, result.Value.Lon, firstDistanceNm, secondDistanceNm);
+    }
+
     /// <summary>
     /// Finds the intersection point of two runway centerlines.
     /// Returns null if the runways are parallel (no intersection) or

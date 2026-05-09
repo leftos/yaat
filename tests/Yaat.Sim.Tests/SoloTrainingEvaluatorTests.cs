@@ -870,6 +870,196 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_ReciprocalDepartureBeforePrecedingDepartureCrossesRunwayEnd_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway28R = CreateRunway();
+        var runway10L = runway28R.ForApproach("10L");
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway28R, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway28R, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway10L, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway10L, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 73, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway28R, 2500);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway28R, new InitialClimbPhase());
+        SetPhase(follower, runway10L, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 74, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
+        Assert.Equal("28R/10L", notice.RunwayId);
+        Assert.Contains("7110.65 §3-9-6(a)", notice.RuleReference);
+        Assert.Contains("opposite-direction", notice.Title);
+        Assert.Contains("crossed DER/runway end", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_ReciprocalDepartureAfterPrecedingDepartureCrossesRunwayEnd_DoesNotRecordViolation()
+    {
+        var runway28R = CreateRunway();
+        var runway10L = runway28R.ForApproach("10L");
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway28R, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway28R, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway10L, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway10L, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 75, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway28R, runway28R.LengthFt + 100);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway28R, new InitialClimbPhase());
+        SetPhase(follower, runway10L, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 76, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 76, new ApproachReportData([], [], 76, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_IntersectingDepartureBehindDepartureBeforeIntersection_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var crossing = CreateCrossingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, crossing, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 77, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 3000);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, crossing, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 78, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §3-9-8", notice.RuleReference);
+        Assert.Contains("intersecting-runway", notice.Title);
+        Assert.Contains("passed the intersection", notice.RequiredText);
+        Assert.Contains("before runway-intersection separation existed", notice.Description);
+    }
+
+    [Fact]
+    public void Evaluate_IntersectingDepartureBehindDepartureAfterIntersection_DoesNotRecordViolation()
+    {
+        var runway = CreateRunway();
+        var crossing = CreateCrossingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, crossing, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 79, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 6000);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, crossing, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 80, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 80, new ApproachReportData([], [], 80, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
+    public void Evaluate_IntersectingDepartureBehindLandingBeforeIntersection_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var crossing = CreateCrossingRunway();
+        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new LandingPhase());
+        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, crossing, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 81, AirspaceDatabase.Default);
+
+        SetPhase(follower, crossing, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §3-9-8", notice.RuleReference);
+        Assert.Contains("Departure behind landing intersecting-runway", notice.Title);
+        Assert.Contains("clear of runway or passed the intersection", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_IntersectingArrivalBehindDepartureBeforeIntersection_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var crossing = CreateCrossingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 500, isOnGround: false);
+        SetPhase(lead, runway, new InitialClimbPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, -500), altitude: 100, isOnGround: false);
+        SetPhase(follower, crossing, new FinalApproachPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 83, AirspaceDatabase.Default);
+
+        follower.Position = PositionOnRunway(crossing, 100);
+        SetPhase(follower, crossing, new LandingPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
+        Assert.Contains("Arrival behind departure intersecting-runway", notice.Title);
+        Assert.Contains("passed the intersection/flight path", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_IntersectingArrivalBehindLandingBeforeIntersection_RecordsRunwayWakeSafetyEvent()
+    {
+        var runway = CreateRunway();
+        var crossing = CreateCrossingRunway();
+        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new LandingPhase());
+        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(crossing, -500), altitude: 100, isOnGround: false);
+        SetPhase(follower, crossing, new FinalApproachPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 81, AirspaceDatabase.Default);
+
+        follower.Position = PositionOnRunway(crossing, 100);
+        SetPhase(follower, crossing, new LandingPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
+        var notice = Assert.Single(notices);
+        Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
+        Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
+        Assert.Contains("intersecting-runway", notice.Title);
+        Assert.Contains("clear of runway or passed the intersection", notice.RequiredText);
+    }
+
+    [Fact]
+    public void Evaluate_NonIntersectingConvergingRunways_DoNotRecordRunwayConflict()
+    {
+        var runway = CreateRunway();
+        var converging = CreateNonIntersectingConvergingRunway();
+        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, converging, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 83, AirspaceDatabase.Default);
+
+        lead.Position = PositionOnRunway(runway, 2500);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, converging, new TakeoffPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
+        var report = evaluator.BuildReport(true, 84, new ApproachReportData([], [], 84, "N/A"));
+        Assert.Empty(notices);
+        Assert.Empty(report.Timeline);
+    }
+
+    [Fact]
     public void Evaluate_DepartureWakeIntervalBeforeRequiredTime_RecordsRunwayWakeSafetyEvent()
     {
         var runway = CreateRunway();
@@ -1283,6 +1473,42 @@ public sealed class SoloTrainingEvaluatorTests
             WidthFt = baseRunway.WidthFt,
         };
     }
+
+    private static RunwayInfo CreateCrossingRunway() =>
+        new()
+        {
+            AirportId = "KOAK",
+            Id = new RunwayIdentifier("18", "36"),
+            Designator = "18",
+            Lat1 = 37.735000,
+            Lon1 = -122.205000,
+            Elevation1Ft = 10,
+            TrueHeading1 = new TrueHeading(180),
+            Lat2 = 37.707600,
+            Lon2 = -122.205000,
+            Elevation2Ft = 10,
+            TrueHeading2 = new TrueHeading(0),
+            LengthFt = 10000,
+            WidthFt = 150,
+        };
+
+    private static RunwayInfo CreateNonIntersectingConvergingRunway() =>
+        new()
+        {
+            AirportId = "KOAK",
+            Id = new RunwayIdentifier("16", "34"),
+            Designator = "16",
+            Lat1 = 37.735000,
+            Lon1 = -122.245000,
+            Elevation1Ft = 10,
+            TrueHeading1 = new TrueHeading(160),
+            Lat2 = 37.707600,
+            Lon2 = -122.215000,
+            Elevation2Ft = 10,
+            TrueHeading2 = new TrueHeading(340),
+            LengthFt = 10000,
+            WidthFt = 150,
+        };
 
     private static LatLon PositionOnRunway(RunwayInfo runway, double alongFt) =>
         GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading, alongFt / GeoMath.FeetPerNm);

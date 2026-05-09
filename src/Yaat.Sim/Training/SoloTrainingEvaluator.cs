@@ -1,5 +1,6 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
@@ -1131,15 +1132,12 @@ public sealed class SoloTrainingEvaluator
                     continue;
                 }
 
-                if (!firstObservation && _lastOperationByRunway.TryGetValue(operation.RunwayKey, out var preceding))
+                foreach (var violation in CreateRunwaySeparationViolations(operation, currentStates, scenarioElapsedSeconds, firstObservation))
                 {
-                    if (TryCreateViolation(preceding, operation, currentStates, scenarioElapsedSeconds) is { } violation)
+                    _activeViolations[violation.Id] = violation;
+                    if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
                     {
-                        _activeViolations[violation.Id] = violation;
-                        if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
-                        {
-                            samples.Add(sample);
-                        }
+                        samples.Add(sample);
                     }
                 }
 
@@ -1266,16 +1264,80 @@ public sealed class SoloTrainingEvaluator
             return null;
         }
 
+        private List<ActiveSameRunwayViolation> CreateRunwaySeparationViolations(
+            RunwayOperation operation,
+            Dictionary<string, AircraftRunwayState> states,
+            double scenarioElapsedSeconds,
+            bool firstObservation
+        )
+        {
+            var violations = new List<ActiveSameRunwayViolation>();
+            if (firstObservation)
+            {
+                return violations;
+            }
+
+            if (_lastOperationByRunway.TryGetValue(operation.RunwayKey, out var sameRunwayPreceding))
+            {
+                var relation = RunwayRelation.SameActive();
+                if (TryCreateViolation(sameRunwayPreceding, operation, states, scenarioElapsedSeconds, relation) is { } violation)
+                {
+                    violations.Add(violation);
+                }
+            }
+
+            foreach (var preceding in _recentOperations.AsEnumerable().Reverse())
+            {
+                if (string.Equals(preceding.Callsign, operation.Callsign, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (string.Equals(preceding.RunwayKey, operation.RunwayKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (TryResolveRunwayRelation(preceding.Runway, operation.Runway) is not { } relation)
+                {
+                    continue;
+                }
+
+                if (relation.Kind == RunwayRelationKind.SameActive)
+                {
+                    continue;
+                }
+
+                if (TryCreateViolation(preceding, operation, states, scenarioElapsedSeconds, relation) is { } violation)
+                {
+                    violations.Add(violation);
+                }
+            }
+
+            return violations;
+        }
+
         private static ActiveSameRunwayViolation? TryCreateViolation(
             RunwayOperation preceding,
             RunwayOperation succeeding,
             Dictionary<string, AircraftRunwayState> states,
-            double scenarioElapsedSeconds
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
         )
         {
             if (!states.TryGetValue(preceding.Callsign, out var precedingState) || !states.TryGetValue(succeeding.Callsign, out var succeedingState))
             {
                 return null;
+            }
+
+            if (relation.Kind == RunwayRelationKind.OppositeDirectionSamePavement)
+            {
+                return TryCreateOppositeDirectionViolation(preceding, succeeding, precedingState, scenarioElapsedSeconds, relation);
+            }
+
+            if (relation.Kind == RunwayRelationKind.Intersecting)
+            {
+                return TryCreateIntersectingRunwayViolation(preceding, succeeding, precedingState, scenarioElapsedSeconds, relation);
             }
 
             return (succeeding.Kind, preceding.Kind) switch
@@ -1285,28 +1347,32 @@ public sealed class SoloTrainingEvaluator
                     succeeding,
                     precedingState,
                     succeedingState,
-                    scenarioElapsedSeconds
+                    scenarioElapsedSeconds,
+                    relation
                 ),
                 (OperationKind.Departure, OperationKind.Landing) => TryCreateDepartureBehindLanding(
                     preceding,
                     succeeding,
                     precedingState,
                     succeedingState,
-                    scenarioElapsedSeconds
+                    scenarioElapsedSeconds,
+                    relation
                 ),
                 (OperationKind.Landing, OperationKind.Departure) => TryCreateArrivalBehindDeparture(
                     preceding,
                     succeeding,
                     precedingState,
                     succeedingState,
-                    scenarioElapsedSeconds
+                    scenarioElapsedSeconds,
+                    relation
                 ),
                 (OperationKind.Landing, OperationKind.Landing) => TryCreateArrivalBehindLanding(
                     preceding,
                     succeeding,
                     precedingState,
                     succeedingState,
-                    scenarioElapsedSeconds
+                    scenarioElapsedSeconds,
+                    relation
                 ),
                 _ => null,
             };
@@ -1449,7 +1515,8 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
             AircraftRunwayState succeedingState,
-            double scenarioElapsedSeconds
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
         )
         {
             double requiredFt = RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
@@ -1464,7 +1531,8 @@ public sealed class SoloTrainingEvaluator
                 "Departure behind departure same-runway separation",
                 "7110.65 §3-9-6(a)",
                 $"Preceding departure crossed DER/runway end or airborne with {requiredFt:N0} ft spacing.",
-                scenarioElapsedSeconds
+                scenarioElapsedSeconds,
+                relation
             );
         }
 
@@ -1473,7 +1541,8 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
             AircraftRunwayState succeedingState,
-            double scenarioElapsedSeconds
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
         )
         {
             if (IsLandingClearOfRunway(precedingState))
@@ -1487,7 +1556,8 @@ public sealed class SoloTrainingEvaluator
                 "Departure behind landing same-runway separation",
                 "7110.65 §3-9-6(b)",
                 "Preceding landing aircraft clear of the runway.",
-                scenarioElapsedSeconds
+                scenarioElapsedSeconds,
+                relation
             );
         }
 
@@ -1496,7 +1566,8 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
             AircraftRunwayState succeedingState,
-            double scenarioElapsedSeconds
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
         )
         {
             double requiredFt = RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
@@ -1511,7 +1582,8 @@ public sealed class SoloTrainingEvaluator
                 "Arrival behind departure same-runway separation",
                 "7110.65 §3-10-3(a)(2)",
                 $"Preceding departure crossed DER/runway end or airborne at least {requiredFt:N0} ft from landing threshold.",
-                scenarioElapsedSeconds
+                scenarioElapsedSeconds,
+                relation
             );
         }
 
@@ -1520,7 +1592,8 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
             AircraftRunwayState succeedingState,
-            double scenarioElapsedSeconds
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
         )
         {
             double? exceptionFt = RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory);
@@ -1538,8 +1611,119 @@ public sealed class SoloTrainingEvaluator
                 "Arrival behind landing same-runway separation",
                 "7110.65 §3-10-3(a)(1)",
                 required,
-                scenarioElapsedSeconds
+                scenarioElapsedSeconds,
+                relation
             );
+        }
+
+        private static ActiveSameRunwayViolation? TryCreateOppositeDirectionViolation(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            AircraftRunwayState precedingState,
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
+        )
+        {
+            return (succeeding.Kind, preceding.Kind) switch
+            {
+                (OperationKind.Departure, OperationKind.Departure) when HasCrossedRunwayEnd(precedingState) => null,
+                (OperationKind.Departure, OperationKind.Departure) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Departure behind departure opposite-direction separation",
+                    "7110.65 §3-9-6(a)",
+                    "Preceding opposite-direction departure crossed DER/runway end.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                (OperationKind.Departure, OperationKind.Landing) when IsLandingClearOfRunway(precedingState) => null,
+                (OperationKind.Departure, OperationKind.Landing) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Departure behind landing opposite-direction separation",
+                    "7110.65 §3-9-6(b)",
+                    "Preceding opposite-direction landing aircraft clear of the runway.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                (OperationKind.Landing, OperationKind.Departure) when HasCrossedRunwayEnd(precedingState) => null,
+                (OperationKind.Landing, OperationKind.Departure) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Arrival behind departure opposite-direction separation",
+                    "7110.65 §3-10-3(a)(2)",
+                    "Preceding opposite-direction departure crossed DER/runway end.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                (OperationKind.Landing, OperationKind.Landing) when IsLandingClearOfRunway(precedingState) => null,
+                (OperationKind.Landing, OperationKind.Landing) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Arrival behind landing opposite-direction separation",
+                    "7110.65 §3-10-3(a)(1)",
+                    "Preceding opposite-direction landing aircraft clear of the runway.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                _ => null,
+            };
+        }
+
+        private static ActiveSameRunwayViolation? TryCreateIntersectingRunwayViolation(
+            RunwayOperation preceding,
+            RunwayOperation succeeding,
+            AircraftRunwayState precedingState,
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
+        )
+        {
+            double intersectionFt = relation.PrecedingIntersectionFt ?? double.MaxValue;
+            bool passedIntersection = precedingState.AlongThresholdFt >= intersectionFt;
+            return (succeeding.Kind, preceding.Kind) switch
+            {
+                (OperationKind.Departure, OperationKind.Departure) when passedIntersection => null,
+                (OperationKind.Departure, OperationKind.Departure) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Departure behind departure intersecting-runway separation",
+                    "7110.65 §3-9-8(a)(1)",
+                    "Preceding departure passed the intersection.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                (OperationKind.Departure, OperationKind.Landing) when (passedIntersection || IsLandingClearOfRunway(precedingState)) => null,
+                (OperationKind.Departure, OperationKind.Landing) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Departure behind landing intersecting-runway separation",
+                    "7110.65 §3-9-8(a)(2)",
+                    "Preceding landing clear of runway or passed the intersection.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                (OperationKind.Landing, OperationKind.Departure) when passedIntersection => null,
+                (OperationKind.Landing, OperationKind.Departure) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Arrival behind departure intersecting-runway separation",
+                    "7110.65 §3-10-4(a)(1)",
+                    "Preceding departure passed the intersection/flight path.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                (OperationKind.Landing, OperationKind.Landing) when (passedIntersection || IsLandingClearOfRunway(precedingState)) => null,
+                (OperationKind.Landing, OperationKind.Landing) => BuildViolation(
+                    preceding,
+                    succeeding,
+                    "Arrival behind landing intersecting-runway separation",
+                    "7110.65 §3-10-4(a)(2)",
+                    "Preceding landing clear of runway or passed the intersection/flight path.",
+                    scenarioElapsedSeconds,
+                    relation
+                ),
+                _ => null,
+            };
         }
 
         private static TrainingEventSample? TrySampleViolation(
@@ -1563,23 +1747,70 @@ public sealed class SoloTrainingEvaluator
             switch (violation.Rule)
             {
                 case SameRunwayRule.DepartureBehindDeparture:
-                    satisfied = DepartureBehindDepartureSatisfied(precedingState, succeedingState, violation.RequiredDistanceFt!.Value);
-                    actualText = FormatDepartureSpacingActual(precedingState, succeedingState);
+                    if (violation.Relation.Kind == RunwayRelationKind.Intersecting)
+                    {
+                        satisfied = HasPassedIntersection(precedingState, violation);
+                        actualText = FormatIntersectionActual(precedingState, violation);
+                    }
+                    else if (violation.Relation.Kind == RunwayRelationKind.OppositeDirectionSamePavement)
+                    {
+                        satisfied = HasCrossedRunwayEnd(precedingState);
+                        actualText = FormatThresholdDistanceActual(precedingState);
+                    }
+                    else
+                    {
+                        satisfied = DepartureBehindDepartureSatisfied(precedingState, succeedingState, violation.RequiredDistanceFt!.Value);
+                        actualText = FormatDepartureSpacingActual(precedingState, succeedingState);
+                    }
                     break;
 
                 case SameRunwayRule.DepartureBehindLanding:
-                    satisfied = IsLandingClearOfRunway(precedingState);
-                    actualText = FormatRunwayClearActual(precedingState);
+                    if (violation.Relation.Kind == RunwayRelationKind.Intersecting)
+                    {
+                        satisfied = HasPassedIntersection(precedingState, violation) || IsLandingClearOfRunway(precedingState);
+                        actualText = FormatIntersectionOrClearActual(precedingState, violation);
+                    }
+                    else
+                    {
+                        satisfied = IsLandingClearOfRunway(precedingState);
+                        actualText = FormatRunwayClearActual(precedingState);
+                    }
                     break;
 
                 case SameRunwayRule.ArrivalBehindDeparture:
-                    satisfied = ArrivalBehindDepartureSatisfied(precedingState, violation.RequiredDistanceFt!.Value);
-                    actualText = FormatThresholdDistanceActual(precedingState);
+                    if (violation.Relation.Kind == RunwayRelationKind.Intersecting)
+                    {
+                        satisfied = HasPassedIntersection(precedingState, violation);
+                        actualText = FormatIntersectionActual(precedingState, violation);
+                    }
+                    else if (violation.Relation.Kind == RunwayRelationKind.OppositeDirectionSamePavement)
+                    {
+                        satisfied = HasCrossedRunwayEnd(precedingState);
+                        actualText = FormatThresholdDistanceActual(precedingState);
+                    }
+                    else
+                    {
+                        satisfied = ArrivalBehindDepartureSatisfied(precedingState, violation.RequiredDistanceFt!.Value);
+                        actualText = FormatThresholdDistanceActual(precedingState);
+                    }
                     break;
 
                 case SameRunwayRule.ArrivalBehindLanding:
-                    satisfied = ArrivalBehindLandingSatisfied(precedingState, violation.RequiredDistanceFt);
-                    actualText = FormatRunwayClearOrThresholdActual(precedingState);
+                    if (violation.Relation.Kind == RunwayRelationKind.Intersecting)
+                    {
+                        satisfied = HasPassedIntersection(precedingState, violation) || IsLandingClearOfRunway(precedingState);
+                        actualText = FormatIntersectionOrClearActual(precedingState, violation);
+                    }
+                    else if (violation.Relation.Kind == RunwayRelationKind.OppositeDirectionSamePavement)
+                    {
+                        satisfied = IsLandingClearOfRunway(precedingState);
+                        actualText = FormatRunwayClearActual(precedingState);
+                    }
+                    else
+                    {
+                        satisfied = ArrivalBehindLandingSatisfied(precedingState, violation.RequiredDistanceFt);
+                        actualText = FormatRunwayClearOrThresholdActual(precedingState);
+                    }
                     break;
 
                 case SameRunwayRule.DepartureWakeInterval:
@@ -1603,9 +1834,19 @@ public sealed class SoloTrainingEvaluator
                 return null;
             }
 
+            string relationText = violation.Relation.Kind switch
+            {
+                RunwayRelationKind.OppositeDirectionSamePavement => "opposite-direction runway",
+                RunwayRelationKind.Intersecting => "runway-intersection",
+                _ => "same-runway",
+            };
+            string runwayText =
+                violation.Relation.Kind == RunwayRelationKind.SameActive
+                    ? violation.RunwayId
+                    : $"{violation.Succeeding.RunwayId} against {violation.Preceding.RunwayId}";
             string description =
-                $"{violation.Succeeding.Callsign} used runway {violation.RunwayId} behind "
-                + $"{violation.Preceding.Callsign} before same-runway separation existed.";
+                $"{violation.Succeeding.Callsign} used runway {runwayText} behind "
+                + $"{violation.Preceding.Callsign} before {relationText} separation existed.";
 
             return new TrainingEventSample(
                 violation.Id,
@@ -1632,7 +1873,8 @@ public sealed class SoloTrainingEvaluator
             string title,
             string ruleReference,
             string requiredText,
-            double scenarioElapsedSeconds
+            double scenarioElapsedSeconds,
+            RunwayRelation relation
         )
         {
             var rule = (succeeding.Kind, preceding.Kind) switch
@@ -1643,15 +1885,30 @@ public sealed class SoloTrainingEvaluator
                 (OperationKind.Landing, OperationKind.Landing) => SameRunwayRule.ArrivalBehindLanding,
                 _ => SameRunwayRule.DepartureBehindDeparture,
             };
-            double? requiredDistanceFt = rule switch
-            {
-                SameRunwayRule.DepartureBehindDeparture => RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
-                SameRunwayRule.ArrivalBehindDeparture => RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
-                SameRunwayRule.ArrivalBehindLanding => RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory),
-                _ => null,
-            };
-            string id = MakeSameRunwayEventId(preceding, succeeding, ruleReference, scenarioElapsedSeconds);
-            return new ActiveSameRunwayViolation(id, rule, preceding, succeeding, title, ruleReference, requiredText, requiredDistanceFt, null, null);
+            double? requiredDistanceFt =
+                relation.Kind == RunwayRelationKind.SameActive
+                    ? rule switch
+                    {
+                        SameRunwayRule.DepartureBehindDeparture => RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
+                        SameRunwayRule.ArrivalBehindDeparture => RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
+                        SameRunwayRule.ArrivalBehindLanding => RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory),
+                        _ => null,
+                    }
+                    : null;
+            string id = MakeRunwayEventId(preceding, succeeding, ruleReference, relation, scenarioElapsedSeconds);
+            return new ActiveSameRunwayViolation(
+                id,
+                rule,
+                preceding,
+                succeeding,
+                title,
+                ruleReference,
+                requiredText,
+                requiredDistanceFt,
+                null,
+                null,
+                relation
+            );
         }
 
         private static ActiveSameRunwayViolation BuildWakeViolation(
@@ -1666,7 +1923,7 @@ public sealed class SoloTrainingEvaluator
             double scenarioElapsedSeconds
         )
         {
-            string id = MakeSameRunwayEventId(preceding, succeeding, ruleReference, scenarioElapsedSeconds);
+            string id = MakeRunwayEventId(preceding, succeeding, ruleReference, RunwayRelation.SameActive(), scenarioElapsedSeconds);
             return new ActiveSameRunwayViolation(
                 id,
                 rule,
@@ -1677,7 +1934,8 @@ public sealed class SoloTrainingEvaluator
                 requiredText,
                 null,
                 requiredTimeSeconds,
-                requiredDistanceNm
+                requiredDistanceNm,
+                RunwayRelation.SameActive()
             );
         }
 
@@ -1840,8 +2098,40 @@ public sealed class SoloTrainingEvaluator
             return ParallelRunwaySpacingFt(a, b) is < 2500.0;
         }
 
+        private static RunwayRelation? TryResolveRunwayRelation(RunwayInfo preceding, RunwayInfo succeeding)
+        {
+            if (!string.Equals(preceding.AirportId, succeeding.AirportId, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (IsSameRunway(preceding, succeeding))
+            {
+                return RunwayRelation.SameActive();
+            }
+
+            if (IsSamePhysicalRunway(preceding, succeeding))
+            {
+                return new RunwayRelation(RunwayRelationKind.OppositeDirectionSamePavement, null, null);
+            }
+
+            if (RunwayIntersectionCalculator.FindIntersection(preceding, succeeding) is { } intersection)
+            {
+                return new RunwayRelation(
+                    RunwayRelationKind.Intersecting,
+                    intersection.FirstDistFromThresholdNm * GeoMath.FeetPerNm,
+                    intersection.SecondDistFromThresholdNm * GeoMath.FeetPerNm
+                );
+            }
+
+            return null;
+        }
+
         private static bool IsSameRunway(RunwayInfo a, RunwayInfo b) =>
             string.Equals(BuildRunwayKey(a), BuildRunwayKey(b), StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsSamePhysicalRunway(RunwayInfo a, RunwayInfo b) =>
+            string.Equals(a.AirportId, b.AirportId, StringComparison.OrdinalIgnoreCase) && (a.Id.Overlaps(b.Id));
 
         private static double? ParallelRunwaySpacingFt(RunwayInfo a, RunwayInfo b)
         {
@@ -1971,6 +2261,9 @@ public sealed class SoloTrainingEvaluator
         }
 
         private static bool HasCrossedRunwayEnd(AircraftRunwayState state) => state.AlongThresholdFt >= state.Runway.LengthFt;
+
+        private static bool HasPassedIntersection(AircraftRunwayState state, ActiveSameRunwayViolation violation) =>
+            violation.Relation.PrecedingIntersectionFt.HasValue && (state.AlongThresholdFt >= violation.Relation.PrecedingIntersectionFt.Value);
 
         private static bool IsLandingClearOfRunway(AircraftRunwayState state)
         {
@@ -2111,18 +2404,43 @@ public sealed class SoloTrainingEvaluator
         private static string FormatRunwayClearOrThresholdActual(AircraftRunwayState state) =>
             IsLandingClearOfRunway(state) ? "preceding landing clear of runway" : $"preceding landing {state.AlongThresholdFt:N0} ft from threshold";
 
+        private static string FormatIntersectionActual(AircraftRunwayState state, ActiveSameRunwayViolation violation)
+        {
+            if (!violation.Relation.PrecedingIntersectionFt.HasValue)
+            {
+                return FormatThresholdDistanceActual(state);
+            }
+
+            double remainingFt = Math.Max(0.0, violation.Relation.PrecedingIntersectionFt.Value - state.AlongThresholdFt);
+            return HasPassedIntersection(state, violation)
+                ? "preceding aircraft passed the intersection"
+                : $"preceding aircraft {remainingFt:N0} ft short of the intersection";
+        }
+
+        private static string FormatIntersectionOrClearActual(AircraftRunwayState state, ActiveSameRunwayViolation violation)
+        {
+            if (IsLandingClearOfRunway(state))
+            {
+                return "preceding landing clear of runway";
+            }
+
+            return FormatIntersectionActual(state, violation);
+        }
+
         private static string BuildRunwayKey(RunwayInfo runway) => $"{runway.AirportId}/{runway.Designator}".ToUpperInvariant();
 
-        private static string MakeSameRunwayEventId(
+        private static string MakeRunwayEventId(
             RunwayOperation preceding,
             RunwayOperation succeeding,
             string ruleReference,
+            RunwayRelation relation,
             double scenarioElapsedSeconds
         )
         {
             string normalizedRule = ruleReference.Replace(' ', '_').Replace('/', '_').Replace('§', 'S').Replace('(', '_').Replace(')', '_');
             string runway = preceding.RunwayKey.Replace('/', '_');
-            return $"SRS_{runway}_{preceding.Callsign}_{succeeding.Callsign}_{normalizedRule}_{scenarioElapsedSeconds:F0}".ToUpperInvariant();
+            string succeedingRunway = succeeding.RunwayKey.Replace('/', '_');
+            return $"SRS_{relation.Kind}_{runway}_{succeedingRunway}_{preceding.Callsign}_{succeeding.Callsign}_{normalizedRule}_{scenarioElapsedSeconds:F0}".ToUpperInvariant();
         }
 
         private sealed record AircraftRunwayState(
@@ -2181,10 +2499,17 @@ public sealed class SoloTrainingEvaluator
             string RequiredText,
             double? RequiredDistanceFt,
             double? RequiredTimeSeconds,
-            double? RequiredDistanceNm
+            double? RequiredDistanceNm,
+            RunwayRelation Relation
         )
         {
-            public string RunwayId => Preceding.RunwayId;
+            public string RunwayId =>
+                Relation.Kind == RunwayRelationKind.SameActive ? Preceding.RunwayId : $"{Preceding.RunwayId}/{Succeeding.RunwayId}";
+        }
+
+        private sealed record RunwayRelation(RunwayRelationKind Kind, double? PrecedingIntersectionFt, double? SucceedingIntersectionFt)
+        {
+            public static RunwayRelation SameActive() => new(RunwayRelationKind.SameActive, null, null);
         }
 
         private sealed record DepartureWakeRequirement(double RequiredSeconds, string RuleReference, string RelationText);
@@ -2203,6 +2528,13 @@ public sealed class SoloTrainingEvaluator
             ArrivalBehindLanding,
             DepartureWakeInterval,
             ApproachWakeSpacing,
+        }
+
+        private enum RunwayRelationKind
+        {
+            SameActive,
+            OppositeDirectionSamePavement,
+            Intersecting,
         }
 
         private enum SrsCategory

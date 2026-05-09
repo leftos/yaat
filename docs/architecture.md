@@ -312,7 +312,7 @@ AircraftPerformance.cs         # Unified perf API: profile-first with category f
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
-Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, same-runway, structured traffic-advisory/safety-alert/field-proof events, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
+Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/field-proof events, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation
@@ -537,7 +537,7 @@ TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway intersections
-RunwayIntersectionCalculator.cs # LAHSO: runway centerline intersection + hold-short distance
+RunwayIntersectionCalculator.cs # Runway centerline intersections for LAHSO and solo-training intersecting-runway scoring
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length
 
 # Data/

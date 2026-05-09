@@ -5,6 +5,7 @@
 ### Added
 - Arrival generators use recent airport-service data and fleet matching so callsigns fit both destination and aircraft type.
 - Session Report adds Class C outer-area service, no-minima advisories, structured RFIS field proof, and transferred-away aircraft filtering.
+- Session Report scores reciprocal same-pavement and intersecting runway operations with FAA-grounded runway-separation evidence.
 - Solo-training initial contact rules now support ARTCC-specific handoff timing, position-type pairs, and exact callsign exceptions.
 
 ### Fixed
