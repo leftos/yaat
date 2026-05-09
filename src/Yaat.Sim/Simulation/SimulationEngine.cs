@@ -1051,6 +1051,7 @@ public sealed class SimulationEngine
             World.Rng,
             World.Weather,
             FindAircraft,
+            () => World.GetSnapshot(),
             Scenario?.ValidateDctFixes ?? true,
             Scenario?.AutoCrossRunway ?? false,
             Scenario?.SoloTrainingMode ?? false,
@@ -1065,7 +1066,7 @@ public sealed class SimulationEngine
             aircraft.HasControllerAcknowledgedInitialContact = true;
             if (dispatchCtx.SoloTrainingMode)
             {
-                SoloTrainingEvaluator.RecordControllerCommand(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
+                SoloTrainingEvaluator.RecordControllerCommand(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
                 PilotRequestTracker.ApplyControllerResponse(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
                 // The controller has just spoken to this aircraft, so the
                 // awaiting-controller-response gate (if it was set after this pilot's
@@ -1334,6 +1335,7 @@ public sealed class SimulationEngine
                     World.Rng,
                     World.Weather,
                     FindAircraft,
+                    () => World.GetSnapshot(),
                     Scenario?.ValidateDctFixes ?? true,
                     Scenario?.AutoCrossRunway ?? false,
                     Scenario?.SoloTrainingMode ?? false,
@@ -1740,6 +1742,7 @@ public sealed class SimulationEngine
                 World.Rng,
                 World.Weather,
                 FindAircraft,
+                () => World.GetSnapshot(),
                 scenario.ValidateDctFixes,
                 scenario.AutoCrossRunway,
                 scenario.SoloTrainingMode,
@@ -1840,6 +1843,7 @@ public sealed class SimulationEngine
             World.Rng,
             World.Weather,
             FindAircraft,
+            () => World.GetSnapshot(),
             Scenario!.ValidateDctFixes,
             Scenario!.AutoCrossRunway,
             Scenario!.SoloTrainingMode,
@@ -2029,6 +2033,7 @@ public sealed class SimulationEngine
             World.Rng,
             World.Weather,
             FindAircraft,
+            () => World.GetSnapshot(),
             Scenario?.ValidateDctFixes ?? true,
             Scenario?.AutoCrossRunway ?? false,
             Scenario?.SoloTrainingMode ?? false,

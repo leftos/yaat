@@ -183,6 +183,7 @@ public enum CanonicalCommandType
     ReportFieldInSightForced,
     ReportTrafficInSight,
     ReportTrafficInSightForced,
+    SafetyAlert,
     ResumeNormalSpeed,
     ReduceToFinalApproachSpeed,
     DeleteSpeedRestrictions,

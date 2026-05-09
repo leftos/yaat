@@ -746,10 +746,11 @@ public static class CommandParser
             DepartFix => ApproachCommandParser.ParseDepart(arg),
             ListApproaches => PR.Ok(ApproachCommandParser.ParseApps(arg)),
             ClearedVisualApproach => ApproachCommandParser.ParseCva(arg),
-            ReportFieldInSight when arg is null => PR.Ok(new ReportFieldInSightCommand()),
+            ReportFieldInSight => ParseReportFieldInSight(arg),
             ReportFieldInSightForced when arg is null => PR.Ok(new ReportFieldInSightForcedCommand()),
-            ReportTrafficInSight => PR.Ok(new ReportTrafficInSightCommand(arg?.Trim().ToUpperInvariant())),
+            ReportTrafficInSight => ParseReportTrafficInSight(arg),
             ReportTrafficInSightForced => PR.Ok(new ReportTrafficInSightForcedCommand(arg?.Trim().ToUpperInvariant())),
+            SafetyAlert => ParseSafetyAlert(arg),
             // Track operations
             SetActivePosition => ParseTcpArg(arg, tcp => new SetActivePositionCommand(tcp)),
             TrackAircraft => PR.Ok(new TrackAircraftCommand(arg?.Trim().ToUpperInvariant())),
@@ -1717,6 +1718,135 @@ public static class CommandParser
         int? altitude = AltitudeResolver.Resolve(arg);
         return altitude is null ? PR.Fail($"invalid altitude '{arg}'") : PR.Ok(factory(altitude.Value));
     }
+
+    private static PR ParseReportFieldInSight(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new ReportFieldInSightCommand());
+        }
+
+        var tokens = SplitTokens(arg);
+        if (tokens.Length != 2)
+        {
+            return PR.Fail("RFIS requires either no arguments or <clock> <miles>");
+        }
+
+        if (!TryParseClockMiles(tokens[0], tokens[1], out int clock, out int miles, out string error))
+        {
+            return PR.Fail(error);
+        }
+
+        return PR.Ok(new ReportFieldAdvisoryCommand(new FieldAdvisoryDetails(clock, miles)));
+    }
+
+    private static PR ParseReportTrafficInSight(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new ReportTrafficInSightCommand(null));
+        }
+
+        var tokens = SplitTokens(arg);
+        if (tokens.Length == 5)
+        {
+            if (!TryParseClockMiles(tokens[0], tokens[1], out int clock, out int miles, out string error))
+            {
+                return PR.Fail(error);
+            }
+
+            string direction = tokens[2].ToUpperInvariant();
+            if (!IsCardinalDirection(direction))
+            {
+                return PR.Fail("RTIS direction must be N, NE, E, SE, S, SW, W, or NW");
+            }
+
+            int? altitude = AltitudeResolver.Resolve(tokens[4]);
+            if (altitude is null)
+            {
+                return PR.Fail($"invalid altitude '{tokens[4]}'");
+            }
+
+            return PR.Ok(
+                new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(clock, miles, direction, tokens[3].ToUpperInvariant(), altitude.Value))
+            );
+        }
+
+        if (tokens.Length > 0 && int.TryParse(tokens[0], out _))
+        {
+            return PR.Fail("RTIS descriptive form requires <clock> <miles> <direction> <type> <altitude>");
+        }
+
+        return PR.Ok(new ReportTrafficInSightCommand(arg.Trim().ToUpperInvariant()));
+    }
+
+    private static PR ParseSafetyAlert(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Fail("SAFAL requires <clock> <miles> [L|R] [C|D]");
+        }
+
+        var tokens = SplitTokens(arg);
+        if (tokens.Length < 2 || tokens.Length > 4)
+        {
+            return PR.Fail("SAFAL requires <clock> <miles> [L|R] [C|D]");
+        }
+
+        if (!TryParseClockMiles(tokens[0], tokens[1], out int clock, out int miles, out string error))
+        {
+            return PR.Fail(error);
+        }
+
+        SafetyAlertTurn? turn = null;
+        SafetyAlertVertical? vertical = null;
+        for (int i = 2; i < tokens.Length; i++)
+        {
+            switch (tokens[i].ToUpperInvariant())
+            {
+                case "L" when turn is null:
+                    turn = SafetyAlertTurn.Left;
+                    break;
+                case "R" when turn is null:
+                    turn = SafetyAlertTurn.Right;
+                    break;
+                case "C" when vertical is null:
+                    vertical = SafetyAlertVertical.Climb;
+                    break;
+                case "D" when vertical is null:
+                    vertical = SafetyAlertVertical.Descend;
+                    break;
+                default:
+                    return PR.Fail("SAFAL optional tokens must be one turn token (L/R) and one vertical token (C/D)");
+            }
+        }
+
+        return PR.Ok(new SafetyAlertCommand(new SafetyAlertDetails(clock, miles, turn, vertical)));
+    }
+
+    private static string[] SplitTokens(string arg) => arg.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static bool TryParseClockMiles(string clockToken, string milesToken, out int clock, out int miles, out string error)
+    {
+        clock = 0;
+        miles = 0;
+        if (!int.TryParse(clockToken, out clock) || clock < 1 || clock > 12)
+        {
+            error = "clock position must be 1 through 12";
+            return false;
+        }
+
+        if (!int.TryParse(milesToken, out miles) || miles <= 0)
+        {
+            error = "miles must be a positive whole number";
+            return false;
+        }
+
+        error = "";
+        return true;
+    }
+
+    private static bool IsCardinalDirection(string token) => token is "N" or "NE" or "E" or "SE" or "S" or "SW" or "W" or "NW";
 
     private static PR ParseClimbMaintain(string? arg)
     {

@@ -699,11 +699,17 @@ public record ClearedVisualApproachCommand(string RunwayId, string? AirportCode,
 
 public record ReportFieldInSightCommand : ParsedCommand;
 
+public record ReportFieldAdvisoryCommand(FieldAdvisoryDetails Details) : ParsedCommand;
+
 public record ReportFieldInSightForcedCommand : ParsedCommand;
 
 public record ReportTrafficInSightCommand(string? TargetCallsign) : ParsedCommand;
 
+public record ReportTrafficAdvisoryCommand(TrafficAdvisoryDetails Details) : ParsedCommand;
+
 public record ReportTrafficInSightForcedCommand(string? TargetCallsign) : ParsedCommand;
+
+public record SafetyAlertCommand(SafetyAlertDetails Details) : ParsedCommand;
 
 // Queue meta-commands
 public record DeleteQueuedCommand(int? BlockNumber = null) : ParsedCommand;

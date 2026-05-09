@@ -1,5 +1,6 @@
 using System.Text;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 
@@ -137,9 +138,12 @@ public static class CommandDescriber
             ListApproachesCommand => CanonicalCommandType.ListApproaches,
             ClearedVisualApproachCommand => CanonicalCommandType.ClearedVisualApproach,
             ReportFieldInSightCommand => CanonicalCommandType.ReportFieldInSight,
+            ReportFieldAdvisoryCommand => CanonicalCommandType.ReportFieldInSight,
             ReportFieldInSightForcedCommand => CanonicalCommandType.ReportFieldInSightForced,
             ReportTrafficInSightCommand => CanonicalCommandType.ReportTrafficInSight,
+            ReportTrafficAdvisoryCommand => CanonicalCommandType.ReportTrafficInSight,
             ReportTrafficInSightForcedCommand => CanonicalCommandType.ReportTrafficInSightForced,
+            SafetyAlertCommand => CanonicalCommandType.SafetyAlert,
             WaitCommand => CanonicalCommandType.Wait,
             WaitDistanceCommand => CanonicalCommandType.WaitDistance,
             DeleteQueuedCommand => CanonicalCommandType.DeleteQueuedCommands,
@@ -375,9 +379,12 @@ public static class CommandDescriber
             ListApproachesCommand => TrackedCommandType.Immediate,
             ClearedVisualApproachCommand => TrackedCommandType.Immediate,
             ReportFieldInSightCommand => TrackedCommandType.Immediate,
+            ReportFieldAdvisoryCommand => TrackedCommandType.Immediate,
             ReportFieldInSightForcedCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightCommand => TrackedCommandType.Immediate,
+            ReportTrafficAdvisoryCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightForcedCommand => TrackedCommandType.Immediate,
+            SafetyAlertCommand => TrackedCommandType.Immediate,
             DeleteQueuedCommand => TrackedCommandType.Immediate,
             ShowQueuedCommand => TrackedCommandType.Immediate,
             _ => TrackedCommandType.Immediate,
@@ -521,9 +528,16 @@ public static class CommandDescriber
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"APPS {cmd.AirportCode}" : "APPS",
             ClearedVisualApproachCommand cmd => FormatCvaCanonical(cmd),
             ReportFieldInSightCommand => "RFIS",
+            ReportFieldAdvisoryCommand { Details: not null } cmd => $"RFIS {cmd.Details.Clock} {cmd.Details.Miles}",
+            ReportFieldAdvisoryCommand => "RFIS",
             ReportFieldInSightForcedCommand => "RFISF",
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null ? $"RTIS {cmd.TargetCallsign}" : "RTIS",
+            ReportTrafficAdvisoryCommand { Details: not null } cmd =>
+                $"RTIS {cmd.Details.Clock} {cmd.Details.Miles} {cmd.Details.Direction} {cmd.Details.AircraftType} {cmd.Details.Altitude / 100:000}",
+            ReportTrafficAdvisoryCommand => "RTIS",
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null ? $"RTISF {cmd.TargetCallsign}" : "RTISF",
+            SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertCanonical(cmd),
+            SafetyAlertCommand => "SAFAL",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"DELAT {del.BlockNumber}" : "DELAT",
             ShowQueuedCommand => "SHOWAT",
             ChangeDestinationCommand cmd => $"APT {cmd.Airport}",
@@ -766,13 +780,19 @@ public static class CommandDescriber
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"List approaches for {cmd.AirportCode}" : "List approaches",
             ClearedVisualApproachCommand cmd => FormatCvaNatural(cmd),
             ReportFieldInSightCommand => "Report field in sight",
+            ReportFieldAdvisoryCommand { Details: not null } cmd => FormatFieldAdvisoryPhrase(cmd.Details),
+            ReportFieldAdvisoryCommand => "Report field in sight",
             ReportFieldInSightForcedCommand => "Report field in sight (forced)",
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null
                 ? $"Report traffic in sight, {cmd.TargetCallsign}"
                 : "Report traffic in sight",
+            ReportTrafficAdvisoryCommand { Details: not null } cmd => FormatTrafficAdvisoryPhrase(cmd.Details),
+            ReportTrafficAdvisoryCommand => "Report traffic in sight",
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null
                 ? $"Report traffic in sight, {cmd.TargetCallsign} (forced)"
                 : "Report traffic in sight (forced)",
+            SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertPhrase(cmd.Details),
+            SafetyAlertCommand => "Safety alert",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"Delete queued block {del.BlockNumber}" : "Delete all queued commands",
             ShowQueuedCommand => "Show queued commands",
             ChangeDestinationCommand cmd => $"Change destination to {cmd.Airport}",
@@ -941,6 +961,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.ReportFieldInSightForced
                 or CanonicalCommandType.ReportTrafficInSight
                 or CanonicalCommandType.ReportTrafficInSightForced
+                or CanonicalCommandType.SafetyAlert
                 or CanonicalCommandType.ListApproaches
                 or CanonicalCommandType.ExpectApproach
                 or CanonicalCommandType.Expedite
@@ -1511,6 +1532,103 @@ public static class CommandDescriber
         }
         return msg;
     }
+
+    internal static string FormatTrafficAdvisoryPhrase(TrafficAdvisoryDetails details) =>
+        $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, {FormatAircraftType(details.AircraftType)}, {details.Altitude:N0}, report it in sight.";
+
+    internal static string FormatFieldAdvisoryPhrase(FieldAdvisoryDetails details) =>
+        $"Field's at your {details.Clock} o'clock, {FormatMiles(details.Miles)}, report it in sight.";
+
+    internal static string FormatSafetyAlertPhrase(SafetyAlertDetails details)
+    {
+        var parts = new List<string> { $"Traffic alert, {details.Clock} o'clock, {FormatMiles(details.Miles)}" };
+        if (details.Turn is { } turn)
+        {
+            parts.Add($"advise you turn {TurnWord(turn)} immediately");
+        }
+        if (details.Vertical is { } vertical)
+        {
+            parts.Add($"advise you {VerticalWord(vertical)} immediately");
+        }
+        return string.Join(", ", parts) + ".";
+    }
+
+    private static string FormatSafetyAlertCanonical(SafetyAlertCommand cmd)
+    {
+        var parts = new List<string> { "SAFAL", cmd.Details.Clock.ToString(), cmd.Details.Miles.ToString() };
+        if (cmd.Details.Turn is { } turn)
+        {
+            parts.Add(turn == SafetyAlertTurn.Left ? "L" : "R");
+        }
+        if (cmd.Details.Vertical is { } vertical)
+        {
+            parts.Add(vertical == SafetyAlertVertical.Climb ? "C" : "D");
+        }
+        return string.Join(' ', parts);
+    }
+
+    private static string FormatMiles(int miles) => miles == 1 ? "1 mile" : $"{miles} miles";
+
+    private static string DirectionWord(string direction) =>
+        direction.ToUpperInvariant() switch
+        {
+            "N" => "northbound",
+            "NE" => "northeastbound",
+            "E" => "eastbound",
+            "SE" => "southeastbound",
+            "S" => "southbound",
+            "SW" => "southwestbound",
+            "W" => "westbound",
+            "NW" => "northwestbound",
+            _ => $"{direction.ToLowerInvariant()}bound",
+        };
+
+    private static string FormatAircraftType(string type) =>
+        FaaAircraftDatabase.Get(type) is { } record
+            ? FormatFaaAircraftType(record)
+            : type.ToUpperInvariant() switch
+            {
+                "B737" or "B738" or "B739" or "B736" or "B73G" => "Boeing 737",
+                "A320" or "A319" or "A321" => "Airbus A320",
+                _ => type.ToUpperInvariant(),
+            };
+
+    private static string FormatFaaAircraftType(FaaAircraftRecord record)
+    {
+        var manufacturer = record.Manufacturer?.Trim();
+        var model = NormalizeAircraftModel(record.ModelFaa?.Trim() ?? record.ModelBada?.Trim());
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            return record.IcaoCode.ToUpperInvariant();
+        }
+
+        if (string.IsNullOrWhiteSpace(manufacturer) || model.Contains(manufacturer, StringComparison.OrdinalIgnoreCase))
+        {
+            return model;
+        }
+
+        return $"{manufacturer} {model}";
+    }
+
+    private static string? NormalizeAircraftModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            return model;
+        }
+
+        var dashIndex = model.IndexOf('-');
+        if (dashIndex > 0 && dashIndex < model.Length - 1 && char.IsDigit(model[dashIndex - 1]) && char.IsDigit(model[dashIndex + 1]))
+        {
+            return model[..dashIndex];
+        }
+
+        return model;
+    }
+
+    private static string TurnWord(SafetyAlertTurn turn) => turn == SafetyAlertTurn.Left ? "left" : "right";
+
+    private static string VerticalWord(SafetyAlertVertical vertical) => vertical == SafetyAlertVertical.Climb ? "climb" : "descend";
 
     private static string FormatDaCanonical(CreateAbbreviatedFlightPlanCommand cmd)
     {

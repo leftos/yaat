@@ -1459,7 +1459,17 @@ public static class CommandRegistry
                 ["FOLLOW", "FOL"],
                 [O(null, [], "Follow last-reported traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Follow specific traffic")]
             ),
-            Bare(ReportFieldInSight, "Report Field In Sight", "Approach", true, ["RFIS"]),
+            Cmd(
+                ReportFieldInSight,
+                "Report Field In Sight",
+                "Approach",
+                true,
+                ["RFIS"],
+                [
+                    O(null, [], "RPO shorthand: report field in sight"),
+                    O("Descriptive", [R("clock", "1-12"), R("miles", "NM")], "Issue field advisory"),
+                ]
+            ),
             Bare(ReportFieldInSightForced, "Report Field In Sight (Forced)", "Approach", true, ["RFISF"]),
             Cmd(
                 ReportTrafficInSight,
@@ -1467,7 +1477,21 @@ public static class CommandRegistry
                 "Approach",
                 true,
                 ["RTIS"],
-                [O(null, [], "Report traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Report specific traffic in sight")]
+                [
+                    O(null, [], "RPO shorthand: report traffic in sight"),
+                    O("Target", [R("callsign", "traffic callsign")], "RPO shorthand: report specific traffic in sight"),
+                    O(
+                        "Descriptive",
+                        [
+                            R("clock", "1-12"),
+                            R("miles", "NM"),
+                            R("direction", "N/NE/E/SE/S/SW/W/NW"),
+                            R("type", "aircraft type"),
+                            R("altitude", "altitude"),
+                        ],
+                        "Issue traffic advisory"
+                    ),
+                ]
             ),
             Cmd(
                 ReportTrafficInSightForced,
@@ -1476,6 +1500,21 @@ public static class CommandRegistry
                 true,
                 ["RTISF"],
                 [O(null, [], "Force traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Force specific traffic in sight")]
+            ),
+            Cmd(
+                SafetyAlert,
+                "Safety Alert",
+                "Approach",
+                true,
+                ["SAFAL"],
+                [
+                    O(null, [R("clock", "1-12"), R("miles", "NM")], "Issue traffic safety alert"),
+                    O(
+                        null,
+                        [R("clock", "1-12"), R("miles", "NM"), Opt("turn", "L/R"), Opt("vertical", "C/D")],
+                        "Issue traffic safety alert with action"
+                    ),
+                ]
             ),
         ];
 

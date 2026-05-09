@@ -15,7 +15,7 @@ namespace Yaat.Sim.Commands;
 /// a context explicitly rather than relying on defaults, so that future context
 /// additions break at the compiler instead of silently passing null.
 ///
-/// <para><see cref="Weather"/> and <see cref="FindAircraft"/> are nullable:
+/// <para><see cref="Weather"/>, <see cref="FindAircraft"/>, and <see cref="ListAircraft"/> are nullable:
 /// commands that need them (currently RFIS / RTIS for live visual acquisition)
 /// fail gracefully when they are absent, which is the normal case for tests
 /// that don't exercise visual detection.</para>
@@ -34,6 +34,7 @@ public sealed record DispatchContext(
     Random Rng,
     WeatherProfile? Weather,
     Func<string, AircraftState?>? FindAircraft,
+    Func<IReadOnlyList<AircraftState>>? ListAircraft,
     bool ValidateDctFixes,
     bool AutoCrossRunway,
     bool SoloTrainingMode,

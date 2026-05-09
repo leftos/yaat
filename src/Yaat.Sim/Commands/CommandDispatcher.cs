@@ -576,12 +576,18 @@ public static class CommandDispatcher
                 return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
             case ReportFieldInSightCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSight(aircraft, ctx);
+            case ReportFieldAdvisoryCommand cmd:
+                return NavigationCommandHandler.DispatchReportFieldAdvisory(cmd, aircraft, ctx);
             case ReportFieldInSightForcedCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSightForced(aircraft, ctx);
             case ReportTrafficInSightCommand cmd:
                 return NavigationCommandHandler.DispatchReportTrafficInSight(aircraft, cmd.TargetCallsign, ctx);
+            case ReportTrafficAdvisoryCommand cmd:
+                return NavigationCommandHandler.DispatchReportTrafficAdvisory(cmd, aircraft, ctx);
             case ReportTrafficInSightForcedCommand cmd:
                 return NavigationCommandHandler.DispatchReportTrafficInSightForced(aircraft, cmd.TargetCallsign, ctx);
+            case SafetyAlertCommand cmd:
+                return NavigationCommandHandler.DispatchSafetyAlert(cmd, aircraft, ctx);
 
             // --- Pattern entry commands ---
             case EnterLeftDownwindCommand cmd:
@@ -1061,6 +1067,7 @@ public static class CommandDispatcher
             CanonicalCommandType.ReportFieldInSightForced => true,
             CanonicalCommandType.ReportTrafficInSight => true,
             CanonicalCommandType.ReportTrafficInSightForced => true,
+            CanonicalCommandType.SafetyAlert => true,
             _ => false,
         };
 

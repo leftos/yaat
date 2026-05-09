@@ -190,11 +190,12 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Rich approach forms | — | `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL ILS28R` | YAAT-only — combines navigation + clearance |
 | Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach for DCT fix programming feature |
 | Visual approach | — | `CVA 28R` (+ LEFT/RIGHT/FOLLOW) | YAAT-only |
-| Follow (airborne VFR) | — | `FOLLOW [callsign]`/`FOL` | YAAT-only — VFR-only, requires RTIS/RTISF (traffic in sight gate). Callsign argument is **optional**: bare `FOLLOW` defaults to the most recently reported in-sight traffic. From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Altitude held per controller assignment. |
-| Report field in sight | — | `RFIS` | YAAT-only |
-| Report field (forced) | — | `RFISF` | YAAT-only — bypasses visual detection |
-| Report traffic in sight | — | `RTIS` | YAAT-only |
-| Report traffic (forced) | — | `RTISF` | YAAT-only — bypasses visual detection |
+| Follow (airborne VFR) | — | `FOLLOW [callsign]`/`FOL` | YAAT-only — VFR-only, requires traffic-in-sight proof (`RTIS`/`RTISF` in RPO mode, structured `RTIS` in solo training). Callsign argument is **optional**: bare `FOLLOW` defaults to the most recently reported in-sight traffic. From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Altitude held per controller assignment. |
+| Report field in sight | — | `RFIS 11 18` / `RFIS` | YAAT-only — structured form required in solo training; bare shorthand is RPO-only |
+| Report field (forced) | — | `RFISF` | YAAT-only — RPO-only, bypasses visual detection |
+| Report traffic in sight | — | `RTIS 3 5 W B737 024` / `RTIS <callsign>` | YAAT-only — structured form required in solo training; callsign shorthand is RPO-only |
+| Report traffic (forced) | — | `RTISF` | YAAT-only — RPO-only, bypasses visual detection |
+| Safety alert | — | `SAFAL 12 1 [L/R] [C/D]` | YAAT-only — structured solo-training proof for unsafe aircraft proximity |
 | Intercept validation | — | Yes — per 7110.65 §5-9-2 | YAAT-only |
 | Illegal intercept warning | — | Yes — per 7110.65 §5-9-1 | YAAT-only |
 | Approach scoring | — | Yes — terminal report + summary window | YAAT-only |
@@ -423,10 +424,12 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 ### Visual Approach & Follow System
 - `CVA` command with LEFT/RIGHT/FOLLOW options
 - Three execution paths (straight-in, angled join, pattern entry)
-- Airborne `FOLLOW` command (VFR-only, requires RTIS/RTISF like CVA FOLLOW) works from any airborne state: pursues the lead with heading/speed control and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Inside pattern phases, spacing is handled by the existing downwind/base/final speed-adjust and extend-downwind logic per 7110.65 §7-6-7 "Sequencing"
+- Airborne `FOLLOW` command (VFR-only, requires traffic-in-sight proof like CVA FOLLOW) works from any airborne state: pursues the lead with heading/speed control and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Inside pattern phases, spacing is handled by the existing downwind/base/final speed-adjust and extend-downwind logic per 7110.65 §7-6-7 "Sequencing"
 - `RFIS`/`RTIS` run live visual detection on demand per 7110.65 §7-4-3 / AIM §5-4-23 and return a specific failure reason (behind us, above ceiling, too far, occluded by bank, out of range, wrong side of runway) so RPOs understand why
-- `RFISF`/`RTISF` forced variants bypass visual detection for RPO convenience
-- CVA FOLLOW requires RTIS/RTISF (traffic in sight gate)
+- Structured `RTIS <clock> <miles> <direction> <type> <altitude>` and `RFIS <clock> <miles>` provide FAA-style advisory phraseology; solo training rejects RPO shorthand `RTIS <callsign>`, bare `RFIS`, and forced variants
+- `SAFAL <clock> <miles> [L/R] [C/D]` proves 7110.65 §2-1-6 safety-alert work without setting traffic-in-sight or satisfying follow gates
+- `RFISF`/`RTISF` forced variants bypass visual detection for RPO convenience and are rejected in solo training mode
+- CVA FOLLOW requires traffic-in-sight proof
 - Auto-cancels follow with warning when separation can't be maintained at minimum speed
 - Automatic "field in sight" / "traffic in sight" detection
 - Bank angle affects initial visual acquisition

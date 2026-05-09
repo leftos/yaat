@@ -309,7 +309,7 @@ AircraftPerformance.cs         # Unified perf API: profile-first with category f
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
-Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, same-runway, traffic-advisory events, active timeline, report buckets
+Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, same-runway, structured traffic-advisory/safety-alert events, active timeline, report buckets
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation
@@ -371,13 +371,14 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
                                     # TryApplyTowerCommand, queue infrastructure, condition conversion, shared utilities
                                     # ClearConflictingBlocks: dimension-aware selective queue clearing
                                     # SplitBlockNonConflicting: splits mixed-dimension blocks on partial conflicts
-Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft, ValidateDctFixes, AutoCrossRunway
+Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway
                                     # Bundled at SimulationEngine/RoomEngine call sites; threaded through all internal helpers
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
 Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
-                                    # JAWY airway intercept, CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS, list approaches
+                                    # JAWY airway intercept, CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS/SAFAL, list approaches
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
                                     # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing
+Commands/TrafficAdvisoryMatcher.cs  # Shared structured RTIS/SAFAL target matching: clock, whole-mile distance, direction, type, altitude
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/NodeRefToken.cs            # Parses user-typed `#<id>` node-reference tokens used in TAXI clearances; co-located with the parser since the token format is grammar, not routing
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes

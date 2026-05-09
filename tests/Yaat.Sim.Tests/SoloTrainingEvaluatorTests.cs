@@ -199,7 +199,7 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
-    public void Evaluate_ClassCMissingTrafficAdvisoryUsesDirectedRtisProof()
+    public void Evaluate_ClassCSafetyAlertUsesDirectedSafalProof()
     {
         var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
         var vfr = CreateAircraft(
@@ -211,7 +211,12 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(ifr, SingleCommand(new ReportTrafficInSightCommand(vfr.Callsign)), scenarioElapsedSeconds: 19);
+        evaluator.RecordControllerCommand(
+            ifr,
+            SingleCommand(new SafetyAlertCommand(new SafetyAlertDetails(12, 1, null, null))),
+            scenarioElapsedSeconds: 19,
+            [ifr, vfr]
+        );
 
         var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
 
@@ -219,7 +224,7 @@ public sealed class SoloTrainingEvaluatorTests
         var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(vfr.Callsign, advisory.Callsigns[0]);
         Assert.Equal(ifr.Callsign, advisory.Callsigns[1]);
-        Assert.Contains("7110.65 §7-8-2", advisory.RuleReference);
+        Assert.Contains("7110.65 §2-1-6", advisory.RuleReference);
     }
 
     [Fact]
@@ -257,15 +262,20 @@ public sealed class SoloTrainingEvaluatorTests
         Assert.Equal(2, advisories.Count);
         Assert.All(advisories, e => Assert.Equal(SoloTrainingEventSeverity.Warning, e.Severity));
         Assert.All(advisories, e => Assert.Contains("7110.65 §2-1-21", e.RuleReference));
-        Assert.All(advisories, e => Assert.Contains("RTIS/RTISF", e.ActualText));
+        Assert.All(advisories, e => Assert.Contains("structured RTIS", e.ActualText));
     }
 
     [Fact]
-    public void Evaluate_RtisProofSuppressesOnlyDirectedAdvisory()
+    public void Evaluate_StructuredRtisProofSuppressesOnlyDirectedAdvisory()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 5);
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "W", b.AircraftType, 5000))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
@@ -275,44 +285,41 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
-    public void Evaluate_RtisfProofSuppressesAdvisoryScoring()
+    public void Evaluate_RpoShortcutRtisDoesNotSuppressAdvisoryScoring()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightForcedCommand(b.Callsign)), scenarioElapsedSeconds: 5);
+        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 5);
         evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6);
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
-        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
-        Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"));
     }
 
     [Fact]
-    public void Evaluate_BareRtisCountsWhenLastReportedTrafficCallsignResolves()
+    public void Evaluate_BareRtisDoesNotSuppressAdvisoryScoring()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         a.Approach.LastReportedTrafficCallsign = b.Callsign;
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(null)), scenarioElapsedSeconds: 5);
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
-        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
-        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+        Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"));
     }
 
     [Fact]
     public void Evaluate_QueuedRtisDoesNotCountBeforeDispatch()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         var queuedCommand = new CompoundCommand([
             new ParsedBlock(null, [new WaitCommand(10)]),
-            new ParsedBlock(null, [new ReportTrafficInSightCommand(b.Callsign)]),
+            new ParsedBlock(null, [new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "W", b.AircraftType, 5000))]),
         ]);
-        evaluator.RecordControllerCommand(a, queuedCommand, scenarioElapsedSeconds: 5);
+        evaluator.RecordControllerCommand(a, queuedCommand, scenarioElapsedSeconds: 5, [a, b]);
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
@@ -322,12 +329,22 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_AdvisoryProofAfterActiveEventClearsOnNextEvaluation()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
-        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 11);
-        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightCommand(a.Callsign)), scenarioElapsedSeconds: 11);
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "W", b.AircraftType, 5000))),
+            scenarioElapsedSeconds: 11,
+            [a, b]
+        );
+        evaluator.RecordControllerCommand(
+            b,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "E", a.AircraftType, 5000))),
+            scenarioElapsedSeconds: 11,
+            [a, b]
+        );
         evaluator.Evaluate([a, b], scenarioElapsedSeconds: 12, AirspaceDatabase.Default);
         var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"));
 
@@ -338,10 +355,20 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WrongRtisTargetDoesNotSuppressAdvisory()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightForcedCommand("DAL9")), scenarioElapsedSeconds: 5);
-        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6);
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(3, 5, "W", "B737", 5000))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+        evaluator.RecordControllerCommand(
+            b,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "E", a.AircraftType, 5000))),
+            scenarioElapsedSeconds: 6,
+            [a, b]
+        );
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
@@ -368,10 +395,20 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Reset_ClearsTrafficAdvisoryProofAndEvents()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightForcedCommand(b.Callsign)), scenarioElapsedSeconds: 5);
-        evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6);
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "W", b.AircraftType, 5000))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+        evaluator.RecordControllerCommand(
+            b,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "E", a.AircraftType, 5000))),
+            scenarioElapsedSeconds: 6,
+            [a, b]
+        );
         Assert.DoesNotContain(
             evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default),
             e => e.Category == SoloTrainingEventCategory.AdvisoryVisual
@@ -384,20 +421,61 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
-    public void SendCommand_RtisfRecordsTrafficAdvisoryProofIntoEvaluator()
+    public void SendCommand_StructuredRtisRecordsTrafficAdvisoryProofIntoEvaluator()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        var (a, b) = CreateClosingIfrPair();
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5) };
         engine.World.AddAircraft(a);
         engine.World.AddAircraft(b);
 
-        var result = engine.SendCommand(a.Callsign, $"RTISF {b.Callsign}");
+        var result = engine.SendCommand(a.Callsign, $"RTIS 12 5 W {b.AircraftType} 050");
         var notices = engine.SoloTrainingEvaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.True(result.Success, result.Message);
         var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
+    [Fact]
+    public void Evaluate_SafetyAlertProofSuppressesOnlyCurrentSafetyAlertScoring()
+    {
+        var (a, b) = CreateConflictingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new SafetyAlertCommand(new SafetyAlertDetails(12, 3, null, null))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+        evaluator.RecordControllerCommand(
+            b,
+            SingleCommand(new SafetyAlertCommand(new SafetyAlertDetails(6, 3, null, null))),
+            scenarioElapsedSeconds: 6,
+            [a, b]
+        );
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+    }
+
+    [Fact]
+    public void Evaluate_SafetyAlertOutsideCurrentSafetyStateRecordsOveruse()
+    {
+        var (a, b) = CreateClosingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new SafetyAlertCommand(new SafetyAlertDetails(12, 5, null, null))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Safety alert overused");
     }
 
     [Fact]

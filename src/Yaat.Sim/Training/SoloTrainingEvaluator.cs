@@ -73,20 +73,40 @@ public sealed class SoloTrainingEvaluator
 
     private readonly Dictionary<string, TrackedEvent> _events = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _advisoryProofs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<SafetyAlertProof> _safetyAlertProofs = [];
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
 
     public void RecordControllerCommand(AircraftState aircraft, CompoundCommand command, double scenarioElapsedSeconds)
     {
+        RecordControllerCommand(aircraft, command, scenarioElapsedSeconds, [aircraft]);
+    }
+
+    public void RecordControllerCommand(
+        AircraftState aircraft,
+        CompoundCommand command,
+        double scenarioElapsedSeconds,
+        IReadOnlyList<AircraftState> aircraftOnFrequency
+    )
+    {
         foreach (var parsedCommand in EnumerateImmediatelyAppliedCommands(command))
         {
-            string? targetCallsign = ResolveTrafficAdvisoryTarget(aircraft, parsedCommand);
-            if (string.IsNullOrWhiteSpace(targetCallsign))
+            if (parsedCommand is ReportTrafficAdvisoryCommand rtis)
             {
-                continue;
+                var target = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, aircraftOnFrequency, out _);
+                if (target is not null)
+                {
+                    string key = MakeAdvisoryProofKey(aircraft.Callsign, target.Callsign);
+                    _advisoryProofs.Add(key);
+                }
             }
-
-            string key = MakeAdvisoryProofKey(aircraft.Callsign, targetCallsign);
-            _advisoryProofs.Add(key);
+            else if (parsedCommand is SafetyAlertCommand safetyAlert)
+            {
+                var target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, safetyAlert.Details, aircraftOnFrequency, out _);
+                if (target is not null)
+                {
+                    _safetyAlertProofs.Add(new SafetyAlertProof(aircraft.Callsign, target.Callsign, scenarioElapsedSeconds));
+                }
+            }
         }
     }
 
@@ -131,6 +151,16 @@ public sealed class SoloTrainingEvaluator
                         notices.Add(advisoryNotice);
                     }
                 }
+            }
+        }
+
+        foreach (var overuseSample in SampleSafetyAlertOveruse(scenarioElapsedSeconds))
+        {
+            observedThisTick.Add(overuseSample.Id);
+            var notice = Upsert(overuseSample, scenarioElapsedSeconds);
+            if (notice is not null)
+            {
+                notices.Add(notice);
             }
         }
 
@@ -196,6 +226,7 @@ public sealed class SoloTrainingEvaluator
     {
         _events.Clear();
         _advisoryProofs.Clear();
+        _safetyAlertProofs.Clear();
         _sameRunwayTracker.Reset();
     }
 
@@ -450,14 +481,29 @@ public sealed class SoloTrainingEvaluator
     )
     {
         var samples = new List<TrainingEventSample>(capacity: 2);
-        if (!HasTrafficAdvisoryProof(a.Callsign, b.Callsign))
+        if (separationSample.Severity == SoloTrainingEventSeverity.Safety)
         {
-            samples.Add(CreateAdvisorySample(a, b, requirement, separationSample, scenarioElapsedSeconds));
-        }
+            if (!HasSafetyAlertProof(a.Callsign, b.Callsign))
+            {
+                samples.Add(CreateSafetyAlertSample(a, b, requirement, separationSample, scenarioElapsedSeconds));
+            }
 
-        if (!HasTrafficAdvisoryProof(b.Callsign, a.Callsign))
+            if (!HasSafetyAlertProof(b.Callsign, a.Callsign))
+            {
+                samples.Add(CreateSafetyAlertSample(b, a, requirement, separationSample, scenarioElapsedSeconds));
+            }
+        }
+        else
         {
-            samples.Add(CreateAdvisorySample(b, a, requirement, separationSample, scenarioElapsedSeconds));
+            if (!HasTrafficAdvisoryProof(a.Callsign, b.Callsign))
+            {
+                samples.Add(CreateAdvisorySample(a, b, requirement, separationSample, scenarioElapsedSeconds));
+            }
+
+            if (!HasTrafficAdvisoryProof(b.Callsign, a.Callsign))
+            {
+                samples.Add(CreateAdvisorySample(b, a, requirement, separationSample, scenarioElapsedSeconds));
+            }
         }
 
         return samples;
@@ -465,6 +511,23 @@ public sealed class SoloTrainingEvaluator
 
     private bool HasTrafficAdvisoryProof(string recipientCallsign, string targetCallsign) =>
         _advisoryProofs.Contains(MakeAdvisoryProofKey(recipientCallsign, targetCallsign));
+
+    private bool HasSafetyAlertProof(string recipientCallsign, string targetCallsign)
+    {
+        foreach (var proof in _safetyAlertProofs)
+        {
+            if (
+                proof.RecipientCallsign.Equals(recipientCallsign, StringComparison.OrdinalIgnoreCase)
+                && proof.TargetCallsign.Equals(targetCallsign, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                proof.UsedForSafetyState = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static TrainingEventSample CreateAdvisorySample(
         AircraftState recipient,
@@ -481,7 +544,7 @@ public sealed class SoloTrainingEvaluator
             : requirement.Name.StartsWith("Class C", StringComparison.OrdinalIgnoreCase)
                 ? "Issue a Class C traffic advisory before proximity diminishes below applicable IFR/VFR separation minima."
             : "Issue a traffic advisory before proximity diminishes below applicable separation minima.";
-        string actualText = $"No accepted RTIS/RTISF proof for {recipient.Callsign} about {target.Callsign}.";
+        string actualText = $"No accepted structured RTIS proof for {recipient.Callsign} about {target.Callsign}.";
         string description =
             $"{recipient.Callsign}: issue traffic advisory for {target.Callsign}; {requirement.CoachingText} Current spacing is "
             + $"{separationSample.ActualHorizontalNm:F1} NM and {separationSample.ActualVerticalFt:F0} ft.";
@@ -505,10 +568,73 @@ public sealed class SoloTrainingEvaluator
         );
     }
 
+    private static TrainingEventSample CreateSafetyAlertSample(
+        AircraftState recipient,
+        AircraftState target,
+        SeparationRequirement requirement,
+        TrainingEventSample separationSample,
+        double scenarioElapsedSeconds
+    )
+    {
+        string id = MakeSafetyAlertEventId(requirement.Name, recipient.Callsign, target.Callsign);
+        string description =
+            $"{recipient.Callsign}: issue safety alert for {target.Callsign}; current spacing is "
+            + $"{separationSample.ActualHorizontalNm:F1} NM and {separationSample.ActualVerticalFt:F0} ft.";
+
+        return new TrainingEventSample(
+            id,
+            SoloTrainingEventCategory.AdvisoryVisual,
+            SoloTrainingEventSeverity.Safety,
+            "Safety alert missing",
+            description,
+            "7110.65 §2-1-6",
+            scenarioElapsedSeconds,
+            [recipient.Callsign, target.Callsign],
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Issue a traffic safety alert when another aircraft is in unsafe proximity.",
+            $"No accepted SAFAL proof for {recipient.Callsign} about {target.Callsign}."
+        );
+    }
+
     private static string AdvisoryRuleReference(SeparationRequirement requirement) =>
         requirement.Name.StartsWith("Class B", StringComparison.OrdinalIgnoreCase) ? "7110.65 §7-9-5, §2-1-21"
         : requirement.Name.StartsWith("Class C", StringComparison.OrdinalIgnoreCase) ? "7110.65 §7-8-2, §2-1-21"
         : "7110.65 §2-1-21";
+
+    private IEnumerable<TrainingEventSample> SampleSafetyAlertOveruse(double scenarioElapsedSeconds)
+    {
+        foreach (var proof in _safetyAlertProofs)
+        {
+            if (proof.UsedForSafetyState || proof.OveruseRecorded)
+            {
+                continue;
+            }
+
+            proof.OveruseRecorded = true;
+            string id = $"SAFETY_ALERT_OVERUSE_{proof.RecipientCallsign}_{proof.TargetCallsign}_{proof.ScenarioElapsedSeconds:F0}".ToUpperInvariant();
+            yield return new TrainingEventSample(
+                id,
+                SoloTrainingEventCategory.AdvisoryVisual,
+                SoloTrainingEventSeverity.Warning,
+                "Safety alert overused",
+                $"{proof.RecipientCallsign}: SAFAL was issued for {proof.TargetCallsign} without a current safety-severity unsafe-proximity state.",
+                "7110.65 §2-1-6",
+                scenarioElapsedSeconds,
+                [proof.RecipientCallsign, proof.TargetCallsign],
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Reserve traffic safety alerts for unsafe aircraft proximity.",
+                "Accepted SAFAL did not match a current safety-severity pair state."
+            );
+        }
+    }
 
     private static (double HorizontalNm, double VerticalFt) ComputeSeparation(AircraftState a, AircraftState b, double lookaheadSeconds)
     {
@@ -570,6 +696,12 @@ public sealed class SoloTrainingEvaluator
     {
         string normalizedRule = ruleName.Replace(' ', '_').Replace('/', '_');
         return $"TRAFFIC_ADVISORY_{normalizedRule}_{recipientCallsign}_{targetCallsign}".ToUpperInvariant();
+    }
+
+    private static string MakeSafetyAlertEventId(string ruleName, string recipientCallsign, string targetCallsign)
+    {
+        string normalizedRule = ruleName.Replace(' ', '_').Replace('/', '_');
+        return $"SAFETY_ALERT_{normalizedRule}_{recipientCallsign}_{targetCallsign}".ToUpperInvariant();
     }
 
     private static int ComputeEventLoss(List<SoloTrainingEvent> events, SoloTrainingEventCategory category)
@@ -659,6 +791,15 @@ public sealed class SoloTrainingEvaluator
     private sealed record SampledSeparation(double LookaheadSeconds, double HorizontalNm, double VerticalFt, SeparationRequirement? Requirement);
 
     private sealed record SeparationTrainingSample(TrainingEventSample Event, SeparationRequirement Requirement);
+
+    private sealed class SafetyAlertProof(string recipientCallsign, string targetCallsign, double scenarioElapsedSeconds)
+    {
+        public string RecipientCallsign { get; } = recipientCallsign.Trim().ToUpperInvariant();
+        public string TargetCallsign { get; } = targetCallsign.Trim().ToUpperInvariant();
+        public double ScenarioElapsedSeconds { get; } = scenarioElapsedSeconds;
+        public bool UsedForSafetyState { get; set; }
+        public bool OveruseRecorded { get; set; }
+    }
 
     private sealed record TrainingEventSample(
         string Id,

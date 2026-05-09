@@ -293,10 +293,11 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Expect approach | `EAPP I28R` | `EXPECT` | — |
 | Follow traffic | `FOLLOW UAL456` / `FOLLOW` | `FOL` | Callsign optional — bare `FOLLOW` defaults to last in-sight traffic |
 | Visual approach | `CVA 28R` | `VISUAL` | — |
-| Report field | `RFIS` | — | — |
-| Report field (forced) | `RFISF` | — | — |
-| Report traffic | `RTIS` | — | — |
-| Report traffic (forced) | `RTISF` | — | — |
+| Report field | `RFIS 11 18` | `RFIS` (RPO shorthand) | Descriptive form required in solo training |
+| Report field (forced) | `RFISF` | — | RPO-only |
+| Report traffic | `RTIS 3 5 W B737 024` | `RTIS` (RPO shorthand) | Descriptive form required in solo training |
+| Report traffic (forced) | `RTISF` | — | RPO-only |
+| Safety alert | `SAFAL 12 1 L D` | — | Optional `L`/`R` and `C`/`D` action tokens |
 | List approaches | `APPS` | `APPS OAK` | — |
 
 ### Tower
@@ -674,16 +675,16 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 `PS` sets the pattern downwind offset distance. The crosswind extension and base extension scale proportionally. The override persists across pattern circuits.
 
-`FOLLOW` is a **VFR-only** command (per 7110.65 §7-6-7 "Sequencing"). It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF`) — a pilot cannot follow traffic they haven't visually acquired. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
+`FOLLOW` is a **VFR-only** command (per 7110.65 §7-6-7 "Sequencing"). It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF` in RPO mode; structured `RTIS` in solo training) — a pilot cannot follow traffic they haven't visually acquired. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
 
 - **Free pursuit** (lead not yet in a pattern, or follower far from the pattern): the follower turns toward the lead and matches the lead's speed with distance-based correction (±20 kts, wider free-flight spacing of 1.5/2.0/2.5 nm by category). Altitude is left at whatever the controller last assigned — real pilots do not dive/climb onto the lead; they maintain visual separation from their current level.
 - **Pattern auto-join** (lead is in a pattern phase, follower within 3 nm of the lead's downwind abeam point, within 5 nm of the lead, and on the correct side of the runway): the follower's phase list is rebuilt with `PatternEntryPhase → DownwindPhase → BasePhase → FinalApproachPhase → LandingPhase` copying the lead's runway, pattern direction, and altitude. From then on, the existing pattern-tight spacing (1.0/1.5/2.0 nm) and extend-downwind logic take over.
 
-The callsign argument is **optional**. A bare `FOLLOW` defaults to the most recently reported in-sight traffic (the last callsign acquired via `RTIS` or `RTISF`). An explicit callsign always overrides the stored value. If no RTIS has succeeded yet, bare `FOLLOW` returns *"Unable, say traffic callsign"* without side effects.
+The callsign argument is **optional**. A bare `FOLLOW` defaults to the most recently reported in-sight traffic (the last callsign acquired via a successful traffic-in-sight command). An explicit callsign always overrides the stored value. If no RTIS has succeeded yet, bare `FOLLOW` returns *"Unable, say traffic callsign"* without side effects.
 
 Follow is cancelled automatically when the lead disappears, lands, the follower can't maintain separation at minimum speed, or the gap to the lead has been growing for more than 30 seconds (runaway-distance cancel). Any subsequent vector command (`FH`, `CM`, `SPD`, etc.) clears the follow phase and returns control to the controller's direct targets. To retarget, just issue another `FOLLOW` with a different callsign — the existing phase updates in place.
 
-For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinct clearance that requires the pilot to have reported traffic in sight first (`RTIS`/`RTISF`).
+For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinct clearance that requires the pilot to have reported traffic in sight first.
 
 ### Approach Options
 
@@ -767,11 +768,13 @@ The aircraft execution path depends on its position relative to the runway:
 - **Angled join** (30°–90° off): navigates to an intercept point, then final
 - **Pattern entry** (>90° off): enters downwind → base → final
 
-The `FOLLOW` option requires the pilot to have reported traffic in sight first (via `RTIS` or `RTISF`). The follower adjusts speed and extends downwind to maintain visual separation from the leader. See [Pattern Commands](#pattern-commands) for follow behavior details.
+The `FOLLOW` option requires the pilot to have reported traffic in sight first (via `RTIS`/`RTISF` in RPO mode, or structured `RTIS` in solo training). The follower adjusts speed and extends downwind to maintain visual separation from the leader. See [Pattern Commands](#pattern-commands) for follow behavior details.
 
-**Field/traffic in sight:** Aircraft on an active visual approach automatically report "field in sight" or "traffic in sight" when detection conditions are met (forward hemisphere, within visibility range, below ceiling). `RFIS` and `RTIS` can also be issued on demand before clearance — they run the same visual check live against the arrival airport (`RFIS`) or a named target callsign (`RTIS`).
+**Field/traffic in sight:** Aircraft on an active visual approach automatically report "field in sight" or "traffic in sight" when detection conditions are met (forward hemisphere, within visibility range, below ceiling). RPO mode can still use shorthand `RFIS`, `RTIS <callsign>`, `RFISF`, and `RTISF`; solo-training students must use descriptive forms so the Session Report can score the actual advisory content. `RTIS <clock> <miles> <direction> <type> <altitude>` issues FAA-style traffic information, resolves the one matching target, and then runs the same visual-acquisition behavior as callsign `RTIS`. Example: `RTIS 3 5 W B737 024` renders *"Traffic, 3 o'clock, 5 miles, westbound, Boeing 737, 2,400, report it in sight."* `RFIS <clock> <miles>` renders *"Field's at your 11 o'clock, 18 miles, report it in sight."*
 
-`RTIS` and `RFIS` **fail soft**: if the pilot can't acquire the target on the first check, the command still succeeds, the pilot reports a diagnostic-free readback (e.g. *"Negative contact, LEAD, looking"*, *"Negative contact, KOAK, on top, looking"*, *"in the turn, looking"*, *"field's behind us, looking"*), and the pilot keeps re-checking acquisition each tick. When the target becomes acquirable — traffic enters the forward hemisphere, pilot rolls out of the turn, ownship descends through a deck, distance closes — the pilot reports *"traffic in sight"* / *"field in sight"* (announced via orange WRN notifications so the controller sees the resolution) and the look-state clears. The specific failure reason (cloud layer code, distance, hemisphere, bank state) is surfaced to the RPO through the command response only — never to the pilot readback. A second `RTIS`/`RFIS` replaces the prior looking state; target leaving the simulation, destination cleared, or an approach-procedure reset silently clear it. Hard failures are still hard: bare `RTIS` with no callsign, a callsign not on frequency, or `RFIS` with no destination / destination not in the nav database returns an immediate error. The forced variants `RTISF` / `RFISF` set the flag directly with no acquisition check and no looking state — use them as instructor overrides.
+`RTIS` and `RFIS` **fail soft**: if the pilot can't acquire the target on the first check, the command still succeeds, the pilot reports a diagnostic-free readback (e.g. *"Negative contact, LEAD, looking"*, *"Negative contact, KOAK, on top, looking"*, *"in the turn, looking"*, *"field's behind us, looking"*), and the pilot keeps re-checking acquisition each tick. When the target becomes acquirable — traffic enters the forward hemisphere, pilot rolls out of the turn, ownship descends through a deck, distance closes — the pilot reports *"traffic in sight"* / *"field in sight"* (announced via orange WRN notifications so the controller sees the resolution) and the look-state clears. The specific failure reason (cloud layer code, distance, hemisphere, bank state) is surfaced to the RPO through the command response only — never to the pilot readback. A second visual-acquisition command replaces the prior looking state; target leaving the simulation, destination cleared, or an approach-procedure reset silently clear it. Hard failures are still hard: an unmatched or ambiguous structured `RTIS`, bare `RTIS` with no callsign, a callsign not on frequency, or `RFIS` with no destination / destination not in the nav database returns an immediate error. The forced variants `RTISF` / `RFISF` set the flag directly with no acquisition check and no looking state, and are rejected in solo training mode.
+
+**Safety alerts:** `SAFAL <clock> <miles> [L|R] [C|D]` issues an aircraft-conflict safety alert. Examples: `SAFAL 12 1`, `SAFAL 12 1 L`, `SAFAL 12 1 D`, and `SAFAL 12 1 R C`. The command resolves a target by clock position and distance, but it does not set traffic-in-sight and does not satisfy `FOLLOW` or `CVA FOLLOW`; it exists for 7110.65 §2-1-6 safety-alert proof in solo training.
 
 **Bank angle affects initial acquisition:** A pilot in a turn cannot initially spot targets hidden by the high wing. Time your traffic calls for when the pilot can actually see the target — not during a turn that blocks the view. Once the pilot has the target in sight, they can track it through subsequent turns.
 

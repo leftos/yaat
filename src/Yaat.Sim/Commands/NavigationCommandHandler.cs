@@ -992,6 +992,11 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportFieldInSight(AircraftState aircraft, DispatchContext ctx)
     {
+        if (ctx.SoloTrainingMode)
+        {
+            return new CommandResult(false, "Use RFIS <clock> <miles> in solo training");
+        }
+
         // Fast path: if the tick processor has already confirmed acquisition on a
         // visual approach, just echo the in-sight response.
         if (aircraft.Approach.HasReportedFieldInSight)
@@ -1062,8 +1067,18 @@ internal static class NavigationCommandHandler
         return CommandDispatcher.Ok($"Looking for the field — {FormatFieldFailureHint(result, metar, destination)}");
     }
 
+    internal static CommandResult DispatchReportFieldAdvisory(ReportFieldAdvisoryCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        return CommandDispatcher.Ok(CommandDescriber.FormatFieldAdvisoryPhrase(cmd.Details));
+    }
+
     internal static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)
     {
+        if (ctx.SoloTrainingMode)
+        {
+            return new CommandResult(false, "Use RTIS <clock> <miles> <direction> <type> <altitude> in solo training");
+        }
+
         // Fast path: if the tick processor has already confirmed acquisition on an
         // active FOLLOW, just echo the in-sight response. Still update the stored
         // callsign if a new one is supplied so a later bare FOLLOW targets the
@@ -1095,6 +1110,16 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, $"Negative contact, {targetCallsign} not on this frequency");
         }
 
+        return DispatchReportTrafficInSightForTarget(aircraft, targetCallsign, target, ctx);
+    }
+
+    private static CommandResult DispatchReportTrafficInSightForTarget(
+        AircraftState aircraft,
+        string targetCallsign,
+        AircraftState target,
+        DispatchContext ctx
+    )
+    {
         var result = VisualAcquisition.TryAcquireTraffic(aircraft, target, ctx.Weather);
 
         if (result.Acquired)
@@ -1133,6 +1158,29 @@ internal static class NavigationCommandHandler
             aircraft.PendingPilotReadbacks.Add(FormatTrafficLookingNotification(result, target));
         }
         return CommandDispatcher.Ok($"Looking for traffic — {FormatTrafficFailureHint(result, target)}");
+    }
+
+    internal static CommandResult DispatchReportTrafficAdvisory(ReportTrafficAdvisoryCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        var target = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        if (target is null)
+        {
+            return new CommandResult(false, error);
+        }
+
+        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, target.Callsign, target, ctx);
+        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficAdvisoryPhrase(cmd.Details)) : acquisition;
+    }
+
+    internal static CommandResult DispatchSafetyAlert(SafetyAlertCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        var target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        if (target is null)
+        {
+            return new CommandResult(false, error);
+        }
+
+        return CommandDispatcher.Ok(CommandDescriber.FormatSafetyAlertPhrase(cmd.Details));
     }
 
     /// <summary>
@@ -1282,6 +1330,11 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft, DispatchContext ctx)
     {
+        if (ctx.SoloTrainingMode)
+        {
+            return new CommandResult(false, "RFISF is RPO-only; use RFIS <clock> <miles> in solo training");
+        }
+
         aircraft.Approach.HasReportedFieldInSight = true;
         Pilot.PilotResponder.RouteRpoSayReadback(
             aircraft,
@@ -1296,6 +1349,11 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportTrafficInSightForced(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)
     {
+        if (ctx.SoloTrainingMode)
+        {
+            return new CommandResult(false, "RTISF is RPO-only; use RTIS <clock> <miles> <direction> <type> <altitude> in solo training");
+        }
+
         aircraft.Approach.HasReportedTrafficInSight = true;
         if (!string.IsNullOrWhiteSpace(targetCallsign))
         {
