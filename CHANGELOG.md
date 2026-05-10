@@ -10,6 +10,9 @@
 ### Changed
 - Landing aircraft prefer a later same-side runway exit over an earlier opposite-side one, including when the closer same-side option is occupied.
 
+### Fixed
+- `ELB`/`ERB` from long range now holds altitude on the base leg and descends along the glide path on final.
+
 ## v0.2.1-alpha [2026/05/09]
 
 ### Highlights

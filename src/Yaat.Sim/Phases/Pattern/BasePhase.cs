@@ -60,39 +60,48 @@ public sealed class BasePhase : Phase
         }
         ctx.Targets.NavigationRoute.Clear();
 
-        // Begin descent. Default rate; if SA shortened the final, compute a
-        // steeper rate so the aircraft is on the 3° glideslope at base→final
-        // rollout — not earlier. The 90° base→final turn translates the aircraft
-        // one turn-radius further along the final, so the rollout point is
-        // (finalDist + r) from the threshold, not finalDist.
+        // Begin descent. Default rate; if the base→final geometry calls for a
+        // steeper descent (SA-shortened final), compute one. The 90° base→final
+        // turn translates the aircraft one turn-radius further along the
+        // final, so rollout is at (finalDist + r) from the threshold.
         double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
-
-        // Approximate target altitude: halfway between pattern and threshold.
-        // When SA shortens the final, replace the midpoint with the GS-intercept
-        // altitude at the rollout point so the aircraft is stabilized on glide
-        // path the moment it rolls out on final, not before.
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
-        double midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.5;
+        double targetAlt;
+
         if (FinalDistanceNm is { } finalDist)
         {
+            // Aim for the 3° glide-slope altitude at rollout — stabilizes the
+            // aircraft on the glide path the moment it rolls out on final,
+            // regardless of whether base is short (SA-shortened, steep descent)
+            // or long (extended base, no descent needed). Never aim higher
+            // than current altitude — controllers issuing ELB/ERB to an
+            // aircraft already below GS expect them to maintain or descend,
+            // not climb.
             double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
             double turnRate = CategoryPerformance.PatternTurnRate(ctx.Category);
             double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, 60);
             double turnRadiusNm = Math.Max(groundSpeedKt / (turnRate * 62.832), MinTurnRadiusNm);
             double rolloutDistNm = finalDist + turnRadiusNm;
             double gsAlt = thresholdElev + rolloutDistNm * GlideSlopeGeometry.FeetPerNm(gsAngle);
-            if (gsAlt < midAlt)
-            {
-                midAlt = gsAlt;
-                double deltaAlt = Math.Max(ctx.Aircraft.Altitude - midAlt, 0);
-                double baseLen = CategoryPerformance.PatternSizeNm(ctx.Category);
-                double timeMin = baseLen / (groundSpeedKt / 60.0);
-                double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
-                descentRate = Math.Clamp(computedRate, descentRate, 1500);
-            }
+            targetAlt = Math.Min(ctx.Aircraft.Altitude, gsAlt);
+
+            double deltaAlt = Math.Max(ctx.Aircraft.Altitude - targetAlt, 0);
+            double baseLen = CategoryPerformance.PatternSizeNm(ctx.Category);
+            double timeMin = baseLen / (groundSpeedKt / 60.0);
+            double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
+            descentRate = Math.Clamp(computedRate, descentRate, 1500);
         }
+        else
+        {
+            // Wrong-side / midfield-crossing entry: BasePhase runs after a
+            // downwind leg, so aircraft is already at TPA and finalDist is
+            // not known up front. Fall back to halfway-between-pattern-and-
+            // threshold heuristic.
+            targetAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.5;
+        }
+
         ctx.Targets.DesiredVerticalRate = -descentRate;
-        ctx.Targets.TargetAltitude = midAlt;
+        ctx.Targets.TargetAltitude = targetAlt;
 
         // Slow to base speed
         ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
