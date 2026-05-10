@@ -533,6 +533,7 @@ FilletArcGenerator.cs          # Replaces intersection nodes with bezier fillet 
 FilletProvenance.cs            # Discriminated record (TangentNode / CornerArc / etc.) attached to fillet-generated nodes/edges/arcs so cleanup passes can pattern-match instead of parsing Origin strings
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
+TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)
 TaxiPathfinder.cs              # 3-strategy A* + Yen's K-shortest: FewestTurns (minimize taxiway transitions), Shortest (distance), Fastest (time with arc speed limits)
                                # ResolveExplicitPath, FindRoute (single best), FindRoutes (multi-route suggestions), variant inference
 TaxiVariantResolver.cs         # Variant path resolution (e.g., A vs A1)

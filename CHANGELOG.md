@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.2.2-alpha [2026/05/09]
+
+### Highlights
+- `EXT UPWIND/CROSSWIND/DOWNWIND` (also `EXTEND`) targets a specific pattern leg, with one-leg rollback if issued just after the turn.
+- Standalone `yaat-crc-config` tool adds YAAT environments to CRC without installing the full client (~200 KB).
+- Audio settings tab routes pilot text-to-speech and the SAY/warning chime to a chosen output device.
+- Ground view rotation persists per airport across scenarios; RESET preserves it, Shift+Click RESET includes it.
 
 ### Added
 - `EXT UPWIND/CROSSWIND/DOWNWIND` (also `EXTEND`) targets a specific pattern leg; rolls back one leg if issued just after the turn started.
