@@ -37,58 +37,6 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: replay to just before CVA 28R (t=2394), then tick forward
-    /// logging heading, altitude, phase, and nav targets each second to trace
-    /// the veer behavior.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_CvaPatternEntry_TickByTick()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay to just before CVA 28R at t=2394
-        engine.Replay(recording, 2390);
-
-        var ac = engine.FindAircraft("N3212L");
-        if (ac is null)
-        {
-            output.WriteLine("N3212L not found at t=2390");
-            return;
-        }
-
-        output.WriteLine($"=== N3212L before CVA 28R (t=2390) ===");
-        output.WriteLine(
-            $"  pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0}"
-        );
-        output.WriteLine($"  phase={ac.Phases?.CurrentPhase?.GetType().Name}");
-
-        for (int t = 1; t <= 120; t++)
-        {
-            engine.ReplayOneSecond();
-            ac = engine.FindAircraft("N3212L");
-            if (ac is null)
-            {
-                output.WriteLine($"t+{t}: (deleted)");
-                break;
-            }
-
-            string phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
-            string tgtHdg = ac.Targets.TargetTrueHeading is { } th ? $"{th.Degrees:F0}" : "nav";
-
-            output.WriteLine(
-                $"t+{t, 3}: pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) "
-                    + $"hdg={ac.TrueHeading.Degrees:F0} tgtHdg={tgtHdg} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0} "
-                    + $"phase={phaseName}"
-            );
-        }
-    }
-
-    /// <summary>
     /// After ERD 28R + CVA 28R + CLAND, the aircraft must not veer away from
     /// the field. It should either be heading toward the runway or navigating
     /// toward the pattern, and getting closer to the airport over time.

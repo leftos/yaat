@@ -54,63 +54,6 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: replay the bundle through rollout, log per-tick groundspeed,
-    /// current taxiway, and nearest nodes. Enable AirportGroundLayout + LandingPhase
-    /// debug logs so every [ExitCL] and [ExitBFS] score line is visible in xunit output.
-    /// Writes a TickRecorder CSV for LayoutInspector overlay.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogRolloutScoreBreakdown()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine(enableExitLogs: true);
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, TouchdownSecond);
-
-        var aircraft = engine.FindAircraft(Callsign);
-        if (aircraft is null)
-        {
-            output.WriteLine($"Aircraft {Callsign} not found at t={TouchdownSecond}; skipping diagnostic.");
-            return;
-        }
-
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var recorder = new TickRecorder(aircraft);
-
-        for (int t = TouchdownSecond + 1; t <= RolloutEndSecond; t++)
-        {
-            engine.ReplayOneSecond();
-            aircraft = engine.FindAircraft(Callsign);
-            if (aircraft is null)
-            {
-                break;
-            }
-
-            recorder.Record(t);
-
-            output.WriteLine(
-                $"t={t} gs={aircraft.GroundSpeed:F1} ias={aircraft.IndicatedAirspeed:F1} "
-                    + $"twy={aircraft.Ground.CurrentTaxiway ?? "(runway)"} "
-                    + $"pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) hdg={aircraft.TrueHeading.Degrees:F0}"
-            );
-            if (layout is not null)
-            {
-                NearestNodeHelper.Log(output, $"  t={t}:", aircraft, layout);
-            }
-        }
-
-        string repoRoot = TickRecorder.FindRepoRoot();
-        string jsonPath = Path.Combine(repoRoot, ".tmp", "oak-28r-n9225l-rollout.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
-        recorder.WriteJson(jsonPath);
-        output.WriteLine($"Wrote tick CSV to {jsonPath}");
-    }
-
-    /// <summary>
     /// Assertion: after rollout, N9225L should be on taxiway G or H, not J.
     /// Fails against current code (aircraft ends on J). Passes after the piston
     /// decel + brake-below-coast fixes.

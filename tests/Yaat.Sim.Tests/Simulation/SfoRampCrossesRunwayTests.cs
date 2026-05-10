@@ -33,35 +33,6 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
         return new SimulationEngine(groundData);
     }
 
-    [Fact]
-    public void Diagnostic_FindN70234()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay in chunks, looking for N70234
-        for (int t = 0; t <= recording.TotalElapsedSeconds; t += 50)
-        {
-            engine.Replay(recording, t);
-            var ac = engine.FindAircraft("N70234");
-            if (ac is not null)
-            {
-                output.WriteLine($"t={t}: N70234 found at ({ac.Position.Lat:F6}, {ac.Position.Lon:F6}) " + $"onGround={ac.IsOnGround}");
-
-                // Try the command
-                var result = engine.SendCommand("N70234", "TAXI A E 28R HS E");
-                output.WriteLine($"  TAXI command result: Success={result.Success}, Message={result.Message}");
-                return;
-            }
-        }
-
-        output.WriteLine("N70234 not found at any time in recording");
-    }
-
     /// <summary>
     /// TAXI A E 28R HS E to N70234 should fail because reaching taxiway A from
     /// the aircraft's gate position would require crossing runways via a

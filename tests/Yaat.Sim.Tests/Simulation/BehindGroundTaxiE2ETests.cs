@@ -65,39 +65,4 @@ public class BehindGroundTaxiE2ETests(ITestOutputHelper output)
         Assert.NotEqual(nameof(TaxiingPhase), phaseName);
         Assert.True(ac.IndicatedAirspeed < 0.5, $"N569SX should be stationary after unresolved BEHIND but ias={ac.IndicatedAirspeed:F1}");
     }
-
-    /// <summary>
-    /// Diagnostic — logs N569SX phase and speed each second from t=535 through
-    /// t=600. Useful for understanding the bug's progression. Not a CI assertion.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogN569SXPhaseAfterBehind()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 535);
-
-        for (int t = 1; t <= 70; t++)
-        {
-            engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("N569SX");
-            if (ac is null)
-            {
-                output.WriteLine($"t+{t}: aircraft deleted");
-                break;
-            }
-
-            var phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
-            output.WriteLine(
-                $"t={535 + t}: phase={phaseName} ias={ac.IndicatedAirspeed:F1} "
-                    + $"isHeld={ac.Ground.IsHeld} gwTarget={ac.Ground.GiveWayTarget ?? "-"} "
-                    + $"deferred={ac.DeferredDispatches.Count}"
-            );
-        }
-    }
 }

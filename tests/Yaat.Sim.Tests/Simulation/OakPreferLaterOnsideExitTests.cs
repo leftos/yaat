@@ -173,48 +173,4 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
         };
         Assert.Contains(finalResolvedHs!.Value, rightSideHoldShorts);
     }
-
-    /// <summary>
-    /// Diagnostic: log per-tick LandingPhase candidate evolution, useful when
-    /// triaging why the planner picked one exit over another.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogN805FMCandidateExitEvolution()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 750);
-
-        for (int t = 1; t <= 150; t++)
-        {
-            engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("N805FM");
-            if (ac is null)
-            {
-                break;
-            }
-
-            var current = ac.Phases?.CurrentPhase;
-            string phaseName = current?.GetType().Name ?? "(none)";
-            string candStr = "(none)";
-            if (current is LandingPhase landing && landing.CandidateExit is { } c)
-            {
-                candStr = $"HS={c.HoldShortNode.Id} twy={c.TaxiwayName} branch={c.BranchPointNode.Id}";
-            }
-            string resolvedStr = "(none)";
-            if (ac.Phases?.ResolvedExit is { } r)
-            {
-                resolvedStr = $"HS={r.HoldShortNode.Id} twy={r.TaxiwayName}";
-            }
-
-            output.WriteLine(
-                $"t+{t}: phase={phaseName} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F1} hdg={ac.TrueHeading.Degrees:F0} cand=[{candStr}] resolved=[{resolvedStr}]"
-            );
-        }
-    }
 }

@@ -43,47 +43,6 @@ public class OakExplicitHsAutoCrossTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: dump every hold-short on N7LJ's resolved route after the preset fires.
-    /// Always passes — useful for tracing the bug and for regression debugging.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogN7ljHoldShorts()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay just past spawn so the preset TAXI has dispatched.
-        engine.Replay(recording, SpawnDelaySeconds + 2);
-        Assert.True(engine.Scenario!.AutoCrossRunway, "AutoCrossRunway must be ON for this scenario");
-
-        var ac = engine.FindAircraft(Callsign);
-        if (ac is null)
-        {
-            output.WriteLine($"{Callsign} not found at t={SpawnDelaySeconds + 2}");
-            return;
-        }
-
-        var route = ac.Ground.AssignedTaxiRoute;
-        if (route is null)
-        {
-            output.WriteLine($"{Callsign} has no assigned taxi route at t={SpawnDelaySeconds + 2}");
-            return;
-        }
-
-        output.WriteLine($"=== {Callsign} taxi route ({route.Segments.Count} segments) ===");
-        output.WriteLine($"Summary: {route.ToSummary()}");
-        output.WriteLine($"=== HoldShortPoints ({route.HoldShortPoints.Count}) ===");
-        foreach (var hs in route.HoldShortPoints)
-        {
-            output.WriteLine($"  node={hs.NodeId} reason={hs.Reason} target={hs.TargetName} cleared={hs.IsCleared}");
-        }
-    }
-
-    /// <summary>
     /// Core assertion: with auto-cross ON and an explicit <c>HS 28R</c>, N7LJ's route
     /// must end up with exactly one uncleared 28R hold-short on the entry side, marked
     /// <see cref="HoldShortReason.ExplicitHoldShort"/> so auto-cross can't silently clear it.

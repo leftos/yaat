@@ -61,48 +61,6 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: hybrid replay restoring the recorded snapshot at t=115 (just
-    /// before FOLLOW at t=118), then ticking through the bug window while
-    /// logging follower/leader state each second.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_HybridReplay_TickByTick()
-    {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        if (archive is null)
-        {
-            return;
-        }
-
-        using (archive)
-        {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
-            if (engine is null)
-            {
-                return;
-            }
-
-            engine.Replay(recording, 0);
-
-            var snapshot = archive.ReadSnapshotAt(115);
-            if (snapshot is null)
-            {
-                output.WriteLine("No snapshot near t=115 — skipping");
-                return;
-            }
-            engine.RestoreFromSnapshot(snapshot.State);
-            int startTime = (int)snapshot.ElapsedSeconds;
-            output.WriteLine($"Restored snapshot at t={startTime}");
-
-            engine.ReplayRange(startTime, Math.Min(startTime + 120, (int)recording.TotalElapsedSeconds), recording.Actions);
-
-            // ReplayRange advances the engine internally; after it returns we can inspect terminal state.
-            LogTerminalState("post-ReplayRange", engine);
-        }
-    }
-
-    /// <summary>
     /// Core assertion: after the leader's PatternEntryPhase-through-Downwind
     /// transition, the follower must not have been cancelled with
     /// "unable to catch up". Either it has auto-joined the pattern (no longer

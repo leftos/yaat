@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// explicitly, which is the right shape for triaging future "why doesn't replay
 /// match" questions.
 /// </summary>
-public class IssueReplayDivergenceFromT0Tests(ITestOutputHelper output)
+public class IssueReplayDivergenceFromT0Tests
 {
     private const string RecordingPath = "TestData/b143fc615682.zip";
 
@@ -82,65 +82,6 @@ public class IssueReplayDivergenceFromT0Tests(ITestOutputHelper output)
         Assert.NotNull(aircraft.Track.Owner);
         Assert.Equal(3, aircraft.Track.Owner!.Subset);
         Assert.Equal("Y", aircraft.Track.Owner.SectorId);
-    }
-
-    /// <summary>
-    /// Diagnostic: replay the KFB7 bundle from t=0 to t=300 with snapshot
-    /// verification and print the first 5 KFB7 divergences. Always passes — the
-    /// output is for triage, not assertion. Demonstrates that
-    /// <see cref="SimulationEngine.ReplayRangeWithVerification"/> surfaces drift
-    /// (currently dominated by the pre-1873dff TAS-as-IAS spawn issue).
-    /// </summary>
-    [Fact]
-    public void Diagnostic_FullReplay_SurfacesDriftViaSnapshotVerification()
-    {
-        TestVnasData.EnsureInitialized();
-        if (TestVnasData.NavigationDb is null)
-        {
-            output.WriteLine("NavData not available, skipping");
-            return;
-        }
-
-        var zoa = TestArtccConfig.LoadZoa();
-        if (zoa is null)
-        {
-            output.WriteLine("ZOA snapshot not available (run tools/refresh-artcc-snapshot.py), skipping");
-            return;
-        }
-
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        if (archive is null)
-        {
-            output.WriteLine("KFB7 bundle not available, skipping");
-            return;
-        }
-
-        var recording = archive.ToBaseSessionRecording();
-        SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var groundData = new TestAirportGroundData();
-        var engine = new SimulationEngine(groundData);
-
-        engine.ReplayWithScenarioOverride(recording, targetSeconds: 0, configureAfterLoad: scenario => scenario.ArtccConfig = zoa);
-
-        var result = engine.ReplayRangeWithVerification(0, 300, recording.Actions, archive);
-
-        var kfb7Drifts = result
-            .Drifts.Select(d => (d.ElapsedSeconds, KFB7: d.AircraftDrifts.FirstOrDefault(a => a.Callsign == "KFB7")))
-            .Where(p => p.KFB7 is not null)
-            .OrderBy(p => p.ElapsedSeconds)
-            .ToList();
-
-        output.WriteLine($"Snapshots with KFB7 drift through t=300: {kfb7Drifts.Count}");
-
-        foreach (var (ts, ac) in kfb7Drifts.Take(3))
-        {
-            output.WriteLine($"--- t={ts:F0}s KFB7 ({ac!.Fields.Count} fields) ---");
-            foreach (var f in ac.Fields)
-            {
-                var detail = f.Detail is not null ? $" ({f.Detail})" : "";
-                output.WriteLine($"  {f.Field}: expected={f.Expected} actual={f.Actual}{detail}");
-            }
-        }
     }
 
     private static SimScenarioState BuildMinimalScenario()

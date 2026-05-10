@@ -332,24 +332,6 @@ public class PilotSayBuilderTests
         Assert.Equal(expected, PilotSayBuilder.FriendlyAirportName(raw));
     }
 
-    // Diagnostic: prints the raw airport name strings for a handful of well-known fields
-    // so we can see what NavData provides and tune the friendly-name heuristic. Skipped
-    // by default; flip Skip to "" to inspect the raw values via xUnit output.
-    [Fact(Skip = "Diagnostic only — re-enable to inspect raw airport names from NavData")]
-    public void Diagnostic_DumpAirportNames()
-    {
-        TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
-        {
-            return;
-        }
-        foreach (var code in new[] { "KOAK", "KSFO", "KSJC", "KSAC", "KSCK", "KFAT", "KMRY", "KLAX", "KJFK", "KORD", "KDEN", "KSAN", "KSEA", "KBOS" })
-        {
-            Console.WriteLine($"{code, -6} | name='{navDb.GetAirportName(code)}'");
-        }
-    }
-
     [Fact]
     public void FindNearestSizeableAirport_FiltersByRunwayLength()
     {

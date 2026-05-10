@@ -165,46 +165,6 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: log ENY3196's IAS / target / distance every 30 s through the
-    /// approach. Useful for verifying the speed schedule walks cruise → config →
-    /// FAS, not jumping straight to FAS at 14 NM.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogApproachSpeedProfile()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 200);
-
-        for (int t = 1; t <= 1100; t++)
-        {
-            engine.ReplayOneSecond();
-            if (t % 30 != 0)
-            {
-                continue;
-            }
-
-            var ac = engine.FindAircraft("ENY3196");
-            if (ac is null)
-            {
-                continue;
-            }
-            var runway = ac.Phases?.AssignedRunway;
-            string phase = ac.Phases?.CurrentPhase?.Name ?? "?";
-            double dist = runway is null
-                ? 0
-                : GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude);
-            string tgt = ac.Targets.TargetSpeed?.ToString("F0") ?? "-";
-            output.WriteLine($"t+{t, 4}s  phase={phase, -15} dist={dist, 5:F1}nm  ias={ac.IndicatedAirspeed, 5:F1}  tgt={tgt}");
-        }
-    }
-
-    /// <summary>
     /// Aircraft must clear the 10520-ft 28R runway and not roll past the departure
     /// end. With the bug it touched down at 138 KIAS and stopped at lat 37.7325 /
     /// lon -122.2285 — past the west (departure) end. With piston perf data

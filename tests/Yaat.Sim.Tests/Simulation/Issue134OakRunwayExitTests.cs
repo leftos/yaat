@@ -221,54 +221,6 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         Assert.True(exitedRunway, "N70CS never completed runway exit within 600 seconds");
     }
 
-    /// <summary>
-    /// Diagnostic: logs the exit nodes found along OAK 28L to understand the
-    /// node graph structure around J and P taxiways.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogExitCandidatesAlongRunway()
-    {
-        var layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        var rwy28L = layout.FindGroundRunway("28L");
-        Assert.NotNull(rwy28L);
-
-        output.WriteLine("=== OAK 28L exit candidates at various runway positions ===");
-        var coords = rwy28L.Coordinates;
-
-        for (int i = 0; i < coords.Count; i++)
-        {
-            double lat = coords[i].Lat;
-            double lon = coords[i].Lon;
-
-            var exit = layout.FindNearestExit(lat, lon, new TrueHeading(280.0), "28L");
-            var exitAhead = layout.FindExitAheadOnRunway(lat, lon, new TrueHeading(280.0), null, "28L");
-
-            string nearestInfo = "(none)";
-            if (exit is not null)
-            {
-                var tws = exit.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
-                double dist = GeoMath.DistanceNm(lat, lon, exit.Position.Lat, exit.Position.Lon);
-                nearestInfo = $"node={exit.Id} dist={dist:F3}nm tws=[{string.Join(",", tws)}] type={exit.Type}";
-            }
-
-            string aheadInfo = "(none)";
-            if (exitAhead is not null)
-            {
-                var n = exitAhead.Value.Node;
-                var tws = n.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
-                double dist = GeoMath.DistanceNm(lat, lon, n.Position.Lat, n.Position.Lon);
-                aheadInfo = $"node={n.Id} dist={dist:F3}nm tw={exitAhead.Value.Taxiway} tws=[{string.Join(",", tws)}]";
-            }
-
-            output.WriteLine($"pos[{i}] ({lat:F6},{lon:F6}): nearest={nearestInfo} | ahead={aheadInfo}");
-        }
-    }
-
     private static AirportGroundLayout? LoadOakLayout()
     {
         string path = Path.Combine("TestData", "oak.geojson");

@@ -60,64 +60,6 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: hybrid replay from t=750 snapshot through the FOLLOW window,
-    /// logging follower/leader state each second. Use this to confirm what the
-    /// follower is actually doing tick-by-tick when investigating regressions.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_HybridReplay_AroundFollow()
-    {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        if (archive is null)
-        {
-            return;
-        }
-
-        using (archive)
-        {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
-            if (engine is null)
-            {
-                return;
-            }
-
-            engine.Replay(recording, 0);
-
-            var snapshot = archive.ReadSnapshotAt(750);
-            if (snapshot is null)
-            {
-                output.WriteLine("No snapshot near t=750 — skipping");
-                return;
-            }
-            engine.RestoreFromSnapshot(snapshot.State);
-            int startTime = (int)snapshot.ElapsedSeconds;
-            output.WriteLine($"=== Hybrid replay from snapshot t={startTime} ===");
-
-            for (int t = startTime + 1; t <= 790; t++)
-            {
-                engine.ReplayRange(t - 1, t, recording.Actions);
-                var f = engine.FindAircraft(Follower);
-                var l = engine.FindAircraft(Leader);
-                if (f is null || l is null)
-                {
-                    continue;
-                }
-
-                double gap = GeoMath.DistanceNm(f.Position, l.Position);
-                string fPhase = f.Phases?.CurrentPhase?.GetType().Name ?? "none";
-                string lPhase = l.Phases?.CurrentPhase?.GetType().Name ?? "none";
-                string foll = f.Approach.FollowingCallsign ?? "null";
-                double tgtHdg = f.Targets.TargetTrueHeading?.Degrees ?? double.NaN;
-                output.WriteLine(
-                    $"t={t}: F.hdg={f.TrueHeading.Degrees:F0} F.tgtHdg={tgtHdg:F0} F.alt={f.Altitude:F0} F.ias={f.IndicatedAirspeed:F0} "
-                        + $"F.phase={fPhase} F.foll={foll} | L.phase={lPhase} L.alt={l.Altitude:F0} | gap={gap:F2}nm"
-                );
-            }
-        }
-    }
-
-    /// <summary>
     /// Core assertion: in the seconds after FOLLOW dispatch the follower must
     /// not be in <see cref="VfrFollowPhase"/> free-pursuit mode. After the fix
     /// the join logic should swap in a pattern circuit (PatternEntry/Downwind

@@ -42,55 +42,6 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Diagnostic_LogStateAfterCapp()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay to a few seconds after CAPP, then tick forward to observe behaviour.
-        engine.Replay(recording, CappTime + 5);
-
-        var aircraft = engine.FindAircraft(Callsign);
-        Assert.NotNull(aircraft);
-
-        var clearance = aircraft.Phases?.ActiveApproach;
-        output.WriteLine($"=== {Callsign} state at t={CappTime + 5} (CAPP+5s) ===");
-        output.WriteLine($"  Position:    ({aircraft.Position.Lat:F5}, {aircraft.Position.Lon:F5})");
-        output.WriteLine($"  Altitude:    {aircraft.Altitude:F0} ft");
-        output.WriteLine($"  Heading:     {aircraft.TrueHeading.Degrees:F1}°");
-        output.WriteLine($"  TgtHdg:      {aircraft.Targets.TargetTrueHeading?.Degrees.ToString("F1") ?? "null"}");
-        output.WriteLine($"  Approach:    {clearance?.ApproachId ?? "null"}");
-        output.WriteLine($"  FAC:         {clearance?.FinalApproachCourse.Degrees.ToString("F1") ?? "null"}");
-        output.WriteLine(
-            $"  Anchor:      ({clearance?.FinalApproachAnchorLat?.ToString("F5") ?? "null"}, {clearance?.FinalApproachAnchorLon?.ToString("F5") ?? "null"})"
-        );
-        output.WriteLine($"  Phases:      {string.Join(", ", aircraft.Phases?.Phases.Select(p => $"{p.Name}({p.Status})") ?? [])}");
-
-        output.WriteLine("");
-        output.WriteLine("tick |  alt | tgtHdg | hdg    | phases");
-        output.WriteLine("---- | ---- | ------ | ------ | ------");
-
-        for (int t = 1; t <= 60; t++)
-        {
-            engine.TickOneSecond();
-            aircraft = engine.FindAircraft(Callsign);
-            if (aircraft is null)
-            {
-                output.WriteLine($"{t, 4} | DELETED");
-                break;
-            }
-            string phases = string.Join(",", aircraft.Phases?.Phases.Where(p => p.Status == PhaseStatus.Active).Select(p => p.Name) ?? []);
-            output.WriteLine(
-                $"{t, 4} | {aircraft.Altitude, 4:F0} | {aircraft.Targets.TargetTrueHeading?.Degrees.ToString("F1") ?? "null", 6} | {aircraft.TrueHeading.Degrees, 6:F1} | {phases}"
-            );
-        }
-    }
-
-    [Fact]
     public void Capp_PopulatesOffsetFinalApproachCourse()
     {
         // Regression guard: when CAPP is issued for R10L, ApproachClearance.FinalApproachCourse

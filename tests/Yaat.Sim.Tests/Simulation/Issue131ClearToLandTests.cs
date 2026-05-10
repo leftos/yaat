@@ -35,25 +35,6 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: full replay of the recording with SimLog wired to xunit output.
-    /// All FinalApproach, GoAround, and command dispatch logs will appear in the
-    /// test output. Look for "go-around triggered (no landing clearance)" to find
-    /// the aircraft that lost their CL state.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_FullReplay()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, (int)recording.TotalElapsedSeconds);
-    }
-
-    /// <summary>
     /// After entering the pattern and receiving CLAND on downwind, the aircraft
     /// must land instead of going around. Replays N775JW to downwind (after the
     /// turn fix removes the 360), issues CLAND, then ticks until the aircraft
@@ -135,78 +116,5 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
 
         Assert.True(landed, "Aircraft should have landed after CLAND on downwind");
         Assert.False(goAround, "Aircraft should not have gone around after CLAND");
-    }
-
-    /// <summary>
-    /// Diagnostic: tick-by-tick trace of pattern aircraft from the recording.
-    /// Logs position, heading, altitude, phase, and nav targets every second
-    /// to see exactly how the aircraft flies the pattern entry and base turn.
-    /// Uses ReplayOneSecond() so recording actions are properly applied.
-    /// </summary>
-    [Theory]
-    [InlineData("N427MX", 1354, 120, "after ELB 28R")]
-    [InlineData("N655EX", 1542, 200, "after ELB 28R")]
-    [InlineData("N929AW", 1947, 200, "after ERD 28R")]
-    [InlineData("N775JW", 540, 200, "after ERD 28R")]
-    [InlineData("N805FM", 822, 120, "after ERB 28R")]
-    public void Diagnostic_PatternEntry_TickByTick(string callsign, int replayTo, int tickCount, string context)
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, replayTo);
-
-        var ac = engine.FindAircraft(callsign);
-        if (ac is null)
-        {
-            output.WriteLine($"{callsign} not found at t={replayTo}");
-            return;
-        }
-
-        output.WriteLine($"=== {callsign} {context} (t={replayTo}) ===");
-        output.WriteLine(
-            $"  pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0}"
-        );
-        output.WriteLine($"  phase={ac.Phases?.CurrentPhase?.GetType().Name}");
-
-        var navRoute = ac.Targets.NavigationRoute;
-        for (int i = 0; i < navRoute.Count; i++)
-        {
-            output.WriteLine($"  nav[{i}]: {navRoute[i].Name} ({navRoute[i].Position.Lat:F4},{navRoute[i].Position.Lon:F4})");
-        }
-
-        output.WriteLine("");
-
-        for (int t = 1; t <= tickCount; t++)
-        {
-            engine.ReplayOneSecond();
-            ac = engine.FindAircraft(callsign);
-            if (ac is null)
-            {
-                output.WriteLine($"t+{t}: (deleted)");
-                break;
-            }
-
-            string phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
-            string navInfo =
-                ac.Targets.NavigationRoute.Count > 0 ? string.Join(", ", ac.Targets.NavigationRoute.Select(n => $"{n.Name}")) : "(empty)";
-            string tgtHdg = ac.Targets.TargetTrueHeading is { } th ? $"{th.Degrees:F0}" : "nav";
-            string clearance = ac.Phases?.LandingClearance?.ToString() ?? "none";
-
-            output.WriteLine(
-                $"t+{t, 3}: pos=({ac.Position.Lat:F4},{ac.Position.Lon:F4}) "
-                    + $"hdg={ac.TrueHeading.Degrees:F0} tgtHdg={tgtHdg} alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0} "
-                    + $"phase={phaseName} clearance={clearance} nav=[{navInfo}]"
-            );
-
-            foreach (var w in ac.PendingWarnings)
-            {
-                output.WriteLine($"  WARNING: {w}");
-            }
-        }
     }
 }

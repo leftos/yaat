@@ -61,42 +61,6 @@ public class ConflictStopAfterBehindE2ETests(ITestOutputHelper output)
     /// scratch using the same positions, headings, types, and a 1-segment
     /// taxi route synthesized from the OAK layout.
     /// </summary>
-    [Fact]
-    public void Diagnostic_LogConflictDetectorReasoning()
-    {
-        var groundLayout = new TestAirportGroundData().GetLayout("OAK");
-        if (groundLayout is null)
-        {
-            return;
-        }
-
-        TestVnasData.EnsureInitialized();
-        SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", LogLevel.Debug).InitializeSimLog();
-
-        var (n152, n569) = BuildBundleGeometry(groundLayout);
-
-        output.WriteLine(
-            $"N152SP: type={n152.AircraftType} pos=({n152.Position.Lat:F6},{n152.Position.Lon:F6}) hdg={n152.TrueHeading.Degrees:F0} phase={n152.Phases?.CurrentPhase?.Name ?? "-"} route={(n152.Ground.AssignedTaxiRoute is null ? "NULL" : "set")}"
-        );
-        output.WriteLine(
-            $"N569SX: type={n569.AircraftType} pos=({n569.Position.Lat:F6},{n569.Position.Lon:F6}) hdg={n569.TrueHeading.Degrees:F0} phase={n569.Phases?.CurrentPhase?.Name ?? "-"}"
-        );
-
-        double gapFt = GeoMath.DistanceNm(n152.Position, n569.Position) * 6076.12;
-        double bearing = GeoMath.BearingTo(n152.Position, n569.Position);
-        double offNose = Math.Abs(((n152.TrueHeading.Degrees - bearing + 540) % 360) - 180);
-        output.WriteLine($"gap = {gapFt:F0} ft, bearing N152SP→N569SX = {bearing:F0}°, off-nose = {offNose:F0}°");
-
-        output.WriteLine("");
-        output.WriteLine("=== ApplySpeedLimits diagnostic trace ===");
-        GroundConflictDetector.ApplySpeedLimits([n152, n569], groundLayout, deltaSeconds: 0.0, diagnosticLog: output.WriteLine);
-
-        output.WriteLine("");
-        output.WriteLine(
-            $"After: N152SP.SpeedLimit={n152.Ground.SpeedLimit?.ToString("F1") ?? "-"}, N569SX.SpeedLimit={n569.Ground.SpeedLimit?.ToString("F1") ?? "-"}"
-        );
-    }
-
     /// <summary>
     /// Asserts the bug: with the bundle's geometry (parked C172 N569SX 98 ft
     /// off-nose-right of taxiing C172 N152SP), GroundConflictDetector should
