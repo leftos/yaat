@@ -11,6 +11,7 @@
 - Landing aircraft prefer a later same-side runway exit over an earlier opposite-side one, including when the closer same-side option is occupied.
 
 ### Fixed
+- `WARPG` and `WARP` work in any phase — no longer rejected when the aircraft is holding short, taxiing, or on approach.
 - STARS no longer flashes Conflict Alert for two aircraft on parallel finals at an internal airport — the runway approach corridor suppression is now purely geometric and applies to every track inside it, including VFR pattern traffic on visual finals.
 - `ELB`/`ERB` from long range now holds altitude on the base leg and descends along the glide path on final.
 - Vector commands (FH, TR, CM, SPD) now clear the follow target, so the Aircraft List no longer keeps a stale "following X" prefix.

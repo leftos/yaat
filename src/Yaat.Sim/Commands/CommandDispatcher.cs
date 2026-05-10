@@ -997,6 +997,15 @@ public static class CommandDispatcher
             return null;
         }
 
+        // Sim-control bypass: destructive teleports (WARP/WARPG) that wipe phase/queue/route
+        // state inside the handler. The phase gate would otherwise reject them in any phase
+        // whose CanAcceptCommand switch doesn't whitelist them — and there's nothing for the
+        // gate to protect, since the handler clears everything before applying the warp.
+        if (IsSimControlBypass(cmdType))
+        {
+            return null;
+        }
+
         // Try tower/ground-specific handling first (phase-interactive commands)
         var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx);
         if (towerResult is not null)
@@ -1072,6 +1081,14 @@ public static class CommandDispatcher
             CanonicalCommandType.ReportTrafficInSightForced => true,
             CanonicalCommandType.SafetyAlert => true,
             CanonicalCommandType.WakeAdvisory => true,
+            _ => false,
+        };
+
+    private static bool IsSimControlBypass(CanonicalCommandType cmd) =>
+        cmd switch
+        {
+            CanonicalCommandType.Warp => true,
+            CanonicalCommandType.WarpGround => true,
             _ => false,
         };
 
