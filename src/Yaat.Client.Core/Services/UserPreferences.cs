@@ -36,6 +36,13 @@ public sealed class UserPreferences
 
     private static readonly string ConfigPath = YaatPaths.Combine("preferences.json");
 
+    // Process-wide lock to serialize file IO on ConfigPath. All
+    // UserPreferences instances share ConfigPath, so concurrent reads (Load
+    // in the ctor) and writes (Save) would otherwise race on File.Move and
+    // fail with UnauthorizedAccessException (Windows) or trample each
+    // other's intermediate .tmp files (Linux).
+    private static readonly object FileLock = new();
+
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -311,6 +318,19 @@ public sealed class UserPreferences
 
     public void SetPoppedOut(string tabName, bool poppedOut)
     {
+        bool current = tabName switch
+        {
+            "DataGrid" => _data.IsDataGridPoppedOut,
+            "GroundView" => _data.IsGroundViewPoppedOut,
+            "RadarView" => _data.IsRadarViewPoppedOut,
+            "VStrips" => _data.IsVStripsPoppedOut,
+            _ => poppedOut,
+        };
+        if (current == poppedOut)
+        {
+            return;
+        }
+
         switch (tabName)
         {
             case "DataGrid":
@@ -798,20 +818,23 @@ public sealed class UserPreferences
 
     private static SavedPrefs Load()
     {
-        if (!File.Exists(ConfigPath))
-        {
-            return ApplyDefaultServers(new SavedPrefs());
-        }
-
         string json;
-        try
+        lock (FileLock)
         {
-            json = File.ReadAllText(ConfigPath);
-        }
-        catch (IOException ex)
-        {
-            Log.LogWarning(ex, "Could not read preferences from {Path}", ConfigPath);
-            return ApplyDefaultServers(new SavedPrefs());
+            if (!File.Exists(ConfigPath))
+            {
+                return ApplyDefaultServers(new SavedPrefs());
+            }
+
+            try
+            {
+                json = File.ReadAllText(ConfigPath);
+            }
+            catch (IOException ex)
+            {
+                Log.LogWarning(ex, "Could not read preferences from {Path}", ConfigPath);
+                return ApplyDefaultServers(new SavedPrefs());
+            }
         }
 
         // Fast path: full deserialization
@@ -1017,10 +1040,15 @@ public sealed class UserPreferences
 
         var json = JsonSerializer.Serialize(_data, JsonOptions);
 
-        // Atomic write: write to .tmp then move, so a crash mid-write can't corrupt the real file
-        var tmpPath = ConfigPath + ".tmp";
-        File.WriteAllText(tmpPath, json);
-        File.Move(tmpPath, ConfigPath, overwrite: true);
+        lock (FileLock)
+        {
+            // Atomic write: write to .tmp then move, so a crash mid-write
+            // can't corrupt the real file. The lock serializes against
+            // concurrent Save and Load calls from other instances.
+            var tmpPath = ConfigPath + ".tmp";
+            File.WriteAllText(tmpPath, json);
+            File.Move(tmpPath, ConfigPath, overwrite: true);
+        }
     }
 
     private static CommandScheme? FromSaved(SavedCommandScheme s)

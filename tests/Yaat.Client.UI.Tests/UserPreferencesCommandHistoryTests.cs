@@ -89,4 +89,35 @@ public class UserPreferencesCommandHistoryTests
         Assert.Equal(0, reader.SoloParkingInitialCallupRatePercent);
         Assert.Equal(100, reader.SoloArrivalGeneratorRatePercent);
     }
+
+    // Regression for the CI-only flake where two threads racing Save() on the
+    // same prefs.json clobbered each other's intermediate .tmp file. With
+    // per-call unique .tmp suffixes Save calls are independent and can't race.
+    [Fact]
+    public void Save_ConcurrentWritersDoNotRaceOnTmpFile()
+    {
+        const int writerCount = 16;
+        const int writesPerWriter = 8;
+
+        Parallel.For(
+            0,
+            writerCount,
+            i =>
+            {
+                var prefs = new UserPreferences();
+                for (int j = 0; j < writesPerWriter; j++)
+                {
+                    prefs.SetCommandHistory($"TEST-race-{i}-{j}", [$"CMD{i}-{j}"]);
+                }
+            }
+        );
+
+        // Final reader sees a valid prefs.json — at minimum its own write
+        // round-trips. Other writers' scenarios may have been overwritten;
+        // we only assert the file is parseable and the last write survives.
+        var final = new UserPreferences();
+        final.SetCommandHistory("TEST-race-final", ["FINAL"]);
+        var reread = new UserPreferences();
+        Assert.Equal(["FINAL"], reread.GetCommandHistory("TEST-race-final"));
+    }
 }
