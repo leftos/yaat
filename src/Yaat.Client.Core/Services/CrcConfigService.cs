@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,9 @@ namespace Yaat.Client.Services;
 /// Manages CRC DevEnvironments.json configuration — adds/updates YAAT server entries.
 /// Detects CRC's per-user config directory (where its JSON files live) by probing
 /// platform-specific candidate paths for a marker file.
+/// The list of YAAT entries is loaded from the embedded `crc-environments.json` resource
+/// (sourced from `docs/crc-environments.json` — the same file the standalone
+/// `yaat-crc-config` Rust tool and `Setup-CrcEnvironment.ps1` consume).
 /// </summary>
 public static class CrcConfigService
 {
@@ -18,28 +22,34 @@ public static class CrcConfigService
     private const string CrcRegValue = "Install_Dir";
     private const string MarkerFileName = "GeneralSettings.json";
     private const string EnvironmentsFileName = "DevEnvironments.json";
-
-    private static readonly CrcEnvironmentEntry[] YaatEntries =
-    [
-        new()
-        {
-            Name = "YAAT1",
-            ClientHubUrl = "https://yaat1.leftos.dev/hubs/client",
-            ApiBaseUrl = "https://yaat1.leftos.dev",
-            IsDisabled = false,
-            IsSweatbox = false,
-        },
-        new()
-        {
-            Name = "YAAT Local",
-            ClientHubUrl = "http://localhost:5000/hubs/client",
-            ApiBaseUrl = "http://localhost:5000",
-            IsDisabled = false,
-            IsSweatbox = false,
-        },
-    ];
+    private const string EmbeddedEnvironmentsResourceName = "crc-environments.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private static readonly Lazy<CrcEnvironmentEntry[]> YaatEntriesLazy = new(LoadEmbeddedYaatEntries);
+
+    internal static CrcEnvironmentEntry[] YaatEntries => YaatEntriesLazy.Value;
+
+    private static CrcEnvironmentEntry[] LoadEmbeddedYaatEntries()
+    {
+        var assembly = typeof(CrcConfigService).Assembly;
+        using var stream =
+            assembly.GetManifestResourceStream(EmbeddedEnvironmentsResourceName)
+            ?? throw new InvalidOperationException(
+                $"Embedded resource '{EmbeddedEnvironmentsResourceName}' not found in {assembly.GetName().Name}. "
+                    + $"Available resources: {string.Join(", ", assembly.GetManifestResourceNames())}"
+            );
+        using var reader = new StreamReader(stream);
+        var json = reader.ReadToEnd();
+        var entries =
+            JsonSerializer.Deserialize<CrcEnvironmentEntry[]>(json, JsonOptions)
+            ?? throw new InvalidOperationException($"Embedded resource '{EmbeddedEnvironmentsResourceName}' deserialized to null");
+        if (entries.Length == 0)
+        {
+            throw new InvalidOperationException($"Embedded resource '{EmbeddedEnvironmentsResourceName}' contained no entries");
+        }
+        return entries;
+    }
 
     public static bool IsCrcInstalled() => GetCrcConfigDir() is not null;
 
@@ -229,7 +239,7 @@ public static class CrcConfigService
         }
     }
 
-    private sealed class CrcEnvironmentEntry
+    internal sealed class CrcEnvironmentEntry
     {
         [JsonPropertyName("name")]
         public string Name { get; set; } = "";

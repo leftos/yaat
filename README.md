@@ -29,6 +29,8 @@ Pre-built installers and portable archives are published on the [Releases page](
 
 A second installer, **YAAT Flight Strips** (`YaatVStrips-*`), ships the flight-strips UI on its own for students who want to replace vStrips but don't need the full trainer.
 
+**Just want to point CRC at YAAT?** The standalone [`yaat-crc-config`](tools/yaat-crc-config/README.md) tool (~200 KB single binary, no install) adds the YAAT environments to CRC's `DevEnvironments.json` for students who only want to observe a YAAT session. Download it from the [`crc-config-v*` releases](https://github.com/leftos/yaat/releases?q=crc-config-v).
+
 Installers keep themselves up to date automatically. Portable archives unzip to a folder containing the executable and its native dependencies — drop the folder on a USB stick or locked-down machine and run it from there. They don't auto-update; grab the next release when you want it. On Linux the AppImage runs without install, so it doubles as the portable form. Either launcher can connect to a hosted YAAT server (ask your instructor for the URL) or a local server you run yourself.
 
 **NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings → Speech → Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.

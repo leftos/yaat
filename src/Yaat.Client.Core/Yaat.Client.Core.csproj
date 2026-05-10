@@ -35,6 +35,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\crc-environments.json" Link="crc-environments.json" LogicalName="crc-environments.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Yaat.Client.Strips\Yaat.Client.Strips.csproj" />
     <ProjectReference Include="..\Yaat.Sim\Yaat.Sim.csproj" />
   </ItemGroup>

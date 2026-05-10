@@ -116,4 +116,29 @@ public class CrcConfigServiceTests
             Assert.Contains(Path.Combine(home, ".config", "CRC"), candidates);
         }
     }
+
+    /// <summary>
+    /// Pins the embedded crc-environments.json content. The same file is consumed by the
+    /// standalone yaat-crc-config Rust tool and Setup-CrcEnvironment.ps1 — a typo in the JSON
+    /// (or a missing EmbeddedResource entry) should fail loudly here.
+    /// </summary>
+    [Fact]
+    public void YaatEntries_loaded_from_embedded_resource_match_canonical_list()
+    {
+        var entries = CrcConfigService.YaatEntries;
+
+        Assert.Equal(2, entries.Length);
+
+        var prod = Assert.Single(entries, e => e.Name == "YAAT1");
+        Assert.Equal("https://yaat1.leftos.dev/hubs/client", prod.ClientHubUrl);
+        Assert.Equal("https://yaat1.leftos.dev", prod.ApiBaseUrl);
+        Assert.False(prod.IsDisabled);
+        Assert.False(prod.IsSweatbox);
+
+        var local = Assert.Single(entries, e => e.Name == "YAAT Local");
+        Assert.Equal("http://localhost:5000/hubs/client", local.ClientHubUrl);
+        Assert.Equal("http://localhost:5000", local.ApiBaseUrl);
+        Assert.False(local.IsDisabled);
+        Assert.False(local.IsSweatbox);
+    }
 }

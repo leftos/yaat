@@ -732,6 +732,20 @@ Program.cs                     # CLI entry: --artcc, --file, --dir, --json flags
 VnasClient.cs                  # HttpClient wrapper for vNAS data API scenario fetches + NavData download
 ```
 
+## yaat-crc-config — Standalone Rust binary (`tools/yaat-crc-config/`)
+
+Tiny (~200 KB) standalone tool that ports the YAAT client's `Tools → Configure CRC Environments` flow into a single signed binary. Lets students who only want to point CRC at YAAT skip installing the full client. Released independently from the `crc-config-v*` tag via `.github/workflows/yaat-crc-config.yml`.
+
+```
+Cargo.toml                     # Size-optimized release profile (opt-level=z, lto=fat, panic=abort, strip)
+build.rs                       # Validates ../../docs/crc-environments.json schema at build time
+src/main.rs                    # Flow: detect dir → already configured? → confirm → upsert → success. windows_subsystem="windows" so double-click doesn't flash a console.
+src/config.rs                  # Mirrors CrcConfigService.cs: find_crc_config_dir (Win registry + LOCALAPPDATA, Mac/Linux home paths), are_entries_present, upsert_entries (preserves unrelated keys via serde_json::Value)
+src/dialog.rs                  # Cross-platform native dialogs: MessageBoxW (Win), osascript (Mac), zenity/kdialog/console (Linux)
+```
+
+The canonical YAAT environment list (`YAAT1` + `YAAT Local`) lives in `docs/crc-environments.json` — a single source of truth shared by this tool, `Yaat.Client.Core/Services/CrcConfigService.cs` (embedded resource), and `Setup-CrcEnvironment.ps1` (read at script execution time when run from the repo).
+
 ## yaat-server — ASP.NET Core server (`..\yaat-server\`)
 
 Separate repo. References Yaat.Sim via sibling project ref. Provides: SignalR comms, CRC protocol, training rooms, scenario loading, broadcast fan-out.

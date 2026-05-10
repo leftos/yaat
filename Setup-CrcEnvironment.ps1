@@ -18,7 +18,12 @@
       - YAAT1       → https://yaat1.leftos.dev
       - YAAT Local  → http://localhost:5000
 
-    Use -Servers to override the default list.
+    When run from the YAAT repo, the default list is loaded from
+    docs/crc-environments.json (the same canonical file used by the standalone
+    yaat-crc-config tool and the C# CrcConfigService). When run as a downloaded
+    .ps1 with no repo nearby, the hardcoded defaults are used.
+
+    Use -Servers to override.
 .PARAMETER Servers
     Array of hashtables with Name and Url keys. Overrides the default list.
 .EXAMPLE
@@ -29,14 +34,42 @@
     # Adds a single custom entry.
 #>
 param(
-    [hashtable[]]$Servers = @(
-        @{ Name = "YAAT1"; Url = "https://yaat1.leftos.dev" },
-        @{ Name = "YAAT Local"; Url = "http://localhost:5000" }
-    )
+    [hashtable[]]$Servers
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+function Resolve-DefaultServers {
+    $hardcoded = @(
+        @{ Name = "YAAT1"; Url = "https://yaat1.leftos.dev" },
+        @{ Name = "YAAT Local"; Url = "http://localhost:5000" }
+    )
+
+    $scriptDir = $PSScriptRoot
+    if (-not $scriptDir) {
+        return $hardcoded
+    }
+
+    $candidate = Join-Path $scriptDir "docs/crc-environments.json"
+    if (-not (Test-Path $candidate)) {
+        return $hardcoded
+    }
+
+    try {
+        $entries = Get-Content $candidate -Raw | ConvertFrom-Json
+        if ($entries -isnot [System.Array]) { $entries = @($entries) }
+        return @($entries | ForEach-Object { @{ Name = $_.name; Url = $_.apiBaseUrl } })
+    }
+    catch {
+        Write-Warning "Failed to read $candidate ($_); falling back to hardcoded defaults."
+        return $hardcoded
+    }
+}
+
+if (-not $Servers) {
+    $Servers = Resolve-DefaultServers
+}
 
 function Get-CrcConfigDir {
     $marker = "GeneralSettings.json"

@@ -1,0 +1,130 @@
+name: yaat-crc-config release
+
+on:
+  push:
+    tags:
+      - "crc-config-v*"
+
+permissions: {}
+
+jobs:
+  build:
+    permissions: {}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: yaat-crc-config.exe
+            asset_name: yaat-crc-config-windows-x86_64.exe
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: yaat-crc-config
+            asset_name: yaat-crc-config-linux-x86_64
+          - os: macos-latest
+            target: universal2-apple-darwin
+            artifact_name: yaat-crc-config
+            asset_name: yaat-crc-config-macos-universal
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+
+      - name: Build (non-macOS)
+        if: matrix.os != 'macos-latest'
+        working-directory: tools/yaat-crc-config
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build (macOS universal2)
+        if: matrix.os == 'macos-latest'
+        working-directory: tools/yaat-crc-config
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          mkdir -p target/universal2-apple-darwin/release
+          lipo -create -output target/universal2-apple-darwin/release/yaat-crc-config \
+            target/aarch64-apple-darwin/release/yaat-crc-config \
+            target/x86_64-apple-darwin/release/yaat-crc-config
+
+      - name: Stage asset
+        shell: bash
+        working-directory: tools/yaat-crc-config
+        run: |
+          mkdir -p ../../dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" "../../dist/${{ matrix.asset_name }}"
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3  # v8.0.0
+        with:
+          path: artifacts
+
+      - name: Stage release files
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Generate SHA-256 checksums
+        run: |
+          set -euo pipefail
+          cd release
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
+        with:
+          name: yaat-crc-config ${{ github.ref_name }}
+          files: release/*
+          body: |
+            Standalone tool that adds YAAT server entries to CRC's `DevEnvironments.json` —
+            no need to install the full YAAT client.
+
+            ### Downloads
+
+            | Platform | File |
+            |----------|------|
+            | Windows  | `yaat-crc-config-windows-x86_64.exe` |
+            | macOS (Intel + Apple Silicon) | `yaat-crc-config-macos-universal` |
+            | Linux x86_64 | `yaat-crc-config-linux-x86_64` |
+
+            Verify with `SHA256SUMS.txt`.
+
+            ### What it does
+
+            Detects your CRC config directory, then adds:
+            - `YAAT1` → `https://yaat1.leftos.dev`
+            - `YAAT Local` → `http://localhost:5000`
+
+            Existing unrelated entries in `DevEnvironments.json` are preserved. Re-running
+            the tool is safe — it updates URLs in place.
+
+            ### First-run security warnings
+
+            These binaries are unsigned. Expect:
+            - **Windows SmartScreen**: Click "More info" → "Run anyway".
+            - **macOS Gatekeeper**: Right-click → Open, or
+              `xattr -d com.apple.quarantine yaat-crc-config-macos-universal`.
+            - **Linux**: `chmod +x yaat-crc-config-linux-x86_64` then run.
