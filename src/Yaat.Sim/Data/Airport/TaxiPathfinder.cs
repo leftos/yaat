@@ -433,12 +433,148 @@ public static class TaxiPathfinder
             HoldShortAnnotator.AddDestinationHoldShort(layout, segments, holdShorts, destinationRunway);
         }
 
+        // No-destination guard: when the controller gave only a path + optional HS for a
+        // runway with no parking/spot/destination-runway, the natural read is "go to the
+        // runway, cross when cleared, end up on the next named taxiway." Trim segments
+        // past that point so the aircraft stops on the other side of the crossing instead
+        // of walking the full taxiway dead-end.
+        bool hasDestination = destinationRunway is not null || destinationHintNode is not null;
+        if (!hasDestination)
+        {
+            TruncateAfterLastRunwayCrossing(layout, segments, holdShorts, taxiwayNames);
+        }
+
         return new TaxiRoute
         {
             Segments = segments,
             HoldShortPoints = holdShorts,
             Warnings = warnings,
         };
+    }
+
+    /// <summary>
+    /// When a TAXI command has no destination (parking, spot, or destination runway), the
+    /// controller's intent for "TAXI G C HS 28R" or "TAXI G C" with an auto-detected
+    /// runway crossing is "cross the runway, then stop on the next named taxiway." The
+    /// pathfinder over-extends because <c>WalkTaxiway</c> walks the last named taxiway to
+    /// its dead-end when there's no <c>stopAtRunwayId</c> hold-short directly on that
+    /// taxiway. This pass trims those extra segments.
+    /// </summary>
+    private static void TruncateAfterLastRunwayCrossing(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        List<string> taxiwayNames
+    )
+    {
+        if (segments.Count == 0 || holdShorts.Count == 0)
+        {
+            return;
+        }
+
+        // Find the LAST hold-short whose node is a RunwayHoldShort and reason is a
+        // crossing-style hold (RunwayCrossing or ExplicitHoldShort upgraded from one).
+        HoldShortPoint? lastCrossing = null;
+        for (int i = holdShorts.Count - 1; i >= 0; i--)
+        {
+            var hs = holdShorts[i];
+            if (hs.Reason is not (HoldShortReason.RunwayCrossing or HoldShortReason.ExplicitHoldShort))
+            {
+                continue;
+            }
+            if (!layout.Nodes.TryGetValue(hs.NodeId, out var hsNode) || hsNode.Type != GroundNodeType.RunwayHoldShort)
+            {
+                continue;
+            }
+
+            lastCrossing = hs;
+            break;
+        }
+
+        if (lastCrossing is null || lastCrossing.TargetName is null)
+        {
+            return;
+        }
+
+        var entryRwyId = RunwayIdentifier.Parse(lastCrossing.TargetName);
+
+        // Locate segment index ending at the entry HS node.
+        int entrySegIdx = -1;
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (segments[i].ToNodeId == lastCrossing.NodeId)
+            {
+                entrySegIdx = i;
+                break;
+            }
+        }
+
+        if (entrySegIdx == -1)
+        {
+            return;
+        }
+
+        // Find the exit-side HS for the same runway after the entry. Without an exit
+        // segment in the route, the aircraft hasn't actually crossed the runway yet —
+        // nothing to truncate.
+        int exitSegIdx = -1;
+        for (int i = entrySegIdx + 1; i < segments.Count; i++)
+        {
+            if (
+                layout.Nodes.TryGetValue(segments[i].ToNodeId, out var node)
+                && node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is { } nodeRwyId
+                && nodeRwyId.Equals(entryRwyId)
+            )
+            {
+                exitSegIdx = i;
+                break;
+            }
+        }
+
+        if (exitSegIdx == -1)
+        {
+            return;
+        }
+
+        // Determine the last named taxiway from the input path (skipping #node refs).
+        string? lastNamedTaxiway = null;
+        for (int i = taxiwayNames.Count - 1; i >= 0; i--)
+        {
+            if (!NodeRefToken.IsNodeReference(taxiwayNames[i]))
+            {
+                lastNamedTaxiway = taxiwayNames[i];
+                break;
+            }
+        }
+
+        // Pick the truncation segment: the first segment after the exit HS whose taxiway
+        // matches lastNamedTaxiway. For "TAXI G C HS 28R" this lands the aircraft on the
+        // first C segment past the G/C junction (the user's intent: "enter C and hold").
+        // Fallback: one segment past the exit HS — handles "TAXI G HS 28R" where the
+        // last named taxiway equals the crossing taxiway.
+        int truncateAfter = -1;
+        if (lastNamedTaxiway is not null)
+        {
+            for (int i = exitSegIdx + 1; i < segments.Count; i++)
+            {
+                if (string.Equals(segments[i].TaxiwayName, lastNamedTaxiway, StringComparison.OrdinalIgnoreCase))
+                {
+                    truncateAfter = i;
+                    break;
+                }
+            }
+        }
+
+        if (truncateAfter == -1)
+        {
+            truncateAfter = Math.Min(exitSegIdx + 1, segments.Count - 1);
+        }
+
+        if (truncateAfter + 1 < segments.Count)
+        {
+            segments.RemoveRange(truncateAfter + 1, segments.Count - truncateAfter - 1);
+        }
     }
 
     /// <summary>

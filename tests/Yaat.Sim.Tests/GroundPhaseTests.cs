@@ -314,15 +314,16 @@ public class GroundPhaseTests
 
         Assert.True(completed);
 
-        // Verify: HoldingShortPhase + TaxiingPhase (no CrossingRunwayPhase)
+        // ExplicitHoldShort at a RunwayHoldShort node (HoldShortAnnotator promotes the
+        // entry-side runway HS when "HS <rwy>" is in the command) is treated like a
+        // RunwayCrossing on resume: HoldingShort → CrossingRunwayPhase → TaxiingPhase.
+        // Without this, the aircraft would just taxi across at 15 kt taxi speed.
         var phases = aircraft.Phases.Phases;
-        Assert.True(phases.Count >= 3, $"Expected at least 3 phases, got {phases.Count}");
+        Assert.True(phases.Count >= 4, $"Expected at least 4 phases (Taxi + Hold + Cross + Taxi), got {phases.Count}");
         Assert.IsType<TaxiingPhase>(phases[0]);
         Assert.IsType<HoldingShortPhase>(phases[1]);
-        Assert.IsType<TaxiingPhase>(phases[2]);
-
-        // Ensure no CrossingRunwayPhase was inserted
-        Assert.DoesNotContain(phases, p => p is CrossingRunwayPhase);
+        Assert.IsType<CrossingRunwayPhase>(phases[2]);
+        Assert.IsType<TaxiingPhase>(phases[3]);
     }
 
     [Fact]

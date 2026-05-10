@@ -335,7 +335,18 @@ public sealed class TaxiingPhase : Phase
             return phases;
         }
 
-        if (holdShort.Reason == HoldShortReason.RunwayCrossing)
+        // ExplicitHoldShort upgraded from a RunwayCrossing (HoldShortAnnotator promotes
+        // the entry-side runway HS when "HS <rwy>" is in the command) still needs the
+        // runway-crossing flow on resume — otherwise the aircraft taxis across at 15 kt
+        // without a CrossingRunwayPhase and the route's exit-side HS isn't skipped.
+        bool isRunwayHs =
+            ctx.GroundLayout is not null
+            && ctx.GroundLayout.Nodes.TryGetValue(holdShort.NodeId, out var hsNode)
+            && hsNode.Type == GroundNodeType.RunwayHoldShort;
+        bool needsRunwayCrossing =
+            holdShort.Reason == HoldShortReason.RunwayCrossing || (holdShort.Reason == HoldShortReason.ExplicitHoldShort && isRunwayHs);
+
+        if (needsRunwayCrossing)
         {
             int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout);
             if (exitNodeId is not null)
