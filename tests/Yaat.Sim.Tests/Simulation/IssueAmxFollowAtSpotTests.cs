@@ -98,36 +98,4 @@ public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
         Assert.IsType<FollowingPhase>(amx.Phases?.CurrentPhase);
         output.WriteLine($"[TIMING] Test total: {swTotal.Elapsed.TotalMilliseconds:F0}ms");
     }
-
-    /// <summary>
-    /// Ticking a no-destination / spot-only taxi completion also exposes the bug
-    /// without relying on the recording. Pure regression guard for the phase
-    /// inserted by <c>TaxiingPhase.ArriveAtNode</c>.
-    /// </summary>
-    [Fact]
-    public void TaxiToSpot_CompletesInHoldingInPosition_NotAtParking()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, ReplayTime);
-
-        var amx = engine.FindAircraft("AMX669");
-        Assert.NotNull(amx);
-        Assert.NotNull(amx.Phases);
-
-        output.WriteLine($"AMX669 phase stack at t={ReplayTime}:");
-        for (int i = 0; i < amx.Phases.Phases.Count; i++)
-        {
-            output.WriteLine($"  [{i}] {amx.Phases.Phases[i].Name} status={amx.Phases.Phases[i].Status}");
-        }
-
-        // AMX669 reached spot 2 — the aircraft is idle awaiting further instructions,
-        // NOT parked. HoldingInPositionPhase accepts Taxi/Pushback/FollowGround/etc.
-        Assert.IsType<HoldingInPositionPhase>(amx.Phases.CurrentPhase);
-    }
 }

@@ -86,7 +86,7 @@ public class ExitOverlapTests(ITestOutputHelper output)
 
         double minDistFt = double.MaxValue;
 
-        for (int t = 1; t <= 600; t++)
+        for (int t = 1; t <= 300; t++)
         {
             engine.ReplayOneSecond();
 

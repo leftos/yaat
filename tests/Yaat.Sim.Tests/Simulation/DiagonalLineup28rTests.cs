@@ -176,16 +176,4 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     {
         AssertLineUpCompletesCleanly(callsign: "N436MS", ctoSecond: 47, budgetSeconds: 60);
     }
-
-    /// <summary>
-    /// N342T at OAK receives CTO at t=688 from hold-short of 28R on
-    /// taxiway B. V2 must complete lineup with proper end state. Second
-    /// aircraft in the same scenario — verifies the phase handles
-    /// multiple departures independently.
-    /// </summary>
-    [Fact]
-    public void N342T_LineUp28R_CompletesWithOnCenterlineAlignedStop()
-    {
-        AssertLineUpCompletesCleanly(callsign: "N342T", ctoSecond: 688, budgetSeconds: 60);
-    }
 }

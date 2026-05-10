@@ -52,12 +52,13 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
         engine.Replay(recording, 100);
         var aircraft = engine.FindAircraft("N70234");
 
-        // Try further into the recording if not found yet
+        // Try further into the recording if not found yet. Use FastForwardTo to advance
+        // from current state — Replay() resets to t=0 each call, which makes this loop O(N²).
         if (aircraft is null)
         {
             for (int t = 200; t <= recording.TotalElapsedSeconds; t += 100)
             {
-                engine.Replay(recording, t);
+                engine.FastForwardTo(t, recording.Actions);
                 aircraft = engine.FindAircraft("N70234");
                 if (aircraft is not null)
                 {
