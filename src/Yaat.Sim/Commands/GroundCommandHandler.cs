@@ -122,16 +122,7 @@ internal static class GroundCommandHandler
             }
         }
 
-        if (autoCrossRunway)
-        {
-            foreach (var hs in route.HoldShortPoints)
-            {
-                if (hs.Reason == HoldShortReason.RunwayCrossing)
-                {
-                    hs.IsCleared = true;
-                }
-            }
-        }
+        TaxiRouteAutoCross.Apply(route, autoCrossRunway);
 
         // Pre-clear specific runway crossings from CROSS keywords in the TAXI command
         if (taxi.CrossRunways is { Count: > 0 })
@@ -146,6 +137,10 @@ internal static class GroundCommandHandler
                         if (hsRwyId.Contains(crossRwy))
                         {
                             hs.IsCleared = true;
+                            // Explicit user CROSS keyword owns the clearance — clear any
+                            // AutoCross attribution so a future AutoCross-OFF toggle does
+                            // not revert this user-issued crossing authorization.
+                            hs.ClearedByAutoCross = false;
                             break;
                         }
                     }

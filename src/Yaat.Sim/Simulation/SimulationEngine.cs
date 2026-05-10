@@ -2317,6 +2317,7 @@ public sealed class SimulationEngine
                 if (bool.TryParse(setting.Value, out var acr))
                 {
                     scenario.AutoCrossRunway = acr;
+                    World.ApplyAutoCrossToActiveTaxiRoutes(acr);
                 }
                 break;
             case "AutoAcceptDelay":

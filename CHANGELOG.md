@@ -23,6 +23,7 @@
 - `RFAS`, `S`, `NS`, and `DSR` issued during a pattern leg now adjust speed without cancelling the leg.
 - `TAXI` commands without a destination now hold once the aircraft enters the last named taxiway, instead of walking it to its dead-end.
 - STARS shows track history dots behind each aircraft on CRC; the trail stays visible across pauses.
+- Toggling Auto Cross-Runway mid-session now applies to aircraft already taxiing — turning it on pre-clears their remaining runway crossings, turning it off re-arms only the crossings AutoCross had cleared.
 
 ## v0.2.1-alpha [2026/05/09]
 

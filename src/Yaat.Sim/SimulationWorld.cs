@@ -76,6 +76,31 @@ public sealed class SimulationWorld
         }
     }
 
+    /// <summary>
+    /// Re-evaluates implicit RunwayCrossing hold-shorts on every aircraft's active
+    /// taxi route against the supplied AutoCross setting. Called by the server when
+    /// the controller toggles AutoCrossRunway mid-session, and by the engine's replay
+    /// applier when a recorded toggle is replayed. Aircraft currently sitting in
+    /// <see cref="Yaat.Sim.Phases.Ground.HoldingShortPhase"/> are intentionally left
+    /// alone — only future crossings on each route are updated.
+    /// </summary>
+    public void ApplyAutoCrossToActiveTaxiRoutes(bool autoCross)
+    {
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                var route = ac.Ground.AssignedTaxiRoute;
+                if (route is null)
+                {
+                    continue;
+                }
+
+                Data.Airport.TaxiRouteAutoCross.Apply(route, autoCross);
+            }
+        }
+    }
+
     public List<AircraftState> GetSnapshot()
     {
         lock (_lock)

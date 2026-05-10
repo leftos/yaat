@@ -193,6 +193,7 @@ public sealed class TaxiRoute
                     IsSatisfied = hs.IsCleared,
                     Latitude = hs.Latitude,
                     Longitude = hs.Longitude,
+                    ClearedByAutoCross = hs.ClearedByAutoCross,
                 })
                 .ToList(),
             Description = ToSummary(),
@@ -248,6 +249,7 @@ public sealed class TaxiRoute
                         Reason = HoldShortReason.ExplicitHoldShort,
                         TargetName = hs.RunwayId,
                         IsCleared = hs.IsSatisfied,
+                        ClearedByAutoCross = hs.ClearedByAutoCross,
                         Latitude = hs.Latitude,
                         Longitude = hs.Longitude,
                     }
@@ -290,6 +292,15 @@ public sealed class HoldShortPoint
 
     /// <summary>Whether this hold-short has been cleared (e.g., CROSS command issued).</summary>
     public bool IsCleared { get; set; }
+
+    /// <summary>
+    /// True when <see cref="IsCleared"/> was set by the AutoCrossRunway scenario toggle
+    /// (either at TAXI-resolution time or via a mid-session toggle that re-evaluated
+    /// already-active routes). Distinguishes AutoCross-driven clearance from other
+    /// sources (first-crossing-resume, explicit CROSS keyword, future user CTO commands)
+    /// so toggling AutoCross OFF only reverts the clearances it owns.
+    /// </summary>
+    public bool ClearedByAutoCross { get; set; }
 
     /// <summary>
     /// Computed hold-short position. For taxiway hold-shorts, this is offset from the

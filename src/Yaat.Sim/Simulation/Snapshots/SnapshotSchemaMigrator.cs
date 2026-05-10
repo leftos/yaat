@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -63,6 +63,10 @@ public static class SnapshotSchemaMigrator
         //   older snapshots default to null, meaning no unsatisfied pilot request was active.
         // V5→V6: Added AircraftSnapshotDto.HasLeftStudentFrequency. No data transformation —
         //   older snapshots default to false, preserving previous in-service behavior.
+        // V6→V7: Added HoldShortPointDto.ClearedByAutoCross to track AutoCross-driven
+        //   clearance. No data transformation — older snapshots default to false, which
+        //   matches pre-feature semantics: a subsequent AutoCross-OFF toggle on replay
+        //   will not revert any of their pre-cleared hold-shorts.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

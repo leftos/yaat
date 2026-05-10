@@ -28,4 +28,13 @@ public sealed class HoldShortPointDto
     public required bool IsSatisfied { get; init; }
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
+
+    /// <summary>
+    /// Tracks whether <see cref="IsSatisfied"/> was driven by the AutoCrossRunway
+    /// scenario toggle. Defaults to false on legacy snapshots (schema &lt; 7), which
+    /// is correct: pre-feature recordings had no notion of AutoCross-attributed
+    /// clearance, so a subsequent toggle-OFF on replay must not revert their
+    /// hold-shorts.
+    /// </summary>
+    public bool ClearedByAutoCross { get; init; }
 }
