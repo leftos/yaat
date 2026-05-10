@@ -596,13 +596,18 @@ public class TaxiPathfinderTests
     {
         var layout = BuildVariantLayout();
 
-        // No destination runway — walk A then W to the end of W
+        // No destination runway — walk A, then stop on W as soon as the aircraft enters
+        // it. The no-destination truncation rule: a TAXI command ending in a taxiway
+        // (no parking, spot, or destination runway) holds once it transitions onto the
+        // last named taxiway, instead of walking it to the dead-end.
         var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, new ExplicitPathOptions());
 
         Assert.NotNull(route);
         Assert.Null(failReason);
-        // Should end at node 3 (end of taxiway W), NOT at a hold-short
-        Assert.Equal(3, route.Segments[^1].ToNodeId);
+        // Last segment ends at node 2 (first W segment past the A/W transition), not at
+        // node 3 (end of W).
+        Assert.Equal(2, route.Segments[^1].ToNodeId);
+        Assert.Equal("W", route.Segments[^1].TaxiwayName);
     }
 
     [Fact]
@@ -1032,10 +1037,7 @@ public class TaxiPathfinderTests
         // Verify hold-short nodes exist for runway 30/12
         var holdShorts = layout
             .Nodes.Values.Where(n =>
-                n.Type == GroundNodeType.RunwayHoldShort
-                && n.RunwayId is not null
-                && n.RunwayId is { } rId
-                && rId.Contains("30")
+                n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is not null && n.RunwayId is { } rId && rId.Contains("30")
             )
             .ToList();
         Assert.True(holdShorts.Count > 0, "Should have hold-shorts for runway 30");
@@ -1266,10 +1268,7 @@ public class TaxiPathfinderTests
             // Check what hold-shorts exist for runway 30 and their edge details
             var hs30 = layout
                 .Nodes.Values.Where(n =>
-                    n.Type == GroundNodeType.RunwayHoldShort
-                    && n.RunwayId is not null
-                    && n.RunwayId is { } rId
-                    && rId.Contains("30")
+                    n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is not null && n.RunwayId is { } rId && rId.Contains("30")
                 )
                 .ToList();
             var hsInfo = string.Join("; ", hs30.Select(n => $"HS {n.Id} edges=[{string.Join(",", n.Edges.Select(e => e.TaxiwayName))}]"));
@@ -1430,7 +1429,10 @@ public class TaxiPathfinderTests
             Assert.True(RunwayIdentifier.Parse(hs.TargetName!).Contains("15"), $"Hold-short target '{hs.TargetName}' should match '15'");
         }
 
-        // Route crosses runway 15/33 — expect HS nodes for the entry/exit
+        // Route crosses runway 15/33 via D → F. With the no-destination truncation rule,
+        // the route stops at the first F segment past the crossing — controllers who don't
+        // give a destination get "hold once you enter the next taxiway" semantics. The
+        // entry-side HS on D is still annotated; the exit-side HS on F is past the truncation.
         var segDetail = string.Join(
             " → ",
             route.Segments.Select(s =>
@@ -1440,10 +1442,10 @@ public class TaxiPathfinderTests
                 return $"{s.ToNodeId}:{s.TaxiwayName}{typ}";
             })
         );
-        Assert.True(
-            allRwy15NodesOnRoute.Count >= 2,
-            $"Expected ≥2 HS nodes on route, got {allRwy15NodesOnRoute.Count}: [{string.Join("; ", allRwy15NodesOnRoute)}]. Segments: {segDetail}"
-        );
+
+        // Route includes the entry-side 15/33 HS on D, plus the runway centerline crossing,
+        // plus at least one F segment past the runway.
+        Assert.Contains(allRwy15NodesOnRoute, n => n.Contains("taxiway=D"));
 
         // Entry/exit pairing produces exactly one hold-short (entry side on D)
         Assert.True(
@@ -1453,6 +1455,9 @@ public class TaxiPathfinderTests
                 + $"Segments: {segDetail}"
         );
         Assert.Equal(HoldShortReason.RunwayCrossing, hs1533[0].Reason);
+
+        // Truncation lands the aircraft on F just past the crossing (last segment is F).
+        Assert.Equal("F", route.Segments[^1].TaxiwayName);
     }
 
     /// <summary>
