@@ -621,7 +621,57 @@ internal static class PatternCommandHandler
         return new CommandResult(false, "Not on downwind");
     }
 
-    internal static CommandResult TryExtendPattern(AircraftState aircraft)
+    // Bare EXT on downwind models 7110.65 §3-8-1 "EXTEND DOWNWIND" — the only
+    // codified extend-leg phraseology. EXT UPWIND / EXT CROSSWIND have no
+    // standard FAA phrase; AIM §4-3-3 ¶3.2 authorizes upwind for sequencing,
+    // and in real ops the equivalent instructions are "continue runway heading,
+    // I'll call your crosswind" or a vector. The leg-arg form maps the
+    // training-tool shorthand onto those underlying maneuvers.
+    internal static CommandResult TryExtendPattern(AircraftState aircraft, PatternEntryLeg? requestedLeg)
+    {
+        if (requestedLeg is not { } leg)
+        {
+            return TryExtendCurrentLeg(aircraft);
+        }
+
+        // Defensive guard — parser already filters Base/Final tokens, but the leg
+        // arg is a typed enum that can carry any value.
+        if (leg is PatternEntryLeg.Base or PatternEntryLeg.Final)
+        {
+            return new CommandResult(false, $"Extend not allowed on {leg.ToString().ToLowerInvariant()} leg");
+        }
+
+        var currentLeg = GetCurrentPatternLeg(aircraft.Phases?.CurrentPhase);
+        if (currentLeg is not { } current)
+        {
+            return new CommandResult(false, "Extend applies on upwind, crosswind, or downwind");
+        }
+
+        if (leg == current)
+        {
+            return TryExtendCurrentLeg(aircraft);
+        }
+
+        int requestedOrder = LegOrder(leg);
+        int currentOrder = LegOrder(current);
+
+        if (requestedOrder > currentOrder)
+        {
+            return new CommandResult(false, $"EXT {leg.ToString().ToUpperInvariant()} cannot be issued before reaching that leg");
+        }
+
+        if (currentOrder - requestedOrder > 1)
+        {
+            return new CommandResult(
+                false,
+                $"Cannot roll back to {leg.ToString().ToLowerInvariant()} from {current.ToString().ToLowerInvariant()} — use bare EXT or L360/R360 for spacing"
+            );
+        }
+
+        return RebuildPatternFromLeg(aircraft, leg);
+    }
+
+    private static CommandResult TryExtendCurrentLeg(AircraftState aircraft)
     {
         switch (aircraft.Phases?.CurrentPhase)
         {
@@ -639,6 +689,113 @@ internal static class PatternCommandHandler
             default:
                 return new CommandResult(false, "Extend applies on upwind, crosswind, or downwind");
         }
+    }
+
+    private static PatternEntryLeg? GetCurrentPatternLeg(Phase? phase)
+    {
+        return phase switch
+        {
+            UpwindPhase => PatternEntryLeg.Upwind,
+            CrosswindPhase => PatternEntryLeg.Crosswind,
+            DownwindPhase => PatternEntryLeg.Downwind,
+            BasePhase => PatternEntryLeg.Base,
+            _ => null,
+        };
+    }
+
+    private static int LegOrder(PatternEntryLeg leg) =>
+        leg switch
+        {
+            PatternEntryLeg.Upwind => 0,
+            PatternEntryLeg.Crosswind => 1,
+            PatternEntryLeg.Downwind => 2,
+            PatternEntryLeg.Base => 3,
+            PatternEntryLeg.Final => 4,
+            _ => -1,
+        };
+
+    private static PatternDirection? CurrentPatternDirection(AircraftState aircraft)
+    {
+        return aircraft.Phases?.CurrentPhase switch
+        {
+            UpwindPhase up => up.Waypoints?.Direction,
+            CrosswindPhase cw => cw.Waypoints?.Direction,
+            DownwindPhase dw => dw.Waypoints?.Direction,
+            BasePhase bp => bp.Waypoints?.Direction,
+            _ => null,
+        };
+    }
+
+    private static CommandResult RebuildPatternFromLeg(AircraftState aircraft, PatternEntryLeg leg)
+    {
+        if (aircraft.Phases?.AssignedRunway is null)
+        {
+            return new CommandResult(false, "No assigned runway for pattern rebuild");
+        }
+
+        var runway = aircraft.Phases.AssignedRunway;
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        var direction = CurrentPatternDirection(aircraft) ?? aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
+
+        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            runway,
+            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
+
+        bool touchAndGo = aircraft.Phases.TrafficDirection is not null;
+        var circuitPhases = PatternBuilder.BuildCircuit(
+            runway,
+            category,
+            direction,
+            leg,
+            touchAndGo,
+            finalDistanceNm: null,
+            sizeOv,
+            altOv,
+            NavigationDatabase.Instance.GetRunways(runway.AirportId)
+        );
+
+        // Mark the first phase of the new circuit as extended so the aircraft holds
+        // the requested leg's heading until the next turn command is issued.
+        if (circuitPhases.Count > 0)
+        {
+            switch (circuitPhases[0])
+            {
+                case UpwindPhase up:
+                    up.IsExtended = true;
+                    break;
+                case CrosswindPhase cw:
+                    cw.IsExtended = true;
+                    break;
+                case DownwindPhase dw:
+                    dw.IsExtended = true;
+                    break;
+            }
+        }
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        aircraft.Phases.Clear(ctx);
+
+        var phases = new PhaseList
+        {
+            AssignedRunway = runway,
+            LandingClearance = aircraft.Phases.LandingClearance,
+            ClearedRunwayId = aircraft.Phases.ClearedRunwayId,
+            TrafficDirection = aircraft.Phases.TrafficDirection,
+        };
+        foreach (var phase in circuitPhases)
+        {
+            phases.Add(phase);
+        }
+
+        aircraft.Phases = phases;
+        aircraft.Procedure.DestinationRunway = runway.Designator;
+        aircraft.Phases.Start(ctx);
+
+        Log.LogDebug("[ExtendPattern] {Callsign}: rolled back to {Leg}, IsExtended=true on first phase", aircraft.Callsign, leg);
+        return CommandDispatcher.Ok($"Extend {leg.ToString().ToLowerInvariant()}");
     }
 
     internal static CommandResult TryMakeShortApproach(AircraftState aircraft)

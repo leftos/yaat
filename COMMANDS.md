@@ -352,7 +352,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Turn crosswind | `TC` | — | — |
 | Turn downwind | `TD` | — | — |
 | Turn base | `TB` | — | — |
-| Extend leg | `EXT` | — | — |
+| Extend leg | `EXT` | `EXTEND` | `EXT [leg]` |
 | Short approach | `SA` | `MSA` | — |
 | Normal approach | `MNA` | — | — |
 | Left 360 | `L360` | — | — |
@@ -672,7 +672,10 @@ Pattern-entry verbs (`ELD`, `ERD`, `ELB`, `ERB`, `EF`, `ELC`, `ERC`) require the
 | `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
 | `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern) |
 | `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
-| `EXT` | Extend current pattern leg (upwind, crosswind, or downwind — not base) |
+| `EXT` / `EXTEND` | Extend current pattern leg (upwind, crosswind, or downwind — not base) |
+| `EXT UPWIND` / `EXT UW` | Extend upwind. If aircraft has just started turning crosswind, cancels the turn and re-establishes the upwind leg. |
+| `EXT CROSSWIND` / `EXT CW` | Extend crosswind. Rolls the aircraft back from downwind to crosswind if issued one leg late. |
+| `EXT DOWNWIND` / `EXT DW` | Extend downwind. Rolls the aircraft back from base to downwind if issued one leg late. Future-leg targets (e.g. `EXT DW` while still on upwind) and >1-leg rollbacks are rejected. |
 | `ELC` / `ERC` | Enter left/right crosswind |
 | `ELC 28R` / `ERC 28R` | Enter left/right crosswind, assign runway |
 | `SA` / `MSA` | Make short approach — compress the unflown pattern. Issue while on or before downwind/base; can be chained with `ERD`/`ERB` (e.g. `ERD 28R; SA`) to arm the upcoming leg. |

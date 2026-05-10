@@ -510,7 +510,17 @@ public static class CommandRegistry
             Bare(TurnCrosswind, "Turn Crosswind", "Pattern", false, ["TC"]),
             Bare(TurnDownwind, "Turn Downwind", "Pattern", false, ["TD"]),
             Bare(TurnBase, "Turn Base", "Pattern", false, ["TB"]),
-            Bare(ExtendPattern, "Extend Pattern Leg", "Pattern", false, ["EXT"]),
+            Cmd(
+                ExtendPattern,
+                "Extend Pattern Leg",
+                "Pattern",
+                false,
+                ["EXT", "EXTEND"],
+                [
+                    O(null, [], "Extend current pattern leg"),
+                    O("Leg", [R("leg", "pattern leg")], "Extend specific pattern leg (rolls back one leg if already past it)"),
+                ]
+            ),
             Bare(MakeShortApproach, "Make Short Approach", "Pattern", false, ["SA", "MSA"]),
             Bare(MakeNormalApproach, "Make Normal Approach", "Pattern", false, ["MNA"]),
             Bare(Cancel270, "Cancel 270", "Pattern", false, ["NO270"]),

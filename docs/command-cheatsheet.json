@@ -139,7 +139,7 @@
         { "verb": "TC", "aliases": [], "description": "Turn crosswind" },
         { "verb": "TD", "aliases": [], "description": "Turn downwind" },
         { "verb": "TB", "aliases": [], "description": "Turn base" },
-        { "verb": "EXT", "aliases": [], "description": "Extend current pattern leg (not base)" },
+        { "verb": "EXT", "aliases": ["extend"], "description": "Extend current pattern leg (not base); EXT UPWIND/CW/DW rolls back one leg if late" },
         { "verb": "SA", "aliases": ["msa"], "description": "Short approach" },
         { "verb": "MNA", "aliases": [], "description": "Normal approach" },
         { "verb": "L360 / R360", "aliases": [], "description": "Left / right 360" },

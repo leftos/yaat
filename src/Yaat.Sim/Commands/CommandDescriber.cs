@@ -458,7 +458,7 @@ public static class CommandDescriber
             TurnCrosswindCommand => "TC",
             TurnDownwindCommand => "TD",
             TurnBaseCommand => "TB",
-            ExtendPatternCommand => "EXT",
+            ExtendPatternCommand ext => DescribeExtendPattern(ext),
             MakeShortApproachCommand => "SA",
             MakeLeft360Command => "L360",
             MakeRight360Command => "R360",
@@ -706,7 +706,13 @@ public static class CommandDescriber
             TurnCrosswindCommand => "Turn crosswind",
             TurnDownwindCommand => "Turn downwind",
             TurnBaseCommand => "Turn base",
-            ExtendPatternCommand => "Extend pattern leg",
+            ExtendPatternCommand ext => ext.Leg switch
+            {
+                PatternEntryLeg.Upwind => "Extend upwind",
+                PatternEntryLeg.Crosswind => "Extend crosswind",
+                PatternEntryLeg.Downwind => "Extend downwind",
+                _ => "Extend pattern leg",
+            },
             MakeShortApproachCommand => "Make short approach",
             MakeLeft360Command => "Make left 360",
             MakeRight360Command => "Make right 360",
@@ -1282,6 +1288,17 @@ public static class CommandDescriber
             msg += $", climb to {ga.TargetAltitude:N0}";
         }
         return msg;
+    }
+
+    private static string DescribeExtendPattern(ExtendPatternCommand cmd)
+    {
+        return cmd.Leg switch
+        {
+            PatternEntryLeg.Upwind => "EXT UPWIND",
+            PatternEntryLeg.Crosswind => "EXT CROSSWIND",
+            PatternEntryLeg.Downwind => "EXT DOWNWIND",
+            _ => "EXT",
+        };
     }
 
     private static string DescribePatternBase(string verb, string? runwayId, double? distNm)

@@ -82,6 +82,7 @@ internal static class ArgumentSuggester
         bool hasFix = false;
         bool hasApproach = false;
         bool hasCallsign = false;
+        bool hasPatternLeg = false;
 
         foreach (var overload in def.Overloads)
         {
@@ -117,11 +118,15 @@ internal static class ArgumentSuggester
             {
                 hasCallsign = true;
             }
+            else if (IsPatternLegHint(param.TypeHint))
+            {
+                hasPatternLeg = true;
+            }
         }
 
         // When past all overload parameters, suggest compound modifiers if available
         bool hasModifiers = false;
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && def.CompoundModifiers is { Length: > 0 })
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && def.CompoundModifiers is { Length: > 0 })
         {
             bool allOverloadsExhausted = def.Overloads.All(o => paramIndex >= o.Parameters.Length);
             if (allOverloadsExhausted)
@@ -130,7 +135,7 @@ internal static class ArgumentSuggester
             }
         }
 
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasModifiers)
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && !hasModifiers)
         {
             return false;
         }
@@ -166,6 +171,11 @@ internal static class ArgumentSuggester
         if (hasCallsign)
         {
             AddCallsignSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, aircraft, suggestions, maxSuggestions);
+        }
+
+        if (hasPatternLeg)
+        {
+            AddPatternLegSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, maxSuggestions);
         }
 
         if (hasModifiers)
@@ -304,6 +314,48 @@ internal static class ArgumentSuggester
     private static bool IsCallsignHint(string typeHint)
     {
         return typeHint.Contains("callsign", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPatternLegHint(string typeHint)
+    {
+        return typeHint.Contains("pattern leg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AddPatternLegSuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string partial,
+        ObservableCollection<SuggestionItem> suggestions,
+        int maxSuggestions
+    )
+    {
+        (string Value, string Description)[] legs = [("UPWIND", "Upwind leg"), ("CROSSWIND", "Crosswind leg"), ("DOWNWIND", "Downwind leg")];
+
+        foreach (var (value, description) in legs)
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            if (partial.Length > 0 && !value.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+            suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = value,
+                    Description = description,
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
+                }
+            );
+        }
     }
 
     private static void AddCallsignSuggestions(

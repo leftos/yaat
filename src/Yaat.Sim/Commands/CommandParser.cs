@@ -672,7 +672,7 @@ public static class CommandParser
             TurnCrosswind when arg is null => PR.Ok(new TurnCrosswindCommand()),
             TurnDownwind when arg is null => PR.Ok(new TurnDownwindCommand()),
             TurnBase when arg is null => PR.Ok(new TurnBaseCommand()),
-            ExtendPattern when arg is null => PR.Ok(new ExtendPatternCommand()),
+            ExtendPattern => ParseExtendPattern(arg),
             MakeShortApproach when arg is null => PR.Ok(new MakeShortApproachCommand()),
             MakeNormalApproach when arg is null => PR.Ok(new MakeNormalApproachCommand()),
             Cancel270 when arg is null => PR.Ok(new Cancel270Command()),
@@ -2132,6 +2132,39 @@ public static class CommandParser
         }
 
         return new UnsupportedCommand($"PS {arg}");
+    }
+
+    private static PR ParseExtendPattern(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new ExtendPatternCommand());
+        }
+
+        var token = arg.Trim();
+        if (token.Length == 0)
+        {
+            return PR.Ok(new ExtendPatternCommand());
+        }
+
+        var leg = ParsePatternLegToken(token);
+        if (leg is null)
+        {
+            return PR.Fail($"unknown leg '{arg}', expected UPWIND/UW, CROSSWIND/CW, or DOWNWIND/DW");
+        }
+
+        return PR.Ok(new ExtendPatternCommand(leg));
+    }
+
+    private static PatternEntryLeg? ParsePatternLegToken(string token)
+    {
+        return token.ToUpperInvariant() switch
+        {
+            "UPWIND" or "UW" => PatternEntryLeg.Upwind,
+            "CROSSWIND" or "CW" => PatternEntryLeg.Crosswind,
+            "DOWNWIND" or "DW" => PatternEntryLeg.Downwind,
+            _ => null,
+        };
     }
 
     private static ParsedCommand ParseSTurns(string? arg, TurnDirection direction)

@@ -262,7 +262,7 @@ public record TurnDownwindCommand : ParsedCommand;
 
 public record TurnBaseCommand : ParsedCommand;
 
-public record ExtendPatternCommand : ParsedCommand;
+public record ExtendPatternCommand(PatternEntryLeg? Leg = null) : ParsedCommand;
 
 public record MakeShortApproachCommand : ParsedCommand;
 

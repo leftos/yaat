@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- `EXT UPWIND/CROSSWIND/DOWNWIND` (also `EXTEND`) targets a specific pattern leg; rolls back one leg if issued just after the turn started.
 - Settings adds an Audio tab pairing microphone selection with a new output-device picker that routes pilot text-to-speech and the SAY/warning chime.
 - ARTCC `WakeDirectives` folders let facilities adjust Session Report wake scoring for documented local waivers and wake-advisory directives.
 - Standalone `yaat-crc-config` tool adds YAAT environments to CRC without installing the full client — single ~200 KB binary released under `crc-config-v*` tags.

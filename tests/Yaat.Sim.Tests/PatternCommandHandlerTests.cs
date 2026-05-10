@@ -155,7 +155,7 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(downwind);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = PatternCommandHandler.TryExtendPattern(ac);
+        var result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
         Assert.True(result.Success);
         Assert.True(downwind.IsExtended);
@@ -171,7 +171,7 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(upwind);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = PatternCommandHandler.TryExtendPattern(ac);
+        var result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
         Assert.True(result.Success);
         Assert.True(upwind.IsExtended);
@@ -187,7 +187,7 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(crosswind);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = PatternCommandHandler.TryExtendPattern(ac);
+        var result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
         Assert.True(result.Success);
         Assert.True(crosswind.IsExtended);
@@ -202,7 +202,7 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(new BasePhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = PatternCommandHandler.TryExtendPattern(ac);
+        var result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
         Assert.False(result.Success);
         Assert.Contains("base", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -216,9 +216,201 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(new InitialClimbPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = PatternCommandHandler.TryExtendPattern(ac);
+        var result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
         Assert.False(result.Success);
+    }
+
+    // -------------------------------------------------------------------------
+    // TryExtendPattern — leg argument (rollback + same-leg + reject)
+    // -------------------------------------------------------------------------
+
+    private static AircraftState MakeAircraftOnLeg<TPhase>(out TPhase phase)
+        where TPhase : Phase, new()
+    {
+        var ac = MakeAircraft();
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        phase = new TPhase();
+        // All four pattern phases expose Waypoints — set it via reflection-free property dispatch.
+        switch (phase)
+        {
+            case UpwindPhase up:
+                up.Waypoints = wp;
+                break;
+            case CrosswindPhase cw:
+                cw.Waypoints = wp;
+                break;
+            case DownwindPhase dw:
+                dw.Waypoints = wp;
+                break;
+            case BasePhase bp:
+                bp.Waypoints = wp;
+                break;
+        }
+        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
+        ac.Phases.Add(phase);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        return ac;
+    }
+
+    [Fact]
+    public void TryExtendPattern_LegMatchesCurrent_SetsExtendedOnCurrent()
+    {
+        var ac = MakeAircraftOnLeg<UpwindPhase>(out var upwind);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+
+        Assert.True(result.Success);
+        Assert.True(upwind.IsExtended);
+        // Same-leg path must NOT rebuild — the original phase instance stays current.
+        Assert.Same(upwind, ac.Phases!.CurrentPhase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_RollbackUpwindFromCrosswind_RebuildsCircuit()
+    {
+        var ac = MakeAircraftOnLeg<CrosswindPhase>(out var crosswind);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+
+        Assert.True(result.Success);
+        Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
+        var newUpwind = (UpwindPhase)ac.Phases.CurrentPhase!;
+        Assert.True(newUpwind.IsExtended);
+        Assert.NotSame(crosswind, ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_RollbackCrosswindFromDownwind_RebuildsCircuit()
+    {
+        var ac = MakeAircraftOnLeg<DownwindPhase>(out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+
+        Assert.True(result.Success);
+        Assert.IsType<CrosswindPhase>(ac.Phases!.CurrentPhase);
+        Assert.True(((CrosswindPhase)ac.Phases.CurrentPhase!).IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_RollbackDownwindFromBase_RebuildsCircuit()
+    {
+        var ac = MakeAircraftOnLeg<BasePhase>(out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+
+        Assert.True(result.Success);
+        Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);
+        Assert.True(((DownwindPhase)ac.Phases.CurrentPhase!).IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_RollbackTwoLegs_Rejected()
+    {
+        var ac = MakeAircraftOnLeg<DownwindPhase>(out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+
+        Assert.False(result.Success);
+        Assert.Contains("roll back", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_FutureLeg_Rejected()
+    {
+        var ac = MakeAircraftOnLeg<UpwindPhase>(out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+
+        Assert.False(result.Success);
+        Assert.Contains("before reaching", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_BaseLegArgument_Rejected()
+    {
+        var ac = MakeAircraftOnLeg<BasePhase>(out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Base);
+
+        Assert.False(result.Success);
+        Assert.Contains("base", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_FinalLegArgument_Rejected()
+    {
+        var ac = MakeAircraftOnLeg<DownwindPhase>(out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Final);
+
+        Assert.False(result.Success);
+        Assert.Contains("final", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_Rollback_PreservesTouchAndGoIntent()
+    {
+        // Touch-and-go cycling pattern (TrafficDirection set) must rebuild with
+        // a TouchAndGoPhase, not a LandingPhase, so the aircraft keeps cycling
+        // after the extended leg + subsequent turn / approach.
+        var ac = MakeAircraft();
+        var rwy = DefaultRunway();
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
+        ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+
+        Assert.True(result.Success);
+        Assert.Contains(ac.Phases!.Phases, p => p is Phases.Tower.TouchAndGoPhase);
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is Phases.Tower.LandingPhase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_Rollback_PreservesPatternSizeOverride()
+    {
+        var ac = MakeAircraft();
+        var rwy = DefaultRunway();
+        ac.Pattern.SizeOverrideNm = 2.5;
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, 2.5, null, null);
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
+        ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+
+        Assert.True(result.Success);
+        var newUpwind = Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
+        // Pattern altitude is computed from runway elevation + AGL; the size override
+        // affects PatternSizeNm which propagates to the downwind abeam offset. Verify
+        // the rebuilt waypoints reflect the same authored size by recomputing and
+        // comparing the downwind offset.
+        var expectedWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, 2.5, null, null);
+        Assert.Equal(expectedWp.DownwindAbeamLat, newUpwind.Waypoints!.DownwindAbeamLat, precision: 4);
+        Assert.Equal(expectedWp.DownwindAbeamLon, newUpwind.Waypoints!.DownwindAbeamLon, precision: 4);
+    }
+
+    [Fact]
+    public void TryExtendPattern_RollbackFromCrosswind_PreservesPatternDirection()
+    {
+        // Right pattern aircraft on crosswind, rolling back to upwind: the new
+        // UpwindPhase must keep right-traffic geometry (CrosswindHeading derived
+        // for a right turn off the runway).
+        var ac = MakeAircraft();
+        var rwy = DefaultRunway();
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Right, null, null, null);
+        var crosswind = new CrosswindPhase { Waypoints = wp };
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
+        ac.Phases.Add(crosswind);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+
+        Assert.True(result.Success);
+        var newUpwind = Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
+        Assert.Equal(PatternDirection.Right, newUpwind.Waypoints!.Direction);
     }
 
     // -------------------------------------------------------------------------
