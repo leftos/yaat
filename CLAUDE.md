@@ -253,3 +253,4 @@ When invoking aviation-sim-expert, always include:
 - **Unreleased software**: No backwards-compat shims, migration paths, or deprecated aliases. Delete and replace freely.
 - **Window geometry**: Every window uses `WindowGeometryHelper(window, preferences, "Name", defaultW, defaultH).Restore()`.
 - **Memory Updates**: Distill findings into auto-memory at `C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`.
+- **Mempalace search**: `mcp__mempalace__mempalace_search` (filter `wing="yaat"`) over 162K long-form drawers — prior investigations, design docs, bug reports. Complements auto-memory: auto-memory = curated rules, mempalace = case files. KG/tunnel layers are empty — skip `kg_query`, `find_tunnels`, `traverse`.
