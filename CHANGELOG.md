@@ -20,6 +20,7 @@
 - Vector commands (FH, TR, CM, SPD) now clear the follow target, so the Aircraft List no longer keeps a stale "following X" prefix.
 - `FOLLOW` issued from upwind or crosswind on a same-runway pattern circuit no longer routes the follower back through pattern entry — it just sets the follow target like it does from downwind/base/final.
 - Pattern-phase followers now drop the follow target — with the matching pilot transmission — when the lead leaves the area (despawn), lands, or pulls away faster than the follower can catch. Previously the "following X" tag could linger for minutes after the lead was gone.
+- `FOLLOW` no longer slows the follower (or extends downwind) when the lead is on the same runway but pattern-flow-behind — e.g. follower is on Downwind while the lead is still on the pattern entry feeder, or follower is further along the same leg. Holds baseline pattern speed until the lead actually catches up.
 - Taxi routes through sharp curves at taxiway junctions (e.g. OAK J at K) now slow for the corner instead of spinning past it.
 - Pattern direction set by `MLT`/`MRT` now survives heading vectors and single-approach `ERB`/`ELB`/`EF` clearances; subsequent circuits revert to the original side.
 - `RFAS`, `S`, `NS`, and `DSR` issued during a pattern leg now adjust speed without cancelling the leg.

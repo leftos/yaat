@@ -296,4 +296,74 @@ public class FollowAuditTests(ITestOutputHelper output)
             Assert.Null(follower.Approach.FollowingCallsign);
         }
     }
+
+    /// <summary>
+    /// Bug 4: a follower geographically close to its lead but pattern-flow-AHEAD
+    /// (e.g. follower on Downwind, lead still on PatternEntry feeder) should not
+    /// be slowed down — the lead has yet to enter the pattern leg the follower
+    /// is already flying. Recorded incident: at t=1691 N172SP turned Downwind on
+    /// 28R; gap to N428KK (still on PatternEntry from the NW) was only 0.67 nm.
+    /// The helper saw "too close, desired ≈ 1.0 nm" and slowed N172SP to 62 KIAS
+    /// for the entire downwind, doubling the leg duration (160 s vs ~80 s normal).
+    ///
+    /// Fix: AirborneFollowHelper.GetAdjustedSpeed[FreeFlight] returns null when
+    /// `IsLeadPatternFlowBehind` is true, so the phase keeps its baseline speed.
+    /// </summary>
+    [Fact]
+    public void Bug4_FollowSuppressed_WhenLeadPatternFlowBehind()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var recording = archive.ToBaseSessionRecording();
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            engine.Replay(recording, 0);
+
+            // Snapshot at t=1690 — 1 s before FOLLOW action at t=1691. N172SP is
+            // on Downwind for 28R; N428KK is on PatternEntry feeder for 28R.
+            var snapshot = archive.ReadSnapshotAt(1690);
+            if (snapshot is null)
+            {
+                output.WriteLine("No snapshot near t=1690 — skipping");
+                return;
+            }
+            engine.RestoreFromSnapshot(snapshot.State);
+            int startTime = (int)snapshot.ElapsedSeconds;
+            output.WriteLine($"Restored snapshot at t={startTime}");
+
+            // Replay through 30 s of post-FOLLOW Downwind — under the bug, IAS
+            // drops to 62 KIAS (Vref) by ~t=1755. With the fix, IAS should stay
+            // at the Downwind baseline (~77.5 KIAS for piston).
+            engine.ReplayRange(startTime, 1750, recording.Actions);
+
+            var follower = engine.FindAircraft("N172SP");
+            Assert.NotNull(follower);
+            output.WriteLine(
+                $"t=1750: N172SP phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"} "
+                    + $"following={follower.Approach.FollowingCallsign ?? "(null)"} "
+                    + $"ias={follower.IndicatedAirspeed:F1} tgtSpd={follower.Targets.TargetSpeed?.ToString("F1") ?? "(null)"}"
+            );
+
+            Assert.Equal("N428KK", follower.Approach.FollowingCallsign);
+            Assert.IsType<DownwindPhase>(follower.Phases?.CurrentPhase);
+            // Downwind baseline for piston is 77.5 KIAS. The bug pulled IAS down
+            // toward Vref (62 KIAS). Allow a 5-kt tolerance for normal pattern-
+            // tight settling once the lead enters Downwind itself (which it does
+            // at t=1710, 60 s before this assertion fires).
+            Assert.True(
+                follower.Targets.TargetSpeed is null or >= 70.0,
+                $"Expected target speed near Downwind baseline (≥70 kt) while lead is pattern-flow-behind; got {follower.Targets.TargetSpeed?.ToString("F1") ?? "null"}"
+            );
+        }
+    }
 }

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Phases;
 
@@ -212,6 +214,70 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
+    /// Position of an aircraft within a single VFR pattern circuit, expressed as
+    /// a monotonically increasing index. Used by <see cref="IsLeadPatternFlowBehind"/>
+    /// to compare two aircraft's progress along the same pattern. Non-pattern
+    /// phases return null.
+    /// </summary>
+    private static int? PatternLegIndex(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase switch
+        {
+            PatternEntryPhase => 0,
+            UpwindPhase => 1,
+            CrosswindPhase => 2,
+            DownwindPhase => 3,
+            BasePhase => 4,
+            FinalApproachPhase => 5,
+            LandingPhase or TouchAndGoPhase => 6,
+            _ => null,
+        };
+
+    /// <summary>
+    /// True when both aircraft are flying patterns to the same runway and the
+    /// lead is on an earlier pattern leg than the follower — i.e. geographically
+    /// close but pattern-flow-AHEAD on the follower's part. In this state the
+    /// spacing helper should NOT slow the follower down: the lead has yet to
+    /// catch up to the leg the follower is already on, and pulling the follower
+    /// to Vref under the false belief that it's chasing produces multi-minute
+    /// downwind extensions (audit observation: N172SP held Downwind for 160 s
+    /// at 62 KIAS while N428KK was on PatternEntry feeder 0.67 nm away).
+    /// Once the lead catches up to the same or later leg, the check returns
+    /// false and normal spacing resumes.
+    /// </summary>
+    private static bool IsLeadPatternFlowBehind(AircraftState follower, AircraftState lead)
+    {
+        string? followerRwy = follower.Phases?.AssignedRunway?.Designator;
+        string? leadRwy = lead.Phases?.AssignedRunway?.Designator;
+        if (followerRwy is null || leadRwy is null)
+        {
+            return false;
+        }
+        if (!string.Equals(followerRwy, leadRwy, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        int? followerLeg = PatternLegIndex(follower);
+        int? leadLeg = PatternLegIndex(lead);
+        if (followerLeg is null || leadLeg is null)
+        {
+            return false;
+        }
+        if (followerLeg > leadLeg)
+        {
+            return true;
+        }
+        // Same leg: the aircraft that's been on it longer is further along it
+        // and therefore "ahead" in pattern flow. Compare phase elapsed time.
+        if (followerLeg == leadLeg)
+        {
+            double followerElapsed = follower.Phases?.CurrentPhase?.ElapsedSeconds ?? 0;
+            double leadElapsed = lead.Phases?.CurrentPhase?.ElapsedSeconds ?? 0;
+            return followerElapsed > leadElapsed;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Returns an adjusted target speed based on distance to the followed aircraft,
     /// or null if no follow is active (or the target has disappeared).
     /// The <paramref name="normalSpeed"/> MUST be the phase's baseline speed
@@ -246,6 +312,16 @@ public static class AirborneFollowHelper
             return null;
         }
 
+        if (IsLeadPatternFlowBehind(ctx.Aircraft, target))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: lead {Target} is pattern-flow-behind on same runway, holding baseline",
+                ctx.Aircraft.Callsign,
+                targetCallsign
+            );
+            return null;
+        }
+
         return ComputeAdjustedSpeed(
             ctx.Aircraft,
             target,
@@ -277,7 +353,17 @@ public static class AirborneFollowHelper
         if (target is null)
         {
             Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
-            ctx.Aircraft.Approach.FollowingCallsign = null;
+            ClearFollowState(ctx.Aircraft);
+            return null;
+        }
+
+        if (IsLeadPatternFlowBehind(ctx.Aircraft, target))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: lead {Target} is pattern-flow-behind on same runway, holding baseline",
+                ctx.Aircraft.Callsign,
+                targetCallsign
+            );
             return null;
         }
 
@@ -426,6 +512,14 @@ public static class AirborneFollowHelper
 
         var target = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (target is null)
+        {
+            return false;
+        }
+
+        // Pattern-flow gate: don't extend downwind for a lead that hasn't
+        // entered the same Downwind leg yet — we'd be extending to make room
+        // for an aircraft that's still flying the feeder behind us.
+        if (IsLeadPatternFlowBehind(ctx.Aircraft, target))
         {
             return false;
         }
