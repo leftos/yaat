@@ -939,20 +939,140 @@ public sealed class AirportGroundLayout
         return best;
     }
 
+    /// <summary>Result of <see cref="FindExitFromCenterline"/> — a single hold-short with metadata.</summary>
+    public readonly record struct CenterlineExitResult(
+        GroundNode HoldShort,
+        string Taxiway,
+        List<GroundNode> Path,
+        double ExitAngle,
+        ExitSide Side,
+        GroundNode WalkCenterline
+    );
+
+    /// <summary>
+    /// Caller-supplied verdict on a candidate exit during
+    /// <see cref="FindOnSidePreferredExit"/>. <c>Accept</c> commits, <c>Skip</c>
+    /// excludes the entire taxiway and continues, <c>Defer</c> remembers it as
+    /// an off-side fallback (used internally for the off-side rule and may be
+    /// returned by callers that want the same fallback semantics for their own
+    /// predicate).
+    /// </summary>
+    public enum CandidateVerdict
+    {
+        Accept,
+        Skip,
+        Defer,
+    }
+
+    /// <summary>
+    /// Walk centerlines ahead of the aircraft and pick the next exit that
+    /// satisfies the side preference. Off-side candidates (relative to
+    /// <paramref name="sidePref"/>) are deferred — the search continues, and
+    /// the deferred candidate is only committed if no on-side option is found.
+    /// The optional <paramref name="filter"/> lets the caller veto candidates
+    /// (e.g. comfort-braking checks); a returned <see cref="CandidateVerdict.Skip"/>
+    /// excludes the candidate's taxiway from subsequent iterations in this call.
+    /// Returns <see langword="null"/> when no exit (on-side or off-side fallback)
+    /// is found.
+    /// </summary>
+    public CenterlineExitResult? FindOnSidePreferredExit(
+        double lat,
+        double lon,
+        TrueHeading runwayHeading,
+        string runwayDesignator,
+        ExitPreference? preference,
+        ExitSide? sidePref,
+        HashSet<int>? excludeBranchPoints = null,
+        HashSet<int>? excludeHoldShortNodes = null,
+        Func<CenterlineExitResult, CandidateVerdict>? filter = null,
+        int maxIterations = 30
+    )
+    {
+        var localTaxiwayExclusion = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CenterlineExitResult? deferredOffSide = null;
+
+        for (int i = 0; i < maxIterations; i++)
+        {
+            var raw = FindExitFromCenterline(
+                lat,
+                lon,
+                runwayHeading,
+                runwayDesignator,
+                preference,
+                excludeBranchPoints,
+                excludeHoldShortNodes,
+                localTaxiwayExclusion.Count > 0 ? localTaxiwayExclusion : null
+            );
+            if (raw is null)
+            {
+                break;
+            }
+
+            var candidate = new CenterlineExitResult(
+                raw.Value.HoldShort,
+                raw.Value.Taxiway,
+                raw.Value.Path,
+                raw.Value.ExitAngle,
+                raw.Value.Side,
+                raw.Value.WalkCenterline
+            );
+
+            if (filter is not null)
+            {
+                var verdict = filter(candidate);
+                if (verdict == CandidateVerdict.Skip)
+                {
+                    localTaxiwayExclusion.Add(candidate.Taxiway);
+                    continue;
+                }
+                if (verdict == CandidateVerdict.Defer)
+                {
+                    deferredOffSide ??= candidate;
+                    localTaxiwayExclusion.Add(candidate.Taxiway);
+                    continue;
+                }
+            }
+
+            // Off-side relative to the side preference: defer and keep walking.
+            // Excluding the entire taxiway from subsequent iterations is required
+            // because BFS clusters runway centerlines that are tangent-link
+            // neighbors — excluding only the walking centerline still re-finds
+            // the same hold-short via the next centerline's cluster expansion.
+            if ((sidePref is not null) && (candidate.Side != sidePref))
+            {
+                deferredOffSide ??= candidate;
+                localTaxiwayExclusion.Add(candidate.Taxiway);
+                continue;
+            }
+
+            return candidate;
+        }
+
+        return deferredOffSide;
+    }
+
     /// <summary>
     /// Walk centerline nodes ahead of the aircraft and search outward at each one
     /// for an exit matching the preference. Returns the first match with its path
     /// (starting at the centerline branch point, ending at the hold-short).
     /// This is the correct search direction: runway → taxiway → hold-short.
     /// </summary>
-    public (GroundNode HoldShort, string Taxiway, List<GroundNode> Path, double ExitAngle)? FindExitFromCenterline(
+    public (
+        GroundNode HoldShort,
+        string Taxiway,
+        List<GroundNode> Path,
+        double ExitAngle,
+        ExitSide Side,
+        GroundNode WalkCenterline
+    )? FindExitFromCenterline(
         double lat,
         double lon,
         TrueHeading runwayHeading,
         string runwayDesignator,
         ExitPreference? preference,
         HashSet<int>? excludeBranchPoints = null,
-        HashSet<int>? excludeHoldShortNodes = null
+        HashSet<int>? excludeHoldShortNodes = null,
+        HashSet<string>? excludeTaxiways = null
     )
     {
         var startNode = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator);
@@ -972,6 +1092,15 @@ public sealed class AirportGroundLayout
             }
         }
 
+        // Caller-supplied exclusion (e.g. LandingPhase deferring an entire taxiway
+        // after seeing an off-side hold-short there) merges with the airport noTurnoff list.
+        if (excludeTaxiways is { Count: > 0 })
+        {
+            forbiddenTaxiways = forbiddenTaxiways is null
+                ? new HashSet<string>(excludeTaxiways, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(forbiddenTaxiways.Concat(excludeTaxiways), StringComparer.OrdinalIgnoreCase);
+        }
+
         // Walk along-track: only consider centerline nodes ahead of the aircraft.
         // When no taxiway preference is set, defer any back-exit (>100°) and keep
         // walking — a real pilot wouldn't U-turn on the runway to reach E if G or
@@ -980,7 +1109,7 @@ public sealed class AirportGroundLayout
         const int maxCenterlineHops = 30;
         const double BackExitAngleThreshold = 100.0;
         var current = startNode;
-        (GroundNode Node, string Taxiway, List<GroundNode> Path, double ExitAngle)? deferredBackExit = null;
+        (GroundNode Node, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? deferredBackExit = null;
         for (int hop = 0; hop < maxCenterlineHops && current is not null; hop++)
         {
             double alongTrack = GeoMath.AlongTrackDistanceNm(current.Position, new LatLon(lat, lon), runwayHeading);
@@ -1023,12 +1152,12 @@ public sealed class AirportGroundLayout
                 if (isBackExit && !hasTaxiwayPreference)
                 {
                     // Remember the nearest back-exit but keep walking for a forward one.
-                    deferredBackExit ??= (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle!.Value);
+                    deferredBackExit ??= (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle!.Value, result.Value.Side, current);
                     current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
                     continue;
                 }
 
-                return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle ?? 90);
+                return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle ?? 90, result.Value.Side, current);
             }
 
             current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
@@ -1044,7 +1173,7 @@ public sealed class AirportGroundLayout
     /// runway designator, exit side, or taxiway name preference.
     /// Returns the hold-short node, taxiway name, and path from centerline.
     /// </summary>
-    public (GroundNode Node, string Taxiway, List<GroundNode> Path)? FindAdjacentHoldShort(
+    public (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? FindAdjacentHoldShort(
         GroundNode centerlineNode,
         string? runwayDesignator,
         TrueHeading runwayHeading,
@@ -1060,11 +1189,13 @@ public sealed class AirportGroundLayout
         GroundNode? bestOnSide = null;
         string? bestOnSideTaxiway = null;
         List<GroundNode>? bestOnSidePath = null;
+        ExitSide bestOnSideSide = ExitSide.Right;
         double bestOnSideScore = double.MaxValue;
 
         GroundNode? bestOffSide = null;
         string? bestOffSideTaxiway = null;
         List<GroundNode>? bestOffSidePath = null;
+        ExitSide bestOffSideSide = ExitSide.Right;
         double bestOffSideScore = double.MaxValue;
 
         // Expand starting node to include all nodes reachable via short runway
@@ -1144,14 +1275,14 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
+                // Determine the absolute side this hold-short lies on relative to the
+                // runway heading. Negative cross-track = Left, positive = Right.
+                double absBearing = GeoMath.BearingTo(centerlineNode.Position, current.Position);
+                double absRelative = runwayHeading.SignedAngleTo(new TrueHeading(absBearing));
+                ExitSide actualSide = absRelative < 0 ? ExitSide.Left : ExitSide.Right;
+
                 // Determine if this candidate is on the preferred side (inferred or explicit).
-                bool onRequestedSide = true;
-                if (preference?.Side is { } side)
-                {
-                    double bearing = GeoMath.BearingTo(centerlineNode.Position, current.Position);
-                    double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
-                    onRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
-                }
+                bool onRequestedSide = (preference?.Side is not { } side) || (actualSide == side);
 
                 double parkingBias = AverageNearestParkingDistanceNm(current, ParkingSampleCount) * ParkingProximityWeight;
 
@@ -1201,6 +1332,7 @@ public sealed class AirportGroundLayout
                         bestOnSide = current;
                         bestOnSideTaxiway = branchTwy;
                         bestOnSidePath = path;
+                        bestOnSideSide = actualSide;
                     }
                     else
                     {
@@ -1208,6 +1340,7 @@ public sealed class AirportGroundLayout
                         bestOffSide = current;
                         bestOffSideTaxiway = branchTwy;
                         bestOffSidePath = path;
+                        bestOffSideSide = actualSide;
                     }
                 }
 
@@ -1262,6 +1395,7 @@ public sealed class AirportGroundLayout
         GroundNode? best = bestOnSide ?? bestOffSide;
         string? bestTaxiway = bestOnSideTaxiway ?? bestOffSideTaxiway;
         List<GroundNode>? bestPath = bestOnSidePath ?? bestOffSidePath;
+        ExitSide bestSide = bestOnSide is not null ? bestOnSideSide : bestOffSideSide;
 
         if (best is null || bestTaxiway is null || bestPath is null)
         {
@@ -1270,14 +1404,15 @@ public sealed class AirportGroundLayout
         }
 
         Log.LogDebug(
-            "[ExitBFS] RESULT: centerline #{CL} → HS #{HS} via {Twy} onSide={OnSide} path=[{Path}]",
+            "[ExitBFS] RESULT: centerline #{CL} → HS #{HS} via {Twy} onSide={OnSide} actualSide={Side} path=[{Path}]",
             centerlineNode.Id,
             best.Id,
             bestTaxiway,
             bestOnSide is not null,
+            bestSide,
             string.Join("→", bestPath.Select(n => n.Id))
         );
-        return (best, bestTaxiway, bestPath);
+        return (best, bestTaxiway, bestPath, bestSide);
     }
 
     /// <summary>
@@ -1914,13 +2049,8 @@ public sealed class AirportGroundLayout
                     }
 
                     // FindAdjacentHoldShort falls back to off-side when no on-side match
-                    // exists. For enumeration we need strict side matching — verify the
-                    // returned hold-short is actually on the requested side.
-                    double hsBearing = GeoMath.BearingTo(node.Position, result.Value.Node.Position);
-                    double relativeBearing = rwyHeading.SignedAngleTo(new TrueHeading(hsBearing));
-                    bool actualLeft = relativeBearing < 0;
-                    bool requestedLeft = side == ExitSide.Left;
-                    if (actualLeft != requestedLeft)
+                    // exists. For enumeration we need strict side matching.
+                    if (result.Value.Side != side)
                     {
                         continue;
                     }

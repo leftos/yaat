@@ -42,6 +42,14 @@ The pilot picks the first comfortable forward exit (AIM 4-3-21.1 "exit at the fi
 - Plan decel to reach the target speed at that buffer point — not at the exit itself
 - If the exit is far enough that normal braking would reach target too early, use a gentler rate (floored at 0.5 kts/s) to avoid a long pointless coast
 
+### Side preference and the "later on-side beats earlier off-side" rule
+
+When a side preference is in play (explicit from `EL`/`ER`, or inferred from runway/parking layout via `InferPreferredExitSide`), the planner walks past **off-side** candidates while looking for an **on-side** option further down the runway. Crossing the runway centerline to exit increases controller workload (the aircraft now has to taxi back across to reach parking), so a same-side exit a bit further down beats an opposite-side exit at the closest taxiway.
+
+- The off-side candidate is remembered as a fallback. It is only committed if the walk exhausts without finding an on-side option (e.g. one-sided exits like C3 at SFO, or every later option requires more than firm braking).
+- For default selection (no explicit taxiway), the planner also passes `OccupiedHoldShortNodes` to the BFS so a known-occupied on-side hold-short doesn't appear as the on-side answer at that branch — the search naturally moves to the next exit. Explicit-taxiway commands (`EXIT G`) still ignore occupancy at planning time; RunwayExitPhase relaxes reactively at handoff if the named exit becomes blocked.
+- The shared lookahead lives in `AirportGroundLayout.FindOnSidePreferredExit`. LandingPhase uses it with a comfort-braking filter; RunwayExitPhase uses it with only a back-exit filter.
+
 ### Explicit exits (EXIT T, EL, ER, etc.)
 
 The pilot is committed to a specific exit. LandingPhase uses firm braking (up to 5 kts/s) if needed, but still targets coast speed for the handoff.

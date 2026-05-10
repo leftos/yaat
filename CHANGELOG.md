@@ -5,6 +5,9 @@
 ### Added
 - ARTCC `WakeDirectives` folders let facilities adjust Session Report wake scoring for documented local waivers and wake-advisory directives.
 
+### Changed
+- Landing aircraft prefer a later same-side runway exit over an earlier opposite-side one, including when the closer same-side option is occupied.
+
 ## v0.2.1-alpha [2026/05/09]
 
 ### Highlights

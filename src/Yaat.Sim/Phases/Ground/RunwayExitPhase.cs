@@ -236,11 +236,7 @@ public sealed class RunwayExitPhase : Phase
         // exit) leaves the phase looping at coast speed indefinitely.
         if ((_holdShortNode is null) && (ctx.Aircraft.Phases?.AssignedRunway is { } rwy))
         {
-            double distToEndNm = GeoMath.AlongTrackDistanceNm(
-                new LatLon(rwy.EndLatitude, rwy.EndLongitude),
-                ctx.Aircraft.Position,
-                _runwayHeading
-            );
+            double distToEndNm = GeoMath.AlongTrackDistanceNm(new LatLon(rwy.EndLatitude, rwy.EndLongitude), ctx.Aircraft.Position, _runwayHeading);
 
             // 0.15 nm ≈ 911 ft — enough headroom for the aircraft to slow from
             // coast speed (40 kts jet) to a stop at the firm braking rate
@@ -286,6 +282,13 @@ public sealed class RunwayExitPhase : Phase
     /// centerline graph. If the preferred taxiway isn't found ahead, relaxes
     /// the preference (taxiway → side → any) until an exit is found.
     /// Sets _holdShortNode/_exitTaxiway/_exitPath if found.
+    ///
+    /// Lookahead rule (mirrors <see cref="LandingPhase.ResolveNextCandidate"/>):
+    /// when there is a side preference (explicit or inferred) and the BFS at a
+    /// given centerline returns an off-side hold-short (because the on-side was
+    /// occupied or doesn't exist there), defer that candidate and continue
+    /// walking forward for an on-side option. Only commit the deferred off-side
+    /// fallback when the walk exhausts.
     /// </summary>
     private void TryFindExitAhead(PhaseContext ctx)
     {
@@ -306,69 +309,20 @@ public sealed class RunwayExitPhase : Phase
         if ((_lastResolvedPreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
         {
             var tiebreakerPref = new ExitPreference { Taxiway = _lastResolvedPreference.Taxiway, Side = _inferredSide.Value };
-            var tiebreakerResult = ctx.GroundLayout.FindExitFromCenterline(
-                ctx.Aircraft.Position.Lat,
-                ctx.Aircraft.Position.Lon,
-                _runwayHeading,
-                _runwayId,
-                tiebreakerPref,
-                excludeHoldShortNodes: occupied
-            );
-
-            if (tiebreakerResult is not null)
+            if (TryRunSearchWithLookahead(ctx, tiebreakerPref, occupied, _inferredSide))
             {
-                _holdShortNode = tiebreakerResult.Value.HoldShort;
-                _exitTaxiway = tiebreakerResult.Value.Taxiway;
-                _exitPath = tiebreakerResult.Value.Path;
                 return;
             }
         }
 
-        // Try with current preference, then relax until we find something
+        // Try with current preference, then relax until we find something.
         var preference = _lastResolvedPreference;
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            var result = ctx.GroundLayout.FindExitFromCenterline(
-                ctx.Aircraft.Position.Lat,
-                ctx.Aircraft.Position.Lon,
-                _runwayHeading,
-                _runwayId,
-                preference,
-                excludeHoldShortNodes: occupied
-            );
-
-            if (result is not null)
+            ExitSide? sidePref = preference?.Side ?? _inferredSide;
+            if (TryRunSearchWithLookahead(ctx, preference, occupied, sidePref))
             {
-                bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
-                if ((result.Value.ExitAngle > 100) && !isExplicit)
-                {
-                    // Skip backward exits when no explicit preference
-                }
-                else
-                {
-                    if ((preference != _lastResolvedPreference) && (_lastResolvedPreference?.Taxiway is not null))
-                    {
-                        Log.LogDebug(
-                            "[Exit] {Callsign}: preferred exit {Twy} not ahead, relaxed to {Actual}",
-                            ctx.Aircraft.Callsign,
-                            _lastResolvedPreference.Taxiway,
-                            result.Value.Taxiway
-                        );
-                    }
-
-                    _holdShortNode = result.Value.HoldShort;
-                    _exitTaxiway = result.Value.Taxiway;
-                    _exitPath = result.Value.Path;
-
-                    Log.LogDebug(
-                        "[Exit] {Callsign}: found exit {Twy}, angle={Angle:F0}°, path=[{Path}]",
-                        ctx.Aircraft.Callsign,
-                        _exitTaxiway,
-                        result.Value.ExitAngle,
-                        string.Join("→", _exitPath.Select(n => n.Id))
-                    );
-                    return;
-                }
+                return;
             }
 
             // Relax preference: taxiway → side → any
@@ -385,6 +339,82 @@ public sealed class RunwayExitPhase : Phase
                 break; // Already at "any", nothing more to relax
             }
         }
+    }
+
+    /// <summary>
+    /// Walk centerlines forward looking for an exit that satisfies the side
+    /// preference. Defers off-side candidates while searching for an on-side
+    /// option, falling back to the deferred off-side if none is found.
+    /// Returns true on commit.
+    /// </summary>
+    private bool TryRunSearchWithLookahead(PhaseContext ctx, ExitPreference? preference, HashSet<int>? occupied, ExitSide? sidePref)
+    {
+        if (ctx.GroundLayout is null || _runwayId is null)
+        {
+            return false;
+        }
+
+        bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
+
+        var found = ctx.GroundLayout.FindOnSidePreferredExit(
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
+            _runwayHeading,
+            _runwayId,
+            preference,
+            sidePref,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: occupied,
+            filter: candidate =>
+            {
+                // Skip backward exits when no explicit preference
+                if ((candidate.ExitAngle > 100) && !isExplicit)
+                {
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+                return AirportGroundLayout.CandidateVerdict.Accept;
+            }
+        );
+
+        if (found is null)
+        {
+            return false;
+        }
+
+        CommitFoundExit(ctx, found.Value.HoldShort, found.Value.Taxiway, found.Value.Path, found.Value.ExitAngle, preference);
+        return true;
+    }
+
+    private void CommitFoundExit(
+        PhaseContext ctx,
+        GroundNode holdShort,
+        string taxiway,
+        List<GroundNode> path,
+        double exitAngle,
+        ExitPreference? preference
+    )
+    {
+        if ((preference != _lastResolvedPreference) && (_lastResolvedPreference?.Taxiway is not null))
+        {
+            Log.LogDebug(
+                "[Exit] {Callsign}: preferred exit {Twy} not ahead, relaxed to {Actual}",
+                ctx.Aircraft.Callsign,
+                _lastResolvedPreference.Taxiway,
+                taxiway
+            );
+        }
+
+        _holdShortNode = holdShort;
+        _exitTaxiway = taxiway;
+        _exitPath = path;
+
+        Log.LogDebug(
+            "[Exit] {Callsign}: found exit {Twy}, angle={Angle:F0}°, path=[{Path}]",
+            ctx.Aircraft.Callsign,
+            _exitTaxiway,
+            exitAngle,
+            string.Join("→", _exitPath.Select(n => n.Id))
+        );
     }
 
     /// <summary>

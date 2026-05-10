@@ -63,6 +63,8 @@ When a `.yaat-bug-report-bundle.zip` or `*-recording.zip` path appears in user i
 
 Full subcommand list: `info`, `snapshot`, `track`, `actions`, `history`, `phases`, `commands`, `scenario`, `weather`, `layouts`, `logs`, `install`, `validate`. See `.claude/skills/bug-bundle/SKILL.md` for the full reference.
 
+**Extend the tools when you find yourself doing repeat custom work.** If you write more than two ad-hoc Python or C# snippets that pull the same kind of data from a bundle, layout, or snapshot — coordinate position vs runway centerline, list of all exits with current occupancy, two-aircraft positional comparison over a snapshot range — turn that snippet into a subcommand of `tools/bug_bundle.py` or `tools/Yaat.LayoutInspector/` first, then use it. The next agent will have the same investigation; bake the lookup into the tool rather than re-deriving it. Keep custom snippets only for genuinely one-off questions.
+
 ## Logs
 
 Read log files first before speculating about runtime errors:

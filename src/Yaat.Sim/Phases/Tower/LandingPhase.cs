@@ -128,6 +128,12 @@ public sealed class LandingPhase : Phase
     private readonly HashSet<int> _unableBranchPoints = [];
     private bool _unableBroadcast;
 
+    /// <summary>The currently committed candidate exit chosen by the rollout planner. Null before resolution.</summary>
+    public ResolvedExitInfo? CandidateExit => _candidateExit;
+
+    /// <summary>The inferred preferred side from runway/parking layout, or null if undetermined.</summary>
+    public ExitSide? InferredSide => _inferredSide;
+
     public bool StoppedForLahso { get; private set; }
 
     public override string Name => "Landing";
@@ -945,114 +951,44 @@ public sealed class LandingPhase : Phase
                 searchPref = new ExitPreference { Taxiway = _activePreference.Taxiway, Side = _inferredSide.Value };
             }
 
-            // Iterative search: walk centerlines and skip exits whose required
-            // braking exceeds the comfort limit from the current position. Without
-            // this, FindExitFromCenterline returns the FIRST forward exit
-            // unconditionally — which on a long runway is typically a 90° standard
-            // exit too close to brake to 15 kts comfortably. The candidate then
-            // gets marked unable as the aircraft passes it at speed, and the
-            // cascade walks every exit on the runway without ever committing to
-            // the high-speed exit further down. Skipping uncomfortable candidates
-            // up front lets the planner commit to a reachable downstream exit
-            // (typically a high-speed at ~45°) and brake decisively for it.
-            //
-            // Plan for the commanded exit even if another aircraft is currently
-            // claiming the same hold-short. We only care whether the exit is
-            // reachable from where we are; occupancy is a go/no-go that
-            // RunwayExitPhase enforces at commit time, not a planning input —
-            // the pilot brakes for K regardless and relaxes only if K becomes
-            // physically unreachable or still blocked when we arrive.
+            // Effective side preference (explicit beats inferred). Used to decide
+            // whether to defer an off-side candidate while looking forward for an
+            // on-side option further down the runway.
+            ExitSide? sidePref = _activePreference?.Side ?? _inferredSide;
+
+            // Pass occupancy info to the planner only for default selection (no
+            // explicit taxiway). When the controller named a specific exit, the
+            // pilot brakes for it regardless and RunwayExitPhase deals with any
+            // late-breaking occupancy at handoff. For default selection, the
+            // planner can do better by routing around known-occupied exits.
+            HashSet<int>? excludeHoldShortNodes = (_activePreference?.Taxiway is null) ? ctx.OccupiedHoldShortNodes : null;
+
+            // Skip exits whose required braking exceeds the comfort limit from
+            // the current position (via Skip verdict, which excludes the entire
+            // taxiway from the rest of this call). Without this, the planner
+            // would return the first forward exit unconditionally — typically a
+            // 90° standard exit too close to brake to its turn-off speed
+            // comfortably. Skipping uncomfortable candidates lets the planner
+            // commit to a reachable downstream exit (e.g. a high-speed at ~45°)
+            // and brake decisively for it.
             double comfortLimit = _exitResolutionEnabled ? FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
-            var localExclusion = new HashSet<int>(_unableBranchPoints);
 
-            const int maxIterations = 30;
-            for (int i = 0; i < maxIterations; i++)
+            var found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, comfortLimit);
+
+            // Fall back to taxiway-only if inferred-side found nothing
+            if ((found is null) && (searchPref != _activePreference))
             {
-                var exit = ctx.GroundLayout.FindExitFromCenterline(
-                    ctx.Aircraft.Position.Lat,
-                    ctx.Aircraft.Position.Lon,
-                    plan.RunwayHeading,
-                    rwyDesignator,
-                    searchPref,
-                    localExclusion
-                );
+                found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, comfortLimit);
+            }
 
-                // Fall back to taxiway-only if inferred side found nothing
-                if ((exit is null) && (searchPref != _activePreference))
-                {
-                    exit = ctx.GroundLayout.FindExitFromCenterline(
-                        ctx.Aircraft.Position.Lat,
-                        ctx.Aircraft.Position.Lon,
-                        plan.RunwayHeading,
-                        rwyDesignator,
-                        _activePreference,
-                        localExclusion
-                    );
-                }
-
-                if (exit is null)
-                {
-                    break;
-                }
-
-                double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exit.Value.ExitAngle);
-                var branchNode = exit.Value.Path[0];
-                double distToBranch = GeoMath.AlongTrackDistanceNm(branchNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
-
-                // Branch is at or behind the aircraft — try the next centerline.
-                // Don't pollute _unableBranchPoints (this is a temporary skip,
-                // not a true unable broadcast).
-                if (distToBranch <= 0)
-                {
-                    localExclusion.Add(branchNode.Id);
-                    continue;
-                }
-
-                // If we already meet the exit's turn-off speed, no comfort check
-                // is needed — accept it.
-                bool alreadySlowEnough = ctx.Aircraft.IndicatedAirspeed <= turnOffSpeed + TurnOffSpeedToleranceKts;
-
-                // Otherwise, ensure we can reach the turn-off speed by the branch
-                // point at or below the comfort braking rate.
-                bool comfortablyReachable = alreadySlowEnough;
-                if (!comfortablyReachable)
-                {
-                    double requiredDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, turnOffSpeed, distToBranch);
-                    comfortablyReachable = requiredDecel <= comfortLimit;
-                }
-
-                if (!comfortablyReachable)
-                {
-                    Log.LogDebug(
-                        "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts, "
-                            + "dist={Dist:F3}nm) — required decel exceeds comfort limit at gs={Gs:F1}kts",
-                        ctx.Aircraft.Callsign,
-                        exit.Value.Taxiway,
-                        exit.Value.ExitAngle,
-                        turnOffSpeed,
-                        distToBranch,
-                        ctx.Aircraft.GroundSpeed
-                    );
-                    localExclusion.Add(branchNode.Id);
-                    continue;
-                }
-
-                _candidateExit = new ResolvedExitInfo
-                {
-                    HoldShortNode = exit.Value.HoldShort,
-                    TaxiwayName = exit.Value.Taxiway,
-                    TurnOffSpeed = turnOffSpeed,
-                    Path = exit.Value.Path,
-                    BranchPointNode = branchNode,
-                };
-
+            if (found is { } resolved)
+            {
+                _candidateExit = resolved;
                 Log.LogDebug(
-                    "[Landing] {Callsign}: candidate exit {Taxiway}, angle={Angle:F0}, turnOffSpeed={Speed:F0}kts, dist={Dist:F3}nm",
+                    "[Landing] {Callsign}: candidate exit {Taxiway}, turnOffSpeed={Speed:F0}kts",
                     ctx.Aircraft.Callsign,
-                    exit.Value.Taxiway,
-                    exit.Value.ExitAngle,
-                    turnOffSpeed,
-                    distToBranch
+                    resolved.TaxiwayName,
+                    resolved.TurnOffSpeed
                 );
                 return;
             }
@@ -1082,6 +1018,88 @@ public sealed class LandingPhase : Phase
             TurnOffSpeed = fallbackTurnOffSpeed,
             Path = [result.Value.Node],
             BranchPointNode = result.Value.Node,
+        };
+    }
+
+    /// <summary>
+    /// Run the side-preferred lookahead search with a comfort-braking filter.
+    /// Returns null when no candidate (on-side or off-side fallback) is reachable
+    /// from the current state.
+    /// </summary>
+    private ResolvedExitInfo? TryFindCandidate(
+        PhaseContext ctx,
+        LandingPlan plan,
+        string rwyDesignator,
+        ExitPreference? searchPref,
+        ExitSide? sidePref,
+        HashSet<int>? excludeHoldShortNodes,
+        double comfortLimit
+    )
+    {
+        if (ctx.GroundLayout is null)
+        {
+            return null;
+        }
+
+        var found = ctx.GroundLayout.FindOnSidePreferredExit(
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
+            plan.RunwayHeading,
+            rwyDesignator,
+            searchPref,
+            sidePref,
+            excludeBranchPoints: _unableBranchPoints.Count > 0 ? new HashSet<int>(_unableBranchPoints) : null,
+            excludeHoldShortNodes: excludeHoldShortNodes,
+            filter: candidate =>
+            {
+                double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
+                var branchNode = candidate.Path[0];
+                double distToBranch = GeoMath.AlongTrackDistanceNm(branchNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+
+                // Branch is at or behind the aircraft — try the next centerline.
+                // Skip the entire taxiway so we don't keep finding the same one
+                // via the BFS cluster expansion.
+                if (distToBranch <= 0)
+                {
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
+                bool alreadySlowEnough = ctx.Aircraft.IndicatedAirspeed <= turnOffSpeed + TurnOffSpeedToleranceKts;
+                bool comfortablyReachable =
+                    alreadySlowEnough || (ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, turnOffSpeed, distToBranch) <= comfortLimit);
+
+                if (!comfortablyReachable)
+                {
+                    Log.LogDebug(
+                        "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts, dist={Dist:F3}nm) — required decel exceeds comfort limit at gs={Gs:F1}kts",
+                        ctx.Aircraft.Callsign,
+                        candidate.Taxiway,
+                        candidate.ExitAngle,
+                        turnOffSpeed,
+                        distToBranch,
+                        ctx.Aircraft.GroundSpeed
+                    );
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
+                return AirportGroundLayout.CandidateVerdict.Accept;
+            }
+        );
+
+        if (found is null)
+        {
+            return null;
+        }
+
+        var branch = found.Value.Path[0];
+        double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, found.Value.ExitAngle);
+        return new ResolvedExitInfo
+        {
+            HoldShortNode = found.Value.HoldShort,
+            TaxiwayName = found.Value.Taxiway,
+            TurnOffSpeed = turnOff,
+            Path = found.Value.Path,
+            BranchPointNode = branch,
         };
     }
 

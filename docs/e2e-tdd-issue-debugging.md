@@ -531,6 +531,7 @@ All test data lives in `tests/Yaat.Sim.Tests/TestData/`.
 | `issue-l360-stalls-recording.yaat-bug-report-bundle.zip` | — | N44444 | L360/R360 stalled at 1° because `MakeTurnPhase` never re-issued `TargetTrueHeading` after the snap cleared `PreferredTurnDirection` |
 | `oak-taxi-recording.json` | — | NKS2904 | OAK taxi routing baseline |
 | `oak-ga-spawn-turnaround-recording.yaat-bug-report-bundle.zip` | — | N346G, N172SP | OAK GA parking spawn — pathfinder picks an arc whose exit tangent is opposite the next route segment, forcing a 270° CW spiral |
+| `oak-prefer-later-onside-exit-recording.yaat-bug-report-bundle.zip` | — | N805FM | OAK 28R landing — preferred-side hold-short occupied; planner falls back to off-side at the same exit instead of skipping forward to the next on-side option |
 
 ### Adding a new airport layout
 
