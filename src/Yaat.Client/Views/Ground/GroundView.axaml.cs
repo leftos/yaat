@@ -18,6 +18,7 @@ public partial class GroundView : UserControl
     public static readonly FuncValueConverter<GroundFilterMode, bool> FilterIsActive = new(v => v == GroundFilterMode.LabelsAndIcons);
     public static readonly FuncValueConverter<GroundFilterMode, bool> FilterIsPartial = new(v => v == GroundFilterMode.IconsOnly);
     private GroundCanvas? _canvas;
+    private Button? _resetButton;
     private ContextMenu? _activeContextMenu;
     private Border? _taxiInputOverlay;
     private TextBox? _taxiInputBox;
@@ -37,6 +38,12 @@ public partial class GroundView : UserControl
         if (_canvas is null)
         {
             return;
+        }
+
+        _resetButton = this.FindControl<Button>("ResetButton");
+        if (_resetButton is not null)
+        {
+            _resetButton.AddHandler(PointerPressedEvent, OnResetButtonPointerPressed, RoutingStrategies.Tunnel);
         }
 
         _canvas.NodeRightClicked += OnNodeRightClicked;
@@ -69,6 +76,11 @@ public partial class GroundView : UserControl
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
+
+        if (_resetButton is not null)
+        {
+            _resetButton.RemoveHandler(PointerPressedEvent, OnResetButtonPointerPressed);
+        }
 
         if (_canvas is not null)
         {
@@ -206,9 +218,20 @@ public partial class GroundView : UserControl
         };
     }
 
+    private void OnResetButtonPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return;
+        }
+
+        _canvas?.ResetViewIncludingRotation();
+        e.Handled = true;
+    }
+
     private void OnResetView(object? sender, RoutedEventArgs e)
     {
-        Canvas.ResetView();
+        _canvas?.ResetView();
     }
 
     private void OnToggleLock(object? sender, RoutedEventArgs e)

@@ -712,6 +712,17 @@ public sealed class UserPreferences
         Save();
     }
 
+    public double? GetGroundRotation(string airportId)
+    {
+        return _data.GroundRotationByAirport.TryGetValue(airportId, out var r) ? r : null;
+    }
+
+    public void SetGroundRotation(string airportId, double rotation)
+    {
+        _data.GroundRotationByAirport[airportId] = rotation;
+        Save();
+    }
+
     /// <summary>
     /// Returns the persisted up-arrow command history for a scenario, newest first.
     /// Empty list when no history has been saved for the given scenario.
@@ -1091,6 +1102,7 @@ public sealed class UserPreferences
         public bool IsVStripsPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
+        public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
         public bool ShowOnlyActiveAircraft { get; set; }
         public bool ShowTimelineBar { get; set; }

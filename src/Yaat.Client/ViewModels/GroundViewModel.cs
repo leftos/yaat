@@ -151,6 +151,7 @@ public partial class GroundViewModel : ObservableObject
     private Func<string, AircraftModel?>? _findAircraft;
 
     private string? _activeScenarioId;
+    private string? _activeAirportId;
     private bool _isRestoring;
 
     private AircraftModel? _drawAircraft;
@@ -346,7 +347,14 @@ public partial class GroundViewModel : ObservableObject
 
     partial void OnViewZoomChanged(double value) => SaveSettings();
 
-    partial void OnViewRotationChanged(double value) => SaveSettings();
+    partial void OnViewRotationChanged(double value)
+    {
+        SaveSettings();
+        if (!_isRestoring && _activeAirportId is not null)
+        {
+            Preferences?.SetGroundRotation(_activeAirportId, value);
+        }
+    }
 
     public void SaveLabelAndLockSettings()
     {
@@ -399,6 +407,15 @@ public partial class GroundViewModel : ObservableObject
 
             AirportElevation = _getAirportElevation?.Invoke(airportId) ?? 0;
 
+            _activeAirportId = airportId;
+            var savedRotation = Preferences?.GetGroundRotation(airportId);
+            if (savedRotation.HasValue)
+            {
+                _isRestoring = true;
+                ViewRotation = savedRotation.Value;
+                _isRestoring = false;
+            }
+
             _log.LogInformation("Ground layout loaded for {Id}: {Nodes} nodes, {Edges} edges", airportId, dto.Nodes.Count, dto.Edges.Count);
         }
         catch (Exception ex)
@@ -440,6 +457,7 @@ public partial class GroundViewModel : ObservableObject
     public void ClearLayout()
     {
         _activeScenarioId = null;
+        _activeAirportId = null;
         Layout = null;
         _domainLayout = null;
         ActiveRoute = null;

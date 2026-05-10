@@ -1075,6 +1075,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     public void ResetView()
     {
         _initialFitDone = false;
+        FitToLayout();
+    }
+
+    public void ResetViewIncludingRotation()
+    {
+        _initialFitDone = false;
         Viewport.RotationDeg = 0;
         FitToLayout();
     }
