@@ -174,6 +174,7 @@ public static class CommandDispatcher
             aircraft.Phases = null;
             aircraft.Targets.TurnRateOverride = null;
             aircraft.Targets.HasExplicitTurnRate = false;
+            aircraft.Approach.FollowingCallsign = null;
 
             if (clearedSummary is not null)
             {

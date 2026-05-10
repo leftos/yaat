@@ -12,6 +12,7 @@
 
 ### Fixed
 - `ELB`/`ERB` from long range now holds altitude on the base leg and descends along the glide path on final.
+- Vector commands (FH, TR, CM, SPD) now clear the follow target, so the Aircraft List no longer keeps a stale "following X" prefix.
 
 ## v0.2.1-alpha [2026/05/09]
 

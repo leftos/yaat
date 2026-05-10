@@ -231,6 +231,50 @@ public class VfrFollowPhaseTests : IDisposable
         Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
     }
 
+    [Fact]
+    public void VectorCommand_OnVfrFollowPhase_ClearsFollowingCallsign()
+    {
+        // COMMANDS.md: "Any subsequent vector command (FH, CM, SPD, etc.) clears
+        // the follow phase and returns control to the controller's direct targets."
+        // The phase clear was wired up correctly, but Approach.FollowingCallsign
+        // was left dangling, leaving "following X → ..." stuck in the Aircraft List
+        // Info column until something else cleared it.
+        var follower = MakeVfrAircraft("FOLL");
+        var follow = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        Assert.True(follow.Success);
+        Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
+
+        var vectorCompound = new CompoundCommand([new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(90))])]);
+        var vector = CommandDispatcher.DispatchCompound(vectorCompound, follower, DispatchCtx());
+
+        Assert.True(vector.Success, $"Expected success but got: {vector.Message}");
+        Assert.Null(follower.Phases);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void VectorCommand_OnAutoJoinedPatternWithFollow_ClearsFollowingCallsign()
+    {
+        // After VfrFollowPhase auto-joins the lead's pattern, FollowingCallsign is
+        // preserved across the phase swap (VfrFollowPhase.cs:295) so the pattern
+        // phases keep applying spacing via AirborneFollowHelper. A subsequent
+        // vector command must clear both the pattern phase AND the follow target.
+        var follower = MakeVfrAircraft("FOLL");
+        var downwind = new DownwindPhase();
+        follower.Phases!.Add(downwind);
+        var startCtx = CommandDispatcher.BuildMinimalContext(follower);
+        follower.Phases.Start(startCtx);
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        var vectorCompound = new CompoundCommand([new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(90))])]);
+        var vector = CommandDispatcher.DispatchCompound(vectorCompound, follower, DispatchCtx());
+
+        Assert.True(vector.Success, $"Expected success but got: {vector.Message}");
+        Assert.Null(follower.Phases);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
     // ---------------------------------------------------------------------
     // VfrFollowPhase.OnTick — free flight (lead not in a pattern)
     // ---------------------------------------------------------------------
