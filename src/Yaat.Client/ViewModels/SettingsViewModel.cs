@@ -207,6 +207,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _vStripsTopmost;
 
     [ObservableProperty]
+    private bool _favoritesPanelTopmost;
+
+    [ObservableProperty]
     private bool _assignmentTintEnabled;
 
     [ObservableProperty]
@@ -551,6 +554,7 @@ public partial class SettingsViewModel : ObservableObject
         _dataGridTopmost = _preferences.DataGridWindowGeometry?.IsTopmost ?? false;
         _terminalTopmost = _preferences.TerminalWindowGeometry?.IsTopmost ?? false;
         _vStripsTopmost = _preferences.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;
+        _favoritesPanelTopmost = _preferences.GetWindowGeometry("FavoritesPanel")?.IsTopmost ?? false;
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
@@ -643,6 +647,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             _preferences.SetWindowTopmost(key, VStripsTopmost);
         }
+        _preferences.SetWindowTopmost("FavoritesPanel", FavoritesPanelTopmost);
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
         _preferences.SetSelectedColor(SelectedColor);

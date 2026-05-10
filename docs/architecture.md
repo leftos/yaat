@@ -103,7 +103,9 @@ Services/
   UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel),
                                 # "vstrips-{platform}" for Yaat.VStrips so each app downloads its own installer from the shared GitHub release.
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
-  WindowGeometryHelper.cs       # Save/restore window position+size+topmost
+  WindowGeometryHelper.cs       # Save/restore window position+size+topmost; composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability
+  WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass
+  WindowNativeMenuHelper.cs     # macOS-only: adds "Window → Always on Top" to the menu bar via Avalonia NativeMenu
   KeybindHelper.cs              # Keyboard shortcut resolution
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames
   GroundColorScheme.cs          # Theme/color scheme for strips

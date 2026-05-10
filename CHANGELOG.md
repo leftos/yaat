@@ -6,6 +6,7 @@
 - Settings adds an Audio tab pairing microphone selection with a new output-device picker that routes pilot text-to-speech and the SAY/warning chime.
 - ARTCC `WakeDirectives` folders let facilities adjust Session Report wake scoring for documented local waivers and wake-advisory directives.
 - Standalone `yaat-crc-config` tool adds YAAT environments to CRC without installing the full client — single ~200 KB binary released under `crc-config-v*` tags.
+- Favorites pop-out has an Always on Top checkbox in Settings, alongside a title-bar system menu item on Windows and a Window → Always on Top entry in the macOS menu bar; same toggles are available for the existing pop-outs.
 
 ### Changed
 - Landing aircraft prefer a later same-side runway exit over an earlier opposite-side one, including when the closer same-side option is occupied.

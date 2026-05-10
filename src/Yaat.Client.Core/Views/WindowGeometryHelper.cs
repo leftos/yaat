@@ -18,6 +18,8 @@ public sealed class WindowGeometryHelper
     private readonly string _windowName;
     private readonly double _defaultWidth;
     private readonly double _defaultHeight;
+    private readonly WindowSystemMenuHelper _systemMenuHelper;
+    private readonly WindowNativeMenuHelper _nativeMenuHelper;
 
     private PixelPoint _lastNormalPosition;
     private double _lastNormalWidth;
@@ -32,6 +34,8 @@ public sealed class WindowGeometryHelper
         _windowName = windowName;
         _defaultWidth = defaultWidth;
         _defaultHeight = defaultHeight;
+        _systemMenuHelper = new WindowSystemMenuHelper(window, this, preferences, windowName);
+        _nativeMenuHelper = new WindowNativeMenuHelper(window, this, preferences, windowName);
     }
 
     public void Restore()
@@ -88,6 +92,8 @@ public sealed class WindowGeometryHelper
         _window.PositionChanged += OnPositionChanged;
         _window.Closing += OnClosing;
         _preferences.WindowTopmostChanged += OnPreferencesWindowTopmostChanged;
+        _systemMenuHelper.Attach();
+        _nativeMenuHelper.Attach();
     }
 
     private void OnPreferencesWindowTopmostChanged(string windowName, bool isTopmost)
