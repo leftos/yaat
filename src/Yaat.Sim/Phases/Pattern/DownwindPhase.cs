@@ -382,6 +382,10 @@ public sealed class DownwindPhase : Phase
             CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.MakeShortApproach => CommandAcceptance.Allowed,
             CanonicalCommandType.MakeNormalApproach => CommandAcceptance.Allowed,
+            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
+            CanonicalCommandType.ReduceToFinalApproachSpeed => CommandAcceptance.Allowed,
+            CanonicalCommandType.ResumeNormalSpeed => CommandAcceptance.Allowed,
+            CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

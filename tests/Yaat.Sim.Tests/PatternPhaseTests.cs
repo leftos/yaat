@@ -249,6 +249,19 @@ public class PatternPhaseTests
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
     }
 
+    [Theory]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.ReduceToFinalApproachSpeed)]
+    [InlineData(CanonicalCommandType.ResumeNormalSpeed)]
+    [InlineData(CanonicalCommandType.DeleteSpeedRestrictions)]
+    public void Downwind_AcceptsSpeedCommandsWithoutClearingPhase(CanonicalCommandType cmd)
+    {
+        // Pattern phases declare ManagesSpeed=true and own the speed schedule;
+        // a controller speed assignment must not tear down the lateral phase.
+        var phase = new DownwindPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+    }
+
     // -------------------------------------------------------------------------
     // BasePhase
     // -------------------------------------------------------------------------
@@ -290,6 +303,56 @@ public class PatternPhaseTests
 
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClearedToLand));
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.GoAround));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.ReduceToFinalApproachSpeed)]
+    [InlineData(CanonicalCommandType.ResumeNormalSpeed)]
+    [InlineData(CanonicalCommandType.DeleteSpeedRestrictions)]
+    public void Base_AcceptsSpeedCommandsWithoutClearingPhase(CanonicalCommandType cmd)
+    {
+        var phase = new BasePhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.ReduceToFinalApproachSpeed)]
+    [InlineData(CanonicalCommandType.ResumeNormalSpeed)]
+    [InlineData(CanonicalCommandType.DeleteSpeedRestrictions)]
+    public void Upwind_AcceptsSpeedCommandsWithoutClearingPhase(CanonicalCommandType cmd)
+    {
+        var phase = new UpwindPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.ReduceToFinalApproachSpeed)]
+    [InlineData(CanonicalCommandType.ResumeNormalSpeed)]
+    [InlineData(CanonicalCommandType.DeleteSpeedRestrictions)]
+    public void Crosswind_AcceptsSpeedCommandsWithoutClearingPhase(CanonicalCommandType cmd)
+    {
+        var phase = new CrosswindPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.ReduceToFinalApproachSpeed)]
+    [InlineData(CanonicalCommandType.ResumeNormalSpeed)]
+    [InlineData(CanonicalCommandType.DeleteSpeedRestrictions)]
+    public void PatternEntry_AcceptsSpeedCommandsWithoutClearingPhase(CanonicalCommandType cmd)
+    {
+        var phase = new PatternEntryPhase
+        {
+            EntryLat = 37.0,
+            EntryLon = -122.0,
+            PatternAltitude = 1100,
+            Kind = PatternEntryKind.FortyFive,
+        };
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
     }
 
     // -------------------------------------------------------------------------
