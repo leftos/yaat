@@ -559,6 +559,36 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- Audio tab -->
+            <TabItem Header="Audio">
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Input device:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <ComboBox ItemsSource="{Binding AudioInputDevices}"
+                                      SelectedItem="{Binding SelectedAudioInputDeviceDisplay}"
+                                      Width="360" />
+                            <TextBlock Text="Pick the microphone YAAT should record from for push-to-talk speech recognition, or leave on System default to use whichever mic Windows is currently set to."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Output device:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <ComboBox ItemsSource="{Binding AudioOutputDevices}"
+                                      SelectedItem="{Binding SelectedAudioOutputDeviceDisplay}"
+                                      Width="360" />
+                            <TextBlock Text="Used for pilot text-to-speech playback and the SAY/warning notification chime. Leave on System default to follow whichever output Windows is currently set to."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Speech tab -->
             <TabItem Header="Speech">
                 <ScrollViewer>
@@ -756,13 +786,7 @@
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource SubtleTextBrush}"
                                                FontSize="11" />
-                                    <TextBlock Text="Input device:"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               Margin="0,8,0,0" />
-                                    <ComboBox ItemsSource="{Binding AudioInputDevices}"
-                                              SelectedItem="{Binding SelectedAudioInputDeviceDisplay}"
-                                              Width="360" />
-                                    <TextBlock Text="Pick the microphone YAAT should record from, or leave on System default to use whichever mic Windows is currently set to."
+                                    <TextBlock Text="The microphone is configured in the Audio tab."
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource SubtleTextBrush}"
                                                FontSize="11" />

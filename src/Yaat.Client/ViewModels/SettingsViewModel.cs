@@ -354,6 +354,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _audioInputDevice = "";
 
+    [ObservableProperty]
+    private string _audioOutputDevice = "";
+
     /// <summary>
     /// ComboBox-bound property: <see cref="DefaultAudioDeviceLabel"/> when <see cref="AudioInputDevice"/>
     /// is empty (system default), otherwise the device name. Two-way wrapper so we don't need
@@ -365,11 +368,26 @@ public partial class SettingsViewModel : ObservableObject
         set => AudioInputDevice = string.Equals(value, DefaultAudioDeviceLabel, StringComparison.Ordinal) ? string.Empty : value;
     }
 
+    /// <summary>
+    /// ComboBox-bound counterpart to <see cref="SelectedAudioInputDeviceDisplay"/> for the
+    /// audio output device used by pilot TTS playback and the SAY/warning chime.
+    /// </summary>
+    public string SelectedAudioOutputDeviceDisplay
+    {
+        get => string.IsNullOrEmpty(AudioOutputDevice) ? DefaultAudioDeviceLabel : AudioOutputDevice;
+        set => AudioOutputDevice = string.Equals(value, DefaultAudioDeviceLabel, StringComparison.Ordinal) ? string.Empty : value;
+    }
+
     partial void OnAudioInputDeviceChanged(string value)
     {
         // Keep the ComboBox in sync when AudioInputDevice changes from other code paths (e.g.
         // the ctor loading the saved value from prefs).
         OnPropertyChanged(nameof(SelectedAudioInputDeviceDisplay));
+    }
+
+    partial void OnAudioOutputDeviceChanged(string value)
+    {
+        OnPropertyChanged(nameof(SelectedAudioOutputDeviceDisplay));
     }
 
     private string _aircraftSelectKeyName = "Add";
@@ -428,6 +446,13 @@ public partial class SettingsViewModel : ObservableObject
     /// </summary>
     public IReadOnlyList<string> AudioInputDevices { get; }
 
+    /// <summary>
+    /// Available audio output device names. Same structure as <see cref="AudioInputDevices"/>, but
+    /// drives the new Audio tab's "Output device" ComboBox; the selected value applies to pilot
+    /// TTS playback and the SAY/warning chime.
+    /// </summary>
+    public IReadOnlyList<string> AudioOutputDevices { get; }
+
     public const string DefaultAudioDeviceLabel = "(System default)";
 
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
@@ -447,22 +472,32 @@ public partial class SettingsViewModel : ObservableObject
     {
         _preferences = preferences;
 
-        // Enumerate available audio input devices if we have an AudioCaptureService instance
+        // Enumerate available audio input/output devices if we have an AudioCaptureService instance
         // (passed in by MainWindow when opening Settings). Always include the system-default
         // sentinel as the first entry so the user can go back to "use whatever the OS decides".
-        var devices = new List<string> { DefaultAudioDeviceLabel };
+        var inputDevices = new List<string> { DefaultAudioDeviceLabel };
+        var outputDevices = new List<string> { DefaultAudioDeviceLabel };
         if (audioCapture is not null)
         {
             foreach (var (_, name) in audioCapture.ListInputDevices())
             {
-                if (!devices.Contains(name, StringComparer.Ordinal))
+                if (!inputDevices.Contains(name, StringComparer.Ordinal))
                 {
-                    devices.Add(name);
+                    inputDevices.Add(name);
+                }
+            }
+
+            foreach (var (_, name) in audioCapture.ListOutputDevices())
+            {
+                if (!outputDevices.Contains(name, StringComparer.Ordinal))
+                {
+                    outputDevices.Add(name);
                 }
             }
         }
 
-        AudioInputDevices = devices;
+        AudioInputDevices = inputDevices;
+        AudioOutputDevices = outputDevices;
         GroupedVerbMappings = new DataGridCollectionView(VerbMappings);
         GroupedVerbMappings.GroupDescriptions.Add(new DataGridPathGroupDescription("Category"));
         LoadFromScheme(_preferences.CommandScheme);
@@ -509,6 +544,7 @@ public partial class SettingsViewModel : ObservableObject
         _pttKeyName = _preferences.PttKey;
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
+        _audioOutputDevice = _preferences.AudioOutputDevice;
         _mainWindowTopmost = _preferences.MainWindowGeometry?.IsTopmost ?? false;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
@@ -594,15 +630,8 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
-        _preferences.SetSpeechSettings(
-            SpeechEnabled,
-            WhisperModelSize,
-            LlmModelPath,
-            LlmGpuLayers,
-            _pttKeyName,
-            AudioInputDevice,
-            AutoFocusInputAfterSpeech
-        );
+        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
+        _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
         _preferences.SetWindowTopmost("Main", MainWindowTopmost);
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);

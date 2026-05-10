@@ -29,8 +29,8 @@ public sealed class PilotVoiceService : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _worker;
 
-    public PilotVoiceService()
-        : this(new SherpaOnnxPilotVoiceSynthesizer()) { }
+    public PilotVoiceService(UserPreferences preferences)
+        : this(new SherpaOnnxPilotVoiceSynthesizer(preferences)) { }
 
     internal PilotVoiceService(IPilotVoiceSynthesizer synthesizer)
     {
@@ -95,9 +95,14 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer : IPilotVoiceSynthesizer
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaOnnxPilotVoiceSynthesizer>();
 
     private readonly SemaphoreSlim _loadLock = new(1, 1);
-    private readonly PortAudioFloatPlayer _player = new();
+    private readonly PortAudioFloatPlayer _player;
     private OfflineTts? _tts;
     private string? _loadedVoiceDir;
+
+    public SherpaOnnxPilotVoiceSynthesizer(UserPreferences preferences)
+    {
+        _player = new PortAudioFloatPlayer(preferences);
+    }
 
     public bool IsAvailable => TryFindVoiceDir() is not null && PortAudioFloatPlayer.HasDefaultOutputDevice();
 
@@ -273,8 +278,16 @@ internal static class RadioAudioFx
 
 internal sealed class PortAudioFloatPlayer
 {
+    private static readonly ILogger Log = AppLog.CreateLogger<PortAudioFloatPlayer>();
     private static readonly object InitLock = new();
     private static bool _initialized;
+
+    private readonly UserPreferences _preferences;
+
+    public PortAudioFloatPlayer(UserPreferences preferences)
+    {
+        _preferences = preferences;
+    }
 
     public static bool HasDefaultOutputDevice()
     {
@@ -285,7 +298,7 @@ internal sealed class PortAudioFloatPlayer
         }
         catch (Exception ex)
         {
-            AppLog.CreateLogger<PortAudioFloatPlayer>().LogWarning(ex, "PortAudio output device check failed.");
+            Log.LogWarning(ex, "PortAudio output device check failed.");
             return false;
         }
     }
@@ -294,7 +307,7 @@ internal sealed class PortAudioFloatPlayer
     {
         EnsureInitialized();
 
-        int outDev = PortAudio.DefaultOutputDevice;
+        int outDev = ResolveOutputDevice(_preferences.AudioOutputDevice);
         if (outDev == PortAudio.NoDevice)
         {
             return;
@@ -386,6 +399,37 @@ internal sealed class PortAudioFloatPlayer
             PortAudio.Initialize();
             _initialized = true;
         }
+    }
+
+    private static int ResolveOutputDevice(string preferred)
+    {
+        if (string.IsNullOrWhiteSpace(preferred))
+        {
+            return PortAudio.DefaultOutputDevice;
+        }
+
+        // Match by exact name first, then fall back to a case-insensitive substring match so users
+        // can type "Headset" and get "Realtek USB Audio Headset" without copy-pasting the full name.
+        for (var i = 0; i < PortAudio.DeviceCount; i++)
+        {
+            var info = PortAudio.GetDeviceInfo(i);
+            if (info.maxOutputChannels > 0 && string.Equals(info.name, preferred, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        for (var i = 0; i < PortAudio.DeviceCount; i++)
+        {
+            var info = PortAudio.GetDeviceInfo(i);
+            if (info.maxOutputChannels > 0 && info.name.Contains(preferred, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        Log.LogWarning("Preferred output device '{Preferred}' not found; falling back to default", preferred);
+        return PortAudio.DefaultOutputDevice;
     }
 
     private static void ZeroFill(IntPtr dest, int floatCount)

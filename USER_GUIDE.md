@@ -1149,6 +1149,7 @@ Open **Settings** to configure:
 - **Scenarios** — Solo Training Mode, auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
 - **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
+- **Audio** — Input device (microphone for push-to-talk speech recognition) and output device (used for pilot text-to-speech and the SAY/warning notification chime)
 - **Speech** — STT and TTS settings, including optional solo pilot voice and the Piper voice-pack install/remove controls
 - **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, and ground labels (each independently configurable, range 8–24); command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); ground display options (start with datablocks hidden); per-window always-on-top toggles
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors

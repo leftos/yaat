@@ -164,6 +164,36 @@ public sealed class AudioCaptureService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Enumerates available output devices as (index, name) pairs. Used by the Settings UI's
+    /// Audio tab to let the user pick where pilot TTS and the notification chime play. Mirrors
+    /// <see cref="ListInputDevices"/> but filters on <c>maxOutputChannels &gt; 0</c>. Initializes
+    /// PortAudio as a side effect (same one-shot init the input enumerator uses).
+    /// </summary>
+    public IReadOnlyList<(int Index, string Name)> ListOutputDevices()
+    {
+        try
+        {
+            EnsurePortAudioInitialized();
+            var devices = new List<(int, string)>();
+            for (var i = 0; i < PortAudio.DeviceCount; i++)
+            {
+                var info = PortAudio.GetDeviceInfo(i);
+                if (info.maxOutputChannels > 0)
+                {
+                    devices.Add((i, info.name));
+                }
+            }
+
+            return devices;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Failed to enumerate output devices");
+            return [];
+        }
+    }
+
     private void EnsurePortAudioInitialized()
     {
         if (_portAudioInitialized)

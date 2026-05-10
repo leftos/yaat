@@ -191,7 +191,7 @@ Views/
   DataGridWindow.axaml.cs       # Pop-out data grid window
   TerminalPanelView.axaml.cs    # Auto-scroll with user-scroll detection
   TerminalWindow.axaml.cs       # Pop-out terminal (shares MainViewModel)
-  SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios/Macros tabs)
+  SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios/Display/Colors/Commands/Macros/Audio/Speech/Advanced tabs)
   MacroImportWindow.axaml.cs    # Macro import selection dialog
   LoadWeatherWindow.axaml.cs    # Weather profile picker modal (folder scan, name + layer count)
   WeatherEditorControl.axaml.cs # Per-period weather editing UserControl (precipitation, wind layers grid, METARs)

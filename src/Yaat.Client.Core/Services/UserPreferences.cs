@@ -166,6 +166,7 @@ public sealed class UserPreferences
     public int LlmGpuLayers => _data.LlmGpuLayers;
     public string PttKey => _data.PttKey;
     public string AudioInputDevice => _data.AudioInputDevice;
+    public string AudioOutputDevice => _data.AudioOutputDevice;
     public bool AutoFocusInputAfterSpeech => _data.AutoFocusInputAfterSpeech;
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
     public bool GroundShowRunwayLabels => _data.GroundShowRunwayLabels;
@@ -456,7 +457,6 @@ public sealed class UserPreferences
         string llmModelPath,
         int llmGpuLayers,
         string pttKey,
-        string audioInputDevice,
         bool autoFocusInputAfterSpeech
     )
     {
@@ -465,8 +465,19 @@ public sealed class UserPreferences
         _data.LlmModelPath = llmModelPath;
         _data.LlmGpuLayers = llmGpuLayers;
         _data.PttKey = pttKey;
-        _data.AudioInputDevice = audioInputDevice;
         _data.AutoFocusInputAfterSpeech = autoFocusInputAfterSpeech;
+        Save();
+    }
+
+    /// <summary>
+    /// Persists the audio device selection used by both microphone capture (input) and pilot
+    /// TTS / notification chime playback (output). Empty string means "use the OS default
+    /// device". Both arguments are required so the compiler enforces wiring at every call site.
+    /// </summary>
+    public void SetAudioSettings(string audioInputDevice, string audioOutputDevice)
+    {
+        _data.AudioInputDevice = audioInputDevice;
+        _data.AudioOutputDevice = audioOutputDevice;
         Save();
     }
 
@@ -1172,6 +1183,7 @@ public sealed class UserPreferences
         public int LlmGpuLayers { get; set; } = -1;
         public string PttKey { get; set; } = "RightCtrl";
         public string AudioInputDevice { get; set; } = "";
+        public string AudioOutputDevice { get; set; } = "";
 
         // Auto-focus the command input box after a successful PTT/STT transcription so the user
         // can press Enter to send the recognized command without having to mouse to the input.

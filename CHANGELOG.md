@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Settings adds an Audio tab pairing microphone selection with a new output-device picker that routes pilot text-to-speech and the SAY/warning chime.
 - ARTCC `WakeDirectives` folders let facilities adjust Session Report wake scoring for documented local waivers and wake-advisory directives.
 
 ### Changed

@@ -29,8 +29,8 @@ public partial class MainViewModel : ObservableObject
     private readonly VideoMapService _videoMapService = new();
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
-    private readonly PilotSpeechAlertService _pilotSpeechAlerts = new();
-    private readonly PilotVoiceService _pilotVoice = new();
+    private readonly PilotSpeechAlertService _pilotSpeechAlerts;
+    private readonly PilotVoiceService _pilotVoice;
 
     // Speech recognition pipeline. All services are lazy/opt-in: they only touch real resources
     // (PortAudio, Whisper weights, LLM weights) when SpeechEnabled is true AND the user holds the
@@ -880,6 +880,8 @@ public partial class MainViewModel : ObservableObject
         _filePicker = filePicker;
         _isSpeechEnabled = _preferences.SpeechEnabled;
         _sessionSoloTrainingMode = _preferences.SoloTrainingMode;
+        _pilotSpeechAlerts = new PilotSpeechAlertService(_preferences);
+        _pilotVoice = new PilotVoiceService(_preferences);
 
         // Speech pipeline wiring. The order here matters: LlmService must exist before
         // LocalLlmCommandMapper, and SpeechRecognitionService needs all of them.

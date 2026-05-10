@@ -25,8 +25,13 @@ public sealed class PilotSpeechAlertService
     private const float OutputVolume = 0.5f;
 
     private readonly object _lock = new();
-    private readonly PortAudioFloatPlayer _player = new();
+    private readonly PortAudioFloatPlayer _player;
     private float[]? _cachedDing;
+
+    public PilotSpeechAlertService(UserPreferences preferences)
+    {
+        _player = new PortAudioFloatPlayer(preferences);
+    }
 
     public void PlayDing()
     {
