@@ -60,7 +60,8 @@ public class ConflictAlertDetectorTests
 
     private static ConflictAlertContext Ctx(HashSet<string>? existingIds = null) => new(existingIds ?? [], []);
 
-    private static ConflictAlertContext CtxWithAirports(params string[] airports) => new([], [.. airports]);
+    private static ConflictAlertContext CtxWithAirports(params string[] airports) =>
+        new([], ConflictAlertDetector.BuildCorridors(airports, NavigationDatabase.Instance));
 
     // -------------------------------------------------------------------------
     // Basic detection
@@ -367,207 +368,218 @@ public class ConflictAlertDetectorTests
     }
 
     // -------------------------------------------------------------------------
-    // Final approach suppression (runway-threshold anchored)
+    // Approach corridor suppression (runway-threshold anchored, purely geometric)
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void FinalApproach_OtherInCorridor_Suppressed()
+    public void ApproachCorridor_BothInCorridor_Suppressed()
     {
-        // Aircraft on final approach to KOAK 28R. Other aircraft in the approach corridor
-        // ahead of the threshold along the extended centerline.
+        // Two aircraft on the extended KOAK 28R centerline at 5 NM and 3 NM, both
+        // inside the 4 NM × 30 NM × glideslope-+1500-ft volume → suppressed.
         using var _navDb = SetupKoakNavDb();
 
-        // Aircraft 5nm out on approach course (along reciprocal of 284°, i.e., 104° from threshold)
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var onFinal = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
-        onFinal.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
+        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
-        // Other aircraft 3nm out on same course, same altitude
         var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
         var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
 
-        var result = ConflictAlertDetector.Detect([onFinal, other], CtxWithAirports(KoakIcao));
+        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
 
         Assert.Empty(result);
     }
 
     [Fact]
-    public void FinalApproach_OtherBeyond30Nm_NotSuppressed()
+    public void ApproachCorridor_OneInsideOneOutside_Suppressed()
     {
-        // Approach aircraft at 29nm, other at 31nm — only 2nm apart but other is outside 30 NM corridor
-        using var _navDb = SetupKoakNavDb();
-
-        var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 29.0);
-        var onFinal = MakeAircraft("AAL100", acLat, acLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
-        onFinal.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
-
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 31.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
-
-        var result = ConflictAlertDetector.Detect([onFinal, other], CtxWithAirports(KoakIcao));
-
-        Assert.Single(result);
-    }
-
-    [Fact]
-    public void FinalApproach_OtherBehindThreshold_NotSuppressed()
-    {
-        // Other aircraft on the airport side of the threshold (negative along-track)
-        // Approach aircraft close to threshold so they're within CA range of each other
-        using var _navDb = SetupKoakNavDb();
-
-        var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 2.0);
-        var onFinal = MakeAircraft("AAL100", acLat, acLon, altitude: 800, heading: Koak28RHeading, groundSpeed: 150);
-        onFinal.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
-
-        // Other aircraft 0.5nm behind threshold (on the runway side)
-        var runwayCourse = new TrueHeading(Koak28RHeading);
-        var (behindLat, behindLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, runwayCourse, 0.5);
-        var other = MakeAircraft("UAL200", behindLat, behindLon, altitude: 800, heading: Koak28RHeading, groundSpeed: 150);
-
-        var result = ConflictAlertDetector.Detect([onFinal, other], CtxWithAirports(KoakIcao));
-
-        Assert.Single(result);
-    }
-
-    [Fact]
-    public void FinalApproach_OtherOutsideLateralWidth_NotSuppressed()
-    {
-        // Other aircraft 2.5nm cross-track from centerline — outside 2nm half-width
-        // but within 3nm CA threshold (distance ≈ 2.5nm when at same along-track)
-        using var _navDb = SetupKoakNavDb();
-
-        var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
-        var onFinal = MakeAircraft("AAL100", acLat, acLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
-        onFinal.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
-
-        // Position other aircraft at same along-track but 2.5nm perpendicular
-        var perpCourse = new TrueHeading((Koak10LHeading + 90) % 360);
-        var (baseLat, baseLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(baseLat, baseLon, perpCourse, 2.5);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
-
-        var result = ConflictAlertDetector.Detect([onFinal, other], CtxWithAirports(KoakIcao));
-
-        Assert.Single(result);
-    }
-
-    [Fact]
-    public void FinalApproach_OtherAboveGlideSlopeCeiling_NotSuppressed()
-    {
-        // Other aircraft above glideslope + 1500ft at its along-track distance
-        // At 10nm: glideslope = 6 + 10*318 = 3186 ft, ceiling = 3186 + 1500 = 4686 ft
-        // Place other at 4800ft (above ceiling). Approach aircraft at 4500ft (within 300ft → CA threshold).
-        // Offset 1nm apart along approach to ensure clear non-divergent geometry.
-        using var _navDb = SetupKoakNavDb();
-
-        var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
-        var onFinal = MakeAircraft("AAL100", acLat, acLon, altitude: 4500, heading: Koak28RHeading, groundSpeed: 180);
-        onFinal.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
-
-        // Other aircraft 1nm closer to threshold — converging geometry (approach aircraft catching up)
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 9.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 4800, heading: Koak28RHeading, groundSpeed: 150);
-
-        var result = ConflictAlertDetector.Detect([onFinal, other], CtxWithAirports(KoakIcao));
-
-        Assert.Single(result);
-    }
-
-    [Fact]
-    public void FinalApproach_NonInternalAirport_NotSuppressed()
-    {
-        // Airport not in internal airports list → suppression does not apply
+        // Either-track-in-corridor rule: track A on final at 5 NM (inside), track B
+        // 31 NM out (outside the corridor) — A's presence in the volume suppresses CA
+        // for the pair regardless of B's position. STARS does not consult phase or
+        // approach state; the volume protects every track inside it.
         using var _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var onFinal = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
-        onFinal.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
+        var insider = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
+        // Place outsider close enough horizontally and vertically to trigger CA absent suppression.
+        var (otherLat, otherLon) = GeoMath.ProjectPoint(acLat, acLon, new TrueHeading(0), 1.0);
+        var outsider = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
-        // Empty internal airports list — KOAK not included
-        var result = ConflictAlertDetector.Detect([onFinal, other], Ctx());
+        var result = ConflictAlertDetector.Detect([insider, outsider], CtxWithAirports(KoakIcao));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ApproachCorridor_BothBeyond30Nm_NotSuppressed()
+    {
+        // Both aircraft past the 30 NM corridor length — neither is inside the volume,
+        // so suppression does not apply and CA fires.
+        using var _navDb = SetupKoakNavDb();
+
+        var outboundCourse = new TrueHeading(Koak10LHeading);
+        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 31.0);
+        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
+
+        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 33.0);
+        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
+
+        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
 
         Assert.Single(result);
     }
 
     [Fact]
-    public void FinalApproach_FaaLidAirport_Suppressed()
+    public void ApproachCorridor_BothOutsideLateralWidth_NotSuppressed()
     {
-        // 3-char FAA LID airport in internal airports list → suppression applies just like
-        // a 4-char ICAO. Mirrors what CommandDispatcher.ResolveAirport produces at runtime
-        // (US destinations are stored as the 3-char FAA LID, with the leading K stripped).
+        // Both aircraft > 2 NM cross-track from centerline (outside 4 NM corridor),
+        // but close enough to each other for CA. Neither inside volume → CA fires.
+        using var _navDb = SetupKoakNavDb();
+
+        var outboundCourse = new TrueHeading(Koak10LHeading);
+        var perpCourse = new TrueHeading((Koak10LHeading + 90) % 360);
+        var (baseLat, baseLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
+
+        var (firstLat, firstLon) = GeoMath.ProjectPoint(baseLat, baseLon, perpCourse, 2.5);
+        var first = MakeAircraft("AAL100", firstLat, firstLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
+
+        var (otherLat, otherLon) = GeoMath.ProjectPoint(baseLat, baseLon, perpCourse, 2.7);
+        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
+
+        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void ApproachCorridor_BothAboveGlideSlopeCeiling_NotSuppressed()
+    {
+        // At 10 NM: glideslope ≈ 6 + 10*318 = 3186 ft, ceiling = 3186 + 1500 = 4686 ft.
+        // Place both above 4686 ft so neither is inside the corridor volume.
+        using var _navDb = SetupKoakNavDb();
+
+        var outboundCourse = new TrueHeading(Koak10LHeading);
+        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
+        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 4800, heading: Koak28RHeading, groundSpeed: 180);
+
+        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 9.0);
+        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 4900, heading: Koak28RHeading, groundSpeed: 150);
+
+        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void ApproachCorridor_NonInternalAirport_NotSuppressed()
+    {
+        // Empty internalAirports → no corridors built → no suppression.
+        using var _navDb = SetupKoakNavDb();
+
+        var outboundCourse = new TrueHeading(Koak10LHeading);
+        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
+        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
+
+        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
+        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
+
+        var result = ConflictAlertDetector.Detect([first, other], Ctx());
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void ApproachCorridor_FaaLidAirport_Suppressed()
+    {
+        // 3-char FAA LID airport in internal airports list → corridor builds the same
+        // as an ICAO. Mirrors what CommandDispatcher.ResolveAirport produces at runtime.
         var faaLid = "OAK";
         var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var onFinal = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
-        onFinal.Phases = MakeFinalApproachPhaseList(faaLid, "28R", Koak28RHeading);
+        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
         var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
         var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
 
-        var result = ConflictAlertDetector.Detect([onFinal, other], CtxWithAirports(faaLid));
+        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(faaLid));
 
         Assert.Empty(result);
     }
 
     [Fact]
-    public void BothOnFinalApproach_InCorridor_Suppressed()
-    {
-        // Both aircraft on final to same runway, both in corridor → suppressed
-        using var _navDb = SetupKoakNavDb();
-
-        var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (leaderLat, leaderLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var leader = MakeAircraft("AAL100", leaderLat, leaderLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 140);
-        leader.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
-
-        var (followerLat, followerLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 7.0);
-        var follower = MakeAircraft("UAL200", followerLat, followerLon, altitude: 3000, heading: Koak28RHeading, groundSpeed: 140);
-        follower.Phases = MakeFinalApproachPhaseList(KoakIcao, "28R", Koak28RHeading);
-
-        var result = ConflictAlertDetector.Detect([leader, follower], CtxWithAirports(KoakIcao));
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public void BothOnFinalApproach_FaaLidAirport_Suppressed_RegressionForSfoBundle()
+    public void ApproachCorridor_FaaLidAirport_Suppressed_RegressionForSfoBundle()
     {
         // Regression for the SFO S1-SFO-2 bug bundle: SKW3398 leading WJA1508 on I28R,
-        // both established on the localizer, ~2.3 NM apart and ~951 ft vertical
-        // separation. CA fired because IsInRunwayCorridor rejected airportCode "SFO"
-        // (3 chars) before consulting internalAirports. After deleting that guard the
-        // suppression must engage exactly like the ICAO case.
+        // ~2.3 NM apart and ~951 ft vertical separation. Both inside the 28R corridor
+        // → suppressed.
         var faaLid = "SFO";
         var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
 
-        // Leader: 0.83 NM out, ~328 ft (mirrors SKW3398 at t=315 s)
         var (leaderLat, leaderLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 0.83);
         var leader = MakeAircraft("SKW3398", leaderLat, leaderLon, altitude: 328, heading: Koak28RHeading, groundSpeed: 126);
-        leader.Phases = MakeFinalApproachPhaseList(faaLid, "28R", Koak28RHeading);
 
-        // Follower: 3.16 NM out, ~1279 ft (mirrors WJA1508 at t=315 s).
-        // Δh ≈ 2.33 NM, Δv ≈ 951 ft — both inside the 3 NM / 1000 ft thresholds.
         var (followerLat, followerLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.16);
         var follower = MakeAircraft("WJA1508", followerLat, followerLon, altitude: 1279, heading: Koak28RHeading, groundSpeed: 144);
-        follower.Phases = MakeFinalApproachPhaseList(faaLid, "28R", Koak28RHeading);
 
         var result = ConflictAlertDetector.Detect([leader, follower], CtxWithAirports(faaLid));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ApproachCorridor_VfrParallelFinalsNoActiveApproach_Suppressed()
+    {
+        // Regression for the OAK S2-OAK-3 bug bundle: two VFR pattern aircraft on final
+        // to parallel runways 28L/28R, neither with an ActiveApproach (visual finals).
+        // STARS does not consult phase or approach state — the corridor volumes apply
+        // to every track inside them.
+        var faaLid = "OAK";
+        var rwy28R = MakeKoak28RRunway(faaLid);
+        // Synthesize a parallel 28L 0.087 NM (~530 ft) south of 28R using a perpendicular projection.
+        var perp = new TrueHeading((Koak28RHeading + 90) % 360);
+        var (lat28L1, lon28L1) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, perp, 0.087);
+        var (lat10R, lon10R) = GeoMath.ProjectPoint(Koak10LThreshLat, Koak10LThreshLon, perp, 0.087);
+        var rwy28L = new RunwayInfo
+        {
+            AirportId = faaLid,
+            Id = new RunwayIdentifier("28L", "10R"),
+            Designator = "28L",
+            Lat1 = lat28L1,
+            Lon1 = lon28L1,
+            Elevation1Ft = KoakElevationFt,
+            TrueHeading1 = new TrueHeading(Koak28RHeading),
+            Lat2 = lat10R,
+            Lon2 = lon10R,
+            Elevation2Ft = KoakElevationFt,
+            TrueHeading2 = new TrueHeading(Koak10LHeading),
+            LengthFt = 6213,
+            WidthFt = 150,
+        };
+        var navDb = TestNavDbFactory.WithRunways(rwy28R, rwy28L);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        // Both 1 NM final, ~0.087 NM laterally apart, both at 1000 ft, both VFR, no ActiveApproach.
+        var outboundCourse = new TrueHeading(Koak10LHeading);
+        var (a28RLat, a28RLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 1.0);
+        var on28R = MakeAircraft("N775JW", a28RLat, a28RLon, altitude: 1000, heading: Koak28RHeading, groundSpeed: 90);
+        on28R.FlightPlan.FlightRules = "VFR";
+
+        var (a28LLat, a28LLon) = GeoMath.ProjectPoint(lat28L1, lon28L1, outboundCourse, 1.0);
+        var on28L = MakeAircraft("N70CS", a28LLat, a28LLon, altitude: 1000, heading: Koak28RHeading, groundSpeed: 90);
+        on28L.FlightPlan.FlightRules = "VFR";
+
+        Assert.Null(on28R.Phases?.ActiveApproach);
+        Assert.Null(on28L.Phases?.ActiveApproach);
+
+        var result = ConflictAlertDetector.Detect([on28R, on28L], CtxWithAirports(faaLid));
 
         Assert.Empty(result);
     }
@@ -764,21 +776,5 @@ public class ConflictAlertDetectorTests
     {
         var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway());
         return NavigationDatabase.ScopedOverride(navDb);
-    }
-
-    private static Phases.PhaseList MakeFinalApproachPhaseList(string airportCode, string runwayId, double finalCourseHeading)
-    {
-        var phases = new Phases.PhaseList();
-        var fap = new Phases.Tower.FinalApproachPhase();
-        fap.Status = Phases.PhaseStatus.Active;
-        phases.Phases.Add(fap);
-        phases.ActiveApproach = new ApproachClearance
-        {
-            ApproachId = $"I{runwayId}",
-            AirportCode = airportCode,
-            RunwayId = runwayId,
-            FinalApproachCourse = new TrueHeading(finalCourseHeading),
-        };
-        return phases;
     }
 }

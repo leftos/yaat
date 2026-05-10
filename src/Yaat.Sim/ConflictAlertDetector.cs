@@ -1,13 +1,21 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
-using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim;
 
 /// <summary>
-/// Bundles per-tick detection parameters for <see cref="ConflictAlertDetector"/>.
+/// Geometric runway approach corridor at an internal-airport runway. STARS suppresses
+/// conflict alerts for any track inside such a volume — independent of the track's
+/// phase of flight, approach state, or destination. Anchored at <see cref="Threshold"/>
+/// and extending out along <see cref="OutboundCourse"/> (the reciprocal of runway heading).
 /// </summary>
-public record ConflictAlertContext(HashSet<string> ExistingConflictIds, List<string> InternalAirports);
+public record RunwayCorridor(LatLon Threshold, TrueHeading OutboundCourse, double FieldElevationFt);
+
+/// <summary>
+/// Bundles per-tick detection parameters for <see cref="ConflictAlertDetector"/>.
+/// Build <paramref name="ApproachCorridors"/> via <see cref="ConflictAlertDetector.BuildCorridors"/>.
+/// </summary>
+public record ConflictAlertContext(HashSet<string> ExistingConflictIds, IReadOnlyList<RunwayCorridor> ApproachCorridors);
 
 /// <summary>
 /// STARS-style Conflict Alert (CA) detection.
@@ -71,6 +79,44 @@ public static class ConflictAlertDetector
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Build the per-runway approach corridor volumes for a list of internal airports.
+    /// Each physical runway emits two corridors (one per runway end) anchored at that
+    /// end's threshold and extending along its reciprocal heading. Tries the LID first,
+    /// then a "K"-prefixed ICAO fallback (mirrors <c>ApproachGateDatabase</c>).
+    /// </summary>
+    public static IReadOnlyList<RunwayCorridor> BuildCorridors(IEnumerable<string> internalAirports, NavigationDatabase navDb)
+    {
+        var corridors = new List<RunwayCorridor>();
+        foreach (var apt in internalAirports)
+        {
+            var runways = navDb.GetRunways(apt);
+            if (runways.Count == 0)
+            {
+                runways = navDb.GetRunways("K" + apt);
+            }
+
+            foreach (var rw in runways)
+            {
+                corridors.Add(MakeCorridor(rw, rw.Id.End1));
+                corridors.Add(MakeCorridor(rw, rw.Id.End2));
+            }
+        }
+
+        return corridors;
+    }
+
+    private static RunwayCorridor MakeCorridor(RunwayInfo rw, string endDesignator)
+    {
+        var oriented = rw.ForApproach(endDesignator);
+        var outbound = new TrueHeading((oriented.TrueHeading.Degrees + 180.0) % 360.0);
+        return new RunwayCorridor(
+            Threshold: new LatLon(oriented.ThresholdLatitude, oriented.ThresholdLongitude),
+            OutboundCourse: outbound,
+            FieldElevationFt: oriented.ElevationFt
+        );
     }
 
     private static List<AircraftState> FilterEligible(List<AircraftState> aircraft)
@@ -140,8 +186,10 @@ public static class ConflictAlertDetector
             return false;
         }
 
-        // Check if suppressed by final approach corridor
-        if (IsSuppressedByApproachZone(a, b, context.InternalAirports))
+        // Approach corridor suppression: if EITHER track is inside ANY internal-airport
+        // runway approach corridor, suppress the alert. STARS doesn't consult phase of
+        // flight or active approach — the volumes are purely geometric.
+        if (IsInAnyApproachCorridor(a, context.ApproachCorridors) || IsInAnyApproachCorridor(b, context.ApproachCorridors))
         {
             return false;
         }
@@ -165,100 +213,40 @@ public static class ConflictAlertDetector
         return currentViolation || predictedViolation;
     }
 
-    private static bool IsSuppressedByApproachZone(AircraftState a, AircraftState b, List<string> internalAirports)
+    private static bool IsInAnyApproachCorridor(AircraftState ac, IReadOnlyList<RunwayCorridor> corridors)
     {
-        if (IsOnFinalApproach(a) && IsInRunwayCorridor(a, b, internalAirports))
+        foreach (var corridor in corridors)
         {
-            return true;
-        }
-
-        if (IsOnFinalApproach(b) && IsInRunwayCorridor(b, a, internalAirports))
-        {
-            return true;
+            if (IsInsideCorridor(ac, corridor))
+            {
+                return true;
+            }
         }
 
         return false;
     }
 
-    private static bool IsOnFinalApproach(AircraftState ac)
-    {
-        return ac.Phases?.CurrentPhase is FinalApproachPhase;
-    }
-
     /// <summary>
-    /// Check if <paramref name="other"/> is inside the runway approach corridor
-    /// for <paramref name="approachAircraft"/>'s target runway. The corridor is
-    /// anchored at the runway threshold, extends 30 NM along the extended centerline,
-    /// is 4 NM wide, and ranges from field elevation to 1500 ft above the glideslope.
-    /// Only applies to airports whose code (FAA LID or ICAO) is listed in the
-    /// facility's internalAirports.
+    /// Geometric containment test: 4 NM wide, 30 NM long along the extended runway
+    /// centerline, from field elevation up to glideslope + 1500 ft (3° GS, ~318 ft/NM).
     /// </summary>
-    private static bool IsInRunwayCorridor(AircraftState approachAircraft, AircraftState other, List<string> internalAirports)
+    private static bool IsInsideCorridor(AircraftState ac, RunwayCorridor corridor)
     {
-        var approach = approachAircraft.Phases?.ActiveApproach;
-        if (approach is null)
-        {
-            return false;
-        }
-
-        string airportCode = approach.AirportCode;
-
-        bool isInternal = false;
-        foreach (var apt in internalAirports)
-        {
-            if (apt.Equals(airportCode, StringComparison.OrdinalIgnoreCase))
-            {
-                isInternal = true;
-                break;
-            }
-        }
-
-        if (!isInternal)
-        {
-            return false;
-        }
-
-        // Look up runway threshold from NavigationDatabase
-        var runway = NavigationDatabase.Instance.GetRunway(airportCode, approach.RunwayId);
-        if (runway is null)
-        {
-            return false;
-        }
-
-        double threshLat = runway.ThresholdLatitude;
-        double threshLon = runway.ThresholdLongitude;
-        double fieldElevation = runway.ElevationFt;
-
-        // The approach course extends outward from the threshold (away from the runway).
-        // That's the reciprocal of the runway heading.
-        var outboundCourse = new TrueHeading((runway.TrueHeading.Degrees + 180.0) % 360.0);
-
-        // Cross-track: perpendicular distance from centerline
-        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(other.Position, new LatLon(threshLat, threshLon), outboundCourse));
-
+        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, corridor.Threshold, corridor.OutboundCourse));
         if (crossTrack > ApproachZoneHalfWidthNm)
         {
             return false;
         }
 
-        // Along-track: distance from threshold along the approach extended centerline
-        double alongTrack = GeoMath.AlongTrackDistanceNm(other.Position, new LatLon(threshLat, threshLon), outboundCourse);
-
+        double alongTrack = GeoMath.AlongTrackDistanceNm(ac.Position, corridor.Threshold, corridor.OutboundCourse);
         if (alongTrack < 0 || alongTrack > ApproachZoneLengthNm)
         {
             return false;
         }
 
-        // Vertical: from field elevation up to glideslope + 1500 ft at this distance
-        double glideSlopeAltitude = fieldElevation + (alongTrack * GlideSlopeFtPerNm);
+        double glideSlopeAltitude = corridor.FieldElevationFt + (alongTrack * GlideSlopeFtPerNm);
         double ceiling = glideSlopeAltitude + ApproachZoneCeilingAboveGsFt;
-
-        if ((other.Altitude < fieldElevation) || (other.Altitude > ceiling))
-        {
-            return false;
-        }
-
-        return true;
+        return (ac.Altitude >= corridor.FieldElevationFt) && (ac.Altitude <= ceiling);
     }
 
     internal static string MakeConflictId(string callsignA, string callsignB)
