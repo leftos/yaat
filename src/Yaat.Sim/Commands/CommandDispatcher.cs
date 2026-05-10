@@ -2015,10 +2015,14 @@ public static class CommandDispatcher
             return new CommandResult(false, "Unable, say traffic callsign");
         }
 
-        // If the follower is already in a pattern phase that honors FollowingCallsign,
-        // just update the target — existing AirborneFollowHelper handles spacing.
+        // If the follower is already in a pattern phase, just update the target —
+        // existing AirborneFollowHelper handles spacing where applicable. Upwind
+        // and Crosswind don't honor FollowingCallsign for spacing today, but
+        // they're still part of the pattern circuit; rebuilding through
+        // VfrFollowPhase here would route the follower back through PatternEntry
+        // for the same runway it's already flying — wasteful and confusing.
         var current = aircraft.Phases?.CurrentPhase;
-        if (current is PatternEntryPhase or DownwindPhase or BasePhase or FinalApproachPhase)
+        if (current is PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or FinalApproachPhase)
         {
             aircraft.Approach.FollowingCallsign = target;
             return Ok($"Follow {target}");

@@ -232,6 +232,42 @@ public class VfrFollowPhaseTests : IDisposable
     }
 
     [Fact]
+    public void Follow_FromUpwindPhase_OnlySetsFollowingCallsign()
+    {
+        // A VFR aircraft mid-pattern that just rotated and turned crosswind/upwind
+        // shouldn't get its pattern circuit thrown away and rebuilt through
+        // PatternEntry just because the controller pointed it at traffic on the
+        // same runway. Keep the existing UpwindPhase, just mark the follow target.
+        var follower = MakeVfrAircraft("FOLL");
+        var upwind = new UpwindPhase();
+        follower.Phases!.Add(upwind);
+        var ctx = CommandDispatcher.BuildMinimalContext(follower);
+        follower.Phases.Start(ctx);
+
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Same(upwind, follower.Phases.CurrentPhase);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void Follow_FromCrosswindPhase_OnlySetsFollowingCallsign()
+    {
+        var follower = MakeVfrAircraft("FOLL");
+        var crosswind = new CrosswindPhase();
+        follower.Phases!.Add(crosswind);
+        var ctx = CommandDispatcher.BuildMinimalContext(follower);
+        follower.Phases.Start(ctx);
+
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Same(crosswind, follower.Phases.CurrentPhase);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
     public void VectorCommand_OnVfrFollowPhase_ClearsFollowingCallsign()
     {
         // COMMANDS.md: "Any subsequent vector command (FH, CM, SPD, etc.) clears

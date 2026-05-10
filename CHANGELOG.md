@@ -18,6 +18,7 @@
 - STARS no longer flashes Conflict Alert for two aircraft on parallel finals at an internal airport — the runway approach corridor suppression is now purely geometric and applies to every track inside it, including VFR pattern traffic on visual finals.
 - `ELB`/`ERB` from long range now holds altitude on the base leg and descends along the glide path on final.
 - Vector commands (FH, TR, CM, SPD) now clear the follow target, so the Aircraft List no longer keeps a stale "following X" prefix.
+- `FOLLOW` issued from upwind or crosswind on a same-runway pattern circuit no longer routes the follower back through pattern entry — it just sets the follow target like it does from downwind/base/final.
 - Taxi routes through sharp curves at taxiway junctions (e.g. OAK J at K) now slow for the corner instead of spinning past it.
 - Pattern direction set by `MLT`/`MRT` now survives heading vectors and single-approach `ERB`/`ELB`/`EF` clearances; subsequent circuits revert to the original side.
 - `RFAS`, `S`, `NS`, and `DSR` issued during a pattern leg now adjust speed without cancelling the leg.

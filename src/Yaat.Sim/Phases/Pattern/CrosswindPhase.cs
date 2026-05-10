@@ -110,6 +110,7 @@ public sealed class CrosswindPhase : Phase
             CanonicalCommandType.ReduceToFinalApproachSpeed => CommandAcceptance.Allowed,
             CanonicalCommandType.ResumeNormalSpeed => CommandAcceptance.Allowed,
             CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };
