@@ -533,6 +533,7 @@ All test data lives in `tests/Yaat.Sim.Tests/TestData/`.
 | `oak-ga-spawn-turnaround-recording.yaat-bug-report-bundle.zip` | — | N346G, N172SP | OAK GA parking spawn — pathfinder picks an arc whose exit tangent is opposite the next route segment, forcing a 270° CW spiral |
 | `oak-prefer-later-onside-exit-recording.yaat-bug-report-bundle.zip` | — | N805FM | OAK 28R landing — preferred-side hold-short occupied; planner falls back to off-side at the same exit instead of skipping forward to the next on-side option |
 | `n427mx-elb-long-base-descent-recording.yaat-bug-report-bundle.zip` | — | N427MX | OAK ELB 28L issued ~9 nm SE at 1400 ft — `BasePhase.OnStart` only lowered `midAlt` to GS-at-rollout for short finals, so long bases descended to half-TPA (509 ft) far before glide path |
+| `oak-taxi-jc-spin-recording.yaat-bug-report-bundle.zip` | — | N70CS | OAK `TAXI J C HS 28R` after landing 28L — `BuildSpeedConstraints` looked at per-corner turn only, missing the cumulative turn distributed across a fillet-split chord chain (~80° over 158 ft on J around intersection 387). Aircraft entered the chain at 30 kts with no slowdown, couldn't turn fast enough per chord, ended up cross-tracked, and pure-pursuit settled into a stable orbit around target node 383 |
 
 ### Adding a new airport layout
 

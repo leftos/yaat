@@ -191,6 +191,16 @@ public sealed class GroundNavigator
     private const double SynthesisLookaheadCapFt = 500.0;
 
     /// <summary>
+    /// Sliding window (feet) used by <see cref="EffectiveTurnAngleAt"/> to
+    /// aggregate per-corner turns over a forward stretch of route. Picked to
+    /// approximate a jet's brake distance from full taxi speed (30 kts) to
+    /// standard corner speed (15 kts) at 5 kts/sec — about 100 ft. Larger
+    /// would over-slow long, gently curving stretches; smaller would miss
+    /// chord-chain fillets that distribute a real corner across &gt; 100 ft.
+    /// </summary>
+    private const double CornerLookaheadFt = 120.0;
+
+    /// <summary>
     /// Maximum bearing difference (deg) for two consecutive straight segments
     /// to be treated as collinear when walking backward from a corner to find
     /// the tangent-entry segment. Small jogs below this threshold are treated
@@ -966,11 +976,9 @@ public sealed class GroundNavigator
         {
             int nextIdx = route.CurrentSegmentIndex + 1;
             var nextSeg = route.Segments[nextIdx];
-            double inbound = seg.Edge.ArrivalBearing;
-            double outbound = nextSeg.Edge.DepartureBearing;
-            double turnAngle = GeoMath.AbsBearingDifference(inbound, outbound);
+            double turnAngle = EffectiveTurnAngleAt(route, route.CurrentSegmentIndex);
             _currentNodeRequiredSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
-            _nextSegmentBearing = outbound;
+            _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
             _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
         }
         else
@@ -1008,10 +1016,7 @@ public sealed class GroundNavigator
             double reqSpeed;
             if (nextNextIdx < route.Segments.Count)
             {
-                var nextNextSeg = route.Segments[nextNextIdx];
-                double inBearing = futureSeg.Edge.ArrivalBearing;
-                double outBearing = nextNextSeg.Edge.DepartureBearing;
-                double futureTurnAngle = GeoMath.AbsBearingDifference(inBearing, outBearing);
+                double futureTurnAngle = EffectiveTurnAngleAt(route, i);
                 reqSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, futureTurnAngle);
             }
             else
@@ -1082,6 +1087,59 @@ public sealed class GroundNavigator
             double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
             ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
         }
+    }
+
+    /// <summary>
+    /// Effective turn angle at the node where <paramref name="turnNodeSegIdx"/>
+    /// ends (i.e. the corner formed between segment <c>turnNodeSegIdx</c> and
+    /// segment <c>turnNodeSegIdx + 1</c>). Sums per-corner bearing changes
+    /// over a forward window of <see cref="CornerLookaheadFt"/> feet so a
+    /// taxiway corner that is sliced into many short straight chord-edges by
+    /// the fillet generator (<c>FilletEdgeKind.ArcSplit</c> chains around
+    /// junctions where another taxiway's tangent points land inside the arc
+    /// edge) gets the same effective corner-speed treatment as a single-node
+    /// corner of equal aggregate turn.
+    ///
+    /// <para>
+    /// Without this, <see cref="CategoryPerformance.CornerSpeedForAngle"/>
+    /// sees only the small per-chord bend (e.g. ~15° per chord on a chain
+    /// approximating an 80° corner) and returns full <see cref="CategoryPerformance.TaxiSpeed"/>
+    /// for each — the aircraft enters the chord chain at full speed, can't
+    /// turn fast enough per chord (jet ground turn rate of 20°/sec gives only
+    /// ~5° of turn per ~25 ft chord at 30 kts, vs. the ~16° required), and
+    /// ends up cross-tracked off each segment line. The cumulative cross-
+    /// track grows through the chain until the aircraft is far enough off the
+    /// final segment line that pure-pursuit settles into a stable orbit
+    /// around the target node and never arrives.
+    /// </para>
+    /// </summary>
+    private static double EffectiveTurnAngleAt(TaxiRoute route, int turnNodeSegIdx)
+    {
+        int nextIdx = turnNodeSegIdx + 1;
+        if (nextIdx >= route.Segments.Count)
+        {
+            return 0;
+        }
+
+        // Corner formed between this segment's arrival bearing and the
+        // immediately-following segment's departure bearing.
+        var thisSeg = route.Segments[turnNodeSegIdx];
+        var nextSeg = route.Segments[nextIdx];
+        double cumulativeTurnDeg = GeoMath.AbsBearingDifference(thisSeg.Edge.ArrivalBearing, nextSeg.Edge.DepartureBearing);
+        double cumulativeFt = nextSeg.Edge.DistanceNm * GeoMath.FeetPerNm;
+
+        // Walk forward, summing additional per-corner turns until the window
+        // is exhausted. Each step adds the corner formed at the end of the
+        // current scanned segment plus that segment's length.
+        for (int k = nextIdx; k + 1 < route.Segments.Count && cumulativeFt < CornerLookaheadFt; k++)
+        {
+            var current = route.Segments[k];
+            var following = route.Segments[k + 1];
+            cumulativeTurnDeg += GeoMath.AbsBearingDifference(current.Edge.ArrivalBearing, following.Edge.DepartureBearing);
+            cumulativeFt += following.Edge.DistanceNm * GeoMath.FeetPerNm;
+        }
+
+        return cumulativeTurnDeg;
     }
 
     private void UpdateDiag(PhaseContext ctx, double distNm, double bearingDeg, double targetSpeed, bool onArc)
