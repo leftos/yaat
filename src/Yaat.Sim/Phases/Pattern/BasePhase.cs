@@ -116,6 +116,10 @@ public sealed class BasePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead-not-found / lead-on-ground / runaway-distance watchdog. See
+        // DownwindPhase.OnTick for the full rationale.
+        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
         // Follow speed adjustment — pass the phase baseline, never the previous
         // tick's adjusted target, so the +MaxSpeedAdjustKts clamp can't compound.
         if (ctx.Targets.TargetSpeed is not null)

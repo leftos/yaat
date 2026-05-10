@@ -1752,7 +1752,7 @@ public static class ApproachCommandHandler
         // Clear visual approach state
         aircraft.Approach.HasReportedFieldInSight = false;
         aircraft.Approach.HasReportedTrafficInSight = false;
-        aircraft.Approach.FollowingCallsign = null;
+        Phases.AirborneFollowHelper.ClearFollowState(aircraft);
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
     }
 

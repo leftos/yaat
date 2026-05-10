@@ -31,16 +31,7 @@ public sealed class VfrFollowPhase : Phase
     /// <summary>Maximum distance follower-to-lead allowed at pattern join — guards against joining a stale pattern when the lead has moved.</summary>
     public const double MaxJoinGapNm = 5.0;
 
-    /// <summary>Seconds of continuously-growing gap beyond which the follow auto-cancels (runaway distance).</summary>
-    private const double RunawayGraceSeconds = 30.0;
-
     public string TargetCallsign { get; private set; }
-
-    // Non-serialized runtime state: the best (smallest) distance we've seen to the lead,
-    // and elapsed seconds during which the distance has been monotonically greater than
-    // that best. When the elapsed exceeds RunawayGraceSeconds, we cancel the follow.
-    private double _bestGapNm = double.PositiveInfinity;
-    private double _runawayElapsed;
 
     public override string Name => "VFR Follow";
     public override bool ManagesSpeed => true;
@@ -54,88 +45,30 @@ public sealed class VfrFollowPhase : Phase
     public void UpdateTarget(string targetCallsign)
     {
         TargetCallsign = targetCallsign;
-        _bestGapNm = double.PositiveInfinity;
-        _runawayElapsed = 0;
     }
 
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.PreferredTurnDirection = null;
-        _bestGapNm = double.PositiveInfinity;
-        _runawayElapsed = 0;
         Log.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
-        var lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
-        if (lead is null)
+        // Lead-not-found / lead-on-ground / runaway-distance checks are shared
+        // with pattern-phase followers via AirborneFollowHelper.CheckLeadLifecycle.
+        // It mutates Approach.FollowingCallsign + the runaway state on the follower
+        // and emits the appropriate pilot transmission. When it returns true, this
+        // phase has nothing left to do.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
         {
-            Log.LogDebug("[VfrFollow] {Callsign}: target {Target} not found, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
-            ctx.Aircraft.Approach.FollowingCallsign = null;
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildLostSightOfTraffic(ctx.Aircraft, TargetCallsign),
-                $"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow",
-                Pilot.PilotResponder.SoloPositionsTowerApproach
-            );
             return true;
         }
 
-        if (lead.IsOnGround)
-        {
-            Log.LogDebug("[VfrFollow] {Callsign}: target {Target} on ground, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
-            ctx.Aircraft.Approach.FollowingCallsign = null;
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildTargetLanded(ctx.Aircraft, TargetCallsign),
-                $"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow",
-                Pilot.PilotResponder.SoloPositionsTowerApproach
-            );
-            return true;
-        }
-
+        // CheckLeadLifecycle already verified the lead exists.
+        var lead = ctx.AircraftLookup!.Invoke(TargetCallsign)!;
         double gapNm = GeoMath.DistanceNm(ctx.Aircraft.Position, lead.Position);
-
-        // Runaway-distance cancel: if the gap has been strictly increasing for
-        // more than RunawayGraceSeconds, the follower can't catch up — give up.
-        if (gapNm <= _bestGapNm)
-        {
-            _bestGapNm = gapNm;
-            _runawayElapsed = 0;
-        }
-        else
-        {
-            _runawayElapsed += ctx.DeltaSeconds;
-            if (_runawayElapsed >= RunawayGraceSeconds)
-            {
-                Log.LogDebug(
-                    "[VfrFollow] {Callsign}: gap to {Target} growing >30s (best={Best:F1}nm, now={Now:F1}nm), cancelling",
-                    ctx.Aircraft.Callsign,
-                    TargetCallsign,
-                    _bestGapNm,
-                    gapNm
-                );
-                ctx.Aircraft.Approach.FollowingCallsign = null;
-                Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                    ctx.Aircraft,
-                    ctx.SoloTrainingMode,
-                    ctx.RpoShowPilotSpeech,
-                    ctx.StudentPositionType,
-                    Pilot.PilotResponder.BuildUnableToCatchUp(ctx.Aircraft, TargetCallsign),
-                    $"{ctx.Aircraft.Callsign} unable to catch up to {TargetCallsign}, cancelling follow",
-                    Pilot.PilotResponder.SoloPositionsTowerApproach
-                );
-                return true;
-            }
-        }
 
         // If the lead is in a pattern, see if we're close enough to join.
         if (TryJoinLeadPattern(ctx, lead, gapNm))
@@ -292,7 +225,14 @@ public sealed class VfrFollowPhase : Phase
         }
 
         // Preserve the follow target so the pattern phases keep adjusting spacing.
+        // Reset runaway tracking — the pattern phases use AirborneFollowHelper for
+        // tighter spacing than the free-flight pursuit, so the gap dynamics that
+        // applied during VfrFollowPhase no longer apply. Without this reset, a
+        // follower whose gap was creeping outward by 1-2 ft / s under loose free-
+        // flight spacing would carry that runaway timer into PatternEntry and trip
+        // a false-positive cancel before the new spacing has time to converge.
         ctx.Aircraft.Approach.FollowingCallsign = TargetCallsign;
+        AirborneFollowHelper.ResetRunawayTracking(ctx.Aircraft);
         ctx.Aircraft.Procedure.DestinationRunway = leadRunway.Designator;
 
         // Start the first phase in the new list.

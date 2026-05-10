@@ -129,6 +129,12 @@ public sealed class DownwindPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead-not-found / lead-on-ground / runaway-distance watchdog. Clears
+        // FollowingCallsign + emits the appropriate pilot transmission so a
+        // pattern-phase follower doesn't keep a stale follow target after the
+        // lead despawns or lands.
+        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
 
         // Midfield downwind broadcast: remind controller if no landing clearance.

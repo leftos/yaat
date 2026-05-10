@@ -61,6 +61,157 @@ public static class AirborneFollowHelper
     private const double ExtendDownwindThreshold = 0.6;
 
     /// <summary>
+    /// Seconds of monotonically increasing follower-to-lead gap after which the
+    /// follow is auto-cancelled with an "unable to catch up" pilot transmission.
+    /// Mirrors the original VfrFollowPhase constant; pattern-phase followers now
+    /// share the same window via <see cref="CheckLeadLifecycle"/>.
+    /// </summary>
+    public const double RunawayGraceSeconds = 30.0;
+
+    /// <summary>
+    /// Minimum nm of gap growth above the running minimum that counts as "running
+    /// away." Without this tolerance, a follower whose spacing-control loop is
+    /// settling (gap creeping outward by ~0.001 nm/tick due to a 1-2 kt under-
+    /// shoot) would trip the 30 s runaway timer even though there's no actual
+    /// divergence — see FollowBreaksOnLeaderPatternEntryTests for the recorded
+    /// case (best=1.30 nm, now=1.33 nm over 30 s of normal pattern-tight spacing).
+    /// 0.1 nm = ~600 ft is well outside controller-perceptible "growing" while
+    /// still tight enough to catch a lead that's genuinely outpacing the follower.
+    /// </summary>
+    private const double RunawayGapTolerance = 0.1;
+
+    /// <summary>
+    /// Per-tick lifecycle watchdog for any aircraft with
+    /// <see cref="AircraftApproachState.FollowingCallsign"/> set. Cancels follow
+    /// (clearing FollowingCallsign + emitting the appropriate pilot transmission)
+    /// when:
+    /// <list type="bullet">
+    /// <item><description>The lead is no longer in the world (lookup returns null).</description></item>
+    /// <item><description>The lead has transitioned to <see cref="AircraftState.IsOnGround"/>.</description></item>
+    /// <item><description>The geographic gap to the lead has been monotonically growing
+    /// for <see cref="RunawayGraceSeconds"/>.</description></item>
+    /// </list>
+    /// Pattern-phase OnTicks call this before applying their spacing adjustments;
+    /// <see cref="Pattern.VfrFollowPhase.OnTick"/> delegates to it for the same checks.
+    /// State for the runaway timer lives on <see cref="AircraftApproachState.FollowBestGapNm"/>
+    /// and <see cref="AircraftApproachState.FollowRunawaySeconds"/> so it survives across
+    /// pattern-phase transitions.
+    /// </summary>
+    /// <returns>True if the follow was cancelled this tick (caller should skip its spacing logic).</returns>
+    public static bool CheckLeadLifecycle(PhaseContext ctx)
+    {
+        var follower = ctx.Aircraft;
+        string? targetCallsign = follower.Approach.FollowingCallsign;
+        if (targetCallsign is null)
+        {
+            return false;
+        }
+
+        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+
+        if (lead is null)
+        {
+            Log.LogDebug("[Follow] {Callsign}: target {Target} not found, ending follow", follower.Callsign, targetCallsign);
+            ClearFollowState(follower);
+            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+                follower,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
+                Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign),
+                $"{follower.Callsign} lost sight of {targetCallsign}, cancelling follow",
+                Pilot.PilotResponder.SoloPositionsTowerApproach
+            );
+            return true;
+        }
+
+        if (lead.IsOnGround)
+        {
+            Log.LogDebug("[Follow] {Callsign}: target {Target} on ground, ending follow", follower.Callsign, targetCallsign);
+            ClearFollowState(follower);
+            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+                follower,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
+                Pilot.PilotResponder.BuildTargetLanded(follower, targetCallsign),
+                $"{follower.Callsign} {targetCallsign} has landed, cancelling follow",
+                Pilot.PilotResponder.SoloPositionsTowerApproach
+            );
+            return true;
+        }
+
+        double gapNm = GeoMath.DistanceNm(follower.Position, lead.Position);
+        double bestSoFar = follower.Approach.FollowBestGapNm ?? double.PositiveInfinity;
+        if (gapNm <= bestSoFar)
+        {
+            follower.Approach.FollowBestGapNm = gapNm;
+            follower.Approach.FollowRunawaySeconds = 0;
+            return false;
+        }
+
+        // Inside the noise band — the lead isn't actually getting away, the
+        // spacing loop is just settling. Don't tick the runaway timer (and
+        // don't reset it either — a real long-running divergence will keep
+        // pushing past tolerance and eventually fire).
+        if (gapNm - bestSoFar < RunawayGapTolerance)
+        {
+            return false;
+        }
+
+        follower.Approach.FollowRunawaySeconds += ctx.DeltaSeconds;
+        if (follower.Approach.FollowRunawaySeconds < RunawayGraceSeconds)
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Follow] {Callsign}: gap to {Target} growing >{Grace:F0}s (best={Best:F1}nm, now={Now:F1}nm), cancelling",
+            follower.Callsign,
+            targetCallsign,
+            RunawayGraceSeconds,
+            bestSoFar,
+            gapNm
+        );
+        ClearFollowState(follower);
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            follower,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            Pilot.PilotResponder.BuildUnableToCatchUp(follower, targetCallsign),
+            $"{follower.Callsign} unable to catch up to {targetCallsign}, cancelling follow",
+            Pilot.PilotResponder.SoloPositionsTowerApproach
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// Clear the follow target and reset the runaway-distance tracking on a
+    /// follower. Call this whenever <see cref="AircraftApproachState.FollowingCallsign"/>
+    /// is being set or cleared from outside the lifecycle check (FOLLOW dispatch,
+    /// vector-command phase clear, separation-failure cancel).
+    /// </summary>
+    public static void ClearFollowState(AircraftState follower)
+    {
+        follower.Approach.FollowingCallsign = null;
+        follower.Approach.FollowBestGapNm = null;
+        follower.Approach.FollowRunawaySeconds = 0;
+    }
+
+    /// <summary>
+    /// Reset the per-pair runaway-distance tracking (best gap + elapsed seconds)
+    /// without touching <see cref="AircraftApproachState.FollowingCallsign"/>.
+    /// Call this when a fresh FOLLOW is issued so the next
+    /// <see cref="CheckLeadLifecycle"/> tick captures the new geometry.
+    /// </summary>
+    public static void ResetRunawayTracking(AircraftState follower)
+    {
+        follower.Approach.FollowBestGapNm = null;
+        follower.Approach.FollowRunawaySeconds = 0;
+    }
+
+    /// <summary>
     /// Returns an adjusted target speed based on distance to the followed aircraft,
     /// or null if no follow is active (or the target has disappeared).
     /// The <paramref name="normalSpeed"/> MUST be the phase's baseline speed
@@ -91,7 +242,7 @@ public static class AirborneFollowHelper
         {
             // Leader disappeared — clear follow state, continue with normal speed
             Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
-            ctx.Aircraft.Approach.FollowingCallsign = null;
+            ClearFollowState(ctx.Aircraft);
             return null;
         }
 
@@ -240,7 +391,7 @@ public static class AirborneFollowHelper
         // separation. Cancel follow and warn once so the controller can intervene.
         if ((adjusted < minSpeed) && (distance < desired * 0.5))
         {
-            follower.Approach.FollowingCallsign = null;
+            ClearFollowState(follower);
             Pilot.PilotResponder.RouteRpoTransmission(
                 follower,
                 soloTrainingMode,

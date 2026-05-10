@@ -174,7 +174,7 @@ public static class CommandDispatcher
             aircraft.Phases = null;
             aircraft.Targets.TurnRateOverride = null;
             aircraft.Targets.HasExplicitTurnRate = false;
-            aircraft.Approach.FollowingCallsign = null;
+            AirborneFollowHelper.ClearFollowState(aircraft);
 
             if (clearedSummary is not null)
             {
@@ -2025,6 +2025,7 @@ public static class CommandDispatcher
         if (current is PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or FinalApproachPhase)
         {
             aircraft.Approach.FollowingCallsign = target;
+            AirborneFollowHelper.ResetRunawayTracking(aircraft);
             return Ok($"Follow {target}");
         }
 
@@ -2033,6 +2034,7 @@ public static class CommandDispatcher
         {
             vfp.UpdateTarget(target);
             aircraft.Approach.FollowingCallsign = target;
+            AirborneFollowHelper.ResetRunawayTracking(aircraft);
             return Ok($"Follow {target}");
         }
 
@@ -2049,6 +2051,7 @@ public static class CommandDispatcher
         var startCtx = BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Start(startCtx);
         aircraft.Approach.FollowingCallsign = target;
+        AirborneFollowHelper.ResetRunawayTracking(aircraft);
         return Ok($"Follow {target}");
     }
 }

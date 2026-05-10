@@ -8,4 +8,6 @@ public sealed class AircraftApproachStateDto
     public required bool HasReportedTrafficInSight { get; init; }
     public string? LastReportedTrafficCallsign { get; init; }
     public string? FollowingCallsign { get; init; }
+    public double? FollowBestGapNm { get; init; }
+    public double FollowRunawaySeconds { get; init; }
 }

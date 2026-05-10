@@ -31,6 +31,22 @@ public class AircraftApproachState
 
     public string? FollowingCallsign { get; set; }
 
+    /// <summary>
+    /// Smallest gap (nm) seen to the follow target since the current FOLLOW was issued.
+    /// Used by <see cref="Phases.AirborneFollowHelper.CheckLeadLifecycle"/> to detect
+    /// monotonic divergence (runaway distance). Null until first measurement; reset
+    /// to null whenever <see cref="FollowingCallsign"/> is set or cleared.
+    /// </summary>
+    public double? FollowBestGapNm { get; set; }
+
+    /// <summary>
+    /// Seconds during which the gap to the follow target has been strictly greater
+    /// than <see cref="FollowBestGapNm"/>. Reset to zero when the gap re-converges or
+    /// when FOLLOW is (re)issued. Once it exceeds the runaway grace window, the
+    /// helper cancels follow with an "unable to catch up" pilot transmission.
+    /// </summary>
+    public double FollowRunawaySeconds { get; set; }
+
     public AircraftApproachStateDto ToSnapshot() =>
         new()
         {
@@ -40,6 +56,8 @@ public class AircraftApproachState
             HasReportedTrafficInSight = HasReportedTrafficInSight,
             LastReportedTrafficCallsign = LastReportedTrafficCallsign,
             FollowingCallsign = FollowingCallsign,
+            FollowBestGapNm = FollowBestGapNm,
+            FollowRunawaySeconds = FollowRunawaySeconds,
         };
 
     public static AircraftApproachState FromSnapshot(AircraftApproachStateDto dto) =>
@@ -51,5 +69,7 @@ public class AircraftApproachState
             HasReportedTrafficInSight = dto.HasReportedTrafficInSight,
             LastReportedTrafficCallsign = dto.LastReportedTrafficCallsign,
             FollowingCallsign = dto.FollowingCallsign,
+            FollowBestGapNm = dto.FollowBestGapNm,
+            FollowRunawaySeconds = dto.FollowRunawaySeconds,
         };
 }
