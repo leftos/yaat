@@ -67,7 +67,11 @@ public static class PhaseRunner
 
             // After a full-stop landing (not pattern mode), auto-exit the runway.
             // RunwayExitPhase handles the case where GroundLayout is null (stops immediately).
-            if (wasLanding && phases.IsComplete && phases.TrafficDirection is null)
+            // The persistent AircraftPattern.TrafficDirection (last MLT/MRT intent) wins
+            // over the transient PhaseList field — CLAND/LAHSO null both, so a true
+            // full-stop still hits this branch.
+            var persistentDir = aircraft.Pattern.TrafficDirection;
+            if (wasLanding && phases.IsComplete && persistentDir is null && phases.TrafficDirection is null)
             {
                 phases.Phases.Add(new RunwayExitPhase());
                 phases.Phases.Add(new HoldingAfterExitPhase());
@@ -82,18 +86,25 @@ public static class PhaseRunner
             }
 
             // Pattern/visual traffic re-enters the pattern after a go-around.
-            // If TrafficDirection was cleared (e.g. by CLAND during go-around), default to left.
-            // Instrument approach traffic does NOT auto-enter the pattern — they fly
-            // runway heading to 2000 AGL and await instructions.
+            // Prefer the persistent MLT/MRT intent; fall back to any transient
+            // direction; finally default to left. Instrument approach traffic
+            // does NOT auto-enter the pattern — they fly runway heading to 2000
+            // AGL and await instructions.
             if (current is GoAroundPhase { ReenterPattern: true } && phases.IsComplete && phases.AssignedRunway is not null)
             {
-                phases.TrafficDirection ??= PatternDirection.Left;
+                phases.TrafficDirection = persistentDir ?? phases.TrafficDirection ?? PatternDirection.Left;
             }
 
             // Auto-cycle: if the phase list is complete and the aircraft is
             // in pattern mode, append the next circuit and clear clearances.
-            if (phases.IsComplete && phases.TrafficDirection is { } dir && phases.AssignedRunway is not null)
+            // The persistent direction (MLT/MRT) wins so a single-approach ERB/ELB
+            // doesn't redefine the pattern direction for subsequent circuits.
+            if (phases.IsComplete && (persistentDir ?? phases.TrafficDirection) is { } dir && phases.AssignedRunway is not null)
             {
+                // Re-stamp the transient field so phases built for the new circuit
+                // (and downstream pattern-mode predicates that read it) reflect the
+                // direction actually being flown.
+                phases.TrafficDirection = dir;
                 var runway = phases.PatternRunway ?? phases.AssignedRunway;
                 var airportRunways = Data.NavigationDatabase.Instance.GetRunways(runway.AirportId);
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(

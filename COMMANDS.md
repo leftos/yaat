@@ -697,6 +697,8 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 `PS` sets the pattern downwind offset distance. The crosswind extension and base extension scale proportionally. The override persists across pattern circuits.
 
+**Pattern direction persistence** — `MLT` / `MRT` / `CTO MLT` / `CTO MRT` / `GA MLT` / `GA MRT` set a persistent pattern-direction intent on the aircraft. The intent survives heading vectors (`FH` / `TR` / `TL`) that clear queued phases, and is **not** overridden by a single-approach clearance like `ERB 28L` / `ELB 28R` / `EF 28L`. After a touch-and-go on the single-approach side, the auto-cycled next circuit reverts to the persistent MLT/MRT direction. `CLAND` (full-stop) and `LAHSO` clear the persistent intent; the aircraft auto-exits the runway after touchdown.
+
 `FOLLOW` is a **VFR-only** command (per 7110.65 §7-6-7 "Sequencing"). It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF` in RPO mode; structured `RTIS` in solo training) — a pilot cannot follow traffic they haven't visually acquired. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
 
 - **Free pursuit** (lead not yet in a pattern, or follower far from the pattern): the follower turns toward the lead and matches the lead's speed with distance-based correction (±20 kts, wider free-flight spacing of 1.5/2.0/2.5 nm by category). Altitude is left at whatever the controller last assigned — real pilots do not dive/climb onto the lead; they maintain visual separation from their current level.

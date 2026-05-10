@@ -545,8 +545,13 @@ internal static class PatternCommandHandler
         );
         var waypoints = PatternGeometry.Compute(runway, category, newDirection, sizeOv, altOv, airportRunways);
 
-        // Set traffic direction — aircraft is now in pattern mode
+        // Set traffic direction — aircraft is now in pattern mode. Stamp both the
+        // transient PhaseList field (current circuit) and the persistent
+        // AircraftPattern field (survives FH/TR/TL phase clearing and ERB/ELB
+        // single-approach overrides) so future auto-cycles honor the controller
+        // intent without requiring a re-issue.
         aircraft.Phases.TrafficDirection = newDirection;
+        aircraft.Pattern.TrafficDirection = newDirection;
 
         // Update waypoints on existing pattern phases
         bool hasPatternPhases = PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
@@ -933,6 +938,7 @@ internal static class PatternCommandHandler
         if (trafficPattern is { } dir)
         {
             aircraft.Phases.TrafficDirection = dir;
+            aircraft.Pattern.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
 
@@ -956,6 +962,7 @@ internal static class PatternCommandHandler
         if (trafficPattern is { } dir)
         {
             aircraft.Phases.TrafficDirection = dir;
+            aircraft.Pattern.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
 
@@ -979,6 +986,7 @@ internal static class PatternCommandHandler
         if (trafficPattern is { } dir)
         {
             aircraft.Phases.TrafficDirection = dir;
+            aircraft.Pattern.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
 
@@ -1002,6 +1010,7 @@ internal static class PatternCommandHandler
         if (trafficPattern is { } dir)
         {
             aircraft.Phases.TrafficDirection = dir;
+            aircraft.Pattern.TrafficDirection = dir;
         }
         EnsurePatternMode(aircraft.Phases);
 
@@ -1398,6 +1407,7 @@ internal static class PatternCommandHandler
             }
 
             aircraft.Phases.TrafficDirection = patDir;
+            aircraft.Pattern.TrafficDirection = patDir;
 
             // Set pattern altitude override if provided (e.g., GA MLT 15)
             if (ga.TargetAltitude is not null)
@@ -1489,6 +1499,10 @@ internal static class PatternCommandHandler
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway.Designator;
         aircraft.Phases.TrafficDirection = null;
+        // CLAND signals full-stop intent — drop persistent pattern direction so
+        // PhaseRunner.cs:70 takes the post-landing exit branch instead of auto-
+        // cycling another circuit from a stale MLT/MRT.
+        aircraft.Pattern.TrafficDirection = null;
         if (ctl.NoDelete)
         {
             aircraft.Ground.AutoDeleteExempt = true;
@@ -1570,6 +1584,8 @@ internal static class PatternCommandHandler
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = runway.Designator;
         aircraft.Phases.TrafficDirection = null;
+        // LAHSO is always full-stop — drop persistent pattern direction.
+        aircraft.Pattern.TrafficDirection = null;
 
         return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {lahso.CrossingRunwayId}");
     }

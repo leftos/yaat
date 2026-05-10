@@ -571,6 +571,7 @@ internal static class DepartureClearanceHandler
     )
     {
         phases.TrafficDirection = ct.Direction;
+        aircraft.Pattern.TrafficDirection = ct.Direction;
 
         if (ct.PatternAltitude is not null)
         {

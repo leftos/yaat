@@ -36,13 +36,15 @@ internal static class GoAroundHelper
             Pilot.PilotResponder.SoloPositionsTower
         );
 
-        // VFR aircraft without a pattern direction get a sensible default. For
-        // parallel runways with L/R suffixes, the runway side determines the
-        // pattern (28L → left, 28R → right) per AIM 4-3-3 convention. Otherwise
-        // (single runway, or center parallel like 28C) fall back to left traffic.
+        // VFR aircraft without a pattern direction get a sensible default. The
+        // controller's last persistent MLT/MRT intent wins (preserves direction
+        // across landings/vectors). For parallel runways with L/R suffixes, the
+        // runway side determines the pattern (28L → left, 28R → right) per AIM
+        // 4-3-3 convention. Otherwise fall back to left traffic.
         if (ctx.Aircraft.FlightPlan.IsVfr && ctx.Aircraft.Phases.TrafficDirection is null)
         {
-            ctx.Aircraft.Phases.TrafficDirection = InferDefaultPatternDirection(ctx.Aircraft.Phases.AssignedRunway) ?? PatternDirection.Left;
+            ctx.Aircraft.Phases.TrafficDirection =
+                ctx.Aircraft.Pattern.TrafficDirection ?? InferDefaultPatternDirection(ctx.Aircraft.Phases.AssignedRunway) ?? PatternDirection.Left;
         }
 
         bool isPattern = ctx.Aircraft.Phases.TrafficDirection is not null;
