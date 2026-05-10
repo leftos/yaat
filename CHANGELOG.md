@@ -21,6 +21,7 @@
 - Pattern direction set by `MLT`/`MRT` now survives heading vectors and single-approach `ERB`/`ELB`/`EF` clearances; subsequent circuits revert to the original side.
 - `RFAS`, `S`, `NS`, and `DSR` issued during a pattern leg now adjust speed without cancelling the leg.
 - `TAXI` commands without a destination now hold once the aircraft enters the last named taxiway, instead of walking it to its dead-end.
+- STARS shows track history dots behind each aircraft on CRC; the trail stays visible across pauses.
 
 ## v0.2.1-alpha [2026/05/09]
 
