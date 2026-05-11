@@ -1,4 +1,5 @@
 using Yaat.LayoutInspector.Commands;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.LayoutInspector;
 
@@ -29,9 +30,35 @@ public static class Program
             return 2;
         }
 
-        if (!File.Exists(options.GeoJsonPath))
+        string? geoJsonPath = options.GeoJsonPath;
+
+        if (options.DownloadAirportId is { } downloadCode)
         {
-            Console.Error.WriteLine($"File not found: {options.GeoJsonPath}");
+            try
+            {
+                using var downloader = new AirportLayoutDownloader();
+                geoJsonPath = downloader.GetGeoJsonAsync(downloadCode).GetAwaiter().GetResult() is null
+                    ? null
+                    : downloader.GetCachePath(downloadCode);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to download airport layout for {downloadCode}: {ex.Message}");
+                return 1;
+            }
+
+            if (geoJsonPath is null)
+            {
+                Console.Error.WriteLine($"No airport layout available from vNAS for {downloadCode}");
+                return 1;
+            }
+
+            Console.Error.WriteLine($"Loaded airport {downloadCode} from {geoJsonPath}");
+        }
+
+        if ((geoJsonPath is null) || !File.Exists(geoJsonPath))
+        {
+            Console.Error.WriteLine($"File not found: {geoJsonPath}");
             return 1;
         }
 
@@ -41,7 +68,7 @@ public static class Program
         LayoutAnalyzer analyzer;
         try
         {
-            analyzer = LayoutAnalyzer.Load(options.GeoJsonPath, options.AirportCode, applyFillets: !options.NoFillets);
+            analyzer = LayoutAnalyzer.Load(geoJsonPath, options.AirportCode, applyFillets: !options.NoFillets);
         }
         catch (Exception ex)
         {

@@ -42,7 +42,7 @@ Step 8: Generate fillet arcs at intersections
 AirportGroundLayout (complete graph)
 ```
 
-**Entry point**: `GeoJsonParser.Parse()` in `/X/dev/yaat/src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`
+**Entry point**: `GeoJsonParser.Parse()` in `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`
 
 **Critical invariant**: During Steps 2-6, `GroundNode.Edges` adjacency lists remain EMPTY. All edges are added to `layout.Edges` only. At the end of Step 7, `RebuildAdjacencyLists()` populates each node's `Edges` list from the complete `layout.Edges` collection. This timing is essential because earlier steps need to perform lookups on `layout.Edges` directly.
 
@@ -50,7 +50,7 @@ AirportGroundLayout (complete graph)
 
 ## GeoJSON Parser
 
-File: `/X/dev/yaat/src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`
+File: `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`
 
 ### Input Format
 
@@ -231,7 +231,7 @@ Replaces eligible intersection nodes with bezier arcs at turns ≥15°. Details 
 
 ## Data Model: AirportGroundLayout
 
-File: `/X/dev/yaat/src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs`
+File: `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs`
 
 ### GroundNode
 
@@ -367,7 +367,7 @@ For straight edges: departure and arrival bearings are the same (straight line).
 
 ### CubicBezier
 
-File: `/X/dev/yaat/src/Yaat.Sim/Data/Airport/CubicBezier.cs`
+File: `src/Yaat.Sim/Data/Airport/CubicBezier.cs`
 
 Immutable struct representing a cubic bezier curve:
 
@@ -392,7 +392,7 @@ All curvature and bearing computations work in local Cartesian feet for accuracy
 
 ## Fillet Arc Generator
 
-File: `/X/dev/yaat/src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs`
+File: `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs`
 
 ### Overview
 
@@ -738,7 +738,7 @@ This preserves the tangent handle vector (P1-P0) but doesn't account for the cha
 
 ## TaxiwayWalk and Edge Walking
 
-File: `/X/dev/yaat/src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` (helpers section)
+File: `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` (helpers section)
 
 When computing tangent placement, if the desired tangent distance exceeds the first edge length, we "walk" along the taxiway chain to find continuation edges.
 
@@ -834,7 +834,7 @@ The BFS from 359 takes the G edge to 1288 and never reaches 1289, skipping the a
 
 ### Layout Inspector CLI
 
-File: `/X/dev/yaat/tools/Yaat.LayoutInspector/Program.cs`
+File: `tools/Yaat.LayoutInspector/Program.cs`
 
 Query the ground graph from the command line:
 
@@ -866,7 +866,7 @@ Enabled via `--validate` on LayoutInspector:
 
 ### Test Coverage
 
-E2E tests in `/X/dev/yaat/tests/Yaat.Sim.Tests/AirportE2ETests.cs`:
+E2E tests in `tests/Yaat.Sim.Tests/AirportE2ETests.cs`:
 
 - `OAK_HoldShortNodes_NotAtJunctions` — Hold-short nodes never sit at multi-taxiway junctions
 - `OAK_NoDuplicateEdgesOnNodes` — No node has duplicate edges in adjacency list

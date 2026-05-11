@@ -13,7 +13,7 @@ dotnet build
 dotnet run -- <geojson-path> [flags]
 ```
 
-GeoJSON files live in `X:\dev\vzoa\training-files\atctrainer-airport-files\`. NavData is auto-discovered from `tests/Yaat.Sim.Tests/TestData/` (walks up to `yaat.slnx`); override with `--navdata <dir>`.
+GeoJSON files are sourced two ways: pass a positional `<geojson-path>` (e.g. `tests/Yaat.Sim.Tests/TestData/oak.geojson`) or `--airport <FAA>` (e.g. `--airport OAK`) which fetches from the vNAS training-airports API and caches under `%LOCALAPPDATA%/yaat/cache/airports/` via `AirportLayoutDownloader`. The two forms are mutually exclusive. NavData is auto-discovered from `tests/Yaat.Sim.Tests/TestData/` (walks up to `yaat.slnx`); override with `--navdata <dir>`.
 
 ## Architecture
 

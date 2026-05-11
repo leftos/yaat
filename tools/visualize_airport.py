@@ -1,14 +1,49 @@
-"""Visualize OAK airport: raw GeoJSON features + runtime-generated graph nodes."""
+"""Visualize OAK airport: raw GeoJSON features + runtime-generated graph nodes.
+
+Reads the airport GeoJSON from the vNAS-API cache populated by
+``Yaat.LayoutInspector --airport OAK`` (or any other run that triggers
+``AirportLayoutDownloader``). Falls back to ``tests/Yaat.Sim.Tests/TestData/oak.geojson``
+if the cache is empty so the script still works in a fresh worktree.
+"""
 
 import json
+import os
 import pathlib
 
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 
-GEOJSON_PATH = pathlib.Path(
-    r"X:\dev\vzoa\training-files\atctrainer-airport-files\oak.geojson"
-)
+
+def _cache_geojson_path() -> pathlib.Path:
+    base = os.environ.get("YAAT_APPDATA_DIR")
+    if not base:
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            base = str(pathlib.Path(local) / "yaat")
+    if not base:
+        base = str(pathlib.Path.home() / ".local" / "share" / "yaat")
+    return pathlib.Path(base) / "cache" / "airports" / "OAK.geojson"
+
+
+def _fallback_geojson_path() -> pathlib.Path:
+    return pathlib.Path(__file__).resolve().parents[1] / "tests" / "Yaat.Sim.Tests" / "TestData" / "oak.geojson"
+
+
+def _resolve_geojson_path() -> pathlib.Path:
+    cache = _cache_geojson_path()
+    if cache.exists():
+        return cache
+    fallback = _fallback_geojson_path()
+    if fallback.exists():
+        return fallback
+    raise FileNotFoundError(
+        f"OAK GeoJSON not found. Populate the cache with "
+        f"'dotnet run --project tools/Yaat.LayoutInspector -- --airport OAK --dump > NUL' "
+        f"or place a file at {fallback}."
+    )
+
+
+GEOJSON_PATH = _resolve_geojson_path()
 LAYOUT_PATH = pathlib.Path(__file__).parent / "oak_layout_dump.json"
 OUTPUT_PATH = pathlib.Path(__file__).parent / "oak_airport_layout.png"
 

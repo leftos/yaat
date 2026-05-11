@@ -296,10 +296,11 @@ public class GeoJsonParserTests
     [Fact]
     public void OAK_TaxiwayB_HasHoldShortNodesForBothRunways()
     {
-        string geoJsonPath = Path.Combine("X:", "dev", "vzoa", "training-files", "atctrainer-airport-files", "oak.geojson");
+        TestVnasData.EnsureInitialized();
+        string geoJsonPath = Path.Combine("TestData", "oak.geojson");
         if (!File.Exists(geoJsonPath))
         {
-            return; // Skip if file not available
+            return; // Skip if local TestData is absent
         }
 
         string content = File.ReadAllText(geoJsonPath);
@@ -361,7 +362,8 @@ public class GeoJsonParserTests
     [Fact]
     public void DumpLayoutJson()
     {
-        string geoJsonPath = Path.Combine("X:", "dev", "vzoa", "training-files", "atctrainer-airport-files", "oak.geojson");
+        TestVnasData.EnsureInitialized();
+        string geoJsonPath = Path.Combine("TestData", "oak.geojson");
         if (!File.Exists(geoJsonPath))
         {
             return;
@@ -402,8 +404,7 @@ public class GeoJsonParserTests
         var dump = new { nodes, edges };
         string json = JsonSerializer.Serialize(dump, new JsonSerializerOptions { WriteIndented = true });
 
-        string outPath = Path.Combine("X:", "dev", "yaat", "tools", "oak_layout_dump.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
+        string outPath = Path.Combine(AppContext.BaseDirectory, "oak_layout_dump.json");
         File.WriteAllText(outPath, json);
         _output.WriteLine($"Wrote layout dump to {outPath}");
     }

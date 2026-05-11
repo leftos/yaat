@@ -7,13 +7,15 @@ description: "Query airport ground graph topology via LayoutInspector CLI tool"
 
 Query the airport ground graph for debugging ground/taxi/exit bugs. Wraps `tools/Yaat.LayoutInspector`.
 
-GeoJSON airport files are at:
-- `X:\dev\vzoa\training-files\atctrainer-airport-files\` (full set)
-- `tests/Yaat.Sim.Tests/TestData/<icao>.geojson` (whatever subset has been pulled into the test data — e.g. `oak.geojson`, `sfo.geojson`)
+GeoJSON airport files come from:
+- The vNAS training-airports API, fetched on demand via `--airport <FAA>` (cached at `%LOCALAPPDATA%/yaat/cache/airports/`). Preferred — works in any worktree without sibling-repo dependencies.
+- `tests/Yaat.Sim.Tests/TestData/<icao>.geojson` (committed subset for tests: oak, sfo, fll, fat, hwd, mer, rno, sjc). Pass these paths positionally when offline.
 
 ## Usage
 
 When the user asks about airport topology, runway exits, taxiway routing, node connectivity, or ground graph issues, use LayoutInspector to answer.
+
+In every command below `<geojson>` is either a positional path (e.g. `tests/Yaat.Sim.Tests/TestData/oak.geojson`) or `--airport <FAA>` (e.g. `--airport OAK`) which downloads and caches the layout under `%LOCALAPPDATA%/yaat/cache/airports/`. The two forms are mutually exclusive.
 
 ### Common Queries
 
@@ -111,4 +113,4 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 - Use `--debug-fillets` when investigating fillet arc issues.
 - Combine flags: `--exits 28R --json` gives structured exit data.
 - For repeatable flags, prefer the inline CSV form for short lists (`--node 619,621,1222`) and repeated `--node` for long ones (cleaner shell history).
-- For KOAK: `X:\dev\vzoa\training-files\atctrainer-airport-files\KOAK.geojson`
+- For KOAK: `--airport OAK` (fetches and caches) or `tests/Yaat.Sim.Tests/TestData/oak.geojson` (committed test data).

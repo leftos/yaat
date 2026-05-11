@@ -9,8 +9,12 @@ public static class UsageText
     public static void Print()
     {
         Console.WriteLine("Usage: Yaat.LayoutInspector <geojson-path> [flags]");
+        Console.WriteLine("       Yaat.LayoutInspector --airport <FAA-code> [flags]");
         Console.WriteLine();
         Console.WriteLine("Flags:");
+        Console.WriteLine("  --airport <FAA>          Fetch the layout from the vNAS training-airports API and cache");
+        Console.WriteLine("                           under %LOCALAPPDATA%/yaat/cache/airports/ (e.g. --airport OAK).");
+        Console.WriteLine("                           Mutually exclusive with the positional <geojson-path>.");
         Console.WriteLine("  --taxiway <name>[,<name>...]    Show nodes/edges for one or more taxiways");
         Console.WriteLine("  --runway <designator>[,...]     Show centerline/hold-shorts for one or more runways");
         Console.WriteLine("  --node <id>[,<id>...]    Show detail for one or more nodes (also repeatable)");

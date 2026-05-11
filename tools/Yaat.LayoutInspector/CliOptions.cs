@@ -7,7 +7,21 @@ namespace Yaat.LayoutInspector;
 /// </summary>
 public sealed record CliOptions
 {
-    public required string GeoJsonPath { get; init; }
+    /// <summary>
+    /// Path to a GeoJSON file on disk. Null when <see cref="DownloadAirportId"/> is set;
+    /// Program.cs resolves the downloaded cache path before passing the options on.
+    /// </summary>
+    public string? GeoJsonPath { get; init; }
+
+    /// <summary>
+    /// FAA code (e.g. <c>OAK</c>) requested via <c>--airport</c>. When set, the layout is
+    /// fetched from the vNAS training-airports API and cached under
+    /// <c>%LOCALAPPDATA%/yaat/cache/airports/</c>. Mutually exclusive with a positional path.
+    /// Note: distinct from <see cref="AirportCode"/>, which is the <c>--airport-code</c> override
+    /// used during GeoJSON parsing.
+    /// </summary>
+    public string? DownloadAirportId { get; init; }
+
     public string? AirportCode { get; init; }
     public string? NavDataDir { get; init; }
 
@@ -117,14 +131,18 @@ public sealed record CliOptions
 
         if (args.Length == 0)
         {
-            error = "missing <geojson-path>";
+            error = "missing <geojson-path> or --airport <code>";
             return false;
         }
 
-        string geoJsonPath = args[0];
+        // First arg is the positional <geojson-path> unless it's a flag. When the user
+        // invokes with --airport <CODE>, the path is resolved later from the cache.
+        string? geoJsonPath = args[0].StartsWith("--") ? null : args[0];
+        int startIndex = (geoJsonPath is null) ? 0 : 1;
 
         // Mutable scratch state used while walking the arg list. Copied into the
         // frozen record at the end.
+        string? downloadAirportId = null;
         string? airportCode = null;
         string? navdataDir = null;
         var taxiways = new List<string>();
@@ -168,10 +186,13 @@ public sealed record CliOptions
         var tickHoldShorts = new List<string>();
         string? tickCallsign = null;
 
-        for (int i = 1; i < args.Length; i++)
+        for (int i = startIndex; i < args.Length; i++)
         {
             switch (args[i].ToLowerInvariant())
             {
+                case "--airport" when i + 1 < args.Length:
+                    downloadAirportId = args[++i];
+                    break;
                 case "--airport-code" when i + 1 < args.Length:
                     airportCode = args[++i];
                     break;
@@ -373,9 +394,22 @@ public sealed record CliOptions
             }
         }
 
+        if ((geoJsonPath is null) && (downloadAirportId is null))
+        {
+            error = "missing <geojson-path> or --airport <code>";
+            return false;
+        }
+
+        if ((geoJsonPath is not null) && (downloadAirportId is not null))
+        {
+            error = "<geojson-path> and --airport are mutually exclusive";
+            return false;
+        }
+
         options = new CliOptions
         {
             GeoJsonPath = geoJsonPath,
+            DownloadAirportId = downloadAirportId,
             AirportCode = airportCode,
             NavDataDir = navdataDir,
             Taxiways = taxiways,

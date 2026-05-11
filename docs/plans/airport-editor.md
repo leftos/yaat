@@ -2,7 +2,7 @@
 
 ## Context
 
-Airport ground layouts for YAAT are defined as GeoJSON files in `X:\dev\vzoa\training-files\atctrainer-airport-files\`. Currently edited in QGIS, which is cumbersome and not purpose-built for the ATCTrainer format. This plan creates a standalone Avalonia desktop app that understands the 5 feature types natively, provides full CRUD with vertex snapping, and can read/write both split per-layer files and combined GeoJSON.
+Airport ground layouts for YAAT are served by the vNAS training-airports API (`https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`) and fetched on demand by `AirportLayoutDownloader` (cache: `%LOCALAPPDATA%/yaat/cache/airports/`). Layouts are currently edited in QGIS, which is cumbersome and not purpose-built for the ATCTrainer format. This plan creates a standalone Avalonia desktop app that understands the 5 feature types natively, provides full CRUD with vertex snapping, and can read/write both split per-layer files and combined GeoJSON.
 
 ## Data Format Summary
 
@@ -205,7 +205,7 @@ tests/Yaat.AirportEditor.Tests/
 
 1. `dotnet build` — 0 warnings, 0 errors across entire solution
 2. `dotnet test` — all existing + new tests pass
-3. Manual: `dotnet run --project src/Yaat.AirportEditor` → open `X:\dev\vzoa\training-files\atctrainer-airport-files\oak\` → see OAK rendered
+3. Manual: `dotnet run --project src/Yaat.AirportEditor` → open the cached `OAK.geojson` (or download it via the editor's "Fetch from vNAS" path) → see OAK rendered
 4. Manual: draw a new taxiway with vertex snapping → save → re-open → verify persistence
 5. Manual: open `oak.geojson` (combined) → export combined → diff output matches input
 6. Manual: Ctrl+Z/Y undo/redo through add/move/delete sequence
