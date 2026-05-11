@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Minimized pop-out windows preserve their restored position and size across app restarts.
+
 ## v0.2.2-alpha [2026/05/09]
 
 ### Highlights

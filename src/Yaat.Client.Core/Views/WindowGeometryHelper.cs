@@ -21,9 +21,8 @@ public sealed class WindowGeometryHelper
     private readonly WindowSystemMenuHelper _systemMenuHelper;
     private readonly WindowNativeMenuHelper _nativeMenuHelper;
 
-    private PixelPoint _lastNormalPosition;
-    private double _lastNormalWidth;
-    private double _lastNormalHeight;
+    private NormalWindowGeometry _lastNormalGeometry;
+    private NormalWindowGeometry? _previousNormalGeometry;
     private string _baseTitle = string.Empty;
     private bool _applyingTitle;
 
@@ -81,9 +80,7 @@ public sealed class WindowGeometryHelper
             _window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
-        _lastNormalWidth = _window.Width;
-        _lastNormalHeight = _window.Height;
-        _lastNormalPosition = _window.Position;
+        _lastNormalGeometry = CaptureCurrentGeometry();
 
         _baseTitle = _window.Title ?? string.Empty;
         ApplyTitle();
@@ -180,9 +177,8 @@ public sealed class WindowGeometryHelper
     {
         if (_window.WindowState == WindowState.Normal)
         {
-            _lastNormalPosition = _window.Position;
-            _lastNormalWidth = _window.Width;
-            _lastNormalHeight = _window.Height;
+            _previousNormalGeometry = _lastNormalGeometry;
+            _lastNormalGeometry = CaptureCurrentGeometry();
         }
     }
 
@@ -193,16 +189,8 @@ public sealed class WindowGeometryHelper
         var isNotNormal = _window.WindowState != WindowState.Normal;
         var isMax = _window.WindowState == WindowState.Maximized;
 
-        var geo = new SavedWindowGeometry
-        {
-            X = isNotNormal ? _lastNormalPosition.X : _window.Position.X,
-            Y = isNotNormal ? _lastNormalPosition.Y : _window.Position.Y,
-            Width = isNotNormal ? _lastNormalWidth : _window.Width,
-            Height = isNotNormal ? _lastNormalHeight : _window.Height,
-            IsMaximized = isMax,
-            ScreenIndex = GetCurrentScreenIndex(),
-            IsTopmost = _window.Topmost,
-        };
+        var normalGeometry = GetNormalGeometryForPersistence(isNotNormal);
+        var geo = CreateSavedGeometry(normalGeometry, isMax);
 
         _preferences.SetWindowGeometry(_windowName, geo);
     }
@@ -213,25 +201,48 @@ public sealed class WindowGeometryHelper
 
         var isNotNormal = _window.WindowState != WindowState.Normal;
         var isMax = _window.WindowState == WindowState.Maximized;
-        var geo = new SavedWindowGeometry
-        {
-            X = isNotNormal ? _lastNormalPosition.X : _window.Position.X,
-            Y = isNotNormal ? _lastNormalPosition.Y : _window.Position.Y,
-            Width = isNotNormal ? _lastNormalWidth : _window.Width,
-            Height = isNotNormal ? _lastNormalHeight : _window.Height,
-            IsMaximized = isMax,
-            ScreenIndex = GetCurrentScreenIndex(),
-            IsTopmost = _window.Topmost,
-        };
+        var normalGeometry = GetNormalGeometryForPersistence(isNotNormal);
+        var geo = CreateSavedGeometry(normalGeometry, isMax);
 
         _preferences.SetWindowGeometry(_windowName, geo);
     }
 
-    private int GetCurrentScreenIndex()
+    private SavedWindowGeometry CreateSavedGeometry(NormalWindowGeometry geometry, bool isMaximized) =>
+        new()
+        {
+            X = geometry.Position.X,
+            Y = geometry.Position.Y,
+            Width = geometry.Width,
+            Height = geometry.Height,
+            IsMaximized = isMaximized,
+            ScreenIndex = GetCurrentScreenIndex(geometry),
+            IsTopmost = _window.Topmost,
+        };
+
+    private NormalWindowGeometry GetNormalGeometryForPersistence(bool isNotNormal)
+    {
+        if (!isNotNormal)
+        {
+            return CaptureCurrentGeometry();
+        }
+
+        if (IsIconicOrigin(_lastNormalGeometry) && _previousNormalGeometry is { } previousGeometry)
+        {
+            return previousGeometry;
+        }
+
+        return _lastNormalGeometry;
+    }
+
+    private NormalWindowGeometry CaptureCurrentGeometry() => new(_window.Position, _window.Width, _window.Height);
+
+    private static bool IsIconicOrigin(NormalWindowGeometry geometry) => geometry.Position is { X: 0, Y: 0 };
+
+    private int GetCurrentScreenIndex(NormalWindowGeometry geometry)
     {
         var screens = _window.Screens.All;
-        var centerX = _window.Position.X + (int)(_window.Width / 2);
-        var centerY = _window.Position.Y + (int)(_window.Height / 2);
+        var centerX = geometry.Position.X + (int)(geometry.Width / 2);
+        var centerY = geometry.Position.Y + (int)(geometry.Height / 2);
         var center = new PixelPoint(centerX, centerY);
 
         for (var i = 0; i < screens.Count; i++)
@@ -244,4 +255,6 @@ public sealed class WindowGeometryHelper
 
         return 0;
     }
+
+    private readonly record struct NormalWindowGeometry(PixelPoint Position, double Width, double Height);
 }
