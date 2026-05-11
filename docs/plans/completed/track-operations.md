@@ -57,8 +57,8 @@ M4 adds STARS track ownership, handoffs, point-outs, and related operations. Thi
 
 ### Work Spans Three Codebases
 
-- **Yaat.Sim** (`X:\dev\yaat\src\Yaat.Sim\`) — Track ownership types, AircraftState fields, new CanonicalCommandType values, parsed command records, dispatch logic
-- **Yaat.Client** (`X:\dev\yaat\src\Yaat.Client\`) — ATCTrainer/VICE patterns, CommandMetadata, client UI, settings
+- **Yaat.Sim** (`src/Yaat.Sim/`) — Track ownership types, AircraftState fields, new CanonicalCommandType values, parsed command records, dispatch logic
+- **Yaat.Client** (`src/Yaat.Client/`) — ATCTrainer/VICE patterns, CommandMetadata, client UI, settings
 - **yaat-server** (`..\yaat-server\src\Yaat.Server\`) — Position registry, scenario loading, CRC DTO population, ProcessStarsCommand handling, StarsConsolidation, auto-accept timer
 
 ---

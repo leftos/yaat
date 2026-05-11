@@ -7,9 +7,9 @@ M0 (proof of concept) and M1 (scenario loading + RPO commands) are complete. Air
 M2 introduces the **Phase system** — the foundation for all future behavior — and uses it to implement tower operations: takeoff, landing, traffic pattern, touch-and-go, and go-around. This transforms YAAT from an airborne-only RPO tool into a local control trainer.
 
 Work spans three codebases:
-- **Yaat.Sim** (`X:\dev\yaat\src\Yaat.Sim\`) — Phase infrastructure, pattern geometry, ground roll physics
+- **Yaat.Sim** (`src/Yaat.Sim/`) — Phase infrastructure, pattern geometry, ground roll physics
 - **Yaat.Server** (`..\yaat-server\src\Yaat.Server\`) — Phase implementations, tower commands, runway data, hub updates
-- **Yaat.Client** (`X:\dev\yaat\src\Yaat.Client\`) — Phase display, tower state UI
+- **Yaat.Client** (`src/Yaat.Client/`) — Phase display, tower state UI
 
 ### Key Design Decisions
 
@@ -392,7 +392,7 @@ TowerCab:  show when within 20nm of subscribed airport AND altitude <= field_ele
 **Impact on M2:** OnRunway aircraft and aircraft in ground phases (takeoff roll, landing rollout, touch-and-go) will not appear in CRC until we implement TowerCab and ASDEX DTO support. This is a blocking issue for tower training realism — the controller needs to see aircraft on the runway.
 
 **Reference code:**
-- C# DTO definitions: `X:\dev\vatsim-vnas\messaging\Entities\` (TowerCabAircraftDto.cs, AsdexTargetDto.cs, AsdexTrackDto.cs, AsdexTrackStatus.cs)
+- C# DTO definitions: `..\vatsim-vnas\messaging\Entities\` (TowerCabAircraftDto.cs, AsdexTargetDto.cs, AsdexTrackDto.cs, AsdexTrackStatus.cs)
 - Rust DTO definitions: `vatsim-server-rs/crates/messaging/src/dtos.rs` lines 434-766
 - ASDEX visibility logic: `vatsim-server-rs/crates/server/src/clientstate/updates.rs`
 

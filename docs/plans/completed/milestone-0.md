@@ -27,7 +27,7 @@ Both repos will be published to GitHub under `leftos` (yaat-server private, yaat
 1. Create `..\yaat-server\` with `dotnet new sln` + `dotnet new web` under `src/YaatServer/`
 2. Add NuGet: `MessagePack` (neuecc v3.x)
 3. Set up `Program.cs` with WebSocket middleware, SignalR for training hub, route stubs
-4. Copy `ZOA.json` from `X:\dev\vatsim-server-rs\data\ZOA.json` into `Data/ArtccConfigs/`
+4. Copy `ZOA.json` from `..\vatsim-server-rs\data\ZOA.json` into `Data/ArtccConfigs/`
 5. Add `.gitignore`, init git repo, create private GitHub repo `leftos/yaat-server`
 
 ### Phase 2: Protocol layer (`Protocol/`)
@@ -95,7 +95,7 @@ ENTRYPOINT ["dotnet", "YaatServer.dll"]
 
 ### Phase 9: yaat client (Avalonia) — COMPLETED
 
-1. Created `X:\dev\yaat\yaat.slnx` with two projects: `src/Yaat.Client/` (Avalonia app) and `src/Yaat.Sim/` (shared sim library)
+1. Created `yaat.slnx` with two projects: `src/Yaat.Client/` (Avalonia app) and `src/Yaat.Sim/` (shared sim library)
 2. NuGet (Yaat.Client): Avalonia 11.2.5, Avalonia.Desktop, Avalonia.Themes.Fluent, Avalonia.Controls.DataGrid, Avalonia.Fonts.Inter, CommunityToolkit.Mvvm 8.4.0, Microsoft.AspNetCore.SignalR.Client 8.0.12
 3. `Services/ServerConnection.cs` — SignalR JSON client to `/hubs/training` with DTOs (AircraftDto, SpawnAircraftDto) as records
 4. `Models/AircraftModel.cs` — ObservableObject with callsign, type, lat, lon, heading, alt, speed, beaconCode
@@ -139,13 +139,13 @@ Custom: 4-element tuple `[name, facilityId, subset, sectorId]` (not a map)
 
 | Purpose | Source |
 |---------|--------|
-| Varint encoding | `X:\dev\vatsim-server-rs\crates\messaging\src\lib.rs` |
-| DTO field ordering | `X:\dev\vatsim-server-rs\crates\messaging\src\dtos.rs` |
-| Message parsing | `X:\dev\vatsim-server-rs\crates\messaging\src\appmessage.rs` |
-| Client lifecycle | `X:\dev\vatsim-server-rs\crates\server\src\clientstate\mod.rs` |
-| Handshake + protocol | `X:\dev\vatsim-server-rs\crates\server\src\clientstate\protocol.rs` |
-| Update generation | `X:\dev\vatsim-server-rs\crates\server\src\clientstate\updates.rs` |
-| ARTCC config format | `X:\dev\vatsim-server-rs\data\ZOA.json` |
+| Varint encoding | `..\vatsim-server-rs\crates\messaging\src\lib.rs` |
+| DTO field ordering | `..\vatsim-server-rs\crates\messaging\src\dtos.rs` |
+| Message parsing | `..\vatsim-server-rs\crates\messaging\src\appmessage.rs` |
+| Client lifecycle | `..\vatsim-server-rs\crates\server\src\clientstate\mod.rs` |
+| Handshake + protocol | `..\vatsim-server-rs\crates\server\src\clientstate\protocol.rs` |
+| Update generation | `..\vatsim-server-rs\crates\server\src\clientstate\updates.rs` |
+| ARTCC config format | `..\vatsim-server-rs\data\ZOA.json` |
 
 ## Verification
 

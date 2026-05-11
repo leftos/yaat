@@ -5,9 +5,9 @@
 YAAT's M0 proof-of-concept is complete: CRC sees hardcoded aircraft, the Avalonia client connects and displays them. M1 transforms YAAT into a functional RPO trainer by adding scenario loading, flight physics with three-axis interpolation, and RPO commands (heading/altitude/speed/squawk).
 
 Work spans three codebases:
-- **Yaat.Sim** (`X:\dev\yaat\src\Yaat.Sim\`) — shared physics + state library
+- **Yaat.Sim** (`src/Yaat.Sim/`) — shared physics + state library
 - **Yaat.Server** (`..\yaat-server\src\Yaat.Server\`) — scenario loading, commands, hub expansion
-- **Yaat.Client** (`X:\dev\yaat\src\Yaat.Client\`) — scenario browser, command input, sim controls
+- **Yaat.Client** (`src/Yaat.Client/`) — scenario browser, command input, sim controls
 
 ## Pre-step: CLAUDE.md Updates
 

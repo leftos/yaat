@@ -14,7 +14,7 @@ Do not move or fork those sources casually. Codex wrappers should point back to 
 
 ## YAAT Rules To Preserve
 
-- Run from `X:\dev\yaat`; the sibling server repo is `..\yaat-server`.
+- Run from the YAAT repo root; the sibling server repo is `..\yaat-server`.
 - Do not inspect, print, summarize, copy, or expose secrets or credential files such as `.env`, `.key`, `.pem`, `.pfx`, `.p12`, `credentials`, or `secrets`.
 - Tooling or scripts may load environment variables from those files into the process environment when needed for local commands, as long as secret values are not displayed in tool output, included in prompts, written to logs, committed, or otherwise surfaced to the agent/user conversation.
 - Prefer loading only the specific variables needed for the task. Verify secret presence with boolean checks only; never echo or print secret values.

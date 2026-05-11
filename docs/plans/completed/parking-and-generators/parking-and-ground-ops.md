@@ -68,7 +68,7 @@ Pass `_groundData` (the injected `IAirportGroundData`) to `ScenarioLoader.Load()
 
 ## CommandDispatcher.cs — Ground Command Fix
 
-**File:** `X:\dev\yaat\src\Yaat.Sim\Commands\CommandDispatcher.cs`
+**File:** `src/Yaat.Sim/Commands/CommandDispatcher.cs`
 
 ### Dispatch method (line 114)
 

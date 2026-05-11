@@ -45,7 +45,7 @@
 ```
 AGENTS.md                         # Codex project wrapper; points Codex back to CLAUDE.md and maps Claude agents/commands/hooks to Codex behavior.
 Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironments.json
-tools/codex-yaat.ps1              # Launches Codex from X:\dev\yaat and adds ..\yaat-server as an extra writable/readable directory.
+tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
 tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.

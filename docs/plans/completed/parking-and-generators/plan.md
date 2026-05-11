@@ -111,7 +111,7 @@ Details: [generators.md](generators.md)
 ## Scenario Schema Support Status
 
 Living reference — update checkboxes as each phase completes.
-Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
+Reference examples: `..\lc-trainer\docs\atctrainer-scenario-examples\`
 
 **Legend:** [x] Implemented — [~] Parsed only — [ ] Not supported
 
