@@ -80,6 +80,17 @@ python tools/bug_bundle.py scenario <bundle.zip> --aircraft N346G
 python tools/bug_bundle.py logs <bundle.zip>
 ```
 
+**Trim a bundle to a shorter time window (in place):**
+```bash
+python tools/bug_bundle.py trim <bundle.zip> --max-seconds 90
+python tools/bug_bundle.py trim <bundle.zip> --max-snapshots 60 --out .tmp/trimmed.zip
+```
+Drops snapshots past `--max-seconds N` (keeps snapshots whose `ElapsedSeconds <= N`) or keeps only the first `--max-snapshots N` in index order. Actions, scenario, weather, ARTCC config, layouts, and logs are preserved unchanged; the manifest's `Snapshots` index is rewritten to match. With `--out` writes a new file; without `--out` overwrites the input bundle. Use it to:
+- Shrink a TestData fixture to just the snapshots needed to reproduce a bug, so the test starts replaying from the relevant time window faster.
+- Cut a large recording (50+ MB) into a focused fixture before committing it to `tests/Yaat.Sim.Tests/TestData/`.
+- Isolate "pre-bug" state when the recording captures minutes of unrelated taxi/cruise time before the moment of interest. Pair with `history --callsign X` to pick a cutoff just past the symptom.
+- Pre-trim before `install --issue N` to keep TestData lean. Always verify the trimmed bundle with `validate` afterwards.
+
 **Install into TestData (local path):**
 ```bash
 python tools/bug_bundle.py install <local.zip> --issue 134 --desc oak-runway-exit
@@ -118,6 +129,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `weather` | Print `weather.json` if present |
 | `layouts` | List airport IDs, `--airport X` to dump one, `--all --out-dir D` for all |
 | `logs` | Extract `yaat-client.log`/`yaat-server.log` to `.tmp/` |
+| `trim` | Shrink a bundle by dropping late snapshots (`--max-seconds N` or `--max-snapshots N`, optional `--out`); preserves actions/scenario/weather/logs and rewrites the manifest's snapshot index |
 | `install` | Copy into TestData as `[issue{N}-]{desc}-recording[.yaat-bug-report-bundle].zip` (`--issue` optional for local installs) |
 | `validate` | Manifest + Brotli decompression integrity check |
 
