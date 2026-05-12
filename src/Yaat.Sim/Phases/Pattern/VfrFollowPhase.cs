@@ -329,9 +329,18 @@ public sealed class VfrFollowPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
+            // Altitude/speed adjustments don't cancel the follow — controllers
+            // adjust trailing-aircraft separation without breaking the visual.
+            CanonicalCommandType.ClimbMaintain
+            or CanonicalCommandType.DescendMaintain
+            or CanonicalCommandType.Speed
+            or CanonicalCommandType.Mach
+            or CanonicalCommandType.ReduceToFinalApproachSpeed
+            or CanonicalCommandType.ResumeNormalSpeed
+            or CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            // Any other command (heading/altitude/speed/pattern/etc.) clears
-            // this phase and hands control back to the controller's direct targets.
+            // Any other command (heading/pattern-leg/etc.) clears this phase
+            // and hands control back to the controller's direct targets.
             _ => CommandAcceptance.ClearsPhase,
         };
     }

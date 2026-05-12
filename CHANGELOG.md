@@ -4,6 +4,7 @@
 
 ### Fixed
 - `CM`/`DM` issued during initial climb after takeoff no longer cancels the heading from `CTO`; the aircraft keeps turning to the cleared heading while the new altitude target applies.
+- Altitude and speed commands (`CM`/`DM`/`SPD`/`RFAS`/`RSP`/`DSR`/`M`) are additive across the takeoff climb, the go-around, the visual follow, and final approach outside 5 nm — adjusting an altitude or speed no longer cancels the active phase's heading, follow target, or missed-approach climb.
 - Minimized pop-out windows preserve their restored position and size across app restarts.
 
 ## v0.2.2-alpha [2026/05/09]
