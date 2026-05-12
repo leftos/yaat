@@ -214,8 +214,17 @@ public sealed class GroundNavigator
     /// entry point on the segment line. Otherwise synthesis is skipped and a
     /// warning is logged — the straight's pure-pursuit steering carries on
     /// and the aircraft cuts the corner without a dedicated primitive.
+    ///
+    /// Floor sized to absorb post-pushback lateral drift: a jet leaving a
+    /// parking spot starts on its parking heading (often 60-170° off the
+    /// ramp segment direction), and pure-pursuit needs ~30-50 ft of
+    /// translation to converge onto the line. At the jet nose-wheel minimum
+    /// radius (25 ft) the proportional 0.15×r term gives only 3.75 ft of
+    /// slack, which the typical 3-5 ft post-pushback drift just exceeds —
+    /// the synth then skips at the first ramp corner and the cascade through
+    /// short follow-on segments lands the aircraft spinning off-line.
     /// </summary>
-    private const double TangentEntryStrictToleranceFt = 3.0;
+    private const double TangentEntryStrictToleranceFt = 5.0;
 
     /// <summary>
     /// Cached plan for an upcoming synthesised slow-turn: when and where in
