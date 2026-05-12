@@ -1,0 +1,109 @@
+[
+  {
+    "id": "bug-triage",
+    "name": "Bug triage",
+    "description": "Investigate one or more bug reports in parallel sessions. Mirrors the Launch Bug Terminals VSCode extension (tools/vscode-launch-bugs/extension.js): same prompt template, same trailing context block (bundle / client log / server log), same Shift+Tab×4 plan-mode injector, same 6 s / 3 s pacing.",
+    "prompt_sources": [
+      { "kind": "file" },
+      { "kind": "folder", "relative_path": "docs/plans/open-issues" },
+      { "kind": "inline" }
+    ],
+    "prompt_template": "{prompt}\n\nInvestigate this bug and plan a fix. Ask the user questions if you need to with the AskUserQuestion tool. Reference @docs/e2e-tdd-issue-debugging.md.",
+    "context_footer_lines": [
+      { "label": "Bug report bundle", "variable": "bundle" },
+      { "label": "Client log", "variable": "client_log" },
+      { "label": "Server log (local)", "variable": "local_server_log" },
+      { "label": "Server log (YAAT1)", "variable": "prod_server_log" }
+    ],
+    "variables": [
+      {
+        "name": "bundle",
+        "label": "Bug report bundle (zip)",
+        "kind": { "kind": "file_path", "extensions": ["zip"] },
+        "prompt_at_launch": true,
+        "default": null,
+        "optional": true
+      },
+      {
+        "name": "client_log",
+        "label": "Client log",
+        "kind": {
+          "kind": "literal_path",
+          "path": "${LOCALAPPDATA}/yaat/yaat-client.log"
+        },
+        "prompt_at_launch": false,
+        "default": null,
+        "optional": true
+      },
+      {
+        "name": "local_server_log",
+        "label": "Local server log",
+        "kind": { "kind": "file_path", "extensions": ["log", "txt"] },
+        "prompt_at_launch": true,
+        "default": null,
+        "optional": true
+      },
+      {
+        "name": "prod_minutes",
+        "label": "YAAT1 production: minutes of logs (blank = skip)",
+        "kind": { "kind": "text" },
+        "prompt_at_launch": true,
+        "default": null,
+        "optional": true
+      },
+      {
+        "name": "prod_server_log",
+        "label": "Production server log (YAAT1)",
+        "kind": {
+          "kind": "script",
+          "cmd": "pwsh",
+          "args": [
+            "-NoProfile",
+            "-File",
+            "{repo_root}/tools/fetch-server-logs.ps1",
+            "-Minutes",
+            "{prod_minutes}"
+          ],
+          "extract_pattern": "(?m)^Saved \\d+ lines to (.+)$",
+          "timeout_ms": 120000,
+          "skip_if_empty": "prod_minutes"
+        },
+        "prompt_at_launch": false,
+        "default": null,
+        "optional": true
+      }
+    ],
+    "branch_template": "bug/{date}/{index}-{slug}",
+    "session_label_template": "bug-{index}: {slug}",
+    "default_use_worktree": true,
+    "dangerously_skip_permissions": true,
+    "model": null,
+    "permission_mode": null,
+    "agent": "claude",
+    "codex_sandbox": null,
+    "tab_grouping": {
+      "kind": "new_tab",
+      "layout": "auto_grid",
+      "max_panes_per_tab": 6,
+      "tab_name_template": "bugs {date}"
+    },
+    "injector": {
+      "startup_delay_ms": 6000,
+      "pre_input": [
+        { "kind": "write", "data_b64": "G1ta" },
+        { "kind": "delay", "ms": 200 },
+        { "kind": "write", "data_b64": "G1ta" },
+        { "kind": "delay", "ms": 200 },
+        { "kind": "write", "data_b64": "G1ta" },
+        { "kind": "delay", "ms": 200 },
+        { "kind": "write", "data_b64": "G1ta" },
+        { "kind": "delay", "ms": 500 }
+      ],
+      "post_input": [
+        { "kind": "delay", "ms": 500 },
+        { "kind": "text", "content": "", "newline": true }
+      ]
+    },
+    "stagger_ms": 3000
+  }
+]
