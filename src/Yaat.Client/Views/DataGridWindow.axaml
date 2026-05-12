@@ -3,7 +3,7 @@
         xmlns:views="using:Yaat.Client.Views"
         x:Class="Yaat.Client.Views.DataGridWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="Aircraft List">
+        Title="{Binding AircraftListTitle, FallbackValue='Aircraft List'}">
 
     <views:DataGridView x:Name="PopOutDataGridView" />
 

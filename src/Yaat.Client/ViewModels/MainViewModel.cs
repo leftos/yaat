@@ -488,6 +488,40 @@ public partial class MainViewModel : ObservableObject
 
     public DataGridCollectionView AircraftView { get; }
 
+    /// <summary>
+    /// Count of delayed-spawn aircraft present at scenario load. Drives the
+    /// "to begin with" gate on <see cref="AircraftListTitle"/>: scenarios that
+    /// start with zero delayed spawns never surface a count.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AircraftListTitle))]
+    private int _initialDelayedSpawnCount;
+
+    /// <summary>
+    /// Live count of aircraft still waiting to spawn. Decremented when an
+    /// aircraft's <see cref="AircraftModel.IsDelayed"/> flips to false (the
+    /// server's spawn event arrives) or when a delayed entry is deleted.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AircraftListTitle))]
+    private int _pendingDelayedSpawnCount;
+
+    public string AircraftListTitle
+    {
+        get
+        {
+            if (InitialDelayedSpawnCount == 0)
+            {
+                return "Aircraft List";
+            }
+            if (PendingDelayedSpawnCount <= 0)
+            {
+                return "Aircraft List (No pending spawns)";
+            }
+            return PendingDelayedSpawnCount == 1 ? "Aircraft List (1 pending spawn)" : $"Aircraft List ({PendingDelayedSpawnCount} pending spawns)";
+        }
+    }
+
     [ObservableProperty]
     private string _aircraftFilterText = "";
 

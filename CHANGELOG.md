@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Aircraft List title shows the pending delayed-spawn count; reads "No pending spawns" once the last delayed aircraft fires.
+
 ### Fixed
 - Minimized pop-out windows preserve their restored position and size across app restarts.
 
