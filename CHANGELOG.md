@@ -4,6 +4,7 @@
 
 ### Added
 - Aircraft List title shows the pending delayed-spawn count; reads "No pending spawns" once the last delayed aircraft fires.
+- Aircraft right-click menus (aircraft list, ground, radar) include a Favorite Commands submenu that runs the active favorites against the clicked aircraft.
 
 ### Changed
 - IFR `CTO` only accepts bare `CTO` (follow SID) or `CTO` with a numeric heading vector. Pattern and runway-relative modifiers (`MRC`/`MRD`/`MR{N}`, `MLC`/`MLD`/`ML{N}`, `MRH`/`MSO`/`RH`, `OC`, `DCT`/`TLDCT`/`TRDCT`, `MLT`/`MRT`) are now rejected on IFR aircraft with a message explaining the restriction.

@@ -379,6 +379,9 @@ public partial class GroundView : UserControl
         menu.AddCommandTextBox(cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
         menu.Items.Add(new Separator());
 
+        menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
+        menu.Items.Add(new Separator());
+
         if (phase == "At Parking")
         {
             menu.Items.Add(CreateMenuItem("Push back", () => vm.PushbackAsync(callsign, initials)));

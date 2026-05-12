@@ -92,6 +92,9 @@ public partial class RadarView
         menu.AddCommandTextBox(cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
         menu.Items.Add(new Separator());
 
+        menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
+        menu.Items.Add(new Separator());
+
         var profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
         foreach (var group in profile.PrimaryGroups)
