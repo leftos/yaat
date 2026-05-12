@@ -143,39 +143,16 @@ public partial class FlightPlanEditorWindow : Window
 
     private void OnAmendClick(object? sender, RoutedEventArgs e)
     {
-        int? cruiseSpeed = int.TryParse(SpdBox.Text, out var spd) ? spd : null;
-
-        var altText = AltBox.Text?.Trim() ?? "";
-        var parsed = AircraftModel.ParseAltitudeField(altText);
-        string? flightRules = parsed?.FlightRules;
-        int? cruiseAlt = parsed?.CruiseAltitude;
-
-        var typText = TypBox.Text?.Trim().ToUpperInvariant() ?? "";
-        var eqText = EqBox.Text?.Trim().ToUpperInvariant() ?? "";
-        // Match CRC: when the type is set but the equipment suffix is left blank, default to A.
-        if (!string.IsNullOrEmpty(typText) && string.IsNullOrEmpty(eqText))
-        {
-            eqText = "A";
-        }
-
-        // Re-glue any RMK/ prefix that was hidden during editing so the protocol header
-        // (+/V/PILOT/, etc.) round-trips intact.
-        var rmkText = RmkBox.Text?.Trim() ?? "";
-        var rebuiltRemarks = string.IsNullOrEmpty(_strippedRemarksPrefix) ? rmkText : _strippedRemarksPrefix + "RMK/" + rmkText;
-
-        var amendment = new FlightPlanAmendment(
-            AircraftType: typText,
-            EquipmentSuffix: eqText,
-            Departure: DepBox.Text?.Trim().ToUpperInvariant(),
-            Destination: DestBox.Text?.Trim().ToUpperInvariant(),
-            CruiseSpeed: cruiseSpeed,
-            CruiseAltitude: cruiseAlt,
-            FlightRules: flightRules,
-            Route: RteBox.Text?.Trim().ToUpperInvariant(),
-            Remarks: rebuiltRemarks,
-            Scratchpad1: null,
-            Scratchpad2: null,
-            BeaconCode: null
+        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+            typText: TypBox.Text,
+            eqText: EqBox.Text,
+            depText: DepBox.Text,
+            destText: DestBox.Text,
+            spdText: SpdBox.Text,
+            altText: AltBox.Text,
+            rteText: RteBox.Text,
+            rmkText: RmkBox.Text,
+            strippedRemarksPrefix: _strippedRemarksPrefix
         );
 
         _onAmend(_aircraft.Callsign, amendment);
