@@ -10,6 +10,27 @@ to proceed anyway or stop and configure the secret first
 gate — the build succeeds either way, but users expecting a licensed
 build should be told upfront.
 
+## Step 0a: Consolidate recordings
+
+Invoke the `consolidate-recordings` skill before any release work. It hashes
+all `.zip` files under `tests/Yaat.Sim.Tests/TestData/`, collapses duplicates,
+rewrites `.cs` references, and commits the result. If duplicates exist they
+shouldn't ride along inside a release commit unnoticed — handle them now.
+
+If the dry-run reports zero duplicates, the skill exits without committing
+and we continue. If it produces a cleanup commit, note the SHA — it'll be
+the parent of the release commit.
+
+## Step 0b: Run the full cross-repo test suite
+
+Run `pwsh tools/test-all.ps1` before the release commit goes out. It builds
+and tests yaat + yaat-server in Release configuration; failures here would
+ship to users. Tee to `.tmp/test-all-prerelease.log` so the user can review
+without re-running.
+
+If anything fails, stop and surface it. Do not proceed to the version-bump
+commit on a red suite — fix forward (or abort the release), then re-run.
+
 ## Step 1: Read current version
 Read `Directory.Build.props` at the repo root to get the current `<Version>` value.
 
