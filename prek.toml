@@ -45,6 +45,19 @@ types = ["c#"]
 require_serial = true
 stages = ["pre-commit"]
 
+# Mirrors the CI guard in .github/workflows/ci.yml. The shipped HTML is opened
+# by Help → Command Cheatsheet; a stale HTML would show users an out-of-date
+# command list. Triggers only when the JSON, HTML, or generator script changes
+# so day-to-day commits don't pay the cost.
+[[repos.hooks]]
+id = "cheatsheet-sync"
+name = "command cheatsheet HTML in sync with JSON"
+entry = "node tools/build-cheatsheet.mjs --check"
+language = "system"
+files = '^(docs/command-cheatsheet\.(json|html)|tools/build-cheatsheet\.mjs)$'
+pass_filenames = false
+stages = ["pre-commit"]
+
 [[repos.hooks]]
 id = "dotnet-build"
 name = "dotnet build (warnings as errors)"
