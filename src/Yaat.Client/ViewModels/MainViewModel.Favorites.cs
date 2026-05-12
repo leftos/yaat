@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
@@ -94,14 +95,16 @@ public partial class MainViewModel
         CommandCaretIndex = newText.Length;
     }
 
-    public string ResolveFavoriteCommandText(FavoriteCommand favorite)
+    public string ResolveFavoriteCommandText(FavoriteCommand favorite) => ResolveFavoriteCommandTextFor(favorite, SelectedAircraft);
+
+    public static string ResolveFavoriteCommandTextFor(FavoriteCommand favorite, AircraftModel? aircraft)
     {
         if (favorite.IsSpacer)
         {
             return "";
         }
 
-        if (SelectedAircraft?.IsOnGround == true && !string.IsNullOrWhiteSpace(favorite.GroundCommandText))
+        if (aircraft?.IsOnGround == true && !string.IsNullOrWhiteSpace(favorite.GroundCommandText))
         {
             return favorite.GroundCommandText.Trim();
         }

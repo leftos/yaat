@@ -182,6 +182,9 @@ public partial class DataGridView : UserControl
         menu.AddCommandTextBox(cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
         menu.Items.Add(new Separator());
 
+        menu.Items.Add(FavoritesContextMenu.Build(vm, ac, callsign, initials));
+        menu.Items.Add(new Separator());
+
         if (ac.IsDelayed)
         {
             AddDelayedSpawnItems(menu, vm, callsign, initials);

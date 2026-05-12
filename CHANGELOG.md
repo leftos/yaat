@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Aircraft right-click menus (aircraft list, ground, radar) include a Favorite Commands submenu that runs the active favorites against the clicked aircraft.
+
 ### Fixed
 - Minimized pop-out windows preserve their restored position and size across app restarts.
 
