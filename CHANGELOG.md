@@ -11,6 +11,8 @@
 
 ### Fixed
 - IFR departures no longer turn off the runway at liftoff. The assigned heading vector is held on runway course through `TakeoffPhase` and applied by `InitialClimbPhase` only after the aircraft is past the departure end of runway AND at or above 400 ft above field elevation (TERPS criterion). Matches the VFR deferral already in place per AIM 4-3-2, with a 400 ft floor in place of pattern altitude − 300 ft.
+- `CM`/`DM` issued during initial climb after takeoff no longer cancels the heading from `CTO`; the aircraft keeps turning to the cleared heading while the new altitude target applies.
+- Altitude and speed commands (`CM`/`DM`/`SPD`/`RFAS`/`RSP`/`DSR`/`M`) are additive across the takeoff climb, the go-around, the visual follow, and final approach outside 5 nm — adjusting an altitude or speed no longer cancels the active phase's heading, follow target, or missed-approach climb.
 - Minimized pop-out windows preserve their restored position and size across app restarts.
 - Aircraft List Info column shows the taxiway intersection at hold-short — e.g. "Holding short 28R @ E" or "Holding short of E on C".
 - `CTO MR<n>; DCT FIX` (or `ML<n>`) now takes the short way to the next fix after the departure turn rolls out.

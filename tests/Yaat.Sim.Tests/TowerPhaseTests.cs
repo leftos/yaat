@@ -215,13 +215,19 @@ public class TowerPhaseTests
     }
 
     [Fact]
-    public void GoAround_AnyCommand_ClearsPhase()
+    public void GoAround_HeadingNavCommands_ClearPhase()
     {
         var phase = new GoAroundPhase();
 
+        // Heading/nav commands take the aircraft off the GA climb — clear the phase.
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
-        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Speed));
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.DirectTo));
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Delete));
+
+        // Altitude/speed adjustments are additive — controllers routinely amend
+        // the missed-approach altitude after issuing GA.
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Speed));
     }
 
     // -------------------------------------------------------------------------

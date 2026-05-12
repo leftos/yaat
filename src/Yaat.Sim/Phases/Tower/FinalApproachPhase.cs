@@ -183,6 +183,15 @@ public sealed class FinalApproachPhase : Phase
     private double _anchorLon;
     private double _gsAngleDeg;
     private bool _goAroundTriggered;
+
+    /// <summary>
+    /// Cached distance from aircraft to threshold, updated each OnTick.
+    /// Read by CanAcceptCommand to gate speed-class commands inside 5 nm
+    /// (where the aircraft is committed to the final approach speed).
+    /// </summary>
+    internal double DistanceToThresholdNm { get; set; } = double.MaxValue;
+
+    private const double SpeedCommandFinalGateNm = 5.0;
     private bool _noClearanceWarningIssued;
     private bool _interceptChecked;
     private bool _isPatternTraffic;
@@ -429,6 +438,7 @@ public sealed class FinalApproachPhase : Phase
         AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
+        DistanceToThresholdNm = distNm;
 
         // Two-stage decel. FAS gate fires first (Vref by ~2 NM); if the aircraft is
         // outside that trigger but still above configuration speed (1.3·Vref), the
@@ -989,20 +999,45 @@ public sealed class FinalApproachPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        return cmd switch
+        // Clearance / GA / runway-exit commands always pass through.
+        var alwaysAllowed = cmd switch
         {
-            CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
-            CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
-            CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
-            CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
-            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
-            CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.ClearedToLand => true,
+            CanonicalCommandType.LandAndHoldShort => true,
+            CanonicalCommandType.ClearedForOption => true,
+            CanonicalCommandType.GoAround => true,
+            CanonicalCommandType.Follow => true,
+            CanonicalCommandType.ExitLeft => true,
+            CanonicalCommandType.ExitRight => true,
+            CanonicalCommandType.ExitTaxiway => true,
+            _ => false,
         };
+        if (alwaysAllowed)
+        {
+            return CommandAcceptance.Allowed;
+        }
+
+        // Speed-class commands are additive only when the aircraft is still
+        // outside SpeedCommandFinalGateNm. Inside that gate the aircraft is
+        // committed to the final approach speed and the controller should
+        // either send GA or accept the FAS profile.
+        if (IsSpeedFamily(cmd))
+        {
+            return DistanceToThresholdNm > SpeedCommandFinalGateNm ? CommandAcceptance.Allowed : CommandAcceptance.ClearsPhase;
+        }
+
+        // Heading / nav / pattern / approach changes all take the aircraft off
+        // the stabilized final approach — clear the phase.
+        return CommandAcceptance.ClearsPhase;
     }
+
+    private static bool IsSpeedFamily(CanonicalCommandType cmd) =>
+        cmd
+            is CanonicalCommandType.Speed
+                or CanonicalCommandType.Mach
+                or CanonicalCommandType.ReduceToFinalApproachSpeed
+                or CanonicalCommandType.ResumeNormalSpeed
+                or CanonicalCommandType.DeleteSpeedRestrictions;
 
     protected override List<ClearanceRequirement> CreateRequirements()
     {

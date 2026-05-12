@@ -258,8 +258,21 @@ public sealed class InitialClimbPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // All standard RPO commands exit the phase
-        return CommandAcceptance.ClearsPhase;
+        // Altitude and speed adjustments are additive: they update the climb
+        // targets without disturbing the heading guidance baked into the
+        // takeoff clearance (the deferred VFR turn per AIM 4-3-2, or the
+        // published RV SID heading hold).
+        return cmd switch
+        {
+            CanonicalCommandType.ClimbMaintain
+            or CanonicalCommandType.DescendMaintain
+            or CanonicalCommandType.Speed
+            or CanonicalCommandType.Mach
+            or CanonicalCommandType.ReduceToFinalApproachSpeed
+            or CanonicalCommandType.ResumeNormalSpeed
+            or CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
+            _ => CommandAcceptance.ClearsPhase,
+        };
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
