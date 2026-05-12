@@ -188,6 +188,8 @@ Views/
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
   FavoritesBarView.axaml.cs     # Favorite command buttons bar and tabbed panel content (click/ctrl+click/right-click)
   FavoritesPanelWindow.axaml.cs # Pop-out favorite commands panel with saved geometry
+  FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
+  FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
   DataGridView.ContextMenu.cs   # Partial: phase-aware right-click menu builders
   DataGridWindow.axaml.cs       # Pop-out data grid window
@@ -525,6 +527,7 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
+AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS training API; caches under %LOCALAPPDATA%/yaat/cache/airports/
 AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops; returns Side), FindExitFromCenterline (walk centerlines, returns side+walk node), FindOnSidePreferredExit (lookahead: defer off-side, prefer later on-side), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
 CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)

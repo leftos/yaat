@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.2.3-alpha [2026/05/11]
+
+### Highlights
+- Aircraft right-click menus now offer a Favorite Commands submenu that runs your active favorites against the clicked aircraft.
+- Aircraft List title shows pending delayed-spawn count (or "No pending spawns" once they've all fired).
+- IFR `CTO` restricted to bare `CTO` (follow SID) or numeric heading vector — pattern/runway-relative modifiers are now rejected with an explanation.
+- IFR departures hold runway heading at liftoff and only start the assigned vector past the departure end and above 400 ft AGL (TERPS).
 
 ### Added
 - Aircraft List title shows the pending delayed-spawn count; reads "No pending spawns" once the last delayed aircraft fires.
@@ -11,7 +17,6 @@
 
 ### Fixed
 - IFR departures no longer turn off the runway at liftoff. The assigned heading vector is held on runway course through `TakeoffPhase` and applied by `InitialClimbPhase` only after the aircraft is past the departure end of runway AND at or above 400 ft above field elevation (TERPS criterion). Matches the VFR deferral already in place per AIM 4-3-2, with a 400 ft floor in place of pattern altitude − 300 ft.
-- `CM`/`DM` issued during initial climb after takeoff no longer cancels the heading from `CTO`; the aircraft keeps turning to the cleared heading while the new altitude target applies.
 - Altitude and speed commands (`CM`/`DM`/`SPD`/`RFAS`/`RSP`/`DSR`/`M`) are additive across the takeoff climb, the go-around, the visual follow, and final approach outside 5 nm — adjusting an altitude or speed no longer cancels the active phase's heading, follow target, or missed-approach climb.
 - Minimized pop-out windows preserve their restored position and size across app restarts.
 - Aircraft List Info column shows the taxiway intersection at hold-short — e.g. "Holding short 28R @ E" or "Holding short of E on C".
