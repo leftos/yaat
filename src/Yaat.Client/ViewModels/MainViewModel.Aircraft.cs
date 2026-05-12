@@ -109,6 +109,7 @@ public partial class MainViewModel
                 var wasUnsupported = existing.IsUnsupported;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
+                ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
                 if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported)
                 {
                     RefreshAircraftView();
@@ -119,6 +120,10 @@ public partial class MainViewModel
                 var model = AircraftModel.FromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(model);
                 Aircraft.Add(model);
+                if (model.IsDelayed)
+                {
+                    PendingDelayedSpawnCount++;
+                }
             }
 
             Radar.RefreshShownPaths();
@@ -136,6 +141,10 @@ public partial class MainViewModel
             var ac = FindAircraft(callsign);
             if (ac is not null)
             {
+                if (ac.IsDelayed && PendingDelayedSpawnCount > 0)
+                {
+                    PendingDelayedSpawnCount--;
+                }
                 Aircraft.Remove(ac);
             }
         });
@@ -152,6 +161,7 @@ public partial class MainViewModel
                 var wasUnsupported = existing.IsUnsupported;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
+                ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
                 if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported)
                 {
                     RefreshAircraftView();
@@ -162,8 +172,28 @@ public partial class MainViewModel
                 var model = AircraftModel.FromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(model);
                 Aircraft.Add(model);
+                if (model.IsDelayed)
+                {
+                    PendingDelayedSpawnCount++;
+                }
             }
         });
+    }
+
+    private void ApplyDelayedSpawnTransition(bool wasDelayed, bool isDelayed)
+    {
+        if (wasDelayed == isDelayed)
+        {
+            return;
+        }
+        if (wasDelayed && PendingDelayedSpawnCount > 0)
+        {
+            PendingDelayedSpawnCount--;
+        }
+        else if (isDelayed)
+        {
+            PendingDelayedSpawnCount++;
+        }
     }
 
     private void OnSimulationStateChanged(bool paused, int rate, double elapsed, bool isPlayback, double tapeEnd)

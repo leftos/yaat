@@ -264,7 +264,7 @@
                         x:Name="MainTabControl"
                         IsVisible="{Binding IsAnyTabVisible}"
                         SelectedIndex="{Binding SelectedTabIndex}">
-                <TabItem Header="Aircraft List"
+                <TabItem Header="{Binding AircraftListTitle}"
                          x:Name="DataGridTab"
                          IsVisible="{Binding !IsDataGridPoppedOut}">
                     <views:DataGridView x:Name="EmbeddedDataGridView" />

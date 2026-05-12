@@ -417,12 +417,19 @@ public partial class MainViewModel
         }
 
         Aircraft.Clear();
+        int delayed = 0;
         foreach (var dto in bootstrap.Aircraft)
         {
             var model = AircraftModel.FromDto(dto, ComputeDistance);
             ApplyAutoClearedToLand(model);
             Aircraft.Add(model);
+            if (model.IsDelayed)
+            {
+                delayed++;
+            }
         }
+        InitialDelayedSpawnCount = delayed;
+        PendingDelayedSpawnCount = delayed;
 
         var artccId = _preferences.ArtccId;
         Radar.ApplyScenarioBootstrap(bootstrap, artccId);
@@ -458,6 +465,8 @@ public partial class MainViewModel
         Radar.ClearShownPaths();
         Ground.ClearShownTaxiRoutes();
         Aircraft.Clear();
+        InitialDelayedSpawnCount = 0;
+        PendingDelayedSpawnCount = 0;
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
         ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, false, 100, 100, false, false, false));
