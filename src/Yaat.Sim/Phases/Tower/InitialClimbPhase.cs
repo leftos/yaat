@@ -252,6 +252,18 @@ public sealed class InitialClimbPhase : Phase
         return CommandAcceptance.ClearsPhase;
     }
 
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        // Clear any directional bias the departure set (RelativeTurnDeparture /
+        // FlyHeadingDeparture / DirectFixDeparture with direction). The phase
+        // exits at HeadingToleranceDeg=1.0°, but UpdateHeading's snap that
+        // normally clears PreferredTurnDirection requires <0.5°, so the bias
+        // commonly survives phase exit. A queued DCT (or any subsequent
+        // navigation) would then inherit the stale direction and turn the
+        // long way around to the next heading.
+        ctx.Targets.PreferredTurnDirection = null;
+    }
+
     /// <summary>
     /// Whether the departure instruction involves a turn away from runway heading.
     /// DefaultDeparture and RunwayHeadingDeparture stay on runway heading.
