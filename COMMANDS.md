@@ -570,23 +570,23 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO` | Cleared for takeoff (default departure) |
 | `CTO 060` | Cleared for takeoff, fly heading 060 |
 | `CTO 060 250` | Cleared for takeoff, fly heading 060, climb and maintain 25,000 ft |
-| `CTO MRC` | Cleared for takeoff, right crosswind departure (90° right turn) |
-| `CTO MRD` | Cleared for takeoff, right downwind departure (180° right turn) |
-| `CTO MR270` | Cleared for takeoff, right 270° departure (turn right 270° from runway heading) |
-| `CTO MR45` | Cleared for takeoff, turn right 45° from runway heading |
-| `CTO ML270` / `MLC` / `MLD` / `ML45` | Left-turn equivalents of MR270/MRC/MRD/MR{N} |
-| `CTO MRH` / `RH` / `MSO` | Cleared for takeoff, fly runway heading |
+| `CTO MRC` | Cleared for takeoff, right crosswind departure (90° right turn) — VFR only |
+| `CTO MRD` | Cleared for takeoff, right downwind departure (180° right turn) — VFR only |
+| `CTO MR270` | Cleared for takeoff, right 270° departure (turn right 270° from runway heading) — VFR only |
+| `CTO MR45` | Cleared for takeoff, turn right 45° from runway heading — VFR only |
+| `CTO ML270` / `MLC` / `MLD` / `ML45` | Left-turn equivalents of MR270/MRC/MRD/MR{N} — VFR only |
+| `CTO MRH` / `RH` / `MSO` | Cleared for takeoff, fly runway heading — VFR only |
 | `CTO H270` | Cleared for takeoff, fly heading 270 (shortest turn) |
 | `CTO RH270` / `RT270` | Cleared for takeoff, turn right heading 270 |
 | `CTO LH270` / `LT270` | Cleared for takeoff, turn left heading 270 |
-| `CTO OC` | Cleared for takeoff, on course (direct to destination) |
-| `CTO DCT SUNOL` | Cleared for takeoff, direct to fix SUNOL |
-| `CTO TLDCT SUNOL` | Cleared for takeoff, turn left direct to fix SUNOL |
-| `CTO TRDCT OAK` | Cleared for takeoff, turn right direct to fix OAK |
-| `CTO MRT` / `CTOMRT` | Cleared for takeoff, make right traffic (closed pattern) |
-| `CTO MRT 28R` | Cleared for takeoff, make right traffic runway 28R (cross-runway pattern) |
-| `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) |
-| `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) |
+| `CTO OC` | Cleared for takeoff, on course (direct to destination) — VFR only |
+| `CTO DCT SUNOL` | Cleared for takeoff, direct to fix SUNOL — VFR only |
+| `CTO TLDCT SUNOL` | Cleared for takeoff, turn left direct to fix SUNOL — VFR only |
+| `CTO TRDCT OAK` | Cleared for takeoff, turn right direct to fix OAK — VFR only |
+| `CTO MRT` / `CTOMRT` | Cleared for takeoff, make right traffic (closed pattern) — VFR only |
+| `CTO MRT 28R` | Cleared for takeoff, make right traffic runway 28R (cross-runway pattern) — VFR only |
+| `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) — VFR only |
+| `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) — VFR only |
 | `CTO CWT` / `CTO 270 CWT` / `CTO DCT SUNOL CWT` | Cleared for takeoff and caution wake turbulence. `CWT` can follow any `CTO` form. |
 | `CTOC` | Cancel takeoff clearance. Mid-roll abort works below V1 (≈ Vr − 5 kts); above V1 the aircraft is committed and CTOC is rejected. |
 | `CLAND` / `CL` / `FS` | Cleared to land (full stop). Requires airborne aircraft with an assigned runway; rejected with feedback otherwise. |
@@ -615,16 +615,18 @@ All CTO modifiers accept an optional altitude suffix using the same format as CM
 
 Append `CWT` after any CTO form to include "caution wake turbulence" in the takeoff clearance and record wake-advisory proof: `CTO CWT`, `CTO 270 CWT`, `CTO DCT SUNOL CWT`.
 
-**IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a heading (`CTO 270`, `CTO RH`, `CTO H270`, etc.). Pattern exit modifiers (`MRC`, `MRD`, `OC`, `MLT`, `DCT`, etc.) are VFR-only.
+**IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a numeric heading (`CTO 270`, `CTO H270`, `CTO RH270`, etc.). Pattern exit and runway-relative modifiers (`MRC`, `MRD`, `MRH` / `MSO` / `RH`, `OC`, `MLT`, `DCT`, etc.) are VFR-only — dispatch rejects them with a message naming the IFR restriction so the controller can reissue with a vector or let the SID run.
+
+After liftoff the assigned departure turn is **deferred** to InitialClimbPhase. The aircraft holds runway heading until both gates are satisfied: past the departure end of runway AND at or above the minimum safe altitude — pattern altitude − 300 ft for VFR (AIM 4-3-2), or 400 ft above field elevation for IFR (TERPS criterion: no turns below 400 ft AGL for ODP design).
 
 | Modifier | Departure type | VFR/IFR |
 |----------|----------------|---------|
 | *(none)* | Default departure — VFR: runway heading; IFR: navigates filed route ([SID](#glossary) expansion) | Both |
 | `{N}` | Bare heading (1-360) — fly heading N (shortest turn) | Both |
-| `MRH` / `MSO` / `RH` | Fly runway heading (straight out) | Both |
 | `H{N}` | Fly heading N (shortest turn) | Both |
 | `RH{N}` / `RT{N}` | Turn right heading N | Both |
 | `LH{N}` / `LT{N}` | Turn left heading N | Both |
+| `MRH` / `MSO` / `RH` | Fly runway heading (straight out) | VFR only |
 | `MRC` / `MLC` | Right/left crosswind (90° turn from runway heading) | VFR only |
 | `MRD` / `MLD` | Right/left downwind (180° turn) | VFR only |
 | `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading | VFR only |

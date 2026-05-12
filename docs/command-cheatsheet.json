@@ -123,7 +123,7 @@
         { "verb": "COPT", "aliases": [], "description": "Cleared for option [MLT / MRT]" }
       ],
       "notes": [
-        "CTO modes: `RH`/`MRH`/`MSO` `H270` `RH270`/`LH270` `RT270`/`LT270` `MRC`/`MLC` `MRD`/`MLD` `MR270`/`ML270` `OC` `DCT fix` `TLDCT fix`/`TRDCT fix` `MRT [rwy]`/`MLT [rwy]`",
+        "CTO modes: `H270` `RH270`/`LH270` `RT270`/`LT270` (all both); `RH`/`MRH`/`MSO` `MRC`/`MLC` `MRD`/`MLD` `MR270`/`ML270` `OC` `DCT fix` `TLDCT fix`/`TRDCT fix` `MRT [rwy]`/`MLT [rwy]` (VFR only — IFR accepts only bare CTO or a numeric heading)",
         "GA modes: `GA` (rwy hdg) `GA 270` `GA 270 50` (hdg+alt) `GA MRT [alt]`/`GA MLT [alt]` (closed traffic)"
       ]
     },

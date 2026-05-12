@@ -15,8 +15,9 @@ public sealed class InitialClimbPhase : Phase
 
     private const double DefaultSelfClearAgl = 1500.0;
     private const double HeadingToleranceDeg = 1.0;
-    private const double VfrDerMinDistanceNm = 0.0;
+    private const double DerMinDistanceNm = 0.0;
     private const double VfrPatternAltMarginFt = 300.0;
+    private const double IfrTurnAglFloor = 400.0;
     private const double RvSidPostHandoffDelaySec = 5.0;
 
     private double _fieldElevation;
@@ -25,12 +26,15 @@ public sealed class InitialClimbPhase : Phase
     private double? _phaseCompletionAltitude;
     private double _selfClearAltitude;
 
-    // VFR departure turn deferral (AIM 4-3-2)
+    // Departure turn deferral. Applies to both VFR (AIM 4-3-2 — past DER and within
+    // 300 ft of pattern altitude) and IFR (TERPS — past DER and ≥ 400 ft above field
+    // elevation). The "Vfr*" naming on the snapshot DTO fields predates the IFR
+    // expansion; the runtime fields are deferral-generic.
     private double _runwayDerLat;
     private double _runwayDerLon;
     private TrueHeading _runwayHeading;
-    private double _vfrTurnAltitude;
-    private bool _vfrTurnApplied = true;
+    private double _deferredTurnAltitude;
+    private bool _deferredTurnApplied = true;
 
     // Radar vectors SID: fly published heading while tower owns the track.
     // After handoff to a different TCP, continue heading for 5s then turn to first fix.
@@ -60,8 +64,8 @@ public sealed class InitialClimbPhase : Phase
             RunwayDerLat = _runwayDerLat,
             RunwayDerLon = _runwayDerLon,
             RunwayHeadingDeg = _runwayHeading.Degrees,
-            VfrTurnAltitude = _vfrTurnAltitude,
-            VfrTurnApplied = _vfrTurnApplied,
+            VfrTurnAltitude = _deferredTurnAltitude,
+            VfrTurnApplied = _deferredTurnApplied,
             RvSidActive = _rvSidActive,
             RvSidHandoffElapsed = _rvSidHandoffElapsed,
         };
@@ -91,8 +95,8 @@ public sealed class InitialClimbPhase : Phase
         phase._runwayDerLat = dto.RunwayDerLat;
         phase._runwayDerLon = dto.RunwayDerLon;
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
-        phase._vfrTurnAltitude = dto.VfrTurnAltitude;
-        phase._vfrTurnApplied = dto.VfrTurnApplied;
+        phase._deferredTurnAltitude = dto.VfrTurnAltitude;
+        phase._deferredTurnApplied = dto.VfrTurnApplied;
         phase._rvSidActive = dto.RvSidActive;
         phase._rvSidHandoffElapsed = dto.RvSidHandoffElapsed;
         return phase;
@@ -152,25 +156,31 @@ public sealed class InitialClimbPhase : Phase
             ctx.Targets.TargetTrueHeading = _departureHeading;
         }
 
-        // AIM 4-3-2: VFR departures must maintain runway heading until past the DER
-        // and within 300ft of pattern altitude. Defer nav route and heading setup.
-        bool deferVfrTurn = IsVfr && DepartureRequiresTurn() && ctx.Runway is not null;
-        if (deferVfrTurn)
+        // Defer the assigned departure turn until the aircraft is past the DER AND at
+        // a safe minimum altitude. VFR uses pattern altitude − 300 ft (AIM 4-3-2); IFR
+        // uses field elevation + 400 ft (TERPS criterion — IFR ODP design assumes no
+        // turns below 400 ft above DER). Without deferral the aircraft rolls into the
+        // assigned bank at Vr at very low AGL.
+        bool deferTurn = DepartureRequiresTurn() && ctx.Runway is not null;
+        if (deferTurn)
         {
-            _vfrTurnApplied = false;
+            _deferredTurnApplied = false;
             _runwayDerLat = ctx.Runway!.EndLatitude;
             _runwayDerLon = ctx.Runway.EndLongitude;
             _runwayHeading = ctx.Runway.TrueHeading;
-            _vfrTurnAltitude = _fieldElevation + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - VfrPatternAltMarginFt;
+            _deferredTurnAltitude = IsVfr
+                ? _fieldElevation + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - VfrPatternAltMarginFt
+                : _fieldElevation + IfrTurnAglFloor;
         }
         else if (!_rvSidActive)
         {
-            _vfrTurnApplied = true;
-            SetupDepartureNavigation(ctx);
+            // No runway info or a non-turning departure: apply heading + nav immediately.
+            _deferredTurnApplied = true;
+            ApplyDepartureTurn(ctx);
         }
         else
         {
-            _vfrTurnApplied = true;
+            _deferredTurnApplied = true;
         }
 
         // Activate SID procedure state (via mode ON by default for departures)
@@ -199,16 +209,16 @@ public sealed class InitialClimbPhase : Phase
             UpdateRvSidHeadingHold(ctx);
         }
 
-        // VFR departure turn deferral: apply heading/nav route once both conditions met
-        if (!_vfrTurnApplied)
+        // Departure turn deferral: apply heading/nav route once both conditions met
+        if (!_deferredTurnApplied)
         {
             bool pastDer =
-                GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_runwayDerLat, _runwayDerLon), _runwayHeading) >= VfrDerMinDistanceNm;
-            bool altReached = ctx.Aircraft.Altitude >= _vfrTurnAltitude;
+                GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_runwayDerLat, _runwayDerLon), _runwayHeading) >= DerMinDistanceNm;
+            bool altReached = ctx.Aircraft.Altitude >= _deferredTurnAltitude;
             if (pastDer && altReached)
             {
-                _vfrTurnApplied = true;
-                ApplyDeferredVfrTurn(ctx);
+                _deferredTurnApplied = true;
+                ApplyDepartureTurn(ctx);
             }
         }
 
@@ -302,17 +312,19 @@ public sealed class InitialClimbPhase : Phase
     }
 
     /// <summary>
-    /// Apply heading and navigation that was deferred for VFR departures.
+    /// Apply the assigned departure heading, preferred turn direction, and (where
+    /// applicable) navigation route. Called once the deferral gates (past DER AND at or
+    /// above the minimum safe altitude — pattern alt − 300 ft for VFR, 400 ft AGL for IFR)
+    /// are satisfied, or immediately on phase start when deferral is not possible
+    /// (no runway info, or non-turning departure).
     /// </summary>
-    private void ApplyDeferredVfrTurn(PhaseContext ctx)
+    private void ApplyDepartureTurn(PhaseContext ctx)
     {
-        // Apply heading target
         if (_departureHeading is not null)
         {
             ctx.Targets.TargetTrueHeading = _departureHeading.Value;
         }
 
-        // Apply turn direction
         switch (Departure)
         {
             case RelativeTurnDeparture rel:
@@ -323,14 +335,14 @@ public sealed class InitialClimbPhase : Phase
                 break;
         }
 
-        // Load navigation route (OnCourse, DirectFix)
         SetupDepartureNavigation(ctx);
 
         Log.LogDebug(
-            "[InitialClimb] {Callsign}: VFR turn applied (alt={Alt:F0}ft, hdg={Hdg})",
+            "[InitialClimb] {Callsign}: departure turn applied (alt={Alt:F0}ft, hdg={Hdg}, vfr={IsVfr})",
             ctx.Aircraft.Callsign,
             ctx.Aircraft.Altitude,
-            _departureHeading?.Degrees.ToString("F0") ?? "nav"
+            _departureHeading?.Degrees.ToString("F0") ?? "nav",
+            IsVfr
         );
     }
 

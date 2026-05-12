@@ -386,11 +386,50 @@ public static class CommandDispatcher
 
     private static readonly CommandResult VfrRequiredResult = new(false, "Command requires VFR aircraft. Use CIFR to cancel IFR flight plan");
 
+    private static readonly CommandResult IfrCtoVfrModifierResult = new(
+        false,
+        "IFR aircraft can only receive a bare CTO (follow SID) or CTO with an assigned heading; pattern/relative modifiers (MRC, ML*, RH, OC, DCT, MLT, MRT, ...) require VFR"
+    );
+
+    /// <summary>
+    /// IFR departure clearances accept only <see cref="DefaultDeparture"/> (follow SID) or
+    /// <see cref="FlyHeadingDeparture"/> (assigned numeric heading). Pattern-relative
+    /// modifiers (MRC, ML*, RH, OC, DCT, MLT/MRT) are VFR-only and must be rejected so
+    /// the aircraft doesn't peel off runway heading immediately at liftoff. Returns null
+    /// if the command is allowed for this aircraft.
+    /// </summary>
+    private static CommandResult? CheckIfrDepartureCompatibility(ParsedCommand command, AircraftState aircraft)
+    {
+        if (aircraft.FlightPlan.IsVfr)
+        {
+            return null;
+        }
+
+        DepartureInstruction? departure = command switch
+        {
+            ClearedForTakeoffCommand cto => cto.Departure,
+            ClearedTakeoffPresentCommand ctopp => ctopp.Departure,
+            _ => null,
+        };
+
+        if (departure is null or DefaultDeparture or FlyHeadingDeparture)
+        {
+            return null;
+        }
+
+        return IfrCtoVfrModifierResult;
+    }
+
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
         if (RequiresVfr(command) && !aircraft.FlightPlan.IsVfr)
         {
             return VfrRequiredResult;
+        }
+
+        if (CheckIfrDepartureCompatibility(command, aircraft) is { } ifrReject)
+        {
+            return ifrReject;
         }
 
         var rng = ctx.Rng;
@@ -1099,6 +1138,11 @@ public static class CommandDispatcher
         if (RequiresVfr(command) && !aircraft.FlightPlan.IsVfr)
         {
             return VfrRequiredResult;
+        }
+
+        if (CheckIfrDepartureCompatibility(command, aircraft) is { } ifrReject)
+        {
+            return ifrReject;
         }
 
         switch (command)

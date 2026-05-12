@@ -165,20 +165,22 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 
 #### CTO Modifiers (YAAT-only richness)
 
-YAAT's CTO command supports a comprehensive set of departure modifiers that ATCTrainer lacks:
+YAAT's CTO command supports a comprehensive set of departure modifiers that ATCTrainer lacks. All pattern and runway-relative modifiers are VFR-only — IFR aircraft accept only bare `CTO` (follow SID) or `CTO` with a numeric heading vector:
 
-| Modifier | Example | Notes |
-|----------|---------|-------|
-| Right/left heading | `CTO RH270`, `CTO LH270` | Explicit turn direction |
-| Crosswind | `CTO MRC`, `CTO MLC` | 90-degree turn |
-| Downwind | `CTO MRD`, `CTO MLD` | 180-degree turn |
-| 45-degree & 270-degree turn departures | `CTO MR45`, `CTO ML270` | Any degree turn from runway heading |
-| On course | `CTO OC` | Direct to destination |
-| Direct to fix | `CTO DCT SUNOL` | Direct to named fix after liftoff |
-| Turn left/right DCT | `CTO TLDCT SUNOL`, `CTO TRDCT OAK` | YAAT-only: direct to fix with turn direction preference |
-| Cross-runway pattern | `CTO MRT 28R` | Pattern for different runway than takeoff |
-| Altitude suffix | `CTO 270 050` | Any modifier + altitude |
-| Wake advisory suffix | `CTO 270 CWT` | Adds "caution wake turbulence" to the takeoff clearance |
+| Modifier | Example | VFR/IFR | Notes |
+|----------|---------|---------|-------|
+| Right/left heading | `CTO RH270`, `CTO LH270` | Both | Explicit turn direction |
+| Crosswind | `CTO MRC`, `CTO MLC` | VFR only | 90-degree turn |
+| Downwind | `CTO MRD`, `CTO MLD` | VFR only | 180-degree turn |
+| 45-degree & 270-degree turn departures | `CTO MR45`, `CTO ML270` | VFR only | Any degree turn from runway heading |
+| On course | `CTO OC` | VFR only | Direct to destination |
+| Direct to fix | `CTO DCT SUNOL` | VFR only | Direct to named fix after liftoff |
+| Turn left/right DCT | `CTO TLDCT SUNOL`, `CTO TRDCT OAK` | VFR only | YAAT-only: direct to fix with turn direction preference |
+| Cross-runway pattern | `CTO MRT 28R` | VFR only | Pattern for different runway than takeoff |
+| Altitude suffix | `CTO 270 050` | Both | Any modifier + altitude |
+| Wake advisory suffix | `CTO 270 CWT` | Both | Adds "caution wake turbulence" to the takeoff clearance |
+
+After liftoff, the assigned departure turn is deferred until the aircraft is past the departure end of runway AND at or above the minimum safe altitude — pattern altitude − 300 ft for VFR (AIM 4-3-2) or 400 ft above field elevation for IFR (TERPS criterion). ATCTrainer applies the turn immediately at Vr.
 
 ### Approach
 

@@ -47,7 +47,14 @@ public class CompoundTowerCommandTests
             Altitude = runway.ElevationFt,
             IndicatedAirspeed = 0,
             IsOnGround = true,
-            FlightPlan = new AircraftFlightPlan { Departure = "OAK", CruiseAltitude = 5000 },
+            // VFR — the CTO modifiers exercised in these tests (MR270) are VFR-only.
+            // IFR aircraft are restricted to bare CTO or a numeric heading vector.
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                CruiseAltitude = 5000,
+                FlightRules = "VFR",
+            },
         };
 
         var phases = new PhaseList { AssignedRunway = runway };

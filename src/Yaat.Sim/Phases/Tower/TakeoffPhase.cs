@@ -132,45 +132,14 @@ public sealed class TakeoffPhase : Phase
             ctx.Targets.DesiredVerticalRate = climbRate;
             ctx.Targets.TargetSpeed = climbSpeed;
 
-            ApplyDepartureHeading(ctx);
+            // Heading remains the runway heading throughout the airborne portion of
+            // TakeoffPhase. The assigned departure heading (relative turn / fly heading /
+            // direct fix) is applied later by InitialClimbPhase once the aircraft is past
+            // the departure end of runway AND at a safe minimum altitude — TERPS-style
+            // 400 ft AGL for IFR, pattern altitude − 300 ft for VFR (AIM 4-3-2).
         }
 
         return false;
-    }
-
-    private void ApplyDepartureHeading(PhaseContext ctx)
-    {
-        // AIM 4-3-2: VFR departures must maintain runway heading until past
-        // the DER and within 300ft of pattern altitude. Defer heading changes
-        // to InitialClimbPhase which checks both conditions.
-        if (ctx.Aircraft.FlightPlan.IsVfr)
-        {
-            return;
-        }
-
-        switch (_departure)
-        {
-            case RelativeTurnDeparture rel:
-                ctx.Targets.TargetTrueHeading =
-                    rel.Direction == TurnDirection.Right
-                        ? new TrueHeading(_runwayHeading.Degrees + rel.Degrees)
-                        : new TrueHeading(_runwayHeading.Degrees - rel.Degrees);
-                ctx.Targets.PreferredTurnDirection = rel.Direction;
-                break;
-
-            case FlyHeadingDeparture fh:
-                ctx.Targets.TargetTrueHeading = fh.MagneticHeading.ToTrue(ctx.Aircraft.Declination);
-                ctx.Targets.PreferredTurnDirection = fh.Direction;
-                break;
-
-            case DirectFixDeparture { Direction: not null } dfd:
-                ctx.Targets.PreferredTurnDirection = dfd.Direction;
-                break;
-
-            // DefaultDeparture, RunwayHeadingDeparture, OnCourseDeparture,
-            // DirectFixDeparture (no direction), ClosedTrafficDeparture: keep runway heading.
-            // Navigation is set up by InitialClimbPhase.
-        }
     }
 
     private static bool TickAirborneClimb(double agl)

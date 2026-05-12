@@ -22,10 +22,17 @@ public class TakeoffDepartureTests
     }
 
     /// <summary>
-    /// Creates a TakeoffPhase with the given departure instruction,
-    /// runs OnStart + ticks until airborne, and returns the resulting
-    /// TargetHeading and PreferredTurnDirection.
+    /// Drives a full takeoff → initial climb sequence with the given departure: ground
+    /// roll to Vr, airborne climb through TakeoffPhase completion (~400 AGL), then
+    /// InitialClimbPhase past the deferral gates (≥ 400 AGL above field elevation AND
+    /// past the departure end of runway). Returns the resulting <see cref="TargetHeading"/>
+    /// and <see cref="PreferredTurnDirection"/> once the departure turn has been applied.
     /// </summary>
+    /// <remarks>
+    /// Pre-fix the heading was applied at Vr by <c>TakeoffPhase.ApplyDepartureHeading</c>,
+    /// so an old TakeoffPhase-only harness was enough. After deferring the turn to
+    /// InitialClimbPhase (for both VFR and IFR), the harness must drive both phases.
+    /// </remarks>
     private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(DepartureInstruction departure, double runwayHeading = RunwayHeading)
     {
         var runway = MakeRunway(runwayHeading);
@@ -70,6 +77,23 @@ public class TakeoffDepartureTests
                 aircraft.Altitude += 50;
             }
         }
+
+        // Drive InitialClimbPhase. Position past DER + climb above the IFR/VFR floor so
+        // the deferred turn is applied. We project 0.5 nm along the runway heading past
+        // the geometric DER so AlongTrackDistanceNm reads positive regardless of the
+        // synthetic threshold/end geometry.
+        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHeading), 0.5);
+        aircraft.Position = pastDer;
+        aircraft.Altitude = FieldElevation + 1500;
+
+        var climbPhase = new InitialClimbPhase
+        {
+            Departure = departure,
+            IsVfr = aircraft.FlightPlan.IsVfr,
+            CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
+        };
+        climbPhase.OnStart(ctx);
+        climbPhase.OnTick(ctx);
 
         return (targets.TargetTrueHeading?.Degrees, targets.PreferredTurnDirection);
     }
@@ -266,13 +290,18 @@ public class TakeoffDepartureTests
         };
 
         var phaseList = new PhaseList { AssignedRunway = runway };
+        // Position the aircraft past the departure end of runway and above the 400 ft
+        // AGL IFR turn floor so InitialClimbPhase applies the deferred departure turn
+        // on its first tick. Pre-deferral this test worked at the threshold because
+        // TakeoffPhase had already set the heading/direction at Vr.
+        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.5);
         var aircraft = new AircraftState
         {
             Callsign = "N436MS",
             AircraftType = "C182",
-            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+            Position = pastDer,
             TrueHeading = new TrueHeading(runwayHdg),
-            Altitude = FieldElevation + 500, // already airborne, past takeoff phase
+            Altitude = FieldElevation + 500, // above 400 AGL IFR floor
             IndicatedAirspeed = 90,
             Phases = phaseList,
         };
@@ -288,9 +317,12 @@ public class TakeoffDepartureTests
             Logger = NullLogger.Instance,
         };
 
-        // Start InitialClimbPhase with departure route
+        // Start InitialClimbPhase with departure route. OnStart enters the deferred
+        // state; OnTick observes that both gates (past DER + above floor) are met and
+        // applies the departure turn, setting PreferredTurnDirection.
         var climbPhase = new InitialClimbPhase { Departure = departure, DepartureRoute = departureRoute };
         climbPhase.OnStart(ctx);
+        climbPhase.OnTick(ctx);
 
         // Verify direction was set
         Assert.Equal(TurnDirection.Right, targets.PreferredTurnDirection);
@@ -492,15 +524,56 @@ public class TakeoffDepartureTests
     }
 
     /// <summary>
-    /// IFR aircraft with a heading departure should still turn immediately at liftoff
-    /// (regression guard for issue #130 fix).
+    /// IFR aircraft with a heading departure must NOT have the heading applied at
+    /// liftoff. TakeoffPhase keeps runway heading; InitialClimbPhase applies the turn
+    /// only after the aircraft is past DER AND ≥ 400 ft AGL (TERPS criterion).
     /// </summary>
     [Fact]
-    public void IFR_FlyHeading_StillTurnsAtLiftoff()
+    public void IFR_FlyHeading_KeepsRunwayHeadingAtLiftoff()
     {
-        // Existing RunTakeoff creates IFR aircraft (FlightRules defaults to "IFR")
-        var (hdg, _) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(060), null));
-        Assert.Equal(60, hdg);
+        var runway = MakeRunway();
+        var phase = new TakeoffPhase();
+        phase.SetAssignedDeparture(new FlyHeadingDeparture(new MagneticHeading(060), null));
+
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N152SP",
+            AircraftType = "C172",
+            FlightPlan = new AircraftFlightPlan { FlightRules = "IFR" },
+            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+            TrueHeading = new TrueHeading(RunwayHeading),
+            Altitude = FieldElevation,
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnStart(ctx);
+        for (int i = 0; i < 300; i++)
+        {
+            if (phase.OnTick(ctx))
+            {
+                break;
+            }
+            if (!aircraft.IsOnGround)
+            {
+                aircraft.Altitude += 50;
+            }
+        }
+
+        Assert.False(aircraft.IsOnGround, "Aircraft should reach Vr and become airborne.");
+        Assert.NotNull(targets.TargetTrueHeading);
+        Assert.Equal(RunwayHeading, targets.TargetTrueHeading.Value.Degrees);
     }
 
     /// <summary>
