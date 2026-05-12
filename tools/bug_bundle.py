@@ -18,6 +18,8 @@ Subcommands:
     logs      Extract yaat-client.log / yaat-server.log to .tmp/ (or --out-dir).
     install   Copy bundle into tests/Yaat.Sim.Tests/TestData/ with issue{N}-{desc}-... naming.
               Either a local path, or --issue N to fetch the attachment from a GitHub issue.
+    trim      Drop snapshots past --max-seconds (or keep first --max-snapshots) to shrink
+              the bundle. Actions/scenario/logs preserved. Edits in place unless --out.
     validate  Check manifest schema and verify every declared entry decompresses.
 
 V4 bundle layout (ZIP at root):
@@ -1327,6 +1329,87 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
                 yield f"failed to decompress artcc-config.json.br: {e}"
 
 
+def cmd_trim(args: argparse.Namespace) -> int:
+    """Drop snapshots past --max-seconds (or keep only first --max-snapshots) to shrink the bundle.
+
+    Actions, scenario, weather, ARTCC config, layouts, and logs are preserved unchanged.
+    The manifest's Snapshots index is rewritten to match the surviving snapshot files.
+    TotalElapsedSeconds is left alone — it reflects the original recording duration and
+    is informational, not load-bearing for replay or snapshot lookup.
+    """
+    src: Path = args.bundle
+    out: Path = args.out if args.out is not None else src
+
+    if args.max_seconds is None and args.max_snapshots is None:
+        print("error: trim requires --max-seconds or --max-snapshots", file=sys.stderr)
+        return 2
+    if args.max_seconds is not None and args.max_snapshots is not None:
+        print("error: pass only one of --max-seconds / --max-snapshots", file=sys.stderr)
+        return 2
+
+    with zipfile.ZipFile(src, "r") as zin:
+        if "manifest.json" not in zin.namelist():
+            print(f"error: {src} has no manifest.json — not a v4 bundle", file=sys.stderr)
+            return 1
+        with zin.open("manifest.json") as f:
+            manifest = json.load(f)
+
+        snapshots = manifest.get("Snapshots") or []
+        if not snapshots:
+            print(f"error: bundle has no Snapshots — nothing to trim", file=sys.stderr)
+            return 1
+
+        if args.max_seconds is not None:
+            keep_count = sum(1 for s in snapshots if float(s.get("ElapsedSeconds", 0)) <= args.max_seconds)
+        else:
+            keep_count = min(args.max_snapshots, len(snapshots))
+
+        if keep_count <= 0:
+            print("error: trim would drop every snapshot; refusing", file=sys.stderr)
+            return 1
+        if keep_count >= len(snapshots):
+            print(f"nothing to trim: keep_count={keep_count} >= total={len(snapshots)}")
+            return 0
+
+        dropped = len(snapshots) - keep_count
+        cutoff_t = float(snapshots[keep_count - 1].get("ElapsedSeconds", 0))
+        print(f"keeping {keep_count}/{len(snapshots)} snapshots (through t={cutoff_t:.0f}s), dropping {dropped}")
+
+        tmp_out = out.with_name(out.name + ".trim.tmp")
+        with zipfile.ZipFile(tmp_out, "w", zipfile.ZIP_STORED) as zout:
+            for info in zin.infolist():
+                if info.filename == "manifest.json":
+                    new_manifest = dict(manifest)
+                    new_manifest["Snapshots"] = snapshots[:keep_count]
+                    new_data = json.dumps(new_manifest, separators=(",", ":")).encode("utf-8")
+                    ni = zipfile.ZipInfo(info.filename)
+                    ni.compress_type = zipfile.ZIP_STORED
+                    zout.writestr(ni, new_data)
+                elif info.filename.startswith("snapshots/"):
+                    base = info.filename[len("snapshots/") :]
+                    idx_str = base.split(".", 1)[0]
+                    try:
+                        idx = int(idx_str)
+                    except ValueError:
+                        print(f"warn: cannot parse snapshot filename {info.filename}; copying as-is", file=sys.stderr)
+                        with zin.open(info) as fin:
+                            zout.writestr(info, fin.read())
+                        continue
+                    if idx < keep_count:
+                        with zin.open(info) as fin:
+                            zout.writestr(info, fin.read())
+                else:
+                    with zin.open(info) as fin:
+                        zout.writestr(info, fin.read())
+
+    # Replace destination atomically. Reading the source ZIP is done by the time we
+    # close the with block above, so writing back over the same file is safe.
+    shutil.move(str(tmp_out), str(out))
+    size_kb = out.stat().st_size / 1024
+    print(f"wrote {out} ({size_kb:.0f} KB)")
+    return 0
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     with BundleReader(args.bundle) as reader:
         errors = list(_validate_one(reader))
@@ -1484,6 +1567,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_ins.add_argument("--repo", type=str, default="yaat", help="GitHub repo (default: yaat)")
     p_ins.add_argument("--force", action="store_true", help="overwrite existing TestData file")
     p_ins.set_defaults(func=cmd_install)
+
+    p_trim = sub.add_parser(
+        "trim",
+        help="drop snapshots past --max-seconds (or keep first --max-snapshots) to shrink the bundle",
+    )
+    _add_bundle_arg(p_trim)
+    p_trim.add_argument("--max-seconds", type=float, default=None, help="keep only snapshots with ElapsedSeconds <= N")
+    p_trim.add_argument("--max-snapshots", type=int, default=None, help="keep only the first N snapshots in index order")
+    p_trim.add_argument("--out", type=Path, default=None, help="write to PATH instead of overwriting the input bundle")
+    p_trim.set_defaults(func=cmd_trim)
 
     p_val = sub.add_parser("validate", help="check manifest + entry integrity")
     _add_bundle_arg(p_val)
