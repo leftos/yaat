@@ -886,7 +886,21 @@ public partial class AircraftModel : ObservableObject
         if (CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
             var target = CurrentPhase.Length > 14 ? CurrentPhase[14..] : "";
-            return string.IsNullOrEmpty(target) ? "hold short" : $"hold short {target}";
+            if (string.IsNullOrEmpty(target))
+            {
+                return "holding short";
+            }
+            // Runway ids always start with a digit (28R, 9L, 01C); taxiway names
+            // always start with a letter (E, A1). Disambiguate so controllers see
+            // whether the aircraft is short of a runway at an intersection or short
+            // of a taxiway while on another.
+            bool isRunway = char.IsDigit(target[0]);
+            var twy = CurrentTaxiway;
+            if (isRunway)
+            {
+                return string.IsNullOrEmpty(twy) ? $"holding short {target}" : $"holding short {target} @ {twy}";
+            }
+            return string.IsNullOrEmpty(twy) ? $"holding short of {target}" : $"holding short of {target} on {twy}";
         }
 
         if (CurrentPhase.StartsWith("Following ", StringComparison.Ordinal))

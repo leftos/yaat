@@ -4,6 +4,7 @@
 
 ### Fixed
 - Minimized pop-out windows preserve their restored position and size across app restarts.
+- Aircraft List Info column shows the taxiway intersection at hold-short — e.g. "Holding short 28R @ E" or "Holding short of E on C".
 
 ## v0.2.2-alpha [2026/05/09]
 

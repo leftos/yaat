@@ -207,7 +207,42 @@ public class SmartStatusTests
         ac.IsOnGround = true;
         ac.ComputeSmartStatus();
 
-        Assert.Equal("Hold short 28R", ac.SmartStatus);
+        Assert.Equal("Holding short 28R", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void HoldingShort_RunwayWithCurrentTaxiway()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "Holding Short 28R";
+        ac.CurrentTaxiway = "E";
+        ac.IsOnGround = true;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Holding short 28R @ E", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void HoldingShort_TaxiwayWithCurrentTaxiway()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "Holding Short E";
+        ac.CurrentTaxiway = "C";
+        ac.IsOnGround = true;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Holding short of E on C", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void HoldingShort_TaxiwayNoCurrentTaxiway()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "Holding Short E";
+        ac.IsOnGround = true;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Holding short of E", ac.SmartStatus);
     }
 
     [Fact]
