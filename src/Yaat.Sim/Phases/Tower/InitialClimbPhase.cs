@@ -248,7 +248,17 @@ public sealed class InitialClimbPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // All standard RPO commands exit the phase
+        // CM/DM set an interim altitude ceiling without interrupting initial climb.
+        // The phase must keep running so it can fire the deferred VFR turn
+        // (AIM 4-3-2) and hold the published heading for an RV SID, instead of
+        // letting a benign altitude assignment cancel the heading guidance baked
+        // into the takeoff clearance. Matches TakeoffPhase.CanAcceptCommand.
+        if ((cmd is CanonicalCommandType.ClimbMaintain) || (cmd is CanonicalCommandType.DescendMaintain))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
+        // All other RPO commands exit the phase
         return CommandAcceptance.ClearsPhase;
     }
 
