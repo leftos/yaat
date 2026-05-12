@@ -17,6 +17,9 @@
 - Aircraft List Info column shows the taxiway intersection at hold-short — e.g. "Holding short 28R @ E" or "Holding short of E on C".
 - `CTO MR<n>; DCT FIX` (or `ML<n>`) now takes the short way to the next fix after the departure turn rolls out.
 - Jets starting at parking with a preset `TAXI` command no longer spin at the first ramp corner.
+- `FOLLOW` clears any prior `EXT` on upwind/crosswind/downwind so the follower stops extending and sequences behind the leader.
+- `FOLLOW` no longer auto-cancels with "unable to catch up" when the lead is ahead on a later pattern leg (e.g. lead on final, follower on downwind).
+- `FOLLOW` on upwind and crosswind now adjusts the follower's speed for spacing and drops the target when the lead despawns or lands — same behavior as downwind.
 
 ## v0.2.2-alpha [2026/05/09]
 

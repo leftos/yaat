@@ -10,6 +10,24 @@ namespace Yaat.Sim.Tests.Simulation.Snapshots;
 
 public class SnapshotRoundTripTests
 {
+    public SnapshotRoundTripTests()
+    {
+        // FlightPhysics_UpdateSpeed_NullDesiredDecelRateUsesDefault makes two
+        // AircraftPerformance.DecelRate calls inside a single test body. That
+        // helper reads the static AircraftProfileDatabase singleton, which is
+        // populated by TestVnasData.EnsureInitialized in other test classes'
+        // constructors. xUnit runs test classes in parallel; if a sibling class
+        // initializes profiles BETWEEN our two DecelRate calls, the first sees
+        // the empty-fallback (CategoryPerformance.DecelRate(Jet)=2.0) and the
+        // second sees the loaded B738 profile (3.5), causing a flaky failure.
+        //
+        // Pinning profile state here makes our DecelRate calls observe a single
+        // consistent snapshot — either profiles are already loaded (no-op) or
+        // we trigger the load and the EnsureInitialized lock holds off siblings
+        // until _lookup is populated.
+        TestVnasData.EnsureInitialized();
+    }
+
     [Fact]
     public void AircraftState_ToSnapshot_FromSnapshot_RoundTrips()
     {

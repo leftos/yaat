@@ -143,6 +143,21 @@ public static class AirborneFollowHelper
             return true;
         }
 
+        // Pattern-flow guard: when the lead is on a LATER pattern leg than the
+        // follower on the same runway, geometric divergence is expected from the
+        // leg geometry (e.g. follower on Downwind heading east, lead on Final
+        // heading west). The gap will close again once the follower transitions
+        // toward the lead's leg, so don't accumulate runaway seconds here. Reset
+        // best gap so when the follower does turn base + final, the watchdog
+        // measures growth from the new (smaller) baseline rather than firing the
+        // moment the gap fails to shrink back to the pre-divergence minimum.
+        if (IsLeadPatternFlowAhead(follower, lead))
+        {
+            follower.Approach.FollowBestGapNm = null;
+            follower.Approach.FollowRunawaySeconds = 0;
+            return false;
+        }
+
         double gapNm = GeoMath.DistanceNm(follower.Position, lead.Position);
         double bestSoFar = follower.Approach.FollowBestGapNm ?? double.PositiveInfinity;
         if (gapNm <= bestSoFar)
@@ -275,6 +290,42 @@ public static class AirborneFollowHelper
             return followerElapsed > leadElapsed;
         }
         return false;
+    }
+
+    /// <summary>
+    /// True when both aircraft are flying patterns to the same runway and the
+    /// lead is on a LATER pattern leg than the follower — geographic gap growth
+    /// during the follower's current leg is expected (e.g. follower on Downwind
+    /// heading east, lead on Final heading west — they're on parallel-offset
+    /// tracks pointing opposite directions, so the gap can only grow until the
+    /// follower turns base). The runaway-distance watchdog should not fire here:
+    /// pattern flow guarantees the gap will close again once the follower
+    /// transitions toward the lead's leg.
+    /// </summary>
+    private static bool IsLeadPatternFlowAhead(AircraftState follower, AircraftState lead)
+    {
+        string? followerRwy = follower.Phases?.AssignedRunway?.Designator;
+        string? leadRwy = lead.Phases?.AssignedRunway?.Designator;
+        if (followerRwy is null || leadRwy is null)
+        {
+            return false;
+        }
+        if (!string.Equals(followerRwy, leadRwy, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        int? followerLeg = PatternLegIndex(follower);
+        int? leadLeg = PatternLegIndex(lead);
+        if (followerLeg is null || leadLeg is null)
+        {
+            return false;
+        }
+        // Strict leg-ahead only. Same-leg cases are intentionally NOT short-
+        // circuited: when both aircraft are on parallel tracks heading the same
+        // way, gap growth is no longer "expected pattern geometry" — it means
+        // the lead is genuinely outpacing the follower, which is what the
+        // watchdog exists to catch.
+        return leadLeg > followerLeg;
     }
 
     /// <summary>

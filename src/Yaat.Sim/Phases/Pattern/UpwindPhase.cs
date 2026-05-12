@@ -69,6 +69,11 @@ public sealed class UpwindPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead-not-found / lead-on-ground / runaway-distance watchdog. Mirrors
+        // DownwindPhase so a pattern-phase follower doesn't keep a stale follow
+        // target after the lead despawns or lands during the climb-out.
+        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
         if (IsExtended)
         {
             return false;
@@ -95,6 +100,21 @@ public sealed class UpwindPhase : Phase
                 targetIsBehind ? "passed (behind aircraft)" : "reached",
                 ctx.Aircraft.Altitude
             );
+        }
+
+        // Follow-aware spacing: slow the climbing-out follower when it's bearing
+        // down on a lead too closely from behind. Feed the phase baseline
+        // (DownwindSpeed) into the helper, not the previous tick's target, so the
+        // ±MaxSpeedAdjustKts clamp doesn't compound across ticks.
+        if (ctx.Targets.TargetSpeed is not null)
+        {
+            double baseline = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
+            if (adjusted is not null)
+            {
+                ctx.Targets.TargetSpeed = adjusted.Value;
+            }
         }
 
         return complete;

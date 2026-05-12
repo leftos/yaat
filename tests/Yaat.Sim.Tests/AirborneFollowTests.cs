@@ -418,4 +418,356 @@ public class AirborneFollowTests : IDisposable
         var phase = new FinalApproachPhase();
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Follow));
     }
+
+    // -------------------------------------------------------------------------
+    // CheckLeadLifecycle: pattern-flow-ahead guard
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Build an aircraft already "established" on a pattern phase of a given type.
+    /// Skips the phase's OnStart (Waypoints/Runway needed) and just stamps the
+    /// PhaseList's CurrentIndex via the public Start path on a phase that no-ops
+    /// when its required setup is missing. <see cref="AirborneFollowHelper.CheckLeadLifecycle"/>
+    /// only inspects <c>CurrentPhase</c>'s type and <c>AssignedRunway.Designator</c>.
+    /// </summary>
+    private static AircraftState MakeAircraftOnPatternPhase<TPhase>(
+        string callsign,
+        string type,
+        double lat,
+        double lon,
+        double heading,
+        string runwayDesignator = "28",
+        string? followingCallsign = null
+    )
+        where TPhase : Phase, new()
+    {
+        var ac = MakeAircraft(callsign: callsign, type: type, lat: lat, lon: lon, heading: heading, followingCallsign: followingCallsign);
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, heading: 280, elevationFt: 0) };
+        ac.Phases.Add(new TPhase());
+        // Phase.OnStart returns early when Waypoints / Runway are unset; calling Start
+        // here only flips Status to Active and pins CurrentIndex=0.
+        var startCtx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(type),
+            DeltaSeconds = 1.0,
+            Runway = null,
+            FieldElevation = 0,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.Start(startCtx);
+        return ac;
+    }
+
+    /// <summary>
+    /// Reproduces the geometry from the N342T bug bundle: follower on Downwind
+    /// (eastbound) and lead on FinalApproach (westbound) of the same runway.
+    /// The point-to-point gap grows for the entire duration of the follower's
+    /// downwind leg, but this is expected pattern flow — the lead is on a later
+    /// pattern leg and the gap will close once the follower turns base. The
+    /// runaway watchdog must NOT cancel the follow.
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_DoesNotCancel_WhenLeadOnFinalAndFollowerOnDownwind()
+    {
+        const string LeadCallsign = "LEAD";
+
+        // Follower piston on Downwind, eastbound, south of centerline. Lead piston
+        // on FinalApproach, westbound, on centerline at the same longitude as the
+        // follower — closest-approach geometry, so any motion from here can only
+        // grow the gap (no initial closing phase that would let the runaway timer
+        // reset bestSoFar to a smaller value before the test windows ends).
+        const double StartLon = -121.99;
+        var follower = MakeAircraftOnPatternPhase<DownwindPhase>(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 36.99,
+            lon: StartLon,
+            heading: 100,
+            followingCallsign: LeadCallsign
+        );
+        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: StartLon, heading: 280);
+
+        // Lead heads west (lon decreases), follower heads east (lon increases) —
+        // longitudinal gap grows monotonically every tick, well past the 0.1 nm
+        // runaway tolerance within the 35 s grace window.
+        const int Ticks = 35;
+        const double LonStepDeg = 0.001;
+        for (int i = 0; i < Ticks; i++)
+        {
+            follower.Position = new LatLon(follower.Position.Lat, follower.Position.Lon + LonStepDeg);
+            lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon - LonStepDeg);
+            var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
+            AirborneFollowHelper.CheckLeadLifecycle(ctx);
+        }
+
+        Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
+        Assert.Equal(0, follower.Approach.FollowRunawaySeconds);
+    }
+
+    // -------------------------------------------------------------------------
+    // Fix 3: Upwind / Crosswind follow-aware spacing wiring
+    // -------------------------------------------------------------------------
+
+    private static PatternWaypoints DefaultPatternWaypoints() =>
+        PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, PatternDirection.Left, null, null, null);
+
+    /// <summary>
+    /// Upwind followers must call <see cref="AirborneFollowHelper.CheckLeadLifecycle"/>
+    /// in their OnTick so a vanished lead clears <c>FollowingCallsign</c> instead
+    /// of leaking for the duration of the climb-out.
+    /// </summary>
+    [Fact]
+    public void UpwindPhase_OnTick_ClearsFollow_WhenLeadDespawns()
+    {
+        var wp = DefaultPatternWaypoints();
+        var ac = MakeAircraft(
+            lat: wp.DepartureEndLat,
+            lon: wp.DepartureEndLon,
+            heading: wp.UpwindHeading.Degrees,
+            altitude: 500,
+            followingCallsign: "GHOST"
+        );
+        var phase = new UpwindPhase { Waypoints = wp };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = DefaultRunway(),
+            FieldElevation = DefaultRunway().ElevationFt,
+            AircraftLookup = _ => null,
+            Logger = NullLogger.Instance,
+        };
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        Assert.Null(ac.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// Upwind followers must apply <see cref="AirborneFollowHelper.GetAdjustedSpeed"/>
+    /// so the climbing aircraft slows when it's bearing down on a lead too closely
+    /// from behind. Without the wiring the climbout charges at full DownwindSpeed
+    /// into the back of the lead.
+    /// </summary>
+    [Fact]
+    public void UpwindPhase_OnTick_AppliesFollowSpeedAdjustment()
+    {
+        var wp = DefaultPatternWaypoints();
+        var ac = MakeAircraft(
+            lat: wp.DepartureEndLat,
+            lon: wp.DepartureEndLon,
+            heading: wp.UpwindHeading.Degrees,
+            altitude: 500,
+            followingCallsign: "LEAD"
+        );
+        // Lead 0.7 nm ahead — close enough that piston desired (1.0 nm) calls
+        // for a slowdown, but past the 0.5 nm "can't maintain separation"
+        // threshold so the helper adjusts speed instead of cancelling follow.
+        var lead = MakeAircraft(callsign: "LEAD", type: "C172", lat: ac.Position.Lat, lon: ac.Position.Lon + (0.7 / 48.0));
+
+        var phase = new UpwindPhase { Waypoints = wp };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = DefaultRunway(),
+            FieldElevation = DefaultRunway().ElevationFt,
+            AircraftLookup = cs => cs == "LEAD" ? lead : null,
+            Logger = NullLogger.Instance,
+        };
+        phase.OnStart(ctx);
+
+        double baseline = AircraftPerformance.DownwindSpeed(ac.AircraftType, AircraftCategorization.Categorize(ac.AircraftType));
+        ac.Targets.TargetSpeed = baseline; // OnStart already set this; pin it explicitly for clarity
+
+        phase.OnTick(ctx);
+
+        Assert.NotNull(ac.Targets.TargetSpeed);
+        Assert.True(
+            ac.Targets.TargetSpeed!.Value < baseline,
+            $"Expected target speed below baseline {baseline} when too close to lead, got {ac.Targets.TargetSpeed}"
+        );
+    }
+
+    /// <summary>
+    /// Crosswind followers get the same lifecycle watchdog wiring as Upwind.
+    /// </summary>
+    [Fact]
+    public void CrosswindPhase_OnTick_ClearsFollow_WhenLeadDespawns()
+    {
+        var wp = DefaultPatternWaypoints();
+        var ac = MakeAircraft(
+            lat: wp.CrosswindTurnLat,
+            lon: wp.CrosswindTurnLon,
+            heading: wp.CrosswindHeading.Degrees,
+            altitude: wp.PatternAltitude,
+            followingCallsign: "GHOST"
+        );
+        var phase = new CrosswindPhase { Waypoints = wp };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = DefaultRunway(),
+            FieldElevation = DefaultRunway().ElevationFt,
+            AircraftLookup = _ => null,
+            Logger = NullLogger.Instance,
+        };
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        Assert.Null(ac.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// Crosswind followers apply the same speed-adjustment as Upwind.
+    /// </summary>
+    [Fact]
+    public void CrosswindPhase_OnTick_AppliesFollowSpeedAdjustment()
+    {
+        var wp = DefaultPatternWaypoints();
+        var ac = MakeAircraft(
+            lat: wp.CrosswindTurnLat,
+            lon: wp.CrosswindTurnLon,
+            heading: wp.CrosswindHeading.Degrees,
+            altitude: wp.PatternAltitude,
+            followingCallsign: "LEAD"
+        );
+        // Lead 0.7 nm north — close enough for piston desired (1.0 nm) to call
+        // for a slowdown, past the 0.5 nm "can't maintain separation" threshold.
+        var lead = MakeAircraft(callsign: "LEAD", type: "C172", lat: ac.Position.Lat + (0.7 / 60.0), lon: ac.Position.Lon);
+
+        double baseline = AircraftPerformance.DownwindSpeed(ac.AircraftType, AircraftCategorization.Categorize(ac.AircraftType));
+        ac.Targets.TargetSpeed = baseline;
+
+        var phase = new CrosswindPhase { Waypoints = wp };
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = DefaultRunway(),
+            FieldElevation = DefaultRunway().ElevationFt,
+            AircraftLookup = cs => cs == "LEAD" ? lead : null,
+            Logger = NullLogger.Instance,
+        };
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        Assert.NotNull(ac.Targets.TargetSpeed);
+        Assert.True(
+            ac.Targets.TargetSpeed!.Value < baseline,
+            $"Expected target speed below baseline {baseline} when too close to lead, got {ac.Targets.TargetSpeed}"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Fix 1: FOLLOW dispatch clears IsExtended on all extended pattern legs
+    // -------------------------------------------------------------------------
+
+    private static AircraftState MakeAirborneVfrAircraft(string callsign = "FOLL", string type = "C172")
+    {
+        var ac = MakeAircraft(callsign: callsign, type: type);
+        ac.FlightPlan.FlightRules = "VFR";
+        ac.Approach.HasReportedTrafficInSight = true;
+        ac.Phases = new PhaseList();
+        return ac;
+    }
+
+    [Fact]
+    public void Follow_ClearsExtendedUpwind()
+    {
+        var ac = MakeAirborneVfrAircraft();
+        ac.Phases!.Add(new UpwindPhase { IsExtended = true });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
+        Assert.False(((UpwindPhase)ac.Phases.CurrentPhase!).IsExtended);
+    }
+
+    [Fact]
+    public void Follow_ClearsExtendedCrosswind()
+    {
+        var ac = MakeAirborneVfrAircraft();
+        ac.Phases!.Add(new CrosswindPhase { IsExtended = true });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
+        Assert.False(((CrosswindPhase)ac.Phases.CurrentPhase!).IsExtended);
+    }
+
+    [Fact]
+    public void Follow_ClearsExtendedDownwind()
+    {
+        var ac = MakeAirborneVfrAircraft();
+        ac.Phases!.Add(new DownwindPhase { IsExtended = true });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
+        Assert.False(((DownwindPhase)ac.Phases.CurrentPhase!).IsExtended);
+    }
+
+    /// <summary>
+    /// Control case: when both aircraft are airborne and the lead is on the
+    /// SAME leg (Downwind) but the gap genuinely grows (lead pulling away),
+    /// the runaway watchdog must still fire — the pattern-flow-ahead guard
+    /// applies only when the lead is on a LATER leg.
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_StillCancels_WhenSameLegAndGapGrows()
+    {
+        const string LeadCallsign = "LEAD";
+
+        var follower = MakeAircraftOnPatternPhase<DownwindPhase>(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 37.00,
+            lon: -122.0,
+            heading: 100,
+            followingCallsign: LeadCallsign
+        );
+        var lead = MakeAircraftOnPatternPhase<DownwindPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, heading: 100);
+        // Lead has been on Downwind 60 s longer than follower so IsLeadPatternFlowBehind
+        // returns false (lead is ahead in the same-leg ordering — that's the *runaway*
+        // direction, not the *flow-ahead* one). Without further input the gap is just
+        // open; explicit lead motion away from follower makes the watchdog fire.
+        lead.Phases!.CurrentPhase!.ElapsedSeconds = 60;
+
+        bool cancelled = false;
+        for (int i = 0; i < 35; i++)
+        {
+            // Lead moves east faster than follower — distance grows monotonically.
+            lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon + 0.001);
+            var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
+            if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+            {
+                cancelled = true;
+                break;
+            }
+        }
+
+        Assert.True(cancelled, "Runaway watchdog should still fire when lead on same leg pulls away monotonically");
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
 }

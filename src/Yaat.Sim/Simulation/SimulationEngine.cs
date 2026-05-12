@@ -263,6 +263,28 @@ public sealed class SimulationEngine
         {
             RestoreServerSnapshot(snapshot.Server);
         }
+
+        // Advance replay cursors to match the restored scenario time. Without this,
+        // a subsequent ReplayOneSecond() would treat actions from t=0 onward as
+        // still-pending and re-apply them on top of the restored state. Enables
+        // the hybrid-replay pattern: Replay(recording, 0) to load the scenario,
+        // RestoreFromSnapshot to jump to a saved state, then ReplayOneSecond to
+        // step forward from there with cursors already positioned.
+        if (_replayActions is not null && Scenario is not null)
+        {
+            int restoredSeconds = (int)Scenario.ElapsedSeconds;
+            _replayActionCursor = 0;
+            _replayPreTickActionCursor = 0;
+            _replayPreTickAppliedActionIndexes.Clear();
+            while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= restoredSeconds)
+            {
+                _replayActionCursor++;
+            }
+            while (_replayPreTickActionCursor < _replayActions.Count && _replayActions[_replayPreTickActionCursor].ElapsedSeconds <= restoredSeconds)
+            {
+                _replayPreTickActionCursor++;
+            }
+        }
     }
 
     private ServerSnapshotDto CaptureServerSnapshot(List<AircraftState> aircraft)

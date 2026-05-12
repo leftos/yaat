@@ -2060,14 +2060,27 @@ public static class CommandDispatcher
         }
 
         // If the follower is already in a pattern phase, just update the target —
-        // existing AirborneFollowHelper handles spacing where applicable. Upwind
-        // and Crosswind don't honor FollowingCallsign for spacing today, but
-        // they're still part of the pattern circuit; rebuilding through
-        // VfrFollowPhase here would route the follower back through PatternEntry
-        // for the same runway it's already flying — wasteful and confusing.
+        // AirborneFollowHelper handles spacing on every pattern leg. Rebuilding
+        // through VfrFollowPhase here would route the follower back through
+        // PatternEntry for the same runway it's already flying — wasteful and
+        // confusing. Also clear any prior EXT (extended leg) on Upwind/Crosswind/
+        // Downwind: FOLLOW supersedes the controller's hold-and-call-the-next-leg
+        // instruction since the pilot now has explicit traffic to sequence behind.
         var current = aircraft.Phases?.CurrentPhase;
         if (current is PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or FinalApproachPhase)
         {
+            switch (current)
+            {
+                case UpwindPhase uw when uw.IsExtended:
+                    uw.IsExtended = false;
+                    break;
+                case CrosswindPhase cw when cw.IsExtended:
+                    cw.IsExtended = false;
+                    break;
+                case DownwindPhase dw when dw.IsExtended:
+                    dw.IsExtended = false;
+                    break;
+            }
             aircraft.Approach.FollowingCallsign = target;
             AirborneFollowHelper.ResetRunawayTracking(aircraft);
             return Ok($"Follow {target}");
