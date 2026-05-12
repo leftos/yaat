@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 [Collection("NavDbMutator")]
 public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-vfr-parallel-finals-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/4d4344011a72.zip";
     private const int RestoreAtSeconds = 785;
 
     private SimulationEngine? BuildEngine()

@@ -26,7 +26,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class N427MxElbLongBaseDescentTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n427mx-elb-long-base-descent-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/4d4344011a72.zip";
 
     private SimulationEngine? BuildEngine()
     {

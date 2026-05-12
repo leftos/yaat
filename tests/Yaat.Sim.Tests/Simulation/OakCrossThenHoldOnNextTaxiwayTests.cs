@@ -32,7 +32,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class OakCrossThenHoldOnNextTaxiwayTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-cross-then-hold-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/4d4344011a72.zip";
     private const string Callsign = "N427MX";
 
     // Timeline anchors from the recording (per `bug_bundle.py history --callsign N427MX`):

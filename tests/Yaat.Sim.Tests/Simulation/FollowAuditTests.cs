@@ -16,13 +16,13 @@ namespace Yaat.Sim.Tests.Simulation;
 /// against the bundled snapshot stream so a regression is caught at CI time.
 ///
 /// Bundle is installed under
-/// `TestData/s2-oak3-vfr-sequencing-followaudit-recording.yaat-bug-report-bundle.zip`
+/// `TestData/4d4344011a72.zip`
 /// (distinct from `s2-oak3-vfr-sequencing-recording...` used by
 /// <see cref="FollowBreaksOnLeaderPatternEntryTests"/>).
 /// </summary>
 public class FollowAuditTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/s2-oak3-vfr-sequencing-followaudit-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/4d4344011a72.zip";
 
     private SimulationEngine? BuildEngine()
     {

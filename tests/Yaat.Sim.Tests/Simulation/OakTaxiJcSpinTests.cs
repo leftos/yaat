@@ -38,7 +38,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class OakTaxiJcSpinTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-taxi-jc-spin-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/4d4344011a72.zip";
     private const string Callsign = "N70CS";
 
     /// <summary>Seconds before the TAXI command (t=879) where we restore from snapshot.</summary>

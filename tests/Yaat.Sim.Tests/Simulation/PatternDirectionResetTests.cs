@@ -33,7 +33,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class PatternDirectionResetTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-pattern-direction-flip-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/4d4344011a72.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
