@@ -902,9 +902,9 @@ public partial class GroundViewModel : ObservableObject
 
         if (crossingHoldShorts.Count == 0)
         {
-            results.Add(($"RWY {destRunway}", $"TAXI {taxiways} {destRunway}{spotSuffix}", route));
+            results.Add(($"Takeoff RWY {destRunway}", $"TAXI {taxiways} {destRunway}{spotSuffix}", route));
             results.Add(null); // separator
-            results.Add(($"HS {destRunway}", $"TAXI {taxiways} HS {destRunway}{spotSuffix}", route.TruncateAt(destHsNodeId)));
+            results.Add(($"Hold short RWY {destRunway}", $"TAXI {taxiways} HS {destRunway}{spotSuffix}", route.TruncateAt(destHsNodeId)));
             return results;
         }
 
@@ -914,7 +914,7 @@ public partial class GroundViewModel : ObservableObject
         var firstHs = crossingHoldShorts[0];
         results.Add(
             (
-                $"RWY {destRunway} HS {firstHs.RwyName}",
+                $"Takeoff RWY {destRunway}, HS {firstHs.RwyName}",
                 $"TAXI {taxiways} HS {firstHs.RwyName} RWY {destRunway}{spotSuffix}",
                 route.TruncateAt(firstHs.Hs.NodeId)
             )
@@ -925,7 +925,8 @@ public partial class GroundViewModel : ObservableObject
         {
             var crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
             var holdEntry = crossingHoldShorts[i + 1];
-            var label = $"RWY {destRunway} CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))} HS {holdEntry.RwyName}";
+            var label =
+                $"Takeoff RWY {destRunway}, CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))}, HS {holdEntry.RwyName}";
             var cmd = $"TAXI {taxiways} HS {holdEntry.RwyName} RWY {destRunway}{spotSuffix}, {string.Join(", ", crossParts)}";
             results.Add((label, cmd, route.TruncateAt(holdEntry.Hs.NodeId)));
         }
@@ -934,7 +935,7 @@ public partial class GroundViewModel : ObservableObject
         var allCross = crossingHoldShorts.Select(c => $"CROSS {c.RwyName}");
         results.Add(
             (
-                $"RWY {destRunway} CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
+                $"Takeoff RWY {destRunway}, CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
                 $"TAXI {taxiways} {destRunway}{spotSuffix}, {string.Join(", ", allCross)}",
                 route
             )
@@ -945,14 +946,14 @@ public partial class GroundViewModel : ObservableObject
         // --- Non-RWY variants: progressive crossings without runway assignment ---
 
         // Hold short of first crossing
-        results.Add(($"HS {firstHs.RwyName}", $"TAXI {taxiways} HS {firstHs.RwyName}{spotSuffix}", route.TruncateAt(firstHs.Hs.NodeId)));
+        results.Add(($"Hold short RWY {firstHs.RwyName}", $"TAXI {taxiways} HS {firstHs.RwyName}{spotSuffix}", route.TruncateAt(firstHs.Hs.NodeId)));
 
         // Cross some, hold short of next
         for (int i = 0; i < crossingHoldShorts.Count - 1; i++)
         {
             var crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
             var holdEntry = crossingHoldShorts[i + 1];
-            var label = $"CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))} HS {holdEntry.RwyName}";
+            var label = $"CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))}, HS {holdEntry.RwyName}";
             var cmd = $"TAXI {taxiways} HS {holdEntry.RwyName}{spotSuffix}, {string.Join(", ", crossParts)}";
             results.Add((label, cmd, route.TruncateAt(holdEntry.Hs.NodeId)));
         }
@@ -960,7 +961,7 @@ public partial class GroundViewModel : ObservableObject
         // Cross all, hold short at destination (no RWY assignment)
         results.Add(
             (
-                $"CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))} HS {destRunway}",
+                $"CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}, HS {destRunway}",
                 $"TAXI {taxiways} HS {destRunway}{spotSuffix}, {string.Join(", ", allCross)}",
                 route.TruncateAt(destHsNodeId)
             )

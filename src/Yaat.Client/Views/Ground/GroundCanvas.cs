@@ -174,6 +174,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
     }
     private int? _hoveredNodeId;
+    private string? _hoveredRunwayEnd;
     private bool _initialFitDone;
     private bool _suppressViewSync;
     private bool _isDraggingDataBlock;
@@ -463,6 +464,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// Args: runway-end designator (e.g. <c>"28L"</c>), screen position of the click.
     /// </summary>
     public event Action<string, Point>? RunwayThresholdClicked;
+
+    /// <summary>
+    /// Fired when a runway-threshold marker is right-clicked while an aircraft is selected.
+    /// Args: runway-end designator (e.g. <c>"28L"</c>), screen position of the click.
+    /// </summary>
+    public event Action<string, Point>? RunwayThresholdRightClicked;
 
     /// <summary>Fired when a node is left-clicked during draw mode.</summary>
     public event Action<int>? DrawNodeClicked;
@@ -906,6 +913,18 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
+        // Runway thresholds: mirror the left-click menu so the user gets the
+        // same Taxi/Takeoff options regardless of which mouse button they used.
+        if (SelectedAircraft is not null)
+        {
+            var threshold = FindRunwayThresholdAtPoint(screenPos);
+            if (threshold is { } hit)
+            {
+                RunwayThresholdRightClicked?.Invoke(hit.RunwayEnd, screenPos);
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -1059,6 +1078,39 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             {
                 DrawNodeHovered?.Invoke(newId);
             }
+        }
+
+        // Runway thresholds and runway hold-shorts are clickable destinations
+        // when an aircraft is selected — surface a Hand cursor so the user
+        // sees they're click targets without needing to read the menu first.
+        var runwayEnd = SelectedAircraft is not null ? FindRunwayThresholdAtPoint(screenPos)?.RunwayEnd : null;
+        if (runwayEnd != _hoveredRunwayEnd)
+        {
+            _hoveredRunwayEnd = runwayEnd;
+            MarkDirty();
+        }
+
+        UpdateCursor(node);
+    }
+
+    private void UpdateCursor(GroundNodeDto? hoveredNode)
+    {
+        if (IsDrawingRoute)
+        {
+            return;
+        }
+
+        bool isClickableTaxiTarget =
+            SelectedAircraft is not null
+            && (
+                _hoveredRunwayEnd is not null
+                || (hoveredNode is not null && hoveredNode.Type is "RunwayHoldShort" or "Parking" or "Helipad" or "Spot")
+            );
+
+        var desired = isClickableTaxiTarget ? new Cursor(StandardCursorType.Hand) : Cursor.Default;
+        if (Cursor != desired)
+        {
+            Cursor = desired;
         }
     }
 

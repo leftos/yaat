@@ -52,6 +52,7 @@ public partial class GroundView : UserControl
         _canvas.AircraftCtrlClicked += OnAircraftCtrlClicked;
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
         _canvas.RunwayThresholdClicked += OnRunwayThresholdClicked;
+        _canvas.RunwayThresholdRightClicked += OnRunwayThresholdClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
@@ -90,6 +91,7 @@ public partial class GroundView : UserControl
             _canvas.AircraftCtrlClicked -= OnAircraftCtrlClicked;
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
             _canvas.RunwayThresholdClicked -= OnRunwayThresholdClicked;
+            _canvas.RunwayThresholdRightClicked -= OnRunwayThresholdClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
