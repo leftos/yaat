@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.2.4-alpha [2026/05/13]
+
+### Highlights
+- `TAXIAUTO <runway|@parking>` auto-routes the taxi from the aircraft's current position — runway form heads to the full-length lineup.
+- Right-clicking a taxiing aircraft now offers `Break conflict` (15-second override of the ground-conflict slowdown) and, when a runway is already assigned, the full `Cleared for takeoff …` submenu — pre-clear a takeoff while the aircraft is still taxiing.
+- Right-click a runway threshold on the ground view to open the same taxi menu as the hold-short node, with a `RWY {end}` hover label confirming which runway is targeted.
+- Ground aircraft converging on a taxiway no longer freeze each other at near-zero ground speed; ground datablocks now flag held aircraft as `HOLD` (HOLDPOSITION) or `→CALLSIGN` (GIVEWAY).
 
 ### Added
 - `TAXIAUTO <runway|@parking>` auto-routes the taxi from current position; the runway form targets the full-length lineup.
