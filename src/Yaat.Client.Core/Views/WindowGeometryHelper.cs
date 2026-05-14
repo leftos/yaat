@@ -13,6 +13,12 @@ public sealed class WindowGeometryHelper
 {
     private const string TopmostTitlePrefix = "📌 ";
 
+    // Process-wide registry of live helpers. Lets external callers (e.g. the
+    // Velopack update flow) flush every tracked window's geometry before a
+    // process restart that bypasses the Avalonia window-closing pipeline.
+    private static readonly object RegistryLock = new();
+    private static readonly List<WindowGeometryHelper> ActiveHelpers = new();
+
     private readonly Window _window;
     private readonly UserPreferences _preferences;
     private readonly string _windowName;
@@ -25,6 +31,7 @@ public sealed class WindowGeometryHelper
     private NormalWindowGeometry? _previousNormalGeometry;
     private string _baseTitle = string.Empty;
     private bool _applyingTitle;
+    private bool _isRegistered;
 
     public WindowGeometryHelper(Window window, UserPreferences preferences, string windowName, double defaultWidth, double defaultHeight)
     {
@@ -91,6 +98,63 @@ public sealed class WindowGeometryHelper
         _preferences.WindowTopmostChanged += OnPreferencesWindowTopmostChanged;
         _systemMenuHelper.Attach();
         _nativeMenuHelper.Attach();
+
+        Register();
+    }
+
+    /// <summary>
+    /// Persists the current window geometry to <see cref="UserPreferences"/>
+    /// without detaching event handlers. Call this when the process is about
+    /// to terminate via a path that bypasses the window-closing pipeline
+    /// (e.g. Velopack's <c>ApplyUpdatesAndRestart</c>).
+    /// </summary>
+    public void FlushSavedGeometry()
+    {
+        SaveCurrentGeometry();
+    }
+
+    /// <summary>
+    /// Calls <see cref="FlushSavedGeometry"/> on every registered helper.
+    /// Use before a process restart that won't trigger window-close events.
+    /// </summary>
+    public static void FlushAllSavedGeometries()
+    {
+        WindowGeometryHelper[] snapshot;
+        lock (RegistryLock)
+        {
+            snapshot = ActiveHelpers.ToArray();
+        }
+
+        foreach (var helper in snapshot)
+        {
+            helper.FlushSavedGeometry();
+        }
+    }
+
+    private void Register()
+    {
+        lock (RegistryLock)
+        {
+            if (_isRegistered)
+            {
+                return;
+            }
+            ActiveHelpers.Add(this);
+            _isRegistered = true;
+        }
+    }
+
+    private void Unregister()
+    {
+        lock (RegistryLock)
+        {
+            if (!_isRegistered)
+            {
+                return;
+            }
+            ActiveHelpers.Remove(this);
+            _isRegistered = false;
+        }
     }
 
     private void OnPreferencesWindowTopmostChanged(string windowName, bool isTopmost)
@@ -185,7 +249,12 @@ public sealed class WindowGeometryHelper
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         _preferences.WindowTopmostChanged -= OnPreferencesWindowTopmostChanged;
+        SaveCurrentGeometry();
+        Unregister();
+    }
 
+    private void SaveCurrentGeometry()
+    {
         var isNotNormal = _window.WindowState != WindowState.Normal;
         var isMax = _window.WindowState == WindowState.Maximized;
 

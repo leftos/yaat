@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Window geometry now persists across in-app updates. Velopack's restart bypassed Avalonia's window-closing pipeline, so the per-window save (hooked via `Window.Closing`) never ran; geometry is now flushed for all tracked windows before `ApplyUpdatesAndRestart` hands off.
+
 ## v0.2.3-alpha [2026/05/11]
 
 ### Highlights

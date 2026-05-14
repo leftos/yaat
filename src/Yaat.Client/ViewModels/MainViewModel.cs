@@ -9,6 +9,7 @@ using Velopack;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -1082,6 +1083,13 @@ public partial class MainViewModel : ObservableObject
                 _pendingUpdate,
                 progress => Avalonia.Threading.Dispatcher.UIThread.Post(() => UpdateProgress = progress)
             );
+
+            // Velopack's restart bypasses Avalonia's window-closing pipeline,
+            // so the per-window geometry save (hooked via Window.Closing in
+            // WindowGeometryHelper) never runs. Flush all tracked windows
+            // before handing off to Velopack.
+            WindowGeometryHelper.FlushAllSavedGeometries();
+
             _updateService.ApplyUpdateAndRestart(_pendingUpdate);
         }
         catch (Exception ex)
