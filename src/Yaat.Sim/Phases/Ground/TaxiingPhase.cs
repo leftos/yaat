@@ -287,7 +287,19 @@ public sealed class TaxiingPhase : Phase
         }
 
         // Advance to next segment
+        int prevIdx = route.CurrentSegmentIndex;
         route.CurrentSegmentIndex++;
+        Log.LogDebug(
+            "[Taxi] {Callsign}: advance segment {Prev}→{Next}/{Total} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} ias={Ias:F1}",
+            ctx.Aircraft.Callsign,
+            prevIdx,
+            route.CurrentSegmentIndex,
+            route.Segments.Count,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
+            ctx.Aircraft.TrueHeading.Degrees,
+            ctx.Aircraft.IndicatedAirspeed
+        );
 
         if (route.IsComplete)
         {

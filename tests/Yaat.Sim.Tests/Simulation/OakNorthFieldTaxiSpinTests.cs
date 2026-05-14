@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
-using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -17,32 +15,19 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   EDG320 — Parking SIG4 (node 641, hdg 110), TAXI D C B HS 28R at t=28s.
 ///   TWY801 — Parking GA3  (node 621, hdg 290), TAXI C B HS 28R at t=44s.
 ///
-/// Both crawl at &lt; 5 kt while heading rotates wildly across snapshots
-/// (EDG320: 233° → 331° → 190°; TWY801 stuck at 2-4 kt for the entire
-/// 101 s recording). Per-tick samples confirm orbiting near the ramp-
-/// connector fillet pair without progressing onto the named taxiway.
-///
 /// LayoutInspector confirms north-field parking edges are fillet pairs:
-///   SIG4 (641): RAMP -> 1332/1333, both bearing 218.7°, both
-///               <c>Fillet:phase-d-shorten*</c>.
-///   GA3  (621): RAMP -> 1222/1224, both bearing 209.1°, both
-///               <c>Fillet:phase-d-shorten*</c>.
+///   SIG4 (641): RAMP -> 1332 (forward Nodes[0]=641) and 1333 (reverse Nodes[0]=1332).
+///   GA3  (621): RAMP -> 1224 (forward Nodes[0]=621) and 1222 (reverse Nodes[0]=1222).
 ///
 /// User TAXI commands flow through
-/// <c>TaxiPathfinder.ResolveExplicitPath -&gt; WalkTaxiway -&gt; BridgeToTaxiway -&gt; BfsToTaxiway</c>
-/// (not A* / <c>FindRoute</c>), so the same bug class as the GA3/GA7 spawn
-/// fixes (see <see cref="OakGaSpawnTurnAroundTests"/>) applies here.
-///
-/// This file currently holds the failing assertions as the contract for a
-/// follow-up fix session. The diagnostic facts are active and dump
-/// per-tick state for both aircraft so the next investigator has the data
-/// in front of them without re-running the bundle.
-///
-/// As of the entry-alignment slow-turn fix in <see cref="GroundNavigator"/>:
-///   EDG320 partially recovers (moved=340 ft, cumulativeAbs=454°, signed=36°)
-///   TWY801 still spinning (moved=74 ft, cumulativeAbs=600°, signed=-600°)
-/// The remaining failure is the underlying ramp-connector fillet-pair routing,
-/// distinct from the entry heading-snap that Issue 1 addressed.
+/// <c>TaxiPathfinder.ResolveExplicitPath -&gt; WalkTaxiway -&gt; BridgeToTaxiway -&gt; BfsToTaxiway</c>.
+/// Before the fix, <c>SelectBestBridgeCandidate</c> scored only the candidate
+/// endpoint's first edge on the target taxiway and ignored reverse-traversed
+/// arcs along the bridge path itself — letting BFS pick the reverse-arc
+/// neighbor, which lands the aircraft 180° away from the next walk step and
+/// orbits the ramp. The fix counts reverse-traversed bridge arcs and
+/// penalizes them with the same <c>ReverseArcPenalty</c> already used for
+/// the endpoint check.
 /// </summary>
 public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
 {
@@ -79,7 +64,7 @@ public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
     /// rotation is &gt; 600° while the aircraft stays stationary near the
     /// ramp.
     /// </summary>
-    [Theory(Skip = "Issue 2 fix pending — failing test is the contract for a follow-up session (see plan).")]
+    [Theory]
     [InlineData("EDG320", 28, 320.0, 200.0)]
     [InlineData("TWY801", 44, 320.0, 200.0)]
     public void TaxiOut_DoesNotSpinNearlyFullCircle(string callsign, int taxiCommandSeconds, double maxCumulativeAbsDeg, double maxAbsSignedDeg)
@@ -138,7 +123,7 @@ public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
     /// moment of the TAXI command. The bug produces &lt; 100 ft of net
     /// displacement (aircraft orbits the ramp).
     /// </summary>
-    [Theory(Skip = "Issue 2 fix pending — failing test is the contract for a follow-up session (see plan).")]
+    [Theory]
     [InlineData("EDG320", 28)]
     [InlineData("TWY801", 44)]
     public void TaxiOut_MakesForwardProgress(string callsign, int taxiCommandSeconds)
@@ -175,81 +160,5 @@ public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
             $"{callsign} only moved {movedFt:F0} ft in {observeSeconds}s after TAXI - expected >= {minProgressFt:F0} ft. "
                 + "The aircraft is orbiting the ramp-connector fillet pair near its parking spot."
         );
-    }
-
-    /// <summary>
-    /// Diagnostic: dump per-tick state for EDG320 from the TAXI command
-    /// firing through the end of the recording. Active so an investigator
-    /// running this file gets the trace without un-skipping the assertions.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogTaxiTrajectory_EDG320()
-    {
-        DumpTrajectory("EDG320", taxiCommandSeconds: 28);
-    }
-
-    /// <summary>
-    /// Diagnostic: dump per-tick state for TWY801 from the TAXI command
-    /// firing through the end of the recording.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogTaxiTrajectory_TWY801()
-    {
-        DumpTrajectory("TWY801", taxiCommandSeconds: 44);
-    }
-
-    private void DumpTrajectory(string callsign, int taxiCommandSeconds)
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            output.WriteLine("Skipped: recording or NavData not available");
-            return;
-        }
-
-        engine.Replay(recording, taxiCommandSeconds);
-        var ac = engine.FindAircraft(callsign);
-        if (ac is null)
-        {
-            output.WriteLine($"{callsign} not present at t={taxiCommandSeconds}s");
-            return;
-        }
-
-        var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("OAK");
-
-        DumpAircraftState(ac, layout, t: 0);
-        for (int t = 1; t <= 60; t++)
-        {
-            engine.ReplayOneSecond();
-            ac = engine.FindAircraft(callsign);
-            if (ac is null)
-            {
-                output.WriteLine($"t=+{t, 3} {callsign} disappeared");
-                break;
-            }
-            DumpAircraftState(ac, layout, t);
-        }
-    }
-
-    private void DumpAircraftState(AircraftState ac, AirportGroundLayout? layout, int t)
-    {
-        var route = ac.Ground.AssignedTaxiRoute;
-        string segDesc = "(no route)";
-        if (route is not null && route.CurrentSegmentIndex < route.Segments.Count)
-        {
-            var seg = route.Segments[route.CurrentSegmentIndex];
-            segDesc = $"seg[{route.CurrentSegmentIndex}/{route.Segments.Count}]={seg.FromNodeId}->{seg.ToNodeId} {seg.TaxiwayName}";
-        }
-
-        output.WriteLine(
-            $"t=+{t, 3} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F1} "
-                + $"ias={ac.IndicatedAirspeed:F1} phase={ac.Phases?.CurrentPhase?.Name} {segDesc}"
-        );
-        if (layout is not null)
-        {
-            NearestNodeHelper.Log(output, $"  t=+{t, 3}", ac, layout);
-        }
     }
 }

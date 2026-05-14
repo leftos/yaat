@@ -1961,7 +1961,7 @@ public static class TaxiPathfinder
             else
             {
                 // Multiple directions — prefer the one leading toward the next taxiway
-                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, candidates, nextTaxiwayName, effectiveHint);
+                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, currentId, candidates, nextTaxiwayName, effectiveHint);
             }
 
             if (nextEdge is null)
@@ -2241,17 +2241,22 @@ public static class TaxiPathfinder
             return candidates[0];
         }
 
+        // Defense-in-depth: when multiple candidates exist, prefer ones whose
+        // first step is flip-free (straight or forward-traversed arc) so the
+        // aircraft doesn't orbit a fillet pair (see SelectBestBridgeCandidate).
+        var preferred = FilterFlipFreeFromNode(candidates, startNodeId);
+
         // When no next taxiway, use destination hint (e.g., hold-short node for destination runway)
         if (nextTaxiwayName is null)
         {
             if (destinationHint is null)
             {
-                return candidates[0];
+                return preferred[0];
             }
 
-            IGroundEdge bestHint = candidates[0];
+            IGroundEdge bestHint = preferred[0];
             double bestHintDist = double.MaxValue;
-            foreach (var edge in candidates)
+            foreach (var edge in preferred)
             {
                 int destId = edge.OtherNodeId(startNodeId);
                 if (layout.Nodes.TryGetValue(destId, out var destNode))
@@ -2273,16 +2278,16 @@ public static class TaxiPathfinder
 
         if (goalNode.NodeId == -1)
         {
-            return candidates[0];
+            return preferred[0];
         }
 
         var goal = layout.Nodes[goalNode.NodeId];
 
         // Score each candidate: prefer the one whose destination is closer to the goal
-        IGroundEdge best = candidates[0];
+        IGroundEdge best = preferred[0];
         double bestDist = double.MaxValue;
 
-        foreach (var edge in candidates)
+        foreach (var edge in preferred)
         {
             int destId = edge.OtherNodeId(startNodeId);
             if (layout.Nodes.TryGetValue(destId, out var destNode))
@@ -2300,27 +2305,53 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
+    /// Return the subset of <paramref name="candidates"/> whose first step from
+    /// <paramref name="fromNodeId"/> is flip-free — straight edges (no inherent
+    /// direction), or fillet arcs with <c>Nodes[0].Id == fromNodeId</c> (forward
+    /// traversal). When no candidate is flip-free, falls back to the full list
+    /// so the caller still has a choice.
+    /// </summary>
+    private static List<IGroundEdge> FilterFlipFreeFromNode(List<IGroundEdge> candidates, int fromNodeId)
+    {
+        var flipFree = new List<IGroundEdge>();
+        foreach (var edge in candidates)
+        {
+            if (edge is not GroundArc arc || arc.Nodes[0].Id == fromNodeId)
+            {
+                flipFree.Add(edge);
+            }
+        }
+
+        return flipFree.Count > 0 ? flipFree : candidates;
+    }
+
+    /// <summary>
     /// During the walk loop, when multiple unvisited edges branch on the same taxiway,
-    /// prefer the one leading toward the next taxiway.
+    /// prefer the one leading toward the next taxiway. Flip-free candidates are
+    /// preferred to avoid orbiting fillet pairs (see SelectBestBridgeCandidate).
     /// </summary>
     private static (IGroundEdge Edge, int NodeId) PickBestWalkEdge(
         AirportGroundLayout layout,
+        int fromNodeId,
         List<(IGroundEdge Edge, int NodeId)> candidates,
         string? nextTaxiwayName,
         GroundNode? destinationHint
     )
     {
+        // Defense-in-depth: prefer candidates whose first step is flip-free.
+        var preferred = FilterFlipFreeWalkCandidates(candidates, fromNodeId);
+
         if (nextTaxiwayName is null)
         {
             if (destinationHint is null)
             {
-                return candidates[0];
+                return preferred[0];
             }
 
             // Pick the candidate closest to the destination hint
-            (IGroundEdge Edge, int NodeId) bestHint = candidates[0];
+            (IGroundEdge Edge, int NodeId) bestHint = preferred[0];
             double bestHintDist = double.MaxValue;
-            foreach (var (edge, nodeId) in candidates)
+            foreach (var (edge, nodeId) in preferred)
             {
                 if (layout.Nodes.TryGetValue(nodeId, out var node))
                 {
@@ -2337,7 +2368,7 @@ public static class TaxiPathfinder
         }
 
         // Check if any candidate directly connects to the next taxiway
-        foreach (var (edge, nodeId) in candidates)
+        foreach (var (edge, nodeId) in preferred)
         {
             if (layout.NodeHasEdgeTo(nodeId, nextTaxiwayName))
             {
@@ -2347,10 +2378,10 @@ public static class TaxiPathfinder
 
         // Otherwise pick the candidate whose node has an edge on nextTaxiway nearest
         // (simple heuristic: check if the next taxiway's nearest node is closer)
-        (IGroundEdge Edge, int NodeId) best = candidates[0];
+        (IGroundEdge Edge, int NodeId) best = preferred[0];
         double bestDist = double.MaxValue;
 
-        foreach (var (edge, nodeId) in candidates)
+        foreach (var (edge, nodeId) in preferred)
         {
             if (layout.Nodes.TryGetValue(nodeId, out var node))
             {
@@ -2365,6 +2396,26 @@ public static class TaxiPathfinder
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Walk-edge counterpart to <see cref="FilterFlipFreeFromNode"/>: returns
+    /// the subset of <paramref name="candidates"/> whose first step from
+    /// <paramref name="fromNodeId"/> is flip-free. Falls back to the full list
+    /// when no candidate is flip-free.
+    /// </summary>
+    private static List<(IGroundEdge Edge, int NodeId)> FilterFlipFreeWalkCandidates(List<(IGroundEdge Edge, int NodeId)> candidates, int fromNodeId)
+    {
+        var flipFree = new List<(IGroundEdge Edge, int NodeId)>();
+        foreach (var pair in candidates)
+        {
+            if (pair.Edge is not GroundArc arc || arc.Nodes[0].Id == fromNodeId)
+            {
+                flipFree.Add(pair);
+            }
+        }
+
+        return flipFree.Count > 0 ? flipFree : candidates;
     }
 
     /// <summary>
@@ -2838,24 +2889,27 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Pick the bridge endpoint in <paramref name="candidates"/> whose first
-    /// target-taxiway edge is traversed in its natural-forward direction (or
-    /// is a straight, where direction does not apply). Fillet arcs are placed
-    /// by <see cref="FilletArcGenerator"/> with a specific bezier orientation
+    /// Pick the bridge endpoint in <paramref name="candidates"/> that lands
+    /// the aircraft on the target taxiway without reverse-traversing fillet
+    /// arcs anywhere along the bridge. Fillet arcs are placed by
+    /// <see cref="FilletArcGenerator"/> with a specific bezier orientation
     /// matching the natural geometric flow at a junction; reverse-traversing
-    /// an arc that connects RAMP to a taxiway lands the aircraft at the
-    /// taxiway endpoint heading 180° away from the next walk step's direction
-    /// (the GA3-at-OAK and GA7-at-OAK 270° turn-out symptom). Each candidate
-    /// is scored:
+    /// an arc (going <c>Nodes[1]</c> → <c>Nodes[0]</c>) lands the aircraft
+    /// 180° away from the next walk step's direction, producing the
+    /// GA3/SIG4-at-OAK orbit symptom. Each candidate is scored:
     ///
     /// <para>
-    ///   <c>score = depth + (flipFreeFirstStep ? 0 : ReverseArcPenalty)</c>
+    ///   <c>score = depth
+    ///            + (endpointFlipFree ? 0 : ReverseArcPenalty)
+    ///            + bridgePathReverseArcs * ReverseArcPenalty</c>
     /// </para>
     ///
-    /// where <c>flipFreeFirstStep</c> is true when at least one
-    /// target-taxiway edge at the candidate is either a straight (no
-    /// inherent direction) or an arc traversed with <c>Nodes[0] ==
-    /// candidateId</c> (forward). Lowest score wins.
+    /// where <c>endpointFlipFree</c> is true when at least one target-taxiway
+    /// edge at the candidate is either a straight (no inherent direction) or
+    /// an arc traversed with <c>Nodes[0] == candidateId</c> (forward), and
+    /// <c>bridgePathReverseArcs</c> counts arcs along the reconstructed BFS
+    /// path whose <c>Nodes[0]</c> doesn't match the BFS parent (i.e., the
+    /// bridge would have to traverse them backward). Lowest score wins.
     /// </summary>
     private static int SelectBestBridgeCandidate(
         AirportGroundLayout layout,
@@ -2871,7 +2925,9 @@ public static class TaxiPathfinder
 
         foreach (var (nodeId, depth) in candidates)
         {
-            double score = depth + (HasFlipFreeFirstStep(layout, taxiwayName, nodeId, cameFrom) ? 0.0 : ReverseArcPenalty);
+            double endpointPenalty = HasFlipFreeFirstStep(layout, taxiwayName, nodeId, cameFrom) ? 0.0 : ReverseArcPenalty;
+            double bridgePathPenalty = CountReverseArcsOnBridge(nodeId, cameFrom) * ReverseArcPenalty;
+            double score = depth + endpointPenalty + bridgePathPenalty;
 
             if (score < bestScore)
             {
@@ -2881,6 +2937,39 @@ public static class TaxiPathfinder
         }
 
         return bestId;
+    }
+
+    /// <summary>
+    /// Count reverse-traversed <see cref="GroundArc"/> edges along the BFS
+    /// path from <paramref name="candidateId"/> back to the BFS root. Walks
+    /// the <paramref name="cameFrom"/> parent chain and, for each arc edge
+    /// where <c>Nodes[0].Id != parent</c>, increments the count — this is
+    /// the case where the bridge needs to traverse the arc against its
+    /// natural bezier direction, which flips the tangent 180° at the
+    /// endpoint and produces the ramp-orbit symptom.
+    ///
+    /// <para>
+    /// Straight edges (<see cref="GroundEdge"/>) have no inherent direction
+    /// and are skipped. The walk terminates when a node has no entry in
+    /// <paramref name="cameFrom"/> (the BFS root).
+    /// </para>
+    /// </summary>
+    private static int CountReverseArcsOnBridge(int candidateId, Dictionary<int, (int ParentId, IGroundEdge Edge)> cameFrom)
+    {
+        int reverseArcs = 0;
+        int currentId = candidateId;
+
+        while (cameFrom.TryGetValue(currentId, out var entry))
+        {
+            if (entry.Edge is GroundArc arc && arc.Nodes[0].Id != entry.ParentId)
+            {
+                reverseArcs++;
+            }
+
+            currentId = entry.ParentId;
+        }
+
+        return reverseArcs;
     }
 
     /// <summary>

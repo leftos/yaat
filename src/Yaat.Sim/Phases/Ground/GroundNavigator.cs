@@ -246,8 +246,17 @@ public sealed class GroundNavigator
     /// direction. The slow-turn lets the aircraft taxi forward at
     /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> while gradually
     /// rotating through a real arc geometry — no in-place pivot, no snap.
+    ///
+    /// <para>
+    /// 60° threshold catches the OAK GA3 case (TWY801 at hdg 290°, segBrg 209°,
+    /// delta 80.9°) where the pure-pursuit lookahead loop diverges: at low
+    /// speed the lookahead point shifts faster than the aircraft can turn to
+    /// chase it, producing an orbit. The route-entry gate (<c>CurrentSegmentIndex == 0</c>)
+    /// keeps mid-route corners out of scope — those rely on the synthesised
+    /// slow-turn at the tangent-inset trigger instead.
+    /// </para>
     /// </summary>
-    private const double EntryAlignmentThresholdDeg = 90.0;
+    private const double EntryAlignmentThresholdDeg = 60.0;
 
     /// <summary>
     /// When entry-alignment is active, this holds the segment's real primitive,
@@ -391,12 +400,25 @@ public sealed class GroundNavigator
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
 
         Log.LogDebug(
-            "[NavV2] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm pendingSeg={Pending}",
+            "[NavV2] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm "
+                + "fromNode={FromId}@({FromLat:F6},{FromLon:F6}) toNode={ToId}@({ToLat:F6},{ToLon:F6}) "
+                + "twy={Twy} segBrg={SegBrg:F1} acHdg={Hdg:F1} hdgDelta={HdgDelta:F1} entryAlign={EntryAlign} pendingSeg={Pending}",
             route.CurrentSegmentIndex,
             route.Segments.Count,
             TargetNodeId,
             _currentPrimitive?.Kind,
             seg.Edge.DistanceNm,
+            seg.FromNodeId,
+            from.Position.Lat,
+            from.Position.Lon,
+            seg.ToNodeId,
+            to.Position.Lat,
+            to.Position.Lon,
+            seg.TaxiwayName,
+            segDepartureBearing,
+            ctx.Aircraft.TrueHeading.Degrees,
+            headingDelta,
+            _pendingSegmentPrimitive is not null,
             _pendingSegmentPrimitive?.Kind.ToString() ?? "none"
         );
     }
@@ -898,6 +920,34 @@ public sealed class GroundNavigator
 
         PrevDistToTarget = distNm;
         UpdateDiag(ctx, distNm, bearingToSteerDeg, targetSpeed, onArc: false);
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            double hdgErr = GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearingToSteerDeg);
+            double segBearingDeg = GeoMath.BearingTo(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
+            Log.LogDebug(
+                "[NavV2] TickStraight cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} steer={Steer:F1} hdgErr={HdgErr:F1} "
+                    + "distFt={DistFt:F1} edgeFt={EdgeFt:F1} segBrg={SegBrg:F1} ias={Ias:F1} tgt={Tgt:F1} "
+                    + "thrArrNm={ThrArr:F4} preTurnBlend={Preturn} stalledThr={Stalled} nextBrg={NextBrg}",
+                ctx.Aircraft.Callsign,
+                TargetNodeId,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                ctx.Aircraft.TrueHeading.Degrees,
+                bearingToSteerDeg,
+                hdgErr,
+                distNm * GeoMath.FeetPerNm,
+                edgeLengthNm * GeoMath.FeetPerNm,
+                segBearingDeg,
+                ctx.Aircraft.IndicatedAirspeed,
+                targetSpeed,
+                arrivalThresholdNm,
+                _nextSegmentBearing.HasValue,
+                stalledAtThreshold,
+                _nextSegmentBearing?.ToString("F1") ?? "(none)"
+            );
+        }
+
         return NavigatorResult.Navigating;
     }
 
@@ -942,6 +992,23 @@ public sealed class GroundNavigator
         double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         PrevDistToTarget = distToNode;
         UpdateDiag(ctx, distToNode, tangentDeg, arcTargetSpeed, onArc: true);
+
+        Log.LogDebug(
+            "[NavV2] TickArc cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) tan={Tan:F1} bearingFromCenter={BFC:F1} "
+                + "remainingSweep={Rem:F2}° r={R:F0}ft right={Right} ds={Ds:F2}ft v={V:F1}kt distFt={Dist:F1}",
+            ctx.Aircraft.Callsign,
+            TargetNodeId,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
+            tangentDeg,
+            _arcBearingFromCenterDeg,
+            _arcRemainingSweepDeg,
+            prim.RadiusFt,
+            prim.RightTurn,
+            dsFt,
+            vKts,
+            distToNode * GeoMath.FeetPerNm
+        );
 
         if (_arcRemainingSweepDeg <= 0.01)
         {
