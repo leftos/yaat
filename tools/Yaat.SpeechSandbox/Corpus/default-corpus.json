@@ -1,0 +1,54 @@
+{
+  "cases": [
+    {
+      "name": "climb-and-maintain-3000",
+      "callsign": "N123AB",
+      "canonical": "CM 3000"
+    },
+    {
+      "name": "climb-and-maintain-5000",
+      "callsign": "N123AB",
+      "canonical": "CM 5000"
+    },
+    {
+      "name": "descend-and-maintain-3000",
+      "callsign": "N123AB",
+      "canonical": "DM 3000"
+    },
+    {
+      "name": "descend-and-maintain-5000",
+      "callsign": "N456CD",
+      "canonical": "DM 5000"
+    },
+    {
+      "name": "fly-heading-090",
+      "callsign": "N123AB",
+      "canonical": "FH 090"
+    },
+    {
+      "name": "fly-heading-180",
+      "callsign": "N123AB",
+      "canonical": "FH 180"
+    },
+    {
+      "name": "fly-heading-270",
+      "callsign": "N789EF",
+      "canonical": "FH 270"
+    },
+    {
+      "name": "speed-200",
+      "callsign": "N123AB",
+      "canonical": "SPD 200"
+    },
+    {
+      "name": "speed-250",
+      "callsign": "N123AB",
+      "canonical": "SPD 250"
+    },
+    {
+      "name": "resume-normal-speed",
+      "callsign": "N123AB",
+      "canonical": "RNS"
+    }
+  ]
+}

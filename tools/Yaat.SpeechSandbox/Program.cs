@@ -35,6 +35,13 @@ namespace Yaat.SpeechSandbox;
 ///     rule-engine triage. Loads the model identified by <c>LMKIT_TEST_MODEL</c> env var
 ///     (default <c>qwen3.5:4b</c>), NOT the user's saved preference, so the probe is reproducible
 ///     across machines.</description></item>
+///   <item><description><c>--ouroboros &lt;corpus.json&gt; [--out-dir &lt;dir&gt;]</c> — round-trip harness:
+///     for each canonical command in the corpus, build a pilot readback via
+///     <c>PilotResponder.BuildReadback</c>, synthesize it with Piper, run the resulting audio
+///     through the full STT pipeline (Whisper → rule mapper → LLM fallback), and compare the
+///     recovered canonical to the input. Writes a markdown report plus per-case WAV and
+///     stage-by-stage text dumps to <c>.tmp/ouroboros-{timestamp}/</c>. Used to surface STT
+///     coverage gaps deterministically against a curated corpus.</description></item>
 ///   <item><description>(no args) — launches the GUI sandbox window (App.axaml / MainWindow.axaml).
 ///     Interactive mode for recording, replaying, and iterating on Whisper / LLM prompts.</description></item>
 /// </list>
@@ -66,6 +73,8 @@ public static class Program
                     return RunYaatCatalogMode();
                 case "--llm-probe":
                     return RunLlmProbeMode(args[1..]).GetAwaiter().GetResult();
+                case "--ouroboros":
+                    return OuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
             }
         }
 
