@@ -756,7 +756,7 @@ internal static class FlightCommandHandler
         }
         aircraft.Ground.AssignedTaxiRoute = null;
         aircraft.Queue.Blocks.Clear();
-        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.Hold = null;
         aircraft.Targets.TurnRateOverride = null;
         aircraft.Targets.HasExplicitTurnRate = false;
 

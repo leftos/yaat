@@ -1282,7 +1282,7 @@ public sealed class SimulationEngine
             aircraft.Phases.Clear(ctx);
         }
         aircraft.Ground.AssignedTaxiRoute = null;
-        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.Hold = null;
         aircraft.Queue.Blocks.Clear();
 
         // Place on ground
@@ -1426,9 +1426,13 @@ public sealed class SimulationEngine
                         continue;
                     }
 
-                    // Condition met — clear the aircraft's give-way hold state
-                    aircraft.Ground.GiveWayTarget = null;
-                    aircraft.Ground.IsHeld = false;
+                    // Condition met — clear any active GIVEWAY hold so the payload can dispatch
+                    // cleanly. HoldPosition holds are NOT cleared (a controller's explicit HOLD
+                    // should not be overridden by a deferred BEHIND condition firing).
+                    if (aircraft.Ground.Hold is { Kind: HoldKind.GiveWay })
+                    {
+                        aircraft.Ground.Hold = null;
+                    }
                 }
                 else if (d.IsDistanceBased)
                 {

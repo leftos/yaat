@@ -69,7 +69,7 @@ public sealed class AirTaxiPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        if (ctx.Aircraft.Ground.IsHeld)
+        if (ctx.Aircraft.Ground.IsImmobile)
         {
             ctx.Targets.TargetSpeed = 0;
             return false;

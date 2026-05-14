@@ -47,7 +47,10 @@ internal readonly struct DataBlockLayout
         string dest = ac.Destination.StartsWith('K') ? ac.Destination[1..] : ac.Destination;
         string line2 = string.IsNullOrEmpty(dest) ? ac.AircraftType : $"{ac.AircraftType} {dest}";
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
-        string line4 = ac.TransponderMode == "Standby" ? "SqStby" : "";
+        // Ground hold takes precedence on line4 over the SqStby transponder hint —
+        // a HOLDPOSITION or GIVEWAY is operationally more important than a stale
+        // transponder indication. When no hold is active, line4 reverts to SqStby.
+        string line4 = ac.IsHeld ? ac.HoldStatusDisplay : (ac.TransponderMode == "Standby" ? "SqStby" : "");
 
         float w1 = textPaint.MeasureText(line1);
         float w2 = textPaint.MeasureText(line2);

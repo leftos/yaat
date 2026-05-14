@@ -57,7 +57,7 @@ public sealed class PushbackToSpotPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        if (ctx.Aircraft.Ground.IsHeld)
+        if (ctx.Aircraft.Ground.IsImmobile)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;

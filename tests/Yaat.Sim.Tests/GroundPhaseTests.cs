@@ -117,7 +117,7 @@ public class GroundPhaseTests
         var result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.True(result.Success);
-        Assert.True(aircraft.Ground.IsHeld);
+        Assert.True(aircraft.Ground.IsImmobile);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class GroundPhaseTests
         var result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.False(result.Success);
-        Assert.False(aircraft.Ground.IsHeld);
+        Assert.False(aircraft.Ground.IsImmobile);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class GroundPhaseTests
         var result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.True(result.Success);
-        Assert.True(aircraft.Ground.IsHeld);
+        Assert.True(aircraft.Ground.IsImmobile);
     }
 
     // --- FIX 2: PushbackPhase respects IsHeld ---
@@ -168,7 +168,7 @@ public class GroundPhaseTests
         Assert.True(aircraft.GroundSpeed > 0);
 
         // Hold and tick again
-        aircraft.Ground.IsHeld = true;
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
         phase.OnTick(ctx);
         Assert.Equal(0, aircraft.GroundSpeed);
     }
@@ -187,12 +187,12 @@ public class GroundPhaseTests
         FlightPhysics.Update(aircraft, 1.0);
 
         // Hold
-        aircraft.Ground.IsHeld = true;
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
         phase.OnTick(ctx);
         Assert.Equal(0, aircraft.GroundSpeed);
 
         // Resume — phase OnTick reasserts TargetSpeed automatically
-        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.Hold = null;
         for (int i = 0; i < 3; i++)
         {
             FlightPhysics.Update(aircraft, 1.0);
@@ -842,7 +842,7 @@ public class GroundPhaseTests
         phase.OnTick(ctx);
 
         // Hold
-        aircraft.Ground.IsHeld = true;
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
         phase.OnTick(ctx);
 
         Assert.Equal(0, ctx.Targets.TargetSpeed);
@@ -996,7 +996,7 @@ public class GroundPhaseTests
     }
 
     // -------------------------------------------------------------------------
-    // RunwayExitPhase respects Ground.IsHeld
+    // RunwayExitPhase respects Ground.IsImmobile
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -1037,11 +1037,11 @@ public class GroundPhaseTests
     [Fact]
     public void RunwayExitPhase_WhenHeld_StopsRolling()
     {
-        // Concrete silent-failure case: HOLD POSITION sets Ground.IsHeld = true,
+        // Concrete silent-failure case: HOLD POSITION sets Ground.Hold,
         // but RunwayExitPhase used to keep setting TargetSpeed = coastSpeed each
         // tick — the controller saw "Hold position" success but the aircraft kept
-        // rolling. The other 6 ground-movement phases (CrossingRunwayPhase,
-        // PushbackPhase, TaxiingPhase, etc.) all honor IsHeld; RunwayExitPhase
+        // rolling. The other ground-movement phases (CrossingRunwayPhase,
+        // PushbackPhase, TaxiingPhase, etc.) all honor IsImmobile; RunwayExitPhase
         // must too.
         var aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
@@ -1056,7 +1056,7 @@ public class GroundPhaseTests
         };
         phase.OnStart(ctx);
 
-        aircraft.Ground.IsHeld = true;
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
         phase.OnTick(ctx);
 
         Assert.Equal(0, aircraft.Targets.TargetSpeed);

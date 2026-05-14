@@ -74,7 +74,7 @@ public sealed class CrossingRunwayPhase : Phase
             return true;
         }
 
-        if (ctx.Aircraft.Ground.IsHeld)
+        if (ctx.Aircraft.Ground.IsImmobile)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             return false;

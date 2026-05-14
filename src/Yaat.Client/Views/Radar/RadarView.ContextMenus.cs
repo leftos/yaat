@@ -86,6 +86,11 @@ public partial class RadarView
             {
                 menu.Items.Add(routeItem);
             }
+            var holdItem = BuildHoldStatusItem(ac);
+            if (holdItem is not null)
+            {
+                menu.Items.Add(holdItem);
+            }
         }
 
         menu.Items.Add(new Separator());
@@ -170,6 +175,37 @@ public partial class RadarView
         ToolTip.SetTip(item, fullRoute);
         ToolTip.SetShowDelay(item, 0);
 
+        return item;
+    }
+
+    /// <summary>
+    /// Header-strip item that surfaces an active ground hold ("Held: position" for
+    /// HOLDPOSITION; "Yielding to {target}" for GIVEWAY). Non-clickable, italicised
+    /// so it visually reads as status rather than as a command. Null when the
+    /// aircraft is not held.
+    /// </summary>
+    private static MenuItem? BuildHoldStatusItem(AircraftModel ac)
+    {
+        if (!ac.IsHeld)
+        {
+            return null;
+        }
+
+        var header = ac.HoldKind switch
+        {
+            "GiveWay" when !string.IsNullOrEmpty(ac.HoldYieldTarget) => $"Yielding to: {ac.HoldYieldTarget}",
+            "HoldPosition" => "Held: position",
+            _ => "Held",
+        };
+
+        var item = new MenuItem
+        {
+            Header = header,
+            IsEnabled = false,
+            FontSize = 11,
+            FontStyle = Avalonia.Media.FontStyle.Italic,
+            Opacity = 0.85,
+        };
         return item;
     }
 

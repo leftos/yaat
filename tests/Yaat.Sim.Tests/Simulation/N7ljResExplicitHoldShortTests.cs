@@ -22,7 +22,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Bug: <c>CommandDispatcher</c> only matched ResumeCommand against
 /// HoldingShortPhase when the reason was ExplicitHoldShort. RunwayCrossing
 /// fell through to the generic ground handler which checks
-/// <c>aircraft.Ground.IsHeld</c> (false during a HoldingShortPhase) and
+/// <c>aircraft.Ground.IsImmobile</c> (false during a HoldingShortPhase) and
 /// returned "Aircraft is not held". Fix: broaden the dispatch case so RES
 /// clears any taxi hold-short (Explicit or Crossing). DestinationRunway stays
 /// restricted (use CTO/LUAW).

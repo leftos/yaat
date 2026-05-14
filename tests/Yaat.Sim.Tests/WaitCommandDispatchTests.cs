@@ -208,8 +208,10 @@ public class WaitCommandDispatchTests
         Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
         // Queue untouched
         Assert.Empty(ac.Queue.Blocks);
-        // GiveWay target set on aircraft
-        Assert.Equal("UAL999", ac.Ground.GiveWayTarget);
+        // Aircraft is NOT held during a BEHIND-condition wait — the deferred-dispatch
+        // gates payload dispatch on the target's geometry; the aircraft itself remains
+        // under its prior phase control (AtParkingPhase here).
+        Assert.Null(ac.Ground.Hold);
         // One deferred dispatch with GiveWay target
         Assert.Single(ac.DeferredDispatches);
         Assert.Equal("UAL999", ac.DeferredDispatches[0].GiveWayTarget);
@@ -234,8 +236,9 @@ public class WaitCommandDispatchTests
         // Phases preserved — aircraft stays in holding-after-pushback
         Assert.NotNull(ac.Phases);
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases.CurrentPhase);
-        // GiveWay deferred
-        Assert.Equal("UAL999", ac.Ground.GiveWayTarget);
+        // No hold on the aircraft itself during the BEHIND wait — the deferred dispatch
+        // carries the gate; the aircraft remains under its prior phase control.
+        Assert.Null(ac.Ground.Hold);
         Assert.Single(ac.DeferredDispatches);
         Assert.Equal("UAL999", ac.DeferredDispatches[0].GiveWayTarget);
         Assert.IsType<TaxiCommand>(ac.DeferredDispatches[0].Payload.Blocks[0].Commands[0]);

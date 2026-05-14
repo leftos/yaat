@@ -168,7 +168,7 @@ internal static class GroundCommandHandler
 
         // Set up the taxi route and phase
         aircraft.Ground.AssignedTaxiRoute = route;
-        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.Hold = null;
 
         if (taxi.NoDelete)
         {
@@ -757,8 +757,7 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Hold position requires aircraft on the ground");
         }
 
-        aircraft.Ground.IsHeld = true;
-        aircraft.Ground.GiveWayTarget = null;
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
         aircraft.Ground.IsExpeditingTaxi = false;
         return CommandDispatcher.Ok(BuildHoldMessage(aircraft));
     }
@@ -785,13 +784,12 @@ internal static class GroundCommandHandler
 
     internal static CommandResult TryResumeTaxi(AircraftState aircraft)
     {
-        if (!aircraft.Ground.IsHeld)
+        if (!aircraft.Ground.IsImmobile)
         {
             return new CommandResult(false, "Aircraft is not held");
         }
 
-        aircraft.Ground.IsHeld = false;
-        aircraft.Ground.GiveWayTarget = null;
+        aircraft.Ground.Hold = null;
         aircraft.Ground.IsExpeditingTaxi = false;
         return CommandDispatcher.Ok("Resume taxi");
     }
@@ -920,8 +918,7 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Aircraft must have a taxi route assigned");
         }
 
-        aircraft.Ground.IsHeld = true;
-        aircraft.Ground.GiveWayTarget = targetCallsign;
+        aircraft.Ground.Hold = HoldDirective.GiveWay(targetCallsign);
         return CommandDispatcher.Ok($"Give way to {targetCallsign}");
     }
 
@@ -961,7 +958,7 @@ internal static class GroundCommandHandler
             aircraft.Phases.Clear(ctx);
         }
 
-        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.Hold = null;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
         aircraft.Phases.Add(new HelicopterLandingPhase());
@@ -1064,7 +1061,7 @@ internal static class GroundCommandHandler
             aircraft.Phases.Clear(ctx);
         }
 
-        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.Hold = null;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
         aircraft.Phases.Add(new HelicopterLandingPhase());

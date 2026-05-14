@@ -1249,7 +1249,7 @@ internal static class DepartureClearanceHandler
             aircraft.Phases.Clear(ctoppCtx);
         }
 
-        aircraft.Ground.IsHeld = false;
+        aircraft.Ground.Hold = null;
         aircraft.Phases = new PhaseList();
 
         var helo = new HelicopterTakeoffPhase();

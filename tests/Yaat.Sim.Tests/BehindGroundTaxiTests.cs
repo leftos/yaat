@@ -61,7 +61,7 @@ public class BehindGroundTaxiTests
         Assert.False(result.Success, "Expected BEHIND with unknown target to be rejected");
         Assert.Contains("GHOST", result.Message ?? string.Empty);
         Assert.Empty(ac.DeferredDispatches);
-        Assert.Null(ac.Ground.GiveWayTarget);
+        Assert.Null(ac.Ground.Hold);
     }
 
     [Fact]

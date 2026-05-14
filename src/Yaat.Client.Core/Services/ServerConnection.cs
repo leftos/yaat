@@ -687,7 +687,12 @@ public record AircraftDto(
     string? ExitingRunwayId = null,
     string FiledAircraftType = "",
     bool IsUnsupported = false,
-    bool HasActiveTaxiRoute = false
+    bool HasActiveTaxiRoute = false,
+    // Hold-state mirror of AircraftGroundOps.Hold. HoldKind is null/empty when free
+    // to move, "HoldPosition" for unconditional HOLD, "GiveWay" for a controller
+    // GIVEWAY relationship (HoldYieldTarget carries the callsign in that case).
+    string? HoldKind = null,
+    string? HoldYieldTarget = null
 );
 
 public record LoadScenarioResultDto(

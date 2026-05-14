@@ -77,7 +77,7 @@ public sealed class TaxiingPhase : Phase
         double baseTaxiSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
         _nav.MaxSpeedKts = ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed;
 
-        if (ctx.Aircraft.Ground.IsHeld)
+        if (ctx.Aircraft.Ground.IsImmobile)
         {
             ctx.Aircraft.IndicatedAirspeed = Math.Max(
                 0,

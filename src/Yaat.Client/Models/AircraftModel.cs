@@ -454,6 +454,43 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private bool _hasActiveTaxiRoute;
 
+    /// <summary>
+    /// Kind of active hold: <c>"HoldPosition"</c> for unconditional stop, <c>"GiveWay"</c>
+    /// for a controller-issued GIVEWAY relationship, or null when free to move. Mirrored
+    /// from <c>AircraftGroundOps.Hold</c> on the server. Drives the ground datablock
+    /// status suffix and the right-click menu's hold header.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HoldStatusDisplay))]
+    [NotifyPropertyChangedFor(nameof(IsHeld))]
+    private string? _holdKind;
+
+    /// <summary>
+    /// Yield target callsign when <see cref="HoldKind"/> is <c>"GiveWay"</c>. Null
+    /// for HoldPosition or no hold.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HoldStatusDisplay))]
+    private string? _holdYieldTarget;
+
+    /// <summary>
+    /// True when the aircraft is under any active hold directive (HoldPosition or
+    /// GiveWay). Driven by <see cref="HoldKind"/>.
+    /// </summary>
+    public bool IsHeld => !string.IsNullOrEmpty(HoldKind);
+
+    /// <summary>
+    /// Compact status string for the ground datablock suffix and the right-click
+    /// menu header. Empty when there is no active hold.
+    /// </summary>
+    public string HoldStatusDisplay =>
+        HoldKind switch
+        {
+            "GiveWay" when !string.IsNullOrEmpty(HoldYieldTarget) => $"→{HoldYieldTarget}",
+            "HoldPosition" => "HOLD",
+            _ => string.Empty,
+        };
+
     [ObservableProperty]
     private string _parkingSpot = "";
 
@@ -574,6 +611,8 @@ public partial class AircraftModel : ObservableObject
             CruiseSpeed = dto.CruiseSpeed,
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
+            HoldKind = dto.HoldKind,
+            HoldYieldTarget = dto.HoldYieldTarget,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -642,6 +681,8 @@ public partial class AircraftModel : ObservableObject
         CruiseSpeed = dto.CruiseSpeed;
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
+        HoldKind = dto.HoldKind;
+        HoldYieldTarget = dto.HoldYieldTarget;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;

@@ -41,8 +41,7 @@ public sealed class FollowingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // Check if held
-        if (ctx.Aircraft.Ground.IsHeld)
+        if (ctx.Aircraft.Ground.IsImmobile)
         {
             double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
             ctx.Aircraft.IndicatedAirspeed = Math.Max(0, ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds);

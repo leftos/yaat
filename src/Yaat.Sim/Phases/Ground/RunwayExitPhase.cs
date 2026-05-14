@@ -161,11 +161,7 @@ public sealed class RunwayExitPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // Honor HOLD POSITION: the aircraft must brake to a stop and stay there
-        // until released. Other ground-movement phases (CrossingRunwayPhase,
-        // PushbackPhase, TaxiingPhase, etc.) check this same flag — RunwayExitPhase
-        // is the last one that needed it.
-        if (ctx.Aircraft.Ground.IsHeld)
+        if (ctx.Aircraft.Ground.IsImmobile)
         {
             ctx.Targets.TargetSpeed = 0;
             ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);

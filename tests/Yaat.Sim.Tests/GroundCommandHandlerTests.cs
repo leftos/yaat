@@ -621,7 +621,8 @@ public class GroundCommandHandlerTests
         var result = GroundCommandHandler.TryHoldPosition(ac);
 
         Assert.True(result.Success);
-        Assert.True(ac.Ground.IsHeld);
+        Assert.True(ac.Ground.IsImmobile);
+        Assert.Equal(HoldDirective.HoldPosition, ac.Ground.Hold);
     }
 
     [Fact]
@@ -687,7 +688,7 @@ public class GroundCommandHandlerTests
     public void TryResumeTaxi_ClearsExpeditingTaxi()
     {
         var ac = MakeGroundAircraft();
-        ac.Ground.IsHeld = true;
+        ac.Ground.Hold = HoldDirective.HoldPosition;
         ac.Ground.IsExpeditingTaxi = true;
 
         GroundCommandHandler.TryResumeTaxi(ac);
@@ -710,19 +711,20 @@ public class GroundCommandHandlerTests
     public void TryResumeTaxi_WhenHeld_ClearsIsHeld()
     {
         var ac = MakeGroundAircraft();
-        ac.Ground.IsHeld = true;
+        ac.Ground.Hold = HoldDirective.HoldPosition;
 
         var result = GroundCommandHandler.TryResumeTaxi(ac);
 
         Assert.True(result.Success);
-        Assert.False(ac.Ground.IsHeld);
+        Assert.False(ac.Ground.IsImmobile);
+        Assert.Null(ac.Ground.Hold);
     }
 
     [Fact]
     public void TryResumeTaxi_NotHeld_Fails()
     {
         var ac = MakeGroundAircraft();
-        ac.Ground.IsHeld = false;
+        ac.Ground.Hold = null;
 
         var result = GroundCommandHandler.TryResumeTaxi(ac);
 
@@ -1109,8 +1111,10 @@ public class GroundCommandHandlerTests
 
         Assert.True(result.Success);
         Assert.Contains("Give way to UAL999", result.Message!);
-        Assert.True(ac.Ground.IsHeld);
-        Assert.Equal("UAL999", ac.Ground.GiveWayTarget);
+        Assert.True(ac.Ground.IsImmobile);
+        Assert.NotNull(ac.Ground.Hold);
+        Assert.Equal(HoldKind.GiveWay, ac.Ground.Hold!.Kind);
+        Assert.Equal("UAL999", ac.Ground.Hold.YieldTarget);
     }
 
     [Fact]

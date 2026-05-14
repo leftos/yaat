@@ -551,12 +551,11 @@ public class GroundConflictDetectorTests
         var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
         var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        // Held aircraft sits at origin, heading north, with a route. IsHeld=true
-        // simulates GIVEWAY / HOLDPOSITION / BEHIND — the route is assigned but
-        // the aircraft is parked until released.
+        // Held aircraft sits at origin, heading north, with a route. Hold=GiveWay
+        // simulates GIVEWAY — the route is assigned but the aircraft is parked
+        // until the resume geometry fires.
         var held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
-        held.Ground.IsHeld = true;
-        held.Ground.GiveWayTarget = "MOVER"; // mirrors what TryGiveWay sets
+        held.Ground.Hold = HoldDirective.GiveWay("MOVER");
 
         // Mover is 100ft south and 200ft east, heading north. B738 wingspan ~117 ft
         // → required lateral = 117/2 + 117/2 + 25 = 142 ft. The 200ft offset
@@ -586,8 +585,9 @@ public class GroundConflictDetectorTests
 
     /// <summary>
     /// Same geometry but with the held aircraft directly in the mover's path —
-    /// lateral offset is zero. The mover MUST stop. Verifies the IsHeld
-    /// classification doesn't accidentally disable in-path collision avoidance.
+    /// lateral offset is zero. The mover MUST stop. Verifies the Hold-based
+    /// Stationary classification doesn't accidentally disable in-path collision
+    /// avoidance.
     /// </summary>
     [Fact]
     public void HeldAircraft_StopsInPathMover()
@@ -599,7 +599,7 @@ public class GroundConflictDetectorTests
         var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
         var held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
-        held.Ground.IsHeld = true;
+        held.Ground.Hold = HoldDirective.HoldPosition;
 
         // Mover 100ft south, same longitude — directly behind the held aircraft.
         var mover = MakeAircraft(
@@ -616,5 +616,75 @@ public class GroundConflictDetectorTests
 
         Assert.NotNull(mover.Ground.SpeedLimit);
         Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+    }
+
+    /// <summary>
+    /// Diagnostic enrichment for GIVEWAY relationships. When the controller has
+    /// said "N123, give way to MOVER" and both aircraft are in the conflict
+    /// detector's search range, the DebugSink should emit a
+    /// "[Pair] ControllerGiveWay N123→MOVER" line so the operator sees the
+    /// intent-bearing relationship instead of an anonymous "Stationary" pair.
+    /// </summary>
+    [Fact]
+    public void DebugSink_EmitsControllerGiveWayLine_ForControllerHeldPair()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+
+        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        var held = MakeAircraft("N123", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        held.Ground.Hold = HoldDirective.GiveWay("MOVER");
+
+        var mover = MakeAircraft(
+            "MOVER",
+            new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 15,
+            taxiRoute: routeMover,
+            phase: new TaxiingPhase()
+        );
+
+        var captured = new System.Collections.Generic.List<string>();
+        GroundConflictDetector.ApplySpeedLimits([held, mover], layout, deltaSeconds: 0, diagnosticLog: captured.Add);
+
+        Assert.Contains(
+            captured,
+            line => line.StartsWith("[Pair] ControllerGiveWay ", System.StringComparison.Ordinal) && line.Contains("N123") && line.Contains("MOVER")
+        );
+    }
+
+    /// <summary>
+    /// Companion: HOLDPOSITION must NOT emit the ControllerGiveWay line — there is
+    /// no yield relationship to surface, only an unconditional stop.
+    /// </summary>
+    [Fact]
+    public void DebugSink_OmitsControllerGiveWayLine_ForHoldPosition()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+
+        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        var held = MakeAircraft("N123", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        held.Ground.Hold = HoldDirective.HoldPosition;
+
+        var mover = MakeAircraft(
+            "MOVER",
+            new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 15,
+            taxiRoute: routeMover,
+            phase: new TaxiingPhase()
+        );
+
+        var captured = new System.Collections.Generic.List<string>();
+        GroundConflictDetector.ApplySpeedLimits([held, mover], layout, deltaSeconds: 0, diagnosticLog: captured.Add);
+
+        Assert.DoesNotContain(captured, line => line.StartsWith("[Pair] ControllerGiveWay ", System.StringComparison.Ordinal));
+        // The HoldPosition kind should still surface in the [Classify] line for N123.
+        Assert.Contains(captured, line => line.StartsWith("[Classify] N123", System.StringComparison.Ordinal) && line.Contains("hold=HoldPosition"));
     }
 }

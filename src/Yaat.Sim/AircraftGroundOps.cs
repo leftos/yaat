@@ -37,8 +37,24 @@ public class AircraftGroundOps
     public string? ParkingSpot { get; set; }
     public string? CurrentTaxiway { get; set; }
     public NavTickDiag? LastNavDiag { get; set; }
-    public bool IsHeld { get; set; }
-    public string? GiveWayTarget { get; set; }
+
+    /// <summary>
+    /// Active hold directive (HOLDPOSITION or GIVEWAY) or null when the aircraft is
+    /// free to move under its phase's normal control. Set by ground command handlers
+    /// (TryHoldPosition / TryGiveWay) and cleared by RES, TAXI, auto-resume geometry
+    /// (FlightPhysics.UpdateGiveWayResume), and deferred-dispatch firing.
+    /// Ground phases honour this via <see cref="IsImmobile"/>; each phase decides how
+    /// to bring the aircraft to a stop (decel, snap-to-zero, etc).
+    /// </summary>
+    public HoldDirective? Hold { get; set; }
+
+    /// <summary>
+    /// True when the aircraft is under any active hold directive. All ground phases
+    /// must short-circuit their motion logic on this predicate. A convention test
+    /// enforces that every <c>IGroundPhase</c> references this property.
+    /// </summary>
+    public bool IsImmobile => Hold is not null;
+
     public bool AutoDeleteExempt { get; set; }
 
     /// <summary>
@@ -97,8 +113,8 @@ public class AircraftGroundOps
             AssignedTaxiRoute = AssignedTaxiRoute?.ToSnapshot(),
             ParkingSpot = ParkingSpot,
             CurrentTaxiway = CurrentTaxiway,
-            IsHeld = IsHeld,
-            GiveWayTarget = GiveWayTarget,
+            IsHeld = Hold is not null,
+            GiveWayTarget = Hold?.YieldTarget,
             AutoDeleteExempt = AutoDeleteExempt,
             ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
             SpeedLimit = SpeedLimit,
@@ -117,8 +133,7 @@ public class AircraftGroundOps
             AssignedTaxiRoute = dto.AssignedTaxiRoute is not null ? TaxiRoute.FromSnapshot(dto.AssignedTaxiRoute, layout) : null,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
-            IsHeld = dto.IsHeld,
-            GiveWayTarget = dto.GiveWayTarget,
+            Hold = HoldFromSnapshot(dto.IsHeld, dto.GiveWayTarget),
             AutoDeleteExempt = dto.AutoDeleteExempt,
             ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
             SpeedLimit = dto.SpeedLimit,
@@ -128,4 +143,13 @@ public class AircraftGroundOps
             IsScriptedDeparture = dto.IsScriptedDeparture,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
         };
+
+    private static HoldDirective? HoldFromSnapshot(bool isHeld, string? giveWayTarget)
+    {
+        if (!isHeld)
+        {
+            return null;
+        }
+        return string.IsNullOrWhiteSpace(giveWayTarget) ? HoldDirective.HoldPosition : HoldDirective.GiveWay(giveWayTarget);
+    }
 }

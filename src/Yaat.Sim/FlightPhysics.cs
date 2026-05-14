@@ -1177,7 +1177,7 @@ public static class FlightPhysics
 
     private static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup)
     {
-        if (aircraft.Ground.GiveWayTarget is null || !aircraft.Ground.IsHeld || !aircraft.IsOnGround)
+        if (aircraft.Ground.Hold is not { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget } || !aircraft.IsOnGround)
         {
             return;
         }
@@ -1187,22 +1187,20 @@ public static class FlightPhysics
             return;
         }
 
-        var target = aircraftLookup(aircraft.Ground.GiveWayTarget);
+        var target = aircraftLookup(yieldTarget);
         if (target is null || !target.IsOnGround)
         {
             // Target is gone or airborne — resume
-            aircraft.Ground.IsHeld = false;
-            aircraft.Ground.GiveWayTarget = null;
+            aircraft.Ground.Hold = null;
             return;
         }
 
         // Check if give-way condition is met (target has passed)
-        var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = aircraft.Ground.GiveWayTarget };
+        var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = yieldTarget };
 
         if (IsGiveWayMet(aircraft, trigger, aircraftLookup))
         {
-            aircraft.Ground.IsHeld = false;
-            aircraft.Ground.GiveWayTarget = null;
+            aircraft.Ground.Hold = null;
         }
     }
 

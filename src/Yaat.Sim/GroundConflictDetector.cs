@@ -26,14 +26,17 @@
 //     Apply closing-proximity in both directions; apply head-on fallback IF
 //     both are moving with diff > 120° and not behind each other.
 //
-// Self-pin recovery: a routed aircraft pinned at gs≈0 / SpeedLimit≈0 / !IsHeld
-// classifies as Stationary. Treats the pinned aircraft as a parked obstacle so
-// the lateral-clearance bypass opens for nearby movers on the next tick.
+// Self-pin recovery: a routed aircraft pinned at gs≈0 / SpeedLimit≈0 with no
+// active Hold classifies as Stationary. Treats the pinned aircraft as a parked
+// obstacle so the lateral-clearance bypass opens for nearby movers on the next
+// tick.
 //
-// IsHeld classification: a routed aircraft with Ground.IsHeld=true (GIVEWAY,
-// HOLDPOSITION, BEHIND-conditional satisfied) classifies as Stationary. It
-// won't move until the resume condition fires, so other aircraft can pass
-// laterally with wingspan clearance.
+// Hold classification: a routed aircraft with Ground.Hold set (HOLDPOSITION or
+// GIVEWAY) classifies as Stationary. It won't move until the resume condition
+// fires (FlightPhysics.UpdateGiveWayResume for GIVEWAY, operator RES for either),
+// so other aircraft can pass laterally with wingspan clearance. The diagnostic
+// log distinguishes the kind of hold so DebugSink consumers can tell whether the
+// stop is intent-bearing ("Yielding to SWA123") or unconditional ("HoldPosition").
 //
 // Public API:
 //   - ApplySpeedLimits(List<AircraftState>, AirportGroundLayout?, double, Action<string>?)
@@ -137,8 +140,14 @@ public static class GroundConflictDetector
 
             var (state, dir) = Classify(ac);
             entries.Add((ac, state, dir));
+            string holdReason = ac.Ground.Hold switch
+            {
+                { Kind: HoldKind.GiveWay, YieldTarget: { } t } => $" hold=GiveWay→{t}",
+                { Kind: HoldKind.HoldPosition } => " hold=HoldPosition",
+                _ => string.Empty,
+            };
             diagnosticLog?.Invoke(
-                $"[Classify] {ac.Callsign}: {state}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, route={ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex.ToString() ?? "null"}/{ac.Ground.AssignedTaxiRoute?.Segments.Count.ToString() ?? "null"}"
+                $"[Classify] {ac.Callsign}: {state}{holdReason}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, route={ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex.ToString() ?? "null"}/{ac.Ground.AssignedTaxiRoute?.Segments.Count.ToString() ?? "null"}"
             );
         }
 
@@ -178,6 +187,20 @@ public static class GroundConflictDetector
 
                 double distFt = distNm * FtPerNm;
                 var kind = ClassifyPair(a, stateA, b, stateB, distFt, layout);
+
+                // Make the controller-supplied GIVEWAY relationship visible. The pair
+                // resolution is still Stationary-driven (one aircraft is held, so it
+                // already classifies as Stationary), but the operator sees who is
+                // yielding to whom rather than an anonymous "Stationary" pair.
+                if (a.Ground.Hold is { } ha && ha.IsGiveWayFor(b.Callsign))
+                {
+                    diagnosticLog?.Invoke($"[Pair] ControllerGiveWay {a.Callsign}→{b.Callsign}");
+                }
+                else if (b.Ground.Hold is { } hb && hb.IsGiveWayFor(a.Callsign))
+                {
+                    diagnosticLog?.Invoke($"[Pair] ControllerGiveWay {b.Callsign}→{a.Callsign}");
+                }
+
                 diagnosticLog?.Invoke($"[Pair] {a.Callsign}({stateA})+{b.Callsign}({stateB}): dist={distFt:F0}ft → {kind}");
 
                 switch (kind)
@@ -291,13 +314,13 @@ public static class GroundConflictDetector
             return (MovementState.Stationary, null);
         }
 
-        // Controller-held aircraft (GIVEWAY / HOLDPOSITION / BEHIND etc.) are
-        // functionally parked until released — they won't move until the resume
-        // condition fires (FlightPhysics.UpdateGiveWayResume or operator RES).
-        // Treat them as Stationary so other aircraft can pass laterally beside
-        // them when wingspan clearance allows. Without this, a held aircraft
-        // on a taxiway blocks every passing aircraft via closing-proximity.
-        if (ac.Ground.IsHeld)
+        // Controller-held aircraft (HOLDPOSITION or GIVEWAY) are functionally parked
+        // until released — they won't move until the resume condition fires
+        // (FlightPhysics.UpdateGiveWayResume for GIVEWAY geometry, or operator RES
+        // for either). Treat them as Stationary so other aircraft can pass laterally
+        // beside them when wingspan clearance allows. Without this, a held aircraft
+        // on a taxiway would block every passing aircraft via closing-proximity.
+        if (ac.Ground.IsImmobile)
         {
             return (MovementState.Stationary, null);
         }
@@ -318,7 +341,7 @@ public static class GroundConflictDetector
         if (ac.Ground.AssignedTaxiRoute?.CurrentSegment is not null)
         {
             bool selfPinned =
-                ac.GroundSpeed <= SelfPinSpeedEpsilonKts && ac.Ground.SpeedLimit is { } lim && lim <= SelfPinLimitEpsilonKts && !ac.Ground.IsHeld;
+                ac.GroundSpeed <= SelfPinSpeedEpsilonKts && ac.Ground.SpeedLimit is { } lim && lim <= SelfPinLimitEpsilonKts && !ac.Ground.IsImmobile;
             if (selfPinned)
             {
                 return (MovementState.Stationary, null);

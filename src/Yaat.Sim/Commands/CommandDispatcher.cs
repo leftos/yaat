@@ -990,7 +990,9 @@ public static class CommandDispatcher
 
         var payloadDesc = string.Join(" ; then ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
 
-        aircraft.Ground.GiveWayTarget = gw.TargetCallsign;
+        // The deferred-dispatch carries its own GiveWayTarget gate; no need to mirror
+        // it onto aircraft.Ground.Hold during the wait — the aircraft remains under its
+        // prior phase control until the condition fires and the payload dispatches.
         aircraft.DeferredDispatches.Add(new DeferredDispatch(payload, gw.TargetCallsign) { SourceText = compound.SourceText });
         return new CommandResult(true, $"After {gw.TargetCallsign} passes: {payloadDesc}");
     }
@@ -1304,10 +1306,10 @@ public static class CommandDispatcher
 
             // Hold/resume during air taxi (airborne, so ground handler's IsOnGround check would reject)
             case HoldPositionCommand when currentPhase is AirTaxiPhase:
-                aircraft.Ground.IsHeld = true;
+                aircraft.Ground.Hold = HoldDirective.HoldPosition;
                 return Ok("Hold position");
             case ResumeCommand when currentPhase is AirTaxiPhase:
-                aircraft.Ground.IsHeld = false;
+                aircraft.Ground.Hold = null;
                 return Ok("Resume taxi");
             case ResumeCommand
                 when currentPhase
