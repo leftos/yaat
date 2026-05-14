@@ -181,17 +181,22 @@ internal static class OuroborosRunner
         row.ReadbackTts = ttsText;
         Console.WriteLine($"  TTS:     \"{ttsText}\"");
 
-        // --- Stage 2: Piper synth at native rate, then resample to 16 kHz for Whisper ---
+        // --- Stage 2: Piper synth at native rate, resample to 16 kHz for Whisper, save as 16 kHz
+        // PCM16 WAV so `--pipeline` can replay the exact bytes Whisper consumed (and any media
+        // player can still listen back). ---
         var synthSw = Stopwatch.StartNew();
         var synth = piper.Synthesize(ttsText, DefaultSpeakerId, DefaultSpeed);
         synthSw.Stop();
         row.SynthMs = (int)synthSw.ElapsedMilliseconds;
 
-        var wavPath = Path.Combine(casesDir, $"{c.Name}.wav");
-        PiperSynthesizer.WriteWavFloat(wavPath, synth.Samples, synth.SampleRate);
-        row.WavPath = wavPath;
-
         var sttSamples = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
+        var wavPath = Path.Combine(casesDir, $"{c.Name}.wav");
+        await using (var fs = File.Create(wavPath))
+        {
+            var wavStream = WavHeader.WritePcm16(sttSamples, AudioCaptureService.SampleRate);
+            await wavStream.CopyToAsync(fs).ConfigureAwait(false);
+        }
+        row.WavPath = wavPath;
 
         // --- Stage 3: Whisper STT ---
         var sttSw = Stopwatch.StartNew();
