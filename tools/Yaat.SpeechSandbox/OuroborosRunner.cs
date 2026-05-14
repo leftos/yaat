@@ -16,36 +16,57 @@ namespace Yaat.SpeechSandbox;
 /// TTS audio → Whisper STT → rule mapper → LLM fallback → compare recovered canonical to input.
 /// Designed to surface STT pipeline gaps deterministically against a curated corpus.
 ///
-/// Run with <c>--ouroboros &lt;corpus.json&gt; [--out-dir &lt;dir&gt;]</c>. Output lands in
-/// <c>.tmp/ouroboros-{timestamp}/</c> (or the override dir) with a markdown report, one WAV per
-/// case, and a per-case text dump showing every stage's output for failure triage.
+/// Run with <c>--ouroboros &lt;corpus.json&gt; [--out-dir &lt;dir&gt;] [--trials N]</c>. Output
+/// lands in <c>.tmp/ouroboros-{timestamp}/</c> (or the override dir) with a markdown report, one
+/// WAV per case, and a per-case text dump showing every trial's transcript + stage output for
+/// failure triage.
 ///
-/// Single Piper speaker, no radio FX, no resampling artifacts beyond a linear interp (22050 →
-/// 16000). v1 mirrors production verdict ordering: rule winner if non-null, else LLM.
+/// Piper synth runs ONCE per case (deterministic given fixed speaker + speed); STT + mapping run
+/// N times per case so we can see through whisper-large-turbo3's CUDA non-determinism. Cases are
+/// verdicted PASS (all N trials match), FAIL (zero match), or FLAKY (some match) — the latter is
+/// the signal that the underlying issue is intermittent, not an outright pipeline gap.
 /// </summary>
 internal static class OuroborosRunner
 {
     private const int DefaultSpeakerId = 50;
     private const float DefaultSpeed = 1.0f;
 
+    // Whisper drops the leading phoneme when fed Piper output without pre-speech silence — real
+    // mic captures have natural room tone before speech, synthetic audio doesn't. 400 ms each
+    // side is the published whisper.cpp short-clip recommendation.
+    private const int LeadingSilenceMs = 400;
+    private const int TrailingSilenceMs = 400;
+
     public static async Task<int> RunAsync(string[] args)
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --ouroboros <corpus.json> [--out-dir <dir>]");
+            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --ouroboros <corpus.json> [--out-dir <dir>] [--trials N]");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Round-trip pipeline: canonical → readback → Piper TTS → Whisper STT → rule → LLM → compare.");
-            Console.Error.WriteLine("Reports each case as PASS / FAIL and preserves WAVs + per-stage logs for triage.");
+            Console.Error.WriteLine("With --trials N, each case is transcribed+mapped N times to defend against whisper non-determinism.");
+            Console.Error.WriteLine("Verdicts: PASS (all trials match), FAIL (none match), FLAKY (some match).");
             return 1;
         }
 
         var corpusPath = args[0];
         string? outDirOverride = null;
-        for (int i = 1; i < args.Length - 1; i++)
+        int trials = 1;
+        for (int i = 1; i < args.Length; i++)
         {
-            if (args[i] == "--out-dir")
+            if (args[i] == "--out-dir" && i + 1 < args.Length)
             {
                 outDirOverride = args[i + 1];
+                i++;
+            }
+            else if (args[i] == "--trials" && i + 1 < args.Length)
+            {
+                if (!int.TryParse(args[i + 1], CultureInfo.InvariantCulture, out trials) || trials < 1)
+                {
+                    Console.Error.WriteLine($"FATAL: --trials must be a positive integer, got '{args[i + 1]}'");
+                    return 2;
+                }
+                i++;
             }
         }
 
@@ -76,7 +97,7 @@ internal static class OuroborosRunner
         }
 
         var prefs = new UserPreferences();
-        Console.WriteLine($"Corpus: {corpusPath} ({corpus.Cases.Count} cases)");
+        Console.WriteLine($"Corpus:        {corpusPath} ({corpus.Cases.Count} cases × {trials} trial{(trials == 1 ? "" : "s")})");
         Console.WriteLine($"Whisper model: {prefs.WhisperModelSize}");
         Console.WriteLine($"LLM model:     {prefs.LlmModelPath}");
 
@@ -84,7 +105,7 @@ internal static class OuroborosRunner
         if (voiceDir is null)
         {
             Console.Error.WriteLine(
-                "FATAL: Piper voice pack not found. Expected at .tmp/voices/vits-piper-en_US-libritts_r-medium/ relative to repo root."
+                "FATAL: Piper voice pack not found. Expected at .tmp/voices/vits-piper-en_US-libritts_r-medium/ relative to repo root, or %LOCALAPPDATA%/yaat/voices/vits-piper-en_US-libritts_r-medium/."
             );
             return 2;
         }
@@ -120,50 +141,46 @@ internal static class OuroborosRunner
         Console.WriteLine($"Output dir:    {outDir}");
         Console.WriteLine();
 
-        var rows = new List<CaseRow>();
-        var commandScheme = CommandScheme.Default();
+        var results = new List<CaseResult>();
 
         foreach (var c in corpus.Cases)
         {
             Console.WriteLine($"=== {c.Name} ===");
-            var row = await RunCaseAsync(c, piper, stt, ruleMapper, llmMapper, commandScheme, casesDir).ConfigureAwait(false);
-            rows.Add(row);
-            Console.WriteLine($"  Verdict: {(row.Passed ? "PASS" : "FAIL")} ({row.WinnerStage})");
+            var result = await RunCaseAsync(c, piper, stt, ruleMapper, llmMapper, casesDir, trials).ConfigureAwait(false);
+            results.Add(result);
+            Console.WriteLine($"  Verdict: {VerdictLabel(result)}");
             Console.WriteLine();
         }
 
-        await WriteReportAsync(outDir, corpusPath, rows).ConfigureAwait(false);
+        await WriteReportAsync(outDir, corpusPath, results, trials).ConfigureAwait(false);
 
-        var passCount = rows.Count(r => r.Passed);
-        Console.WriteLine($"Summary: {passCount}/{rows.Count} passed.");
+        var passCount = results.Count(r => r.Verdict == CaseVerdict.Pass);
+        var flakyCount = results.Count(r => r.Verdict == CaseVerdict.Flaky);
+        var failCount = results.Count(r => r.Verdict == CaseVerdict.Fail);
+        Console.WriteLine($"Summary: {passCount} pass, {flakyCount} flaky, {failCount} fail (of {results.Count}).");
         Console.WriteLine($"Report:  {Path.Combine(outDir, "report.md")}");
-        return passCount == rows.Count ? 0 : 1;
+        return failCount == 0 && flakyCount == 0 ? 0 : 1;
     }
 
-    private static async Task<CaseRow> RunCaseAsync(
+    private static async Task<CaseResult> RunCaseAsync(
         OuroborosCase c,
         PiperSynthesizer piper,
         WhisperSttEngine stt,
         PhraseologyCommandMapper ruleMapper,
         LocalLlmCommandMapper llmMapper,
-        CommandScheme commandScheme,
-        string casesDir
+        string casesDir,
+        int trials
     )
     {
-        var row = new CaseRow
-        {
-            Name = c.Name,
-            Callsign = c.Callsign,
-            InputCanonical = c.Canonical,
-        };
+        var result = new CaseResult { Case = c };
 
         // --- Stage 0: parse canonical into a CompoundCommand tree ---
         var parsed = CommandParser.ParseCompound(c.Canonical);
         if (!parsed.IsSuccess)
         {
-            row.Notes = $"input canonical did not parse: {parsed.Reason}";
-            await WriteCaseTextAsync(casesDir, c, row, null).ConfigureAwait(false);
-            return row;
+            result.SetupFailure = $"input canonical did not parse: {parsed.Reason}";
+            await WriteCaseTextAsync(casesDir, result).ConfigureAwait(false);
+            return result;
         }
         var compound = parsed.Value!;
 
@@ -172,33 +189,60 @@ internal static class OuroborosRunner
         var readback = PilotResponder.BuildReadback(compound, aircraft);
         if (readback is null)
         {
-            row.Notes = "PilotResponder.BuildReadback returned null (no verbalization for this command)";
-            await WriteCaseTextAsync(casesDir, c, row, null).ConfigureAwait(false);
-            return row;
+            result.SetupFailure = "PilotResponder.BuildReadback returned null (no verbalization for this command)";
+            await WriteCaseTextAsync(casesDir, result).ConfigureAwait(false);
+            return result;
         }
-        row.ReadbackTerminal = readback;
+        result.ReadbackTerminal = readback;
         var ttsText = PilotResponder.PrepareForTts(aircraft, readback);
-        row.ReadbackTts = ttsText;
+        result.ReadbackTts = ttsText;
         Console.WriteLine($"  TTS:     \"{ttsText}\"");
 
-        // --- Stage 2: Piper synth at native rate, resample to 16 kHz for Whisper, save as 16 kHz
-        // PCM16 WAV so `--pipeline` can replay the exact bytes Whisper consumed (and any media
-        // player can still listen back). ---
+        // --- Stage 2: Piper synth ONCE (deterministic), resample to 16 kHz, pad, save as 16 kHz
+        // PCM16 so `--pipeline` can replay the exact bytes Whisper consumed. ---
         var synthSw = Stopwatch.StartNew();
         var synth = piper.Synthesize(ttsText, DefaultSpeakerId, DefaultSpeed);
         synthSw.Stop();
-        row.SynthMs = (int)synthSw.ElapsedMilliseconds;
+        result.SynthMs = (int)synthSw.ElapsedMilliseconds;
 
-        var sttSamples = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
+        var resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
+        var sttSamples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
         var wavPath = Path.Combine(casesDir, $"{c.Name}.wav");
         await using (var fs = File.Create(wavPath))
         {
             var wavStream = WavHeader.WritePcm16(sttSamples, AudioCaptureService.SampleRate);
             await wavStream.CopyToAsync(fs).ConfigureAwait(false);
         }
-        row.WavPath = wavPath;
+        result.WavPath = wavPath;
 
-        // --- Stage 3: Whisper STT ---
+        // --- Stage 3+: run N trials of STT + mapping on the same bytes ---
+        for (int trialIdx = 0; trialIdx < trials; trialIdx++)
+        {
+            var trial = await RunTrialAsync(c, sttSamples, stt, ruleMapper, llmMapper, trialIdx).ConfigureAwait(false);
+            result.Trials.Add(trial);
+            if (trials > 1)
+            {
+                Console.WriteLine(
+                    $"  Trial {trialIdx + 1}/{trials}: {(trial.Passed ? "PASS" : "FAIL")} via {trial.WinnerStage} → \"{trial.RuleCanonical ?? trial.LlmCanonical ?? "<none>"}\""
+                );
+            }
+        }
+
+        await WriteCaseTextAsync(casesDir, result).ConfigureAwait(false);
+        return result;
+    }
+
+    private static async Task<TrialResult> RunTrialAsync(
+        OuroborosCase c,
+        float[] sttSamples,
+        WhisperSttEngine stt,
+        PhraseologyCommandMapper ruleMapper,
+        LocalLlmCommandMapper llmMapper,
+        int trialIndex
+    )
+    {
+        var trial = new TrialResult { TrialIndex = trialIndex };
+
         var sttSw = Stopwatch.StartNew();
         string? transcript;
         try
@@ -207,56 +251,45 @@ internal static class OuroborosRunner
         }
         catch (Exception ex)
         {
-            row.Notes = $"STT threw: {ex.GetType().Name}: {ex.Message}";
-            await WriteCaseTextAsync(casesDir, c, row, null).ConfigureAwait(false);
-            return row;
+            trial.Notes = $"STT threw: {ex.GetType().Name}: {ex.Message}";
+            return trial;
         }
         sttSw.Stop();
-        row.SttMs = (int)sttSw.ElapsedMilliseconds;
-        row.RawTranscript = transcript ?? "<null>";
-        Console.WriteLine($"  STT ({row.SttMs, 5} ms): {(transcript is null ? "<null>" : "\"" + transcript + "\"")}");
+        trial.SttMs = (int)sttSw.ElapsedMilliseconds;
+        trial.RawTranscript = transcript ?? "<null>";
 
         if (string.IsNullOrWhiteSpace(transcript))
         {
-            row.Notes = "Whisper returned empty / null transcript";
-            await WriteCaseTextAsync(casesDir, c, row, null).ConfigureAwait(false);
-            return row;
+            trial.Notes = "Whisper returned empty / null transcript";
+            return trial;
         }
 
-        // --- Stage 4: digit normalization ---
         var normalized = AtcNumberParser.NormalizeDigits(transcript);
-        row.Normalized = normalized;
+        trial.Normalized = normalized;
 
-        // --- Stage 5: rule mapper ---
         var ruleSw = Stopwatch.StartNew();
         var ruleResult = await ruleMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
         ruleSw.Stop();
-        row.RuleMs = (int)ruleSw.ElapsedMilliseconds;
-        row.RuleCanonical = ruleResult?.CanonicalCommand;
-        Console.WriteLine($"  Rule ({row.RuleMs, 5} ms): {row.RuleCanonical ?? "<null>"}");
+        trial.RuleMs = (int)ruleSw.ElapsedMilliseconds;
+        trial.RuleCanonical = ruleResult?.CanonicalCommand;
 
-        // --- Stage 6: LLM fallback only if rule mapper failed (mirrors production) ---
+        // LLM fallback only when rule mapper failed — mirrors production.
         if (ruleResult is null)
         {
             var llmSw = Stopwatch.StartNew();
             var llmResult = await llmMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
             llmSw.Stop();
-            row.LlmMs = (int)llmSw.ElapsedMilliseconds;
-            row.LlmCanonical = llmResult?.CanonicalCommand;
-            Console.WriteLine($"  LLM  ({row.LlmMs, 5} ms): {row.LlmCanonical ?? "<null>"}");
+            trial.LlmMs = (int)llmSw.ElapsedMilliseconds;
+            trial.LlmCanonical = llmResult?.CanonicalCommand;
         }
 
-        // --- Stage 7: verdict ---
-        var recovered = row.RuleCanonical ?? row.LlmCanonical;
-        row.RecoveredCanonical = recovered;
-        row.WinnerStage =
-            row.RuleCanonical is not null ? "RULE"
-            : row.LlmCanonical is not null ? "LLM"
+        var recovered = trial.RuleCanonical ?? trial.LlmCanonical;
+        trial.WinnerStage =
+            trial.RuleCanonical is not null ? "RULE"
+            : trial.LlmCanonical is not null ? "LLM"
             : "FAIL";
-        row.Passed = recovered is not null && CanonicalEquals(c.Canonical, recovered);
-
-        await WriteCaseTextAsync(casesDir, c, row, ttsText).ConfigureAwait(false);
-        return row;
+        trial.Passed = recovered is not null && CanonicalEquals(c.Canonical, recovered);
+        return trial;
     }
 
     private static AircraftState BuildAircraft(OuroborosCase c)
@@ -273,97 +306,130 @@ internal static class OuroborosRunner
 
     private static string Normalize(string s) => Regex.Replace(s, @"\s+", " ").Trim().ToUpperInvariant();
 
-    private static async Task WriteCaseTextAsync(string casesDir, OuroborosCase c, CaseRow row, string? ttsText)
+    private static string VerdictLabel(CaseResult r) =>
+        r.Verdict switch
+        {
+            CaseVerdict.Pass => $"PASS ({r.PassCount}/{r.TrialCount})",
+            CaseVerdict.Flaky => $"FLAKY ({r.PassCount}/{r.TrialCount})",
+            CaseVerdict.Fail => r.SetupFailure is not null ? $"FAIL (setup: {r.SetupFailure})" : $"FAIL (0/{r.TrialCount})",
+            _ => "?",
+        };
+
+    private static async Task WriteCaseTextAsync(string casesDir, CaseResult r)
     {
+        var c = r.Case;
         var sb = new StringBuilder();
         sb.AppendLine($"# {c.Name}");
         sb.AppendLine();
-        sb.AppendLine($"Callsign: {c.Callsign}");
-        sb.AppendLine($"Input canonical:     {c.Canonical}");
-        sb.AppendLine($"Recovered canonical: {row.RecoveredCanonical ?? "<none>"}");
-        sb.AppendLine($"Winner stage:        {row.WinnerStage}");
-        sb.AppendLine($"Verdict:             {(row.Passed ? "PASS" : "FAIL")}");
-        if (!string.IsNullOrEmpty(row.Notes))
+        sb.AppendLine($"Callsign:        {c.Callsign}");
+        sb.AppendLine($"Input canonical: {c.Canonical}");
+        sb.AppendLine($"Verdict:         {VerdictLabel(r)}");
+        if (r.SetupFailure is not null)
         {
-            sb.AppendLine($"Notes:               {row.Notes}");
+            sb.AppendLine($"Setup failure:   {r.SetupFailure}");
         }
         sb.AppendLine();
         sb.AppendLine("--- Readback (terminal form) ---");
-        sb.AppendLine(row.ReadbackTerminal ?? "<none>");
+        sb.AppendLine(r.ReadbackTerminal ?? "<none>");
         sb.AppendLine();
         sb.AppendLine("--- Readback (TTS form) ---");
-        sb.AppendLine(ttsText ?? row.ReadbackTts ?? "<none>");
+        sb.AppendLine(r.ReadbackTts ?? "<none>");
         sb.AppendLine();
-        sb.AppendLine("--- Whisper transcript ---");
-        sb.AppendLine(row.RawTranscript ?? "<none>");
-        sb.AppendLine();
-        sb.AppendLine("--- Normalized ---");
-        sb.AppendLine(row.Normalized ?? "<none>");
-        sb.AppendLine();
-        sb.AppendLine("--- Rule mapper ---");
-        sb.AppendLine(row.RuleCanonical ?? "<null>");
-        sb.AppendLine();
-        sb.AppendLine("--- LLM mapper ---");
-        sb.AppendLine(row.LlmCanonical ?? "<not run>");
-        sb.AppendLine();
-        sb.AppendLine($"Timings: synth={row.SynthMs} ms, stt={row.SttMs} ms, rule={row.RuleMs} ms, llm={row.LlmMs} ms");
-        if (!string.IsNullOrEmpty(row.WavPath))
+        sb.AppendLine($"Synth: {r.SynthMs} ms");
+        if (r.WavPath is not null)
         {
-            sb.AppendLine($"WAV: {row.WavPath}");
+            sb.AppendLine($"WAV:   {r.WavPath}");
+        }
+        sb.AppendLine();
+        for (int i = 0; i < r.Trials.Count; i++)
+        {
+            var t = r.Trials[i];
+            sb.AppendLine($"--- Trial {i + 1}/{r.Trials.Count} ({(t.Passed ? "PASS" : "FAIL")} via {t.WinnerStage}) ---");
+            sb.AppendLine($"Whisper transcript: {t.RawTranscript ?? "<none>"}");
+            sb.AppendLine($"Normalized:         {t.Normalized ?? "<none>"}");
+            sb.AppendLine($"Rule canonical:     {t.RuleCanonical ?? "<null>"}");
+            sb.AppendLine($"LLM canonical:      {t.LlmCanonical ?? "<not run>"}");
+            if (t.Notes is not null)
+            {
+                sb.AppendLine($"Notes:              {t.Notes}");
+            }
+            sb.AppendLine($"Timings: stt={t.SttMs} ms, rule={t.RuleMs} ms, llm={t.LlmMs} ms");
+            sb.AppendLine();
         }
         var path = Path.Combine(casesDir, $"{c.Name}.txt");
         await File.WriteAllTextAsync(path, sb.ToString()).ConfigureAwait(false);
     }
 
-    private static async Task WriteReportAsync(string outDir, string corpusPath, IReadOnlyList<CaseRow> rows)
+    private static async Task WriteReportAsync(string outDir, string corpusPath, IReadOnlyList<CaseResult> results, int trials)
     {
         var sb = new StringBuilder();
         sb.AppendLine("# Ouroboros round-trip report");
         sb.AppendLine();
-        sb.AppendLine($"Corpus: `{corpusPath}`");
+        sb.AppendLine($"Corpus: `{corpusPath}` — {results.Count} cases × {trials} trial{(trials == 1 ? "" : "s")} each");
         sb.AppendLine();
-        sb.AppendLine("| Case | Input | Recovered | Stage | Verdict | synth ms | stt ms | rule ms | llm ms |");
-        sb.AppendLine("| --- | --- | --- | --- | --- | --: | --: | --: | --: |");
-        foreach (var r in rows)
+        sb.AppendLine("| Case | Input | Verdict | Pass/N | Most-frequent recovery | synth ms |");
+        sb.AppendLine("| --- | --- | --- | --: | --- | --: |");
+        foreach (var r in results)
         {
-            var input = MdEscape(r.InputCanonical);
-            var rec = MdEscape(r.RecoveredCanonical ?? "<none>");
-            var verdict = r.Passed ? "PASS" : "**FAIL**";
+            var verdict = r.Verdict switch
+            {
+                CaseVerdict.Pass => "PASS",
+                CaseVerdict.Flaky => "**FLAKY**",
+                CaseVerdict.Fail => "**FAIL**",
+                _ => "?",
+            };
+            var ratio = $"{r.PassCount}/{r.TrialCount}";
+            var mostFrequent = MostFrequentRecovery(r);
             sb.Append("| ")
-                .Append(r.Name)
+                .Append(r.Case.Name)
                 .Append(" | `")
-                .Append(input)
-                .Append("` ")
-                .Append("| `")
-                .Append(rec)
-                .Append("` ")
-                .Append("| ")
-                .Append(r.WinnerStage)
-                .Append(" | ")
+                .Append(MdEscape(r.Case.Canonical))
+                .Append("` | ")
                 .Append(verdict)
                 .Append(" | ")
+                .Append(ratio)
+                .Append(" | ")
+                .Append(mostFrequent)
+                .Append(" | ")
                 .Append(r.SynthMs.ToString(CultureInfo.InvariantCulture))
-                .Append(" | ")
-                .Append(r.SttMs.ToString(CultureInfo.InvariantCulture))
-                .Append(" | ")
-                .Append(r.RuleMs.ToString(CultureInfo.InvariantCulture))
-                .Append(" | ")
-                .Append(r.LlmMs == 0 ? "—" : r.LlmMs.ToString(CultureInfo.InvariantCulture))
                 .AppendLine(" |");
         }
         sb.AppendLine();
-        var passCount = rows.Count(r => r.Passed);
-        sb.AppendLine($"**{passCount}/{rows.Count} passed.**");
+        var passCount = results.Count(r => r.Verdict == CaseVerdict.Pass);
+        var flakyCount = results.Count(r => r.Verdict == CaseVerdict.Flaky);
+        var failCount = results.Count(r => r.Verdict == CaseVerdict.Fail);
+        sb.AppendLine($"**{passCount} pass, {flakyCount} flaky, {failCount} fail** (of {results.Count}).");
         sb.AppendLine();
-        if (passCount < rows.Count)
+        var notGreen = results.Where(r => r.Verdict != CaseVerdict.Pass).ToList();
+        if (notGreen.Count > 0)
         {
-            sb.AppendLine("Failed cases (per-case dumps at `cases/{name}.txt`):");
-            foreach (var r in rows.Where(r => !r.Passed))
+            sb.AppendLine("Cases needing attention (per-case dumps at `cases/{name}.txt`):");
+            foreach (var r in notGreen)
             {
-                sb.AppendLine($"- `{r.Name}` — {r.Notes ?? "canonical mismatch"}");
+                sb.AppendLine($"- `{r.Case.Name}` ({r.PassCount}/{r.TrialCount}) — {r.SetupFailure ?? "see trials"}");
             }
         }
         await File.WriteAllTextAsync(Path.Combine(outDir, "report.md"), sb.ToString()).ConfigureAwait(false);
+    }
+
+    private static string MostFrequentRecovery(CaseResult r)
+    {
+        if (r.Trials.Count == 0)
+        {
+            return "<none>";
+        }
+        var grouped = r
+            .Trials.Select(t => t.RuleCanonical ?? t.LlmCanonical ?? "<none>")
+            .GroupBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .ToList();
+        var top = grouped[0];
+        var label = $"`{MdEscape(top.Key)}` ({top.Count()}/{r.TrialCount})";
+        if (grouped.Count > 1)
+        {
+            label += " + " + (grouped.Count - 1) + " other";
+        }
+        return label;
     }
 
     private static string MdEscape(string s) => s.Replace("|", "\\|", StringComparison.Ordinal);
@@ -382,23 +448,44 @@ internal static class OuroborosRunner
         return AppContext.BaseDirectory;
     }
 
-    private sealed class CaseRow
+    private enum CaseVerdict
     {
-        public string Name { get; set; } = "";
-        public string Callsign { get; set; } = "";
-        public string InputCanonical { get; set; } = "";
+        Pass,
+        Flaky,
+        Fail,
+    }
+
+    private sealed class CaseResult
+    {
+        public required OuroborosCase Case { get; init; }
         public string? ReadbackTerminal { get; set; }
         public string? ReadbackTts { get; set; }
+        public string? WavPath { get; set; }
+        public int SynthMs { get; set; }
+        public string? SetupFailure { get; set; }
+        public List<TrialResult> Trials { get; } = [];
+
+        public int PassCount => Trials.Count(t => t.Passed);
+        public int TrialCount => Trials.Count;
+
+        public CaseVerdict Verdict =>
+            SetupFailure is not null ? CaseVerdict.Fail
+            : TrialCount == 0 ? CaseVerdict.Fail
+            : PassCount == TrialCount ? CaseVerdict.Pass
+            : PassCount == 0 ? CaseVerdict.Fail
+            : CaseVerdict.Flaky;
+    }
+
+    private sealed class TrialResult
+    {
+        public int TrialIndex { get; init; }
         public string? RawTranscript { get; set; }
         public string? Normalized { get; set; }
         public string? RuleCanonical { get; set; }
         public string? LlmCanonical { get; set; }
-        public string? RecoveredCanonical { get; set; }
         public string WinnerStage { get; set; } = "FAIL";
         public bool Passed { get; set; }
         public string? Notes { get; set; }
-        public string? WavPath { get; set; }
-        public int SynthMs { get; set; }
         public int SttMs { get; set; }
         public int RuleMs { get; set; }
         public int LlmMs { get; set; }

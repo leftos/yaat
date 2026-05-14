@@ -98,6 +98,26 @@ public sealed class PiperSynthesizer : IDisposable
     }
 
     /// <summary>
+    /// Prepend and append zero-sample silence to a Piper synth result. Whisper drops or mutates
+    /// the leading phoneme when fed audio that starts mid-speech (no mic-open ramp); real PTT
+    /// captures naturally have ~200-500 ms of room tone before the speaker begins, so synthetic
+    /// audio needs the same to behave equivalently. 400 ms each side has held up in published
+    /// whisper.cpp / OpenAI Whisper guidance for short clips.
+    /// </summary>
+    public static float[] PadWithSilence(float[] samples, int sampleRate, int leadingMs, int trailingMs)
+    {
+        if (leadingMs <= 0 && trailingMs <= 0)
+        {
+            return samples;
+        }
+        var leadingSamples = Math.Max(0, sampleRate * leadingMs / 1000);
+        var trailingSamples = Math.Max(0, sampleRate * trailingMs / 1000);
+        var output = new float[leadingSamples + samples.Length + trailingSamples];
+        Array.Copy(samples, 0, output, leadingSamples, samples.Length);
+        return output;
+    }
+
+    /// <summary>
     /// Linear-interpolation resampler from <paramref name="srcRate"/> to <paramref name="dstRate"/>.
     /// Good enough for ATC speech (no pitch-critical content); deterministic and dependency-free.
     /// When rates already match, returns the input array (no copy).
