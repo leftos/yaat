@@ -686,7 +686,8 @@ public record AircraftDto(
     string? FollowingCallsign = null,
     string? ExitingRunwayId = null,
     string FiledAircraftType = "",
-    bool IsUnsupported = false
+    bool IsUnsupported = false,
+    bool HasActiveTaxiRoute = false
 );
 
 public record LoadScenarioResultDto(

@@ -439,6 +439,7 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyList<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
         int? hoveredNodeId,
+        string? hoveredRunwayEnd,
         TaxiRoute? activeRoute,
         TaxiRoute? previewRoute,
         TaxiRoute? drawnRoutePreview,
@@ -492,7 +493,14 @@ public sealed class GroundRenderer : IDisposable
         // Runways render when GND or MAP is on (video map overlays may not include them)
         if (showYaatLayout || showVideoMapOverlay)
         {
-            DrawRunways(canvas, vp, layout, showRunwayLabels && showYaatLayout, drawThresholdMarkers: showYaatLayout && selectedAircraft is not null);
+            DrawRunways(
+                canvas,
+                vp,
+                layout,
+                showRunwayLabels && showYaatLayout,
+                drawThresholdMarkers: showYaatLayout && selectedAircraft is not null,
+                hoveredRunwayEnd
+            );
         }
 
         // Layer 3: YAAT ground layout (conditionally rendered with brightness)
@@ -743,7 +751,14 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showLabels, bool drawThresholdMarkers)
+    private void DrawRunways(
+        SKCanvas canvas,
+        MapViewport vp,
+        GroundLayoutDto layout,
+        bool showLabels,
+        bool drawThresholdMarkers,
+        string? hoveredRunwayEnd
+    )
     {
         if (layout.Runways is null)
         {
@@ -811,6 +826,41 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawCircle(cx1, cy1, markerRadius, _runwayThresholdMarkerOutlinePaint);
                 canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerPaint);
                 canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerOutlinePaint);
+
+                // Hover label: when the user is hovering one of the threshold
+                // markers, show "RWY {end}" next to it so they know what they'll
+                // be clearing the aircraft into. Mirrors the hold-short hover
+                // label rendered in DrawNodes.
+                if (hoveredRunwayEnd is not null)
+                {
+                    var ids = RunwayIdentifier.Parse(rwy.Name);
+                    if (string.Equals(ids.End1, hoveredRunwayEnd, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _labelCandidates.Add(
+                            new LabelCandidate(
+                                [$"RWY {ids.End1}"],
+                                cx1 + 10,
+                                cy1 - 12,
+                                LabelPriority.Hovered,
+                                _nodeLabelPaint,
+                                new SKColor(255, 255, 255)
+                            )
+                        );
+                    }
+                    else if (string.Equals(ids.End2, hoveredRunwayEnd, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _labelCandidates.Add(
+                            new LabelCandidate(
+                                [$"RWY {ids.End2}"],
+                                cx2 + 10,
+                                cy2 - 12,
+                                LabelPriority.Hovered,
+                                _nodeLabelPaint,
+                                new SKColor(255, 255, 255)
+                            )
+                        );
+                    }
+                }
             }
         }
     }

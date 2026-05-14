@@ -314,7 +314,11 @@ AircraftCategory.cs            # Enum + AircraftCategorization (static Init from
                                # CornerSpeedForAngle: piecewise taxi speed curve (0-30° max, 30-90° corner, 90-150° tight corner)
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
-GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
+GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides.
+                               # Single-pass pair classifier (SameEdgeTrailing/SameEdgeHeadOn/
+                               # Converging/Crossing/Pushback/Stationary). Honors Ground.IsHeld
+                               # for parked-obstacle classification; self-pin recovery for
+                               # un-held but conflict-pinned aircraft.
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
 Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load

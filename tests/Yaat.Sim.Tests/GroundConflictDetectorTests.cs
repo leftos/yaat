@@ -528,4 +528,93 @@ public class GroundConflictDetectorTests
         Assert.NotNull(trailer.Ground.SpeedLimit);
         Assert.Equal(0.0, trailer.Ground.SpeedLimit!.Value);
     }
+
+    // -------------------------------------------------------------------------
+    // IsHeld classification (GIVEWAY / HOLDPOSITION / BEHIND)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// A controller-held aircraft (GIVEWAY/HOLDPOSITION) must classify as Stationary
+    /// so the wingspan-lateral-clearance bypass opens for passing traffic.
+    /// Geometry: held aircraft at origin facing north; mover 100ft south and
+    /// 200ft east, heading north so the held aircraft sits inside the mover's
+    /// forward cone but well beyond combined half-wingspans + buffer.
+    /// Without the IsHeld → Stationary classification, the mover would stop
+    /// because a held-but-routed aircraft was still classified as Taxiing.
+    /// </summary>
+    [Fact]
+    public void HeldAircraft_PassableLaterally()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+
+        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        // Held aircraft sits at origin, heading north, with a route. IsHeld=true
+        // simulates GIVEWAY / HOLDPOSITION / BEHIND — the route is assigned but
+        // the aircraft is parked until released.
+        var held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        held.Ground.IsHeld = true;
+        held.Ground.GiveWayTarget = "MOVER"; // mirrors what TryGiveWay sets
+
+        // Mover is 100ft south and 200ft east, heading north. B738 wingspan ~117 ft
+        // → required lateral = 117/2 + 117/2 + 25 = 142 ft. The 200ft offset
+        // clears this, so the bypass should let the mover pass at speed.
+        const double OffsetLonPer100Ft = 100.0 / FtPerNm / 60.0; // approx; longitude scales with cos(lat) but at 37° the error is small
+        var mover = MakeAircraft(
+            "MOVER",
+            new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon + 2.5 * OffsetLonPer100Ft),
+            heading: 0,
+            gs: 15,
+            taxiRoute: routeMover,
+            phase: new TaxiingPhase()
+        );
+
+        var aircraft = new List<AircraftState> { held, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
+
+        // Held aircraft is the obstacle — it stays at gs=0 by virtue of IsHeld;
+        // the detector should not need to set its limit either way, but the key
+        // assertion is on the mover: lateral clearance bypass must open.
+        Assert.True(
+            mover.Ground.SpeedLimit is null || mover.Ground.SpeedLimit > 0,
+            $"Mover got SpeedLimit={mover.Ground.SpeedLimit?.ToString("F1") ?? "null"}; expected null or >0 because "
+                + "the held aircraft is laterally offset by ~200ft (> combined half-wingspans + buffer)."
+        );
+    }
+
+    /// <summary>
+    /// Same geometry but with the held aircraft directly in the mover's path —
+    /// lateral offset is zero. The mover MUST stop. Verifies the IsHeld
+    /// classification doesn't accidentally disable in-path collision avoidance.
+    /// </summary>
+    [Fact]
+    public void HeldAircraft_StopsInPathMover()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+
+        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        var held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        held.Ground.IsHeld = true;
+
+        // Mover 100ft south, same longitude — directly behind the held aircraft.
+        var mover = MakeAircraft(
+            "MOVER",
+            new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 15,
+            taxiRoute: routeMover,
+            phase: new TaxiingPhase()
+        );
+
+        var aircraft = new List<AircraftState> { held, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
+
+        Assert.NotNull(mover.Ground.SpeedLimit);
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+    }
 }

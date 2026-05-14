@@ -1,3 +1,46 @@
+// =============================================================================
+// GroundConflictDetector
+//
+// Per-tick airport ground conflict detector. Classifies each pair of ground
+// aircraft into exactly ONE pair kind, runs one handler, writes SpeedLimit on
+// the affected aircraft. Phases and physics honor that limit.
+//
+// Pair classification:
+//
+//   • Distant           — beyond search range; skip.
+//   • Stationary        — both aircraft parked / holding; skip.
+//   • Pushback          — at least one pushing back; pushback-buffer logic only.
+//   • SameEdgeTrailing  — both on same edge, same direction. Trailer slows to
+//     leader's speed (or stops if too close).
+//   • SameEdgeHeadOn    — same edge, opposite direction. Pick a deterministic
+//     holder (aircraft with more route remaining; tie-break by callsign). One
+//     aircraft proceeds, one holds — avoids the mutual-stop deadlock that the
+//     earlier "both stop" rule produced once two routes resolve to a single
+//     single-lane segment.
+//   • Converging        — routes share an upcoming node from different edges.
+//     Yielder is whichever aircraft is farther from the shared node. Closing
+//     proximity still runs as the physical-overlap safety net (the
+//     wingspan-lateral-clearance bypass handles the merge geometry); head-on
+//     is suppressed for this pair this tick.
+//   • Crossing          — close in space, no shared route node, not same-edge.
+//     Apply closing-proximity in both directions; apply head-on fallback IF
+//     both are moving with diff > 120° and not behind each other.
+//
+// Self-pin recovery: a routed aircraft pinned at gs≈0 / SpeedLimit≈0 / !IsHeld
+// classifies as Stationary. Treats the pinned aircraft as a parked obstacle so
+// the lateral-clearance bypass opens for nearby movers on the next tick.
+//
+// IsHeld classification: a routed aircraft with Ground.IsHeld=true (GIVEWAY,
+// HOLDPOSITION, BEHIND-conditional satisfied) classifies as Stationary. It
+// won't move until the resume condition fires, so other aircraft can pass
+// laterally with wingspan clearance.
+//
+// Public API:
+//   - ApplySpeedLimits(List<AircraftState>, AirportGroundLayout?, double, Action<string>?)
+//   - IsClearOf(AircraftState, AircraftState, AirportGroundLayout?)
+//   - DebugSink, WingspanLateralCheckEnabled, WingspanLateralCheckRequireStationary
+// =============================================================================
+
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
@@ -5,57 +48,28 @@ using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim;
 
-/// <summary>
-/// Detects and resolves ground conflicts between aircraft.
-/// Called once per tick before physics. Writes GroundSpeedLimit onto
-/// each affected AircraftState so phases and physics respect it.
-///
-/// Movement state classification:
-///   Stationary — gs=0 or parked/holding phase. No direction. Just an obstacle.
-///   Taxiing    — has AssignedTaxiRoute with CurrentSegment. Direction from graph.
-///   Pushing    — PushbackTrueHeading is set. Direction = PushbackTrueHeading.
-///   Following  — FollowingPhase. Exempt (manages own separation).
-///   Untracked  — moving on ground, no route, no pushback. Direction = Heading (fallback).
-/// </summary>
 public static class GroundConflictDetector
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundConflictDetector");
+
     private const double DefaultTrailDistanceFt = 200.0;
     private const double DefaultStopDistanceFt = 100.0;
     private const double DefaultAircraftLengthFt = 60.0;
     private const double StopBufferFt = 25.0;
     private const double WingtipBufferFt = 25.0;
-
-    /// <summary>
-    /// Optional debug sink for per-pair conflict-detector reasoning. Tests set
-    /// this to capture the decisions <see cref="ApplySpeedLimits"/> makes during
-    /// engine-driven ticks (since the engine doesn't pass a diagnosticLog through).
-    /// Reset to null after the test.
-    /// </summary>
-    public static Action<string>? DebugSink { get; set; }
-
-    /// <summary>
-    /// Toggle for the wingspan-based lateral clearance skip in
-    /// <see cref="ApplyClosingLimit"/>. Defaults to enabled. Tests flip this
-    /// off to capture the pre-fix behavior for before/after comparisons.
-    /// </summary>
-    public static bool WingspanLateralCheckEnabled { get; set; } = true;
-
-    /// <summary>
-    /// When true (default), the wingspan-based skip only applies if the
-    /// obstacle is in <see cref="MovementState.Stationary"/> (parked/holding
-    /// phase). When false, the skip applies to any obstacle inside the
-    /// closing cone — useful for visualizing how a less-restrictive variant
-    /// would behave but known to regress traffic-interaction timing.
-    /// </summary>
-    public static bool WingspanLateralCheckRequireStationary { get; set; } = true;
     private const double OppositeStopDistanceFt = 300.0;
     private const double PushbackBufferFt = 200.0;
     private const double SlowTaxiSpeedKts = 5.0;
-    private const double SearchRangeNm = 0.1;
     private const double FtPerNm = 6076.12;
     private const double ConvergenceLookaheadFt = 1500.0;
     private const double ConvergenceSlowdownFt = 400.0;
+    private const double SearchRangeNm = 0.3;
+    private const double SelfPinSpeedEpsilonKts = 0.5;
+    private const double SelfPinLimitEpsilonKts = 0.5;
+
+    public static Action<string>? DebugSink { get; set; }
+    public static bool WingspanLateralCheckEnabled { get; set; } = true;
+    public static bool WingspanLateralCheckRequireStationary { get; set; } = true;
 
     private enum MovementState
     {
@@ -66,10 +80,21 @@ public static class GroundConflictDetector
         Untracked,
     }
 
+    private enum PairKind
+    {
+        Distant,
+        Stationary,
+        Pushback,
+        SameEdgeTrailing,
+        SameEdgeHeadOn,
+        Converging,
+        Crossing,
+    }
+
     /// <summary>
     /// Detect ground conflicts and set GroundSpeedLimit on affected aircraft.
-    /// Clears all limits first, then classifies movement state, then checks pairs.
-    /// Aircraft with an active BREAK override are exempt from all conflict limits.
+    /// Clears all limits first, then classifies each pair into exactly one
+    /// <see cref="PairKind"/> and runs the corresponding resolution.
     /// </summary>
     public static void ApplySpeedLimits(
         List<AircraftState> aircraft,
@@ -78,8 +103,6 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog = null
     )
     {
-        // Fan in DebugSink so engine-driven calls (which never pass diagnosticLog)
-        // can still be observed when a test sets DebugSink.
         var explicitLog = diagnosticLog;
         var sink = DebugSink;
         if (sink is not null)
@@ -93,7 +116,6 @@ public static class GroundConflictDetector
                 };
         }
 
-        // Clear previous limits and tick down BREAK timers
         for (int i = 0; i < aircraft.Count; i++)
         {
             aircraft[i].Ground.SpeedLimit = null;
@@ -104,7 +126,6 @@ public static class GroundConflictDetector
             }
         }
 
-        // Build classification array for ground aircraft only
         var entries = new List<(AircraftState Ac, MovementState State, double? MoveDir)>();
         for (int i = 0; i < aircraft.Count; i++)
         {
@@ -125,13 +146,11 @@ public static class GroundConflictDetector
         {
             var (a, stateA, dirA) = entries[i];
 
-            // Following aircraft are exempt from all conflict limits
             if (stateA == MovementState.Following)
             {
                 continue;
             }
 
-            // BREAK: aircraft ignoring conflicts
             if (a.Ground.ConflictBreakRemainingSeconds > 0)
             {
                 continue;
@@ -146,16 +165,8 @@ public static class GroundConflictDetector
                     continue;
                 }
 
-                // BREAK: aircraft ignoring conflicts
                 if (b.Ground.ConflictBreakRemainingSeconds > 0)
                 {
-                    continue;
-                }
-
-                // Both stationary — nothing to do
-                if (stateA == MovementState.Stationary && stateB == MovementState.Stationary)
-                {
-                    diagnosticLog?.Invoke($"[Pair] {a.Callsign}+{b.Callsign}: both stationary, skip");
                     continue;
                 }
 
@@ -166,44 +177,46 @@ public static class GroundConflictDetector
                 }
 
                 double distFt = distNm * FtPerNm;
-                diagnosticLog?.Invoke($"[Pair] {a.Callsign}({stateA})+{b.Callsign}({stateB}): dist={distFt:F0}ft");
+                var kind = ClassifyPair(a, stateA, b, stateB, distFt, layout);
+                diagnosticLog?.Invoke($"[Pair] {a.Callsign}({stateA})+{b.Callsign}({stateB}): dist={distFt:F0}ft → {kind}");
 
-                // 1. Same-edge + convergence (both taxiing with layout).
-                // These apply trail/yield limits but do NOT skip closing
-                // proximity — same-edge trailing and convergence handle
-                // sequencing, closing proximity prevents physical overlap.
-                if (layout is not null && stateA == MovementState.Taxiing && stateB == MovementState.Taxiing)
+                switch (kind)
                 {
-                    if (!TrySameEdge(a, b, distFt, diagnosticLog))
-                    {
-                        TryConvergence(a, b, layout, diagnosticLog);
-                    }
-                }
+                    case PairKind.Distant:
+                    case PairKind.Stationary:
+                        break;
 
-                // 2. Pushback yield
-                if (stateA == MovementState.Pushing || stateB == MovementState.Pushing)
-                {
-                    ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt);
-                    continue;
-                }
+                    case PairKind.Pushback:
+                        // Pushback is its own world — the dedicated buffer logic is
+                        // sufficient; we don't run closing/head-on on top.
+                        ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt);
+                        break;
 
-                // 3. Closing proximity — any aircraft heading toward another within
-                // stop/trail distance. Handles stationary obstacles, trailing on different
-                // edges, and any other case where the pilot would see traffic ahead.
-                if (dirA is not null)
-                {
-                    ApplyClosingLimit(a, dirA.Value, b, stateB, distFt, diagnosticLog);
-                }
+                    case PairKind.SameEdgeTrailing:
+                        ResolveSameEdgeTrailing(a, b, distFt, layout!, diagnosticLog);
+                        break;
 
-                if (dirB is not null)
-                {
-                    ApplyClosingLimit(b, dirB.Value, a, stateA, distFt, diagnosticLog);
-                }
+                    case PairKind.SameEdgeHeadOn:
+                        ResolveSameEdgeHeadOn(a, b, distFt, diagnosticLog);
+                        break;
 
-                // 4. Head-on fallback (both moving toward each other)
-                if (dirA is not null && dirB is not null && a.GroundSpeed > 0 && b.GroundSpeed > 0)
-                {
-                    ResolveHeadOn(a, dirA.Value, b, dirB.Value, distFt);
+                    case PairKind.Converging:
+                        ResolveConvergence(a, b, layout!, diagnosticLog);
+                        // Closing proximity is the physical-overlap safety net even
+                        // when convergence already picked a yielder — if the winner
+                        // is geometrically about to hit the yielder it must still
+                        // stop. The wingspan-lateral-clearance bypass in
+                        // ApplyClosingLimit handles the merge geometry; what we get
+                        // from the v2 Classify() upgrade is that a self-pinned
+                        // yielder reclassifies as Stationary on the next tick so
+                        // the bypass opens up naturally. We skip head-on here —
+                        // convergence already resolved the pair-level decision.
+                        ApplyCrossingChecks(a, stateA, dirA, b, stateB, dirB, distFt, skipHeadOn: true, diagnosticLog);
+                        break;
+
+                    case PairKind.Crossing:
+                        ApplyCrossingChecks(a, stateA, dirA, b, stateB, dirB, distFt, skipHeadOn: false, diagnosticLog);
+                        break;
                 }
             }
         }
@@ -220,20 +233,17 @@ public static class GroundConflictDetector
 
         var (refState, _) = Classify(reference);
 
-        // Pushing aircraft: buffer zone
         if (refState == MovementState.Pushing)
         {
             return distFt > PushbackBufferFt;
         }
 
-        // Both taxiing with layout: check shared upcoming nodes
         var (subState, _) = Classify(subject);
         if (layout is not null && subState == MovementState.Taxiing && refState == MovementState.Taxiing)
         {
             return !ShareUpcomingNode(subject, reference);
         }
 
-        // Stationary reference: check if subject is closing
         if (refState == MovementState.Stationary)
         {
             var (_, subDir) = Classify(subject);
@@ -261,13 +271,11 @@ public static class GroundConflictDetector
     {
         string? phaseName = ac.Phases?.CurrentPhase?.Name;
 
-        // Following phase — exempt
         if (phaseName is not null && phaseName.StartsWith("Following", StringComparison.Ordinal))
         {
             return (MovementState.Following, null);
         }
 
-        // Stationary: specific holding/parked phases
         bool isStationaryPhase =
             phaseName
                 is "At Parking"
@@ -283,139 +291,186 @@ public static class GroundConflictDetector
             return (MovementState.Stationary, null);
         }
 
-        // Pushing: has PushbackTrueHeading
+        // Controller-held aircraft (GIVEWAY / HOLDPOSITION / BEHIND etc.) are
+        // functionally parked until released — they won't move until the resume
+        // condition fires (FlightPhysics.UpdateGiveWayResume or operator RES).
+        // Treat them as Stationary so other aircraft can pass laterally beside
+        // them when wingspan clearance allows. Without this, a held aircraft
+        // on a taxiway blocks every passing aircraft via closing-proximity.
+        if (ac.Ground.IsHeld)
+        {
+            return (MovementState.Stationary, null);
+        }
+
         if (ac.Ground.PushbackTrueHeading is { } pushHdg)
         {
             return (MovementState.Pushing, pushHdg.Degrees);
         }
 
-        // Taxiing: has route with current segment (even if GS=0 due to prior speed limit)
+        // Self-pin recovery: a route-bearing aircraft that has been clamped to
+        // gs≈0 and SpeedLimit≈0 without any explicit hold is effectively parked
+        // until the conflict resolves. Treating it as Stationary lets the
+        // wingspan-lateral-clearance bypass open up for nearby movers, so a
+        // third aircraft (or the original mover-pair) can pass beside it on
+        // the next tick. Aircraft that ARE legitimately held caught earlier;
+        // this catches the unexpected pin case where the detector itself
+        // bottomed an aircraft out.
         if (ac.Ground.AssignedTaxiRoute?.CurrentSegment is not null)
         {
-            double dir = GetSegmentDirection(ac);
-            return (MovementState.Taxiing, dir);
+            bool selfPinned =
+                ac.GroundSpeed <= SelfPinSpeedEpsilonKts && ac.Ground.SpeedLimit is { } lim && lim <= SelfPinLimitEpsilonKts && !ac.Ground.IsHeld;
+            if (selfPinned)
+            {
+                return (MovementState.Stationary, null);
+            }
+
+            return (MovementState.Taxiing, ac.TrueHeading.Degrees);
         }
 
-        // Stationary: gs=0 without active route or phase
         if (ac.GroundSpeed <= 0)
         {
             return (MovementState.Stationary, null);
         }
 
-        // Untracked: moving but no route or pushback
         return (MovementState.Untracked, ac.TrueHeading.Degrees);
     }
 
-    private static double GetSegmentDirection(AircraftState ac)
+    private static PairKind ClassifyPair(
+        AircraftState a,
+        MovementState stateA,
+        AircraftState b,
+        MovementState stateB,
+        double distFt,
+        AirportGroundLayout? layout
+    )
     {
-        // Direction = bearing from current position toward the segment's target node.
-        // We don't have the node coordinates directly on the segment, but we can
-        // look ahead: if the next segment exists, use its from-node direction too.
-        // For simplicity, use the aircraft's heading as a reasonable proxy when
-        // the segment is very short (aircraft is near the target node).
-        // The primary benefit is for non-trivial segments where the aircraft is
-        // traveling along a known edge.
+        if (stateA == MovementState.Stationary && stateB == MovementState.Stationary)
+        {
+            return PairKind.Stationary;
+        }
 
-        // Use bearing from current position to the approximate target.
-        // We need node positions — but we only have node IDs on the segment.
-        // Since we don't have the layout reference here, fall back to heading.
-        // The layout-aware checks (same-edge, convergence) use node IDs directly.
-        return ac.TrueHeading.Degrees;
+        if (stateA == MovementState.Pushing || stateB == MovementState.Pushing)
+        {
+            return PairKind.Pushback;
+        }
+
+        if (layout is not null && stateA == MovementState.Taxiing && stateB == MovementState.Taxiing)
+        {
+            var segA = a.Ground.AssignedTaxiRoute?.CurrentSegment;
+            var segB = b.Ground.AssignedTaxiRoute?.CurrentSegment;
+            if (segA is not null && segB is not null)
+            {
+                bool sameEdge =
+                    (segA.FromNodeId == segB.FromNodeId && segA.ToNodeId == segB.ToNodeId)
+                    || (segA.FromNodeId == segB.ToNodeId && segA.ToNodeId == segB.FromNodeId);
+
+                if (sameEdge)
+                {
+                    return segA.ToNodeId == segB.ToNodeId ? PairKind.SameEdgeTrailing : PairKind.SameEdgeHeadOn;
+                }
+            }
+
+            var routeA = a.Ground.AssignedTaxiRoute;
+            var routeB = b.Ground.AssignedTaxiRoute;
+            if (routeA is not null && routeB is not null && FindSharedUpcomingNode(routeA, routeB) is not null)
+            {
+                return PairKind.Converging;
+            }
+        }
+
+        return PairKind.Crossing;
     }
 
     // --- Conflict resolution ---
 
-    private static bool TrySameEdge(AircraftState a, AircraftState b, double distFt, Action<string>? diagnosticLog = null)
+    private static void ResolveSameEdgeTrailing(
+        AircraftState a,
+        AircraftState b,
+        double distFt,
+        AirportGroundLayout layout,
+        Action<string>? diagnosticLog
+    )
     {
-        var segA = a.Ground.AssignedTaxiRoute?.CurrentSegment;
-        var segB = b.Ground.AssignedTaxiRoute?.CurrentSegment;
-        if (segA is null || segB is null)
+        var segA = a.Ground.AssignedTaxiRoute!.CurrentSegment!;
+        var segB = b.Ground.AssignedTaxiRoute!.CurrentSegment!;
+
+        double distAToTarget = DistToSegTarget(a, segA, layout);
+        double distBToTarget = DistToSegTarget(b, segB, layout);
+
+        diagnosticLog?.Invoke(
+            $"  [SameEdgeTrailing] edge={segA.FromNodeId}→{segA.ToNodeId}: {a.Callsign} d2t={distAToTarget:F4}nm, {b.Callsign} d2t={distBToTarget:F4}nm"
+        );
+
+        if (distAToTarget > distBToTarget)
         {
-            return false;
-        }
-
-        // Same edge: both share the same from/to node pair (either direction)
-        bool sameEdge =
-            (segA.FromNodeId == segB.FromNodeId && segA.ToNodeId == segB.ToNodeId)
-            || (segA.FromNodeId == segB.ToNodeId && segA.ToNodeId == segB.FromNodeId);
-
-        if (!sameEdge)
-        {
-            diagnosticLog?.Invoke(
-                $"  [SameEdge] {a.Callsign} seg={segA.FromNodeId}→{segA.ToNodeId}, {b.Callsign} seg={segB.FromNodeId}→{segB.ToNodeId}: not same edge"
-            );
-            return false;
-        }
-
-        // Same direction on the edge: same ToNodeId
-        if (segA.ToNodeId == segB.ToNodeId)
-        {
-            // Trailing: the one farther from the target node slows down
-            double distAToTarget = DistToSegTarget(segA);
-            double distBToTarget = DistToSegTarget(segB);
-
-            diagnosticLog?.Invoke(
-                $"  [SameEdge] same-dir edge {segA.FromNodeId}→{segA.ToNodeId}: {a.Callsign} distToTgt={distAToTarget:F4}nm, {b.Callsign} distToTgt={distBToTarget:F4}nm"
-            );
-
-            if (distAToTarget > distBToTarget)
-            {
-                ApplyTrailLimit(a, b, distFt);
-            }
-            else
-            {
-                ApplyTrailLimit(b, a, distFt);
-            }
+            ApplyTrailLimit(a, b, distFt);
         }
         else
         {
-            diagnosticLog?.Invoke($"  [SameEdge] head-on on edge, dist={distFt:F0}ft");
-            // Opposite direction on same edge — head-on, both stop
-            if (distFt <= OppositeStopDistanceFt)
-            {
-                ApplyMinLimit(a, 0, "same-edge head-on", b, distFt);
-                ApplyMinLimit(b, 0, "same-edge head-on", a, distFt);
-            }
+            ApplyTrailLimit(b, a, distFt);
         }
-
-        return true;
     }
 
-    private static bool TryConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog = null)
+    private static void ResolveSameEdgeHeadOn(AircraftState a, AircraftState b, double distFt, Action<string>? diagnosticLog)
     {
+        if (distFt > OppositeStopDistanceFt)
+        {
+            diagnosticLog?.Invoke($"  [SameEdgeHeadOn] {distFt:F0}ft > {OppositeStopDistanceFt:F0}ft, no action yet");
+            return;
+        }
+
+        // Pick the holder deterministically so the pair doesn't deadlock. Real
+        // ATC would re-route here, but the sim's job is at least to leave one
+        // aircraft able to proceed instead of pinning both indefinitely.
+        // Holder = aircraft with the higher remaining-segment count (more route
+        // left to fly), since it has more reason to wait. Ties broken by callsign.
         var routeA = a.Ground.AssignedTaxiRoute;
         var routeB = b.Ground.AssignedTaxiRoute;
-        if (routeA is null || routeB is null)
+        int remA = routeA is null ? 0 : routeA.Segments.Count - routeA.CurrentSegmentIndex;
+        int remB = routeB is null ? 0 : routeB.Segments.Count - routeB.CurrentSegmentIndex;
+
+        AircraftState holder;
+        AircraftState mover;
+        if (remA != remB)
         {
-            return false;
+            holder = remA > remB ? a : b;
+            mover = remA > remB ? b : a;
+        }
+        else
+        {
+            holder = string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
+            mover = ReferenceEquals(holder, a) ? b : a;
         }
 
-        // Collect upcoming node IDs for A (up to N segments ahead)
+        diagnosticLog?.Invoke($"  [SameEdgeHeadOn] dist={distFt:F0}ft, remA={remA}/{remB}, holder={holder.Callsign}, mover={mover.Callsign}");
+
+        ApplyMinLimit(holder, 0, "same-edge head-on hold", mover, distFt);
+        // mover gets no limit from this layer; closing-proximity (if it fires
+        // next tick when the geometry shifts) is the safety net for actual
+        // overlap, but the holder being stopped should resolve the standoff.
+    }
+
+    private static void ResolveConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog)
+    {
+        var routeA = a.Ground.AssignedTaxiRoute!;
+        var routeB = b.Ground.AssignedTaxiRoute!;
+
         int? sharedNodeId = FindSharedUpcomingNode(routeA, routeB);
-        if (sharedNodeId is null)
+        if (sharedNodeId is null || !layout.Nodes.TryGetValue(sharedNodeId.Value, out var node))
         {
-            diagnosticLog?.Invoke($"  [Convergence] {a.Callsign}+{b.Callsign}: no shared upcoming node within {ConvergenceLookaheadFt:F0}ft");
-            return false;
-        }
-
-        // Both converging on the same node — the one further away yields
-        if (!layout.Nodes.TryGetValue(sharedNodeId.Value, out var node))
-        {
-            return false;
+            return;
         }
 
         double distA = GeoMath.DistanceNm(a.Position, node.Position);
         double distB = GeoMath.DistanceNm(b.Position, node.Position);
         double distAFt = distA * FtPerNm;
         double distBFt = distB * FtPerNm;
-
         double conflictDistFt = GeoMath.DistanceNm(a.Position, b.Position) * FtPerNm;
 
         AircraftState yielder = distA > distB ? a : b;
         AircraftState winner = distA > distB ? b : a;
         double yielderDistFt = Math.Max(distAFt, distBFt);
 
-        // Graduated speed: full stop when close, slow taxi when further
         double limitSpeed;
         if (conflictDistFt <= DefaultStopDistanceFt)
         {
@@ -427,7 +482,6 @@ public static class GroundConflictDetector
         }
         else
         {
-            // Scale linearly from slow taxi to normal taxi speed based on distance to shared node
             double t = Math.Clamp((yielderDistFt - ConvergenceSlowdownFt) / (ConvergenceLookaheadFt - ConvergenceSlowdownFt), 0, 1);
             limitSpeed = SlowTaxiSpeedKts + t * (15.0 - SlowTaxiSpeedKts);
         }
@@ -437,8 +491,9 @@ public static class GroundConflictDetector
         );
 
         ApplyMinLimit(yielder, limitSpeed, "convergence", winner, conflictDistFt);
-
-        return true;
+        // No closing-proximity for the winner in v2 — convergence is
+        // authoritative for this pair. The next tick reclassifies; if the
+        // geometry shifts to truly crossing/head-on, that layer will catch it.
     }
 
     private static void ResolvePushbackYield(
@@ -456,7 +511,6 @@ public static class GroundConflictDetector
             return;
         }
 
-        // Pushing aircraft only yields if it's actually closing on the other
         if (stateA == MovementState.Pushing && dirA is not null)
         {
             double bearing = GeoMath.BearingTo(a.Position, b.Position);
@@ -475,7 +529,6 @@ public static class GroundConflictDetector
             }
         }
 
-        // Moving aircraft approaching a pushing aircraft also slows
         if (stateA != MovementState.Pushing && stateA != MovementState.Stationary && dirA is not null)
         {
             double bearing = GeoMath.BearingTo(a.Position, b.Position);
@@ -495,36 +548,58 @@ public static class GroundConflictDetector
         }
     }
 
+    /// <summary>
+    /// Runs <see cref="ApplyClosingLimit"/> in both directions and (optionally)
+    /// <see cref="ResolveHeadOn"/>. Used by the Crossing kind and as the safety
+    /// net for Converging.
+    /// </summary>
+    private static void ApplyCrossingChecks(
+        AircraftState a,
+        MovementState stateA,
+        double? dirA,
+        AircraftState b,
+        MovementState stateB,
+        double? dirB,
+        double distFt,
+        bool skipHeadOn,
+        Action<string>? diagnosticLog
+    )
+    {
+        if (dirA is not null)
+        {
+            ApplyClosingLimit(a, dirA.Value, b, stateB, distFt, diagnosticLog);
+        }
+        if (dirB is not null)
+        {
+            ApplyClosingLimit(b, dirB.Value, a, stateA, distFt, diagnosticLog);
+        }
+        if (!skipHeadOn && dirA is not null && dirB is not null && a.GroundSpeed > 0 && b.GroundSpeed > 0)
+        {
+            ResolveHeadOn(a, dirA.Value, b, dirB.Value, distFt);
+        }
+    }
+
     private static void ApplyClosingLimit(
         AircraftState mover,
         double moveDir,
         AircraftState obstacle,
         MovementState obstacleState,
         double distFt,
-        Action<string>? diagnosticLog = null
+        Action<string>? diagnosticLog
     )
     {
         double bearing = GeoMath.BearingTo(mover.Position, obstacle.Position);
         double angleDiff = HeadingDifference(moveDir, bearing);
         if (angleDiff >= 90)
         {
-            diagnosticLog?.Invoke(
-                $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: dir={moveDir:F0} bearing={bearing:F0} diff={angleDiff:F0}° ≥90, not closing"
-            );
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: diff={angleDiff:F0}° ≥90, not closing");
             return;
         }
 
-        // Lateral clearance against a parked obstacle: when both aircraft have
-        // known wingspans and the obstacle is in a parked/holding phase
-        // (MovementState.Stationary), the obstacle's perpendicular offset from
-        // the mover's path tells us whether wingtips can collide. If
-        // lateral > combined half-wingspans + buffer, the mover passes safely
-        // beside the obstacle even at small longitudinal distances. Restricted
-        // to MovementState.Stationary so taxiing aircraft that briefly hit gs=0
-        // (mid-deceleration) don't trigger the skip.
         double? moverWing = FaaAircraftDatabase.Get(mover.AircraftType)?.WingspanFt;
         double? obstacleWing = FaaAircraftDatabase.Get(obstacle.AircraftType)?.WingspanFt;
-        bool stationaryGate = !WingspanLateralCheckRequireStationary || obstacleState == MovementState.Stationary;
+        bool isStationary = obstacleState == MovementState.Stationary;
+        bool stationaryGate = !WingspanLateralCheckRequireStationary || isStationary;
         if (WingspanLateralCheckEnabled && stationaryGate && moverWing.HasValue && obstacleWing.HasValue)
         {
             double lateralFt = distFt * Math.Sin(angleDiff * Math.PI / 180.0);
@@ -532,20 +607,15 @@ public static class GroundConflictDetector
             if (lateralFt > requiredLateralFt)
             {
                 diagnosticLog?.Invoke(
-                    $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: lateral={lateralFt:F0}ft > clearance({requiredLateralFt:F0}ft, wings {moverWing:F0}+{obstacleWing:F0}), parked, can pass"
+                    $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: lateral={lateralFt:F0}ft > clearance({requiredLateralFt:F0}ft), can pass"
                 );
                 return;
             }
         }
 
-        // Aircraft on the runway are not slowed by stationary off-runway traffic.
-        // The hold-short line is the boundary — once past it and stopped, the
-        // aircraft is not a runway conflict. This preserves conflicts between
-        // two runway aircraft (e.g., landing + LUAW) and between runway aircraft
-        // and moving ground traffic (e.g., crossing runway).
         if (IsOnRunway(mover) && !IsOnRunway(obstacle) && obstacle.GroundSpeed <= 0)
         {
-            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: mover on runway, obstacle stationary off-runway, skip");
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: mover on runway, obstacle off-runway, skip");
             return;
         }
 
@@ -568,10 +638,6 @@ public static class GroundConflictDetector
             );
             ApplyMinLimit(mover, limitSpeed, "proximity trail", obstacle, distFt);
         }
-        else
-        {
-            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft > trail({trailDist:F0}ft), no limit");
-        }
     }
 
     private static void ResolveHeadOn(AircraftState a, double dirA, AircraftState b, double dirB, double distFt)
@@ -587,7 +653,6 @@ public static class GroundConflictDetector
             return;
         }
 
-        // Check that they're actually closing
         double bearingAtoB = GeoMath.BearingTo(a.Position, b.Position);
         if (HeadingDifference(dirA, bearingAtoB) < 90)
         {
@@ -598,11 +663,6 @@ public static class GroundConflictDetector
 
     // --- Helpers ---
 
-    /// <summary>
-    /// True if the aircraft is on the runway surface (landing, taking off, lined up, etc.).
-    /// Used to exempt runway aircraft from closing-proximity limits against stationary
-    /// off-runway traffic — the hold-short line is the boundary.
-    /// </summary>
     private static bool IsOnRunway(AircraftState ac)
     {
         string? phase = ac.Phases?.CurrentPhase?.Name;
@@ -611,9 +671,6 @@ public static class GroundConflictDetector
             return true;
         }
 
-        // RunwayExitPhase: only "on runway" while rolling on centerline searching
-        // for an exit. Once following the exit path (on a taxiway), it's a ground
-        // movement that should respect ground conflict checks.
         if (phase is "Runway Exit" && ac.Phases?.CurrentPhase is RunwayExitPhase rep)
         {
             return rep.IsOnCenterline;
@@ -622,14 +679,6 @@ public static class GroundConflictDetector
         return false;
     }
 
-    /// <summary>
-    /// Returns dimension-aware stop/trail distances between the centroids of <paramref name="leader"/>
-    /// and <paramref name="trailer"/>. <see cref="AircraftState.Position"/> is the centroid, so the
-    /// minimum center-to-center distance that keeps the trailer's nose from passing through the
-    /// leader's tail is <c>(leaderLength + trailerLength) / 2 + buffer</c>. Trail distance adds a
-    /// deceleration margin on top of stop distance. Falls back to <see cref="DefaultAircraftLengthFt"/>
-    /// when the FAA Aircraft Characteristics Database has no record for the aircraft type.
-    /// </summary>
     private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {
         double leaderLength = FaaAircraftDatabase.Get(leader.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
@@ -680,7 +729,6 @@ public static class GroundConflictDetector
             aircraft.Ground.SpeedLimit = maxSpeed;
         }
 
-        // Only log when this call actually set or lowered the limit
         if (existing is null || maxSpeed < existing)
         {
             Log.LogTrace(
@@ -701,35 +749,24 @@ public static class GroundConflictDetector
         {
             diff = 360 - diff;
         }
-
         return diff;
     }
 
-    private static double DistToSegTarget(TaxiRouteSegment seg)
+    private static double DistToSegTarget(AircraftState ac, TaxiRouteSegment seg, AirportGroundLayout layout)
     {
-        // Approximate: bearing-based distance to segment's ToNode is
-        // not available without layout. Use the edge distance minus traversed.
-        // Simplest proxy: just use the full edge distance for ordering,
-        // but since both aircraft are on the same edge, the one further from
-        // the target is the one that traversed less. We can approximate by
-        // position on the edge (further from ToNode = bigger distance).
-        // Without node coords, compare distance from start of edge.
+        if (layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
+        {
+            return GeoMath.DistanceNm(ac.Position, node.Position);
+        }
+
         return seg.Edge.DistanceNm;
     }
 
-    /// <summary>
-    /// Find a node that both routes will pass through within <see cref="ConvergenceLookaheadFt"/>,
-    /// but only if the two routes arrive from different edges (true convergence from different
-    /// directions). If both routes reach the shared node via the same FromNodeId, it's a
-    /// following/trailing situation — not a convergence.
-    /// </summary>
     private static int? FindSharedUpcomingNode(TaxiRoute routeA, TaxiRoute routeB)
     {
         double lookaheadNm = ConvergenceLookaheadFt / FtPerNm;
 
-        // Collect upcoming target nodes for A within distance-based lookahead,
-        // recording which FromNodeId leads into each target node.
-        var nodesA = new Dictionary<int, int>(); // ToNodeId → FromNodeId
+        var nodesA = new Dictionary<int, int>();
         double cumulativeA = 0;
         for (int i = routeA.CurrentSegmentIndex; i < routeA.Segments.Count; i++)
         {
@@ -739,14 +776,9 @@ public static class GroundConflictDetector
             {
                 break;
             }
-
             nodesA.TryAdd(seg.ToNodeId, seg.FromNodeId);
         }
 
-        // Check if B shares any upcoming target node within distance-based lookahead,
-        // but only if B arrives from a different edge than A (different FromNodeId).
-        // Same-direction trailing on different edges is handled by the closing proximity
-        // check in the main loop — convergence is specifically for intersecting paths.
         double cumulativeB = 0;
         for (int i = routeB.CurrentSegmentIndex; i < routeB.Segments.Count; i++)
         {

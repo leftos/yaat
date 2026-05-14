@@ -413,6 +413,19 @@ public partial class GroundView : UserControl
         {
             AddHoldShortSubmenu(menu, vm, ac, callsign, initials);
             AddFollowBehindSubmenus(menu, ac, callsign, initials);
+
+            // BREAK overrides the ground-conflict speed limit for 15 seconds.
+            // Useful when two aircraft are mutually stopped by the conflict
+            // detector and the controller needs one of them to push through.
+            menu.Items.Add(CreateMenuItem("Break conflict", () => vm.SendRawCommandAsync(callsign, initials, "BREAK")));
+
+            // CTO during taxi is accepted by the dispatcher and stored as a
+            // deferred clearance — applied when the aircraft reaches the runway.
+            // Only meaningful when a runway is already assigned to taxi to.
+            if (!string.IsNullOrEmpty(ac.AssignedRunway))
+            {
+                AddCtoSubmenu(menu, vm, ac, callsign, initials, ac.AssignedRunway);
+            }
         }
 
         if (phase.StartsWith("Following", StringComparison.Ordinal))
@@ -424,7 +437,10 @@ public partial class GroundView : UserControl
         {
             var rwyId = ExtractHoldingShortRunway(phase, ac);
 
-            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
+            if (ac is { HasActiveTaxiRoute: true })
+            {
+                menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
+            }
 
             if (rwyId is not null)
             {
@@ -436,9 +452,23 @@ public partial class GroundView : UserControl
             AddNearbyRunwayCrossings(menu, vm, ac, callsign, initials, rwyId);
         }
 
-        if (phase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position")
+        if (phase == "Holding In Position")
         {
+            // Holding In Position always has a paused route (the aircraft was
+            // mid-taxi when HOLDPOSITION was issued).
             menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
+        }
+
+        if (phase is "Holding After Exit" or "Holding After Pushback")
+        {
+            // After-pushback / after-exit only have a route to resume if the
+            // controller had already issued a TAXI command before something
+            // halted the aircraft. Hide the menu item otherwise — RES wouldn't
+            // do anything useful, the controller needs to issue TAXI.
+            if (ac is { HasActiveTaxiRoute: true })
+            {
+                menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
+            }
         }
 
         if (phase == "LinedUpAndWaiting")
@@ -736,6 +766,40 @@ public partial class GroundView : UserControl
 
         var menu = new ContextMenu();
         AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, holdShortNodeId.Value, spot: null, destRunway: runwayEnd);
+
+        // Mirror the hold-short node menu — give the controller the same draw /
+        // custom / warp escape hatches when clicking the threshold marker.
+        var nid = holdShortNodeId.Value;
+        var node = vm.GetNode(nid);
+        menu.Items.Add(
+            CreateMenuItem(
+                "Draw taxi route...",
+                () =>
+                {
+                    vm.StartDrawRoute(vm.SelectedAircraft!);
+                    vm.AddDrawWaypoint(nid);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+
+        if (node is not null)
+        {
+            var (prefill, caretPos) = BuildCustomTaxiPrefill(vm, node, nid);
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Custom taxi...",
+                    () =>
+                    {
+                        ShowTaxiInput(callsign, initials, prefill, caretPos);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, initials, nid)));
 
         if (menu.Items.Count == 0)
         {

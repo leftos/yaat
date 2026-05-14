@@ -4,11 +4,21 @@
 
 ### Added
 - `TAXIAUTO <runway|@parking>` auto-routes the taxi from current position; the runway form targets the full-length lineup.
+- Right-clicking a taxiing aircraft now exposes `Break conflict` (issues `BREAK` to override the ground-conflict speed limit for 15s) and, when a runway is already assigned, the full `Cleared for takeoff …` submenu so a CTO can be pre-issued mid-taxi.
+- Hovering a runway threshold marker shows a `RWY {end}` label so the controller can confirm which runway is about to be targeted before clicking.
+- Right-clicking a runway threshold marker now offers `Draw taxi route…`, `Custom taxi…`, and `Warp here` alongside the taxi-for-takeoff variants — same actions as right-clicking the corresponding hold-short node.
 
 ### Changed
-- Ground view runway thresholds and runway hold-shorts show a hand cursor on hover when an aircraft is selected; right-click on a runway threshold opens the same Taxi/Takeoff menu as left-click. Menu labels now spell out "Takeoff RWY 28R" / "Hold short RWY 28R" so the runway-assignment side-effect is explicit.
+- Ground view runway thresholds and runway hold-shorts show a hand cursor on hover when an aircraft is selected; right-click on a runway threshold opens the same Taxi menu as left-click.
+- The taxi-submenu labels that read "Takeoff RWY 28R" now read "For Departure 28R" — they're a taxi destination, not a takeoff clearance.
+- `Resume taxi` is only offered when the aircraft has an unfinished taxi route assigned. Aircraft holding after pushback or after exiting a runway without a pending taxi command no longer show the option (RES wouldn't do anything).
 
 ### Fixed
+- Two aircraft converging on the same taxiway from different feeders no longer pin each other at near-zero ground speed for an extended period. Ground-conflict detection was rewritten around a single-pass pair classifier: each pair maps to exactly one of `SameEdgeTrailing` / `SameEdgeHeadOn` / `Converging` / `Crossing` (plus the stationary / pushback cases), and only one resolver runs. Bundled S1-OAK practical exam regression test covers SWA863 / NKS743 on taxiway U.
+- Same-edge head-on no longer mutually stops both aircraft. A deterministic holder is picked (aircraft with more route remaining, tie-broken by callsign) so one proceeds and one waits, instead of both freezing forever on a single-lane segment.
+- A pinned ground aircraft (gs ≈ 0 with no controller hold) now reclassifies as a stationary obstacle, so other traffic can pass laterally beside it with wingspan clearance. Closes the systemic "stuck pair won't unstick" failure mode.
+- Controller-held aircraft (`GIVEWAY`, `HOLDPOSITION`, `BEHIND`) are now treated as stationary obstacles by the conflict detector. A `GIVEWAY`-held aircraft on a taxiway no longer blocks passing aircraft via closing-proximity when there's lateral wingspan clearance.
+- Same-edge same-direction trailing now uses the real distance from the aircraft to the segment's target node. Previously both aircraft compared the full edge length and the trailer was effectively picked by aircraft list order.
 - Aircraft taxiing out of OAK parking no longer orbit the ramp at sharp corners; all OAK parking spots reach a runway hold-short reliably.
 - Aircraft no longer snap their heading when given a TAXI command after pushback or at parking when the route's first segment heads away from the aircraft's current direction. The navigator now traces a slow-turn from the current pose to the segment start tangent at nose-wheel turn radius and walking pace, instead of writing the arc tangent into the heading at first tick.
 - Window geometry now persists across in-app updates. Velopack's restart bypassed Avalonia's window-closing pipeline, so the per-window save (hooked via `Window.Closing`) never ran; geometry is now flushed for all tracked windows before `ApplyUpdatesAndRestart` hands off.

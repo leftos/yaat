@@ -446,6 +446,14 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string _taxiRoute = "";
 
+    /// <summary>
+    /// True when the aircraft has an assigned taxi route with segments still ahead
+    /// of it. Drives whether "Resume taxi" appears in the context menu — RES only
+    /// resumes a paused route, so we hide it when there's nothing to resume.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasActiveTaxiRoute;
+
     [ObservableProperty]
     private string _parkingSpot = "";
 
@@ -565,6 +573,7 @@ public partial class AircraftModel : ObservableObject
             CruiseAltitude = dto.CruiseAltitude,
             CruiseSpeed = dto.CruiseSpeed,
             TaxiRoute = dto.TaxiRoute,
+            HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -632,6 +641,7 @@ public partial class AircraftModel : ObservableObject
         CruiseAltitude = dto.CruiseAltitude;
         CruiseSpeed = dto.CruiseSpeed;
         TaxiRoute = dto.TaxiRoute;
+        HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;
