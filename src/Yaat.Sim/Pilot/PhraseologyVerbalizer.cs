@@ -38,13 +38,18 @@ public static class PhraseologyVerbalizer
     /// canonical readback, later forms are recognition-only variants. This picks "line up and
     /// wait" over "line up and wait runway {rwy}" (fewer captures), and "maintain {spd} knots"
     /// over "reduce speed to {spd}" (same capture count, first declared).
+    ///
+    /// Rules flagged <see cref="PhraseologyRule.SttOnly"/> are excluded entirely — they exist
+    /// purely as acoustic-alias safety nets for STT and must never be spoken back by the
+    /// pilot AI (e.g. "descent and maintain {alt}" is a recovery alias for a Whisper
+    /// mistranscription of "descend"; speaking "descent and maintain" would be wrong).
     /// </summary>
     private static readonly Dictionary<CanonicalCommandType, PhraseologyRule> PreferredRule = BuildPreferredRule();
 
     private static Dictionary<CanonicalCommandType, PhraseologyRule> BuildPreferredRule()
     {
         var dict = new Dictionary<CanonicalCommandType, PhraseologyRule>();
-        var indexed = PhraseologyRules.All.Select((rule, idx) => (rule, idx));
+        var indexed = PhraseologyRules.All.Where(r => !r.SttOnly).Select((rule, idx) => (rule, idx));
         foreach (var group in indexed.GroupBy(t => t.rule.Type))
         {
             var preferred = group.OrderBy(t => t.rule.Pattern.Count(IsCapture)).ThenBy(t => t.idx).First().rule;

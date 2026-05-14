@@ -77,6 +77,12 @@ public static class PhraseologyRules
             // Descend forms
             new(["descend", "and?", "maintain", "{alt}"], "DM {alt}", DescendMaintain, PilotShortcuts: ["descending to {alt}", "down to {alt}"]),
             new(["descend", "to?", "{alt}"], "DM {alt}", DescendMaintain),
+            // "descent and maintain" — STT-only acoustic alias for Whisper mistranscriptions of
+            // the verb "descend" as the homophone-adjacent noun "descent". Pattern is distinct
+            // from "expedite descent {alt}" (different leading verb). SttOnly so the pilot AI
+            // never speaks "descent and maintain" — the canonical pilot readback stays
+            // "descend and maintain".
+            new(["descent", "and?", "maintain", "{alt}"], "DM {alt}", DescendMaintain, SttOnly: true),
             new(["expedite", "descent", "to?", "{alt}"], "EXP {alt}", Expedite),
             new(["expedite", "descent"], "EXP", Expedite),
             // Neutral "maintain {alt}" — caller may want CM vs DM based on current alt.

@@ -295,4 +295,17 @@ public class PhraseologyVerbalizerTests
         // 119.6 represented as 119.60000000000001 (binary-fp drift) must not produce extra digits.
         Assert.Equal("one one nine point six", PhraseologyVerbalizer.FrequencyToWords(119.60000000000001));
     }
+
+    // --- SttOnly rules must NOT leak into pilot speech ---
+
+    [Fact]
+    public void Verbalize_DescendMaintain_PrefersDescendOverSttOnlyDescentAlias()
+    {
+        // PhraseologyRules.AltitudeSpeedRules() declares a "descent and maintain {alt}" alias
+        // flagged SttOnly to recover Whisper mistranscriptions of "descend" as "descent".
+        // The verbalizer must skip SttOnly rules so the pilot AI never speaks "descent and maintain"
+        // — that would be grammatically wrong and a regression of the canonical readback.
+        var result = PhraseologyVerbalizer.Verbalize(new DescendMaintainCommand(3000));
+        Assert.Equal("descend and maintain three thousand", result);
+    }
 }

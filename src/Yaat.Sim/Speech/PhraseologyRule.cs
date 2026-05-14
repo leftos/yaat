@@ -46,7 +46,20 @@ namespace Yaat.Sim.Speech;
 /// </code>
 /// When null, the verbalizer always emits the pattern-derived verbatim form.
 /// </param>
-public sealed record PhraseologyRule(string[] Pattern, string OutputTemplate, CanonicalCommandType Type, string[]? PilotShortcuts = null)
+/// <param name="SttOnly">
+/// When true, this rule exists only to recover canonical commands from imperfect STT output
+/// (e.g. <c>"descent and maintain {alt}"</c> as an acoustic alias for Whisper mishearing
+/// "descend" as "descent"). The pattern is consulted during transcript → canonical mapping
+/// but is excluded from <c>PhraseologyVerbalizer</c>'s candidate set, so the pilot AI never
+/// speaks the alias form back. Default false — most rules are bidirectional.
+/// </param>
+public sealed record PhraseologyRule(
+    string[] Pattern,
+    string OutputTemplate,
+    CanonicalCommandType Type,
+    string[]? PilotShortcuts = null,
+    bool SttOnly = false
+)
 {
     /// <summary>Number of non-optional tokens in the pattern — used for match-length comparison.</summary>
     public int RequiredLength { get; } = Pattern.Count(t => !t.EndsWith('?'));
