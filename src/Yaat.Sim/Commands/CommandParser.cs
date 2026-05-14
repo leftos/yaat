@@ -714,6 +714,7 @@ public static class CommandParser
             FollowGround => GroundCommandParser.ParseFollowGround(arg),
             GiveWay => GroundCommandParser.ParseGiveWay(arg),
             TaxiAll => GroundCommandParser.ParseTaxiAll(arg),
+            TaxiAuto => GroundCommandParser.ParseTaxiAuto(arg),
             BreakConflict when arg is null => PR.Ok(new BreakConflictCommand()),
             CanonicalCommandType.Go when arg is null => PR.Ok(new GoCommand()),
             ExitLeft when arg is null or "NODEL" => PR.Ok(new ExitLeftCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true)),

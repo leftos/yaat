@@ -128,7 +128,7 @@ public sealed class CrossingRunwayPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
-            CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected("aircraft is crossing a runway; only HOLD or a new TAXI apply until the crossing completes"),
         };

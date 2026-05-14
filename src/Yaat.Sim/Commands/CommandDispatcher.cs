@@ -1329,6 +1329,8 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryPushback(aircraft, push, groundLayout);
             case TaxiCommand taxi:
                 return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway);
+            case TaxiAutoCommand autoTaxi:
+                return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
             case ResumeCommand when currentPhase is not HoldingShortPhase:

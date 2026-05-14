@@ -131,7 +131,7 @@ public sealed class FollowingPhase : Phase
     {
         return cmd switch
         {
-            CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.CrossRunway => CommandAcceptance.Allowed,

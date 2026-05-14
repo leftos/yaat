@@ -208,6 +208,11 @@ public sealed class QueryCommand : ICommand
             formatter.WritePathfinder(pfResult);
         }
 
+        if (options.AutoRouteNodeId is not null && options.AutoRouteRunway is not null)
+        {
+            RunAutoRoute(analyzer, options.AutoRouteNodeId.Value, options.AutoRouteRunway);
+        }
+
         if (options.ShowParking)
         {
             formatter.WriteNodeList("Parking", analyzer.GetParking());
@@ -284,6 +289,100 @@ public sealed class QueryCommand : ICommand
         }
 
         return ordered;
+    }
+
+    /// <summary>
+    /// Run the same auto-route resolution that <c>TAXIAUTO &lt;RWY&gt;</c> uses at
+    /// runtime: pick the full-length lineup hold-short via
+    /// <see cref="TaxiPathfinder.FindFullLengthLineupHoldShort"/>, then run A*
+    /// from <paramref name="startNodeId"/>. Prints the chosen hold-short, the
+    /// taxiway sequence, and per-segment detail with any runway crossings called
+    /// out so the route's intent is auditable from the CLI.
+    /// </summary>
+    private static void RunAutoRoute(LayoutAnalyzer analyzer, int startNodeId, string runwayId)
+    {
+        Console.WriteLine($"=== auto-route from #{startNodeId} to RWY {runwayId} ===");
+
+        if (!analyzer.Layout.Nodes.TryGetValue(startNodeId, out var startNode))
+        {
+            Console.Error.WriteLine($"Node {startNodeId} not found");
+            return;
+        }
+
+        var holdShortNodes = analyzer.Layout.GetRunwayHoldShortNodes(runwayId);
+        if (holdShortNodes.Count == 0)
+        {
+            Console.Error.WriteLine($"No hold-short nodes for runway {runwayId}");
+            return;
+        }
+
+        var targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(analyzer.Layout, startNode, runwayId, holdShortNodes);
+
+        Console.WriteLine(
+            $"start:       #{startNode.Id} {startNode.Type} {startNode.Name ?? ""} ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})"
+        );
+        Console.WriteLine(
+            $"target HS:   #{targetHs.Id} RunwayHoldShort rwy={targetHs.RunwayId} ({targetHs.Position.Lat:F6}, {targetHs.Position.Lon:F6})"
+        );
+        Console.WriteLine($"hold-short candidates considered: {holdShortNodes.Count}");
+        foreach (var node in holdShortNodes)
+        {
+            string marker = node.Id == targetHs.Id ? " ← chosen (full-length lineup)" : "";
+            string twyEdges = string.Join(",", node.Edges.Select(e => e.TaxiwayName).Distinct().Where(t => t != "RAMP"));
+            Console.WriteLine($"  #{node.Id} ({node.Position.Lat:F6}, {node.Position.Lon:F6}) edges=[{twyEdges}]{marker}");
+        }
+        Console.WriteLine();
+
+        var route = TaxiPathfinder.FindRoute(analyzer.Layout, startNode.Id, targetHs.Id);
+        if (route is null)
+        {
+            Console.Error.WriteLine($"No A* route from #{startNodeId} to #{targetHs.Id}");
+            return;
+        }
+
+        double totalNm = 0;
+        var taxiwaySequence = new List<string>();
+        string? prevTwy = null;
+        foreach (var seg in route.Segments)
+        {
+            totalNm += seg.Edge.DistanceNm;
+            if (!string.Equals(seg.TaxiwayName, prevTwy, StringComparison.OrdinalIgnoreCase))
+            {
+                taxiwaySequence.Add(seg.TaxiwayName);
+                prevTwy = seg.TaxiwayName;
+            }
+        }
+
+        Console.WriteLine($"summary:     {string.Join(" → ", taxiwaySequence)}");
+        Console.WriteLine($"segments:    {route.Segments.Count}");
+        Console.WriteLine($"total:       {totalNm:F4} nm ({totalNm * GeoMath.FeetPerNm:F0} ft)");
+
+        int crossings = 0;
+        foreach (var seg in route.Segments)
+        {
+            if (analyzer.Layout.Nodes.TryGetValue(seg.ToNodeId, out var toNode) && toNode.Type == GroundNodeType.RunwayHoldShort)
+            {
+                if (toNode.Id != targetHs.Id)
+                {
+                    crossings++;
+                    Console.WriteLine($"⚠ crosses runway at HS #{toNode.Id} rwy={toNode.RunwayId}");
+                }
+            }
+        }
+        if (crossings > 0)
+        {
+            Console.WriteLine($"⚠ total mid-route runway crossings: {crossings}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("segments:");
+        int idx = 0;
+        foreach (var seg in route.Segments)
+        {
+            string label = $"#{seg.FromNodeId} → #{seg.ToNodeId}";
+            Console.WriteLine($"  [{idx, 3}] {seg.TaxiwayName, -8} {label, -22} {seg.Edge.DistanceNm * GeoMath.FeetPerNm, 7:F0} ft");
+            idx++;
+        }
     }
 
     /// <summary>

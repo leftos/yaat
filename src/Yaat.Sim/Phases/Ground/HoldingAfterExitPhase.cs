@@ -85,7 +85,7 @@ public sealed class HoldingAfterExitPhase : Phase
     {
         return cmd switch
         {
-            CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,

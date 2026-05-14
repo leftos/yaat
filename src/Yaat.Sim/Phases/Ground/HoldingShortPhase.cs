@@ -104,7 +104,7 @@ public sealed class HoldingShortPhase : Phase
             CanonicalCommandType.CrossRunway => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.LineUpAndWait => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,

@@ -80,6 +80,19 @@ public sealed record CliOptions
     /// </summary>
     public int? PathfinderDestNodeId { get; init; }
 
+    /// <summary>
+    /// Start node id for <c>--auto-route</c> — runs the same auto-route resolution
+    /// that <c>TAXIAUTO &lt;RWY&gt;</c> uses (full-length lineup hold-short + A*).
+    /// Paired with <see cref="AutoRouteRunway"/>.
+    /// </summary>
+    public int? AutoRouteNodeId { get; init; }
+
+    /// <summary>
+    /// Destination runway designator for <c>--auto-route</c>. Used together with
+    /// <see cref="AutoRouteNodeId"/> to print the resolved auto-route.
+    /// </summary>
+    public string? AutoRouteRunway { get; init; }
+
     public bool ShowParking { get; init; }
     public bool ShowSpots { get; init; }
     public bool Validate { get; init; }
@@ -161,6 +174,8 @@ public sealed record CliOptions
         string? pfDestParking = null;
         string? pfDestSpot = null;
         int? pfDestNodeId = null;
+        int? autoRouteNodeId = null;
+        string? autoRouteRunway = null;
         bool showParking = false;
         bool showSpots = false;
         bool validate = false;
@@ -357,6 +372,16 @@ public sealed record CliOptions
 
                     pfDestNodeId = pfDestNode;
                     break;
+                case "--auto-route" when i + 2 < args.Length:
+                    if (!int.TryParse(args[++i], out int autoNode))
+                    {
+                        error = "--auto-route expects: <start-node-id> <runway>";
+                        return false;
+                    }
+
+                    autoRouteNodeId = autoNode;
+                    autoRouteRunway = args[++i].ToUpperInvariant();
+                    break;
                 case "--tick-table":
                     tickTable = true;
                     break;
@@ -428,6 +453,8 @@ public sealed record CliOptions
             PathfinderDestParking = pfDestParking,
             PathfinderDestSpot = pfDestSpot,
             PathfinderDestNodeId = pfDestNodeId,
+            AutoRouteNodeId = autoRouteNodeId,
+            AutoRouteRunway = autoRouteRunway,
             ShowParking = showParking,
             ShowSpots = showSpots,
             Validate = validate,
@@ -468,6 +495,7 @@ public sealed record CliOptions
         || (BfsNodeId is not null)
         || (WalkTraceNodeId is not null)
         || (PathfinderNodeId is not null)
+        || (AutoRouteNodeId is not null)
         || ShowParking
         || ShowSpots
         || Validate

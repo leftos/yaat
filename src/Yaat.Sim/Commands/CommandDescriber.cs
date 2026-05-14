@@ -98,6 +98,7 @@ public static class CommandDescriber
             ClearedTakeoffPresentCommand => CanonicalCommandType.ClearedTakeoffPresent,
             PushbackCommand => CanonicalCommandType.Pushback,
             TaxiCommand => CanonicalCommandType.Taxi,
+            TaxiAutoCommand => CanonicalCommandType.TaxiAuto,
             HoldPositionCommand => CanonicalCommandType.HoldPosition,
             ResumeCommand => CanonicalCommandType.Resume,
             CrossRunwayCommand => CanonicalCommandType.CrossRunway,

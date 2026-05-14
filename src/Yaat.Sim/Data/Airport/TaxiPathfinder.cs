@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -628,6 +629,62 @@ public static class TaxiPathfinder
     {
         var routes = FindRoutes(layout, fromNodeId, toNodeId, RoutePreference.FewestTurns, 1);
         return routes.Count > 0 ? routes[0] : null;
+    }
+
+    /// <summary>
+    /// Pick the canonical full-length lineup hold-short for a runway designator —
+    /// the hold-short geographically closest to the runway threshold (the start of
+    /// the takeoff roll). Aircraft anywhere on the field auto-taxiing to a given
+    /// runway should line up at the same hold-short, not whichever is geographically
+    /// closest to them — that's the standard "taxi for departure" semantic and what
+    /// controllers say when they clear someone to a runway without qualifying with
+    /// "via the intersection".
+    /// <para>
+    /// Falls back to the hold-short closest to <paramref name="startNode"/> when
+    /// the runway is unknown to <see cref="NavigationDatabase"/>.
+    /// </para>
+    /// </summary>
+    public static GroundNode FindFullLengthLineupHoldShort(
+        AirportGroundLayout layout,
+        GroundNode startNode,
+        string runwayId,
+        List<GroundNode> holdShortNodes
+    )
+    {
+        var runwayInfo = NavigationDatabase.Instance.GetRunway(layout.AirportId, runwayId);
+        if (runwayInfo is not null)
+        {
+            GroundNode? best = null;
+            double bestDist = double.MaxValue;
+            foreach (var node in holdShortNodes)
+            {
+                double dist = GeoMath.DistanceNm(node.Position.Lat, node.Position.Lon, runwayInfo.ThresholdLatitude, runwayInfo.ThresholdLongitude);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = node;
+                }
+            }
+
+            if (best is not null)
+            {
+                return best;
+            }
+        }
+
+        // Fallback: nearest to aircraft position.
+        GroundNode? nearestToStart = null;
+        double bestStartDist = double.MaxValue;
+        foreach (var node in holdShortNodes)
+        {
+            double dist = GeoMath.DistanceNm(startNode.Position, node.Position);
+            if (dist < bestStartDist)
+            {
+                bestStartDist = dist;
+                nearestToStart = node;
+            }
+        }
+        return nearestToStart!;
     }
 
     /// <summary>

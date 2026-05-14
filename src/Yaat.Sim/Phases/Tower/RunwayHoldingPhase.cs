@@ -80,7 +80,7 @@ public sealed class RunwayHoldingPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.CrossRunway => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ExitLeft => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ExitRight => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.ClearsPhase,

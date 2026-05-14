@@ -263,6 +263,42 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok(msg);
     }
 
+    /// <summary>
+    /// TAXIAUTO &lt;RWY&gt; or TAXIAUTO @&lt;PARKING&gt; — delegates to <see cref="TryTaxi"/>
+    /// with an empty taxiway path so the standard pipeline's existing A* route resolvers
+    /// (<see cref="ResolveRunwayRouteByAStar"/> / <see cref="ResolveParkingRoute"/>) discover
+    /// the taxiway sequence. Hold-short annotation, auto-cross handling, and phase handoff
+    /// work identically to a user-typed TAXI.
+    /// </summary>
+    internal static CommandResult TryTaxiAuto(
+        AircraftState aircraft,
+        TaxiAutoCommand autoTaxi,
+        AirportGroundLayout? groundLayout,
+        bool autoCrossRunway = false
+    )
+    {
+        if (autoTaxi.DestinationRunway is null && autoTaxi.DestinationParking is null)
+        {
+            return new CommandResult(false, "TAXIAUTO requires a runway or @parking destination");
+        }
+
+        Log.LogDebug(
+            "[TryTaxiAuto] {Callsign}: destRwy={Rwy} destParking={Parking}",
+            aircraft.Callsign,
+            autoTaxi.DestinationRunway ?? "(none)",
+            autoTaxi.DestinationParking ?? "(none)"
+        );
+
+        var taxi = new TaxiCommand(
+            Path: [],
+            HoldShorts: [],
+            DestinationRunway: autoTaxi.DestinationRunway,
+            DestinationParking: autoTaxi.DestinationParking
+        );
+
+        return TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway);
+    }
+
     private static TaxiRoute? ResolveStandardRoute(AirportGroundLayout groundLayout, GroundNode startNode, TaxiCommand taxi, out string? failReason)
     {
         // Empty path + destination runway → A* to nearest hold-short node
@@ -300,20 +336,9 @@ internal static class GroundCommandHandler
             return null;
         }
 
-        // Pick the nearest hold-short node
-        GroundNode? bestNode = null;
-        double bestDist = double.MaxValue;
-        foreach (var node in holdShortNodes)
-        {
-            double dist = GeoMath.DistanceNm(startNode.Position, node.Position);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                bestNode = node;
-            }
-        }
+        var targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(groundLayout, startNode, runwayId, holdShortNodes);
 
-        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, bestNode!.Id);
+        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, targetHs.Id);
         if (route is null)
         {
             failReason = $"No route to runway {runwayId} hold-short";

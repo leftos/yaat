@@ -701,6 +701,14 @@ public static class CommandRegistry
                 ["TAXIALL"],
                 [O(null, [R("destination", "runway, @parking, or $spot")], "Taxi all parked aircraft to destination (A* pathfinding)")]
             ),
+            Cmd(
+                TaxiAuto,
+                "Taxi Auto",
+                "Ground",
+                false,
+                ["TAXIAUTO"],
+                [O(null, [R("destination", "runway or @parking")], "Auto-route taxi to runway or parking (A* pathfinding)")]
+            ),
             Bare(BreakConflict, "Break Conflict", "Ground", false, ["BREAK"]),
             Bare(Go, "Begin Takeoff Roll", "Tower", false, ["GO"]),
         ];

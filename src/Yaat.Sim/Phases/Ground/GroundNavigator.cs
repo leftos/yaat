@@ -251,9 +251,18 @@ public sealed class GroundNavigator
     /// 60° threshold catches the OAK GA3 case (TWY801 at hdg 290°, segBrg 209°,
     /// delta 80.9°) where the pure-pursuit lookahead loop diverges: at low
     /// speed the lookahead point shifts faster than the aircraft can turn to
-    /// chase it, producing an orbit. The route-entry gate (<c>CurrentSegmentIndex == 0</c>)
-    /// keeps mid-route corners out of scope — those rely on the synthesised
-    /// slow-turn at the tangent-inset trigger instead.
+    /// chase it, producing an orbit. The same divergence happens mid-route
+    /// when the synthesised slow-turn at a sharp corner fails to engage —
+    /// either because the post-corner segment is too short for the clamped
+    /// nose-wheel-min radius (OAK GA15 corner #472: 95° turn, availIn 8.4 ft,
+    /// availOut 55 ft), or because the aircraft drifted off the planned
+    /// tangent line by more than the strict-geometry tolerance. Entry-
+    /// alignment is the safety net: any segment with a starting heading
+    /// delta above 60° gets a slow-turn at the segment-start node regardless
+    /// of route position, and any segment with a smaller delta proceeds
+    /// directly to the real primitive. Normal corners are below this
+    /// threshold by construction (fillet arcs split sharp turns into
+    /// multiple sub-segments each well under 60°).
     /// </para>
     /// </summary>
     private const double EntryAlignmentThresholdDeg = 60.0;
@@ -314,18 +323,15 @@ public sealed class GroundNavigator
         // the segment's tangent at first tick.
         //
         // Gates (all required):
-        //   - Route entry only (CurrentSegmentIndex == 0): mid-route corners
-        //     belong to the existing slow-turn synthesis, which runs at full
-        //     taxi speed via tangent-entry arcs on the incoming straight.
-        //   - Heading delta > 90°: normal corners (up to ~80° between
-        //     consecutive segments) don't qualify — only wrong-way starts and
-        //     post-pushback U-turns where the snap would be visibly broken.
-        //   - Segment length > 2 × alignment chord: short first segments
-        //     (e.g. M2 entrance ~12 ft) can't absorb the displacement; the
-        //     aircraft would end up well past the segment endpoint with
-        //     pure-pursuit unable to recover. Defer alignment in those cases
-        //     and accept the snap (rare and brief on those tiny segments).
-        bool isRouteEntry = route.CurrentSegmentIndex == 0;
+        //   - Heading delta > 60° (EntryAlignmentThresholdDeg): normal
+        //     fillet-smoothed corners stay below this; only wrong-way starts,
+        //     post-pushback U-turns, and mid-route corners where synthesis
+        //     failed to engage produce deltas this large.
+        //   - Segment length > 2 × alignment chord: short segments (e.g. M2
+        //     entrance ~12 ft) can't absorb the displacement; the aircraft
+        //     would end up well past the segment endpoint with pure-pursuit
+        //     unable to recover. Defer alignment in those cases and accept
+        //     the snap (rare and brief on those tiny segments).
         double segDepartureBearing = seg.Edge.DepartureBearing;
         double headingDelta = new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading);
         double alignmentRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
@@ -334,7 +340,7 @@ public sealed class GroundNavigator
         double segmentLengthFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
         bool segmentLongEnough = segmentLengthFt > 2.0 * alignmentChordFt;
 
-        if (isRouteEntry && headingDelta > EntryAlignmentThresholdDeg && segmentLongEnough)
+        if (headingDelta > EntryAlignmentThresholdDeg && segmentLongEnough)
         {
             var alignmentArc = PathPrimitiveBuilder.SlowTurn(
                 fromLat: ctx.Aircraft.Position.Lat,

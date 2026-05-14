@@ -172,7 +172,7 @@ public sealed class PushbackToSpotPhase : Phase
     {
         return cmd switch
         {
-            CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Pushback => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,

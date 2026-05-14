@@ -30,6 +30,7 @@ public static class UsageText
         );
         Console.WriteLine("  --pf-dest-spot <name>    Destination spot name for pathfinder; reproduces TAXI <tw...> $<spot>");
         Console.WriteLine("  --pf-dest-node <id>      Raw destination node id for pathfinder (escape hatch)");
+        Console.WriteLine("  --auto-route <node> <rwy>  Run TAXIAUTO <RWY> resolution: full-length lineup HS + A*; prints route");
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
         Console.WriteLine("  --intersection <T1> <T2> Show nodes where two taxiways meet");
