@@ -238,6 +238,25 @@ public sealed class GroundNavigator
     private PlannedSynthesis? _plannedSynthesis;
 
     /// <summary>
+    /// Heading-misalignment threshold (deg) above which a new segment gets a
+    /// pre-segment slow-turn from the aircraft's current pose to the segment's
+    /// start tangent. Without this, an arc primitive's first <see cref="TickArc"/>
+    /// would write the arc tangent into <c>TrueHeading</c> directly, snapping
+    /// a stationary aircraft (e.g. just after pushback) to the route start
+    /// direction. The slow-turn lets the aircraft taxi forward at
+    /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> while gradually
+    /// rotating through a real arc geometry — no in-place pivot, no snap.
+    /// </summary>
+    private const double EntryAlignmentThresholdDeg = 90.0;
+
+    /// <summary>
+    /// When entry-alignment is active, this holds the segment's real primitive,
+    /// to be swapped in once the alignment slow-turn completes. Null when no
+    /// entry alignment is in progress.
+    /// </summary>
+    private PathPrimitive? _pendingSegmentPrimitive;
+
+    /// <summary>
     /// Plan record describing a pre-computed synthesised slow-turn to be
     /// engaged mid-segment. All positions are absolute; geometry is fixed
     /// at plan time and does not adapt to the aircraft's actual pose.
@@ -267,7 +286,7 @@ public sealed class GroundNavigator
             return;
         }
 
-        _currentPrimitive = PathPrimitiveBuilder.FromSegment(seg);
+        var segmentPrimitive = PathPrimitiveBuilder.FromSegment(seg);
 
         var from = seg.Edge.FromNode;
         var to = seg.Edge.ToNode;
@@ -278,41 +297,107 @@ public sealed class GroundNavigator
         _segmentFromLon = from.Position.Lon;
         PrevDistToTarget = double.MaxValue;
 
-        // Slow-turn synthesis lookahead: when the pathfinder emits two
-        // consecutive straights at a sharp corner (e.g. the same-taxiway apex
-        // at SFO A1 node 507) and the natural turn radius at corner speed
-        // exceeds what the post-corner segment can accommodate, plan a
-        // tangent-entry arc that engages part-way through the incoming
-        // straight so the aircraft traces a proper fillet-style turn
-        // through the corner instead of orbiting inside it at node-arrival
-        // time. Plan lives in `_plannedSynthesis` until `TickStraight`
-        // triggers at the tangent-entry distance.
-        _plannedSynthesis = PlanSynthesisLookahead(route, ctx, seg);
+        // Entry alignment: if the aircraft heading is significantly off the
+        // segment's first tangent, build a slow-turn from its current pose to
+        // the segment's start direction and stash the real segment primitive
+        // for swap-in when the slow-turn completes. Aircraft taxis forward
+        // through the arc at SlowTurnSpeedKts (~3 kt) instead of snapping to
+        // the segment's tangent at first tick.
+        //
+        // Gates (all required):
+        //   - Route entry only (CurrentSegmentIndex == 0): mid-route corners
+        //     belong to the existing slow-turn synthesis, which runs at full
+        //     taxi speed via tangent-entry arcs on the incoming straight.
+        //   - Heading delta > 90°: normal corners (up to ~80° between
+        //     consecutive segments) don't qualify — only wrong-way starts and
+        //     post-pushback U-turns where the snap would be visibly broken.
+        //   - Segment length > 2 × alignment chord: short first segments
+        //     (e.g. M2 entrance ~12 ft) can't absorb the displacement; the
+        //     aircraft would end up well past the segment endpoint with
+        //     pure-pursuit unable to recover. Defer alignment in those cases
+        //     and accept the snap (rare and brief on those tiny segments).
+        bool isRouteEntry = route.CurrentSegmentIndex == 0;
+        double segDepartureBearing = seg.Edge.DepartureBearing;
+        double headingDelta = new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading);
+        double alignmentRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+        double sweepRad = headingDelta * Math.PI / 180.0;
+        double alignmentChordFt = 2.0 * alignmentRadiusFt * Math.Sin(sweepRad / 2.0);
+        double segmentLengthFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
+        bool segmentLongEnough = segmentLengthFt > 2.0 * alignmentChordFt;
 
-        if (_currentPrimitive is PathPrimitiveArc arcPrim)
+        if (isRouteEntry && headingDelta > EntryAlignmentThresholdDeg && segmentLongEnough)
         {
-            _arcBearingFromCenterDeg = arcPrim.StartBearingFromCenterDeg;
-            _arcRemainingSweepDeg = arcPrim.SweepDeg;
-        }
-        else if (_currentPrimitive is PathPrimitiveSlowTurn slowPrim)
-        {
-            _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
-            _arcRemainingSweepDeg = slowPrim.SweepDeg;
+            var alignmentArc = PathPrimitiveBuilder.SlowTurn(
+                fromLat: ctx.Aircraft.Position.Lat,
+                fromLon: ctx.Aircraft.Position.Lon,
+                fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
+                toHdgDeg: segDepartureBearing,
+                radiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category),
+                maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
+                toNodeId: seg.FromNodeId
+            );
+            _pendingSegmentPrimitive = segmentPrimitive;
+            _currentPrimitive = alignmentArc;
+            _arcBearingFromCenterDeg = alignmentArc.StartBearingFromCenterDeg;
+            _arcRemainingSweepDeg = alignmentArc.SweepDeg;
+            // Don't plan synthesis when entry alignment is in progress —
+            // we're not even on the real segment yet.
+            _plannedSynthesis = null;
+
+            Log.LogDebug(
+                "[NavV2] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
+                    + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0})",
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                ctx.Aircraft.TrueHeading.Degrees,
+                segDepartureBearing,
+                headingDelta,
+                alignmentArc.RadiusFt,
+                alignmentArc.SweepDeg
+            );
         }
         else
         {
-            _arcRemainingSweepDeg = 0;
+            _pendingSegmentPrimitive = null;
+            _currentPrimitive = segmentPrimitive;
+
+            // Slow-turn synthesis lookahead: when the pathfinder emits two
+            // consecutive straights at a sharp corner (e.g. the same-taxiway apex
+            // at SFO A1 node 507) and the natural turn radius at corner speed
+            // exceeds what the post-corner segment can accommodate, plan a
+            // tangent-entry arc that engages part-way through the incoming
+            // straight so the aircraft traces a proper fillet-style turn
+            // through the corner instead of orbiting inside it at node-arrival
+            // time. Plan lives in `_plannedSynthesis` until `TickStraight`
+            // triggers at the tangent-entry distance.
+            _plannedSynthesis = PlanSynthesisLookahead(route, ctx, seg);
+
+            if (_currentPrimitive is PathPrimitiveArc arcPrim)
+            {
+                _arcBearingFromCenterDeg = arcPrim.StartBearingFromCenterDeg;
+                _arcRemainingSweepDeg = arcPrim.SweepDeg;
+            }
+            else if (_currentPrimitive is PathPrimitiveSlowTurn slowPrim)
+            {
+                _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
+                _arcRemainingSweepDeg = slowPrim.SweepDeg;
+            }
+            else
+            {
+                _arcRemainingSweepDeg = 0;
+            }
         }
 
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
 
         Log.LogDebug(
-            "[NavV2] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm",
+            "[NavV2] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm pendingSeg={Pending}",
             route.CurrentSegmentIndex,
             route.Segments.Count,
             TargetNodeId,
             _currentPrimitive?.Kind,
-            seg.Edge.DistanceNm
+            seg.Edge.DistanceNm,
+            _pendingSegmentPrimitive?.Kind.ToString() ?? "none"
         );
     }
 
@@ -596,13 +681,43 @@ public sealed class GroundNavigator
 
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
-        return _currentPrimitive switch
+        var result = _currentPrimitive switch
         {
             PathPrimitiveStraight s => TickStraight(ctx, s, isLastSegment, isHoldShortCleared),
             PathPrimitiveArc a => TickArc(ctx, a, isLastSegment, isHoldShortCleared),
             PathPrimitiveSlowTurn t => TickSlowTurn(ctx, t),
             _ => NavigatorResult.ArrivedAtNode,
         };
+
+        // When the entry-alignment slow-turn finishes, swap in the deferred
+        // segment primitive and continue navigating in the same tick. The
+        // synthetic arrival is internal — the route's own segment counter
+        // hasn't advanced yet.
+        if (result == NavigatorResult.ArrivedAtNode && _pendingSegmentPrimitive is not null)
+        {
+            var seg = _pendingSegmentPrimitive;
+            _pendingSegmentPrimitive = null;
+            _currentPrimitive = seg;
+            if (seg is PathPrimitiveArc arcPrim)
+            {
+                _arcBearingFromCenterDeg = arcPrim.StartBearingFromCenterDeg;
+                _arcRemainingSweepDeg = arcPrim.SweepDeg;
+            }
+            else if (seg is PathPrimitiveSlowTurn slowPrim)
+            {
+                _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
+                _arcRemainingSweepDeg = slowPrim.SweepDeg;
+            }
+            else
+            {
+                _arcRemainingSweepDeg = 0;
+            }
+            PrevDistToTarget = double.MaxValue;
+            Log.LogDebug("[NavV2] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
+            return NavigatorResult.Navigating;
+        }
+
+        return result;
     }
 
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)

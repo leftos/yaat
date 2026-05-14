@@ -203,4 +203,93 @@ public class GroundNavigatorTests
         // Aircraft should be close to the arc exit node position.
         Assert.True(finalDistToNode1Ft < 5.0, $"final dist to exit node {finalDistToNode1Ft:F1}ft > 5ft");
     }
+
+    // ---- Entry alignment slow-turn ----
+
+    /// <summary>
+    /// Aircraft is heading 103° but the route's first segment heads 284° (a
+    /// 181° flip). Without entry alignment, TickArc/TickStraight would either
+    /// snap the heading or pure-pursuit cuts a wide loop. With entry
+    /// alignment, GroundNavigator builds a slow-turn from the aircraft's
+    /// current pose to the segment start tangent — heading rotates smoothly
+    /// at GroundTurnRate-bounded sub-tick steps without any per-tick jump &gt;
+    /// the rate * dt.
+    /// </summary>
+    [Fact]
+    public void StraightSegment_MisalignedAircraft_RotatesSmoothlyWithoutSnap()
+    {
+        // 200 ft straight east; aircraft starts at From heading west (180° off).
+        var fromNode = MakeNode(1, 37.0, -122.0);
+        var (toLat, toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        var toNode = MakeNode(2, toLat, toLon);
+
+        var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
+
+        // Aircraft heading 270° (west) vs segment heading 90° (east) = 180° delta.
+        var (aircraft, ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 270.0);
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        // Drive a few ticks and capture per-tick heading deltas. With entry
+        // alignment, the slow-turn arc geometry rotates the heading by the
+        // arc's per-tick sweep — bounded by `MaxSpeedKts / radius` — instead
+        // of a single 180° snap.
+        double prevHeading = aircraft.TrueHeading.Degrees;
+        double maxTickDelta = 0;
+        for (int tick = 0; tick < 200; tick++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            nav.Tick(ctx, isLastSegment: true, _ => true);
+            double tickDelta = new TrueHeading(prevHeading).AbsAngleTo(aircraft.TrueHeading);
+            if (tickDelta > maxTickDelta)
+            {
+                maxTickDelta = tickDelta;
+            }
+            prevHeading = aircraft.TrueHeading.Degrees;
+        }
+
+        _out.WriteLine($"Misaligned-entry: maxTickHeadingDelta={maxTickDelta:F2}° per 0.25s tick, finalHdg={aircraft.TrueHeading.Degrees:F1}°");
+
+        // Per-tick heading change must stay below an upper bound that catches
+        // the snap. SlowTurnSpeedKts (3 kt) on jet NoseWheel (25 ft) gives an
+        // arc rate of ~12°/s = ~3°/tick at dt=0.25s. The pre-bug snap was
+        // ~180° in one tick. A 30°/tick threshold catches the snap with
+        // margin and is well above any possible legitimate slow-turn step.
+        Assert.True(maxTickDelta < 30.0, $"per-tick heading delta {maxTickDelta:F1}° exceeds 30° — heading is snapping");
+    }
+
+    /// <summary>
+    /// Aircraft already aligned with the first segment within tolerance —
+    /// entry alignment must NOT inject a slow-turn. Verify by asserting the
+    /// aircraft starts moving forward immediately (would be deferred at
+    /// SlowTurnSpeedKts=3 if alignment had been injected).
+    /// </summary>
+    [Fact]
+    public void StraightSegment_AlignedAircraft_NoEntryAlignmentInjected()
+    {
+        var fromNode = MakeNode(1, 37.0, -122.0);
+        var (toLat, toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        var toNode = MakeNode(2, toLat, toLon);
+
+        var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
+
+        // Aircraft heading 95° vs segment 90° = only 5° off, well under the
+        // 30° entry alignment threshold.
+        var (aircraft, ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 95.0);
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        // Run for 30 ticks (~7.5 s). With direct segment engagement (no
+        // slow-turn) the aircraft should have accelerated past 5 kt within
+        // a few seconds — the slow-turn cap is 3 kt, so exceeding it confirms
+        // the segment-level taxi speed is in effect.
+        for (int tick = 0; tick < 30; tick++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            nav.Tick(ctx, isLastSegment: true, _ => true);
+        }
+
+        _out.WriteLine($"Aligned-entry: ias={aircraft.IndicatedAirspeed:F2}kt after 30 ticks");
+        Assert.True(aircraft.IndicatedAirspeed > 5.0, $"aligned aircraft should taxi above slow-turn cap; ias={aircraft.IndicatedAirspeed:F2}kt");
+    }
 }

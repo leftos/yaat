@@ -6,6 +6,7 @@
 - Ground view runway thresholds and runway hold-shorts show a hand cursor on hover when an aircraft is selected; right-click on a runway threshold opens the same Taxi/Takeoff menu as left-click. Menu labels now spell out "Takeoff RWY 28R" / "Hold short RWY 28R" so the runway-assignment side-effect is explicit.
 
 ### Fixed
+- Aircraft no longer snap their heading when given a TAXI command after pushback or at parking when the route's first segment heads away from the aircraft's current direction. The navigator now traces a slow-turn from the current pose to the segment start tangent at nose-wheel turn radius and walking pace, instead of writing the arc tangent into the heading at first tick.
 - Window geometry now persists across in-app updates. Velopack's restart bypassed Avalonia's window-closing pipeline, so the per-window save (hooked via `Window.Closing`) never ran; geometry is now flushed for all tracked windows before `ApplyUpdatesAndRestart` hands off.
 
 ## v0.2.3-alpha [2026/05/11]
