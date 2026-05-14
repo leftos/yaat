@@ -153,7 +153,7 @@ public static class PhraseologyVerbalizer
             // Altitude / speed
             ClimbMaintainCommand c => Map("alt", AltitudeWords(c.Altitude)),
             DescendMaintainCommand c => Map("alt", AltitudeWords(c.Altitude)),
-            SpeedCommand s => Map("spd", DigitsWords(s.Speed)),
+            SpeedCommand s => Map("spd", SpeedWords(s.Speed)),
             ExpediteCommand e => e.UntilAltitude is int alt ? Map("alt", AltitudeWords(alt)) : Empty(),
             MachCommand m => Map("mach", MachWords(m.MachNumber)),
 
@@ -339,6 +339,32 @@ public static class PhraseologyVerbalizer
 
         var s = minWidth > 0 ? value.ToString($"D{minWidth}") : value.ToString();
         return string.Join(' ', s.Select(SpellDigit));
+    }
+
+    /// <summary>
+    /// Airspeed (knots) → spoken form pilots actually use on frequency. Round speeds get the
+    /// colloquial American form ("two hundred", "two fifty", "two twenty") rather than the
+    /// 7110.65 §2-4-15 controller-side digit-by-digit ("two zero zero", "two five zero").
+    ///
+    /// Rationale: this is *pilot* readback, not controller phraseology. Per project policy
+    /// (project memory <c>pilot_speech_uses_ga_colloquialisms</c>), pilot transmissions use GA
+    /// colloquial forms. Whisper also handles "two hundred knots" far better than "two zero zero
+    /// knots" — the ouroboros harness showed the digit-by-digit form consistently mishears as
+    /// "18.20" or similar.
+    ///
+    /// Non-round speeds (e.g. 213) fall back to digit-by-digit; speeds outside 100–399 fall back
+    /// too (real pilot speeds in that range are vanishingly rare so we don't try to be clever).
+    /// </summary>
+    public static string SpeedWords(int speedKnots)
+    {
+        if (speedKnots is < 100 or >= 1000 || speedKnots % 10 != 0)
+        {
+            return DigitsWords(speedKnots);
+        }
+        var hundreds = speedKnots / 100;
+        var remainder = speedKnots % 100;
+        var leading = SpellDigit((char)('0' + hundreds));
+        return remainder == 0 ? $"{leading} hundred" : $"{leading} {TwoDigitWords(remainder)}";
     }
 
     public static string MachWords(double mach)

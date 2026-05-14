@@ -111,8 +111,10 @@ public class PhraseologyVerbalizerTests
     public void Verbalize_Speed_SpellsKnotsLiteral()
     {
         // Rule pattern is ["maintain", "{spd}", "knots"] (first declared in AltitudeSpeedRules).
+        // SpeedCommand uses the SpeedWords colloquial form for round knots — "two fifty" not
+        // "two five zero" — so Whisper handles the readback far better. See SpeedWords doc.
         var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250));
-        Assert.Equal("maintain two five zero knots", result);
+        Assert.Equal("maintain two fifty knots", result);
     }
 
     [Fact]
@@ -120,7 +122,7 @@ public class PhraseologyVerbalizerTests
     {
         var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
 
-        Assert.Equal("two five zero knots", result);
+        Assert.Equal("two fifty knots", result);
     }
 
     // --- Transponder ---
@@ -294,6 +296,39 @@ public class PhraseologyVerbalizerTests
     {
         // 119.6 represented as 119.60000000000001 (binary-fp drift) must not produce extra digits.
         Assert.Equal("one one nine point six", PhraseologyVerbalizer.FrequencyToWords(119.60000000000001));
+    }
+
+    // --- Speed: round-knot pilot colloquial forms ---
+
+    [Theory]
+    [InlineData(100, "maintain one hundred knots")]
+    [InlineData(150, "maintain one fifty knots")]
+    [InlineData(180, "maintain one eighty knots")]
+    [InlineData(200, "maintain two hundred knots")]
+    [InlineData(220, "maintain two twenty knots")]
+    [InlineData(250, "maintain two fifty knots")]
+    [InlineData(280, "maintain two eighty knots")]
+    [InlineData(310, "maintain three ten knots")]
+    [InlineData(350, "maintain three fifty knots")]
+    public void Verbalize_Speed_RoundKnots_UsesColloquialForm(int speed, string expected)
+    {
+        // Pilot readbacks favor "two fifty" over the 7110.65 controller form "two five zero".
+        // Whisper handles the colloquial form far better than the digit-by-digit form (the
+        // ouroboros harness consistently mistranscribed "two zero zero knots" as "18.20").
+        var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(speed));
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(213, "maintain two one three knots")]
+    [InlineData(247, "maintain two four seven knots")]
+    public void Verbalize_Speed_NonRoundKnots_FallsBackToDigits(int speed, string expected)
+    {
+        // Speeds not on a 10-knot boundary aren't real pilot-readback values, but if the system
+        // is ever asked to verbalize one, fall back to digit-by-digit rather than guess at a
+        // colloquial form.
+        var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(speed));
+        Assert.Equal(expected, result);
     }
 
     // --- SttOnly rules must NOT leak into pilot speech ---

@@ -29,6 +29,15 @@ public class AtcNumberParserTests
     [InlineData("one one thousand five hundred", "11500")]
     // Hundred multiplier alone
     [InlineData("three hundred", "300")]
+    // Round-speed forms used by pilot readbacks for SPD commands (2-fifty, 3-hundred, etc.).
+    // The parser already supports cardinal arithmetic; these pin the behavior so the verbalizer
+    // can rely on it.
+    [InlineData("two hundred", "200")]
+    [InlineData("two hundred fifty", "250")]
+    [InlineData("two fifty", "250")]
+    [InlineData("two twenty", "220")]
+    [InlineData("three fifty", "350")]
+    [InlineData("one hundred", "100")]
     // Flight level
     [InlineData("flight level three five zero", "35000")]
     [InlineData("flight level one eight zero", "18000")]

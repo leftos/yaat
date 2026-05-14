@@ -33,7 +33,9 @@ internal static class OuroborosRunner
 
     // Whisper drops the leading phoneme when fed Piper output without pre-speech silence — real
     // mic captures have natural room tone before speech, synthetic audio doesn't. 400 ms each
-    // side is the published whisper.cpp short-clip recommendation.
+    // side mirrors whisper.cpp's published short-clip guidance and is the best stable point in
+    // ouroboros experiments: a 200 ms trailing variant regressed descend-and-maintain-5000 to
+    // multilingual hallucination without recovering anything else.
     private const int LeadingSilenceMs = 400;
     private const int TrailingSilenceMs = 400;
 
