@@ -30,7 +30,7 @@ public partial class MainViewModel
             var ends = new List<string>();
             foreach (var rwy in layout.Runways)
             {
-                foreach (var part in rwy.Name.Split('/', StringSplitOptions.RemoveEmptyEntries))
+                foreach (var part in rwy.EndDesignators)
                 {
                     if (!ends.Contains(part))
                     {

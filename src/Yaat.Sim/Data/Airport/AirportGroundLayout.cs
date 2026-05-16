@@ -520,6 +520,14 @@ public sealed class GroundRunway
     public required double WidthFt { get; init; }
 
     /// <summary>
+    /// The two end designators parsed from <see cref="Name"/> (e.g. "28R - 10L" → ["28R", "10L"]).
+    /// Accepts the canonical dash-with-spaces form authored in GeoJSON as well as a bare "X-Y"
+    /// fallback for any publisher that omits the spaces. Use this everywhere a runway name needs
+    /// to be split into ends so the separator stays consistent across the codebase.
+    /// </summary>
+    public IReadOnlyList<string> EndDesignators => Name.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    /// <summary>
     /// Author-specified preferred turn-off side per landing-end designator (left/right of nose at rollout).
     /// In ATCTrainer airport files, "turnoff" is one value per physical runway, expressed relative to the
     /// first-named end's heading. Parsing flips it for the second end so the same physical side resolves
@@ -560,9 +568,9 @@ public sealed class AirportGroundLayout
     {
         foreach (var rwy in Runways)
         {
-            string[] ends = rwy.Name.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            var ends = rwy.EndDesignators;
             if (
-                (ends.Length == 2)
+                (ends.Count == 2)
                 && (ends[0].Equals(designator, StringComparison.OrdinalIgnoreCase) || ends[1].Equals(designator, StringComparison.OrdinalIgnoreCase))
             )
             {

@@ -993,8 +993,8 @@ internal static class GroundCommandHandler
         {
             // GroundRunway.Coordinates run from the first-named end to the second.
             // Target the threshold of whichever end the controller named.
-            string[] ends = runway.Name.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            bool isFirstEnd = ends.Length == 2 && ends[0].Equals(destination, StringComparison.OrdinalIgnoreCase);
+            var ends = runway.EndDesignators;
+            bool isFirstEnd = ends.Count == 2 && ends[0].Equals(destination, StringComparison.OrdinalIgnoreCase);
             var threshold = isFirstEnd ? runway.Coordinates[0] : runway.Coordinates[^1];
             lat = threshold.Lat;
             lon = threshold.Lon;
