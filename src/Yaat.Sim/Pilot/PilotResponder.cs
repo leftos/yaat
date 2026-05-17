@@ -5,6 +5,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 
@@ -174,7 +175,53 @@ public static class PilotResponder
                     ?? PhraseologyVerbalizer.Verbalize(option, personality, activityLevel),
                 option.TrafficPattern
             ),
+            ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext),
             _ => PhraseologyVerbalizer.Verbalize(cmd, personality, activityLevel),
+        };
+
+    /// <summary>
+    /// Builds the EXT readback dynamically from the aircraft's current pattern phase
+    /// (because bare `EXT` is parsed as <c>ExtendPatternCommand(Leg: null)</c> — the
+    /// resolved leg only becomes known when <see cref="PatternCommandHandler"/> applies
+    /// it). Includes the runway when one is assigned so the readback matches the
+    /// pattern-entry conventions used by ERD/ELD/MLT/MRT.
+    /// </summary>
+    private static string? BuildExtendPatternClause(AircraftState aircraft, ExtendPatternCommand ext)
+    {
+        var leg = ext.Leg ?? CurrentPatternLeg(aircraft.Phases?.CurrentPhase);
+        if (leg is not { } resolved)
+        {
+            return PhraseologyVerbalizer.Verbalize(ext);
+        }
+
+        var legWord = resolved switch
+        {
+            PatternEntryLeg.Upwind => "upwind",
+            PatternEntryLeg.Crosswind => "crosswind",
+            PatternEntryLeg.Downwind => "downwind",
+            _ => null,
+        };
+        if (legWord is null)
+        {
+            return PhraseologyVerbalizer.Verbalize(ext);
+        }
+
+        var runway = aircraft.Procedure.DestinationRunway;
+        if (string.IsNullOrEmpty(runway))
+        {
+            return $"extend {legWord}";
+        }
+        return $"extend {legWord} runway {PhraseologyVerbalizer.SpellRunway(runway)}";
+    }
+
+    private static PatternEntryLeg? CurrentPatternLeg(Phase? phase) =>
+        phase switch
+        {
+            UpwindPhase => PatternEntryLeg.Upwind,
+            CrosswindPhase => PatternEntryLeg.Crosswind,
+            DownwindPhase => PatternEntryLeg.Downwind,
+            BasePhase => PatternEntryLeg.Base,
+            _ => null,
         };
 
     private static string ApplyQuietFlavor(string callsign, string body, PilotPersonality personality, FrequencyActivityLevel activityLevel)

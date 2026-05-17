@@ -3,6 +3,7 @@ using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Tests.Pilot;
@@ -375,6 +376,63 @@ public class PilotResponderTests
         var result = PilotResponder.BuildReadback(compound, ac);
 
         Assert.Equal($"[N436MS] {expectedClause}, november four three six mike sierra.", result);
+    }
+
+    // --- EXT readback (issue #154 #7) ---
+
+    [Fact]
+    public void BuildReadback_ExtendOnDownwind_SaysDownwindWithRunway()
+    {
+        // Issue #154 #7: bare EXT used to readback as "extend upwind" no matter what leg
+        // the aircraft was on, because the parser leaves Leg=null and the verbalizer
+        // tied on capture count and fell to the first-declared rule.
+        var ac = MakeAircraftWithAssignedRunway("N342T", "28R");
+        ac.Procedure.DestinationRunway = "28R";
+        ac.Phases!.Add(new DownwindPhase());
+        var compound = Compound(new ExtendPatternCommand());
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[N342T] extend downwind runway two eight right, november three four two tango.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_ExtendOnUpwind_SaysUpwindWithRunway()
+    {
+        var ac = MakeAircraftWithAssignedRunway("N342T", "28R");
+        ac.Procedure.DestinationRunway = "28R";
+        ac.Phases!.Add(new UpwindPhase());
+        var compound = Compound(new ExtendPatternCommand());
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[N342T] extend upwind runway two eight right, november three four two tango.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_ExtendOnCrosswind_SaysCrosswindWithRunway()
+    {
+        var ac = MakeAircraftWithAssignedRunway("N342T", "28R");
+        ac.Procedure.DestinationRunway = "28R";
+        ac.Phases!.Add(new CrosswindPhase());
+        var compound = Compound(new ExtendPatternCommand());
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[N342T] extend crosswind runway two eight right, november three four two tango.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_ExtendOnDownwind_NoDestinationRunway_DropsRunwayClause()
+    {
+        var ac = MakeAircraft("N342T");
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new DownwindPhase());
+        var compound = Compound(new ExtendPatternCommand());
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.Equal("[N342T] extend downwind, november three four two tango.", result);
     }
 
     // --- BuildReadyToTaxi ---

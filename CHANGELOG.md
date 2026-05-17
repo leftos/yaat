@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- `EXT` readback now matches the leg the aircraft is actually on, and includes the runway. Bare `EXT` to a downwind aircraft used to read back "extend upwind" because the parser leaves the leg null and the verbalizer fell to the first-declared rule. Now reads back as "extend downwind runway two eight right".
 - Pilot readbacks now include the runway when one was assigned. `ERD 28R` reads back as "enter right downwind runway two eight right …" instead of just "enter right downwind …". Same fix for ELD, ERB, ELB, MLT, MRT and any other pattern-entry command that carries a runway.
 - Pilots now re-prompt after 90 seconds (down from 5 minutes) when a controller's only response was a bare `STBY`/`ROGER`. A `ROGER` doesn't fulfill a landing or taxi request — the pilot was sitting silent far too long before re-asking.
 - VFR cold-call check-ins now correctly say "inbound for landing" when the flight plan's destination is the primary airport but uses the `K`-prefixed ICAO form (e.g. `KOAK` vs scenario id `OAK`). Previously the K-prefix mismatch routed every K-filed inbound through the "request transition" phrasing.
