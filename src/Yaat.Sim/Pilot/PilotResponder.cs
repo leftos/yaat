@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -1014,7 +1015,10 @@ public static class PilotResponder
         var dest = aircraft.FlightPlan.Destination;
         var primary = scenario.PrimaryAirportId ?? "";
         bool noDest = string.IsNullOrEmpty(dest);
-        bool inbound = !noDest && dest.Equals(primary, StringComparison.OrdinalIgnoreCase);
+        // AirportIdsMatch canonicalizes both sides so "KOAK" matches "OAK". A plain
+        // case-insensitive Equals would route a real KOAK-bound VFR through the
+        // transit phrasing because the K-prefix never matches the bare FAA id.
+        bool inbound = !noDest && NavigationDatabase.AirportIdsMatch(dest, primary);
 
         // Sub-100 ft altitudes render as empty — drop the "at {altitude}" clause rather
         // than emit a dangling "at , ". Pilots who just lifted off a low-elevation field

@@ -197,6 +197,26 @@ public class M102AirborneCheckInTests
     }
 
     [Fact]
+    public void Vfr_Tower_DestinationIsKPrefixedPrimary_InboundForLanding()
+    {
+        // Issue #154 #4: scenario JSON often files destination as the full ICAO (KOAK)
+        // while PrimaryAirportId is the bare FAA id (OAK). A naïve case-insensitive
+        // Equals would mismatch and route through the transit phrasing.
+        TestVnasData.EnsureInitialized();
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+
+        var ac = MakeAircraft("N123AB", isVfr: true, altitude: 2000, destination: "KOAK", bearingFromAirport: 180, distanceNm: 5);
+        var sc = MakeScenario("TWR", primaryAirport: "OAK");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal(
+            "[N123AB] tower, november one two three alpha bravo five miles south at two thousand, inbound for landing, with information Alpha.",
+            line
+        );
+    }
+
+    [Fact]
     public void Vfr_Tower_DestinationDifferent_RequestTransition()
     {
         var ac = MakeAircraft("N123AB", isVfr: true, altitude: 2500, destination: "KSQL", bearingFromAirport: 90, distanceNm: 8);
