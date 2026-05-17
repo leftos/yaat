@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Pilots now re-prompt after 90 seconds (down from 5 minutes) when a controller's only response was a bare `STBY`/`ROGER`. A `ROGER` doesn't fulfill a landing or taxi request — the pilot was sitting silent far too long before re-asking.
 - Edit Arrival Generators dialog now displays the correct runway for each generator. The dropdown was being populated by splitting runway names on `/`, but ground-layout runway names use ` - ` (e.g. `28R - 10L`), so the loaded value (`30`, `28R`) never matched a dropdown entry and the field rendered blank.
 
 ## v0.2.4-alpha [2026/05/13]

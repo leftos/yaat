@@ -76,7 +76,7 @@ public sealed class M104PendingRequestTests
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PilotPendingRequestResponseState.Standby, ac.PendingPilotRequest!.ResponseState);
-        Assert.Equal(320, ac.PendingPilotRequest.NextFollowUpDueSeconds);
+        Assert.Equal(110, ac.PendingPilotRequest.NextFollowUpDueSeconds);
         Assert.True(ac.HasControllerAcknowledgedInitialContact);
         Assert.Empty(ac.PendingPilotTransmissions);
     }

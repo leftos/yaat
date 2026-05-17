@@ -127,7 +127,7 @@ public record CommandResult(bool Success, string? Message = null, CanonicalComma
 
 - `RecordRequest(kind, nowSeconds, lastPilotLine, context)` — fired by the originating site (e.g. `AtParkingPhase`'s ready-to-taxi, `FinalApproachPhase`'s arrival check-in, `AirspaceBoundaryHoldPhase`'s self-hold).
 - `ApplyControllerResponse(compound, nowSeconds)` — runs after every successful dispatch (live + replay). Maps command type to `Satisfied` / `Denied` / `Superseded` / `Standby` per request kind.
-- `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues `LastPilotLine` after 120 s normally, 300 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`).
+- `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues `LastPilotLine` after 120 s normally, 90 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`). The shorter STBY/ROGER delay reflects that a bare acknowledgment isn't substantive direction — a pilot expecting a clearance won't sit silent for several minutes after only "roger".
 
 Five request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`. Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff).
 

@@ -5,7 +5,7 @@ namespace Yaat.Sim.Pilot;
 public static class PilotRequestTracker
 {
     public const double NormalFollowUpDelaySeconds = 120.0;
-    public const double StandbyFollowUpDelaySeconds = 300.0;
+    public const double StandbyFollowUpDelaySeconds = 90.0;
 
     public static void RecordRequest(
         AircraftState aircraft,
