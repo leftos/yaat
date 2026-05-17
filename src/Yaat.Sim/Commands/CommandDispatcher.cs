@@ -1614,6 +1614,11 @@ public static class CommandDispatcher
     /// Append a "queue cleared" warning to <paramref name="aircraft"/>'s PendingWarnings
     /// when the dispatcher silently dropped one or more queued blocks. The warning lists
     /// what was lost so an RPO can re-issue any instructions that mattered.
+    ///
+    /// Suppresses dropped blocks whose description equals one of the blocks in the incoming
+    /// compound — those will be re-enqueued by the same dispatch and aren't actually lost.
+    /// This makes re-sending an identical compound silent rather than emitting a spurious
+    /// "lost: …" warning that names exactly the blocks the user just re-issued.
     /// </summary>
     private static void EmitQueueClearWarning(AircraftState aircraft, IReadOnlyList<string> dropped, CompoundCommand compound)
     {
@@ -1622,9 +1627,41 @@ public static class CommandDispatcher
             return;
         }
 
+        var incoming = ComputeIncomingBlockDescriptions(compound);
+        var trulyLost = dropped.Where(d => !incoming.Contains(d)).ToList();
+        if (trulyLost.Count == 0)
+        {
+            return;
+        }
+
         var src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
-        var lost = string.Join(", ", dropped);
+        var lost = string.Join(", ", trulyLost);
         aircraft.PendingWarnings.Add($"{aircraft.Callsign} queue cleared by {src} (lost: {lost})");
+    }
+
+    /// <summary>
+    /// Mirrors the block-description format produced by <see cref="EnqueueBlocks"/> so the
+    /// "queue cleared" warning can suppress entries that the same dispatch is about to
+    /// re-enqueue. Keep this in sync with the <c>blockDesc</c> construction there.
+    /// </summary>
+    private static HashSet<string> ComputeIncomingBlockDescriptions(CompoundCommand compound)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pb in compound.Blocks)
+        {
+            var blockDesc = string.Join(", ", pb.Commands.Select(CommandDescriber.DescribeCommand));
+            blockDesc = pb.Condition switch
+            {
+                LevelCondition lv => $"at {lv.Altitude}ft: {blockDesc}",
+                AtFixCondition at => $"at {FormatAtLabel(at)}: {blockDesc}",
+                AtGroundEntityCondition ge => $"at {FormatGroundLabel(ge)}: {blockDesc}",
+                GiveWayCondition gw => $"giveway {gw.TargetCallsign}: {blockDesc}",
+                DistanceFinalCondition df => $"at {df.DistanceNm}nm final: {blockDesc}",
+                _ => blockDesc,
+            };
+            set.Add(blockDesc);
+        }
+        return set;
     }
 
     /// <summary>

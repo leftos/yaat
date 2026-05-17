@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Re-sending the same compound command no longer emits a spurious "queue cleared by … (lost: …)" warning listing the blocks the same dispatch is about to re-enqueue. The warning now only names blocks that were truly dropped — i.e. ones whose canonical form isn't repeated in the new compound.
 - `EXT` readback now matches the leg the aircraft is actually on, and includes the runway. Bare `EXT` to a downwind aircraft used to read back "extend upwind" because the parser leaves the leg null and the verbalizer fell to the first-declared rule. Now reads back as "extend downwind runway two eight right".
 - Pilot readbacks now include the runway when one was assigned. `ERD 28R` reads back as "enter right downwind runway two eight right …" instead of just "enter right downwind …". Same fix for ELD, ERB, ELB, MLT, MRT and any other pattern-entry command that carries a runway.
 - Pilots now re-prompt after 90 seconds (down from 5 minutes) when a controller's only response was a bare `STBY`/`ROGER`. A `ROGER` doesn't fulfill a landing or taxi request — the pilot was sitting silent far too long before re-asking.

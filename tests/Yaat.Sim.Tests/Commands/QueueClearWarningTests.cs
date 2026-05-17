@@ -110,6 +110,45 @@ public class QueueClearWarningTests : IDisposable
     }
 
     [Fact]
+    public void IdenticalResend_DoesNotEmitLostWarning()
+    {
+        // Issue #154 #5: re-sending the same compound used to emit a misleading
+        // "lost: DCT VPCOL, ERD 28R" warning even though the resend was about to
+        // re-enqueue those same blocks. The warning should suppress drops whose
+        // canonical form is present in the incoming compound.
+        var ac = MakeAirborne();
+        DispatchOk(ac, "DCT OAK; DCT VPCOL; ERD 28R");
+        Assert.Equal(3, ac.Queue.Blocks.Count);
+        ac.PendingWarnings.Clear();
+
+        DispatchOk(ac, "DCT OAK; DCT VPCOL; ERD 28R");
+
+        Assert.DoesNotContain(ac.PendingWarnings, w => w.Contains("queue cleared", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PartialResend_OnlyWarnsAboutTrulyLostBlocks()
+    {
+        // Re-sending a compound that overlaps the previous queue but loses one
+        // block (because the new compound doesn't include it) should warn only
+        // for the truly-lost block, not for the blocks being re-enqueued.
+        var ac = MakeAirborne();
+        DispatchOk(ac, "DCT OAK; DCT VPCOL; FH 270");
+        ac.PendingWarnings.Clear();
+
+        // New compound drops FH 270 but keeps DCT OAK + DCT VPCOL.
+        DispatchOk(ac, "DCT OAK; DCT VPCOL");
+
+        var warning = Assert.Single(ac.PendingWarnings);
+        // Warning format: "<callsign> queue cleared by <src> (lost: <items>)".
+        // Only the "(lost: …)" tail should be checked for VPCOL — the <src> echo
+        // of the new compound naturally repeats it.
+        var lostSegment = warning[warning.IndexOf("(lost:", StringComparison.Ordinal)..];
+        Assert.Contains("FH 270", lostSegment);
+        Assert.DoesNotContain("VPCOL", lostSegment);
+    }
+
+    [Fact]
     public void TransparentCommand_PreservesQueue_NoQueueWarning()
     {
         var ac = MakeAirborne();
