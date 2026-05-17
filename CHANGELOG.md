@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.2.5-alpha [2026/05/16]
+
+### Highlights
+- Removed the bogus "holding outside the charlie, awaiting two-way" radio call from solo-mode VFR aircraft.
+- Pilot readbacks for `ERD`/`ELD`/`ERB`/`ELB`/`MLT`/`MRT` and `EXT` now include the runway and the correct pattern leg.
+- VFR cold-call check-ins recognize `KOAK`-style destinations as inbound for landing and say so instead of "request transition".
+- Edit Arrival Generators dialog now shows the correct runway in its per-generator dropdown.
 
 ### Fixed
 - Re-sending the same compound command no longer emits a spurious "queue cleared by … (lost: …)" warning listing the blocks the same dispatch is about to re-enqueue. The warning now only names blocks that were truly dropped — i.e. ones whose canonical form isn't repeated in the new compound.
