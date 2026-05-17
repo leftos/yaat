@@ -331,6 +331,57 @@ public class PhraseologyVerbalizerTests
         Assert.Equal(expected, result);
     }
 
+    // --- Pattern entry: runway-bearing form preferred when command carries runway (issue #154 #6) ---
+
+    [Fact]
+    public void Verbalize_EnterRightDownwind_WithRunway_IncludesRunwayPhrase()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new EnterRightDownwindCommand("28R"));
+        Assert.Equal("enter right downwind runway two eight right", result);
+    }
+
+    [Fact]
+    public void Verbalize_EnterRightDownwind_NoRunway_FallsBackToBareForm()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new EnterRightDownwindCommand());
+        Assert.Equal("enter right downwind", result);
+    }
+
+    [Fact]
+    public void Verbalize_EnterLeftDownwind_WithRunway_IncludesRunwayPhrase()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new EnterLeftDownwindCommand("10L"));
+        Assert.Equal("enter left downwind runway one zero left", result);
+    }
+
+    [Fact]
+    public void Verbalize_EnterLeftBase_WithRunway_IncludesRunwayPhrase()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new EnterLeftBaseCommand("28R"));
+        Assert.Equal("enter left base runway two eight right", result);
+    }
+
+    [Fact]
+    public void Verbalize_EnterRightBase_WithRunway_IncludesRunwayPhrase()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new EnterRightBaseCommand("28R"));
+        Assert.Equal("enter right base runway two eight right", result);
+    }
+
+    [Fact]
+    public void Verbalize_MakeLeftTraffic_WithRunway_IncludesRunwayPhrase()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new MakeLeftTrafficCommand("28R", null));
+        Assert.Equal("make left traffic runway two eight right", result);
+    }
+
+    [Fact]
+    public void Verbalize_MakeRightTraffic_WithRunway_IncludesRunwayPhrase()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new MakeRightTrafficCommand("28R", null));
+        Assert.Equal("make right traffic runway two eight right", result);
+    }
+
     // --- SttOnly rules must NOT leak into pilot speech ---
 
     [Fact]

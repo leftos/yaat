@@ -31,32 +31,74 @@ namespace Yaat.Sim.Pilot;
 public static class PhraseologyVerbalizer
 {
     /// <summary>
-    /// Cached map: preferred <see cref="PhraseologyRule"/> per <see cref="CanonicalCommandType"/>.
-    /// Among rules sharing a canonical type, the verbalizer prefers (1) the fewest
-    /// <c>{capture}</c> placeholders, then (2) the earliest declared. Declaration order in
-    /// <see cref="PhraseologyRules"/> encodes pilot textbook preference — the first form is the
-    /// canonical readback, later forms are recognition-only variants. This picks "line up and
-    /// wait" over "line up and wait runway {rwy}" (fewer captures), and "maintain {spd} knots"
-    /// over "reduce speed to {spd}" (same capture count, first declared).
+    /// Cached map: declaration-ordered <see cref="PhraseologyRule"/> candidates per
+    /// <see cref="CanonicalCommandType"/>. Rule selection happens per-call in
+    /// <see cref="PickPreferredRule"/> because the right rule depends on which args the
+    /// specific command instance carries — picking "enter right downwind runway {rwy}"
+    /// when the command has a runway, or "enter right downwind" when it doesn't.
     ///
     /// Rules flagged <see cref="PhraseologyRule.SttOnly"/> are excluded entirely — they exist
     /// purely as acoustic-alias safety nets for STT and must never be spoken back by the
     /// pilot AI (e.g. "descent and maintain {alt}" is a recovery alias for a Whisper
     /// mistranscription of "descend"; speaking "descent and maintain" would be wrong).
     /// </summary>
-    private static readonly Dictionary<CanonicalCommandType, PhraseologyRule> PreferredRule = BuildPreferredRule();
+    private static readonly Dictionary<CanonicalCommandType, PhraseologyRule[]> RulesByType = BuildRulesByType();
 
-    private static Dictionary<CanonicalCommandType, PhraseologyRule> BuildPreferredRule()
+    private static Dictionary<CanonicalCommandType, PhraseologyRule[]> BuildRulesByType()
     {
-        var dict = new Dictionary<CanonicalCommandType, PhraseologyRule>();
-        var indexed = PhraseologyRules.All.Where(r => !r.SttOnly).Select((rule, idx) => (rule, idx));
-        foreach (var group in indexed.GroupBy(t => t.rule.Type))
+        var dict = new Dictionary<CanonicalCommandType, PhraseologyRule[]>();
+        foreach (var group in PhraseologyRules.All.Where(r => !r.SttOnly).GroupBy(r => r.Type))
         {
-            var preferred = group.OrderBy(t => t.rule.Pattern.Count(IsCapture)).ThenBy(t => t.idx).First().rule;
-            dict[group.Key] = preferred;
+            dict[group.Key] = group.ToArray();
         }
-
         return dict;
+    }
+
+    /// <summary>
+    /// Among the declared rules for this canonical type, pick the richest spoken form
+    /// whose <c>{captures}</c> are all satisfied by <paramref name="args"/>. Among rules
+    /// with equal capture counts, pick the first declared (which encodes textbook
+    /// preference). Falls back to the first-declared zero-capture form when no
+    /// multi-capture variant is fully satisfied.
+    /// </summary>
+    private static PhraseologyRule? PickPreferredRule(PhraseologyRule[] rules, IReadOnlyDictionary<string, string> args)
+    {
+        PhraseologyRule? best = null;
+        int bestCaptures = -1;
+        foreach (var rule in rules)
+        {
+            int captureCount = 0;
+            bool allSatisfied = true;
+            foreach (var token in rule.Pattern)
+            {
+                var t = token.EndsWith('?') ? token[..^1] : token;
+                if (!IsCapture(t))
+                {
+                    continue;
+                }
+                captureCount++;
+                var name = t[1..^1];
+                if (name.EndsWith("..."))
+                {
+                    name = name[..^3];
+                }
+                if (!args.ContainsKey(name) || string.IsNullOrEmpty(args[name]))
+                {
+                    allSatisfied = false;
+                    break;
+                }
+            }
+            if (!allSatisfied)
+            {
+                continue;
+            }
+            if (captureCount > bestCaptures)
+            {
+                best = rule;
+                bestCaptures = captureCount;
+            }
+        }
+        return best;
     }
 
     private static bool IsCapture(string token) => token.StartsWith('{') && token.EndsWith('}');
@@ -83,12 +125,18 @@ public static class PhraseologyVerbalizer
         }
 
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
-        if (!PreferredRule.TryGetValue(canonicalType, out var rule))
+        if (!RulesByType.TryGetValue(canonicalType, out var rules))
         {
             return null;
         }
 
         var args = ExtractArgs(cmd);
+        var rule = PickPreferredRule(rules, args);
+        if (rule is null)
+        {
+            return null;
+        }
+
         if (ShouldUseShortcut(personality, activityLevel) && TryRenderShortestShortcut(rule, args, out var shortcut))
         {
             return shortcut;
