@@ -5,6 +5,7 @@
 ### Fixed
 - Pilots now re-prompt after 90 seconds (down from 5 minutes) when a controller's only response was a bare `STBY`/`ROGER`. A `ROGER` doesn't fulfill a landing or taxi request — the pilot was sitting silent far too long before re-asking.
 - VFR cold-call check-ins now correctly say "inbound for landing" when the flight plan's destination is the primary airport but uses the `K`-prefixed ICAO form (e.g. `KOAK` vs scenario id `OAK`). Previously the K-prefix mismatch routed every K-filed inbound through the "request transition" phrasing.
+- Solo-training VFR aircraft no longer narrate "holding outside the charlie, awaiting two-way" when their projected track would enter Class B/C airspace. The aircraft still slows and orbits to respect the boundary, but does so silently — real pilots don't announce their own avoidance manoeuvres on the radio.
 - Edit Arrival Generators dialog now displays the correct runway for each generator. The dropdown was being populated by splitting runway names on `/`, but ground-layout runway names use ` - ` (e.g. `28R - 10L`), so the loaded value (`30`, `28R`) never matched a dropdown entry and the field rendered blank.
 
 ## v0.2.4-alpha [2026/05/13]

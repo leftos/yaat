@@ -918,57 +918,6 @@ public static class PilotResponder
         return BuildIfrAirborne(aircraft, positionType, facilityCallName, spoken, altitudeFt);
     }
 
-    /// <summary>
-    /// Pilot callout when solo-training AI self-restricts outside controlled airspace.
-    /// The pilot is reporting their compliance state, not reading back a controller phrase.
-    /// Returns terminal + TTS forms independently — terminal uses "Class C" / "OAK" while
-    /// TTS keeps "the charlie" / "oscar alpha kilo" for natural speech.
-    /// </summary>
-    public static PilotSpeechText BuildAirspaceBoundaryHoldText(
-        AircraftState aircraft,
-        Yaat.Sim.Data.Airspace.AirspaceClass airspaceClass,
-        string airportIdent,
-        LatLon referencePosition
-    )
-    {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
-        double distNm = GeoMath.DistanceNm(referencePosition, aircraft.Position);
-        int distMiles = Math.Max(1, (int)Math.Round(distNm));
-        double bearingFromReference = GeoMath.BearingTo(referencePosition, aircraft.Position);
-        string direction = BearingToCardinal8(bearingFromReference);
-        string distWords = SpellDistanceDigits(distMiles);
-        // Airspace volume idents (OAK, SFO, …) are airport identifiers — Class B/C/D
-        // airspace is tied to an airport, not a VOR — so prefer the airport-name lookup
-        // ("Oakland Airport") over the navaid lookup that <see cref="PhraseologyVerbalizer.SpellFix"/>
-        // would do for direct-to-fix contexts.
-        string airportTts = PhraseologyVerbalizer.SpellAirportName(airportIdent);
-        string airportTerminal = airportIdent.ToUpperInvariant();
-        string airspaceLabel = AirspaceClassToLabel(airspaceClass);
-        string airspaceTts = $"the {airspaceLabel}";
-        string airspaceTerminal = $"Class {AirspaceClassToLetter(airspaceClass)}";
-        string reason = airspaceClass == Yaat.Sim.Data.Airspace.AirspaceClass.Charlie ? "awaiting two-way" : "awaiting clearance";
-
-        string terminal = $"{aircraft.Callsign}, holding outside {airspaceTerminal}, {distMiles} miles {direction} of {airportTerminal}, {reason}.";
-        string tts = $"{spoken}, holding outside {airspaceTts}, {distWords} miles {direction} of {airportTts}, {reason}.";
-        return new PilotSpeechText(terminal, tts);
-    }
-
-    private static string AirspaceClassToLabel(Yaat.Sim.Data.Airspace.AirspaceClass airspaceClass) =>
-        airspaceClass switch
-        {
-            Yaat.Sim.Data.Airspace.AirspaceClass.Bravo => "bravo",
-            Yaat.Sim.Data.Airspace.AirspaceClass.Charlie => "charlie",
-            _ => airspaceClass.ToString().ToLowerInvariant(),
-        };
-
-    private static string AirspaceClassToLetter(Yaat.Sim.Data.Airspace.AirspaceClass airspaceClass) =>
-        airspaceClass switch
-        {
-            Yaat.Sim.Data.Airspace.AirspaceClass.Bravo => "B",
-            Yaat.Sim.Data.Airspace.AirspaceClass.Charlie => "C",
-            _ => airspaceClass.ToString(),
-        };
-
     private static string BuildIfrAirborne(AircraftState aircraft, string positionType, string facilityCallName, string spoken, int altitudeFt)
     {
         if (positionType == "TWR")

@@ -34,9 +34,6 @@ public sealed record PilotRequestContext(
     public static PilotRequestContext Facility(string? facilityCallName) => new(null, facilityCallName, null, null, null);
 
     public static PilotRequestContext Runway(string? runwayId, string? facilityCallName) => new(runwayId, facilityCallName, null, null, null);
-
-    public static PilotRequestContext Airspace(AirspaceClass airspaceClass, string airspaceIdent, LatLon airspaceReferencePosition) =>
-        new(null, null, airspaceClass, airspaceIdent, airspaceReferencePosition);
 }
 
 public sealed class PilotPendingRequest

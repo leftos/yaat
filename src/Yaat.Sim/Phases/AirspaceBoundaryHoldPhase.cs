@@ -98,40 +98,11 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         ctx.Targets.NavigationRoute.Clear();
         SetHoldingTargets(ctx);
 
-        // Airspace boundary holds are pilot self-reports. In solo mode the student is the
-        // controller; this transmission is broadcast in any TWR/APP context so the controller
-        // hears the pilot's status while they decide whether to issue the entry clearance.
-        var text = Pilot.PilotResponder.BuildAirspaceBoundaryHoldText(ctx.Aircraft, AirspaceClass, Ident, ReferencePosition);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            text,
-            Pilot.PilotResponder.SoloPositionsTowerApproach
-        );
-        if (!ctx.SoloTrainingMode)
-        {
-            return;
-        }
-
-        if (ctx.StudentPositionType is not { } positionType)
-        {
-            return;
-        }
-
-        if (!Pilot.PilotResponder.SoloPositionsTowerApproach.Contains(positionType))
-        {
-            return;
-        }
-
-        Pilot.PilotRequestTracker.RecordRequest(
-            ctx.Aircraft,
-            Pilot.PilotPendingRequestKind.AirspaceEntry,
-            ctx.ScenarioElapsedSeconds,
-            text.Terminal,
-            Pilot.PilotRequestContext.Airspace(AirspaceClass, Ident, ReferencePosition)
-        );
+        // Issue #154: airspace boundary holds used to broadcast a pilot self-report
+        // ("holding outside the charlie, awaiting two-way"). Real pilots don't narrate
+        // their own avoidance manoeuvres on the radio — the controller would just see
+        // the aircraft turn. The phase continues to slow / orbit the aircraft so the
+        // boundary respect itself still applies, just silently.
     }
 
     public override bool OnTick(PhaseContext ctx)

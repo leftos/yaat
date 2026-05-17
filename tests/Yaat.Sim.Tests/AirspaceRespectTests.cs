@@ -141,34 +141,12 @@ public sealed class AirspaceRespectTests
     }
 
     [Fact]
-    public void BuildAirspaceBoundaryHold_TerminalUsesIdentifierAndTtsUsesAirportName()
+    public void AirspaceBoundaryHoldPhase_SoloTowerStudent_HoldsSilently()
     {
-        if (TestVnasData.NavigationDb is null)
-        {
-            return;
-        }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
-
-        var text = PilotResponder.BuildAirspaceBoundaryHoldText(ac, AirspaceClass.Charlie, "OAK", new LatLon(37.7213, -122.2208));
-
-        // Terminal: identifier "OAK" + class label "Class C", no NATO-spelled letters.
-        Assert.Contains("Class C", text.Terminal);
-        Assert.Contains("of OAK", text.Terminal);
-        Assert.Contains("N123AB", text.Terminal);
-        Assert.DoesNotContain("the charlie", text.Terminal);
-
-        // TTS: AIM-style "the charlie" + airport spoken via the airport-name lookup
-        // ("Oakland Airport"), NOT NATO-spelled "oscar alpha kilo".
-        Assert.Contains("the charlie", text.Tts);
-        Assert.Contains("of Oakland Airport", text.Tts);
-        Assert.DoesNotContain("oscar alpha kilo", text.Tts);
-        Assert.Contains("november one two three alpha bravo", text.Tts);
-    }
-
-    [Fact]
-    public void AirspaceBoundaryHoldPhase_SoloTowerStudent_FiresTtsAndTerminal()
-    {
+        // Issue #154 #3: the phase used to emit a pilot SAY ("holding outside the
+        // charlie, awaiting two-way"). Real pilots don't narrate their own
+        // self-avoidance manoeuvres — the controller would just observe the turn.
+        // The phase still slows / orbits the aircraft but produces no transmission.
         if (TestVnasData.NavigationDb is null)
         {
             return;
@@ -195,15 +173,11 @@ public sealed class AirspaceRespectTests
 
         phase.OnStart(ctx);
 
-        // Solo TWR student should hear the pilot on the delayed SAY/audio queue.
         Assert.Empty(ac.PendingNotifications);
-        var transmission = Assert.Single(ac.PendingPilotTransmissions);
-        Assert.Contains("Class C", transmission.Text);
-        Assert.Contains("of OAK", transmission.Text);
-        Assert.Contains("the charlie", transmission.SpeechText);
-        Assert.Contains("of Oakland Airport", transmission.SpeechText);
-        Assert.DoesNotContain("oscar alpha kilo", transmission.SpeechText);
+        Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Empty(ac.PendingWarnings);
+        // Holding speed should still be enforced.
+        Assert.NotNull(ac.Targets.TargetSpeed);
     }
 
     [Fact]
@@ -235,60 +209,6 @@ public sealed class AirspaceRespectTests
         phase.OnStart(ctx);
 
         Assert.True(phase.OnTick(ctx));
-    }
-
-    [Fact]
-    public void AirspaceBoundaryHoldPhase_SoloGroundStudent_TerminalOnly_NoTts()
-    {
-        if (TestVnasData.NavigationDb is null)
-        {
-            return;
-        }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
-        var phase = new AirspaceBoundaryHoldPhase
-        {
-            AirspaceClass = AirspaceClass.Charlie,
-            Ident = "OAK",
-            ReferencePosition = new LatLon(37.7213, -122.2208),
-            OrbitDirection = TurnDirection.Right,
-        };
-        var ctx = new PhaseContext
-        {
-            Aircraft = ac,
-            Targets = ac.Targets,
-            Category = AircraftCategorization.Categorize(ac.AircraftType),
-            DeltaSeconds = 1.0,
-            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
-            SoloTrainingMode = true,
-            StudentPositionType = "GND",
-        };
-
-        phase.OnStart(ctx);
-
-        // Ground student wouldn't hear an airspace-boundary callout — terminal only.
-        Assert.Empty(ac.PendingNotifications);
-        Assert.Empty(ac.PendingPilotTransmissions);
-        var warning = Assert.Single(ac.PendingWarnings);
-        Assert.Contains("Class C", warning);
-    }
-
-    [Fact]
-    public void BuildAirspaceBoundaryHold_BravoUsesAwaitingClearance()
-    {
-        if (TestVnasData.NavigationDb is null)
-        {
-            return;
-        }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = CreateAirborneVfr(new LatLon(37.6213, -122.5500), heading: 90, altitude: 3500, speed: 160);
-
-        var text = PilotResponder.BuildAirspaceBoundaryHoldText(ac, AirspaceClass.Bravo, "SFO", new LatLon(37.6213, -122.3790));
-
-        Assert.Contains("Class B", text.Terminal);
-        Assert.Contains("awaiting clearance", text.Terminal);
-        Assert.Contains("the bravo", text.Tts);
-        Assert.Contains("awaiting clearance", text.Tts);
     }
 
     [Fact]
