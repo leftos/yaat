@@ -28,7 +28,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n929aw-cland-erb-pattern-runway-overrun-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/606cf53c33a1.zip";
     private const string Callsign = "N929AW";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

@@ -30,7 +30,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue8TouchAndGoRolloutTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue8-touch-and-go-rollout-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/606cf53c33a1.zip";
     private const string Callsign = "N342T";
     private const int RestoreAt = 825;
 

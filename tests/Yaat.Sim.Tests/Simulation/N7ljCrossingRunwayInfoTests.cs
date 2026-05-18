@@ -22,7 +22,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class N7ljCrossingRunwayInfoTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n7lj-crossing-runway-info-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/606cf53c33a1.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
