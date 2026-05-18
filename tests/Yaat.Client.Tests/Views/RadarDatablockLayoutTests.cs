@@ -92,4 +92,37 @@ public class RadarDatablockLayoutTests
         float delta = withBoth.Rect.Bottom - withLine3Only.Rect.Bottom;
         Assert.Equal(withLine3Only.LineHeight, delta, precision: 3);
     }
+
+    [Fact]
+    public void Line2_FallsBackToPhysicalType_WhenFiledIsBlank()
+    {
+        // RPO guarantee: the radar datablock must always show an aircraft type when one is
+        // physically known, even if the filed FP type was never set or got blanked via
+        // an FP amendment. Mirrors the user-reported N775JW bug where the Aircraft List
+        // showed "C182" but the radar datablock omitted the type on Line 2.
+        var ac = CreateModel();
+        ac.AircraftType = "C182";
+        ac.FiledAircraftType = "";
+        ac.CwtCode = "L";
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint);
+
+        Assert.Contains("C182", layout.Line2);
+    }
+
+    [Fact]
+    public void Line2_PrefersFiledType_WhenFiledPresent()
+    {
+        var ac = CreateModel();
+        ac.AircraftType = "C182";
+        ac.FiledAircraftType = "PA28";
+        ac.CwtCode = "L";
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint);
+
+        Assert.Contains("PA28", layout.Line2);
+        Assert.DoesNotContain("C182", layout.Line2);
+    }
 }

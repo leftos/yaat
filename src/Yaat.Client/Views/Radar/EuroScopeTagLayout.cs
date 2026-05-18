@@ -190,7 +190,7 @@ public static class EuroScopeTagLayout
 
     private static string FormatTypeCwt(AircraftModel ac)
     {
-        var type = ac.FiledAircraftType.Trim();
+        var type = ac.DisplayAircraftType.Trim();
         var cwt = ac.CwtCode.Trim();
         if (type.Length > 0 && cwt.Length > 0)
         {

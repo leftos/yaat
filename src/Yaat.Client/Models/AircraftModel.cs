@@ -23,12 +23,15 @@ public partial class AircraftModel : ObservableObject
     /// Actual aircraft type — what's physically flying. Read by Tower Cab (out-the-window
     /// datablock), physics/performance lookups, and the operator-facing Aircraft List data
     /// grid (including its right-click menu header). Fixed at spawn and never changed by FP
-    /// amendments. Flight-plan-bound surfaces (STARS, ASDE-X, EuroScope tag, FP Editor,
-    /// flight strips) read <see cref="FiledAircraftType"/> instead.
+    /// amendments. Flight-plan-bound surfaces (ASDE-X, FP Editor, flight strips) read
+    /// <see cref="FiledAircraftType"/> directly; radar surfaces (STARS-style datablock,
+    /// EuroScope tag, radar right-click menu) read <see cref="DisplayAircraftType"/>, which
+    /// falls back to this physical value when the filed type is blank.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BaseAircraftType))]
     [NotifyPropertyChangedFor(nameof(AircraftTypeName))]
+    [NotifyPropertyChangedFor(nameof(DisplayAircraftType))]
     private string _aircraftType = "";
 
     /// <summary>
@@ -60,16 +63,27 @@ public partial class AircraftModel : ObservableObject
     }
 
     /// <summary>
-    /// Filed aircraft type — what the flight plan currently records. Read by STARS, ASDE-X,
-    /// the EuroScope tag, the Flight Plan Editor, and flight strips. Mutated by FP amendments
-    /// and may be empty when an instructor blanks the field. Tower Cab and the Aircraft List
-    /// data grid are driven by <see cref="AircraftType"/> instead so blanking the FP type
-    /// does not blank either the tower's "out the window" view or the operator's situational
-    /// awareness grid.
+    /// Filed aircraft type — what the flight plan currently records. Read by ASDE-X, the
+    /// Flight Plan Editor, and flight strips. Mutated by FP amendments and may be empty when
+    /// an instructor blanks the field. Tower Cab and the Aircraft List data grid are driven
+    /// by <see cref="AircraftType"/> instead so blanking the FP type does not blank either
+    /// the tower's "out the window" view or the operator's situational awareness grid. The
+    /// radar surfaces consume <see cref="DisplayAircraftType"/>, which prefers this filed
+    /// value but falls back to <see cref="AircraftType"/> when it is blank — YAAT is an RPO
+    /// tool and the radar must never hide a physically-known aircraft type.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(DisplayAircraftType))]
     private string _filedAircraftType = "";
+
+    /// <summary>
+    /// Aircraft type as the radar surfaces (STARS-style datablock, EuroScope tag, radar
+    /// right-click menu header) should display it: prefers <see cref="FiledAircraftType"/>
+    /// when set, falls back to <see cref="AircraftType"/> otherwise. Keeps the type visible
+    /// on the radar even when the filed FP type was never set or got blanked by an amendment.
+    /// </summary>
+    public string DisplayAircraftType => string.IsNullOrWhiteSpace(FiledAircraftType) ? AircraftType : FiledAircraftType;
 
     [ObservableProperty]
     private LatLon _position;

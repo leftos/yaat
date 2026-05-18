@@ -103,4 +103,23 @@ public class EuroScopeTagLayoutTests
         var modeC = Assert.Single(result.Fields, f => f.Field == TagFieldId.ModeC);
         Assert.Equal(rwy.Rect.Top + lineH, modeC.Rect.Top, precision: 3);
     }
+
+    [Fact]
+    public void TypeCwtField_FallsBackToPhysicalType_WhenFiledIsBlank()
+    {
+        // RPO guarantee: the radar EuroScope tag must always show an aircraft type when one
+        // is physically known, even if the filed FP type was never set or got blanked via
+        // an FP amendment. Mirrors the user-reported N775JW bug where the Aircraft List
+        // showed "C182" but the EuroScope tag Line 2 had no TypeCwt field.
+        var ac = CreateModel();
+        ac.AircraftType = "C182";
+        ac.FiledAircraftType = "";
+        ac.CwtCode = "L";
+        using var paint = CreatePaint();
+
+        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null);
+
+        var typeCwt = Assert.Single(result.Fields, f => f.Field == TagFieldId.TypeCwt);
+        Assert.Contains("C182", typeCwt.Text);
+    }
 }

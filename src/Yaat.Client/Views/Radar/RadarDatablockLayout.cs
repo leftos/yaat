@@ -40,7 +40,7 @@ internal readonly struct RadarDatablockLayout
         string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
         string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
         string spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-        string cwtType = FormatCwtType(cwt, ac.FiledAircraftType);
+        string cwtType = FormatCwtType(cwt, ac.DisplayAircraftType);
         string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
 
         string line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.HandoffDisplay, ac.Scratchpad1, ac.Scratchpad2, ac.AssignedTo) ?? "";
