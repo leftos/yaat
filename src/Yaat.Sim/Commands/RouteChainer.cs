@@ -36,10 +36,10 @@ public static class RouteChainer
             return;
         }
 
-        // Join remainder tokens and expand via RouteExpander
+        // Join remainder tokens and expand via RouteExpander. Flight-plan context.
         var navDb = NavigationDatabase.Instance;
         var remainder = string.Join(' ', routeTokens.Skip(matchIndex + 1));
-        var expanded = RouteExpander.Expand(remainder);
+        var expanded = RouteExpander.Expand(remainder, navDb, includeAllTransitionsOnMismatch: false);
 
         foreach (var fixName in expanded)
         {

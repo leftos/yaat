@@ -875,7 +875,10 @@ internal static class DepartureClearanceHandler
         var postSidTokens = routeTokens[startIdx..];
         string postSidRoute = anchor is not null ? anchor + " " + string.Join(' ', postSidTokens) : string.Join(' ', postSidTokens);
 
-        var expandedFixes = RouteExpander.Expand(postSidRoute, navDb);
+        // The SID token has already been stripped from postSidRoute, so the mismatch fallback won't
+        // fire here today — but keep the flight-plan flag explicit so future routes that contain a
+        // second SID token (theoretical) don't slip past.
+        var expandedFixes = RouteExpander.Expand(postSidRoute, navDb, includeAllTransitionsOnMismatch: false);
 
         // Skip expanded fixes up to and including the anchor (already covered by SID targets)
         int fixStart = 0;

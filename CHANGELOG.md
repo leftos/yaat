@@ -17,6 +17,9 @@
 ### Fixed
 - Aircraft list Info column now names the runway actually being crossed instead of the departure runway while an aircraft taxis across one.
 
+### Fixed
+- IFR aircraft on radar-vectors SIDs (e.g. NIMI5, OAK6 at OAK) no longer turn back toward the departure airport after takeoff. The route-expander's "emit all transitions on mismatch" fallback was fabricating a route like `CCR, OAK, PYE, OAK, SAC, OAK, SAU, OAK, SGD, OAK, FESIK, …` for a filed `NIMI5 OAK V6 SAC` because vNAS encodes those SIDs' adapted-route hints as synthetic transitions. Flight-plan callers now suppress that fallback, so the route is just the V6 airway fixes (or, for a `NIMI5 OAK <fix>` route, just the direct fix).
+
 ## v0.2.5-alpha [2026/05/16]
 
 ### Highlights

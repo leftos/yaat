@@ -796,7 +796,10 @@ public sealed class NavigationDatabase
     /// </summary>
     public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport)
     {
-        var expanded = RouteExpander.Expand(route, this);
+        // Flight-plan context: suppress the "emit all transitions on mismatch" fallback so a
+        // radar-vectors SID with adapted-route hints (e.g. NIMI5) doesn't fabricate a turn-back
+        // through every synthesized transition fix.
+        var expanded = RouteExpander.Expand(route, this, includeAllTransitionsOnMismatch: false);
         if (expanded.Count == 0)
         {
             return expanded;

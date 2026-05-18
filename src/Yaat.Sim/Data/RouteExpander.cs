@@ -17,7 +17,18 @@ public static class RouteExpander
     /// Handles SID body + transition matching, STAR join-point logic, airway segment expansion
     /// (bare and dot-notation), digit-stripping fallback for procedure version numbers, and adjacent deduplication.
     /// </summary>
-    public static List<string> Expand(string route, NavigationDatabase navDb)
+    /// <param name="route">Route string to expand (e.g. "NIMI5 OAK V6 SAC").</param>
+    /// <param name="navDb">Navigation database supplying SIDs, STARs, airways, and fixes.</param>
+    /// <param name="includeAllTransitionsOnMismatch">
+    /// When <c>true</c> (the default — autocomplete/UI behavior), a SID whose next route token doesn't
+    /// match any transition name falls back to emitting every transition's fixes so the result captures
+    /// every reachable exit fix. When <c>false</c> (flight-plan / navigation behavior), the fallback is
+    /// suppressed: only the body is emitted, and downstream tokens (airway exit fix, direct fixes) are
+    /// processed normally. Flight-plan callers must pass <c>false</c> to avoid fabricating turn-backs
+    /// through every transition on radar-vectors SIDs whose vNAS protobuf carries adapted-route hints
+    /// as synthetic "transitions" (e.g. NIMI5's [OAK,CCR], [OAK,PYE], ...).
+    /// </param>
+    public static List<string> Expand(string route, NavigationDatabase navDb, bool includeAllTransitionsOnMismatch = true)
     {
         if (string.IsNullOrWhiteSpace(route))
         {
@@ -44,7 +55,7 @@ public static class RouteExpander
             var resolvedSidId = navDb.ResolveSidId(rawName);
             if (resolvedSidId is not null)
             {
-                ExpandSid(result, resolvedSidId, tokens, i, navDb);
+                ExpandSid(result, resolvedSidId, tokens, i, navDb, includeAllTransitionsOnMismatch);
                 continue;
             }
 
@@ -97,7 +108,14 @@ public static class RouteExpander
         return result;
     }
 
-    private static void ExpandSid(List<string> result, string sidId, string[] tokens, int tokenIndex, NavigationDatabase navDb)
+    private static void ExpandSid(
+        List<string> result,
+        string sidId,
+        string[] tokens,
+        int tokenIndex,
+        NavigationDatabase navDb,
+        bool includeAllTransitionsOnMismatch
+    )
     {
         var body = navDb.GetSidBody(sidId);
         if (body is null)
@@ -136,7 +154,17 @@ public static class RouteExpander
             }
         }
 
-        // No matching transition found — emit all transition fixes (for autocomplete/ProgrammedFixResolver)
+        // No matching transition. In autocomplete/UI context, emit every transition's fixes so callers
+        // can index/search by any reachable exit fix. In flight-plan context (includeAllTransitionsOnMismatch=false),
+        // emit nothing — fabricating a turn-back through every transition would produce a nonsensical
+        // NavigationRoute (e.g. on radar-vectors SIDs whose vNAS protobuf carries adapted-route hints
+        // as synthetic transitions). The remaining route tokens (airway, direct fix, ...) are processed
+        // by the caller's main loop and handle the real post-SID routing.
+        if (!includeAllTransitionsOnMismatch)
+        {
+            return;
+        }
+
         foreach (var trans in transitions)
         {
             foreach (var fix in trans.Fixes)

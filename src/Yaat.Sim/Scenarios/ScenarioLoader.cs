@@ -564,8 +564,8 @@ public static class ScenarioLoader
 
         var navDb = NavigationDatabase.Instance;
 
-        // Expand route tokens into fix names
-        var expanded = RouteExpander.Expand(navigationPath);
+        // Expand route tokens into fix names. Flight-plan context: don't fabricate transitions on mismatch.
+        var expanded = RouteExpander.Expand(navigationPath, navDb, includeAllTransitionsOnMismatch: false);
 
         // Resolve positions and build ResolvedFix list
         var resolved = new List<ResolvedFix>();
