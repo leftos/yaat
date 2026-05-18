@@ -170,7 +170,7 @@
         { "verb": "PUSH", "aliases": [], "description": "Pushback [twy] [<C / >C / FACE C / TAIL C], C∈N/NE/E/SE/S/SW/W/NW" },
         { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
         { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position" },
-        { "verb": "RES", "aliases": ["resume"], "description": "Resume taxi / release runway hold (not destination)" },
+        { "verb": "RES", "aliases": ["resume"], "description": "Resume taxi / release runway hold (not destination); RES CROSS rwy [rwy...] pre-clears upcoming crossings" },
         { "verb": "CROSS", "aliases": [], "description": "Cross runway" },
         { "verb": "HS", "aliases": [], "description": "Hold short of taxiway/runway" },
         { "verb": "RWY", "aliases": [], "description": "Assign runway (TAXI mod avail)" },

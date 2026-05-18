@@ -252,7 +252,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Pushback | `PUSH` | — | — |
 | Taxi | `TAXI S T U` | — | — |
 | Hold position | `HOLD` | `HP` | — |
-| Resume taxi | `RES` | `RESUME` | — |
+| Resume taxi | `RES` | `RESUME` | `RES CROSS 28R 28L` |
 | Cross runway | `CROSS 28L` | — | — |
 | Hold short | `HS B` | — | — |
 | Assign runway | `RWY 30` | — | — |
@@ -517,6 +517,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
 | `HOLD` / `HP` | Hold position (stop wherever on the ground) |
 | `RES` / `RESUME` | Resume taxi after HOLD or release a runway hold-short (explicit or crossing). Does not apply at the destination runway hold — use CTO or LUAW. |
+| `RES CROSS 28R 28L` | Resume taxi AND pre-clear listed crossings on the rest of the route (unordered set). Hold-shorts for any runway NOT in the list still stop the aircraft until a fresh CROSS. Fails the whole command if a listed runway has no matching upcoming crossing, or if it appears only as the destination runway. |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
 | `CROSS B` | Cross taxiway B (clears hold-short) |
 | `HS B` | Hold short at the next intersection with taxiway B |

@@ -638,7 +638,7 @@ public static class CommandRegistry
                 ]
             ),
             Bare(HoldPosition, "Hold Position", "Ground", false, ["HOLD", "HP"]),
-            Bare(Resume, "Resume Taxi", "Ground", false, ["RES", "RESUME"]),
+            Cmd(Resume, "Resume Taxi", "Ground", false, ["RES", "RESUME"], [O(null, [], "Resume taxi")], [Mod("CROSS", "runway", true)]),
             Cmd(CrossRunway, "Cross Runway", "Ground", false, ["CROSS"], [O(null, [R("runway", "runway designator")], "Cross runway")]),
             Cmd(HoldShort, "Hold Short", "Ground", false, ["HS"], [O(null, [R("taxiway", "taxiway/runway")], "Hold short of taxiway or runway")]),
             Cmd(

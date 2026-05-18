@@ -707,7 +707,7 @@ public static class CommandParser
             AssignRunway => GroundCommandParser.ParseRwyTaxi(arg),
             HoldPosition when arg is null => PR.Ok(new HoldPositionCommand()),
             HoldPosition when arg is not null => ApproachCommandParser.ParseHold(arg),
-            Resume when arg is null => PR.Ok(new ResumeCommand()),
+            Resume => GroundCommandParser.ParseResume(arg),
             CrossRunway => GroundCommandParser.ParseCross(arg),
             HoldShort => GroundCommandParser.ParseHoldShort(arg),
             Follow => ParseFollowAirborne(arg),

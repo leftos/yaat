@@ -348,7 +348,13 @@ public record TaxiAutoCommand(string? DestinationRunway = null, string? Destinat
 
 public record HoldPositionCommand : ParsedCommand;
 
-public record ResumeCommand : ParsedCommand;
+/// <summary>
+/// Resume taxi. The optional <c>CrossRunways</c> list pre-clears upcoming
+/// <see cref="HoldShortReason.RunwayCrossing"/> hold-shorts on the aircraft's
+/// taxi route — one canonical form for both bare RES and
+/// <c>RES CROSS &lt;rwy&gt; [&lt;rwy&gt;...]</c>. Always non-null; empty for bare RES.
+/// </summary>
+public record ResumeCommand(IReadOnlyList<string> CrossRunways) : ParsedCommand;
 
 public record CrossRunwayCommand(string RunwayId) : ParsedCommand;
 

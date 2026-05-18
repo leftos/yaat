@@ -428,6 +428,44 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
+    /// Parses RES [CROSS &lt;rwy&gt; [&lt;rwy&gt;...]]. Bare RES is a no-op pre-clear
+    /// list; the optional <c>CROSS</c> tail collects upcoming runway crossings
+    /// to pre-clear on the route. Runway tokens are uppercased.
+    /// </summary>
+    internal static PR ParseResume(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new ResumeCommand([]));
+        }
+
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return PR.Ok(new ResumeCommand([]));
+        }
+
+        // Only one allowed sub-keyword today: CROSS.
+        if (!tokens[0].Equals("CROSS", StringComparison.OrdinalIgnoreCase))
+        {
+            return PR.Fail($"RES: unexpected argument '{tokens[0]}' (expected CROSS or no argument)");
+        }
+
+        if (tokens.Length < 2)
+        {
+            return PR.Fail("RES CROSS requires at least one runway");
+        }
+
+        var runways = new List<string>(tokens.Length - 1);
+        for (int i = 1; i < tokens.Length; i++)
+        {
+            runways.Add(tokens[i].ToUpperInvariant());
+        }
+
+        return PR.Ok(new ResumeCommand(runways));
+    }
+
+    /// <summary>
     /// Parses CROSS runway.
     /// </summary>
     internal static PR ParseCross(string? arg)

@@ -794,6 +794,73 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok("Resume taxi");
     }
 
+    /// <summary>
+    /// Pre-clears upcoming RunwayCrossing hold-shorts in the aircraft's taxi
+    /// route for each runway in <paramref name="runways"/>. Strict: returns
+    /// failure if any runway has no matching upcoming crossing, or matches a
+    /// DestinationRunway hold-short (use CTO/LUAW for those instead). Empty
+    /// list is a no-op success.
+    /// </summary>
+    internal static CommandResult TryPreClearRouteCrossings(AircraftState aircraft, IReadOnlyList<string> runways)
+    {
+        if (runways.Count == 0)
+        {
+            return CommandDispatcher.Ok("");
+        }
+
+        var route = aircraft.Ground.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return new CommandResult(false, "No taxi route assigned");
+        }
+
+        foreach (var rwy in runways)
+        {
+            bool matchedAny = false;
+            foreach (var hs in route.HoldShortPoints)
+            {
+                if (hs.TargetName is null)
+                {
+                    continue;
+                }
+                if (!RunwayIdentifier.Parse(hs.TargetName).Contains(rwy))
+                {
+                    continue;
+                }
+
+                if (hs.Reason == HoldShortReason.DestinationRunway)
+                {
+                    return new CommandResult(false, $"Cannot cross destination runway {hs.TargetName}; use LUAW or CTO");
+                }
+
+                matchedAny = true;
+            }
+
+            if (!matchedAny)
+            {
+                return new CommandResult(false, $"No hold-short for {rwy} in taxi route");
+            }
+        }
+
+        // All runways validated — now actually mark each matching crossing as cleared.
+        foreach (var rwy in runways)
+        {
+            foreach (var hs in route.HoldShortPoints)
+            {
+                if (
+                    hs.TargetName is not null
+                    && hs.Reason != HoldShortReason.DestinationRunway
+                    && RunwayIdentifier.Parse(hs.TargetName).Contains(rwy)
+                )
+                {
+                    hs.IsCleared = true;
+                }
+            }
+        }
+
+        return CommandDispatcher.Ok("");
+    }
+
     internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross)
     {
         // If currently holding short, validate before satisfying the clearance

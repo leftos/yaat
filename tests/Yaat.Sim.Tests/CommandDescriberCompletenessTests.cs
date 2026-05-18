@@ -192,6 +192,13 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
             return Activator.CreateInstance(paramType);
         }
 
+        if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(IReadOnlyList<>))
+        {
+            // Return an empty concrete List<T> — the record will see it as IReadOnlyList<T>.
+            var listType = typeof(List<>).MakeGenericType(paramType.GetGenericArguments()[0]);
+            return Activator.CreateInstance(listType);
+        }
+
         if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(Nullable<>))
         {
             return null;

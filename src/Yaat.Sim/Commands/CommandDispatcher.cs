@@ -1308,14 +1308,28 @@ public static class CommandDispatcher
             case HoldPositionCommand when currentPhase is AirTaxiPhase:
                 aircraft.Ground.Hold = HoldDirective.HoldPosition;
                 return Ok("Hold position");
-            case ResumeCommand when currentPhase is AirTaxiPhase:
+            case ResumeCommand airTaxiResume when currentPhase is AirTaxiPhase:
+            {
+                var preClear = GroundCommandHandler.TryPreClearRouteCrossings(aircraft, airTaxiResume.CrossRunways);
+                if (!preClear.Success)
+                {
+                    return preClear;
+                }
                 aircraft.Ground.Hold = null;
                 return Ok("Resume taxi");
-            case ResumeCommand
+            }
+            case ResumeCommand hsResume
                 when currentPhase
                     is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort or HoldShortReason.RunwayCrossing } holdShort:
+            {
+                var preClear = GroundCommandHandler.TryPreClearRouteCrossings(aircraft, hsResume.CrossRunways);
+                if (!preClear.Success)
+                {
+                    return preClear;
+                }
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
                 return Ok("Resume taxi");
+            }
 
             // Helicopter commands
             case AirTaxiCommand atxi:
@@ -1335,8 +1349,15 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
-            case ResumeCommand when currentPhase is not HoldingShortPhase:
+            case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:
+            {
+                var preClear = GroundCommandHandler.TryPreClearRouteCrossings(aircraft, groundResume.CrossRunways);
+                if (!preClear.Success)
+                {
+                    return preClear;
+                }
                 return GroundCommandHandler.TryResumeTaxi(aircraft);
+            }
             case CrossRunwayCommand cross:
                 return GroundCommandHandler.TryCrossRunway(aircraft, cross);
             case HoldShortCommand hs:
