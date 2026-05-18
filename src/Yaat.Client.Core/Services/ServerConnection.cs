@@ -699,7 +699,12 @@ public record AircraftDto(
     // to move, "HoldPosition" for unconditional HOLD, "GiveWay" for a controller
     // GIVEWAY relationship (HoldYieldTarget carries the callsign in that case).
     string? HoldKind = null,
-    string? HoldYieldTarget = null
+    string? HoldYieldTarget = null,
+    // Runway being crossed during CrossingRunwayPhase (e.g. "28R/10L"). Distinct from
+    // AssignedRunway which holds the aircraft's departure / destination runway —
+    // those differ when an aircraft taxis across one runway to reach a different
+    // departure runway. Null otherwise.
+    string? CrossingRunwayId = null
 );
 
 public record LoadScenarioResultDto(

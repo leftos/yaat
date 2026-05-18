@@ -979,7 +979,7 @@ public class GroundPhaseTests
         // crossing momentum and has to re-accelerate from zero.
         var aircraft = MakeGroundAircraft();
         aircraft.IndicatedAirspeed = 10; // mid-crossing speed
-        var phase = new CrossingRunwayPhase(approachNodeId: 1, targetNodeId: 2);
+        var phase = new CrossingRunwayPhase(approachNodeId: 1, targetNodeId: 2, runwayId: "28L");
 
         var ctx = new PhaseContext
         {

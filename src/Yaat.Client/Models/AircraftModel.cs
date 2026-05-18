@@ -248,6 +248,15 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string? _exitingRunwayId;
 
+    /// <summary>
+    /// When in <c>Crossing Runway</c>, the runway currently being crossed (e.g. "28R/10L").
+    /// Distinct from <see cref="AssignedRunway"/>, which holds the aircraft's departure /
+    /// destination runway — those differ when an aircraft taxis across one runway to reach
+    /// a different departure runway. Null otherwise (or for snapshots pre-dating this field).
+    /// </summary>
+    [ObservableProperty]
+    private string? _crossingRunwayId;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNavigationRoute))]
     [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
@@ -685,6 +694,7 @@ public partial class AircraftModel : ObservableObject
             PatternEntryKind = dto.PatternEntryKind,
             FollowingCallsign = dto.FollowingCallsign,
             ExitingRunwayId = dto.ExitingRunwayId,
+            CrossingRunwayId = dto.CrossingRunwayId,
             IsUnsupported = dto.IsUnsupported,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
@@ -755,6 +765,7 @@ public partial class AircraftModel : ObservableObject
         PatternEntryKind = dto.PatternEntryKind;
         FollowingCallsign = dto.FollowingCallsign;
         ExitingRunwayId = dto.ExitingRunwayId;
+        CrossingRunwayId = dto.CrossingRunwayId;
         IsUnsupported = dto.IsUnsupported;
         DistanceFromFix = computeDistance?.Invoke(this);
         ComputeSmartStatus();
@@ -848,7 +859,7 @@ public partial class AircraftModel : ObservableObject
             "Holding After Exit" => FormatHoldingAfterExitStatus(),
             "Taxiing" => FormatTaxiStatus(),
             "AirTaxi" => string.IsNullOrEmpty(AssignedRunway) ? "air taxi" : $"air taxi to {AssignedRunway}",
-            "Crossing Runway" => string.IsNullOrEmpty(AssignedRunway) ? "crossing runway" : $"crossing runway {AssignedRunway}",
+            "Crossing Runway" => FormatCrossingRunwayStatus(),
             "LiningUp" => $"lining up {AssignedRunway}",
             "LinedUpAndWaiting" => $"LUAW {AssignedRunway}",
             "Takeoff" or "Takeoff-H" => $"takeoff {AssignedRunway}",
@@ -908,6 +919,15 @@ public partial class AircraftModel : ObservableObject
     {
         var nonEmpty = parts.Where(p => !string.IsNullOrEmpty(p));
         return string.Join(" ", nonEmpty);
+    }
+
+    private string FormatCrossingRunwayStatus()
+    {
+        // Prefer the dedicated CrossingRunwayId (the runway actually being crossed);
+        // fall back to AssignedRunway for snapshots predating the field so the status
+        // still says something rather than going blank.
+        var rwy = string.IsNullOrEmpty(CrossingRunwayId) ? AssignedRunway : CrossingRunwayId;
+        return string.IsNullOrEmpty(rwy) ? "crossing runway" : $"crossing runway {rwy}";
     }
 
     private string FormatHoldingAfterExitStatus()

@@ -13,6 +13,9 @@
 ### Fixed
 - Partial-callsign prefixes that match multiple aircraft now list the candidates (e.g. `"N12" matches multiple aircraft: N1234, N1256`) instead of saying `"N12" is not a recognized command`.
 
+### Fixed
+- Aircraft list Info column now names the runway actually being crossed instead of the departure runway while an aircraft taxis across one.
+
 ## v0.2.5-alpha [2026/05/16]
 
 ### Highlights

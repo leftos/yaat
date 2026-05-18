@@ -228,14 +228,41 @@ public class AircraftModelPhaseStatusTests
     }
 
     [Fact]
-    public void CrossingRunway_WithAssignedRunway()
+    public void CrossingRunway_UsesCrossingRunwayId_NotAssignedRunway()
     {
+        // Bug fixture: aircraft taxiing to runway 30 for departure, currently crossing 28L.
+        // The status must reflect the runway being crossed, not the departure runway.
+        var ac = CreateModel();
+        ac.CurrentPhase = "Crossing Runway";
+        ac.AssignedRunway = "30";
+        ac.CrossingRunwayId = "28L";
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Crossing runway 28L", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void CrossingRunway_FallsBackToAssignedRunway_WhenCrossingRunwayIdMissing()
+    {
+        // Snapshot/session predates CrossingRunwayId — keep the legacy fallback so the
+        // status still says something useful instead of going blank.
         var ac = CreateModel();
         ac.CurrentPhase = "Crossing Runway";
         ac.AssignedRunway = "10L";
+        ac.CrossingRunwayId = null;
         ac.ComputeSmartStatus();
 
         Assert.Equal("Crossing runway 10L", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void CrossingRunway_NoRunway()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "Crossing Runway";
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Crossing runway", ac.SmartStatus);
     }
 
     // --- Heading suppression matrix --------------------------------------------

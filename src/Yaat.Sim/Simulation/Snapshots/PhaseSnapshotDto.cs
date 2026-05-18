@@ -259,6 +259,13 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     public required double TargetLon { get; init; }
     public required bool Initialized { get; init; }
     public required double TimeSinceLastLog { get; init; }
+
+    /// <summary>
+    /// Runway being crossed (sourced from the preceding HoldShortPoint.TargetName).
+    /// Non-required so older snapshots default to null; the client status text falls
+    /// back to AssignedRunway in that case (legacy display behaviour).
+    /// </summary>
+    public string? CrossingRunwayId { get; init; }
 }
 
 public sealed class AirTaxiPhaseDto : PhaseDto

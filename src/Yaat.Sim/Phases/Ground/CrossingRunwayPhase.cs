@@ -19,18 +19,22 @@ public sealed class CrossingRunwayPhase : Phase
 
     private readonly int _approachNodeId;
     private readonly int _targetNodeId;
+    private readonly string? _runwayId;
     private double _targetLat;
     private double _targetLon;
     private bool _initialized;
     private double _timeSinceLastLog;
 
-    public CrossingRunwayPhase(int approachNodeId, int targetNodeId)
+    public CrossingRunwayPhase(int approachNodeId, int targetNodeId, string? runwayId)
     {
         _approachNodeId = approachNodeId;
         _targetNodeId = targetNodeId;
+        _runwayId = runwayId;
     }
 
     public override string Name => "Crossing Runway";
+
+    public string? RunwayId => _runwayId;
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -142,6 +146,7 @@ public sealed class CrossingRunwayPhase : Phase
             Requirements = SnapshotRequirements(),
             ApproachNodeId = _approachNodeId,
             TargetNodeId = _targetNodeId,
+            CrossingRunwayId = _runwayId,
             TargetLat = _targetLat,
             TargetLon = _targetLon,
             Initialized = _initialized,
@@ -150,7 +155,7 @@ public sealed class CrossingRunwayPhase : Phase
 
     public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto)
     {
-        var phase = new CrossingRunwayPhase(dto.ApproachNodeId, dto.TargetNodeId);
+        var phase = new CrossingRunwayPhase(dto.ApproachNodeId, dto.TargetNodeId, dto.CrossingRunwayId);
         phase._targetLat = dto.TargetLat;
         phase._targetLon = dto.TargetLon;
         phase._initialized = dto.Initialized;

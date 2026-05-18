@@ -363,7 +363,7 @@ public sealed class TaxiingPhase : Phase
             int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout);
             if (exitNodeId is not null)
             {
-                phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId.Value));
+                phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId.Value, holdShort.TargetName));
 
                 while (!route.IsComplete)
                 {
