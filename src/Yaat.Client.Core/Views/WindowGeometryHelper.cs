@@ -44,41 +44,32 @@ public sealed class WindowGeometryHelper
         _nativeMenuHelper = new WindowNativeMenuHelper(window, this, preferences, windowName);
     }
 
+    /// <summary>
+    /// Identifier passed to <see cref="UserPreferences.GetWindowGeometry"/> when restoring this window
+    /// and used as the key under which a window-layout profile records / matches this window's geometry.
+    /// </summary>
+    public string WindowName => _windowName;
+
+    /// <summary>
+    /// Snapshot of all currently-live helpers. Returned as an array so callers
+    /// can iterate without holding the registry lock or risking a concurrent
+    /// add/remove during enumeration.
+    /// </summary>
+    public static IReadOnlyList<WindowGeometryHelper> GetActiveHelpers()
+    {
+        lock (RegistryLock)
+        {
+            return ActiveHelpers.ToArray();
+        }
+    }
+
     public void Restore()
     {
         var geo = _preferences.GetWindowGeometry(_windowName);
 
         if (geo is not null && geo.Width > 0 && geo.Height > 0)
         {
-            var screens = _window.Screens.All;
-            if (screens.Count > 0)
-            {
-                var targetScreen = GetTargetScreen(screens, geo);
-                var workArea = targetScreen.WorkingArea;
-
-                var width = Math.Min(geo.Width, workArea.Width);
-                var height = Math.Min(geo.Height, workArea.Height);
-
-                var x = Clamp(geo.X, workArea.X, workArea.Right - (int)width);
-                var y = Clamp(geo.Y, workArea.Y, workArea.Bottom - (int)height);
-
-                _window.WindowStartupLocation = WindowStartupLocation.Manual;
-                _window.Width = width;
-                _window.Height = height;
-                _window.Position = new PixelPoint(x, y);
-
-                if (geo.IsMaximized)
-                {
-                    _window.WindowState = WindowState.Maximized;
-                }
-            }
-            else
-            {
-                _window.Width = geo.Width;
-                _window.Height = geo.Height;
-            }
-
-            _window.Topmost = geo.IsTopmost;
+            ApplyGeometryToWindow(geo, isStartupRestore: true);
         }
         else
         {
@@ -111,6 +102,64 @@ public sealed class WindowGeometryHelper
     public void FlushSavedGeometry()
     {
         SaveCurrentGeometry();
+    }
+
+    /// <summary>
+    /// Pushes a previously-saved geometry onto the live window (used when
+    /// applying a window-layout profile). Differs from <see cref="Restore"/>
+    /// in that it operates on a window that is already showing, so it must
+    /// also un-maximize / re-maximize and reposition relative to the current
+    /// screen layout. The given geometry is clamped to a real screen so a
+    /// profile captured on a multi-monitor box still lands on-screen when
+    /// applied on a single-monitor box.
+    /// </summary>
+    public void ApplyGeometry(SavedWindowGeometry geometry)
+    {
+        if (geometry.Width <= 0 || geometry.Height <= 0)
+        {
+            return;
+        }
+        ApplyGeometryToWindow(geometry, isStartupRestore: false);
+        _lastNormalGeometry = CaptureCurrentGeometry();
+    }
+
+    private void ApplyGeometryToWindow(SavedWindowGeometry geo, bool isStartupRestore)
+    {
+        var screens = _window.Screens.All;
+        if (screens.Count > 0)
+        {
+            var targetScreen = GetTargetScreen(screens, geo);
+            var workArea = targetScreen.WorkingArea;
+
+            var width = Math.Min(geo.Width, workArea.Width);
+            var height = Math.Min(geo.Height, workArea.Height);
+
+            var x = Clamp(geo.X, workArea.X, workArea.Right - (int)width);
+            var y = Clamp(geo.Y, workArea.Y, workArea.Bottom - (int)height);
+
+            if (isStartupRestore)
+            {
+                _window.WindowStartupLocation = WindowStartupLocation.Manual;
+            }
+            else if (_window.WindowState == WindowState.Maximized && !geo.IsMaximized)
+            {
+                // Cannot resize/reposition while maximized — drop to Normal first.
+                _window.WindowState = WindowState.Normal;
+            }
+
+            _window.Width = width;
+            _window.Height = height;
+            _window.Position = new PixelPoint(x, y);
+
+            _window.WindowState = geo.IsMaximized ? WindowState.Maximized : WindowState.Normal;
+        }
+        else
+        {
+            _window.Width = geo.Width;
+            _window.Height = geo.Height;
+        }
+
+        _window.Topmost = geo.IsTopmost;
     }
 
     /// <summary>

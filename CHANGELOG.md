@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `View → Window Profiles` saves and restores named window arrangements (geometry, dock/pop-out state, DataGrid columns) — quick switch between GC/LC layouts.
+
 ## v0.2.5-alpha [2026/05/16]
 
 ### Highlights

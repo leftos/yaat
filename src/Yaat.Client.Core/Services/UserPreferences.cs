@@ -159,6 +159,101 @@ public sealed class UserPreferences
         };
     }
 
+    /// <summary>
+    /// User-managed window-layout profiles. Restored on demand via the
+    /// View → Window Profiles menu; the list is not auto-applied at startup.
+    /// Ordered as the user last sorted them (by-name for now; insertion order otherwise).
+    /// </summary>
+    public IReadOnlyList<SavedWindowProfile> WindowProfiles => _data.WindowProfiles;
+
+    /// <summary>
+    /// Adds a new profile, or replaces an existing one with the same name (case-insensitive).
+    /// Sorts by name afterwards so the menu order is stable.
+    /// </summary>
+    public void SaveWindowProfile(SavedWindowProfile profile)
+    {
+        var name = profile.Name.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            return;
+        }
+
+        profile.Name = name;
+        var existingIndex = _data.WindowProfiles.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existingIndex >= 0)
+        {
+            // Preserve CreatedUtc across overwrites; only bump ModifiedUtc.
+            profile.CreatedUtc = _data.WindowProfiles[existingIndex].CreatedUtc;
+            profile.ModifiedUtc = DateTime.UtcNow;
+            _data.WindowProfiles[existingIndex] = profile;
+        }
+        else
+        {
+            if (profile.CreatedUtc == default)
+            {
+                profile.CreatedUtc = DateTime.UtcNow;
+            }
+            profile.ModifiedUtc = DateTime.UtcNow;
+            _data.WindowProfiles.Add(profile);
+        }
+
+        _data.WindowProfiles.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        Save();
+        RaiseWindowProfilesChanged();
+    }
+
+    public void DeleteWindowProfile(string name)
+    {
+        var removed = _data.WindowProfiles.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (removed > 0)
+        {
+            Save();
+            RaiseWindowProfilesChanged();
+        }
+    }
+
+    /// <summary>Returns true on rename, false when oldName not found or newName collides with another profile.</summary>
+    public bool RenameWindowProfile(string oldName, string newName)
+    {
+        var trimmed = newName.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return false;
+        }
+
+        var existing = _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(oldName, trimmed, StringComparison.OrdinalIgnoreCase))
+        {
+            // Collision: a different profile already uses the target name.
+            var collision = _data.WindowProfiles.Any(p => p != existing && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+            if (collision)
+            {
+                return false;
+            }
+        }
+
+        existing.Name = trimmed;
+        existing.ModifiedUtc = DateTime.UtcNow;
+        _data.WindowProfiles.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        Save();
+        RaiseWindowProfilesChanged();
+        return true;
+    }
+
+    public SavedWindowProfile? GetWindowProfile(string name) =>
+        _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Raised after the WindowProfiles collection changes (add/delete/rename) so the View menu can re-populate.</summary>
+    public event Action? WindowProfilesChanged;
+
+    /// <summary>Called by the public mutators above after Save(). Lets MainWindow refresh its menu.</summary>
+    private void RaiseWindowProfilesChanged() => WindowProfilesChanged?.Invoke();
+
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
     public int FavoritePanelColumns => Math.Clamp(_data.FavoritePanelColumns, 1, 20);
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
@@ -902,6 +997,7 @@ public sealed class UserPreferences
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
+            WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
@@ -1132,6 +1228,7 @@ public sealed class UserPreferences
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
         public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
+        public List<SavedWindowProfile> WindowProfiles { get; set; } = [];
         public bool ShowOnlyActiveAircraft { get; set; }
         public bool ShowTimelineBar { get; set; }
         public string? LastScenarioFolder { get; set; }
@@ -1262,6 +1359,36 @@ public sealed class SavedGridLayout
     public ListSortDirection? SortDirection { get; set; }
     public Dictionary<string, double>? ColumnWidths { get; set; }
     public List<string>? HiddenColumns { get; set; }
+}
+
+/// <summary>
+/// A named snapshot of the entire window arrangement (positions, sizes,
+/// pop-out / dock state, and DataGrid columns). Restored on demand from the
+/// View → Window Profiles menu so the user can switch quickly between layouts
+/// tuned for different roles (e.g. GC vs LC).
+/// </summary>
+public sealed class SavedWindowProfile
+{
+    public string Name { get; set; } = "";
+    public DateTime CreatedUtc { get; set; }
+    public DateTime ModifiedUtc { get; set; }
+
+    /// <summary>
+    /// Per-window outer geometry keyed by the same name <see cref="WindowGeometryHelper"/>
+    /// uses (e.g. "Main", "GroundView", "VStripsView:KSFO_TWR"). Keys whose windows are
+    /// not open at apply time get written into the per-window preferences so the next
+    /// time that window opens it picks up the profile's geometry.
+    /// </summary>
+    public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
+
+    /// <summary>True when the Terminal is docked inside the main window at capture time.</summary>
+    public bool IsTerminalDocked { get; set; } = true;
+    public bool IsDataGridPoppedOut { get; set; }
+    public bool IsGroundViewPoppedOut { get; set; }
+    public bool IsRadarViewPoppedOut { get; set; }
+
+    /// <summary>DataGrid column order / widths / sort / hidden columns at capture time.</summary>
+    public SavedGridLayout? DataGridLayout { get; set; }
 }
 
 public sealed class RecentScenario

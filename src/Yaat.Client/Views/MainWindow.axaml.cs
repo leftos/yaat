@@ -25,6 +25,7 @@ namespace Yaat.Client.Views;
 public partial class MainWindow : Window
 {
     private readonly WindowGeometryHelper _geometryHelper;
+    private readonly WindowProfileService _windowProfileService;
     private TerminalWindow? _terminalWindow;
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
@@ -56,6 +57,8 @@ public partial class MainWindow : Window
         _geometryHelper.Restore();
         _geometryHelper.SetBaseTitle(vm.WindowTitle);
         vm.PropertyChanged += OnMainWindowTitleChanged;
+
+        _windowProfileService = new WindowProfileService(vm.Preferences);
 
         var settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
         if (settingsItem is not null)
@@ -147,6 +150,13 @@ public partial class MainWindow : Window
         if (copyViewItem is not null)
         {
             copyViewItem.SubmenuOpened += OnCopyViewSettingsSubmenuOpened;
+        }
+
+        var windowProfilesItem = this.FindControl<MenuItem>("WindowProfilesMenuItem");
+        if (windowProfilesItem is not null)
+        {
+            PopulateWindowProfilesMenu(windowProfilesItem, vm);
+            vm.Preferences.WindowProfilesChanged += () => PopulateWindowProfilesMenu(windowProfilesItem, vm);
         }
 
         var favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
@@ -1475,6 +1485,159 @@ public partial class MainWindow : Window
         }
 
         PopulateRecentScenarios(menu, vm);
+    }
+
+    private void PopulateWindowProfilesMenu(MenuItem menu, MainViewModel vm)
+    {
+        menu.Items.Clear();
+
+        var saveItem = new MenuItem { Header = "Save Current as Profile..." };
+        saveItem.Click += async (_, _) => await OnSaveCurrentWindowProfileAsync(vm);
+        menu.Items.Add(saveItem);
+
+        var manageItem = new MenuItem { Header = "Manage Profiles..." };
+        manageItem.Click += async (_, _) => await OnManageWindowProfilesAsync(vm);
+        menu.Items.Add(manageItem);
+
+        var profiles = vm.Preferences.WindowProfiles;
+        if (profiles.Count == 0)
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(new MenuItem { Header = "(No saved profiles)", IsEnabled = false });
+            return;
+        }
+
+        menu.Items.Add(new Separator());
+        foreach (var profile in profiles)
+        {
+            var item = new MenuItem { Header = profile.Name, Tag = profile.Name };
+            item.Click += async (_, e) =>
+            {
+                if (e.Source is MenuItem clicked && clicked.Tag is string name)
+                {
+                    await ApplyWindowProfileByNameAsync(vm, name);
+                }
+            };
+            menu.Items.Add(item);
+        }
+    }
+
+    private async System.Threading.Tasks.Task OnSaveCurrentWindowProfileAsync(MainViewModel vm)
+    {
+        var existing = vm.Preferences.WindowProfiles.Select(p => p.Name);
+        var dlg = new SaveWindowProfileDialog(existing, null);
+        await dlg.ShowDialog(this);
+
+        if (string.IsNullOrWhiteSpace(dlg.ProfileName))
+        {
+            return;
+        }
+
+        var profile = _windowProfileService.CaptureCurrent(dlg.ProfileName, vm);
+        vm.Preferences.SaveWindowProfile(profile);
+        vm.StatusText = $"Saved window profile \"{profile.Name}\"";
+    }
+
+    private async System.Threading.Tasks.Task OnManageWindowProfilesAsync(MainViewModel vm)
+    {
+        var dlg = new ManageWindowProfilesDialog(vm.Preferences);
+        await dlg.ShowDialog(this);
+
+        switch (dlg.Action)
+        {
+            case ManageWindowProfilesAction.Apply when dlg.SelectedProfileName is { } name:
+                await ApplyWindowProfileByNameAsync(vm, name);
+                break;
+            case ManageWindowProfilesAction.UpdateFromCurrent when dlg.SelectedProfileName is { } name:
+                var refreshed = _windowProfileService.CaptureCurrent(name, vm);
+                vm.Preferences.SaveWindowProfile(refreshed);
+                vm.StatusText = $"Updated window profile \"{name}\" from current arrangement";
+                break;
+        }
+    }
+
+    private async System.Threading.Tasks.Task ApplyWindowProfileByNameAsync(MainViewModel vm, string name)
+    {
+        var profile = vm.Preferences.GetWindowProfile(name);
+        if (profile is null)
+        {
+            vm.StatusText = $"Window profile \"{name}\" not found";
+            return;
+        }
+
+        _windowProfileService.StagePreferences(profile);
+
+        // Flip the pop-out toggles. The OnIs*PoppedOutChanged handlers on
+        // MainViewModel + OnViewModelPropertyChanged here will create or
+        // destroy the corresponding pop-out windows. New windows read the
+        // freshly-staged geometry preferences on construction.
+        vm.IsTerminalDocked = profile.IsTerminalDocked;
+        vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
+        vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
+        vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+
+        // Defer geometry push and grid-layout apply so any windows that were
+        // just opened by the toggle flips above have actually entered the
+        // ActiveHelpers registry. Without the Post, the helpers list still
+        // reflects pre-flip state.
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
+            {
+                if (profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                {
+                    helper.ApplyGeometry(geo);
+                }
+            }
+
+            if (profile.DataGridLayout is not null)
+            {
+                ApplyGridLayoutToLiveGrids(vm);
+            }
+        });
+
+        vm.StatusText = $"Applied window profile \"{name}\"";
+    }
+
+    /// <summary>
+    /// Re-runs the column-restore path on whichever DataGrid instances are
+    /// currently materialized. Both the embedded grid (always present) and
+    /// the popped-out grid (present when DataGridWindow is open) share their
+    /// column-key set; resetting then re-restoring keeps both consistent so a
+    /// later pop-out toggle doesn't flash the previous layout.
+    /// </summary>
+    private void ApplyGridLayoutToLiveGrids(MainViewModel vm)
+    {
+        var embedded = this.FindControl<DataGridView>("EmbeddedDataGridView")?.GetDataGrid();
+        if (embedded is not null)
+        {
+            ResetGridVisibility(embedded);
+            RestoreGridLayout(embedded, vm.Preferences);
+        }
+
+        var popOut = _dataGridWindow?.FindControl<DataGridView>("PopOutDataGridView")?.GetDataGrid();
+        if (popOut is not null)
+        {
+            ResetGridVisibility(popOut);
+            RestoreGridLayout(popOut, vm.Preferences);
+        }
+    }
+
+    private void ResetGridVisibility(DataGrid grid)
+    {
+        _restoringGrid = true;
+        try
+        {
+            foreach (var col in grid.Columns)
+            {
+                col.IsVisible = true;
+                col.Width = DataGridLength.Auto;
+            }
+        }
+        finally
+        {
+            _restoringGrid = false;
+        }
     }
 
     private void PopulateRecentScenarios(MenuItem menu, MainViewModel vm)

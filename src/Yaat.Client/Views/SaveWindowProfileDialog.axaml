@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.SaveWindowProfileDialog"
+        Title="Save Window Profile"
+        Width="380"
+        Height="170"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="Manual">
+    <Grid Margin="16"
+          RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Grid.Row="0"
+                   Text="Profile name"
+                   Margin="0,0,0,4" />
+        <TextBox Grid.Row="1"
+                 x:Name="NameTextBox"
+                 Margin="0,0,0,8" />
+        <TextBlock Grid.Row="2"
+                   x:Name="StatusText"
+                   Foreground="#FFB85C5C"
+                   IsVisible="False"
+                   TextWrapping="Wrap" />
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button x:Name="OkButton"
+                    Content="Save"
+                    Width="80"
+                    Margin="0,0,8,0"
+                    IsDefault="True" />
+            <Button x:Name="CancelButton"
+                    Content="Cancel"
+                    Width="80"
+                    IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>
