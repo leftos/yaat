@@ -26,6 +26,9 @@
 ### Fixed
 - `MLT 28L` (or `MRT 28R`) issued mid-pattern after a touch-and-go on the other runway no longer leaves the aircraft turning toward the old pattern side. The handler now rebuilds the chain from the current leg with the new direction, and inserts a midfield crossing when the aircraft ends up on the wrong physical side of the new runway — matches what `ELD 28L` would have done.
 
+### Fixed
+- Touch-and-go aircraft now roll on the runway for a realistic 6-10 s before lifting off again, instead of bouncing back into the air after only a couple of seconds. Stop-and-go aircraft pause at full stop a bit longer too (#8).
+
 ## v0.2.5-alpha [2026/05/16]
 
 ### Highlights

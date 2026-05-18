@@ -383,29 +383,36 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Touch-and-go rollout duration (seconds). Helicopter: brief hover transition.</summary>
+    /// <summary>
+    /// Touch-and-go rollout duration (seconds). The pilot reduces flaps, retrims and
+    /// applies takeoff power during this window; reacceleration to Vr begins after.
+    /// Helicopter: brief hover transition.
+    /// </summary>
     public static double TouchAndGoRolloutSeconds(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 4.0,
-            AircraftCategory.Turboprop => 4.0,
-            AircraftCategory.Piston => 3.0,
+            AircraftCategory.Jet => 10.0,
+            AircraftCategory.Turboprop => 8.0,
+            AircraftCategory.Piston => 6.0,
             AircraftCategory.Helicopter => 3.0,
-            _ => 4.0,
+            _ => 10.0,
         };
     }
 
-    /// <summary>Stop-and-go pause duration at zero speed (seconds). Helicopter: hover pause.</summary>
+    /// <summary>
+    /// Stop-and-go pause duration at zero speed (seconds). Models the brief hold
+    /// at full stop before throttling up for the next takeoff. Helicopter: hover pause.
+    /// </summary>
     public static double StopAndGoPauseSeconds(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 5.0,
-            AircraftCategory.Turboprop => 4.0,
-            AircraftCategory.Piston => 3.0,
+            AircraftCategory.Jet => 10.0,
+            AircraftCategory.Turboprop => 7.0,
+            AircraftCategory.Piston => 5.0,
             AircraftCategory.Helicopter => 3.0,
-            _ => 5.0,
+            _ => 10.0,
         };
     }
 

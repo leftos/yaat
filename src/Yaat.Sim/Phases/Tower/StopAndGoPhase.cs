@@ -6,7 +6,7 @@ namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
 /// Stop-and-go: full stop on runway, brief pause, then takeoff from zero.
-/// Pause duration is category-dependent (Jet 5s, Turboprop 4s, Piston 3s).
+/// Pause duration is category-dependent (Jet 10s, Turboprop 7s, Piston 5s).
 /// After pause, same takeoff profile as normal (GroundAccelRate to Vr, liftoff).
 /// Completes at 400ft AGL.
 /// </summary>

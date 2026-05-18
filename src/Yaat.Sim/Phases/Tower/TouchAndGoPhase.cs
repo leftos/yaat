@@ -6,7 +6,7 @@ namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
 /// Touch-and-go: brief rollout after touchdown, then reaccelerate and take off.
-/// Rollout duration is category-dependent (Jet 4s, Turboprop 4s, Piston 3s).
+/// Rollout duration is category-dependent (Jet 10s, Turboprop 8s, Piston 6s).
 /// After rollout, reaccelerates using GroundAccelRate to Vr, then lifts off.
 /// Completes at 400ft AGL (same as TakeoffPhase).
 /// </summary>
