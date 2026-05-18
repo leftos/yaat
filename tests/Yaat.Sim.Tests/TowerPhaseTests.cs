@@ -546,6 +546,92 @@ public class TowerPhaseTests
     }
 
     // -------------------------------------------------------------------------
+    // NoLandingClearanceWarningActive — datablock flash state on AircraftState
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void FinalApproach_PublishedMinimums_NoLandingClearance_SetsWarningActive()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        ac.Phases!.Start(ctx);
+
+        Assert.False(ac.NoLandingClearanceWarningActive);
+
+        phase.OnTick(ctx);
+
+        Assert.True(ac.NoLandingClearanceWarningActive);
+    }
+
+    [Fact]
+    public void FinalApproach_NoPublishedMinimums_NoLandingClearance_SetsWarningActiveAt1Nm()
+    {
+        var rwy = DefaultRunway(100);
+        // Position aircraft ~0.5 nm from threshold along the runway centerline (heading 280).
+        // 0.5 nm at 60 nm/deg ≈ 0.0083° latitude.
+        var ac = MakeAircraft(lat: 37.0, lon: -121.99, altitude: 400, onGround: false, ias: 110);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        // Override the anchor lat/lon so the runway is at (37, -122) and the aircraft is east of it.
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        ac.Phases!.Start(ctx);
+
+        Assert.False(ac.NoLandingClearanceWarningActive);
+
+        phase.OnTick(ctx);
+
+        Assert.True(ac.NoLandingClearanceWarningActive);
+    }
+
+    [Fact]
+    public void FinalApproach_LandingClearanceAfterWarning_ClearsWarningActive()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        ac.Phases!.Start(ctx);
+        phase.OnTick(ctx);
+        Assert.True(ac.NoLandingClearanceWarningActive);
+
+        ac.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        ac.Altitude = 800;
+        phase.OnTick(ctx);
+
+        Assert.False(ac.NoLandingClearanceWarningActive);
+    }
+
+    [Fact]
+    public void FinalApproach_GoAroundAtMinimums_ClearsWarningActive()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 595, onGround: false, ias: 140);
+        AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        ac.Phases!.Start(ctx);
+        var phase = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
+
+        phase.OnTick(ctx);
+
+        Assert.IsType<GoAroundPhase>(ac.Phases.CurrentPhase);
+        Assert.False(ac.NoLandingClearanceWarningActive);
+    }
+
+    [Fact]
+    public void AircraftState_NoLandingClearanceWarningActive_RoundTripsSnapshot()
+    {
+        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        ac.NoLandingClearanceWarningActive = true;
+
+        var dto = ac.ToSnapshot();
+        Assert.True(dto.NoLandingClearanceWarningActive);
+
+        var restored = AircraftState.FromSnapshot(dto, groundLayout: null);
+        Assert.True(restored.NoLandingClearanceWarningActive);
+    }
+
+    // -------------------------------------------------------------------------
     // LandingPhase
     // -------------------------------------------------------------------------
 

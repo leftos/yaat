@@ -227,6 +227,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.EuroScopeMode = value;
     }
 
+    public bool FlashNoLandingClearance
+    {
+        get => _targetRenderer.FlashNoLandingClearance;
+        set => _targetRenderer.FlashNoLandingClearance = value;
+    }
+
     public float DatablockTextSize
     {
         get => _targetRenderer.DatablockTextSize;

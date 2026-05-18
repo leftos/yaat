@@ -732,6 +732,7 @@ public sealed class FinalApproachPhase : Phase
                     mapAltitudeFt,
                     distNm
                 );
+                ctx.Aircraft.NoLandingClearanceWarningActive = false;
                 TriggerGoAround(ctx, "no landing clearance at minimums");
                 return false;
             }
@@ -780,10 +781,15 @@ public sealed class FinalApproachPhase : Phase
                     aglForClearance,
                     distNm
                 );
+                ctx.Aircraft.NoLandingClearanceWarningActive = false;
                 TriggerGoAround(ctx, "no landing clearance");
                 return false;
             }
         }
+
+        // Datablock state: flash while the warning has fired and clearance is still missing.
+        // Idempotent — flips off the moment any qualifying clearance is granted.
+        ctx.Aircraft.NoLandingClearanceWarningActive = _noClearanceWarningIssued && !hasLandingClearance;
 
         // Go-around if too high at the MAP to make it down safely
         if ((distNm <= _mapDistNm) && !_tooHighGoAroundChecked && hasLandingClearance)
@@ -800,6 +806,7 @@ public sealed class FinalApproachPhase : Phase
                     mapAlt,
                     distNm
                 );
+                ctx.Aircraft.NoLandingClearanceWarningActive = false;
                 TriggerGoAround(ctx, "too high at missed approach point");
                 return false;
             }

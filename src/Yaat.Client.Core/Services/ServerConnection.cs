@@ -704,7 +704,11 @@ public record AircraftDto(
     // AssignedRunway which holds the aircraft's departure / destination runway —
     // those differ when an aircraft taxis across one runway to reach a different
     // departure runway. Null otherwise.
-    string? CrossingRunwayId = null
+    string? CrossingRunwayId = null,
+    // True while the "approaching final without a landing clearance" warning has fired on
+    // the current final approach and the aircraft still lacks a landing clearance. Drives
+    // the flashing red "NoLndgClnc" datablock line on the radar.
+    bool NoLandingClearanceWarningActive = false
 );
 
 public record LoadScenarioResultDto(

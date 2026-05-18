@@ -215,6 +215,15 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasClearance))]
     private string _landingClearance = "";
 
+    /// <summary>
+    /// True while the "approaching final without a landing clearance" warning is active for
+    /// this aircraft on the current final approach. Drives the flashing red "NoLndgClnc"
+    /// datablock line on the radar. Updated by <c>FinalApproachPhase</c> in the sim — cleared
+    /// when a landing clearance is granted or the aircraft leaves FinalApproach.
+    /// </summary>
+    [ObservableProperty]
+    private bool _noLandingClearanceWarningActive;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ClearanceDisplay))]
     [NotifyPropertyChangedFor(nameof(ClearanceShorthand))]
@@ -658,6 +667,7 @@ public partial class AircraftModel : ObservableObject
             PhaseSequence = dto.PhaseSequence,
             ActivePhaseIndex = dto.ActivePhaseIndex,
             LandingClearance = dto.LandingClearance,
+            NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             ClearedRunway = dto.ClearedRunway,
             PatternDirection = dto.PatternDirection,
             NavigationRoute = dto.NavigationRoute ?? [],
@@ -729,6 +739,7 @@ public partial class AircraftModel : ObservableObject
         PhaseSequence = dto.PhaseSequence;
         ActivePhaseIndex = dto.ActivePhaseIndex;
         LandingClearance = dto.LandingClearance;
+        NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive;
         ClearedRunway = dto.ClearedRunway;
         PatternDirection = dto.PatternDirection;
         NavigationRoute = dto.NavigationRoute ?? [];

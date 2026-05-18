@@ -71,6 +71,13 @@ public sealed class AircraftSnapshotDto
     public bool HasAnnouncedLinedUpReady { get; init; }
 
     /// <summary>
+    /// Final-approach no-landing-clearance warning is currently active for this aircraft —
+    /// drives the flashing <c>NoLndgClnc</c> datablock line on the client. Non-required so
+    /// older snapshots deserialize cleanly with the default <see langword="false"/>.
+    /// </summary>
+    public bool NoLandingClearanceWarningActive { get; init; }
+
+    /// <summary>
     /// Solo-training pilot-originated request awaiting a controller response. Non-required
     /// so older snapshots deserialize with no pending request.
     /// </summary>

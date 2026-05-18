@@ -188,6 +188,15 @@ public class AircraftState
     public bool HasAnnouncedLinedUpReady { get; set; }
 
     /// <summary>
+    /// True while the "approaching final without a landing clearance" warning has fired on
+    /// the current final approach and the aircraft still lacks a landing clearance. Drives
+    /// the flashing red <c>NoLndgClnc</c> datablock line on the client. Written each tick by
+    /// <see cref="Phases.Tower.FinalApproachPhase"/>; cleared when a landing clearance is
+    /// granted or when the phase yields to <c>GoAroundPhase</c>. Snapshot-serialized.
+    /// </summary>
+    public bool NoLandingClearanceWarningActive { get; set; }
+
+    /// <summary>
     /// Latest solo-training pilot-originated request still waiting on controller action.
     /// Snapshot-serialized so replay/export preserves follow-up timing.
     /// </summary>
@@ -256,6 +265,7 @@ public class AircraftState
             HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
             IsClearedIntoBravo = dto.IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
+            NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
             Track = AircraftTrack.FromSnapshot(dto.Track),
             Stars = AircraftStarsState.FromSnapshot(dto.Stars),
@@ -324,6 +334,7 @@ public class AircraftState
             HasLeftStudentFrequency = HasLeftStudentFrequency,
             IsClearedIntoBravo = IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
+            NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),
             Track = Track.ToSnapshot(),
             Stars = Stars.ToSnapshot(),

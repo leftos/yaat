@@ -86,6 +86,13 @@ public sealed class TargetRenderer : IDisposable
     /// <summary>When true, render aircraft tags using the EuroScope-style layout instead of STARS.</summary>
     public bool EuroScopeMode { get; set; }
 
+    /// <summary>
+    /// When true, render a flashing red "NoLndgClnc" line on the datablock for aircraft whose
+    /// <see cref="AircraftModel.NoLandingClearanceWarningActive"/> flag is set. Default true;
+    /// driven by the <c>FlashNoLandingClearance</c> user preference.
+    /// </summary>
+    public bool FlashNoLandingClearance { get; set; } = true;
+
     /// <summary>Datablock text size in pixels. Updated from UserPreferences via RadarView.SyncAssignmentTint.</summary>
     public float DatablockTextSize
     {
@@ -250,7 +257,7 @@ public sealed class TargetRenderer : IDisposable
         }
         else
         {
-            var layout = RadarDatablockLayout.Compute(ac, blockX, blockY, _dataBlockPaint);
+            var layout = RadarDatablockLayout.Compute(ac, blockX, blockY, _dataBlockPaint, FlashNoLandingClearance);
 
             if (isSelected)
             {
@@ -276,6 +283,15 @@ public sealed class TargetRenderer : IDisposable
                 float modeCBaseline = layout.TextY + row * layout.LineHeight;
                 canvas.DrawText(layout.Line4, layout.TextX, modeCBaseline, _dataBlockPaint);
                 DrawStrikethrough(canvas, layout.TextX, modeCBaseline, layout.Line4, _dataBlockPaint, color);
+                row++;
+            }
+
+            if (layout.Line5.Length > 0)
+            {
+                var prev = _dataBlockPaint.Color;
+                _dataBlockPaint.Color = SKColors.Red;
+                canvas.DrawText(layout.Line5, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+                _dataBlockPaint.Color = prev;
             }
         }
     }
@@ -298,7 +314,7 @@ public sealed class TargetRenderer : IDisposable
 
     private void DrawEuroScopeBlock(SKCanvas canvas, float cx, float cy, float blockX, float blockY, AircraftModel ac, SKColor color, bool isSelected)
     {
-        var result = EuroScopeTagLayout.Layout(ac, blockX, blockY, _dataBlockPaint, LocalUserInitials);
+        var result = EuroScopeTagLayout.Layout(ac, blockX, blockY, _dataBlockPaint, LocalUserInitials, FlashNoLandingClearance);
         _lastEuroScopeTags[ac.Callsign] = result;
 
         if (isSelected)
@@ -312,6 +328,15 @@ public sealed class TargetRenderer : IDisposable
 
         foreach (var f in result.Fields)
         {
+            if (f.Field == TagFieldId.NoLandingClearance)
+            {
+                var prev = _dataBlockPaint.Color;
+                _dataBlockPaint.Color = SKColors.Red;
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                _dataBlockPaint.Color = prev;
+                continue;
+            }
+
             // Anchor at baseline (= rect.Bottom) so the text aligns with how STARS draws elsewhere.
             canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
             if (f.Field == TagFieldId.ModeC)

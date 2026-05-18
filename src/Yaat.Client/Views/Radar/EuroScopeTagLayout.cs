@@ -25,6 +25,7 @@ public enum TagFieldId
     Squawk,
     Handoff,
     ModeC,
+    NoLandingClearance,
 }
 
 /// <summary>One field's text and its bounding rect in canvas coordinates.</summary>
@@ -48,7 +49,14 @@ public static class EuroScopeTagLayout
     private const float FieldGap = 6f;
     private const float Padding = 3f;
 
-    public static EuroScopeTagResult Layout(AircraftModel ac, float originX, float originY, SKPaint paint, string? localUserInitials)
+    public static EuroScopeTagResult Layout(
+        AircraftModel ac,
+        float originX,
+        float originY,
+        SKPaint paint,
+        string? localUserInitials,
+        bool showNoLandingClearance
+    )
     {
         var fields = new List<TagFieldRect>(12);
         float lineH = paint.TextSize + 2;
@@ -157,6 +165,30 @@ public static class EuroScopeTagLayout
             x = AddField(fields, TagFieldId.ModeC, "ModeC", x, yTop, yBot, paint);
             maxWidth = MathF.Max(maxWidth, x - originX);
             lineCount++;
+            lastLineYTop = yTop;
+        }
+
+        // No-landing-clearance warning — same 500 ms flash cadence as the handoff above.
+        // Belt-and-suspenders on auto-CTL — the sim already gates the trigger on
+        // !AutoClearedToLand, but if the toggle flips mid-session before the next push, the
+        // flash stays off.
+        bool noLndgClncActive = showNoLandingClearance && ac.NoLandingClearanceWarningActive && !ac.IsAutoClearedToLand;
+        if (noLndgClncActive)
+        {
+            float yTop = lastLineYTop + lineH;
+            float yBot = yTop + paint.TextSize;
+            // Reserve the line slot in the bounds even when the flash is off-phase so the
+            // tag height doesn't pulse.
+            float reservedWidth = paint.MeasureText(RadarDatablockLayout.NoLandingClearanceText);
+            maxWidth = MathF.Max(maxWidth, reservedWidth);
+            lineCount++;
+
+            bool flashOn = Environment.TickCount64 / 500 % 2 == 0;
+            if (flashOn)
+            {
+                x = originX;
+                AddField(fields, TagFieldId.NoLandingClearance, RadarDatablockLayout.NoLandingClearanceText, x, yTop, yBot, paint);
+            }
         }
 
         var bounds = new SKRect(

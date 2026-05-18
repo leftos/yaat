@@ -348,6 +348,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public bool FlashNoLandingClearance
+    {
+        get => _renderer.FlashNoLandingClearance;
+        set
+        {
+            _renderer.FlashNoLandingClearance = value;
+            MarkDirty();
+        }
+    }
+
     public float DatablockTextSize
     {
         get => _renderer.DatablockTextSize;
@@ -1196,6 +1206,23 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             float w3 = _hitTestPaint.MeasureText(line3);
             textW = MathF.Max(textW, w3);
             lineCount = 3;
+        }
+
+        // ModeC strikethrough line (transponder Standby) — matches the renderer's reserved slot.
+        if (ac.TransponderMode == "Standby")
+        {
+            float w4 = _hitTestPaint.MeasureText("ModeC");
+            textW = MathF.Max(textW, w4);
+            lineCount++;
+        }
+
+        // No-landing-clearance warning slot — always reserved when active so the rect doesn't
+        // pulse with the 500ms flash cadence.
+        if (FlashNoLandingClearance && ac.NoLandingClearanceWarningActive && !ac.IsAutoClearedToLand)
+        {
+            float w5 = _hitTestPaint.MeasureText(RadarDatablockLayout.NoLandingClearanceText);
+            textW = MathF.Max(textW, w5);
+            lineCount++;
         }
 
         return new SKRect(

@@ -133,6 +133,7 @@ public sealed class UserPreferences
     public IReadOnlyList<MacroDefinition> Macros => _macros;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
     public bool EuroScopeMode => _data.EuroScopeMode;
+    public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -549,6 +550,12 @@ public sealed class UserPreferences
     public void SetEuroScopeMode(bool enabled)
     {
         _data.EuroScopeMode = enabled;
+        Save();
+    }
+
+    public void SetFlashNoLandingClearance(bool enabled)
+    {
+        _data.FlashNoLandingClearance = enabled;
         Save();
     }
 
@@ -1038,6 +1045,7 @@ public sealed class UserPreferences
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
+            FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             AutoClearedToLandGnd = GetFieldOr(obj, "autoClearedToLandGnd", true),
             AutoClearedToLandTwr = GetFieldOr(obj, "autoClearedToLandTwr", false),
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
@@ -1271,6 +1279,7 @@ public sealed class UserPreferences
         public List<SavedMacro> Macros { get; set; } = [];
         public bool ValidateDctFixes { get; set; }
         public bool EuroScopeMode { get; set; }
+        public bool FlashNoLandingClearance { get; set; } = true;
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

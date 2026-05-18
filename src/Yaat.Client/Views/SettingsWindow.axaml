@@ -281,6 +281,15 @@
                                        FontSize="11"
                                        Margin="28,0,0,0" />
                         </StackPanel>
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Flash 'NoLndgClnc' on datablock when approaching final without landing clearance"
+                                      IsChecked="{Binding FlashNoLandingClearance}" />
+                            <TextBlock Text="When the aircraft hits the no-landing-clearance warning point (1 nm from threshold, or 1000 ft above minimums on a published approach), a red 'NoLndgClnc' line flashes on the radar datablock until clearance is granted. Default on."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Margin="28,0,0,0" />
+                        </StackPanel>
                         <Separator Margin="0,4" />
                         <TextBlock Text="Ground Display"
                                    FontWeight="SemiBold" />
