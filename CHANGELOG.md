@@ -4,6 +4,7 @@
 
 ### Added
 - `View → Window Profiles` saves and restores named window arrangements (geometry, dock/pop-out state, DataGrid columns) — quick switch between GC/LC layouts.
+- Aircraft List grid has a new `Name` column (next to `Type`) showing human-readable aircraft types — `C172` → "Cessna Skyhawk 172", `B738` → "Boeing 737-800".
 
 ## v0.2.5-alpha [2026/05/16]
 

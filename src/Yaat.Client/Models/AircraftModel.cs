@@ -2,6 +2,8 @@ using System.Collections;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.Models;
 
@@ -25,7 +27,37 @@ public partial class AircraftModel : ObservableObject
     /// flight strips) read <see cref="FiledAircraftType"/> instead.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BaseAircraftType))]
+    [NotifyPropertyChangedFor(nameof(AircraftTypeName))]
     private string _aircraftType = "";
+
+    /// <summary>
+    /// Bare ICAO designator with wake-turbulence prefix and equipment suffix stripped
+    /// (e.g. "H/B763/L" → "B763", "B738/L" → "B738"). Mirrors
+    /// <see cref="Yaat.Sim.AircraftState.BaseAircraftType"/> for the client-side view.
+    /// </summary>
+    public string BaseAircraftType => AircraftState.StripTypePrefix(AircraftType);
+
+    /// <summary>
+    /// Human-readable display name for the bare ICAO designator (e.g. "Cessna Skyhawk 172/Cutlass"
+    /// for C172, "Boeing 737-800" for B738). Looked up via <see cref="FaaAircraftDatabase.Get"/>
+    /// (which handles wake-prefix stripping, equipment-suffix stripping, and sibling-map
+    /// fallback) and then through the curated <see cref="AircraftDisplayNames"/> table seeded
+    /// from FAA ACD. Empty when no entry is found.
+    /// </summary>
+    public string AircraftTypeName
+    {
+        get
+        {
+            var record = FaaAircraftDatabase.Get(AircraftType);
+            if (record is not null && AircraftDisplayNames.TryGet(record.IcaoCode, out var name))
+            {
+                return name;
+            }
+            // No sibling/database hit — fall back to a direct lookup on the bare ICAO.
+            return AircraftDisplayNames.TryGet(BaseAircraftType, out var direct) ? direct : "";
+        }
+    }
 
     /// <summary>
     /// Filed aircraft type — what the flight plan currently records. Read by STARS, ASDE-X,

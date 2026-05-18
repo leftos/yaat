@@ -1,0 +1,8 @@
+source: C:\Users\Leftos\AppData\Local\yaat\cache\faa-acd\faa-acd-2605.json
+source_mtime: 2026-05-14T04:37:50.056742+00:00
+generated_utc: 2026-05-18T02:49:24Z
+row_count: 388
+
+# This JSON is the source of truth for the Aircraft List 'Name' column.
+# Hand-edit entries directly. Re-running tools/refresh-aircraft-display-names.py
+# re-seeds from FAA ACD and overwrites hand edits.

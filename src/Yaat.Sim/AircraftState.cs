@@ -18,7 +18,7 @@ public class AircraftState
     /// Extract ICAO type designator from FAA flight plan format.
     /// "B738" → "B738", "H/B763/L" → "B763", "B738/L" → "B738".
     /// </summary>
-    internal static string StripTypePrefix(string aircraftType)
+    public static string StripTypePrefix(string aircraftType)
     {
         var parts = aircraftType.Split('/');
         if (parts.Length >= 2 && parts[0] is "H" or "J" or "S")
