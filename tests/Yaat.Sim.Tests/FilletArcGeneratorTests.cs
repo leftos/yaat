@@ -497,9 +497,7 @@ public class FilletArcGeneratorTests
 
         Assert.True(stats.OrphansRescued == 0, $"Expected no orphans rescued; got {stats.OrphansRescued}.");
 
-        var rescueEdges = layout
-            .Edges.Where(e => e.FilletProvenance is FilletEdgeProvenance fep && fep.Kind == FilletEdgeKind.RescueOrphan)
-            .ToList();
+        var rescueEdges = layout.Edges.Where(e => e.FilletProvenance is FilletEdgeProvenance fep && fep.Kind == FilletEdgeKind.RescueOrphan).ToList();
         Assert.True(
             rescueEdges.Count == 0,
             $"Expected no rescue-orphan edges; got {rescueEdges.Count}: "

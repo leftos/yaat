@@ -629,8 +629,7 @@ public static class FilletArcGenerator
             int intId = key.IntId;
             bool IsKindAt(IGroundEdge e, FilletEdgeKind kind) =>
                 e.FilletProvenance is FilletEdgeProvenance fp && fp.IntersectionId == intId && fp.Kind == kind;
-            bool IsArcAnchorAt(IGroundEdge e) =>
-                e.FilletProvenance is CornerArcProvenance cap && cap.IntersectionId == intId;
+            bool IsArcAnchorAt(IGroundEdge e) => e.FilletProvenance is CornerArcProvenance cap && cap.IntersectionId == intId;
             var memberIds = members.Select(n => n.Id).ToHashSet();
 
             var visited = new HashSet<int>();
@@ -791,7 +790,6 @@ public static class FilletArcGenerator
 
         return addedTotal;
     }
-
 
     private static bool IsEligibleForFilleting(GroundNode node)
     {
@@ -1269,7 +1267,13 @@ public static class FilletArcGenerator
                     if (prev.Id != splitNodeB.Id)
                     {
                         double finalDist = GeoMath.DistanceNm(prev.Position, splitNodeB.Position);
-                        var finalProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.ArcSplit, edge.TaxiwayName, prev.Id, splitNodeB.Id);
+                        var finalProv = new FilletEdgeProvenance(
+                            ctx.Intersection.Id,
+                            FilletEdgeKind.ArcSplit,
+                            edge.TaxiwayName,
+                            prev.Id,
+                            splitNodeB.Id
+                        );
                         ctx.Layout.Edges.Add(
                             new GroundEdge
                             {
@@ -1292,7 +1296,13 @@ public static class FilletArcGenerator
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
                 {
                     double ptToTanDist = GeoMath.DistanceNm(ptNode.Position, farthest.Node.Position);
-                    var ptProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Passthrough, edge.TaxiwayName, ptNode.Id, farthest.Node.Id);
+                    var ptProv = new FilletEdgeProvenance(
+                        ctx.Intersection.Id,
+                        FilletEdgeKind.Passthrough,
+                        edge.TaxiwayName,
+                        ptNode.Id,
+                        farthest.Node.Id
+                    );
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -1314,7 +1324,13 @@ public static class FilletArcGenerator
                     if (!nearest.Placement.LandsInManualArc)
                     {
                         double shortenDist = GeoMath.DistanceNm(otherNode.Position, nearest.Node.Position);
-                        var shortenProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Shorten, edge.TaxiwayName, otherNode.Id, nearest.Node.Id);
+                        var shortenProv = new FilletEdgeProvenance(
+                            ctx.Intersection.Id,
+                            FilletEdgeKind.Shorten,
+                            edge.TaxiwayName,
+                            otherNode.Id,
+                            nearest.Node.Id
+                        );
                         ctx.Layout.Edges.Add(
                             new GroundEdge
                             {
@@ -1341,7 +1357,13 @@ public static class FilletArcGenerator
                 foreach (var ptNode in farthest.Placement.PassthroughNodes)
                 {
                     double ptToTanDist = GeoMath.DistanceNm(ptNode.Position, farthest.Node.Position);
-                    var ptToTanProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Passthrough, edge.TaxiwayName, ptNode.Id, farthest.Node.Id);
+                    var ptToTanProv = new FilletEdgeProvenance(
+                        ctx.Intersection.Id,
+                        FilletEdgeKind.Passthrough,
+                        edge.TaxiwayName,
+                        ptNode.Id,
+                        farthest.Node.Id
+                    );
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -1353,7 +1375,13 @@ public static class FilletArcGenerator
                         }
                     );
                     double ptToFarDist = GeoMath.DistanceNm(ptNode.Position, farNode.Position);
-                    var ptToFarProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Passthrough, edge.TaxiwayName, ptNode.Id, farNode.Id);
+                    var ptToFarProv = new FilletEdgeProvenance(
+                        ctx.Intersection.Id,
+                        FilletEdgeKind.Passthrough,
+                        edge.TaxiwayName,
+                        ptNode.Id,
+                        farNode.Id
+                    );
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -1378,7 +1406,13 @@ public static class FilletArcGenerator
                         farthest.Node.Id,
                         shortenDist * GeoMath.FeetPerNm
                     );
-                    var stdShortenProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.Shorten, edge.TaxiwayName, farNode.Id, farthest.Node.Id);
+                    var stdShortenProv = new FilletEdgeProvenance(
+                        ctx.Intersection.Id,
+                        FilletEdgeKind.Shorten,
+                        edge.TaxiwayName,
+                        farNode.Id,
+                        farthest.Node.Id
+                    );
                     ctx.Layout.Edges.Add(
                         new GroundEdge
                         {
@@ -1421,7 +1455,13 @@ public static class FilletArcGenerator
                     toTan.Node.Id,
                     segDist * GeoMath.FeetPerNm
                 );
-                var linkProv = new FilletEdgeProvenance(ctx.Intersection.Id, FilletEdgeKind.TangentLink, edge.TaxiwayName, fromTan.Node.Id, toTan.Node.Id);
+                var linkProv = new FilletEdgeProvenance(
+                    ctx.Intersection.Id,
+                    FilletEdgeKind.TangentLink,
+                    edge.TaxiwayName,
+                    fromTan.Node.Id,
+                    toTan.Node.Id
+                );
                 ctx.Layout.Edges.Add(
                     new GroundEdge
                     {
@@ -1969,9 +2009,7 @@ public static class FilletArcGenerator
         var toRemove = new List<GroundEdge>();
 
         foreach (
-            var preserve in layout
-                .Edges.Where(e => e.FilletProvenance is FilletEdgeProvenance fep && fep.Kind == FilletEdgeKind.Preserve)
-                .ToList()
+            var preserve in layout.Edges.Where(e => e.FilletProvenance is FilletEdgeProvenance fep && fep.Kind == FilletEdgeKind.Preserve).ToList()
         )
         {
             int fromId = preserve.Nodes[0].Id;
@@ -2021,7 +2059,12 @@ public static class FilletArcGenerator
 
             if (hasBetweenEdge)
             {
-                Log.LogDebug("Removing redundant preserve edge {Twy}(#{From}↔#{To}) — closer edge exists on the path", preserve.TaxiwayName, fromId, toId);
+                Log.LogDebug(
+                    "Removing redundant preserve edge {Twy}(#{From}↔#{To}) — closer edge exists on the path",
+                    preserve.TaxiwayName,
+                    fromId,
+                    toId
+                );
                 toRemove.Add(preserve);
                 removed++;
             }
@@ -2614,11 +2657,7 @@ public static class FilletArcGenerator
             var nextNode = continuation!.OtherNode(currentNode);
             if (!visited.Add(nextNode.Id))
             {
-                Log.LogDebug(
-                    "WalkTaxiway: cycle detected on {Twy} at #{Node} (revisit) — terminating walk",
-                    startEdge.TaxiwayName,
-                    nextNode.Id
-                );
+                Log.LogDebug("WalkTaxiway: cycle detected on {Twy} at #{Node} (revisit) — terminating walk", startEdge.TaxiwayName, nextNode.Id);
                 break;
             }
             double edgeFt = GeoMath.DistanceNm(currentNode.Position, nextNode.Position) * GeoMath.FeetPerNm;

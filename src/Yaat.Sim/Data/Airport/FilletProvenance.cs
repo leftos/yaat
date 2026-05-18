@@ -29,8 +29,7 @@ public sealed record CornerArcProvenance(int IntersectionId, string TaxiwayA, st
     /// Order-independent taxiway-pair key (alphabetic-sorted) so edge-A/edge-B order
     /// doesn't matter when grouping arcs by physical corner.
     /// </summary>
-    public string NormalizedTaxiwayKey =>
-        string.CompareOrdinal(TaxiwayA, TaxiwayB) <= 0 ? $"{TaxiwayA}/{TaxiwayB}" : $"{TaxiwayB}/{TaxiwayA}";
+    public string NormalizedTaxiwayKey => string.CompareOrdinal(TaxiwayA, TaxiwayB) <= 0 ? $"{TaxiwayA}/{TaxiwayB}" : $"{TaxiwayB}/{TaxiwayA}";
 }
 
 /// <summary>The kind of edge produced by a fillet-pipeline phase.</summary>
@@ -65,13 +64,8 @@ public enum FilletEdgeKind
 }
 
 /// <summary>Edge or arc-side connection produced by a fillet pipeline phase.</summary>
-public sealed record FilletEdgeProvenance(
-    int IntersectionId,
-    FilletEdgeKind Kind,
-    string Taxiway,
-    int? FromNodeId = null,
-    int? ToNodeId = null
-) : FilletProvenance
+public sealed record FilletEdgeProvenance(int IntersectionId, FilletEdgeKind Kind, string Taxiway, int? FromNodeId = null, int? ToNodeId = null)
+    : FilletProvenance
 {
     public override string DisplayString
     {
@@ -94,9 +88,7 @@ public sealed record FilletEdgeProvenance(
             string suffix = (FromNodeId is { } from && ToNodeId is { } to) ? $" #{from}↔#{to}" : "";
 
             // RescueOrphan has no intersection context — it operates globally.
-            return Kind == FilletEdgeKind.RescueOrphan
-                ? $"Fillet:{label}{suffix}"
-                : $"Fillet:{label}@{IntersectionId} {Taxiway}{suffix}";
+            return Kind == FilletEdgeKind.RescueOrphan ? $"Fillet:{label}{suffix}" : $"Fillet:{label}@{IntersectionId} {Taxiway}{suffix}";
         }
     }
 }
