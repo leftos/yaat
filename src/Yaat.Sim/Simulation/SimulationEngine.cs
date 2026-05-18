@@ -159,6 +159,7 @@ public sealed class SimulationEngine
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
             Scenario.SoloArrivalGeneratorRatePercent = scenarioDto.SoloArrivalGeneratorRatePercent;
+            Scenario.SoloGoAroundProbabilityPercent = ScenarioPacing.ClampGoAroundProbabilityPercent(scenarioDto.SoloGoAroundProbabilityPercent);
             Scenario.HasSoloParkingInitialCallupSource = scenarioDto.HasSoloParkingInitialCallupSource;
             Scenario.HasSoloArrivalGeneratorSource = scenarioDto.HasSoloArrivalGeneratorSource;
             Scenario.NextSoloParkingInitialCallupSlotSeconds = scenarioDto.NextSoloParkingInitialCallupSlotSeconds;
@@ -1576,6 +1577,8 @@ public sealed class SimulationEngine
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
             ScenarioId = Scenario?.ScenarioId,
             SoloParkingInitialCallupRatePercent = Scenario?.SoloParkingInitialCallupRatePercent ?? 100,
+            SoloGoAroundProbabilityPercent = Scenario?.SoloGoAroundProbabilityPercent ?? 0,
+            Rng = World.Rng,
             TryReserveSoloParkingInitialCallupSlot = TryReserveSoloParkingInitialCallupSlot,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
             StudentPositionType = Scenario?.StudentPositionType,
@@ -1748,7 +1751,12 @@ public sealed class SimulationEngine
         return ScenarioPacing.TryReserveParkingInitialCallupSlot(scenario, nowSeconds);
     }
 
-    public void ApplySoloPacingRates(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent, bool rescheduleFromNow)
+    public void ApplySoloPacingRates(
+        int parkingInitialCallupRatePercent,
+        int arrivalGeneratorRatePercent,
+        int goAroundProbabilityPercent,
+        bool rescheduleFromNow
+    )
     {
         var scenario = Scenario;
         if (scenario is null)
@@ -1765,6 +1773,7 @@ public sealed class SimulationEngine
 
         scenario.SoloParkingInitialCallupRatePercent = newParkingRate;
         scenario.SoloArrivalGeneratorRatePercent = newArrivalRate;
+        scenario.SoloGoAroundProbabilityPercent = ScenarioPacing.ClampGoAroundProbabilityPercent(goAroundProbabilityPercent);
 
         if (rescheduleFromNow && parkingChanged)
         {
@@ -2373,13 +2382,34 @@ public sealed class SimulationEngine
             case "SoloParkingInitialCallupRatePercent":
                 if (int.TryParse(setting.Value, out var parkingRate))
                 {
-                    ApplySoloPacingRates(parkingRate, scenario.SoloArrivalGeneratorRatePercent, rescheduleFromNow: setting.ElapsedSeconds > 0);
+                    ApplySoloPacingRates(
+                        parkingRate,
+                        scenario.SoloArrivalGeneratorRatePercent,
+                        scenario.SoloGoAroundProbabilityPercent,
+                        rescheduleFromNow: setting.ElapsedSeconds > 0
+                    );
                 }
                 break;
             case "SoloArrivalGeneratorRatePercent":
                 if (int.TryParse(setting.Value, out var arrivalRate))
                 {
-                    ApplySoloPacingRates(scenario.SoloParkingInitialCallupRatePercent, arrivalRate, rescheduleFromNow: setting.ElapsedSeconds > 0);
+                    ApplySoloPacingRates(
+                        scenario.SoloParkingInitialCallupRatePercent,
+                        arrivalRate,
+                        scenario.SoloGoAroundProbabilityPercent,
+                        rescheduleFromNow: setting.ElapsedSeconds > 0
+                    );
+                }
+                break;
+            case "SoloGoAroundProbabilityPercent":
+                if (int.TryParse(setting.Value, out var goAroundPct))
+                {
+                    ApplySoloPacingRates(
+                        scenario.SoloParkingInitialCallupRatePercent,
+                        scenario.SoloArrivalGeneratorRatePercent,
+                        goAroundPct,
+                        rescheduleFromNow: setting.ElapsedSeconds > 0
+                    );
                 }
                 break;
             case "RpoShowPilotSpeech":

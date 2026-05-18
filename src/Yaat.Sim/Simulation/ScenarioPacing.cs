@@ -8,6 +8,8 @@ public static class ScenarioPacing
 
     public static int ClampParkingInitialCallupPercent(int percent) => Math.Clamp(percent, 0, 200);
 
+    public static int ClampGoAroundProbabilityPercent(int percent) => Math.Clamp(percent, 0, 100);
+
     public static int ClampPercent(int percent) => ClampArrivalGeneratorPercent(percent);
 
     public static double EffectiveParkingInitialCallupIntervalSeconds(int ratePercent)

@@ -141,6 +141,7 @@ public sealed class UserPreferences
     public bool SoloTrainingMode => _data.SoloTrainingMode;
     public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 200);
     public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
+    public int SoloGoAroundProbabilityPercent => Math.Clamp(_data.SoloGoAroundProbabilityPercent, 0, 100);
     public bool RpoShowPilotSpeech => _data.RpoShowPilotSpeech;
     public bool RpoPilotSpeechAudibleAlert => _data.RpoPilotSpeechAudibleAlert;
     public bool PilotVoiceEnabled => _data.PilotVoiceEnabled;
@@ -496,6 +497,38 @@ public sealed class UserPreferences
     {
         _data.SoloParkingInitialCallupRatePercent = Math.Clamp(parkingInitialCallupRatePercent, 0, 200);
         _data.SoloArrivalGeneratorRatePercent = Math.Clamp(arrivalGeneratorRatePercent, 0, 100);
+        Save();
+    }
+
+    /// <summary>
+    /// Returns the global default per-approach pilot-go-around probability (0–100).
+    /// Used as the seed for the Scenario Setup dialog when no per-scenario override
+    /// has been saved for the loading scenario id. Same value also pushed mid-session
+    /// via <c>ServerConnection.SetSoloPacingRatesAsync</c> when the operator drags
+    /// the runtime slider.
+    /// </summary>
+    public int GetSoloGoAroundProbability(string? scenarioId)
+    {
+        if (!string.IsNullOrEmpty(scenarioId) && _data.SoloGoAroundProbabilityByScenario.TryGetValue(scenarioId, out var perScenario))
+        {
+            return Math.Clamp(perScenario, 0, 100);
+        }
+        return SoloGoAroundProbabilityPercent;
+    }
+
+    public void SetSoloGoAroundProbabilityGlobal(int percent)
+    {
+        _data.SoloGoAroundProbabilityPercent = Math.Clamp(percent, 0, 100);
+        Save();
+    }
+
+    public void SetSoloGoAroundProbabilityForScenario(string scenarioId, int percent)
+    {
+        if (string.IsNullOrEmpty(scenarioId))
+        {
+            return;
+        }
+        _data.SoloGoAroundProbabilityByScenario[scenarioId] = Math.Clamp(percent, 0, 100);
         Save();
     }
 
@@ -1072,6 +1105,8 @@ public sealed class UserPreferences
             GroundLabelFontSize = GetFieldOr(obj, "groundLabelFontSize", 13),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
             ScenarioCommandHistory = GetFieldOr<Dictionary<string, List<string>>>(obj, "scenarioCommandHistory", []),
+            SoloGoAroundProbabilityPercent = GetFieldOr(obj, "soloGoAroundProbabilityPercent", 0),
+            SoloGoAroundProbabilityByScenario = GetFieldOr<Dictionary<string, int>>(obj, "soloGoAroundProbabilityByScenario", []),
         };
 
         return ApplyDefaultServers(result);
@@ -1244,6 +1279,16 @@ public sealed class UserPreferences
         public bool SoloTrainingMode { get; set; }
         public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
         public int SoloArrivalGeneratorRatePercent { get; set; } = 100;
+
+        // Global default per-approach pilot-go-around probability (0–100). Seeds the
+        // Scenario Setup dialog when no per-scenario override is present. Default 0 =
+        // no random GAs (existing behavior preserved).
+        public int SoloGoAroundProbabilityPercent { get; set; }
+
+        // Per-scenario override of the pilot-go-around probability, keyed by ScenarioId
+        // (same key used by ScenarioCommandHistory). Missing key falls back to the
+        // global default above.
+        public Dictionary<string, int> SoloGoAroundProbabilityByScenario { get; set; } = [];
         public bool RpoShowPilotSpeech { get; set; }
         public bool RpoPilotSpeechAudibleAlert { get; set; }
         public bool PilotVoiceEnabled { get; set; }

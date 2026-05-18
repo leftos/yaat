@@ -108,6 +108,28 @@
                                    Margin="28,0,0,0" />
                     </StackPanel>
                     <StackPanel Spacing="4">
+                        <TextBlock Text="Pilot go-around probability (default)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,2" />
+                        <TextBlock Text="Per-approach chance that AI aircraft in solo training spontaneously go around on final. Set per-scenario in the scenario setup dialog or the session settings flyout; this value seeds new scenarios that have no saved override."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Spacing="12" Margin="12,0,0,0">
+                            <Slider Value="{Binding SoloGoAroundProbabilityPercent}"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    TickFrequency="5"
+                                    Width="240"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding SoloGoAroundProbabilityPercent, StringFormat='{}{0}%'}"
+                                       VerticalAlignment="Center"
+                                       Width="48"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Spacing="4">
                         <CheckBox Content="Auto-accept handoffs to unattended positions"
                                   IsChecked="{Binding AutoAcceptEnabled}" />
                         <StackPanel Spacing="4"

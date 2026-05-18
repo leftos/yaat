@@ -442,6 +442,29 @@
                                    MinWidth="40" />
                     </Grid>
                 </StackPanel>
+                <StackPanel Spacing="8"
+                            IsVisible="{Binding ShowScenarioSetupGoAroundProbability}">
+                    <TextBlock Text="Pilot go-around probability"
+                               Foreground="White" />
+                    <TextBlock Text="Per-approach chance an AI aircraft on final spontaneously goes around. Saved per scenario."
+                               TextWrapping="Wrap"
+                               Foreground="LightGray"
+                               FontSize="11" />
+                    <Grid ColumnDefinitions="*,Auto"
+                          ColumnSpacing="10">
+                        <Slider Grid.Column="0"
+                                Minimum="0"
+                                Maximum="100"
+                                TickFrequency="5"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding ScenarioSetupSoloGoAroundProbabilityPercent}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ScenarioSetupSoloGoAroundProbabilityPercent, StringFormat='{}{0}%'}"
+                                   Foreground="LightGray"
+                                   VerticalAlignment="Center"
+                                   MinWidth="40" />
+                    </Grid>
+                </StackPanel>
             </StackPanel>
             <StackPanel Orientation="Horizontal"
                         Spacing="8"

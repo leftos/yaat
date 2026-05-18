@@ -162,6 +162,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _soloTrainingMode;
 
     [ObservableProperty]
+    private int _soloGoAroundProbabilityPercent;
+
+    [ObservableProperty]
     private bool _rpoShowPilotSpeech;
 
     [ObservableProperty]
@@ -520,6 +523,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
         _autoCrossRunway = _preferences.AutoCrossRunway;
         _soloTrainingMode = _preferences.SoloTrainingMode;
+        _soloGoAroundProbabilityPercent = _preferences.SoloGoAroundProbabilityPercent;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
         _rpoPilotSpeechAudibleAlert = _preferences.RpoPilotSpeechAudibleAlert;
         _pilotVoiceEnabled = _preferences.PilotVoiceEnabled;
@@ -626,6 +630,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetValidateDctFixes(ValidateDctFixes);
         _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);
         _preferences.SetSoloTrainingMode(SoloTrainingMode);
+        _preferences.SetSoloGoAroundProbabilityGlobal(SoloGoAroundProbabilityPercent);
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled);
         _preferences.SetEuroScopeMode(EuroScopeMode);

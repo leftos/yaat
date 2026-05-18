@@ -403,6 +403,20 @@ public sealed class FinalApproachPhase : Phase
             );
             ctx.Aircraft.HasMadeInitialContact = true;
         }
+
+        // Solo-training pilot-decision go-around. Single roll per approach: AI aircraft on
+        // final spontaneously break off the approach with a controller-configurable chance.
+        // Consumes one value from the deterministic RNG stream — replays regenerate the same
+        // outcome because SimulationWorld.Rng state is captured in StateSnapshotDto.
+        if (ctx.SoloTrainingMode && ctx.SoloGoAroundProbabilityPercent > 0 && ctx.Rng is not null)
+        {
+            double roll = ctx.Rng.NextDouble() * 100.0;
+            if (roll < ctx.SoloGoAroundProbabilityPercent)
+            {
+                _goAroundTriggered = true;
+                TriggerGoAround(ctx, "pilot decision");
+            }
+        }
     }
 
     /// <summary>

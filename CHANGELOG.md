@@ -5,6 +5,7 @@
 ### Added
 - `View → Window Profiles` saves and restores named window arrangements (geometry, dock/pop-out state, DataGrid columns) — quick switch between GC/LC layouts.
 - Aircraft List grid has a new `Name` column (next to `Type`) showing human-readable aircraft types — `C172` → "Cessna Skyhawk 172", `B738` → "Boeing 737-800".
+- Solo training: pilot go-around probability slider. Each AI aircraft entering final approach now rolls once against a per-approach percentage (0–100) and spontaneously goes around if the roll succeeds. Set a global default in `Settings → Scenarios`; override per-scenario from the scenario setup dialog (when it appears) or the live session settings flyout (the per-scenario value persists on either path). Defaults to 0% (existing behavior unchanged).
 
 ## v0.2.5-alpha [2026/05/16]
 

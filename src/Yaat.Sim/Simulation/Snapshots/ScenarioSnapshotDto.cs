@@ -26,6 +26,10 @@ public sealed class ScenarioSnapshotDto
 
     public int SoloArrivalGeneratorRatePercent { get; init; } = 100;
 
+    // Optional — defaults to 0 (no random GAs) so older snapshots and bundles preserve
+    // the original behavior where AI pilots never spontaneously go around.
+    public int SoloGoAroundProbabilityPercent { get; init; }
+
     public bool HasSoloParkingInitialCallupSource { get; init; }
 
     public bool HasSoloArrivalGeneratorSource { get; init; }

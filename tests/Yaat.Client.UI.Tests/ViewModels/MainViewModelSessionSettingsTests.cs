@@ -24,6 +24,7 @@ public class MainViewModelSessionSettingsTests
                 SoloTrainingMode: true,
                 SoloParkingInitialCallupRatePercent: 50,
                 SoloArrivalGeneratorRatePercent: 75,
+                SoloGoAroundProbabilityPercent: 0,
                 HasSoloParkingInitialCallupSource: true,
                 HasSoloArrivalGeneratorSource: true,
                 RpoShowPilotSpeech: true
@@ -60,6 +61,7 @@ public class MainViewModelSessionSettingsTests
                 SoloTrainingMode: false,
                 SoloParkingInitialCallupRatePercent: 100,
                 SoloArrivalGeneratorRatePercent: 100,
+                SoloGoAroundProbabilityPercent: 0,
                 HasSoloParkingInitialCallupSource: false,
                 HasSoloArrivalGeneratorSource: false,
                 RpoShowPilotSpeech: false
@@ -86,6 +88,7 @@ public class MainViewModelSessionSettingsTests
                 SoloTrainingMode: false,
                 SoloParkingInitialCallupRatePercent: 100,
                 SoloArrivalGeneratorRatePercent: 100,
+                SoloGoAroundProbabilityPercent: 0,
                 HasSoloParkingInitialCallupSource: false,
                 HasSoloArrivalGeneratorSource: false,
                 RpoShowPilotSpeech: false

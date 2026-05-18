@@ -233,7 +233,8 @@ public class ScenarioDifficultyHelperTests
             AllDifficultiesWithParkingAndArrivalGenerators,
             soloTrainingMode: true,
             parkingInitialCallupRatePercent: 55,
-            arrivalGeneratorRatePercent: 75
+            arrivalGeneratorRatePercent: 75,
+            goAroundProbabilityPercent: 0
         );
 
         Assert.True(plan.RequiresSetup);
@@ -253,7 +254,8 @@ public class ScenarioDifficultyHelperTests
             AllDifficultiesWithParkingAndArrivalGenerators,
             soloTrainingMode: false,
             parkingInitialCallupRatePercent: 55,
-            arrivalGeneratorRatePercent: 75
+            arrivalGeneratorRatePercent: 75,
+            goAroundProbabilityPercent: 0
         );
 
         Assert.True(plan.RequiresSetup);
@@ -270,7 +272,8 @@ public class ScenarioDifficultyHelperTests
             EasyOnlyWithParking,
             soloTrainingMode: true,
             parkingInitialCallupRatePercent: -20,
-            arrivalGeneratorRatePercent: 125
+            arrivalGeneratorRatePercent: 125,
+            goAroundProbabilityPercent: 0
         );
 
         Assert.True(plan.RequiresSetup);
@@ -289,7 +292,8 @@ public class ScenarioDifficultyHelperTests
             EasyOnlyWithArrivalGenerators,
             soloTrainingMode: true,
             parkingInitialCallupRatePercent: 55,
-            arrivalGeneratorRatePercent: 75
+            arrivalGeneratorRatePercent: 75,
+            goAroundProbabilityPercent: 0
         );
 
         Assert.True(plan.RequiresSetup);
@@ -304,7 +308,13 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void ScenarioSetupPlan_SoloModeWithoutParkingOrArrivalGenerators_SkipsSetup()
     {
-        var plan = ScenarioSetupPlan.Create(EasyOnly, soloTrainingMode: true, parkingInitialCallupRatePercent: 55, arrivalGeneratorRatePercent: 75);
+        var plan = ScenarioSetupPlan.Create(
+            EasyOnly,
+            soloTrainingMode: true,
+            parkingInitialCallupRatePercent: 55,
+            arrivalGeneratorRatePercent: 75,
+            goAroundProbabilityPercent: 0
+        );
 
         Assert.False(plan.RequiresSetup);
         Assert.Empty(plan.DifficultyOptions);
@@ -316,7 +326,13 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void ScenarioSetupPlan_NoDifficultyAndInstructorMode_SkipsSetup()
     {
-        var plan = ScenarioSetupPlan.Create(EasyOnly, soloTrainingMode: false, parkingInitialCallupRatePercent: 55, arrivalGeneratorRatePercent: 75);
+        var plan = ScenarioSetupPlan.Create(
+            EasyOnly,
+            soloTrainingMode: false,
+            parkingInitialCallupRatePercent: 55,
+            arrivalGeneratorRatePercent: 75,
+            goAroundProbabilityPercent: 0
+        );
 
         Assert.False(plan.RequiresSetup);
         Assert.Empty(plan.DifficultyOptions);
@@ -382,7 +398,8 @@ public class ScenarioDifficultyHelperTests
             ParkingWithTaxiPreset,
             soloTrainingMode: true,
             parkingInitialCallupRatePercent: 55,
-            arrivalGeneratorRatePercent: 75
+            arrivalGeneratorRatePercent: 75,
+            goAroundProbabilityPercent: 0
         );
 
         Assert.False(plan.ShowParkingInitialCallupRate);

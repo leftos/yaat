@@ -154,6 +154,9 @@ public partial class MainViewModel : ObservableObject
     private int _sessionSoloArrivalGeneratorRatePercent = 100;
 
     [ObservableProperty]
+    private int _sessionSoloGoAroundProbabilityPercent;
+
+    [ObservableProperty]
     private bool _sessionHasSoloParkingInitialCallupSource;
 
     [ObservableProperty]
@@ -162,6 +165,8 @@ public partial class MainViewModel : ObservableObject
     public bool ShowSessionSoloParkingInitialCallupRate => SessionSoloTrainingMode && SessionHasSoloParkingInitialCallupSource;
 
     public bool ShowSessionSoloArrivalGeneratorRate => SessionSoloTrainingMode && SessionHasSoloArrivalGeneratorSource;
+
+    public bool ShowSessionSoloGoAroundProbability => SessionSoloTrainingMode;
 
     [ObservableProperty]
     private bool _sessionRpoShowPilotSpeech;
@@ -267,6 +272,9 @@ public partial class MainViewModel : ObservableObject
     private bool _showScenarioSetupArrivalGeneratorRate;
 
     [ObservableProperty]
+    private bool _showScenarioSetupGoAroundProbability;
+
+    [ObservableProperty]
     private int _scenarioSetupParkingInitialCallupRatePercent = 100;
 
     [ObservableProperty]
@@ -277,6 +285,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private int _scenarioSetupArrivalGeneratorRatePercent = 100;
+
+    [ObservableProperty]
+    private int _scenarioSetupSoloGoAroundProbabilityPercent;
 
     [ObservableProperty]
     private int _selectedDifficultyIndex;
@@ -2240,6 +2251,7 @@ public partial class MainViewModel : ObservableObject
         SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
         SessionSoloParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(dto.SoloParkingInitialCallupRatePercent);
         SessionSoloArrivalGeneratorRatePercent = dto.SoloArrivalGeneratorRatePercent;
+        SessionSoloGoAroundProbabilityPercent = dto.SoloGoAroundProbabilityPercent;
         SessionHasSoloParkingInitialCallupSource = dto.HasSoloParkingInitialCallupSource;
         SessionHasSoloArrivalGeneratorSource = dto.HasSoloArrivalGeneratorSource;
         SessionRpoShowPilotSpeech = dto.RpoShowPilotSpeech;
@@ -2261,6 +2273,7 @@ public partial class MainViewModel : ObservableObject
                 state.SoloTrainingMode,
                 state.SoloParkingInitialCallupRatePercent,
                 state.SoloArrivalGeneratorRatePercent,
+                state.SoloGoAroundProbabilityPercent,
                 state.HasSoloParkingInitialCallupSource,
                 state.HasSoloArrivalGeneratorSource,
                 state.RpoShowPilotSpeech
@@ -2281,6 +2294,7 @@ public partial class MainViewModel : ObservableObject
                 dto.SoloTrainingMode,
                 dto.SoloParkingInitialCallupRatePercent,
                 dto.SoloArrivalGeneratorRatePercent,
+                dto.SoloGoAroundProbabilityPercent,
                 dto.HasSoloParkingInitialCallupSource,
                 dto.HasSoloArrivalGeneratorSource,
                 dto.RpoShowPilotSpeech
@@ -2301,6 +2315,7 @@ public partial class MainViewModel : ObservableObject
                 result.SoloTrainingMode,
                 result.SoloParkingInitialCallupRatePercent,
                 result.SoloArrivalGeneratorRatePercent,
+                result.SoloGoAroundProbabilityPercent,
                 result.HasSoloParkingInitialCallupSource,
                 result.HasSoloArrivalGeneratorSource,
                 result.RpoShowPilotSpeech
@@ -2358,6 +2373,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(WindowTitle));
         OnPropertyChanged(nameof(ShowSessionSoloParkingInitialCallupRate));
         OnPropertyChanged(nameof(ShowSessionSoloArrivalGeneratorRate));
+        OnPropertyChanged(nameof(ShowSessionSoloGoAroundProbability));
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetSoloTrainingModeAsync(value);
@@ -2399,12 +2415,44 @@ public partial class MainViewModel : ObservableObject
 
         _sessionSoloParkingInitialCallupRatePercent = ParkingInitialCallupIntervalSecondsToRate(clamped);
         OnPropertyChanged(nameof(SessionSoloParkingInitialCallupRatePercent));
-        _ = _connection.SetSoloPacingRatesAsync(SessionSoloParkingInitialCallupRatePercent, SessionSoloArrivalGeneratorRatePercent);
+        _ = _connection.SetSoloPacingRatesAsync(
+            SessionSoloParkingInitialCallupRatePercent,
+            SessionSoloArrivalGeneratorRatePercent,
+            SessionSoloGoAroundProbabilityPercent
+        );
     }
 
     partial void OnSessionSoloArrivalGeneratorRatePercentChanged(int value)
     {
         OnSessionSoloPacingRateChanged(value, 0, 100, isParkingRate: false);
+    }
+
+    partial void OnSessionSoloGoAroundProbabilityPercentChanged(int value)
+    {
+        if (_isApplyingSessionSettings)
+        {
+            return;
+        }
+
+        var clamped = Math.Clamp(value, 0, 100);
+        if (clamped != value)
+        {
+            SessionSoloGoAroundProbabilityPercent = clamped;
+            return;
+        }
+
+        _ = _connection.SetSoloPacingRatesAsync(
+            SessionSoloParkingInitialCallupRatePercent,
+            SessionSoloArrivalGeneratorRatePercent,
+            SessionSoloGoAroundProbabilityPercent
+        );
+
+        // Mid-session drag persists per-scenario so the next load of this scenario
+        // seeds with the operator's last value (matches the Scenario Setup confirm path).
+        if (!string.IsNullOrEmpty(ActiveScenarioId))
+        {
+            _preferences.SetSoloGoAroundProbabilityForScenario(ActiveScenarioId, SessionSoloGoAroundProbabilityPercent);
+        }
     }
 
     partial void OnSessionHasSoloParkingInitialCallupSourceChanged(bool value)
@@ -2438,7 +2486,11 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        _ = _connection.SetSoloPacingRatesAsync(SessionSoloParkingInitialCallupRatePercent, SessionSoloArrivalGeneratorRatePercent);
+        _ = _connection.SetSoloPacingRatesAsync(
+            SessionSoloParkingInitialCallupRatePercent,
+            SessionSoloArrivalGeneratorRatePercent,
+            SessionSoloGoAroundProbabilityPercent
+        );
     }
 
     private static int NormalizeParkingInitialCallupIntervalSeconds(int seconds) => seconds <= 0 ? 0 : Math.Clamp(seconds, 10, 120);

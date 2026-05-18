@@ -49,6 +49,22 @@ public sealed class PhaseContext
 
     public int SoloParkingInitialCallupRatePercent { get; init; } = 100;
 
+    /// <summary>
+    /// Per-approach chance (0–100) that an AI aircraft in solo training spontaneously goes
+    /// around on entering <see cref="Tower.FinalApproachPhase"/>. Sourced from
+    /// <c>SimScenarioState.SoloGoAroundProbabilityPercent</c>; gated by
+    /// <see cref="SoloTrainingMode"/>.
+    /// </summary>
+    public int SoloGoAroundProbabilityPercent { get; init; }
+
+    /// <summary>
+    /// Shared deterministic RNG, captured on snapshot for replay fidelity. Phases that
+    /// consume RNG (e.g. <see cref="Tower.FinalApproachPhase"/> solo-training go-around
+    /// roll) must use this instead of <c>new Random()</c> so replays regenerate the
+    /// same outcomes. Null only in tests that don't exercise RNG-dependent code paths.
+    /// </summary>
+    public SerializableRandom? Rng { get; init; }
+
     public Func<double, bool>? TryReserveSoloParkingInitialCallupSlot { get; init; }
 
     /// <summary>

@@ -36,6 +36,13 @@ public sealed class SimScenarioState
 
     public int SoloArrivalGeneratorRatePercent { get; set; } = 100;
 
+    /// <summary>
+    /// Per-approach chance (0–100) that an AI aircraft in solo training will spontaneously
+    /// go around when entering <c>FinalApproachPhase</c>. 0 = never (default, preserves
+    /// existing behavior); 100 = every approach. Single roll on phase entry.
+    /// </summary>
+    public int SoloGoAroundProbabilityPercent { get; set; }
+
     public bool HasSoloParkingInitialCallupSource { get; set; }
 
     public bool HasSoloArrivalGeneratorSource { get; set; }
@@ -124,6 +131,7 @@ public sealed class SimScenarioState
             SoloTrainingMode = SoloTrainingMode,
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,
             SoloArrivalGeneratorRatePercent = SoloArrivalGeneratorRatePercent,
+            SoloGoAroundProbabilityPercent = SoloGoAroundProbabilityPercent,
             HasSoloParkingInitialCallupSource = HasSoloParkingInitialCallupSource,
             HasSoloArrivalGeneratorSource = HasSoloArrivalGeneratorSource,
             NextSoloParkingInitialCallupSlotSeconds = NextSoloParkingInitialCallupSlotSeconds,

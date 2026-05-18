@@ -64,7 +64,8 @@ public partial class MainViewModel
 
             _pendingScenarioSource = null;
             _pendingApiScenarioId = null;
-            await SendScenarioToServer(scenarioJson, apiId, 100, 100);
+            var scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
+            await SendScenarioToServer(scenarioJson, apiId, 100, 100, _preferences.GetSoloGoAroundProbability(scenarioId));
         }
         catch (Exception ex)
         {
@@ -126,11 +127,13 @@ public partial class MainViewModel
                 json = await File.ReadAllTextAsync(ScenarioFilePath);
             }
 
+            var seedScenarioId = ScenarioIdentity.ResolveFromJson(json);
             var setupPlan = ScenarioSetupPlan.Create(
                 json,
                 _preferences.SoloTrainingMode,
                 _preferences.SoloParkingInitialCallupRatePercent,
-                _preferences.SoloArrivalGeneratorRatePercent
+                _preferences.SoloArrivalGeneratorRatePercent,
+                _preferences.GetSoloGoAroundProbability(seedScenarioId)
             );
 
             if (setupPlan.RequiresSetup)
@@ -146,18 +149,20 @@ public partial class MainViewModel
                 ShowScenarioSetupPacingControls = setupPlan.ShowPacingControls;
                 ShowScenarioSetupParkingInitialCallupRate = setupPlan.ShowParkingInitialCallupRate;
                 ShowScenarioSetupArrivalGeneratorRate = setupPlan.ShowArrivalGeneratorRate;
+                ShowScenarioSetupGoAroundProbability = setupPlan.ShowGoAroundProbability;
                 ScenarioSetupParkingInitialCallupRatePercent = setupPlan.ParkingInitialCallupRatePercent;
                 ScenarioSetupParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(
                     setupPlan.ParkingInitialCallupRatePercent
                 );
                 ScenarioSetupArrivalGeneratorRatePercent = setupPlan.ArrivalGeneratorRatePercent;
+                ScenarioSetupSoloGoAroundProbabilityPercent = setupPlan.GoAroundProbabilityPercent;
                 _pendingScenarioJson = json;
                 _pendingDifficultyApiId = apiId;
                 ShowScenarioSetup = true;
                 return;
             }
 
-            await SendScenarioToServer(json, apiId, 100, 100);
+            await SendScenarioToServer(json, apiId, 100, 100, _preferences.GetSoloGoAroundProbability(seedScenarioId));
         }
         catch (Exception ex)
         {
@@ -199,21 +204,28 @@ public partial class MainViewModel
 
         var parkingRate = ParkingInitialCallupIntervalSecondsToRate(ScenarioSetupParkingInitialCallupIntervalSeconds);
         var arrivalRate = Math.Clamp(ScenarioSetupArrivalGeneratorRatePercent, 0, 100);
+        var goAroundProbability = Math.Clamp(ScenarioSetupSoloGoAroundProbabilityPercent, 0, 100);
         var loadParkingRate = ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100;
         var loadArrivalRate = ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100;
+        var loadGoAroundProbability = ShowScenarioSetupGoAroundProbability ? goAroundProbability : 0;
         if (ShowScenarioSetupPacingControls)
         {
             _preferences.SetSoloPacingRates(
                 ShowScenarioSetupParkingInitialCallupRate ? parkingRate : _preferences.SoloParkingInitialCallupRatePercent,
                 ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : _preferences.SoloArrivalGeneratorRatePercent
             );
+            if (ShowScenarioSetupGoAroundProbability)
+            {
+                var scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
+                _preferences.SetSoloGoAroundProbabilityForScenario(scenarioId, goAroundProbability);
+            }
         }
         DifficultyOptions.Clear();
         OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
 
         try
         {
-            await SendScenarioToServer(scenarioJson, apiId, loadParkingRate, loadArrivalRate);
+            await SendScenarioToServer(scenarioJson, apiId, loadParkingRate, loadArrivalRate, loadGoAroundProbability);
         }
         catch (Exception ex)
         {
@@ -233,12 +245,24 @@ public partial class MainViewModel
         ShowScenarioSetupPacingControls = false;
         ShowScenarioSetupParkingInitialCallupRate = false;
         ShowScenarioSetupArrivalGeneratorRate = false;
+        ShowScenarioSetupGoAroundProbability = false;
     }
 
-    private async Task SendScenarioToServer(string json, string? apiId, int soloParkingInitialCallupRatePercent, int soloArrivalGeneratorRatePercent)
+    private async Task SendScenarioToServer(
+        string json,
+        string? apiId,
+        int soloParkingInitialCallupRatePercent,
+        int soloArrivalGeneratorRatePercent,
+        int soloGoAroundProbabilityPercent
+    )
     {
         StashLoadedScenarioJson(json);
-        var result = await _connection.LoadScenarioAsync(json, soloParkingInitialCallupRatePercent, soloArrivalGeneratorRatePercent);
+        var result = await _connection.LoadScenarioAsync(
+            json,
+            soloParkingInitialCallupRatePercent,
+            soloArrivalGeneratorRatePercent,
+            soloGoAroundProbabilityPercent
+        );
 
         if (result.Success)
         {
@@ -469,7 +493,7 @@ public partial class MainViewModel
         PendingDelayedSpawnCount = 0;
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
-        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, false, 100, 100, false, false, false));
+        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, false, 100, 100, 0, false, false, false));
     }
 }
 
@@ -484,8 +508,10 @@ public sealed record ScenarioSetupPlan(
     bool ShowPacingControls,
     bool ShowParkingInitialCallupRate,
     bool ShowArrivalGeneratorRate,
+    bool ShowGoAroundProbability,
     int ParkingInitialCallupRatePercent,
-    int ArrivalGeneratorRatePercent
+    int ArrivalGeneratorRatePercent,
+    int GoAroundProbabilityPercent
 )
 {
     public bool RequiresSetup => DifficultyOptions.Count > 0 || ShowPacingControls;
@@ -494,7 +520,8 @@ public sealed record ScenarioSetupPlan(
         string scenarioJson,
         bool soloTrainingMode,
         int parkingInitialCallupRatePercent,
-        int arrivalGeneratorRatePercent
+        int arrivalGeneratorRatePercent,
+        int goAroundProbabilityPercent
     )
     {
         var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
@@ -510,6 +537,11 @@ public sealed record ScenarioSetupPlan(
 
         var showParkingInitialCallupRate = soloTrainingMode && ScenarioDifficultyHelper.HasParkingSpawns(scenarioJson);
         var showArrivalGeneratorRate = soloTrainingMode && ScenarioDifficultyHelper.HasArrivalGenerators(scenarioJson);
+        // Surface the go-around slider only when the setup dialog is already popping for
+        // another solo reason. Avoids forcing a popup on every solo-mode load — operators
+        // who only want to tweak this can do so via the mid-session settings flyout, which
+        // also persists per-scenario.
+        var showGoAroundProbability = soloTrainingMode && (showParkingInitialCallupRate || showArrivalGeneratorRate);
 
         return new ScenarioSetupPlan(
             options,
@@ -517,8 +549,10 @@ public sealed record ScenarioSetupPlan(
             showParkingInitialCallupRate || showArrivalGeneratorRate,
             showParkingInitialCallupRate,
             showArrivalGeneratorRate,
+            showGoAroundProbability,
             Math.Clamp(parkingInitialCallupRatePercent, 0, 200),
-            Math.Clamp(arrivalGeneratorRatePercent, 0, 100)
+            Math.Clamp(arrivalGeneratorRatePercent, 0, 100),
+            Math.Clamp(goAroundProbabilityPercent, 0, 100)
         );
     }
 }

@@ -229,7 +229,8 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     public async Task<LoadScenarioResultDto> LoadScenarioAsync(
         string scenarioJson,
         int soloParkingInitialCallupRatePercent,
-        int soloArrivalGeneratorRatePercent
+        int soloArrivalGeneratorRatePercent,
+        int soloGoAroundProbabilityPercent
     )
     {
         EnsureConnected();
@@ -239,7 +240,8 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
             "LoadScenario",
             scenarioJson,
             soloParkingInitialCallupRatePercent,
-            soloArrivalGeneratorRatePercent
+            soloArrivalGeneratorRatePercent,
+            soloGoAroundProbabilityPercent
         );
     }
 
@@ -395,10 +397,15 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         await _connection!.InvokeAsync("SetSoloTrainingMode", enabled);
     }
 
-    public async Task SetSoloPacingRatesAsync(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent)
+    public async Task SetSoloPacingRatesAsync(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent, int goAroundProbabilityPercent)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync("SetSoloPacingRates", parkingInitialCallupRatePercent, arrivalGeneratorRatePercent);
+        await _connection!.InvokeAsync(
+            "SetSoloPacingRates",
+            parkingInitialCallupRatePercent,
+            arrivalGeneratorRatePercent,
+            goAroundProbabilityPercent
+        );
     }
 
     public async Task SetAutoClearedToLandAsync(bool enabled)
@@ -717,6 +724,7 @@ public record LoadScenarioResultDto(
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
     int SoloArrivalGeneratorRatePercent = 100,
+    int SoloGoAroundProbabilityPercent = 0,
     bool HasSoloParkingInitialCallupSource = false,
     bool HasSoloArrivalGeneratorSource = false,
     bool RpoShowPilotSpeech = false,
@@ -765,6 +773,7 @@ public record RoomStateDto(
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
     int SoloArrivalGeneratorRatePercent = 100,
+    int SoloGoAroundProbabilityPercent = 0,
     bool HasSoloParkingInitialCallupSource = false,
     bool HasSoloArrivalGeneratorSource = false,
     bool RpoShowPilotSpeech = false,
@@ -790,6 +799,7 @@ public record ScenarioLoadedDto(
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
     int SoloArrivalGeneratorRatePercent = 100,
+    int SoloGoAroundProbabilityPercent = 0,
     bool HasSoloParkingInitialCallupSource = false,
     bool HasSoloArrivalGeneratorSource = false,
     bool RpoShowPilotSpeech = false,
@@ -812,6 +822,7 @@ public record SessionSettingsDto(
     bool SoloTrainingMode,
     int SoloParkingInitialCallupRatePercent,
     int SoloArrivalGeneratorRatePercent,
+    int SoloGoAroundProbabilityPercent,
     bool HasSoloParkingInitialCallupSource,
     bool HasSoloArrivalGeneratorSource,
     bool RpoShowPilotSpeech
