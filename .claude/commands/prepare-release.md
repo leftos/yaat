@@ -157,13 +157,15 @@ Once the user approves:
 5. Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, `docs/architecture.md` if changed, **and every user-facing doc updated in Step 6** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.). List them explicitly so the user can audit before commit.
 6. Commit: `release: v{version}`.
 7. Create tag: `git tag v{version}`.
-8. Push both repos so any cross-repo work made during this cycle ships together:
+8. **Ask the user whether to also deploy to the droplet** at the same time as pushing the tag. Use `AskUserQuestion` (single-select: deploy alongside push / push only / abort). The droplet runs yaat-server in production; deploying alongside the tag push keeps client and server cycles aligned. Capture the answer before proceeding to step 9 — if "abort" is picked, stop here and let the user resume manually.
+9. Push both repos so any cross-repo work made during this cycle ships together:
    - First push yaat-server's pending commits (no tag — yaat-server isn't release-tagged):
      `git -C ../yaat-server push origin main`
-     Run even if you think there's nothing pending — it's idempotent. If a worktree, use the real yaat-server path.
+     Run even if you think there's nothing pending — it's idempotent. If a worktree, use the real yaat-server path. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C ../yaat-server pull --rebase origin main`) and re-push.
    - Then push yaat's release commit and tag:
      `git push origin main --tags`
 
    Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
+10. **If the user approved a droplet deploy in step 8**: run `pwsh deploy-to-droplet.ps1 -NoLogs` and tee output to `.tmp/deploy-droplet.log`. Always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. Wait for the script to finish (the `Deployment complete!` banner) before declaring the release done.
 
-This triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 7 are exactly what ships — no AI rewriting at release time.
+The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 7 are exactly what ships — no AI rewriting at release time.
