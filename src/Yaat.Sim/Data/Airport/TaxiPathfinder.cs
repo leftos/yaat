@@ -424,7 +424,7 @@ public static class TaxiPathfinder
         {
             foreach (string hsRunway in explicitHoldShorts)
             {
-                HoldShortAnnotator.AddExplicitHoldShort(layout, segments, holdShorts, hsRunway);
+                _ = HoldShortAnnotator.AddExplicitHoldShort(layout, segments, holdShorts, hsRunway);
             }
         }
 

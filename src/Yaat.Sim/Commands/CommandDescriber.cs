@@ -488,7 +488,7 @@ public static class CommandDescriber
             PushbackCommand push => FormatPushCanonical(push),
             TaxiCommand taxi => FormatTaxiCanonical(taxi),
             HoldPositionCommand => "HOLD",
-            ResumeCommand resume => resume.CrossRunways.Count == 0 ? "RES" : $"RES CROSS {string.Join(' ', resume.CrossRunways)}",
+            ResumeCommand resume => FormatResumeCanonical(resume),
             CrossRunwayCommand cross => $"CROSS {cross.RunwayId}",
             HoldShortCommand hs => $"HS {hs.Target}",
             FollowCommand follow => $"FOLLOW {follow.TargetCallsign}",
@@ -744,7 +744,7 @@ public static class CommandDescriber
             PushbackCommand push => FormatPushNatural(push),
             TaxiCommand taxi => FormatTaxiNatural(taxi),
             HoldPositionCommand => "Hold position",
-            ResumeCommand resume => resume.CrossRunways.Count == 0 ? "Resume taxi" : $"Resume taxi (cross {string.Join(", ", resume.CrossRunways)})",
+            ResumeCommand resume => FormatResumeNatural(resume),
             CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
             HoldShortCommand hs => $"Hold short of {hs.Target}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
@@ -1462,6 +1462,44 @@ public static class CommandDescriber
             parts.Add(fixStr);
         }
         return $"DCTF {string.Join(" ", parts)}";
+    }
+
+    private static string FormatResumeCanonical(ResumeCommand resume)
+    {
+        if (resume.CrossRunways.Count == 0 && resume.HoldShorts.Count == 0)
+        {
+            return "RES";
+        }
+        var parts = new List<string> { "RES" };
+        if (resume.CrossRunways.Count > 0)
+        {
+            parts.Add("CROSS");
+            parts.AddRange(resume.CrossRunways);
+        }
+        if (resume.HoldShorts.Count > 0)
+        {
+            parts.Add("HS");
+            parts.AddRange(resume.HoldShorts);
+        }
+        return string.Join(" ", parts);
+    }
+
+    private static string FormatResumeNatural(ResumeCommand resume)
+    {
+        if (resume.CrossRunways.Count == 0 && resume.HoldShorts.Count == 0)
+        {
+            return "Resume taxi";
+        }
+        var qualifiers = new List<string>();
+        if (resume.CrossRunways.Count > 0)
+        {
+            qualifiers.Add($"cross {string.Join(", ", resume.CrossRunways)}");
+        }
+        if (resume.HoldShorts.Count > 0)
+        {
+            qualifiers.Add($"hold short of {string.Join(", ", resume.HoldShorts)}");
+        }
+        return $"Resume taxi ({string.Join("; ", qualifiers)})";
     }
 
     private static string FormatTaxiCanonical(TaxiCommand taxi)

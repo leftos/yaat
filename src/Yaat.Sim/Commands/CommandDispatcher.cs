@@ -1315,6 +1315,11 @@ public static class CommandDispatcher
                 {
                     return preClear;
                 }
+                var addHs = GroundCommandHandler.TryAddExplicitHoldShorts(aircraft, groundLayout, airTaxiResume.HoldShorts);
+                if (!addHs.Success)
+                {
+                    return addHs;
+                }
                 aircraft.Ground.Hold = null;
                 return Ok("Resume taxi");
             }
@@ -1326,6 +1331,11 @@ public static class CommandDispatcher
                 if (!preClear.Success)
                 {
                     return preClear;
+                }
+                var addHs = GroundCommandHandler.TryAddExplicitHoldShorts(aircraft, groundLayout, hsResume.HoldShorts);
+                if (!addHs.Success)
+                {
+                    return addHs;
                 }
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
                 return Ok("Resume taxi");
@@ -1355,6 +1365,11 @@ public static class CommandDispatcher
                 if (!preClear.Success)
                 {
                     return preClear;
+                }
+                var addHs = GroundCommandHandler.TryAddExplicitHoldShorts(aircraft, groundLayout, groundResume.HoldShorts);
+                if (!addHs.Success)
+                {
+                    return addHs;
                 }
                 return GroundCommandHandler.TryResumeTaxi(aircraft);
             }

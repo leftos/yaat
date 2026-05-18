@@ -148,9 +148,12 @@ internal static class HoldShortAnnotator
     /// <summary>
     /// Finds the hold-short point for <paramref name="target"/> along the route.
     /// Checks runway hold-short nodes first, then falls back to taxiway intersection
-    /// detection (first node with an adjacent edge on the target taxiway).
+    /// detection (first node with an adjacent edge on the target taxiway). Returns
+    /// <c>true</c> if a matching node was found (and either an existing crossing
+    /// was promoted to ExplicitHoldShort, or a new HoldShortPoint was added);
+    /// <c>false</c> if no match exists anywhere on the route.
     /// </summary>
-    internal static void AddExplicitHoldShort(
+    internal static bool AddExplicitHoldShort(
         AirportGroundLayout layout,
         List<TaxiRouteSegment> segments,
         List<HoldShortPoint> holdShorts,
@@ -182,7 +185,7 @@ internal static class HoldShortAnnotator
                 target,
                 existing.NodeId
             );
-            return;
+            return true;
         }
 
         bool foundRunway = false;
@@ -220,7 +223,7 @@ internal static class HoldShortAnnotator
 
         if (foundRunway)
         {
-            return;
+            return true;
         }
 
         // Second pass: taxiway intersection — find the first node with an
@@ -249,10 +252,12 @@ internal static class HoldShortAnnotator
                             }
                         );
                     }
-                    return;
+                    return true;
                 }
             }
         }
+
+        return false;
     }
 
     /// <summary>

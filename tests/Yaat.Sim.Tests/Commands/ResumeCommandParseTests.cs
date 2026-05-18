@@ -74,4 +74,67 @@ public sealed class ResumeCommandParseTests
         Assert.NotNull(result.Reason);
         Assert.Contains("CROSS", result.Reason, System.StringComparison.OrdinalIgnoreCase);
     }
+
+    // --- HS modifier ---------------------------------------------------------
+
+    [Fact]
+    public void ResHs_SingleTarget()
+    {
+        var result = CommandParser.Parse("RES HS 20");
+
+        Assert.IsType<ResumeCommand>(result.Value);
+        var resume = (ResumeCommand)result.Value!;
+        Assert.Empty(resume.CrossRunways);
+        Assert.Equal(new[] { "20" }, resume.HoldShorts);
+    }
+
+    [Fact]
+    public void ResHs_TaxiwayTarget()
+    {
+        // HS accepts taxiways too, mirroring TAXI's HS modifier
+        var result = CommandParser.Parse("RES HS B");
+
+        Assert.IsType<ResumeCommand>(result.Value);
+        Assert.Equal(new[] { "B" }, ((ResumeCommand)result.Value!).HoldShorts);
+    }
+
+    [Fact]
+    public void ResCrossThenHs_CombinesBoth()
+    {
+        var result = CommandParser.Parse("RES CROSS 28R 28L HS 20");
+
+        Assert.IsType<ResumeCommand>(result.Value);
+        var resume = (ResumeCommand)result.Value!;
+        Assert.Equal(new[] { "28R", "28L" }, resume.CrossRunways);
+        Assert.Equal(new[] { "20" }, resume.HoldShorts);
+    }
+
+    [Fact]
+    public void ResHsThenCross_OrderIndependent()
+    {
+        var result = CommandParser.Parse("RES HS 20 CROSS 28R");
+
+        Assert.IsType<ResumeCommand>(result.Value);
+        var resume = (ResumeCommand)result.Value!;
+        Assert.Equal(new[] { "28R" }, resume.CrossRunways);
+        Assert.Equal(new[] { "20" }, resume.HoldShorts);
+    }
+
+    [Fact]
+    public void ResHs_NoTarget_Fails()
+    {
+        var result = CommandParser.Parse("RES HS");
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Reason);
+        Assert.Contains("HS", result.Reason, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Res_UnknownModifier_Fails()
+    {
+        var result = CommandParser.Parse("RES FOO 28R");
+
+        Assert.False(result.IsSuccess);
+    }
 }

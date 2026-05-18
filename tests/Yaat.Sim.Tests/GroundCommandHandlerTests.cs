@@ -757,7 +757,7 @@ public class GroundCommandHandlerTests
 
         Assert.IsType<HoldingShortPhase>(ac.Phases.CurrentPhase);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
@@ -787,7 +787,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
@@ -817,7 +817,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.False(result.Success);
@@ -876,7 +876,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["28L"])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["28L"], [])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
@@ -907,7 +907,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["09L"])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["09L"], [])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.False(result.Success);
@@ -958,13 +958,146 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["30"])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["30"], [])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.False(result.Success);
         Assert.NotNull(result.Message);
         // Destination hold-short must not have been silently cleared.
         Assert.False(route.HoldShortPoints[1].IsCleared);
+    }
+
+    [Fact]
+    public void ResHs_PromotesUpcomingRunwayCrossingToExplicit()
+    {
+        // Route has an upcoming RunwayCrossing for 28L. RES HS 28L should promote
+        // it to ExplicitHoldShort so it survives AutoCross.
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = true;
+
+        var route = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "W", 0.1), MakeSegment(2, 3, "W", 0.1)],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "28R",
+                },
+                new HoldShortPoint
+                {
+                    NodeId = 3,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28L",
+                },
+            ],
+        };
+        ac.Ground.AssignedTaxiRoute = route;
+
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = Logger,
+        };
+        ac.Phases.Start(ctx);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["28L"])])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[1].Reason);
+        Assert.Equal("28L", route.HoldShortPoints[1].TargetName);
+        // Promotion does not pre-clear — the aircraft should still stop there.
+        Assert.False(route.HoldShortPoints[1].IsCleared);
+    }
+
+    [Fact]
+    public void ResHs_TargetNotOnRoute_FailsEntireCommand()
+    {
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = true;
+
+        var route = MakeRouteWithHoldShort("28R");
+        route.HoldShortPoints[0].Reason = HoldShortReason.ExplicitHoldShort;
+        ac.Ground.AssignedTaxiRoute = route;
+
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = Logger,
+        };
+        ac.Phases.Start(ctx);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["09L"])])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.Message);
+        Assert.Contains("09L", result.Message);
+        // The current hold-short must remain uncleared since the command failed.
+        Assert.False(route.HoldShortPoints[0].IsCleared);
+    }
+
+    [Fact]
+    public void ResCrossPlusHs_BothApplied()
+    {
+        // Compound: RES CROSS 28R HS 28L — pre-clear 28R, promote 28L's crossing
+        // to ExplicitHoldShort. Two separate runway hold-shorts on the route.
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = true;
+
+        var route = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "W", 0.1), MakeSegment(2, 3, "W", 0.1)],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28R",
+                },
+                new HoldShortPoint
+                {
+                    NodeId = 3,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28L",
+                },
+            ],
+        };
+        ac.Ground.AssignedTaxiRoute = route;
+
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = Logger,
+        };
+        ac.Phases.Start(ctx);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["28R"], ["28L"])])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.True(route.HoldShortPoints[0].IsCleared, "28R should be pre-cleared via CROSS");
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[1].Reason);
+        Assert.False(route.HoldShortPoints[1].IsCleared, "28L should remain a stop (promoted, not cleared)");
     }
 
     // -------------------------------------------------------------------------

@@ -428,41 +428,72 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Parses RES [CROSS &lt;rwy&gt; [&lt;rwy&gt;...]]. Bare RES is a no-op pre-clear
-    /// list; the optional <c>CROSS</c> tail collects upcoming runway crossings
-    /// to pre-clear on the route. Runway tokens are uppercased.
+    /// Parses RES [CROSS &lt;rwy&gt; [&lt;rwy&gt;...]] [HS &lt;target&gt; [&lt;target&gt;...]].
+    /// CROSS and HS modifiers are independent and can appear in either order;
+    /// each is a mode that consumes subsequent tokens until the next mode-switch
+    /// keyword. Runway/target tokens are uppercased.
     /// </summary>
     internal static PR ParseResume(string? arg)
     {
         if (arg is null)
         {
-            return PR.Ok(new ResumeCommand([]));
+            return PR.Ok(new ResumeCommand([], []));
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return PR.Ok(new ResumeCommand([]));
+            return PR.Ok(new ResumeCommand([], []));
         }
 
-        // Only one allowed sub-keyword today: CROSS.
-        if (!tokens[0].Equals("CROSS", StringComparison.OrdinalIgnoreCase))
+        var crossRunways = new List<string>();
+        var holdShorts = new List<string>();
+        var mode = ParseMode.None;
+
+        foreach (var raw in tokens)
         {
-            return PR.Fail($"RES: unexpected argument '{tokens[0]}' (expected CROSS or no argument)");
+            if (raw.Equals("CROSS", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = ParseMode.Cross;
+                continue;
+            }
+            if (raw.Equals("HS", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = ParseMode.HoldShort;
+                continue;
+            }
+
+            switch (mode)
+            {
+                case ParseMode.Cross:
+                    crossRunways.Add(raw.ToUpperInvariant());
+                    break;
+                case ParseMode.HoldShort:
+                    holdShorts.Add(raw.ToUpperInvariant());
+                    break;
+                default:
+                    return PR.Fail($"RES: unexpected argument '{raw}' (expected CROSS, HS, or no argument)");
+            }
         }
 
-        if (tokens.Length < 2)
+        // If a keyword appeared but no targets followed, fail with an actionable message.
+        if (mode == ParseMode.Cross && crossRunways.Count == 0)
         {
             return PR.Fail("RES CROSS requires at least one runway");
         }
-
-        var runways = new List<string>(tokens.Length - 1);
-        for (int i = 1; i < tokens.Length; i++)
+        if (mode == ParseMode.HoldShort && holdShorts.Count == 0)
         {
-            runways.Add(tokens[i].ToUpperInvariant());
+            return PR.Fail("RES HS requires at least one target");
         }
 
-        return PR.Ok(new ResumeCommand(runways));
+        return PR.Ok(new ResumeCommand(crossRunways, holdShorts));
+    }
+
+    private enum ParseMode
+    {
+        None,
+        Cross,
+        HoldShort,
     }
 
     /// <summary>
