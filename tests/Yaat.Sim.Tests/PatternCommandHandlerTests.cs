@@ -477,6 +477,84 @@ public class PatternCommandHandlerTests
         Assert.Contains("No assigned runway", result.Message!);
     }
 
+    [Fact]
+    public void TryChangePatternDirection_ActiveUpwindWrongSide_InsertsMidfieldCrossing()
+    {
+        // DefaultRunway heading 280° → Left crosswind heading = 280-90 = 190°
+        // (south). North side is the wrong side for Left traffic. Place
+        // aircraft north of the threshold while it is on an Active Upwind
+        // (built with Right-traffic waypoints), then flip to Left. The
+        // rebuild path must insert a MidfieldCrossingPhase so the aircraft
+        // can cross to the south side.
+        var rwy = DefaultRunway();
+        var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
+
+        var wpRight = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
+        var upwind = new UpwindPhase { Waypoints = wpRight };
+        var ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
+        ac.Pattern.TrafficDirection = PatternDirection.Right;
+        ac.Phases.Add(upwind);
+        ac.Phases.Add(new CrosswindPhase { Waypoints = wpRight });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
+
+        Assert.True(result.Success);
+        Assert.Equal(PatternDirection.Left, ac.Phases!.TrafficDirection);
+        Assert.Contains(ac.Phases.Phases, p => p is MidfieldCrossingPhase);
+        Assert.IsType<MidfieldCrossingPhase>(ac.Phases.CurrentPhase);
+        // No CrosswindPhase should be queued before the MidfieldCrossing in the
+        // wrong-side path — the chain becomes MidfieldCrossing → Downwind → ...
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is CrosswindPhase);
+    }
+
+    [Fact]
+    public void TryChangePatternDirection_ActiveCrosswindCorrectSide_RewritesTargetHeading()
+    {
+        // Direction flip without runway change on an Active Crosswind: the
+        // bug was that PatternBuilder.UpdateWaypoints swapped the Waypoints
+        // reference but never refreshed Targets.TargetTrueHeading (latched
+        // by CrosswindPhase.OnStart). After the fix the chain is rebuilt
+        // from Crosswind, and the new instance's OnStart writes the new
+        // direction's crosswind heading onto Targets.TargetTrueHeading.
+        // DefaultRunway heading 280°. Right crosswind = 10°, Left crosswind = 190°.
+        var rwy = DefaultRunway();
+        // Place aircraft south of the threshold (correct side for Left,
+        // so the same-side rebuild path is exercised — not wrong-side).
+        var (southLat, southLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(190.0), 1.5);
+
+        var wpRight = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
+        var crosswind = new CrosswindPhase { Waypoints = wpRight };
+        var ac = MakeAircraft(lat: southLat, lon: southLon, altitude: 1500);
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
+        ac.Pattern.TrafficDirection = PatternDirection.Right;
+        ac.Phases.Add(crosswind);
+        ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        // Sanity: Crosswind.OnStart latched the old (Right) crosswind heading.
+        Assert.NotNull(ac.Targets.TargetTrueHeading);
+        Assert.Equal(wpRight.CrosswindHeading.Degrees, ac.Targets.TargetTrueHeading.Value.Degrees, 1);
+
+        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
+
+        Assert.True(result.Success);
+        Assert.Equal(PatternDirection.Left, ac.Phases!.TrafficDirection);
+
+        // Same-side path: no MidfieldCrossing inserted.
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is MidfieldCrossingPhase);
+
+        // The new active phase is a fresh Crosswind (rebuilt from current leg).
+        Assert.IsType<CrosswindPhase>(ac.Phases.CurrentPhase);
+
+        // The fix: TargetTrueHeading is now the LEFT crosswind heading, not the
+        // OLD Right value. (Old Right ≈ rwy+90 = 10°; new Left ≈ rwy-90 = 190°.)
+        var wpLeft = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Left, null, null, null);
+        Assert.NotNull(ac.Targets.TargetTrueHeading);
+        Assert.Equal(wpLeft.CrosswindHeading.Degrees, ac.Targets.TargetTrueHeading.Value.Degrees, 1);
+    }
+
     // -------------------------------------------------------------------------
     // TryMakeTurn — 360 resumes same leg
     // -------------------------------------------------------------------------

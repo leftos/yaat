@@ -553,6 +553,76 @@ internal static class PatternCommandHandler
         aircraft.Phases.TrafficDirection = newDirection;
         aircraft.Pattern.TrafficDirection = newDirection;
 
+        // When the aircraft has an Active standard pattern leg, rebuild the
+        // chain so the active phase gets a fresh OnStart with the new
+        // waypoints. PatternBuilder.UpdateWaypoints only swaps the
+        // Waypoints reference on each phase — Crosswind/Upwind/Downwind/Base
+        // cache target lat/lon/heading at OnStart and write
+        // Targets.TargetTrueHeading once, so an active phase keeps flying to
+        // the old target if we don't rebuild. Skips ground / non-pattern-leg
+        // phases (Takeoff / FinalApproach / Landing / TouchAndGo /
+        // PatternEntry / MidfieldCrossing) — those keep the existing
+        // UpdateWaypoints path so a later still-Pending leg picks up the new
+        // waypoints in its own OnStart.
+        var currentLeg = GetCurrentPatternLeg(aircraft.Phases.CurrentPhase);
+        if (!aircraft.IsOnGround && currentLeg is { } activeLeg)
+        {
+            bool wrongSide = IsOnWrongSideForPattern(aircraft.Position, runway, newDirection);
+            var rebuiltChain = new List<Phase>();
+            if (wrongSide)
+            {
+                // Mirror TryEnterPattern's wrong-side path: cross the field
+                // and join downwind on the correct (new) pattern side.
+                rebuiltChain.Add(new MidfieldCrossingPhase { Waypoints = waypoints });
+                rebuiltChain.AddRange(
+                    PatternBuilder.BuildCircuit(
+                        runway,
+                        category,
+                        newDirection,
+                        PatternEntryLeg.Downwind,
+                        touchAndGo: true,
+                        finalDistanceNm: null,
+                        sizeOv,
+                        altOv,
+                        airportRunways
+                    )
+                );
+            }
+            else
+            {
+                // Same side: rebuild from the leg the aircraft is currently
+                // flying. The new active-phase instance's OnStart rewrites
+                // Targets.TargetTrueHeading from the new waypoints.
+                rebuiltChain.AddRange(
+                    PatternBuilder.BuildCircuit(
+                        runway,
+                        category,
+                        newDirection,
+                        activeLeg,
+                        touchAndGo: true,
+                        finalDistanceNm: null,
+                        sizeOv,
+                        altOv,
+                        airportRunways
+                    )
+                );
+            }
+
+            ApplyRebuiltPatternChain(aircraft, runway, newDirection, rebuiltChain);
+
+            Log.LogDebug(
+                "[ChangePatternDirection] {Callsign}: rebuilt chain from {Leg} for {Dir} {Rwy}, wrongSide={WrongSide}",
+                aircraft.Callsign,
+                activeLeg,
+                newDirection,
+                runway.Designator,
+                wrongSide
+            );
+
+            var dirStrRebuild = newDirection == PatternDirection.Left ? "left" : "right";
+            return CommandDispatcher.Ok($"Make {dirStrRebuild} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
+        }
+
         // Update waypoints on existing pattern phases
         bool hasPatternPhases = PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
 
@@ -590,6 +660,50 @@ internal static class PatternCommandHandler
 
         var dirStr = newDirection == PatternDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"Make {dirStr} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
+    }
+
+    // Aircraft is on the "wrong side" of the runway for the requested pattern
+    // direction when its along-track projection onto the crosswind-heading
+    // (the bearing perpendicular to the runway pointing toward the pattern
+    // side) is negative — i.e. it is on the opposite side of the threshold
+    // axis from where the pattern lives. Mirrors TryEnterPattern's local
+    // check (kept as the canonical site that drives MidfieldCrossing
+    // insertion).
+    private static bool IsOnWrongSideForPattern(LatLon position, RunwayInfo runway, PatternDirection direction)
+    {
+        TrueHeading crosswindHdg = direction == PatternDirection.Right ? runway.TrueHeading + 90.0 : runway.TrueHeading - 90.0;
+        double patternSideOffset = GeoMath.AlongTrackDistanceNm(
+            position,
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+            crosswindHdg
+        );
+        return patternSideOffset < 0;
+    }
+
+    // Replace the aircraft's phase list with a freshly-built chain, preserving
+    // LandingClearance / ClearedRunwayId metadata. Sets DestinationRunway and
+    // starts the first phase. Shared by RebuildPatternFromLeg and the MLT/MRT
+    // mid-flight rebuild path.
+    private static void ApplyRebuiltPatternChain(AircraftState aircraft, RunwayInfo runway, PatternDirection direction, List<Phase> chain)
+    {
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        aircraft.Phases!.Clear(ctx);
+
+        var phases = new PhaseList
+        {
+            AssignedRunway = runway,
+            LandingClearance = aircraft.Phases.LandingClearance,
+            ClearedRunwayId = aircraft.Phases.ClearedRunwayId,
+            TrafficDirection = direction,
+        };
+        foreach (var phase in chain)
+        {
+            phases.Add(phase);
+        }
+
+        aircraft.Phases = phases;
+        aircraft.Procedure.DestinationRunway = runway.Designator;
+        aircraft.Phases.Start(ctx);
     }
 
     /// <summary>
@@ -775,24 +889,7 @@ internal static class PatternCommandHandler
             }
         }
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-        aircraft.Phases.Clear(ctx);
-
-        var phases = new PhaseList
-        {
-            AssignedRunway = runway,
-            LandingClearance = aircraft.Phases.LandingClearance,
-            ClearedRunwayId = aircraft.Phases.ClearedRunwayId,
-            TrafficDirection = aircraft.Phases.TrafficDirection,
-        };
-        foreach (var phase in circuitPhases)
-        {
-            phases.Add(phase);
-        }
-
-        aircraft.Phases = phases;
-        aircraft.Procedure.DestinationRunway = runway.Designator;
-        aircraft.Phases.Start(ctx);
+        ApplyRebuiltPatternChain(aircraft, runway, direction, circuitPhases);
 
         Log.LogDebug("[ExtendPattern] {Callsign}: rolled back to {Leg}, IsExtended=true on first phase", aircraft.Callsign, leg);
         return CommandDispatcher.Ok($"Extend {leg.ToString().ToLowerInvariant()}");

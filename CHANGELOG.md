@@ -23,6 +23,9 @@
 ### Fixed
 - TERM CTL via CRC STARS now actually releases the track. Previously, dropping a track that you had created via DA/VP (or AID + slew) immediately re-acquired on the next tick because the FP-creator auto-track entitlement was never consumed. Controllers had to retry TERM CTL repeatedly or delete the aircraft to get rid of it. Now a manual DROP consumes the entitlement, so the drop sticks.
 
+### Fixed
+- `MLT 28L` (or `MRT 28R`) issued mid-pattern after a touch-and-go on the other runway no longer leaves the aircraft turning toward the old pattern side. The handler now rebuilds the chain from the current leg with the new direction, and inserts a midfield crossing when the aircraft ends up on the wrong physical side of the new runway — matches what `ELD 28L` would have done.
+
 ## v0.2.5-alpha [2026/05/16]
 
 ### Highlights
