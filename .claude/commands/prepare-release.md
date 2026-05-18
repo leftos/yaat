@@ -72,7 +72,54 @@ Read the (possibly-cleaned) unreleased section. Select **3-4 user-impactful item
   - Bad: *"Velopack download-progress callback now marshalled to UI thread, fixing InvalidOperationException."*
   - Good: *"'Update Now' no longer crashes — auto-updates download and apply correctly."*
 
-## Step 6: Present draft release notes
+## Step 6: Audit user-facing documentation against the release commits
+
+Before locking the release notes, walk the commits going into this release and confirm user-facing documentation actually covers what changed. Stale or missing docs hurt users more than missing changelog bullets — they steer instructors and RPOs wrong on real workflows.
+
+### 6a. Build the commit list
+
+Use the previous release tag from Step 2 as the lower bound. Capture both repos — user-visible changes can land on either side:
+
+- yaat: `git log {prev-tag}..HEAD --oneline`
+- yaat-server: yaat-server isn't release-tagged, so use the prev-tag's commit date as the cutoff:
+  - `PREV_DATE=$(git log -1 --format=%cI {prev-tag})`
+  - `git -C ../yaat-server log --since "$PREV_DATE" --oneline`
+  - (If yaat-server is in a worktree, use the real path.)
+
+Tee both lists to `.tmp/release-commits-{version}.log` so you can scan without re-running.
+
+Skip commits that are pure refactor / test / CI / build / internal plumbing — they don't drive user-facing doc updates. The signal is "would an instructor reading the docs need to know this?", not "did anything change?".
+
+### 6b. Map changes to docs
+
+For each user-visible commit, identify which doc owns the topic and check whether its current text reflects the new behavior. Open the file and read the relevant section — don't trust filenames or memory.
+
+| Topic | Doc(s) — all must stay synced when listed together |
+|-------|-----|
+| Install, update, first-run | `INSTALL.md`, `GETTING_STARTED.md`, `README.md` |
+| Commands (added / renamed / aliased / behavior change / removed) | `COMMANDS.md` **and** `docs/command-cheatsheet.json` **and** `docs/command-cheatsheet.html` |
+| Client feature usage (windows, panels, settings, workflows) | `USER_GUIDE.md` and screenshots under `docs/user-guide/` |
+| Solo training mode behavior | `SOLO_TRAINING.md` |
+| YAAT vs ATCTrainer parity / divergence | `docs/yaat-vs-atctrainer.md` |
+| New / renamed / removed projects or top-level files | `docs/architecture.md` |
+| Discord integration | `docs/discord-integration.md` |
+| Scenario format / validation | `docs/scenario-validation.md` |
+
+For each match, log a finding: file + section + what's stale, missing, or wrong. A correct-but-incomplete doc (e.g. command added to `COMMANDS.md` but cheatsheet JSON/HTML not updated) is still a gap.
+
+### 6c. Surface findings and fix
+
+Present the gap list to the user as a focused diff (per file: what's wrong, proposed update). For each:
+
+- Default: update before shipping so the release is self-contained.
+- Allowed: defer with a tracking note (file an issue or add a TODO bullet to the next cycle's changelog draft) if the doc change is large enough to warrant its own focused commit.
+- Do not auto-edit docs without confirmation.
+
+Apply the agreed updates in the yaat repo. If `USER_GUIDE.md` screenshots need regeneration, mention `tools/Yaat.GuideCapture` so the user can run it separately — do **not** invoke it from inside this flow.
+
+Doc updates ride along in the release commit; the staging list in Step 8 picks them up.
+
+## Step 7: Present draft release notes
 
 Show the user the draft — highlights you derived **plus the full unreleased CHANGELOG section verbatim**:
 
@@ -99,15 +146,15 @@ Match the existing file style by inspecting an already-released sibling section 
 
 Ask the user to review. Apply any requested edits to the highlights or the unreleased section in CHANGELOG.md before continuing.
 
-## Step 7: Ship it (after user approval)
+## Step 8: Ship it (after user approval)
 
 Once the user approves:
 
 1. Update `<Version>` in `Directory.Build.props` to the new version.
 2. **Promote the CHANGELOG.md heading** in place — `Edit` the heading line to the chosen format (version + optional date, matching sibling sections). Do not touch the body of the section yet.
-3. **Insert the approved highlights** into CHANGELOG.md as a `### Highlights` subsection at the top of the version's section, immediately after the heading and before the first existing subsection (typically `### Added` or `### Fixed`). Use the bullets verbatim as approved in Step 6 — these are what the GitHub release will surface.
-4. Update `docs/architecture.md` if any new files were added.
-5. Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, and `docs/architecture.md` if changed.
+3. **Insert the approved highlights** into CHANGELOG.md as a `### Highlights` subsection at the top of the version's section, immediately after the heading and before the first existing subsection (typically `### Added` or `### Fixed`). Use the bullets verbatim as approved in Step 7 — these are what the GitHub release will surface.
+4. Update `docs/architecture.md` if any new files were added (and it wasn't already covered in Step 6).
+5. Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, `docs/architecture.md` if changed, **and every user-facing doc updated in Step 6** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.). List them explicitly so the user can audit before commit.
 6. Commit: `release: v{version}`.
 7. Create tag: `git tag v{version}`.
 8. Push both repos so any cross-repo work made during this cycle ships together:
@@ -119,4 +166,4 @@ Once the user approves:
 
    Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
 
-This triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 6 are exactly what ships — no AI rewriting at release time.
+This triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 7 are exactly what ships — no AI rewriting at release time.
