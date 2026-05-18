@@ -133,8 +133,9 @@ Scenario Setup appears only when there is something to choose. A scenario with m
 
 - **Parking initial call-up interval** - how often parked aircraft make their first ready-to-taxi call.
 - **Arrival generator rate** - what percentage of generated arrivals should spawn.
+- **Pilot go-around probability** - 0–100% chance that each AI aircraft entering final approach spontaneously goes around. Rolls once per approach; default 0 (existing behavior unchanged). Set a global default under **Settings > Scenarios**; override per-scenario from the scenario setup dialog or the live session settings flyout (per-scenario value persists either way).
 
-Use these as workload controls. A lower parking interval releases parked aircraft faster; a higher interval spaces them out; **Paused** stops new parking call-ups until you raise the interval again. A lower arrival generator rate reduces arrival workload without editing the scenario file.
+Use these as workload controls. A lower parking interval releases parked aircraft faster; a higher interval spaces them out; **Paused** stops new parking call-ups until you raise the interval again. A lower arrival generator rate reduces arrival workload without editing the scenario file. Raise pilot go-around probability to practice handling unexpected aborts.
 
 These controls do not make a scenario official curriculum. Facility training staff still own scenario design and training objectives. YAAT documents how existing ARTCC and local scenarios behave in solo mode.
 

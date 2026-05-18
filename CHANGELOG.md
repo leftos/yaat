@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.2.6-alpha [2026/05/18]
+
+### Highlights
+- Aircraft on final without a landing clearance now flash a red `NoLndgClnc` line on the radar datablock — opt out under Settings → Display → Radar Display.
+- `View → Window Profiles` saves and restores named window arrangements (geometry, dock/pop-out state, DataGrid columns) — switch between GC/LC layouts in one click.
+- Solo training adds a pilot go-around probability slider (0–100%) so each AI aircraft entering final may spontaneously go around.
+- `RES CROSS rwy...` pre-clears upcoming runway crossings and `RES HS target...` adds or promotes hold-shorts on the rest of the taxi route.
 
 ### Added
 - Aircraft approaching final without a landing clearance flash a red `NoLndgClnc` on the radar datablock — opt out under Settings → Display → Radar Display.
@@ -11,23 +17,12 @@
 
 ### Fixed
 - Radar datablocks, EuroScope tags, and right-click menus now show the aircraft type when no flight plan has been filed — they fall back to the physical type that the Aircraft List already displays.
-
-### Fixed
 - Partial-callsign prefixes that match multiple aircraft now list the candidates (e.g. `"N12" matches multiple aircraft: N1234, N1256`) instead of saying `"N12" is not a recognized command`.
-
-### Fixed
 - Aircraft list Info column now names the runway actually being crossed instead of the departure runway while an aircraft taxis across one.
-
-### Fixed
 - IFR aircraft on radar-vectors SIDs (e.g. NIMI5, OAK6 at OAK) no longer turn back toward the departure airport after takeoff. The route-expander's "emit all transitions on mismatch" fallback was fabricating a route like `CCR, OAK, PYE, OAK, SAC, OAK, SAU, OAK, SGD, OAK, FESIK, …` for a filed `NIMI5 OAK V6 SAC` because vNAS encodes those SIDs' adapted-route hints as synthetic transitions. Flight-plan callers now suppress that fallback, so the route is just the V6 airway fixes (or, for a `NIMI5 OAK <fix>` route, just the direct fix).
-
-### Fixed
 - TERM CTL via CRC STARS now actually releases the track. Previously, dropping a track that you had created via DA/VP (or AID + slew) immediately re-acquired on the next tick because the FP-creator auto-track entitlement was never consumed. Controllers had to retry TERM CTL repeatedly or delete the aircraft to get rid of it. Now a manual DROP consumes the entitlement, so the drop sticks.
-
-### Fixed
 - `MLT 28L` (or `MRT 28R`) issued mid-pattern after a touch-and-go on the other runway no longer leaves the aircraft turning toward the old pattern side. The handler now rebuilds the chain from the current leg with the new direction, and inserts a midfield crossing when the aircraft ends up on the wrong physical side of the new runway — matches what `ELD 28L` would have done.
-
-### Fixed
+- An aircraft cleared to land that was then given `ERB`/`ELB` mid-rollout no longer re-accelerates down the runway. The post-landing branch in the phase runner was keying on `TrafficDirection`, which `ERB` restores after `CLAND` clears it; routing is now keyed off the actual terminator phase (`LandingPhase` → exit; `TouchAndGoPhase`/`StopAndGo`/`LowApproach` → auto-cycle).
 - Touch-and-go aircraft now roll on the runway for a realistic 6-10 s before lifting off again, instead of bouncing back into the air after only a couple of seconds. Stop-and-go aircraft pause at full stop a bit longer too (#8).
 
 ## v0.2.5-alpha [2026/05/16]

@@ -72,6 +72,8 @@ Each view can be popped out into its own window via **View > Pop Out Aircraft Li
 
 All three views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
 
+**Window Profiles** save and restore named window arrangements — geometry, dock/pop-out state, and DataGrid columns. Use **View > Window Profiles** to save the current layout under a name, switch between saved profiles, or rename and delete them. Useful for keeping separate GC and LC layouts and switching between them in one click.
+
 **Always on Top:** Press **Ctrl+Shift+T** (configurable in Settings > Advanced) while a pop-out window is focused to pin it above all other windows. You can also toggle this per window in Settings > Display > Windows (Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips, Favorites). On Windows, the toggle is also available in the title-bar system menu (right-click the title bar or click the window icon). On macOS, the toggle is in the menu bar under Window → Always on Top while the pop-out is focused. On Linux, your window manager's title-bar context menu typically provides a native "Always on Top" item that reflects the same state.
 
 ### Terminal Panel
@@ -160,6 +162,7 @@ The default view. Shows all aircraft in your scenario, grouped into **Active** a
 | Info | Smart status — contextual summary (see [Info Column](#info-column)) |
 | Status | Spawn status (Active, Delayed, etc.) |
 | Type | Aircraft type code (e.g., B738/L) |
+| Name | Human-readable aircraft type (e.g., "Boeing 737-800", "Cessna Skyhawk 172") |
 | Rules | Flight rules ([IFR](#glossary) / [VFR](#glossary)) |
 | Dep / Dest | Departure and destination airports |
 | Route | Filed route |
@@ -339,7 +342,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 - **On an aircraft**: phase-aware groups (Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower, Pattern) plus always-visible Track, Data Block, Squawk, Ask pilot to say, Coordination, Display, Sim Control, RPO. Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway. Procedures offers a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label. Speed values adapt to aircraft type — `ApproachSpeed` to altitude-resolved `ClimbSpeed` in 10-kt steps. Pattern submenu includes in-pattern maneuvers (turn crosswind/downwind/base, extend pattern leg, short/normal approach, 360s, 270s, circle airport). Display submenu controls per-aircraft scope items (leader direction 1–9 numpad, J-ring radius, cone radius, blank/unblank target). Squawk gains a "Squawk random" one-click. "Ask pilot to say..." submenu issues SAY-class commands (altitude, heading, speed, mach, position, expected approach, custom).
 - **On the map**: always shows [FRD](COMMANDS.md#fix-radial-distance-frd) header (nearest fix + radial + distance) and "Copy FRD". With aircraft selected, also: "Fly heading {hdg}", "Direct to {FRD}", "Append direct to {FRD}", "Hold at {FRD} (left/right)", "Warp here ({FRD})"
 
-**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, handoff indicator, and scratchpads when set.
+**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**.
 
 #### EuroScope-Style Interactive Tags
 
@@ -1151,7 +1154,7 @@ Open **Settings** to configure:
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
 - **Audio** — Input device (microphone for push-to-talk speech recognition) and output device (used for pilot text-to-speech and the SAY/warning notification chime)
 - **Speech** — STT and TTS settings, including optional solo pilot voice and the Piper voice-pack install/remove controls
-- **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, and ground labels (each independently configurable, range 8–24); command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); ground display options (start with datablocks hidden); per-window always-on-top toggles
+- **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, and ground labels (each independently configurable, range 8–24); command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); **No landing clearance warning** toggle (flashes a red `NoLndgClnc` line on the radar datablock for aircraft on final without a landing clearance); ground display options (start with datablocks hidden); per-window always-on-top toggles
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
 - **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode
 

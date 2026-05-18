@@ -50,6 +50,7 @@ tools/setup-codex.ps1             # Creates user-local Codex skill junctions and
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
 tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.
 tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-fleets.json + .meta provenance sidecar.
+tools/refresh-aircraft-display-names.py # One-shot tool that queries OpenAI for human-readable names of every ICAO type in AircraftSpecs.json and writes Data/aircraft-display-names.json + .meta sidecar. Re-run only when AircraftSpecs.json gains new types.
 tools/parse_airfleets.py          # pdfplumber parser used by refresh-airline-fleets.py; maps fleet variants to ICAO Doc 8643 types.
 tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
@@ -164,6 +165,8 @@ Services/
   BuildInfo.cs                  # Static: version (from AssemblyInformationalVersion) + release-vs-dev detection (VelopackLocator.Current); used by title bar, About window, and startup log line
   DocLinks.cs                   # Static: GitHub URLs for user-facing docs (README/USER_GUIDE/COMMANDS/CHANGELOG/issues), pinned to release tag for installed builds, main for dev
   UrlLauncher.cs                # Static: opens HTTPS URLs in OS default browser (Process.Start with UseShellExecute)
+  CallsignPrefixResolver.cs     # Pure resolver: partial callsign prefix → unique aircraft or list of matching candidates. Used by MainViewModel.SendCommandAsync to disambiguate `N12` when multiple aircraft match.
+  WindowProfileService.cs       # Saves/restores named window arrangements: per-window geometry + dock/pop-out state + DataGrid column layout. Persists to UserPreferences; surfaced via View → Window Profiles.
 
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
@@ -204,6 +207,8 @@ Views/
   ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
   SessionReportWindow.axaml.cs  # Live solo-training session report: score, coaching notes, separation timeline, approach/runway grids
+  ManageWindowProfilesDialog.axaml(.cs)  # View → Window Profiles dialog: list saved profiles, switch, rename, delete
+  SaveWindowProfileDialog.axaml(.cs)     # Name-entry dialog for saving the current window arrangement as a new profile
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
@@ -575,6 +580,10 @@ AirportAirlines.cs             # Static map: airport IATA/ICAO -> served airline
 airport-airlines.json.br       # Generated Brotli fixture from BTS T-100 segment data for current generator airports
                                # OpenFlights route backfill is used only for airports missing BTS carrier hits
 airport-airlines.meta          # Provenance sidecar with source ZIP row counts, target airports, and unmapped BTS carriers
+AircraftDisplayNames.cs        # Static map: ICAO aircraft type → human-readable display name (e.g. "B738" → "Boeing 737-800").
+                               # Loaded lazily from aircraft-display-names.json; used by the Aircraft List Name column and radar/EuroScope/right-click fallbacks when no flight plan is filed.
+aircraft-display-names.json    # Generated map from tools/refresh-aircraft-display-names.py (one entry per ICAO type in AircraftSpecs.json).
+aircraft-display-names-source.meta # Provenance sidecar: model + prompt hash + ICAO type list used at generation time.
 
 # Data/Faa/
 FaaAircraftRecord.cs           # Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, classifications
