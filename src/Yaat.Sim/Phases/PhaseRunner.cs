@@ -35,10 +35,12 @@ public static class PhaseRunner
         bool complete = current.OnTick(ctx);
         if (complete)
         {
-            bool wasLanding = current is LandingPhase or HelicopterLandingPhase;
+            bool wasFullStopTerminator = current is LandingPhase or HelicopterLandingPhase;
+            bool wasCycleTerminator = current is TouchAndGoPhase or StopAndGoPhase or LowApproachPhase;
+            bool wasGoAround = current is GoAroundPhase;
 
             // Stamp landing timestamp on approach score
-            if (wasLanding && aircraft.ActiveApproachScore is { } landingScore && landingScore.LandedAtSeconds is null)
+            if (wasFullStopTerminator && aircraft.ActiveApproachScore is { } landingScore && landingScore.LandedAtSeconds is null)
             {
                 landingScore.LandedAtSeconds = ctx.ScenarioElapsedSeconds;
                 aircraft.PendingApproachScores.Add(landingScore);
@@ -65,14 +67,23 @@ public static class PhaseRunner
                 return;
             }
 
-            // After a full-stop landing (not pattern mode), auto-exit the runway.
-            // RunwayExitPhase handles the case where GroundLayout is null (stops immediately).
-            // The persistent AircraftPattern.TrafficDirection (last MLT/MRT intent) wins
-            // over the transient PhaseList field — CLAND/LAHSO null both, so a true
-            // full-stop still hits this branch.
+            // Post-completion routing is driven by the terminator phase type, not
+            // by TrafficDirection state. The chain builder picks the terminator
+            // based on the clearance intent at build time (CLAND → LandingPhase,
+            // CTL → TouchAndGoPhase, etc.), so the terminator is the source of
+            // truth for what should happen next. Branching on TrafficDirection
+            // misroutes a CLAND'd aircraft to auto-cycle when it was given ERB/ELB
+            // after CLAND (ERB stamps direction *after* the chain is built).
             var persistentDir = aircraft.Pattern.TrafficDirection;
-            if (wasLanding && phases.IsComplete && persistentDir is null && phases.TrafficDirection is null)
+
+            // Full-stop terminator → exit the runway regardless of pattern state.
+            if (wasFullStopTerminator && phases.IsComplete)
             {
+                // Drop the transient pattern direction so this PhaseList no longer
+                // reads as in-pattern. The persistent AircraftPattern.TrafficDirection
+                // (MLT/MRT intent) is left intact for any future re-spawn / re-clearance.
+                phases.TrafficDirection = null;
+
                 phases.Phases.Add(new RunwayExitPhase());
                 phases.Phases.Add(new HoldingAfterExitPhase());
 
@@ -95,11 +106,16 @@ public static class PhaseRunner
                 phases.TrafficDirection = persistentDir ?? phases.TrafficDirection ?? PatternDirection.Left;
             }
 
-            // Auto-cycle: if the phase list is complete and the aircraft is
-            // in pattern mode, append the next circuit and clear clearances.
-            // The persistent direction (MLT/MRT) wins so a single-approach ERB/ELB
-            // doesn't redefine the pattern direction for subsequent circuits.
-            if (phases.IsComplete && (persistentDir ?? phases.TrafficDirection) is { } dir && phases.AssignedRunway is not null)
+            // Auto-cycle: only fires after a cycle terminator (TouchAndGoPhase,
+            // StopAndGoPhase, LowApproachPhase) or a GoAround that re-enters the
+            // pattern. The persistent direction (MLT/MRT) wins so a single-approach
+            // ERB/ELB doesn't redefine the pattern direction for subsequent circuits.
+            if (
+                (wasCycleTerminator || wasGoAround)
+                && phases.IsComplete
+                && (persistentDir ?? phases.TrafficDirection) is { } dir
+                && phases.AssignedRunway is not null
+            )
             {
                 // Re-stamp the transient field so phases built for the new circuit
                 // (and downstream pattern-mode predicates that read it) reflect the
@@ -115,8 +131,7 @@ public static class PhaseRunner
                 );
                 // After a GoAroundPhase, honor the captured pre-GA landing intent
                 // (full-stop → next circuit ends in LandingPhase). After any other
-                // pattern terminator (TouchAndGoPhase, StopAndGoPhase, LowApproachPhase)
-                // the aircraft was cycling, so keep cycling with TG.
+                // cycle terminator the aircraft was already cycling, so keep cycling with TG.
                 bool nextTouchAndGo = current is GoAroundPhase ga ? !ga.NextLandingFullStop : true;
                 var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, sizeOv, altOv, airportRunways, nextTouchAndGo);
                 phases.Phases.AddRange(nextCircuit);
