@@ -1329,8 +1329,8 @@ public partial class MainViewModel : ObservableObject
             if (!string.IsNullOrEmpty(result.CanonicalCommand))
             {
                 // Prepend the extracted callsign when present so SendCommandAsync's existing
-                // TryResolveCallsignPrefix path auto-dispatches to the right aircraft on Enter.
-                // Format: "SWA123 FH 270" — single space, leading token, matches TryResolveCallsignPrefix.
+                // CallsignPrefixResolver path auto-dispatches to the right aircraft on Enter.
+                // Format: "SWA123 FH 270" — single space, leading token, matches CallsignPrefixResolver.
                 CommandText = string.IsNullOrEmpty(result.Callsign) ? result.CanonicalCommand : $"{result.Callsign} {result.CanonicalCommand}";
                 populatedCommandText = true;
                 source = "canonical";
@@ -1490,12 +1490,18 @@ public partial class MainViewModel : ObservableObject
             target?.Callsign ?? "(none)"
         );
 
-        var resolved = TryResolveCallsignPrefix(commandText, scheme);
-        string? resolvedCallsign = null;
-        if (resolved is not null)
+        var prefixResult = CallsignPrefixResolver.Resolve(commandText, scheme, Aircraft);
+        if (prefixResult is CallsignPrefixResolver.Ambiguous ambiguousPrefix)
         {
-            target = resolved.Value.Aircraft;
-            commandText = resolved.Value.Remainder;
+            StatusText = ambiguousPrefix.Message;
+            return;
+        }
+
+        string? resolvedCallsign = null;
+        if (prefixResult is CallsignPrefixResolver.Resolved resolvedPrefix)
+        {
+            target = resolvedPrefix.Aircraft;
+            commandText = resolvedPrefix.Remainder;
             resolvedCallsign = target.Callsign;
         }
 
@@ -1953,44 +1959,6 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.CoordinationAutoAck
                 or CanonicalCommandType.TaxiAll
                 or CanonicalCommandType.GhostTrack;
-    }
-
-    /// <summary>
-    /// Tries to resolve the first token of the input as a full or partial callsign.
-    /// Returns the matched aircraft and the remainder of the input (the command part).
-    /// Returns null if no unique match is found.
-    /// </summary>
-    private (AircraftModel Aircraft, string Remainder)? TryResolveCallsignPrefix(string input, CommandScheme scheme)
-    {
-        // Split into first token (potential callsign) and remainder (the command)
-        var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2)
-        {
-            return null;
-        }
-
-        var token = parts[0].ToUpperInvariant();
-        var remainder = parts[1].Trim();
-
-        if (!Callsign.IsValid(token))
-        {
-            return null;
-        }
-
-        // Only consider this a callsign if the remainder parses as a valid command
-        var remainderParsed = CommandSchemeParser.ParseCompound(remainder, scheme);
-        if (remainderParsed is null)
-        {
-            return null;
-        }
-
-        var match = ResolveAircraft(token);
-        if (match is null)
-        {
-            return null;
-        }
-
-        return (match, remainder);
     }
 
     /// <summary>

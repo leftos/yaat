@@ -624,7 +624,7 @@ internal sealed record TranscriptMapResult(string CommandText, string? Canonical
 /// <param name="Callsign">
 /// Extracted ICAO callsign (e.g. "SWA123") if present in the transcript and matched against the
 /// active callsigns at PTT time; null otherwise. Consumers prepend this to the canonical command
-/// so <see cref="MainViewModel.SendCommandAsync"/>'s existing <c>TryResolveCallsignPrefix</c> path
-/// auto-dispatches to the right aircraft.
+/// so <see cref="MainViewModel.SendCommandAsync"/>'s existing <see cref="CallsignPrefixResolver"/>
+/// path auto-dispatches to the right aircraft.
 /// </param>
 public sealed record SpeechResult(string Transcript, string? CanonicalCommand, string? Callsign);

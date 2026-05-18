@@ -10,6 +10,9 @@
 ### Fixed
 - Radar datablocks, EuroScope tags, and right-click menus now show the aircraft type when no flight plan has been filed — they fall back to the physical type that the Aircraft List already displays.
 
+### Fixed
+- Partial-callsign prefixes that match multiple aircraft now list the candidates (e.g. `"N12" matches multiple aircraft: N1234, N1256`) instead of saying `"N12" is not a recognized command`.
+
 ## v0.2.5-alpha [2026/05/16]
 
 ### Highlights
