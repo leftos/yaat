@@ -20,7 +20,7 @@ const TRACKING_FORUMS = {
   "track-feature-request": "1479890009153605724",
 };
 
-// Validation channel ID → ARTCC code (from discord-scenario-validation.yml)
+// Validation channel ID → ARTCC code
 const VALIDATION_CHANNELS = {
   "1481824000479854756": "ZAB",
   "1481824003520860220": "ZAU",

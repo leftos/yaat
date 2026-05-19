@@ -753,15 +753,6 @@ Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePic
 
 The OAK clearances scenario `docs/atctrainer-scenario-examples/01H06NVK7VN8BS7MCDXHKJZ7MQ.json` is the canonical fixture for every "scenario loaded" scene.
 
-## Yaat.ScenarioValidator — CLI tool (`tools/Yaat.ScenarioValidator/`)
-
-Standalone console app for validating ARTCC scenario preset commands. Downloads NavData from vNAS for procedure version validation, then fetches and validates scenarios from the vNAS API or local files.
-
-```
-Program.cs                     # CLI entry: --artcc, --file, --dir, --json flags; downloads NavData for procedure checks
-VnasClient.cs                  # HttpClient wrapper for vNAS data API scenario fetches + NavData download
-```
-
 ## yaat-crc-config — Standalone Rust binary (`tools/yaat-crc-config/`)
 
 Tiny (~200 KB) standalone tool that ports the YAAT client's `Tools → Configure CRC Environments` flow into a single signed binary. Lets students who only want to point CRC at YAAT skip installing the full client. Released independently from the `crc-config-v*` tag via `.github/workflows/yaat-crc-config.yml`.
