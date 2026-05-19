@@ -48,6 +48,15 @@ See the [Installation Guide](INSTALL.md) for step-by-step instructions. If you w
 | **[Command Reference](COMMANDS.md)** | Active users | Complete command reference — every verb, alias, and example |
 | **[Contributing](CONTRIBUTING.md)** | Developers | Development setup, code style, and formatting |
 
+### Project governance
+
+| Document | Audience | Content |
+|----------|----------|---------|
+| **[Maintainers](MAINTAINERS.md)** | Contributors, reviewers | Who maintains YAAT, how the maintainer set evolves, GitHub admin access |
+| **[Governance](GOVERNANCE.md)** | Contributors, reviewers | Decision-making, release cadence, breaking-change policy |
+| **[Security](SECURITY.md)** | Security researchers | How to report a vulnerability privately, response SLA, scope |
+| **[Code of Conduct](CODE_OF_CONDUCT.md)** | Everyone | Contributor Covenant v2.1 |
+
 ## Project Structure
 
 ```
