@@ -24,6 +24,7 @@ public class ScenarioLoadResult
     public bool HasParkingSpawns { get; init; }
     public bool HasArrivalGenerators { get; init; }
     public string? AutoDeleteMode { get; init; }
+    public string? MinimumRating { get; init; }
     public List<string> Warnings { get; init; } = [];
 }
 
@@ -99,6 +100,7 @@ public static class ScenarioLoader
             ),
             HasArrivalGenerators = scenario.AircraftGenerators.Count > 0,
             AutoDeleteMode = scenario.AutoDeleteMode,
+            MinimumRating = scenario.MinimumRating,
             Warnings = warnings,
         };
     }
