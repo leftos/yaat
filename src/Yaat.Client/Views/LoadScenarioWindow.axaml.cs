@@ -19,14 +19,14 @@ public partial class LoadScenarioWindow : Window
     private static readonly Regex NamePrefixRegex = new(@"^([A-Z]+\d+)-([A-Z]+)", RegexOptions.Compiled);
 
     private readonly UserPreferences _preferences;
-    private readonly TrainingDataService _trainingData = new();
+    private readonly ServerConnection? _connection;
     private readonly string _artccId;
     private readonly IFilePickerService _filePicker;
 
     // ARTCC tab state
     private readonly ComboBox _artccFacilityFilter;
-    private readonly ComboBox _artccRatingFilter;
     private readonly TextBlock _artccStatusText;
+    private readonly TextBlock _artccGateText;
     private readonly ListBox _artccScenarioList;
     private List<ArtccScenarioItem> _allArtccItems = [];
 
@@ -42,11 +42,12 @@ public partial class LoadScenarioWindow : Window
     private readonly TabControl _sourceTabs;
 
     public LoadScenarioWindow()
-        : this(new UserPreferences()) { }
+        : this(new UserPreferences(), null) { }
 
-    public LoadScenarioWindow(UserPreferences preferences)
+    public LoadScenarioWindow(UserPreferences preferences, ServerConnection? connection)
     {
         _preferences = preferences;
+        _connection = connection;
         _artccId = preferences.ArtccId;
         InitializeComponent();
         _filePicker = new AvaloniaFilePickerService(this);
@@ -57,8 +58,8 @@ public partial class LoadScenarioWindow : Window
 
         // ARTCC tab controls
         _artccFacilityFilter = this.FindControl<ComboBox>("ArtccFacilityFilter")!;
-        _artccRatingFilter = this.FindControl<ComboBox>("ArtccRatingFilter")!;
         _artccStatusText = this.FindControl<TextBlock>("ArtccStatusText")!;
+        _artccGateText = this.FindControl<TextBlock>("ArtccGateText")!;
         _artccScenarioList = this.FindControl<ListBox>("ArtccScenarioList")!;
 
         // Local tab controls
@@ -76,7 +77,6 @@ public partial class LoadScenarioWindow : Window
         _artccScenarioList.SelectionChanged += OnArtccSelectionChanged;
         _artccScenarioList.DoubleTapped += OnArtccDoubleTapped;
         _artccFacilityFilter.SelectionChanged += (_, _) => ApplyArtccFilter();
-        _artccRatingFilter.SelectionChanged += (_, _) => ApplyArtccFilter();
 
         _localScenarioList.SelectionChanged += OnLocalSelectionChanged;
         _localScenarioList.DoubleTapped += OnLocalDoubleTapped;
@@ -85,14 +85,18 @@ public partial class LoadScenarioWindow : Window
 
         _sourceTabs.SelectionChanged += OnTabChanged;
 
-        // Load ARTCC scenarios if we have an ARTCC ID
-        if (!string.IsNullOrWhiteSpace(_artccId))
+        // Load ARTCC scenarios if we have an ARTCC ID and a live connection.
+        if (string.IsNullOrWhiteSpace(_artccId))
         {
-            _ = LoadArtccScenariosAsync();
+            _artccStatusText.Text = "Set ARTCC ID in Settings first.";
+        }
+        else if (_connection is null)
+        {
+            _artccStatusText.Text = "Not connected to server.";
         }
         else
         {
-            _artccStatusText.Text = "Set ARTCC ID in Settings first.";
+            _ = LoadArtccScenariosAsync();
         }
 
         // Pre-populate local folder if previously used
@@ -105,51 +109,96 @@ public partial class LoadScenarioWindow : Window
 
     private async Task LoadArtccScenariosAsync()
     {
-        _artccStatusText.Text = "Loading…";
-        var summaries = await _trainingData.GetScenarioSummariesAsync(_artccId);
+        if (_connection is null)
+        {
+            return;
+        }
 
-        if (summaries.Count == 0)
+        _artccStatusText.Text = "Loading…";
+        ScenarioCatalogResponseDto response;
+        try
+        {
+            response = await _connection.GetScenariosAsync(_preferences.TrainingKey);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to fetch scenarios from server for {Artcc}", _artccId);
+            _artccStatusText.Text = "Failed to load scenarios.";
+            return;
+        }
+
+        var visible = response.Visible;
+        var hidden = response.HiddenByGateCount;
+
+        if (visible.Length == 0 && hidden == 0)
         {
             _artccStatusText.Text = "No scenarios found.";
             return;
         }
 
-        _allArtccItems = summaries
+        _allArtccItems = visible
             .Select(s =>
             {
                 var facility = "Unknown";
-                var rating = "Unknown";
                 var match = NamePrefixRegex.Match(s.Name);
                 if (match.Success)
                 {
-                    rating = $"{match.Groups[1].Value}-{match.Groups[2].Value}";
                     facility = match.Groups[2].Value;
                 }
-
-                return new ArtccScenarioItem(s.Id, s.Name, facility, rating);
+                return new ArtccScenarioItem(s.Id, s.Name, facility);
             })
             .ToList();
 
-        _allArtccItems.Sort(
-            (a, b) =>
-            {
-                int cmp = string.Compare(RatingSortKey(a.Rating), RatingSortKey(b.Rating), StringComparison.Ordinal);
-                return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-            }
-        );
+        _allArtccItems.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
 
         RebuildArtccFilters();
         ApplyArtccFilter();
+
+        if (hidden > 0)
+        {
+            var noun = hidden == 1 ? "scenario" : "scenarios";
+            _artccGateText.Text = $"{hidden} {noun} hidden — requires training access key for {_artccId}. Set the key in Settings → Identity.";
+            _artccGateText.IsVisible = true;
+        }
+        else
+        {
+            _artccGateText.IsVisible = false;
+        }
     }
 
     private void RebuildArtccFilters()
     {
-        InitFilters(_artccFacilityFilter, _artccRatingFilter, _allArtccItems, i => i.Facility, i => i.Rating);
+        _suppressFilterEvents = true;
+        var facilities = _allArtccItems.Select(i => i.Facility).Distinct().OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+        _artccFacilityFilter.ItemsSource = facilities.Prepend("All").ToList();
+        _artccFacilityFilter.SelectedIndex = 0;
+        _suppressFilterEvents = false;
     }
 
     private void ApplyArtccFilter()
     {
-        ApplyFilter(_artccFacilityFilter, _artccRatingFilter, _artccScenarioList, _artccStatusText, _allArtccItems, i => i.Facility, i => i.Rating);
+        if (_suppressFilterEvents)
+        {
+            return;
+        }
+
+        var facilitySel = _artccFacilityFilter.SelectedItem as string;
+        var filtered = _allArtccItems
+            .Where(i => facilitySel is null or "All" || i.Facility == facilitySel)
+            .ToList();
+
+        _artccScenarioList.ItemsSource = filtered;
+        _artccScenarioList.SelectedItem = null;
+        UpdateLoadButton();
+
+        if (_allArtccItems.Count > 0 && filtered.Count == 0)
+        {
+            _artccStatusText.Text = "No scenarios match the filter.";
+        }
+        else
+        {
+            _artccStatusText.Text = _allArtccItems.Count > 0 ? $"{_allArtccItems.Count} scenarios" : "No scenarios found.";
+        }
     }
 
     // --- Local tab ---
@@ -381,6 +430,6 @@ public partial class LoadScenarioWindow : Window
     }
 }
 
-internal sealed record ArtccScenarioItem(string Id, string Name, string Facility, string Rating);
+internal sealed record ArtccScenarioItem(string Id, string Name, string Facility);
 
 internal sealed record LocalScenarioItem(string FilePath, string Name, string Facility, string Rating);

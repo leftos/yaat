@@ -248,6 +248,61 @@ public partial class MainViewModel
         ShowScenarioSetupGoAroundProbability = false;
     }
 
+    /// <summary>
+    /// ARTCC-tab load path. The client only forwards the vNAS scenario id; the server
+    /// resolves the canonical JSON from its catalog cache and applies the rating gate
+    /// against the canonical MinimumRating. Returns AccessDeniedReason when the user's
+    /// training key doesn't unlock the scenario, which is surfaced to the user inline.
+    /// </summary>
+    public async Task LoadScenarioFromIdAsync(string apiScenarioId, string? displayName = null)
+    {
+        ScenarioFilePath = displayName ?? apiScenarioId;
+        try
+        {
+            var soloGoAround = _preferences.GetSoloGoAroundProbability(apiScenarioId);
+            var result = await _connection.LoadScenarioByIdAsync(
+                apiScenarioId,
+                _preferences.TrainingKey,
+                100,
+                100,
+                soloGoAround
+            );
+
+            if (result.AccessDeniedReason is { } reason)
+            {
+                _log.LogInformation("Scenario load denied: {Reason}", reason);
+                StatusText = reason;
+                AddSystemEntry($"Access denied: {reason}");
+                return;
+            }
+
+            if (result.Success)
+            {
+                ApplyScenarioResult(result);
+                _preferences.AddRecentScenario("", result.Name, apiScenarioId);
+                _log.LogInformation(
+                    "Scenario loaded by id: '{Name}' ({Id}), {Count} aircraft, {Delayed} delayed",
+                    result.Name,
+                    result.ScenarioId,
+                    result.AircraftCount,
+                    result.DelayedCount
+                );
+                StatusText = $"Loaded '{result.Name}': {result.AllAircraft.Count} aircraft";
+                AddSystemEntry($"Scenario loaded: {result.Name} ({result.AllAircraft.Count} aircraft)");
+            }
+            else
+            {
+                _log.LogWarning("Scenario load failed");
+                StatusText = "Scenario load failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Load scenario by id error");
+            StatusText = $"Load error: {ex.Message}";
+        }
+    }
+
     private async Task SendScenarioToServer(
         string json,
         string? apiId,

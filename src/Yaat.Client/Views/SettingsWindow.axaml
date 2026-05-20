@@ -84,6 +84,18 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
                         </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Training access key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBox Text="{Binding TrainingKey}"
+                                     PasswordChar="•"
+                                     Width="280"
+                                     HorizontalAlignment="Left" />
+                            <TextBlock Text="Issued by your facility TA. Unlocks rating-gated scenarios for your ARTCC. Leave blank if you don't have one."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

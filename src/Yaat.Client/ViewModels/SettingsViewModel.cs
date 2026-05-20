@@ -114,6 +114,9 @@ public partial class SettingsViewModel : ObservableObject
     private string _artccId = "";
 
     [ObservableProperty]
+    private string _trainingKey = "";
+
+    [ObservableProperty]
     private string _testCommandInput = "";
 
     [ObservableProperty]
@@ -513,6 +516,7 @@ public partial class SettingsViewModel : ObservableObject
         _vatsimCid = _preferences.VatsimCid;
         _userInitials = _preferences.UserInitials;
         _artccId = _preferences.ArtccId;
+        _trainingKey = _preferences.TrainingKey;
         _isAdminMode = _preferences.IsAdminMode;
         _adminPassword = _preferences.AdminPassword;
         _autoAcceptEnabled = _preferences.AutoAcceptEnabled;
@@ -628,6 +632,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetVatsimCid(VatsimCid);
         _preferences.SetUserInitials(UserInitials);
         _preferences.SetArtccId(ArtccId);
+        _preferences.SetTrainingKey(TrainingKey);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));

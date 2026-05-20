@@ -1459,7 +1459,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var window = new LoadScenarioWindow(vm.Preferences);
+        var window = new LoadScenarioWindow(vm.Preferences, vm.Connection);
         var result = await window.ShowDialog<ScenarioLoadResult?>(this);
         if (result is null)
         {
@@ -1719,17 +1719,8 @@ public partial class MainWindow : Window
 
     private static async Task LoadScenarioFromApiAsync(MainViewModel vm, string apiScenarioId, string? displayName = null)
     {
-        vm.StatusText = "Fetching scenario…";
-        var trainingData = new TrainingDataService();
-        var json = await trainingData.GetScenarioJsonAsync(apiScenarioId);
-        if (json is not null)
-        {
-            await vm.LoadScenarioFromJsonAsync(json, displayName ?? apiScenarioId, apiScenarioId);
-        }
-        else
-        {
-            vm.StatusText = "Failed to fetch scenario from API";
-        }
+        vm.StatusText = "Loading scenario…";
+        await vm.LoadScenarioFromIdAsync(apiScenarioId, displayName);
     }
 
     private static async Task LoadWeatherFromApiAsync(MainViewModel vm, string apiWeatherId, string? displayName = null)
