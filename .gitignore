@@ -6,6 +6,11 @@ obj/
 *.userosscache
 *.sln.docstates
 
+# .NET 10 SDK occasionally drops a transient .sln next to the .slnx (likely an
+# IDE-cache side effect) when `dotnet build`/`dotnet test` runs from the repo
+# root. We ship .slnx only, so any .sln here is build noise.
+/yaat.sln
+
 ## Node (Yaat.VStrips.Web Playwright smoke harness)
 node_modules/
 package-lock.json

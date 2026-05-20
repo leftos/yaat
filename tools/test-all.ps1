@@ -73,10 +73,14 @@ function Run-Step {
 
 Write-Host "Configuration: $Config" -ForegroundColor Yellow
 
-Run-Step 'Build yaat' $yaatDir "dotnet build -c $Config -p:TreatWarningsAsErrors=true"
-Run-Step 'Build yaat-server' $serverDir "dotnet build -c $Config -p:TreatWarningsAsErrors=true"
-Run-Step 'Test yaat' $yaatDir "dotnet test -c $Config --no-build"
-Run-Step 'Test yaat-server' $serverDir "dotnet test -c $Config --no-build"
+# Point dotnet at the .slnx explicitly. .NET 10 SDK 10.0.300 will otherwise
+# drop a transient .sln in the repo root, which then conflicts with the .slnx
+# on the next invocation ("more than one project or solution file") — see
+# /yaat.sln and /yaat-server.sln in .gitignore.
+Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:TreatWarningsAsErrors=true"
+Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true"
+Run-Step 'Test yaat' $yaatDir "dotnet test yaat.slnx -c $Config --no-build"
+Run-Step 'Test yaat-server' $serverDir "dotnet test yaat-server.slnx -c $Config --no-build"
 
 Write-Host ''
 if ($failed) {

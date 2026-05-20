@@ -1160,11 +1160,13 @@ Open **Settings** to configure:
 
 #### Training Access Key
 
-ARTCC scenarios marked with a required rating of S3 or higher (OTS / checkout / instructor material) are hidden by default in the ARTCC scenarios picker. To unlock them, paste the key your facility Training Administrator gave you into **Settings → Identity → Training access key** and save.
+ARTCC scenarios marked with a required controller rating (Student3 / Controller1 / Instructor1 — OTS, advanced, or instructor material) are hidden by default in the ARTCC scenarios picker. To unlock them, paste the key your facility Training Administrator gave you into **Settings → Identity → Training access key** and save.
 
-One key field covers both gated tiers:
-- An **S3 key** unlocks S3-tier scenarios (S3 OTS, S2 OTS marked S3+, S1 OTS marked S3+).
-- An **I1 key** unlocks both S3-tier and I1-tier (instructor) scenarios.
+The single key field covers three hierarchical tiers, and a higher-tier key automatically unlocks every lower tier:
+
+- An **S3 key** unlocks Student3-rated scenarios (S3 OTS).
+- A **C1 key** unlocks Controller1-rated scenarios *and* Student3 scenarios.
+- An **I1 key** unlocks Instructor1-rated scenarios *and* Controller1 *and* Student3.
 
 When the picker opens it asks the server which scenarios your key unlocks. Hidden scenarios never reach your client — instead an inline note shows how many are filtered. If your ARTCC hasn't set up gating yet, all scenarios are visible regardless of whether you have a key.
 

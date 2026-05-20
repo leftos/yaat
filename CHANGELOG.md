@@ -3,10 +3,10 @@
 ## Unreleased
 
 ### Highlights
-- Rating-gated training scenarios. ARTCC scenarios marked S3+ or I1+ (OTS / instructor material) are now hidden from the picker for users who don't hold a training access key, with an inline "N scenarios hidden — requires training access key for ZOA" message so it's clear something exists. Scenarios are enumerated on the server, so deleting `minimumRating` from a downloaded JSON file can't bypass the gate on the ARTCC tab.
+- Rating-gated training scenarios. ARTCC scenarios marked `Student3`, `Controller1`, or `Instructor1` (OTS / advanced / instructor material) are now hidden from the picker for users who don't hold a training access key, with an inline "N scenarios hidden — requires training access key for ZOA" message so it's clear something exists. Scenarios are enumerated on the server, so deleting `minimumRating` from a downloaded JSON file can't bypass the gate on the ARTCC tab.
 
 ### Added
-- `Settings → Identity → Training access key` — masked field for the per-ARTCC key your facility TA hands out. One key, no prefix; the server tells the client which tiers it unlocks. I1 keys hierarchically unlock S3 scenarios as well.
+- `Settings → Identity → Training access key` — masked field for the per-ARTCC key your facility TA hands out. One key, no prefix; the server tells the client which tiers it unlocks. Three tiers exist (S3, C1, I1); a higher-tier key hierarchically unlocks all lower-tier scenarios as well.
 - Server-side scenario enumeration for the ARTCC tab. The client receives only the scenarios its key unlocks; hidden ones never reach the wire. Local-tab JSON loads are unchanged — no key required, dev workflow preserved.
 - Inline "N scenarios hidden" affordance on the ARTCC tab when one or more scenarios were filtered by the gate.
 
