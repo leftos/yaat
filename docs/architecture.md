@@ -621,8 +621,10 @@ ScenarioValidator.cs           # Validates preset commands via CommandParser.Par
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor
-ScenarioRatingTier.cs          # ScenarioRatingTier enum (Ungated/S3/I1) + ScenarioRatingClassifier (ordinal-based,
-                               # hierarchical IsAccessible). Shared by client picker filter and server gating.
+ScenarioRatingTier.cs          # ScenarioRatingTier enum (Ungated/S3/C1/I1) + ScenarioRatingClassifier
+                               # (ordinal-based, hierarchical IsAccessible). Maps both short and long form
+                               # rating names (S3 / Student3 etc.) from the vNAS data-api. Shared by the
+                               # client picker filter and the server-side gating decision.
 
 # Simulation/
 SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;
