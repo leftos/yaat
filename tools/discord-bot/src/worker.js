@@ -1096,8 +1096,9 @@ async function grantMemberRole(guildId, userId, env) {
 
 async function triggerValidationWorkflow(artcc, env) {
   const token = await getGitHubToken(env);
+  const repo = env.VALIDATION_REPO || env.GITHUB_REPO;
   const res = await fetch(
-    `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/discord-scenario-validation.yml/dispatches`,
+    `https://api.github.com/repos/${repo}/actions/workflows/discord-scenario-validation.yml/dispatches`,
     {
       method: "POST",
       headers: {
