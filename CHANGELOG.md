@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Highlights
+- Rating-gated training scenarios. ARTCC scenarios marked S3+ or I1+ (OTS / instructor material) are now hidden from the picker for users who don't hold a training access key, with an inline "N scenarios hidden — requires training access key for ZOA" message so it's clear something exists. Scenarios are enumerated on the server, so deleting `minimumRating` from a downloaded JSON file can't bypass the gate on the ARTCC tab.
+
+### Added
+- `Settings → Identity → Training access key` — masked field for the per-ARTCC key your facility TA hands out. One key, no prefix; the server tells the client which tiers it unlocks. I1 keys hierarchically unlock S3 scenarios as well.
+- Server-side scenario enumeration for the ARTCC tab. The client receives only the scenarios its key unlocks; hidden ones never reach the wire. Local-tab JSON loads are unchanged — no key required, dev workflow preserved.
+- Inline "N scenarios hidden" affordance on the ARTCC tab when one or more scenarios were filtered by the gate.
+
+### Changed
+- `LoadScenarioWindow` ARTCC tab fetches from the YAAT server instead of vNAS directly. The rating dropdown is gone (server filter supersedes it); the facility dropdown stays.
+- ARTCC-tab loads send only the scenario id to the server, not the JSON body. The server resolves the canonical scenario data from its own catalog and applies the rating gate against that — client-side edits to a downloaded scenario file no longer affect the gate decision on this path.
+
 ## v0.2.6-alpha [2026/05/18]
 
 ### Highlights

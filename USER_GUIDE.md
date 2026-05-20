@@ -1148,7 +1148,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 Open **Settings** to configure:
 
-- **Identity** — VATSIM CID, user initials (required), and [ARTCC](#glossary) ID
+- **Identity** — VATSIM CID, user initials (required), [ARTCC](#glossary) ID, and an optional **Training access key** (see below)
 - **Scenarios** — Solo Training Mode, auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
 - **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
@@ -1157,6 +1157,18 @@ Open **Settings** to configure:
 - **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, and ground labels (each independently configurable, range 8–24); command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); **No landing clearance warning** toggle (flashes a red `NoLndgClnc` line on the radar datablock for aircraft on final without a landing clearance); ground display options (start with datablocks hidden); per-window always-on-top toggles
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
 - **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode
+
+#### Training Access Key
+
+ARTCC scenarios marked with a required rating of S3 or higher (OTS / checkout / instructor material) are hidden by default in the ARTCC scenarios picker. To unlock them, paste the key your facility Training Administrator gave you into **Settings → Identity → Training access key** and save.
+
+One key field covers both gated tiers:
+- An **S3 key** unlocks S3-tier scenarios (S3 OTS, S2 OTS marked S3+, S1 OTS marked S3+).
+- An **I1 key** unlocks both S3-tier and I1-tier (instructor) scenarios.
+
+When the picker opens it asks the server which scenarios your key unlocks. Hidden scenarios never reach your client — instead an inline note shows how many are filtered. If your ARTCC hasn't set up gating yet, all scenarios are visible regardless of whether you have a key.
+
+The **Local Files** tab is not gated. Trainer authors and developers can load any scenario JSON they have on disk.
 
 #### Simulation Shortcuts
 
