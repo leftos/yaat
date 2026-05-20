@@ -73,6 +73,7 @@ public sealed class UserPreferences
     public string ArtccId => _data.ArtccId;
     public bool IsAdminMode => _data.IsAdminMode;
     public string AdminPassword => _data.AdminPassword;
+    public string TrainingKey => _data.TrainingKey;
     public SavedWindowGeometry? MainWindowGeometry => _data.MainWindowGeometry;
     public SavedWindowGeometry? SettingsWindowGeometry => _data.SettingsWindowGeometry;
     public SavedWindowGeometry? TerminalWindowGeometry => _data.TerminalWindowGeometry;
@@ -381,6 +382,12 @@ public sealed class UserPreferences
     {
         _data.IsAdminMode = isAdmin;
         _data.AdminPassword = password;
+        Save();
+    }
+
+    public void SetTrainingKey(string key)
+    {
+        _data.TrainingKey = key.Trim();
         Save();
     }
 
@@ -1253,6 +1260,7 @@ public sealed class UserPreferences
         public string ArtccId { get; set; } = "";
         public bool IsAdminMode { get; set; }
         public string AdminPassword { get; set; } = "";
+        public string TrainingKey { get; set; } = "";
         public SavedWindowGeometry? MainWindowGeometry { get; set; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; set; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; set; }

@@ -81,8 +81,6 @@ public sealed class TrainingDataService
     }
 }
 
-public sealed record ScenarioSummaryDto(string Id, string Name, string ArtccId, string? PrimaryAirportId, string? MinimumRating);
-
 public sealed record WeatherProfileDto(
     string Id,
     string Name,

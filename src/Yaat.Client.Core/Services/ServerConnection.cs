@@ -245,6 +245,52 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         );
     }
 
+    /// <summary>
+    /// ARTCC-tab load path. Sends only the scenario id; the server resolves the canonical
+    /// JSON from its catalog and applies the rating gate against canonical metadata, so
+    /// edits to a local copy of the JSON cannot bypass the gate on this path.
+    /// </summary>
+    public async Task<LoadScenarioResultDto> LoadScenarioByIdAsync(
+        string scenarioId,
+        string accessKey,
+        int soloParkingInitialCallupRatePercent,
+        int soloArrivalGeneratorRatePercent,
+        int soloGoAroundProbabilityPercent
+    )
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<LoadScenarioResultDto>(
+            "LoadScenarioById",
+            scenarioId,
+            accessKey,
+            soloParkingInitialCallupRatePercent,
+            soloArrivalGeneratorRatePercent,
+            soloGoAroundProbabilityPercent
+        );
+    }
+
+    /// <summary>
+    /// Returns the scenarios visible to the supplied training key for the room's ARTCC,
+    /// plus a count of scenarios hidden by the rating gate. The picker uses the count to
+    /// surface "N scenarios hidden — requires training access key" inline.
+    /// </summary>
+    public async Task<ScenarioCatalogResponseDto> GetScenariosAsync(string accessKey)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<ScenarioCatalogResponseDto>("GetScenarios", accessKey);
+    }
+
+    /// <summary>
+    /// Validates a training key against the given ARTCC. Returns the tier names the key
+    /// unlocks (subset of "S3", "I1"; empty means the key matches nothing or the ARTCC isn't
+    /// enrolled in gating).
+    /// </summary>
+    public async Task<string[]> ValidateTrainingKeyAsync(string artccId, string key)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<string[]>("ValidateTrainingKey", artccId, key);
+    }
+
     // --- Flight-strips facility discovery ---
 
     /// <summary>
@@ -741,8 +787,26 @@ public record LoadScenarioResultDto(
     string? StudentPositionType = null,
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
-    List<ScenarioPositionDto>? Positions = null
+    List<ScenarioPositionDto>? Positions = null,
+    // Non-null implies Success == false; the message is a human-readable explanation the
+    // client surfaces directly. Distinct from Warnings: gate denials get this dedicated field
+    // so the UI can render them differently from general load issues.
+    string? AccessDeniedReason = null
 );
+
+/// <summary>
+/// Server-side scenario summary returned by GetScenarios. Mirrors the shape of the vNAS
+/// data-api response and is the unit the picker UI binds to. MinimumRating is the rating
+/// gate value used by the server-side filter.
+/// </summary>
+public sealed record ScenarioSummaryDto(string Id, string Name, string ArtccId, string? PrimaryAirportId, string? MinimumRating);
+
+/// <summary>
+/// Wire shape for ServerConnection.GetScenariosAsync. Mirrors the server's
+/// ScenarioCatalogResponseDto. HiddenByGateCount > 0 triggers the picker's
+/// "N scenarios hidden — requires training access key" affordance.
+/// </summary>
+public sealed record ScenarioCatalogResponseDto(ScenarioSummaryDto[] Visible, int HiddenByGateCount);
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
 
