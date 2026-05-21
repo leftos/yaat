@@ -1876,7 +1876,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var window = new SessionReportWindow(vm.Connection.GetSessionReportAsync);
+            var window = new SessionReportWindow(vm.Connection.GetSessionReportAsync, vm.ShowAircraftOnTimelineAsync);
             window.Closed += (_, _) => _sessionReportWindow = null;
             _sessionReportWindow = window;
             new WindowGeometryHelper(window, vm.Preferences, "SessionReport", 1000, 700).Restore();

@@ -8,15 +8,17 @@ namespace Yaat.Client.Views;
 public partial class SessionReportWindow : Window
 {
     private readonly Func<Task<SessionReportDto?>> _reportLoader;
+    private readonly Func<string, double, Task>? _showOnTimeline;
     private readonly DispatcherTimer _refreshTimer;
     private bool _refreshing;
 
     public SessionReportWindow()
-        : this(() => Task.FromResult<SessionReportDto?>(null)) { }
+        : this(() => Task.FromResult<SessionReportDto?>(null), showOnTimeline: null) { }
 
-    public SessionReportWindow(Func<Task<SessionReportDto?>> reportLoader)
+    public SessionReportWindow(Func<Task<SessionReportDto?>> reportLoader, Func<string, double, Task>? showOnTimeline)
     {
         _reportLoader = reportLoader;
+        _showOnTimeline = showOnTimeline;
         InitializeComponent();
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -32,6 +34,23 @@ public partial class SessionReportWindow : Window
         if (refreshBtn is not null)
         {
             refreshBtn.Click += async (_, _) => await RefreshAsync();
+        }
+
+        var aircraftGrid = this.FindControl<DataGrid>("AircraftDebriefsGrid");
+        var showOnTimelineBtn = this.FindControl<Button>("ShowOnTimelineButton");
+        if (aircraftGrid is not null && showOnTimelineBtn is not null)
+        {
+            aircraftGrid.SelectionChanged += (_, _) =>
+            {
+                showOnTimelineBtn.IsEnabled = _showOnTimeline is not null && aircraftGrid.SelectedItem is AircraftDebriefRow;
+            };
+            showOnTimelineBtn.Click += async (_, _) =>
+            {
+                if (_showOnTimeline is not null && aircraftGrid.SelectedItem is AircraftDebriefRow row)
+                {
+                    await _showOnTimeline(row.Callsign, row.SpawnedAtSeconds);
+                }
+            };
         }
 
         Closed += (_, _) => _refreshTimer.Stop();
@@ -199,7 +218,8 @@ public partial class SessionReportWindow : Window
         string CompletedText,
         string StatusText,
         string FindingsText,
-        string CoachingNote
+        string CoachingNote,
+        double SpawnedAtSeconds
     )
     {
         public static AircraftDebriefRow FromDto(AircraftDebriefDto dto)
@@ -238,7 +258,8 @@ public partial class SessionReportWindow : Window
                 completed,
                 status,
                 findings,
-                dto.CoachingNote
+                dto.CoachingNote,
+                dto.SpawnedAtSeconds
             );
         }
     }
