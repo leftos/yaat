@@ -253,12 +253,14 @@ internal static class ShownRouteBuilder
 
     private static VectorTail? TryExtractTrailingVector(IReadOnlyList<CifpLeg> legs, NavigationDatabase navDb)
     {
-        // Walk from the end backward looking for the most recent VM/VA leg with a usable
-        // OutboundCourse. The anchor is the last preceding leg with a resolvable fix.
+        // Walk from the end backward looking for the most recent vector leg with a usable
+        // OutboundCourse. VM (heading-to-manual) and VA (heading-to-altitude) have no fix
+        // identifier and use the preceding leg's fix as anchor. FM (course-from-fix-to-manual)
+        // and CF-style course legs carry their own FixIdentifier as the anchor.
         for (int i = legs.Count - 1; i >= 0; i--)
         {
             var leg = legs[i];
-            if (leg.PathTerminator is not (CifpPathTerminator.VM or CifpPathTerminator.VA))
+            if (leg.PathTerminator is not (CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.FM))
             {
                 continue;
             }
@@ -267,7 +269,17 @@ internal static class ShownRouteBuilder
                 continue;
             }
 
-            // Find the anchor — the most recent leg before this one with a known fix position.
+            // FM: anchor is this leg's own fix identifier.
+            if (leg.PathTerminator == CifpPathTerminator.FM && !string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                var pos = navDb.GetFixPosition(leg.FixIdentifier);
+                if (pos.HasValue)
+                {
+                    return new VectorTail(pos.Value.Lat, pos.Value.Lon, magCourse, TailLengthNm);
+                }
+            }
+
+            // VM/VA: anchor is the most recent preceding leg with a resolvable fix.
             for (int j = i - 1; j >= 0; j--)
             {
                 var prev = legs[j];

@@ -67,6 +67,59 @@ public class ShownRouteBuilderTests
     }
 
     [Fact]
+    public void BuildPrimary_StarRunwayTransitionEndingInFm_ReturnsTailFromOwnFix()
+    {
+        // FM is the standard US-CIFP "fly from this fix on this course until vectored" leg —
+        // e.g. KOAK WNDSR2 RW30: HOPTA → ALLXX → CRSEN → FM(CRSEN, 112°). The anchor for FM
+        // is the leg's OWN FixIdentifier (CRSEN), not the previous leg.
+        var rwyTransition = new CifpTransition(
+            "RW30",
+            [
+                new CifpLeg("HOPTA", CifpPathTerminator.IF, null, null, null, CifpFixRole.IF, 10, null, null, null),
+                new CifpLeg("ALLXX", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 20, null, null, null),
+                new CifpLeg("CRSEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
+                new CifpLeg("CRSEN", CifpPathTerminator.FM, null, null, null, CifpFixRole.None, 40, OutboundCourse: 112.0, null, null),
+            ]
+        );
+
+        var stars = new[]
+        {
+            new CifpStarProcedure(
+                Airport,
+                "WNDSR2",
+                CommonLegs: [new CifpLeg("HOPTA", CifpPathTerminator.IF, null, null, null, CifpFixRole.IF, 10, null, null, null)],
+                EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+                RunwayTransitions: new Dictionary<string, CifpTransition>(StringComparer.OrdinalIgnoreCase) { ["RW30"] = rwyTransition }
+            ),
+        };
+
+        var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["HOPTA"] = (37.78, -122.15),
+            ["ALLXX"] = (37.73, -122.06),
+            ["CRSEN"] = (37.69, -122.01),
+        };
+
+        var navDb = NavigationDatabase.ForTesting(fixes, null, null, null, null, stars);
+
+        var ac = new AircraftModel
+        {
+            Callsign = "SWA1234",
+            Destination = Airport,
+            ActiveStarId = "WNDSR2",
+            DestinationRunway = "30",
+            NavigationRoute = ["HOPTA", "ALLXX", "CRSEN"],
+        };
+
+        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+
+        Assert.NotNull(tail);
+        Assert.Equal(37.69, tail!.FromLat, 6);
+        Assert.Equal(-122.01, tail.FromLon, 6);
+        Assert.Equal(112.0, tail.HeadingMag, 3);
+    }
+
+    [Fact]
     public void BuildPrimary_StarEndingAtFix_NoVectorLeg_ReturnsNullTail()
     {
         var stars = new[]

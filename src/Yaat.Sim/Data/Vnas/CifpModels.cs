@@ -47,6 +47,14 @@ public enum CifpPathTerminator
     VM,
     VI,
     CI,
+
+    /// <summary>
+    /// FM — Course From a fix to a Manual termination. ARINC 424 §5.21. Equivalent to VM
+    /// from a published fix anchor: fly the published <c>OutboundCourse</c> from the named
+    /// fix until ATC issues vectors or sequences the next phase. Used as the terminating
+    /// leg on most US STARs that hand off to radar (e.g. KOAK WNDSR2, OAKES3).
+    /// </summary>
+    FM,
     Other,
 }
 

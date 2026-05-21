@@ -824,6 +824,7 @@ public static partial class CifpParser
             "VM" => CifpPathTerminator.VM,
             "VI" => CifpPathTerminator.VI,
             "CI" => CifpPathTerminator.CI,
+            "FM" => CifpPathTerminator.FM,
             _ => CifpPathTerminator.Other,
         };
     }
