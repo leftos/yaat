@@ -35,8 +35,8 @@
         "aircraftType": "B738/L"
       },
       "presetCommands": [
-        { "id": "01HZWNDSR2CMD0000000000001", "command": "JARR WNDSR2 WEBRR", "timeOffset": 0 },
-        { "id": "01HZWNDSR2CMD0000000000002", "command": "EAPP I30", "timeOffset": 0 }
+        { "id": "01HZWNDSR2CMD0000000000001", "command": "EAPP I30", "timeOffset": 0 },
+        { "id": "01HZWNDSR2CMD0000000000002", "command": "JARR WNDSR2 WEBRR", "timeOffset": 0 }
       ],
       "spawnDelay": 0,
       "airportId": "OAK",
