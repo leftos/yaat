@@ -1068,7 +1068,29 @@ public record SessionReportDto(
     List<SoloTrainingEventDto> ActiveEvents,
     List<SoloTrainingEventDto> Timeline,
     List<string> CoachingNotes,
-    ApproachReportDto ApproachReport
+    ApproachReportDto ApproachReport,
+    List<AircraftDebriefDto> AircraftDebriefs
+);
+
+public record AircraftDebriefDto(
+    string Callsign,
+    string AircraftType,
+    string? FiledDeparture,
+    string? FiledDestination,
+    string Operation,
+    double SpawnedAtSeconds,
+    double? CompletedAtSeconds,
+    string CompletionReason,
+    string? CompletionDetail,
+    int SeparationFindingCount,
+    int RunwayWakeFindingCount,
+    int AdvisoryFindingCount,
+    int ApproachFindingCount,
+    int CoachFindingCount,
+    int WarningFindingCount,
+    int SafetyFindingCount,
+    string CoachingNote,
+    List<string> FindingIds
 );
 
 public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlayback, bool IsAvailable);
