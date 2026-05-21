@@ -85,8 +85,18 @@ public partial class SessionReportWindow : Window
         SetItems("CoachingNotesList", report.CoachingNotes);
         SetItems("ActiveEventsGrid", report.ActiveEvents.Select(EventRow.FromDto).ToList());
         SetItems("TimelineGrid", report.Timeline.Select(EventRow.FromDto).ToList());
+        SetItems("AircraftDebriefsGrid", report.AircraftDebriefs.Select(AircraftDebriefRow.FromDto).ToList());
         SetItems("ApproachScoresGrid", report.ApproachReport.Approaches);
         SetItems("RunwayStatsGrid", report.ApproachReport.RunwayStats);
+
+        var hint = this.FindControl<TextBlock>("AircraftSelectionHint");
+        if (hint is not null)
+        {
+            hint.Text =
+                report.AircraftDebriefs.Count == 0
+                    ? "No aircraft yet — debrief rows appear as aircraft enter the world."
+                    : $"{report.AircraftDebriefs.Count} aircraft tracked this session.";
+        }
     }
 
     private void SetText(string controlName, string value)
@@ -177,6 +187,59 @@ public partial class SessionReportWindow : Window
             }
 
             return "";
+        }
+    }
+
+    private sealed record AircraftDebriefRow(
+        string Callsign,
+        string AircraftType,
+        string OperationText,
+        string RouteText,
+        string SpawnedText,
+        string CompletedText,
+        string StatusText,
+        string FindingsText,
+        string CoachingNote
+    )
+    {
+        public static AircraftDebriefRow FromDto(AircraftDebriefDto dto)
+        {
+            string route = (dto.FiledDeparture, dto.FiledDestination) switch
+            {
+                (null, null) => "—",
+                ({ Length: > 0 } d, null) => $"{d} →",
+                (null, { Length: > 0 } a) => $"→ {a}",
+                ({ Length: > 0 } d, { Length: > 0 } a) => $"{d} → {a}",
+                _ => "—",
+            };
+
+            string spawned = TimeSpan.FromSeconds(dto.SpawnedAtSeconds).ToString(@"h\:mm\:ss");
+            string completed = dto.CompletedAtSeconds.HasValue ? TimeSpan.FromSeconds(dto.CompletedAtSeconds.Value).ToString(@"h\:mm\:ss") : "—";
+
+            string status = dto.CompletionReason switch
+            {
+                "Landed" when !string.IsNullOrEmpty(dto.CompletionDetail) => $"Landed RW {dto.CompletionDetail}",
+                "Landed" => "Landed",
+                "HandedOff" when !string.IsNullOrEmpty(dto.CompletionDetail) => $"Handed off {dto.CompletionDetail}",
+                "HandedOff" => "Handed off",
+                "Dropped" => "Dropped",
+                _ => "Active",
+            };
+
+            int total = dto.SeparationFindingCount + dto.RunwayWakeFindingCount + dto.AdvisoryFindingCount + dto.ApproachFindingCount;
+            string findings = total == 0 ? "0" : $"{total} ({dto.SafetyFindingCount}S / {dto.WarningFindingCount}W / {dto.CoachFindingCount}C)";
+
+            return new AircraftDebriefRow(
+                dto.Callsign,
+                dto.AircraftType,
+                dto.Operation,
+                route,
+                spawned,
+                completed,
+                status,
+                findings,
+                dto.CoachingNote
+            );
         }
     }
 }

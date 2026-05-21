@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Session Report → **Aircraft** tab — one row per aircraft that has entered the session, showing operation (Departure/Arrival/Transit), filed route, spawn/completion times, status (Active / Landed RW / Handed off …), finding counts broken out by severity, and a one-line coaching note. Aircraft stay listed in the tab after landing, handoff, or drop so you can review every aircraft that passed through your airspace.
+
 ## v0.3.1-beta [2026/05/21]
 
 ### Fixed
