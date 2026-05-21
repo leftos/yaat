@@ -34,7 +34,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
 
         var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 100, new ApproachReportData([], [], 100, "N/A"));
+        var report = evaluator.BuildReport(true, 100, new ApproachReportData([], [], 100, "N/A"), AircraftDebriefContext.Empty);
 
         var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
@@ -121,7 +121,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
 
         var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"));
+        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
@@ -143,7 +143,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
 
         var notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"));
+        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
@@ -252,7 +252,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 30, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 30, new ApproachReportData([], [], 30, "N/A"));
+        var report = evaluator.BuildReport(true, 30, new ApproachReportData([], [], 30, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
@@ -354,7 +354,7 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
         evaluator.Evaluate([a, b], scenarioElapsedSeconds: 12, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"));
+        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(2, report.Timeline.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
@@ -393,7 +393,7 @@ public sealed class SoloTrainingEvaluatorTests
 
         var first = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
         var second = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"));
+        var report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Equal(2, first.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
         Assert.Empty(second);
@@ -539,7 +539,7 @@ public sealed class SoloTrainingEvaluatorTests
             [aircraft, other]
         );
         evaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 12, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"));
+        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(report.ActiveEvents, e => e.Title == "Visual approach field proof missing");
     }
@@ -741,7 +741,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"));
+        var report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -814,7 +814,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new LandingPhase());
 
         notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 51, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 51, new ApproachReportData([], [], 51, "N/A"));
+        var report = evaluator.BuildReport(true, 51, new ApproachReportData([], [], 51, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -837,7 +837,7 @@ public sealed class SoloTrainingEvaluatorTests
 
         var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 61, AirspaceDatabase.Default);
         var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 62, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 62, new ApproachReportData([], [], 62, "N/A"));
+        var report = evaluator.BuildReport(true, 62, new ApproachReportData([], [], 62, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
@@ -865,7 +865,7 @@ public sealed class SoloTrainingEvaluatorTests
         evaluator.Reset();
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 72, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 72, new ApproachReportData([], [], 72, "N/A"));
+        var report = evaluator.BuildReport(true, 72, new ApproachReportData([], [], 72, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -915,7 +915,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway10L, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 76, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 76, new ApproachReportData([], [], 76, "N/A"));
+        var report = evaluator.BuildReport(true, 76, new ApproachReportData([], [], 76, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -964,7 +964,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, crossing, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 80, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 80, new ApproachReportData([], [], 80, "N/A"));
+        var report = evaluator.BuildReport(true, 80, new ApproachReportData([], [], 80, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1082,7 +1082,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, converging, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 88, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 88, new ApproachReportData([], [], 88, "N/A"));
+        var report = evaluator.BuildReport(true, 88, new ApproachReportData([], [], 88, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1151,7 +1151,7 @@ public sealed class SoloTrainingEvaluatorTests
 
         var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 94, AirspaceDatabase.Default);
         var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 95, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 95, new ApproachReportData([], [], 95, "N/A"));
+        var report = evaluator.BuildReport(true, 95, new ApproachReportData([], [], 95, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
@@ -1177,7 +1177,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, converging, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 84, new ApproachReportData([], [], 84, "N/A"));
+        var report = evaluator.BuildReport(true, 84, new ApproachReportData([], [], 84, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1283,7 +1283,7 @@ public sealed class SoloTrainingEvaluatorTests
 
         evaluator.RecordControllerCommand(follower, SingleCommand(new WakeAdvisoryCommand()), scenarioElapsedSeconds: 161, [lead, follower]);
         var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 162, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 162, new ApproachReportData([], [], 162, "N/A"));
+        var report = evaluator.BuildReport(true, 162, new ApproachReportData([], [], 162, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(second, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
         Assert.DoesNotContain(
@@ -1524,7 +1524,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 221, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 221, new ApproachReportData([], [], 221, "N/A"));
+        var report = evaluator.BuildReport(true, 221, new ApproachReportData([], [], 221, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1546,7 +1546,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"));
+        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1594,7 +1594,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, followerRunway, new TakeoffPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"));
+        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1702,7 +1702,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new LandingPhase());
 
         var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 301, new ApproachReportData([], [], 301, "N/A"));
+        var report = evaluator.BuildReport(true, 301, new ApproachReportData([], [], 301, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1725,7 +1725,7 @@ public sealed class SoloTrainingEvaluatorTests
 
         var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
         var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 161, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 161, new ApproachReportData([], [], 161, "N/A"));
+        var report = evaluator.BuildReport(true, 161, new ApproachReportData([], [], 161, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);

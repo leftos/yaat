@@ -58,7 +58,8 @@ public sealed record SoloTrainingReportData(
     List<SoloTrainingEvent> ActiveEvents,
     List<SoloTrainingEvent> Timeline,
     List<string> CoachingNotes,
-    ApproachReportData ApproachReport
+    ApproachReportData ApproachReport,
+    IReadOnlyList<AircraftDebriefData> AircraftDebriefs
 );
 
 public sealed record SoloTrainingServiceContext(InitialContactEligibilityContext InitialContactEligibility, WakeDirectiveCatalog WakeDirectives)
@@ -289,7 +290,12 @@ public sealed class SoloTrainingEvaluator
         return notices;
     }
 
-    public SoloTrainingReportData BuildReport(bool soloTrainingMode, double scenarioElapsedSeconds, ApproachReportData approachReport)
+    public SoloTrainingReportData BuildReport(
+        bool soloTrainingMode,
+        double scenarioElapsedSeconds,
+        ApproachReportData approachReport,
+        AircraftDebriefContext debriefContext
+    )
     {
         var timeline = _events.Values.Select(t => t.ToEvent()).OrderByDescending(e => e.StartedAtSeconds).ToList();
         var active = timeline.Where(e => e.IsActive).OrderByDescending(e => e.Severity).ThenByDescending(e => e.ExposureSeconds).ToList();
@@ -312,6 +318,8 @@ public sealed class SoloTrainingEvaluator
         int pointsLost = buckets.Sum(b => b.PointsLost);
         int score = Math.Clamp(100 - pointsLost, 0, 100);
 
+        var debriefs = BuildAircraftDebriefs(timeline, debriefContext);
+
         return new SoloTrainingReportData(
             soloTrainingMode,
             scenarioElapsedSeconds,
@@ -321,8 +329,257 @@ public sealed class SoloTrainingEvaluator
             active,
             timeline,
             BuildCoachingNotes(timeline, approachReport),
-            approachReport
+            approachReport,
+            debriefs
         );
+    }
+
+    private static IReadOnlyList<AircraftDebriefData> BuildAircraftDebriefs(
+        IReadOnlyList<SoloTrainingEvent> timeline,
+        AircraftDebriefContext debriefContext
+    )
+    {
+        if (debriefContext.ActiveAircraft.Count == 0 && debriefContext.CompletedAircraft.Count == 0)
+        {
+            return [];
+        }
+
+        // Group findings by participating callsign. SoloTrainingEvent.Callsigns lists every
+        // aircraft involved in the finding, so the same finding shows up in both aircraft's
+        // debrief blocks (which is what we want — separation losses are shared blame).
+        var findingsByCallsign = new Dictionary<string, List<SoloTrainingEvent>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var ev in timeline)
+        {
+            foreach (var cs in ev.Callsigns)
+            {
+                if (string.IsNullOrWhiteSpace(cs))
+                {
+                    continue;
+                }
+                if (!findingsByCallsign.TryGetValue(cs, out var list))
+                {
+                    list = [];
+                    findingsByCallsign[cs] = list;
+                }
+                list.Add(ev);
+            }
+        }
+
+        var results = new List<AircraftDebriefData>(debriefContext.ActiveAircraft.Count + debriefContext.CompletedAircraft.Count);
+
+        // Active aircraft come from the live world.
+        foreach (var ac in debriefContext.ActiveAircraft)
+        {
+            results.Add(BuildDebriefForActive(ac, debriefContext.PrimaryAirportId, findingsByCallsign));
+        }
+
+        // Completed-and-removed aircraft come from SimulationWorld's registry. Skip any
+        // callsign that's also active (the live entry wins — possible during a same-callsign
+        // respawn after a removal).
+        var liveCallsigns = new HashSet<string>(debriefContext.ActiveAircraft.Select(a => a.Callsign), StringComparer.OrdinalIgnoreCase);
+        foreach (var record in debriefContext.CompletedAircraft)
+        {
+            if (liveCallsigns.Contains(record.Callsign))
+            {
+                continue;
+            }
+            results.Add(BuildDebriefForCompleted(record, debriefContext.PrimaryAirportId, findingsByCallsign));
+        }
+
+        // Sort by spawn time so the timeline reads chronologically.
+        results.Sort((a, b) => a.SpawnedAtSeconds.CompareTo(b.SpawnedAtSeconds));
+        return results;
+    }
+
+    private static AircraftDebriefData BuildDebriefForActive(
+        AircraftState ac,
+        string? primaryAirportId,
+        Dictionary<string, List<SoloTrainingEvent>> findingsByCallsign
+    )
+    {
+        string? departure = string.IsNullOrEmpty(ac.FlightPlan.Departure) ? null : ac.FlightPlan.Departure;
+        string? destination = string.IsNullOrEmpty(ac.FlightPlan.Destination) ? null : ac.FlightPlan.Destination;
+        var operation = ClassifyOperation(departure, destination, primaryAirportId);
+        var findings = findingsByCallsign.GetValueOrDefault(ac.Callsign) ?? [];
+        return BuildDebriefRow(
+            ac.Callsign,
+            ac.AircraftType,
+            departure,
+            destination,
+            operation,
+            ac.SpawnedAtSeconds,
+            ac.CompletedAtSeconds,
+            ac.CompletionReason,
+            ac.CompletionDetail,
+            findings
+        );
+    }
+
+    private static AircraftDebriefData BuildDebriefForCompleted(
+        CompletedAircraftRecord record,
+        string? primaryAirportId,
+        Dictionary<string, List<SoloTrainingEvent>> findingsByCallsign
+    )
+    {
+        var operation = ClassifyOperation(record.FiledDeparture, record.FiledDestination, primaryAirportId);
+        var findings = findingsByCallsign.GetValueOrDefault(record.Callsign) ?? [];
+        return BuildDebriefRow(
+            record.Callsign,
+            record.AircraftType,
+            record.FiledDeparture,
+            record.FiledDestination,
+            operation,
+            record.SpawnedAtSeconds,
+            record.CompletedAtSeconds,
+            record.Reason,
+            record.Detail,
+            findings
+        );
+    }
+
+    private static AircraftDebriefData BuildDebriefRow(
+        string callsign,
+        string aircraftType,
+        string? departure,
+        string? destination,
+        OperationKind operation,
+        double spawnedAt,
+        double? completedAt,
+        CompletionReason completionReason,
+        string? completionDetail,
+        IReadOnlyList<SoloTrainingEvent> findings
+    )
+    {
+        int separation = 0;
+        int runwayWake = 0;
+        int advisory = 0;
+        int approachCount = 0;
+        int coach = 0;
+        int warning = 0;
+        int safety = 0;
+        SoloTrainingEvent? topFinding = null;
+        var findingIds = new List<string>(findings.Count);
+
+        foreach (var f in findings)
+        {
+            findingIds.Add(f.Id);
+            switch (f.Category)
+            {
+                case SoloTrainingEventCategory.Separation:
+                    separation++;
+                    break;
+                case SoloTrainingEventCategory.RunwayWake:
+                    runwayWake++;
+                    break;
+                case SoloTrainingEventCategory.AdvisoryVisual:
+                    advisory++;
+                    break;
+                case SoloTrainingEventCategory.Approach:
+                    approachCount++;
+                    break;
+            }
+            switch (f.Severity)
+            {
+                case SoloTrainingEventSeverity.Coach:
+                    coach++;
+                    break;
+                case SoloTrainingEventSeverity.Warning:
+                    warning++;
+                    break;
+                case SoloTrainingEventSeverity.Safety:
+                    safety++;
+                    break;
+            }
+
+            // Top finding = highest severity, breaking ties by longest active exposure (most
+            // recent activity if both inactive). Mirrors the ordering used for the ActiveEvents
+            // pane so the coaching note matches what the controller sees at the top.
+            if (topFinding is null || CompareForTop(f, topFinding) > 0)
+            {
+                topFinding = f;
+            }
+        }
+
+        var note = AircraftDebriefCoachingTemplates.Build(operation, completionReason, completionDetail, topFinding, findings.Count);
+
+        return new AircraftDebriefData(
+            callsign,
+            aircraftType,
+            departure,
+            destination,
+            operation,
+            spawnedAt,
+            completedAt,
+            completionReason,
+            completionDetail,
+            separation,
+            runwayWake,
+            advisory,
+            approachCount,
+            coach,
+            warning,
+            safety,
+            note,
+            findingIds
+        );
+    }
+
+    private static int CompareForTop(SoloTrainingEvent candidate, SoloTrainingEvent incumbent)
+    {
+        int sev = candidate.Severity.CompareTo(incumbent.Severity);
+        if (sev != 0)
+        {
+            return sev;
+        }
+        return candidate.ExposureSeconds.CompareTo(incumbent.ExposureSeconds);
+    }
+
+    private static OperationKind ClassifyOperation(string? departure, string? destination, string? primaryAirportId)
+    {
+        if (string.IsNullOrWhiteSpace(primaryAirportId))
+        {
+            return string.IsNullOrWhiteSpace(departure) && string.IsNullOrWhiteSpace(destination) ? OperationKind.Unknown : OperationKind.Transit;
+        }
+
+        bool matchesDeparture = AirportIdMatches(departure, primaryAirportId);
+        bool matchesDestination = AirportIdMatches(destination, primaryAirportId);
+
+        // Pattern work (dep == dest == primary) reads as Departure since the aircraft
+        // originated there. The completion reason (Landed vs HandedOff) makes the actual
+        // outcome clear in the UI.
+        if (matchesDeparture)
+        {
+            return OperationKind.Departure;
+        }
+        if (matchesDestination)
+        {
+            return OperationKind.Arrival;
+        }
+        if (string.IsNullOrWhiteSpace(departure) && string.IsNullOrWhiteSpace(destination))
+        {
+            return OperationKind.Unknown;
+        }
+        return OperationKind.Transit;
+    }
+
+    // FAA scenarios use 3-letter codes ("OAK"); some flight plans carry the ICAO prefix
+    // ("KOAK"). Match either form against either form.
+    private static bool AirportIdMatches(string? candidate, string primary)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+        var c = candidate.Trim();
+        var p = primary.Trim();
+        if (string.Equals(c, p, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        // Tolerate the optional leading 'K' / 'P' prefix on US/Pacific airports.
+        return Strip(c).Equals(Strip(p), StringComparison.OrdinalIgnoreCase);
+
+        static string Strip(string s) => s.Length == 4 && (s[0] == 'K' || s[0] == 'P' || s[0] == 'k' || s[0] == 'p') ? s[1..] : s;
     }
 
     public void Reset()
