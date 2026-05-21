@@ -21,6 +21,10 @@ public static class Program
         string? finalCourseApproachId = null;
         string? compareA = null;
         string? compareB = null;
+        bool listSids = false;
+        string? sidId = null;
+        bool listStars = false;
+        string? starId = null;
         bool jsonOutput = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -45,6 +49,18 @@ public static class Program
                 case "--compare" when i + 2 < args.Length:
                     compareA = args[++i].ToUpperInvariant();
                     compareB = args[++i].ToUpperInvariant();
+                    break;
+                case "--list-sids":
+                    listSids = true;
+                    break;
+                case "--sid" when i + 1 < args.Length:
+                    sidId = args[++i].ToUpperInvariant();
+                    break;
+                case "--list-stars":
+                    listStars = true;
+                    break;
+                case "--star" when i + 1 < args.Length:
+                    starId = args[++i].ToUpperInvariant();
                     break;
                 case "--json":
                     jsonOutput = true;
@@ -82,6 +98,78 @@ public static class Program
         {
             Console.Error.WriteLine($"Failed to read CIFP file: {ex.Message}");
             return 1;
+        }
+
+        // SID / STAR subcommands branch before approach parsing so we don't fail on
+        // airports that have SIDs but no IAPs (or vice versa).
+        if (listSids || sidId is not null)
+        {
+            IReadOnlyList<CifpSidProcedure> sids;
+            try
+            {
+                sids = CifpParser.ParseSids(decompressed, airport);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to parse CIFP SIDs: {ex.Message}");
+                return 1;
+            }
+
+            if (sids.Count == 0)
+            {
+                Console.Error.WriteLine($"No SIDs parsed for airport {airport}");
+                return 1;
+            }
+
+            if (sidId is not null)
+            {
+                var match = FindSid(sids, sidId);
+                if (match is null)
+                {
+                    Console.Error.WriteLine($"SID not found: {sidId}");
+                    return 1;
+                }
+                PrintSidDetail(match, jsonOutput);
+                return 0;
+            }
+
+            PrintSidList(sids, jsonOutput);
+            return 0;
+        }
+
+        if (listStars || starId is not null)
+        {
+            IReadOnlyList<CifpStarProcedure> stars;
+            try
+            {
+                stars = CifpParser.ParseStars(decompressed, airport);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to parse CIFP STARs: {ex.Message}");
+                return 1;
+            }
+
+            if (stars.Count == 0)
+            {
+                Console.Error.WriteLine($"No STARs parsed for airport {airport}");
+                return 1;
+            }
+
+            if (starId is not null)
+            {
+                var match = FindStar(stars, starId);
+                if (match is null)
+                {
+                    Console.Error.WriteLine($"STAR not found: {starId}");
+                    return 1;
+                }
+                PrintStarDetail(match, jsonOutput);
+                return 0;
+            }
+
+            PrintStarList(stars, jsonOutput);
+            return 0;
         }
 
         IReadOnlyList<CifpApproachProcedure> approaches;
@@ -424,6 +512,271 @@ public static class Program
         return null;
     }
 
+    private static CifpSidProcedure? FindSid(IReadOnlyList<CifpSidProcedure> sids, string id)
+    {
+        foreach (var s in sids)
+        {
+            if (s.ProcedureId.Equals(id, StringComparison.OrdinalIgnoreCase))
+            {
+                return s;
+            }
+        }
+        foreach (var s in sids)
+        {
+            if (s.ProcedureId.Trim().Equals(id, StringComparison.OrdinalIgnoreCase))
+            {
+                return s;
+            }
+        }
+        // Base-name fallback: strip trailing digits on both sides (mirrors NavigationDatabase.GetSid)
+        string baseTarget = StripTrailingDigits(id);
+        if (baseTarget != id)
+        {
+            foreach (var s in sids)
+            {
+                if (StripTrailingDigits(s.ProcedureId).Equals(baseTarget, StringComparison.OrdinalIgnoreCase))
+                {
+                    return s;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static CifpStarProcedure? FindStar(IReadOnlyList<CifpStarProcedure> stars, string id)
+    {
+        foreach (var s in stars)
+        {
+            if (s.ProcedureId.Equals(id, StringComparison.OrdinalIgnoreCase))
+            {
+                return s;
+            }
+        }
+        foreach (var s in stars)
+        {
+            if (s.ProcedureId.Trim().Equals(id, StringComparison.OrdinalIgnoreCase))
+            {
+                return s;
+            }
+        }
+        string baseTarget = StripTrailingDigits(id);
+        if (baseTarget != id)
+        {
+            foreach (var s in stars)
+            {
+                if (StripTrailingDigits(s.ProcedureId).Equals(baseTarget, StringComparison.OrdinalIgnoreCase))
+                {
+                    return s;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static string StripTrailingDigits(string id)
+    {
+        int end = id.Length;
+        while (end > 0 && char.IsDigit(id[end - 1]))
+        {
+            end--;
+        }
+        return id[..end];
+    }
+
+    private static void PrintSidList(IReadOnlyList<CifpSidProcedure> sids, bool json)
+    {
+        if (json)
+        {
+            var rows = sids.OrderBy(s => s.ProcedureId, StringComparer.Ordinal)
+                .Select(s => new
+                {
+                    s.ProcedureId,
+                    RunwayTransitions = s.RunwayTransitions.Keys.ToArray(),
+                    EnrouteTransitions = s.EnrouteTransitions.Keys.ToArray(),
+                    CommonLegCount = s.CommonLegs.Count,
+                    IsRadarVectors = IsRadarVectorsSidLocal(s),
+                });
+            Console.WriteLine(JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true }));
+            return;
+        }
+
+        Console.WriteLine($"{"ID", -10} {"#common", 8} {"RW trans", -24} {"Enroute trans", -30} RV?");
+        Console.WriteLine(new string('-', 90));
+        foreach (var s in sids.OrderBy(s => s.ProcedureId, StringComparer.Ordinal))
+        {
+            string rwTrans = string.Join(",", s.RunwayTransitions.Keys);
+            string enTrans = string.Join(",", s.EnrouteTransitions.Keys);
+            Console.WriteLine(
+                $"{s.ProcedureId, -10} {s.CommonLegs.Count, 8} {rwTrans, -24} {enTrans, -30} {(IsRadarVectorsSidLocal(s) ? "yes" : "no")}"
+            );
+        }
+        Console.WriteLine($"\nTotal: {sids.Count} SIDs");
+    }
+
+    private static void PrintSidDetail(CifpSidProcedure s, bool json)
+    {
+        if (json)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(s, new JsonSerializerOptions { WriteIndented = true }));
+            return;
+        }
+
+        Console.WriteLine($"=== {s.Airport} {s.ProcedureId} (SID) ===");
+        bool rv = IsRadarVectorsSidLocal(s);
+        Console.WriteLine($"RadarVectors: {(rv ? "yes" : "no")}");
+        if (rv)
+        {
+            double? hdg = ExtractRadarVectorsHeadingLocal(s);
+            Console.WriteLine($"Published RV heading: {(hdg.HasValue ? hdg.Value.ToString("F1") + "°" : "(none)")}");
+        }
+        Console.WriteLine();
+
+        if (s.RunwayTransitions.Count > 0)
+        {
+            Console.WriteLine($"Runway transitions ({s.RunwayTransitions.Count}):");
+            foreach (var (name, t) in s.RunwayTransitions)
+            {
+                Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
+                PrintLegTable(t.Legs, indent: "    ");
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine($"Common legs ({s.CommonLegs.Count}):");
+        if (s.CommonLegs.Count > 0)
+        {
+            PrintLegTable(s.CommonLegs);
+        }
+        else
+        {
+            Console.WriteLine("  (none)");
+        }
+
+        if (s.EnrouteTransitions.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Enroute transitions ({s.EnrouteTransitions.Count}):");
+            foreach (var (name, t) in s.EnrouteTransitions)
+            {
+                Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
+                PrintLegTable(t.Legs, indent: "    ");
+            }
+        }
+    }
+
+    private static void PrintStarList(IReadOnlyList<CifpStarProcedure> stars, bool json)
+    {
+        if (json)
+        {
+            var rows = stars
+                .OrderBy(s => s.ProcedureId, StringComparer.Ordinal)
+                .Select(s => new
+                {
+                    s.ProcedureId,
+                    EnrouteTransitions = s.EnrouteTransitions.Keys.ToArray(),
+                    RunwayTransitions = s.RunwayTransitions.Keys.ToArray(),
+                    CommonLegCount = s.CommonLegs.Count,
+                });
+            Console.WriteLine(JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true }));
+            return;
+        }
+
+        Console.WriteLine($"{"ID", -10} {"#common", 8} {"Enroute trans", -30} {"RW trans", -24}");
+        Console.WriteLine(new string('-', 80));
+        foreach (var s in stars.OrderBy(s => s.ProcedureId, StringComparer.Ordinal))
+        {
+            string enTrans = string.Join(",", s.EnrouteTransitions.Keys);
+            string rwTrans = string.Join(",", s.RunwayTransitions.Keys);
+            Console.WriteLine($"{s.ProcedureId, -10} {s.CommonLegs.Count, 8} {enTrans, -30} {rwTrans, -24}");
+        }
+        Console.WriteLine($"\nTotal: {stars.Count} STARs");
+    }
+
+    private static void PrintStarDetail(CifpStarProcedure s, bool json)
+    {
+        if (json)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(s, new JsonSerializerOptions { WriteIndented = true }));
+            return;
+        }
+
+        Console.WriteLine($"=== {s.Airport} {s.ProcedureId} (STAR) ===");
+        Console.WriteLine();
+
+        if (s.EnrouteTransitions.Count > 0)
+        {
+            Console.WriteLine($"Enroute transitions ({s.EnrouteTransitions.Count}):");
+            foreach (var (name, t) in s.EnrouteTransitions)
+            {
+                Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
+                PrintLegTable(t.Legs, indent: "    ");
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine($"Common legs ({s.CommonLegs.Count}):");
+        if (s.CommonLegs.Count > 0)
+        {
+            PrintLegTable(s.CommonLegs);
+        }
+        else
+        {
+            Console.WriteLine("  (none)");
+        }
+
+        if (s.RunwayTransitions.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Runway transitions ({s.RunwayTransitions.Count}):");
+            foreach (var (name, t) in s.RunwayTransitions)
+            {
+                Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
+                PrintLegTable(t.Legs, indent: "    ");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Mirrors DepartureClearanceHandler.IsRadarVectorsSid: the last leg of the core
+    /// procedure (common, or runway transition if no common) is a VM/VA/VI vector leg.
+    /// </summary>
+    private static bool IsRadarVectorsSidLocal(CifpSidProcedure s)
+    {
+        CifpLeg? lastCore =
+            s.CommonLegs.Count > 0 ? s.CommonLegs[^1]
+            : s.RunwayTransitions.Values.FirstOrDefault() is { Legs.Count: > 0 } firstRw ? firstRw.Legs[^1]
+            : null;
+
+        if (lastCore is null)
+        {
+            return false;
+        }
+
+        return lastCore.PathTerminator is CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.VI;
+    }
+
+    /// <summary>
+    /// Mirrors DepartureClearanceHandler.ExtractRadarVectorsHeading: walks runway-transition
+    /// + common legs in order, returns the OutboundCourse of the last VM/VA/VI leg found.
+    /// </summary>
+    private static double? ExtractRadarVectorsHeadingLocal(CifpSidProcedure s)
+    {
+        var ordered = new List<CifpLeg>();
+        if (s.RunwayTransitions.Values.FirstOrDefault() is { } rw)
+        {
+            ordered.AddRange(rw.Legs);
+        }
+        ordered.AddRange(s.CommonLegs);
+        for (int i = ordered.Count - 1; i >= 0; i--)
+        {
+            if (ordered[i].PathTerminator is CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.VI)
+            {
+                return ordered[i].OutboundCourse;
+            }
+        }
+        return null;
+    }
+
     private static void PrintCompare(CifpApproachProcedure a, CifpApproachProcedure b)
     {
         Console.WriteLine($"=== {a.ApproachId} vs {b.ApproachId} ===");
@@ -477,6 +830,10 @@ public static class Program
         Console.WriteLine("  --approach <id>              Show full parsed detail for one approach");
         Console.WriteLine("  --final-course <id>          Analyse FAC extraction strategies for one approach");
         Console.WriteLine("  --compare <id1> <id2>        Side-by-side common-leg comparison of two approaches");
+        Console.WriteLine("  --list-sids                  List all SIDs at the airport");
+        Console.WriteLine("  --sid <id>                   Show full parsed detail for one SID (base-name fallback)");
+        Console.WriteLine("  --list-stars                 List all STARs at the airport");
+        Console.WriteLine("  --star <id>                  Show full parsed detail for one STAR (base-name fallback)");
         Console.WriteLine();
         Console.WriteLine("Options:");
         Console.WriteLine("  --cifp <path>                CIFP file (.dat or .gz). Defaults to tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz");
@@ -487,5 +844,7 @@ public static class Program
         Console.WriteLine("  Yaat.CifpInspector --airport KSFO --approach R10L");
         Console.WriteLine("  Yaat.CifpInspector --airport KCCR --final-course S19R");
         Console.WriteLine("  Yaat.CifpInspector --airport KSFO --compare R10L I28R");
+        Console.WriteLine("  Yaat.CifpInspector --airport KOAK --list-sids");
+        Console.WriteLine("  Yaat.CifpInspector --airport KOAK --sid NIMI5");
     }
 }
