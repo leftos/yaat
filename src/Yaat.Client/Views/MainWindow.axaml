@@ -194,11 +194,12 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:TimelineMarkerVm">
-                                <Border Width="3"
-                                        Height="6"
+                                <Border Width="{Binding MarkerWidth}"
+                                        Height="{Binding MarkerHeight}"
                                         Background="{Binding FillBrush}"
                                         ToolTip.Tip="{Binding ToolTipText}"
                                         Cursor="Hand"
+                                        VerticalAlignment="Bottom"
                                         Tag="{Binding TimeSeconds}"
                                         views:TimelineMarkerCanvas.Time="{Binding TimeSeconds}" />
                             </DataTemplate>

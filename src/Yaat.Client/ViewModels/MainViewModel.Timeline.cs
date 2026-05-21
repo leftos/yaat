@@ -292,6 +292,53 @@ public partial class MainViewModel
 
     private bool _timelineMarkerRefreshInFlight;
 
+    // Bounded command-marker buffer. Sized to a few hours' worth of busy session traffic
+    // (~1 command/aircraft/minute × 30 aircraft × 60 min = 1,800); older entries drop off.
+    private const int CommandMarkerBufferCapacity = 2000;
+    private readonly List<TimelineMarkerVm> _commandMarkerHistory = [];
+    private readonly Lock _commandMarkerLock = new();
+
+    /// <summary>
+    /// Capture a successfully-dispatched controller command as a marker for the M12.5
+    /// timeline overlay. Called from <c>SendCommandAsync</c> dispatch paths after the
+    /// server acknowledges. Global commands (empty callsign) are skipped — they're not
+    /// per-aircraft and would clutter the rail.
+    /// </summary>
+    public void RecordCommandMarker(string callsign, string canonical)
+    {
+        if (string.IsNullOrWhiteSpace(callsign))
+        {
+            return;
+        }
+
+        var marker = new TimelineMarkerVm
+        {
+            Id = $"cmd-{ScenarioElapsedSeconds:0.000}-{callsign}-{canonical}",
+            Kind = TimelineMarkerKind.Command,
+            TimeSeconds = ScenarioElapsedSeconds,
+            Title = canonical,
+            Callsigns = [callsign],
+            CommandText = canonical,
+        };
+
+        lock (_commandMarkerLock)
+        {
+            _commandMarkerHistory.Add(marker);
+            if (_commandMarkerHistory.Count > CommandMarkerBufferCapacity)
+            {
+                _commandMarkerHistory.RemoveRange(0, _commandMarkerHistory.Count - CommandMarkerBufferCapacity);
+            }
+        }
+
+        // Live-add to the visible collection without waiting for the next 5 s poll so the
+        // user sees their command land on the rail immediately.
+        var filter = TimelineFilterCallsign;
+        if (filter is null || string.Equals(filter, callsign, StringComparison.OrdinalIgnoreCase))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => TimelineMarkers.Add(marker));
+        }
+    }
+
     /// <summary>
     /// Fetches the current session report and rebuilds <see cref="TimelineMarkers"/>.
     /// Called by the timeline-marker poll (MainWindow code-behind) and on demand from
@@ -314,7 +361,7 @@ public partial class MainViewModel
             }
 
             var filter = TimelineFilterCallsign;
-            var rebuilt = new List<TimelineMarkerVm>(report.Timeline.Count);
+            var rebuilt = new List<TimelineMarkerVm>(report.Timeline.Count + _commandMarkerHistory.Count);
             foreach (var ev in report.Timeline)
             {
                 if (filter is not null && !ev.Callsigns.Any(c => string.Equals(c, filter, StringComparison.OrdinalIgnoreCase)))
@@ -325,6 +372,7 @@ public partial class MainViewModel
                     new TimelineMarkerVm
                     {
                         Id = ev.Id,
+                        Kind = TimelineMarkerKind.Finding,
                         TimeSeconds = ev.StartedAtSeconds,
                         Severity = ev.Severity,
                         Title = ev.Title,
@@ -332,6 +380,18 @@ public partial class MainViewModel
                         Callsigns = [.. ev.Callsigns],
                     }
                 );
+            }
+
+            lock (_commandMarkerLock)
+            {
+                foreach (var cmd in _commandMarkerHistory)
+                {
+                    if (filter is not null && !cmd.Callsigns.Any(c => string.Equals(c, filter, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+                    rebuilt.Add(cmd);
+                }
             }
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>

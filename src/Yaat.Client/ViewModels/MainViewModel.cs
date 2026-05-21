@@ -1633,6 +1633,11 @@ public partial class MainViewModel : ObservableObject
             _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalInput);
             var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
 
+            if (result.Success)
+            {
+                RecordCommandMarker(target.Callsign, compound.CanonicalString);
+            }
+
             // Always drop the typed text: even when the server rejects (or the pilot
             // soft-fails e.g. RTIS "looking"), the RPO has seen the result and should
             // not retype the whole command. The error surfaces through StatusText and
@@ -1718,6 +1723,11 @@ public partial class MainViewModel : ObservableObject
                 normalization.UsedLlmFallback
             );
             var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+
+            if (result.Success)
+            {
+                RecordCommandMarker(target.Callsign, mappedCompound.CanonicalString);
+            }
 
             AddHistory(CommandHistoryFormatter.Format(originalInput, historyCallsign, mappedCompound.CanonicalString));
             _commandInput.DismissSuggestions();

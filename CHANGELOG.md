@@ -6,6 +6,7 @@
 - Session Report → **Aircraft** tab — one row per aircraft that has entered the session, showing operation (Departure/Arrival/Transit), filed route, spawn/completion times, status (Active / Landed RW / Handed off …), finding counts broken out by severity, and a one-line coaching note. Aircraft stay listed in the tab after landing, handoff, or drop so you can review every aircraft that passed through your airspace.
 - **Marker overlay on the rewind timeline bar** — finding markers from the session report render as color-coded ticks (red Safety, amber Warning, blue Coach) above the scrub slider. Click a marker to rewind to that moment; hover for the finding title and timestamp. Refreshes every 5 seconds while a scenario is loaded.
 - Session Report Aircraft tab → **Show on Timeline** — selects an aircraft, clicks the button, and the main timeline bar filters markers to that callsign's findings only and rewinds to that aircraft's spawn time. A "Filter: <callsign> ×" pill on the timeline bar clears the filter.
+- **Command markers on the timeline rail** — each successfully-dispatched aircraft command shows up as a thin grey tick on the marker rail at the time it was issued. Click to rewind, hover to see the canonical command and recipient. Findings and commands share the rail; commands sit slightly lower so they don't compete with the colored finding ticks. The active filter (when set from the Aircraft tab) also narrows command markers to the selected callsign.
 
 ## v0.3.1-beta [2026/05/21]
 
