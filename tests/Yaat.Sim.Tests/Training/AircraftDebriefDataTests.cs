@@ -212,4 +212,31 @@ public class AircraftDebriefDataTests
         Assert.Null(record.FiledDeparture);
         Assert.Null(record.FiledDestination);
     }
+
+    [Fact]
+    public void RemoveAircraft_BeyondCapacity_EvictsOldestFirst()
+    {
+        // Long sessions must not grow the registry unbounded; oldest entries drop off
+        // as new completed records arrive past the cap.
+        var world = new SimulationWorld();
+        for (int i = 0; i < SimulationWorld.CompletedAircraftCapacity + 50; i++)
+        {
+            string callsign = $"AC{i:D4}";
+            var ac = new AircraftState
+            {
+                Callsign = callsign,
+                AircraftType = "C172",
+                CompletedAtSeconds = i,
+                CompletionReason = CompletionReason.Landed,
+            };
+            world.AddAircraft(ac);
+            world.RemoveAircraft(callsign);
+        }
+
+        var records = world.GetCompletedAircraft();
+        Assert.Equal(SimulationWorld.CompletedAircraftCapacity, records.Count);
+        // The first 50 (AC0000..AC0049) should have been evicted; AC0050 is now the oldest.
+        Assert.Equal("AC0050", records[0].Callsign);
+        Assert.Equal($"AC{SimulationWorld.CompletedAircraftCapacity + 49:D4}", records[^1].Callsign);
+    }
 }

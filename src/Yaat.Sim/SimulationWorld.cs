@@ -15,6 +15,15 @@ public sealed class SimulationWorld
     private readonly List<AircraftState> _aircraft = [];
     private readonly List<CompletedAircraftRecord> _completedAircraft = [];
 
+    /// <summary>
+    /// FIFO cap on <see cref="_completedAircraft"/>. Long training sessions (hundreds of
+    /// arrivals/departures) would otherwise grow this list unbounded — it rides every
+    /// <c>GetSessionReport</c> response (server-side 2 s and 5 s poll cadences) and the
+    /// Aircraft tab DataGrid would grow monotonically. 500 entries covers a busy
+    /// multi-hour session while keeping the per-poll DTO size sane.
+    /// </summary>
+    internal const int CompletedAircraftCapacity = 500;
+
     public SerializableRandom Rng { get; set; } = new SerializableRandom(0);
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
@@ -97,6 +106,10 @@ public sealed class SimulationWorld
                             ac.CompletionDetail
                         )
                     );
+                    if (_completedAircraft.Count > CompletedAircraftCapacity)
+                    {
+                        _completedAircraft.RemoveRange(0, _completedAircraft.Count - CompletedAircraftCapacity);
+                    }
                 }
 
                 _aircraft.RemoveAt(i);
