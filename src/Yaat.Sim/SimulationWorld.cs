@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim;
 
@@ -12,6 +13,7 @@ public sealed class SimulationWorld
 
     private readonly object _lock = new();
     private readonly List<AircraftState> _aircraft = [];
+    private readonly List<CompletedAircraftRecord> _completedAircraft = [];
 
     public SerializableRandom Rng { get; set; } = new SerializableRandom(0);
     public WeatherProfile? Weather { get; set; }
@@ -72,7 +74,46 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
-            _aircraft.RemoveAll(a => a.Callsign == callsign);
+            for (int i = _aircraft.Count - 1; i >= 0; i--)
+            {
+                if (!string.Equals(_aircraft[i].Callsign, callsign, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var ac = _aircraft[i];
+                if (ac.CompletedAtSeconds is double completedAt)
+                {
+                    _completedAircraft.Add(
+                        new CompletedAircraftRecord(
+                            ac.Callsign,
+                            ac.AircraftType,
+                            ac.Cid,
+                            string.IsNullOrEmpty(ac.FlightPlan.Departure) ? null : ac.FlightPlan.Departure,
+                            string.IsNullOrEmpty(ac.FlightPlan.Destination) ? null : ac.FlightPlan.Destination,
+                            ac.SpawnedAtSeconds,
+                            completedAt,
+                            ac.CompletionReason,
+                            ac.CompletionDetail
+                        )
+                    );
+                }
+
+                _aircraft.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Snapshot of aircraft that have left the active set with a recorded completion stamp.
+    /// Used by <c>SoloTrainingEvaluator</c> to keep the M12.4 debrief tab populated after
+    /// landings, handoffs, or deletes drop the aircraft from <c>SimulationWorld</c>.
+    /// </summary>
+    public IReadOnlyList<CompletedAircraftRecord> GetCompletedAircraft()
+    {
+        lock (_lock)
+        {
+            return [.. _completedAircraft];
         }
     }
 
@@ -373,6 +414,7 @@ public sealed class SimulationWorld
         {
             int count = _aircraft.Count;
             _aircraft.Clear();
+            _completedAircraft.Clear();
             GroundLayout = null;
             return count;
         }

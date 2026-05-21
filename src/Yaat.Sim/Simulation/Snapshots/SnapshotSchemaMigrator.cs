@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -67,6 +67,11 @@ public static class SnapshotSchemaMigrator
         //   clearance. No data transformation — older snapshots default to false, which
         //   matches pre-feature semantics: a subsequent AutoCross-OFF toggle on replay
         //   will not revert any of their pre-cleared hold-shorts.
+        // V7→V8: Added AircraftSnapshotDto.SpawnedAtSeconds / CompletedAtSeconds /
+        //   CompletionReasonValue / CompletionDetail for M12.4 per-aircraft debrief.
+        //   No data transformation — older snapshots default to spawn-at-0 / not-completed,
+        //   which makes time-on-frequency report from session start and shows the aircraft
+        //   as Active in the debrief tab until current-session lifecycle hooks fire.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

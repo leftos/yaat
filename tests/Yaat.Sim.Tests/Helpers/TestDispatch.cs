@@ -25,7 +25,8 @@ internal static class TestDispatch
         bool soloTrainingMode = false,
         bool rpoShowPilotSpeech = false,
         Action<TerminalEntry>? terminalEmitter = null,
-        ArtccConfigRoot? artccConfig = null
+        ArtccConfigRoot? artccConfig = null,
+        double scenarioElapsedSeconds = 0
     ) =>
         new(
             groundLayout,
@@ -38,6 +39,7 @@ internal static class TestDispatch
             soloTrainingMode,
             rpoShowPilotSpeech,
             terminalEmitter,
-            artccConfig
+            artccConfig,
+            scenarioElapsedSeconds
         );
 }

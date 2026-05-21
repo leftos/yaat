@@ -26,6 +26,7 @@ public static class ContactCommandHandler
     public static CommandResult HandleContact(ContactCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         string facilityName;
+        string handoffDetail;
         double? frequencyMhz;
 
         if (cmd.Target is { Length: > 0 } target)
@@ -43,6 +44,7 @@ public static class ContactCommandHandler
                 case ResolvedTarget.Found found:
                     facilityName = ResolveFacilityName(found.Position);
                     frequencyMhz = found.Position.Frequency / 1_000_000.0;
+                    handoffDetail = found.Position.Callsign;
                     break;
                 default:
                     return new CommandResult(false, $"unknown position {target}");
@@ -58,6 +60,7 @@ public static class ContactCommandHandler
             var pos = ctx.ArtccConfig?.FindPositionByCallsign(owner.Callsign);
             facilityName = pos is not null ? ResolveFacilityName(pos) : FacilityShortname.From(owner.Callsign);
             frequencyMhz = pos is not null ? pos.Frequency / 1_000_000.0 : null;
+            handoffDetail = owner.Callsign;
         }
 
         var pilotSpeech = frequencyMhz is double freq
@@ -65,6 +68,7 @@ public static class ContactCommandHandler
             : BuildContactReadbackNoFreq(aircraft, facilityName);
         var warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
         Route(aircraft, ctx, pilotSpeech, warning);
+        StampHandoffCompletion(aircraft, ctx, handoffDetail);
         return new CommandResult(true, "");
     }
 
@@ -80,7 +84,22 @@ public static class ContactCommandHandler
     {
         var pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft);
         Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved");
+        StampHandoffCompletion(aircraft, ctx, detail: null);
         return new CommandResult(true, "");
+    }
+
+    // First CT/FCA on this aircraft owns the completion stamp. A controller re-issuing CT
+    // after a HOO bounce should not overwrite the original handoff time / target.
+    private static void StampHandoffCompletion(AircraftState aircraft, DispatchContext ctx, string? detail)
+    {
+        if (aircraft.CompletionReason != Training.CompletionReason.Active)
+        {
+            return;
+        }
+
+        aircraft.CompletedAtSeconds = ctx.ScenarioElapsedSeconds;
+        aircraft.CompletionReason = Training.CompletionReason.HandedOff;
+        aircraft.CompletionDetail = detail;
     }
 
     private static void Route(AircraftState aircraft, DispatchContext ctx, string pilotSpeech, string warningText)

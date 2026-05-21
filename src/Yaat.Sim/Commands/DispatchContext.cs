@@ -40,5 +40,6 @@ public sealed record DispatchContext(
     bool SoloTrainingMode,
     bool RpoShowPilotSpeech,
     Action<TerminalEntry>? TerminalEmitter,
-    ArtccConfigRoot? ArtccConfig
+    ArtccConfigRoot? ArtccConfig,
+    double ScenarioElapsedSeconds
 );

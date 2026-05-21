@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim;
 
@@ -178,6 +179,40 @@ public class AircraftState
     public bool HasLeftStudentFrequency { get; set; }
 
     /// <summary>
+    /// Scenario-elapsed seconds at which this aircraft entered the world. Stamped by
+    /// <see cref="SimulationEngine"/> at every production spawn path (immediate scenario
+    /// load, delayed-queue release, arrival generator, force-spawn, replay restore).
+    /// Snapshot-serialized so per-aircraft debrief time-on-frequency survives recording
+    /// round-trip. Tests that bypass <c>SimulationEngine</c> and call
+    /// <c>SimulationWorld.AddAircraft</c> directly leave it at 0 — debrief metadata is
+    /// optional in those paths.
+    /// </summary>
+    public double SpawnedAtSeconds { get; set; }
+
+    /// <summary>
+    /// Scenario-elapsed seconds at which the aircraft's session ended from the student
+    /// controller's perspective (landed, handed off, or dropped). Null while the aircraft
+    /// is still active. Set by <see cref="Phases.Tower.LandingPhase"/> on touchdown,
+    /// <see cref="Commands.ContactCommandHandler"/> on <c>CT</c>/<c>FCA</c>, and the
+    /// engine on explicit deletion. Snapshot-serialized.
+    /// </summary>
+    public double? CompletedAtSeconds { get; set; }
+
+    /// <summary>
+    /// Why <see cref="CompletedAtSeconds"/> was stamped. Mirrors the timestamp;
+    /// <see cref="Training.CompletionReason.Active"/> while the aircraft is still in
+    /// service. Snapshot-serialized.
+    /// </summary>
+    public CompletionReason CompletionReason { get; set; } = CompletionReason.Active;
+
+    /// <summary>
+    /// Free-form completion detail — runway id for <see cref="Training.CompletionReason.Landed"/>,
+    /// position callsign for <see cref="Training.CompletionReason.HandedOff"/>. Null while
+    /// active. Snapshot-serialized.
+    /// </summary>
+    public string? CompletionDetail { get; set; }
+
+    /// <summary>
     /// Set when the controller has issued the explicit VFR Class Bravo clearance
     /// (FAA 7110.65 §7-9-2). Snapshot-serialized so replays keep the entry gate state.
     /// </summary>
@@ -266,6 +301,10 @@ public class AircraftState
             HasMadeInitialContact = dto.HasMadeInitialContact,
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
+            SpawnedAtSeconds = dto.SpawnedAtSeconds,
+            CompletedAtSeconds = dto.CompletedAtSeconds,
+            CompletionReason = (CompletionReason)dto.CompletionReasonValue,
+            CompletionDetail = dto.CompletionDetail,
             IsClearedIntoBravo = dto.IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
@@ -335,6 +374,10 @@ public class AircraftState
             HasMadeInitialContact = HasMadeInitialContact,
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = HasLeftStudentFrequency,
+            SpawnedAtSeconds = SpawnedAtSeconds,
+            CompletedAtSeconds = CompletedAtSeconds,
+            CompletionReasonValue = (int)CompletionReason,
+            CompletionDetail = CompletionDetail,
             IsClearedIntoBravo = IsClearedIntoBravo,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,

@@ -384,6 +384,7 @@ public sealed class SimulationEngine
         foreach (var loaded in result.ImmediateAircraft)
         {
             loaded.State.ScenarioId = Scenario.ScenarioId;
+            loaded.State.SpawnedAtSeconds = Scenario.ElapsedSeconds;
             World.AddAircraft(loaded.State);
             DispatchPresetCommands(loaded);
         }
@@ -1197,7 +1198,8 @@ public sealed class SimulationEngine
             Scenario?.SoloTrainingMode ?? false,
             Scenario?.RpoShowPilotSpeech ?? false,
             _terminalEntries.Add,
-            Scenario?.ArtccConfig
+            Scenario?.ArtccConfig,
+            Scenario?.ElapsedSeconds ?? 0
         );
         var result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
 
@@ -1485,7 +1487,8 @@ public sealed class SimulationEngine
                     Scenario?.SoloTrainingMode ?? false,
                     Scenario?.RpoShowPilotSpeech ?? false,
                     _terminalEntries.Add,
-                    Scenario?.ArtccConfig
+                    Scenario?.ArtccConfig,
+                    Scenario?.ElapsedSeconds ?? 0
                 );
                 CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
             }
@@ -1608,6 +1611,7 @@ public sealed class SimulationEngine
             if (scenario.ElapsedSeconds >= entry.SpawnAtSeconds)
             {
                 scenario.DelayedQueue.RemoveAt(i);
+                entry.Aircraft.State.SpawnedAtSeconds = scenario.ElapsedSeconds;
                 World.AddAircraft(entry.Aircraft.State);
                 DispatchPresetCommands(entry.Aircraft);
                 spawned.Add(entry.Aircraft.State);
@@ -1694,6 +1698,7 @@ public sealed class SimulationEngine
 
             state.ScenarioId = scenario.ScenarioId;
             state.Ground.Layout = groundLayout;
+            state.SpawnedAtSeconds = scenario.ElapsedSeconds;
 
             World.AddAircraft(state);
             spawned.Add(state);
@@ -1913,7 +1918,8 @@ public sealed class SimulationEngine
                 scenario.SoloTrainingMode,
                 scenario.RpoShowPilotSpeech,
                 _terminalEntries.Add,
-                scenario.ArtccConfig
+                scenario.ArtccConfig,
+                scenario.ElapsedSeconds
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
@@ -2014,7 +2020,8 @@ public sealed class SimulationEngine
             Scenario!.SoloTrainingMode,
             Scenario!.RpoShowPilotSpeech,
             _terminalEntries.Add,
-            Scenario!.ArtccConfig
+            Scenario!.ArtccConfig,
+            Scenario!.ElapsedSeconds
         );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
@@ -2289,7 +2296,8 @@ public sealed class SimulationEngine
             Scenario?.SoloTrainingMode ?? false,
             Scenario?.RpoShowPilotSpeech ?? false,
             _terminalEntries.Add,
-            Scenario?.ArtccConfig
+            Scenario?.ArtccConfig,
+            Scenario?.ElapsedSeconds ?? 0
         );
         var replayDispatchResult = CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
         if (replayDispatchResult.Success)
@@ -2312,6 +2320,7 @@ public sealed class SimulationEngine
         }
 
         scenario.DelayedQueue.Remove(entry);
+        entry.Aircraft.State.SpawnedAtSeconds = scenario.ElapsedSeconds;
         World.AddAircraft(entry.Aircraft.State);
         DispatchPresetCommands(entry.Aircraft);
     }

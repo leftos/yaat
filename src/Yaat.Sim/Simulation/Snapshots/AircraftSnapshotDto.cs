@@ -58,6 +58,31 @@ public sealed class AircraftSnapshotDto
     public bool HasLeftStudentFrequency { get; init; }
 
     /// <summary>
+    /// Scenario-elapsed seconds at spawn. Non-required so older snapshots default to 0,
+    /// which makes per-aircraft debrief time-on-frequency report from session start for
+    /// pre-feature recordings.
+    /// </summary>
+    public double SpawnedAtSeconds { get; init; }
+
+    /// <summary>
+    /// Scenario-elapsed seconds at completion (landed / handed off / dropped). Non-required
+    /// so older snapshots default to null (still active).
+    /// </summary>
+    public double? CompletedAtSeconds { get; init; }
+
+    /// <summary>
+    /// <see cref="Training.CompletionReason"/> as int for stable serialization. Non-required
+    /// so older snapshots default to 0 (Active).
+    /// </summary>
+    public int CompletionReasonValue { get; init; }
+
+    /// <summary>
+    /// Free-form completion detail — runway id for landings, position callsign for handoffs.
+    /// Non-required so older snapshots default to null.
+    /// </summary>
+    public string? CompletionDetail { get; init; }
+
+    /// <summary>
     /// Explicit VFR Class Bravo clearance gate. Non-required so older snapshots deserialize
     /// cleanly with the default <see langword="false"/>.
     /// </summary>

@@ -542,6 +542,13 @@ public sealed class LandingPhase : Phase
         ctx.Targets.TargetAltitude = null;
         ctx.Targets.DesiredVerticalRate = null;
 
+        if (ctx.Aircraft.CompletionReason == Training.CompletionReason.Active)
+        {
+            ctx.Aircraft.CompletedAtSeconds = ctx.ScenarioElapsedSeconds;
+            ctx.Aircraft.CompletionReason = Training.CompletionReason.Landed;
+            ctx.Aircraft.CompletionDetail = plan.RunwayId;
+        }
+
         // Snap IAS down to Vtd if flare overshot it — prevents rollout from starting too fast.
         if (ctx.Aircraft.IndicatedAirspeed > plan.Vtd)
         {
