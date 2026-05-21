@@ -217,7 +217,7 @@ public partial class RadarViewModel : ObservableObject
     ];
 
     private readonly HashSet<string> _shownPathCallsigns = new();
-    private readonly Dictionary<string, (IReadOnlyList<DrawnWaypoint> Waypoints, string Fingerprint)> _pathCache = new();
+    private readonly Dictionary<string, (IReadOnlyList<ShownPathEntry> Segments, string Fingerprint)> _pathCache = new();
     private readonly Dictionary<string, int> _pathColorIndices = new();
     private readonly Stack<int> _freeColorIndices = new();
 
@@ -1700,47 +1700,71 @@ public partial class RadarViewModel : ObservableObject
                 continue;
             }
 
-            var fingerprint = string.Join(">", ac.NavigationRoute);
+            var fingerprint = BuildShownPathFingerprint(ac);
+            var color = PathColors[_pathColorIndices[callsign]];
+
             if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
             {
-                entries.Add(
-                    new ShownPathEntry(callsign, cached.Waypoints, PathColors[_pathColorIndices[callsign]], ac.Position.Lat, ac.Position.Lon)
-                );
+                // Aircraft position changes every tick — re-emit cached segments with the
+                // current position so the dashed leader and pure-vector tail track the target.
+                foreach (var seg in cached.Segments)
+                {
+                    entries.Add(seg with { AircraftLat = ac.Position.Lat, AircraftLon = ac.Position.Lon });
+                }
                 continue;
             }
 
-            var waypoints = ResolveFlightPathWaypoints(ac);
-            if (waypoints.Count == 0)
+            if (!_navDbReady)
             {
                 continue;
             }
 
-            _pathCache[callsign] = (waypoints, fingerprint);
-            entries.Add(new ShownPathEntry(callsign, waypoints, PathColors[_pathColorIndices[callsign]], ac.Position.Lat, ac.Position.Lon));
+            var navDb = NavigationDatabase.Instance;
+            var segments = new List<ShownPathEntry>(2);
+
+            var (primaryWps, primaryTail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+            if (primaryWps.Count > 0 || primaryTail is not null)
+            {
+                segments.Add(new ShownPathEntry(callsign, primaryWps, color, ac.Position.Lat, ac.Position.Lon, DrawLeader: true, Tail: primaryTail));
+            }
+
+            if (ShownRouteBuilder.BuildExpectedApproach(ac, navDb) is { } approach)
+            {
+                segments.Add(
+                    new ShownPathEntry(callsign, approach.Waypoints, color, ac.Position.Lat, ac.Position.Lon, DrawLeader: false, Tail: approach.Tail)
+                );
+            }
+
+            if (segments.Count == 0)
+            {
+                continue;
+            }
+
+            _pathCache[callsign] = (segments, fingerprint);
+            entries.AddRange(segments);
         }
 
         ShownPaths = entries.Count > 0 ? entries : null;
     }
 
-    private IReadOnlyList<DrawnWaypoint> ResolveFlightPathWaypoints(AircraftModel ac)
+    private static string BuildShownPathFingerprint(AircraftModel ac)
     {
-        if (!_navDbReady || ac.NavigationRoute.Count == 0)
-        {
-            return [];
-        }
-
-        var result = new List<DrawnWaypoint>(ac.NavigationRoute.Count);
-
-        foreach (var name in ac.NavigationRoute)
-        {
-            var pos = NavigationDatabase.Instance.GetFixPosition(name);
-            if (pos.HasValue)
-            {
-                result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
-            }
-        }
-
-        return result;
+        // Cache key must reflect every field ShownRouteBuilder reads. Otherwise toggling
+        // EA / SID / STAR / DRWY / heading would not invalidate cached segments and the
+        // overlay would stay stuck on stale geometry.
+        return string.Join(
+            "|",
+            string.Join(">", ac.NavigationRoute),
+            ac.ActiveSidId,
+            ac.ActiveStarId,
+            ac.ActiveApproachId,
+            ac.ExpectedApproach,
+            ac.Departure,
+            ac.Destination,
+            ac.DepartureRunway,
+            ac.DestinationRunway,
+            ac.AssignedHeading?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? ""
+        );
     }
 
     public void ClearShownPaths()
@@ -1778,9 +1802,34 @@ public partial class RadarViewModel : ObservableObject
 public record DrawnWaypoint(string ResolvedName, double Lat, double Lon);
 
 /// <summary>
-/// A flight path to render on the radar for a specific aircraft.
+/// A flight path segment to render on the radar for a specific aircraft. One aircraft may
+/// produce multiple entries (e.g. current route + expected approach as disjoint polylines).
 /// </summary>
-public record ShownPathEntry(string Callsign, IReadOnlyList<DrawnWaypoint> Waypoints, SKColor Color, double AircraftLat, double AircraftLon);
+/// <param name="DrawLeader">
+/// True for the segment representing the aircraft's currently-flown route — draws a dashed
+/// leader line from the aircraft target to the first waypoint. False for ancillary segments
+/// (expected approach, etc.) that are not directly connected to the aircraft position.
+/// </param>
+/// <param name="Tail">
+/// Optional vector arrow drawn off the segment's end (or from the aircraft position when
+/// <see cref="Waypoints"/> is empty). Used to visualize the published vector heading off the
+/// last fix of a procedure (e.g. WNDSR2 ending in a VM/VA leg) or a pure-vector aircraft.
+/// </param>
+public record ShownPathEntry(
+    string Callsign,
+    IReadOnlyList<DrawnWaypoint> Waypoints,
+    SKColor Color,
+    double AircraftLat,
+    double AircraftLon,
+    bool DrawLeader,
+    VectorTail? Tail
+);
+
+/// <summary>
+/// A heading-vector arrow segment drawn from <see cref="FromLat"/>/<see cref="FromLon"/> on
+/// <see cref="HeadingMag"/> (magnetic) for <see cref="LengthNm"/> nautical miles.
+/// </summary>
+public record VectorTail(double FromLat, double FromLon, double HeadingMag, double LengthNm = 20.0);
 
 /// <summary>
 /// Condition applied to a drawn route waypoint (crossing altitude and/or AT commands).

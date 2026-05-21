@@ -3,6 +3,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.Views.Radar;
@@ -358,7 +359,7 @@ public sealed class RadarRenderer : IDisposable
 
         foreach (var entry in entries)
         {
-            if (entry.Waypoints.Count == 0)
+            if (entry.Waypoints.Count == 0 && entry.Tail is null)
             {
                 continue;
             }
@@ -379,10 +380,15 @@ public sealed class RadarRenderer : IDisposable
             var labelPaint = _pathLabelPaints[paintIdx];
             var leaderPaint = _pathLeaderPaints[paintIdx];
 
-            // Dashed leader from aircraft to first waypoint
-            var (ax, ay) = vp.LatLonToScreen(entry.AircraftLat, entry.AircraftLon);
-            var (fx, fy) = vp.LatLonToScreen(entry.Waypoints[0].Lat, entry.Waypoints[0].Lon);
-            canvas.DrawLine(ax, ay, fx, fy, leaderPaint);
+            // Dashed leader from aircraft to first waypoint — only for the segment that
+            // represents what the aircraft is currently flying (ancillary segments like the
+            // expected approach are deliberately disconnected from the aircraft target).
+            if (entry.DrawLeader && entry.Waypoints.Count > 0)
+            {
+                var (ax, ay) = vp.LatLonToScreen(entry.AircraftLat, entry.AircraftLon);
+                var (fx, fy) = vp.LatLonToScreen(entry.Waypoints[0].Lat, entry.Waypoints[0].Lon);
+                canvas.DrawLine(ax, ay, fx, fy, leaderPaint);
+            }
 
             // Solid polyline connecting waypoints
             for (int i = 1; i < entry.Waypoints.Count; i++)
@@ -392,7 +398,7 @@ public sealed class RadarRenderer : IDisposable
                 canvas.DrawLine(x1, y1, x2, y2, linePaint);
             }
 
-            // Diamond markers + fix name labels
+            // Diamond markers + fix name labels (synthetic anchors with empty names are drawn unlabeled)
             foreach (var wp in entry.Waypoints)
             {
                 var (wx, wy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
@@ -400,9 +406,65 @@ public sealed class RadarRenderer : IDisposable
                 canvas.DrawLine(wx + diamondSize, wy, wx, wy + diamondSize, wpPaint);
                 canvas.DrawLine(wx, wy + diamondSize, wx - diamondSize, wy, wpPaint);
                 canvas.DrawLine(wx - diamondSize, wy, wx, wy - diamondSize, wpPaint);
-                canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, labelPaint);
+                if (!string.IsNullOrEmpty(wp.ResolvedName))
+                {
+                    canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, labelPaint);
+                }
+            }
+
+            // Optional vector arrow off the end of the segment (or from the aircraft when
+            // the segment has no waypoints — pure-vector aircraft).
+            if (entry.Tail is { } tail)
+            {
+                DrawVectorTail(canvas, vp, tail, leaderPaint, linePaint);
             }
         }
+    }
+
+    private static void DrawVectorTail(SKCanvas canvas, MapViewport vp, VectorTail tail, SKPaint linePaint, SKPaint arrowPaint)
+    {
+        // Tail headings come in magnetic — convert to true so the projected endpoint matches
+        // the published radar vector regardless of local declination.
+        double trueHeadingDeg = MagneticDeclination.MagneticToTrue(tail.HeadingMag, tail.FromLat, tail.FromLon);
+        var (endLat, endLon) = GeoMath.ProjectPoint(tail.FromLat, tail.FromLon, new TrueHeading(trueHeadingDeg), tail.LengthNm);
+
+        var (sx, sy) = vp.LatLonToScreen(tail.FromLat, tail.FromLon);
+        var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
+        canvas.DrawLine(sx, sy, ex, ey, linePaint);
+
+        // Small arrowhead at the tip — isoceles triangle rotated to the line's screen-space
+        // direction (mapping may rotate north relative to true), so the head reads correctly
+        // even when the map is non-north-up.
+        const float arrowLen = 10f;
+        const float arrowHalfWidth = 5f;
+        float dx = ex - sx;
+        float dy = ey - sy;
+        float len = MathF.Sqrt((dx * dx) + (dy * dy));
+        if (len < 1f)
+        {
+            return;
+        }
+        float ux = dx / len;
+        float uy = dy / len;
+        float baseX = ex - (ux * arrowLen);
+        float baseY = ey - (uy * arrowLen);
+        float perpX = -uy * arrowHalfWidth;
+        float perpY = ux * arrowHalfWidth;
+
+        using var path = new SKPath();
+        path.MoveTo(ex, ey);
+        path.LineTo(baseX + perpX, baseY + perpY);
+        path.LineTo(baseX - perpX, baseY - perpY);
+        path.Close();
+
+        var fillPaint = new SKPaint
+        {
+            Color = arrowPaint.Color,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+        };
+        canvas.DrawPath(path, fillPaint);
+        fillPaint.Dispose();
     }
 
     private static void DrawWeatherOverlay(SKCanvas canvas, IReadOnlyList<WeatherDisplayInfo> stations)
