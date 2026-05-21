@@ -30,14 +30,14 @@ namespace Yaat.Client.Services;
 internal static class ShownRouteBuilder
 {
     /// <summary>Length of the vector tail arrow drawn off a procedure's terminating VM/VA leg.</summary>
-    public const double TailLengthNm = 20.0;
+    public const double TailLengthNm = 5.0;
 
     /// <summary>
     /// Length of the FAC extension drawn back from the FAF when the expected approach has
     /// no published transition (VECTORS-to-final case). Same length as a vector tail so the
     /// two visualizations read as a matched pair.
     /// </summary>
-    public const double FacExtensionNm = 20.0;
+    public const double FacExtensionNm = 5.0;
 
     public static (List<DrawnWaypoint> Waypoints, VectorTail? Tail) BuildPrimary(AircraftModel ac, NavigationDatabase navDb)
     {
@@ -115,7 +115,7 @@ internal static class ShownRouteBuilder
             return null;
         }
 
-        // No transition: prepend a synthetic anchor 20 nm back along the published final
+        // No transition: prepend a synthetic anchor 5 nm back along the published final
         // approach course reciprocal so the controller sees the line they need to vector the
         // aircraft onto. Use the FAC extractor so offset approaches (LDA, parallel-offset LOC,
         // VOR offset, RNAV with offset legs) show the correct course rather than the runway
