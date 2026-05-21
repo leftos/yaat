@@ -91,7 +91,11 @@ public sealed class SimulationWorld
                 }
 
                 var ac = _aircraft[i];
-                if (ac.CompletedAtSeconds is double completedAt)
+                // Canonical "is this completed?" check matches the rest of the codebase
+                // (StampHandoffCompletion, TickTouchdown). CompletedAtSeconds is set
+                // alongside CompletionReason today; keying off the reason guards against
+                // a future write path that sets one without the other.
+                if (ac.CompletionReason != CompletionReason.Active)
                 {
                     _completedAircraft.Add(
                         new CompletedAircraftRecord(
@@ -101,7 +105,7 @@ public sealed class SimulationWorld
                             string.IsNullOrEmpty(ac.FlightPlan.Departure) ? null : ac.FlightPlan.Departure,
                             string.IsNullOrEmpty(ac.FlightPlan.Destination) ? null : ac.FlightPlan.Destination,
                             ac.SpawnedAtSeconds,
-                            completedAt,
+                            ac.CompletedAtSeconds ?? 0,
                             ac.CompletionReason,
                             ac.CompletionDetail
                         )
