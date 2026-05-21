@@ -52,9 +52,9 @@ public class FinalApproachCourseExtractorTests
         {
             return;
         }
-        var (_, procedure, runway) = loaded.Value;
+        var (navDb, procedure, runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         // The offset should be at least 10° relative to the runway heading
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
@@ -80,9 +80,9 @@ public class FinalApproachCourseExtractorTests
         {
             return;
         }
-        var (_, procedure, runway) = loaded.Value;
+        var (navDb, procedure, runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         // Course is in the easterly sector (50°-150° true).
         Assert.InRange(result.Course.Degrees, 50.0, 150.0);
@@ -114,9 +114,9 @@ public class FinalApproachCourseExtractorTests
         {
             return;
         }
-        var (_, procedure, runway) = loaded.Value;
+        var (navDb, procedure, runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -141,9 +141,9 @@ public class FinalApproachCourseExtractorTests
         {
             return;
         }
-        var (_, procedure, runway) = loaded.Value;
+        var (navDb, procedure, runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -165,9 +165,9 @@ public class FinalApproachCourseExtractorTests
         {
             return;
         }
-        var (_, procedure, runway) = loaded.Value;
+        var (navDb, procedure, runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -190,9 +190,9 @@ public class FinalApproachCourseExtractorTests
         {
             return;
         }
-        var (_, procedure, runway) = loaded.Value;
+        var (navDb, procedure, runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -211,9 +211,9 @@ public class FinalApproachCourseExtractorTests
         {
             return;
         }
-        var (_, procedure, runway) = loaded.Value;
+        var (navDb, procedure, runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway);
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(

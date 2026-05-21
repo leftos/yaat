@@ -837,7 +837,7 @@ internal static class NavigationCommandHandler
             ? runway
             : runway.ForApproach(procedure.Runway);
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, navDb);
         TrueHeading finalCourse = facResult.Course;
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4

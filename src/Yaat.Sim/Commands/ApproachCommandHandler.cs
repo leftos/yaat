@@ -44,7 +44,7 @@ public static class ApproachCommandHandler
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
 
         // Build approach fix sequence, selecting best transition if available
@@ -245,7 +245,7 @@ public static class ApproachCommandHandler
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
 
         // Build approach fix sequence, selecting best transition if available
@@ -351,7 +351,7 @@ public static class ApproachCommandHandler
 
         var (procedure, approachRunway, airport) = resolved;
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway);
+        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
 
         // Resolve heading: explicit or present

@@ -39,15 +39,15 @@ public static class FinalApproachCourseExtractor
     /// </summary>
     /// <param name="procedure">Parsed CIFP approach procedure.</param>
     /// <param name="runway">Runway being used by the approach.</param>
+    /// <param name="navDb">Navigation database used to resolve TF/DF MAP-leg predecessor fix positions and to decide whether the MAP is laterally offset from the runway centerline.</param>
     /// <returns>
     /// A result containing the true-heading final approach course and, when the published MAP
     /// is laterally offset from the runway threshold, the anchor coordinates that
     /// <see cref="Phases.Tower.FinalApproachPhase"/> should use as the cross-track reference.
     /// </returns>
-    public static FinalApproachCourseResult Extract(CifpApproachProcedure procedure, RunwayInfo runway)
+    public static FinalApproachCourseResult Extract(CifpApproachProcedure procedure, RunwayInfo runway, NavigationDatabase navDb)
     {
         double declination = MagneticDeclination.GetDeclination(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var navDb = NavigationDatabase.Instance;
 
         var (mapLeg, mapIndex) = FindMapLeg(procedure.CommonLegs);
         if (mapLeg is null)
