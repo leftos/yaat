@@ -75,6 +75,13 @@ public sealed class SimulationWorld
                 );
             }
 
+            // Same-callsign respawn after a removal: drop any stale completed record so the
+            // M12.4 Aircraft tab shows only the live aircraft. The aggregator dedupe
+            // (live wins) handles this while the new aircraft is in-world, but when this
+            // run later completes and gets removed, both records would resurface without
+            // this purge. Mirror policy: live spawn wins over a stale completion record.
+            _completedAircraft.RemoveAll(r => string.Equals(r.Callsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase));
+
             _aircraft.Add(aircraft);
         }
     }

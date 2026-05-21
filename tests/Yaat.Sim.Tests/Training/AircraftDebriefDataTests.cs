@@ -214,6 +214,31 @@ public class AircraftDebriefDataTests
     }
 
     [Fact]
+    public void AddAircraft_PurgesStaleCompletedRecordForSameCallsign()
+    {
+        // Respawn after a removal: the previous completed record would otherwise still
+        // be in the registry, and once the new run later completes the Aircraft tab
+        // would surface both runs once the new entry is also removed.
+        var world = new SimulationWorld();
+        var first = new AircraftState
+        {
+            Callsign = "N123AB",
+            AircraftType = "C172",
+            CompletedAtSeconds = 100,
+            CompletionReason = CompletionReason.Landed,
+            CompletionDetail = "28R",
+        };
+        world.AddAircraft(first);
+        world.RemoveAircraft("N123AB");
+        Assert.Single(world.GetCompletedAircraft());
+
+        var second = new AircraftState { Callsign = "N123AB", AircraftType = "C172" };
+        world.AddAircraft(second);
+
+        Assert.Empty(world.GetCompletedAircraft());
+    }
+
+    [Fact]
     public void RemoveAircraft_BeyondCapacity_EvictsOldestFirst()
     {
         // Long sessions must not grow the registry unbounded; oldest entries drop off
