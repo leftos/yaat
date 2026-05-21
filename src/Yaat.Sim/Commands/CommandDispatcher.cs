@@ -591,6 +591,10 @@ public static class CommandDispatcher
                 // DestinationRunway so the active STAR can load its runway transition (and
                 // anything else that keys off the assigned runway) without a separate RWY.
                 aircraft.Procedure.DestinationRunway = eappRunway.Designator;
+                // If a STAR is already active, extend the live NavigationRoute with the
+                // runway transition for the new runway — otherwise the published vector
+                // segment off the STAR's final fix never enters the route until CAPP.
+                NavigationCommandHandler.ExtendActiveStarWithRunwayTransition(aircraft, eappRunway.Designator);
                 return Ok($"Expecting {eappProc.ApproachId} approach");
             }
 

@@ -382,17 +382,13 @@ internal static class NavigationCommandHandler
 
         orderedLegs.AddRange(star.CommonLegs);
 
-        // Runway transition (if assigned runway available)
-        if (aircraft.Phases?.AssignedRunway is { } rwy)
+        // Runway transition: prefer the live AssignedRunway, fall back to the procedure's
+        // DestinationRunway. EAPP sets DestinationRunway without touching AssignedRunway, so
+        // a JARR issued after EAPP can still pick up the right transition.
+        string? rwDesignator = aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Procedure.DestinationRunway;
+        if (!string.IsNullOrEmpty(rwDesignator))
         {
-            var rwKey = "RW" + rwy.Designator;
-            if (!star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
-            {
-                // CIFP "B" suffix means both L/R share the same transition (e.g. "RW01B")
-                var bothKey = "RW" + rwy.Designator.TrimEnd('L', 'R', 'C') + "B";
-                star.RunwayTransitions.TryGetValue(bothKey, out rwTransition);
-            }
-
+            var rwTransition = LookupRunwayTransition(star.RunwayTransitions, rwDesignator);
             if (rwTransition is not null)
             {
                 orderedLegs.AddRange(rwTransition.Legs);
@@ -440,6 +436,61 @@ internal static class NavigationCommandHandler
         }
 
         return targets.Count > 0 ? targets : null;
+    }
+
+    /// <summary>
+    /// Resolves a CIFP STAR/SID runway-transition entry by runway designator. Handles the
+    /// "B" wildcard convention (e.g. <c>RW01B</c> covers both L and R parallels).
+    /// </summary>
+    internal static CifpTransition? LookupRunwayTransition(IReadOnlyDictionary<string, CifpTransition> transitions, string runwayDesignator)
+    {
+        var rwKey = "RW" + runwayDesignator;
+        if (transitions.TryGetValue(rwKey, out var rwTransition))
+        {
+            return rwTransition;
+        }
+        var bothKey = "RW" + runwayDesignator.TrimEnd('L', 'R', 'C') + "B";
+        return transitions.TryGetValue(bothKey, out var bothTransition) ? bothTransition : null;
+    }
+
+    /// <summary>
+    /// Extends an aircraft's active NavigationRoute with the runway-transition fixes for the
+    /// given <paramref name="runwayDesignator"/> on its active STAR. No-op when the aircraft
+    /// has no active STAR, no destination airport, or the STAR has no transition for the
+    /// runway. Skips fixes already present in the route to avoid duplicates when the route
+    /// already contains some or all of the transition.
+    /// </summary>
+    internal static void ExtendActiveStarWithRunwayTransition(AircraftState aircraft, string runwayDesignator)
+    {
+        if (string.IsNullOrEmpty(aircraft.Procedure.ActiveStarId) || string.IsNullOrEmpty(aircraft.FlightPlan.Destination))
+        {
+            return;
+        }
+
+        var star = NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, aircraft.Procedure.ActiveStarId);
+        if (star is null)
+        {
+            return;
+        }
+
+        var transition = LookupRunwayTransition(star.RunwayTransitions, runwayDesignator);
+        if (transition is null || transition.Legs.Count == 0)
+        {
+            return;
+        }
+
+        var present = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
+        var newLegs = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && !present.Contains(l.FixIdentifier)).ToList();
+        if (newLegs.Count == 0)
+        {
+            return;
+        }
+
+        var newTargets = DepartureClearanceHandler.ResolveLegsToTargets(newLegs);
+        foreach (var t in newTargets)
+        {
+            aircraft.Targets.NavigationRoute.Add(t);
+        }
     }
 
     /// <summary>

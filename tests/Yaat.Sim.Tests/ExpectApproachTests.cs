@@ -137,6 +137,45 @@ public class ExpectApproachTests
     }
 
     [Fact]
+    public void Eapp_WithActiveStar_ExtendsRouteWithRunwayTransition()
+    {
+        // Aircraft already on the WNDSR2 STAR (joined at WEBRR, no runway transition yet).
+        // EAPP I30 must extend the route with the RW30 transition fixes so the published
+        // FM vector arrow at CRSEN can render on the radar overlay.
+        TestVnasData.EnsureInitialized();
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+        NavigationDatabase.SetInstance(navDb);
+
+        var aircraft = MakeAircraft();
+        aircraft.Procedure.ActiveStarId = "WNDSR2";
+        // Pre-load the common-leg fixes as if JARR WNDSR2 WEBRR had already run without a
+        // destination runway set.
+        var webrr = navDb.GetFixPosition("WEBRR")!.Value;
+        var boyys = navDb.GetFixPosition("BOYYS")!.Value;
+        var hopta = navDb.GetFixPosition("HOPTA")!.Value;
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WEBRR", Position = new LatLon(webrr.Lat, webrr.Lon) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BOYYS", Position = new LatLon(boyys.Lat, boyys.Lon) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HOPTA", Position = new LatLon(hopta.Lat, hopta.Lon) });
+
+        var cmd = new ExpectApproachCommand("I30", null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, $"EAPP I30 should succeed. Got: {result.Message}");
+        Assert.Equal("30", aircraft.Procedure.DestinationRunway);
+
+        // WNDSR2 RW30 transition is HOPTA → ALLXX → CRSEN. HOPTA was already in the route;
+        // ALLXX and CRSEN should now be appended.
+        var names = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
+        Assert.Contains("ALLXX", names);
+        Assert.Contains("CRSEN", names);
+        Assert.Equal(names.IndexOf("HOPTA") + 1, names.IndexOf("ALLXX"));
+    }
+
+    [Fact]
     public void Eapp_SetsDestinationRunwayFromResolvedApproach()
     {
         var aircraft = MakeAircraft();
