@@ -124,8 +124,8 @@ Brainstormed 2026-05-21. Two categories carved out of a broader "make self-train
 | [ ] | **M12.1** | [m12.1-efficiency-score.md](m12.1-efficiency-score.md) | Vectoring miles vs great-circle, altitude profile vs filed, fuel-burn proxy |
 | [ ] | **M12.2** | [m12.2-phraseology-grading.md](m12.2-phraseology-grading.md) | Per-transmission 7110.65 form score (element order, niner, decimals, altitudes) |
 | [ ] | **M12.3** | [m12.3-rules-of-thumb-compliance.md](m12.3-rules-of-thumb-compliance.md) | Wake spacing on final, no-turns-below-400, hold-short readback enforcement |
-| [ ] | **M12.4** | [m12.4-per-aircraft-mini-debrief.md](m12.4-per-aircraft-mini-debrief.md) | Single line per handoff / landing: what went well, what went sideways |
-| [ ] | **M12.5** | [m12.5-timeline-scrubber.md](m12.5-timeline-scrubber.md) | Debrief view scrubbing snapshots with actions, conflicts, events overlaid |
+| [x] | **M12.4** | [m12.4-per-aircraft-mini-debrief.md](m12.4-per-aircraft-mini-debrief.md) | Session Report Aircraft tab — one row per aircraft with operation, route, completion, findings, coaching note |
+| [x] | **M12.5** | [m12.5-timeline-scrubber.md](m12.5-timeline-scrubber.md) | Finding + command markers on the existing rewind timeline bar, with Aircraft-tab cross-link filter |
 | [ ] | **M12.6** | [m12.6-par-scoring.md](m12.6-par-scoring.md) | Per-scenario "par" line — measure runs against a curated good run |
 | [ ] | **M12.7** | [m12.7-achievements-badges.md](m12.7-achievements-badges.md) | Persistent unlocks giving self-trainers reasons to come back |
 
