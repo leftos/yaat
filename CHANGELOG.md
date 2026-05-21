@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.1-beta [2026/05/21]
+
+### Fixed
+- Radar-vectors SIDs (NIMI5/6 out of KOAK) no longer turn the aircraft toward the post-SID route the moment radar identity moves to departure — the heading hold now releases on the actual `CT`/`FCA` handoff, so tower students get the full window between liftoff and frequency change to work comms before the turn starts.
+
 ## v0.3.0-beta [2026/05/19]
 
 ### Highlights
