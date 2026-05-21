@@ -10,4 +10,4 @@ namespace Yaat.Client.Services;
 
 public record AccessibleFacilityDto(string FacilityId, string FacilityName, bool IsStudentFacility);
 
-public record CommandResultDto(bool Success, string? Message);
+public record CommandResultDto(bool Success, string? Message, double ServerElapsedSeconds = 0);

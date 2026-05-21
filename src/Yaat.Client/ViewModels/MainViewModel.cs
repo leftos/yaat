@@ -1640,7 +1640,7 @@ public partial class MainViewModel : ObservableObject
 
             if (result.Success)
             {
-                RecordCommandMarker(target.Callsign, compound.CanonicalString);
+                RecordCommandMarker(target.Callsign, compound.CanonicalString, result.ServerElapsedSeconds);
             }
 
             // Always drop the typed text: even when the server rejects (or the pilot
@@ -1731,7 +1731,7 @@ public partial class MainViewModel : ObservableObject
 
             if (result.Success)
             {
-                RecordCommandMarker(target.Callsign, mappedCompound.CanonicalString);
+                RecordCommandMarker(target.Callsign, mappedCompound.CanonicalString, result.ServerElapsedSeconds);
             }
 
             AddHistory(CommandHistoryFormatter.Format(originalInput, historyCallsign, mappedCompound.CanonicalString));

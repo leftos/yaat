@@ -305,18 +305,25 @@ public partial class MainViewModel
     /// server acknowledges. Global commands (empty callsign) are skipped — they're not
     /// per-aircraft and would clutter the rail.
     /// </summary>
-    public void RecordCommandMarker(string callsign, string canonical)
+    /// <param name="serverElapsedSeconds">
+    /// Scenario elapsed seconds at the moment of server-side dispatch (from
+    /// <see cref="Services.CommandResultDto.ServerElapsedSeconds"/>). When 0 (legacy
+    /// servers or non-scenario contexts), fall back to the client's
+    /// <see cref="ScenarioElapsedSeconds"/> which lags by the broadcast cadence.
+    /// </param>
+    public void RecordCommandMarker(string callsign, string canonical, double serverElapsedSeconds = 0)
     {
         if (string.IsNullOrWhiteSpace(callsign))
         {
             return;
         }
 
+        double timeSeconds = serverElapsedSeconds > 0 ? serverElapsedSeconds : ScenarioElapsedSeconds;
         var marker = new TimelineMarkerVm
         {
-            Id = $"cmd-{ScenarioElapsedSeconds:0.000}-{callsign}-{canonical}",
+            Id = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"cmd-{timeSeconds:0.000}-{callsign}-{canonical}"),
             Kind = TimelineMarkerKind.Command,
-            TimeSeconds = ScenarioElapsedSeconds,
+            TimeSeconds = timeSeconds,
             Title = canonical,
             Callsigns = [callsign],
             CommandText = canonical,
