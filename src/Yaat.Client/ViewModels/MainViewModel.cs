@@ -199,6 +199,24 @@ public partial class MainViewModel : ObservableObject
 
     public bool IsTimelineAvailable => ActiveScenarioName is not null && ShowTimelineBar;
 
+    /// <summary>
+    /// Markers rendered above the rewind slider (M12.5). Populated from
+    /// <see cref="ServerConnection.GetSessionReportAsync"/> findings on a short polling
+    /// cadence whenever <see cref="IsTimelineAvailable"/> is true. Optionally filtered to
+    /// a single callsign by <see cref="TimelineFilterCallsign"/> via the Aircraft tab's
+    /// "Show on Timeline" button.
+    /// </summary>
+    public System.Collections.ObjectModel.ObservableCollection<TimelineMarkerVm> TimelineMarkers { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TimelineFilterActive))]
+    [NotifyPropertyChangedFor(nameof(TimelineFilterText))]
+    private string? _timelineFilterCallsign;
+
+    public bool TimelineFilterActive => !string.IsNullOrEmpty(TimelineFilterCallsign);
+
+    public string TimelineFilterText => TimelineFilterActive ? $"Filter: {TimelineFilterCallsign}" : "";
+
     public string PlayPauseIcon => IsPaused ? "▶" : "⏸";
 
     public string ElapsedTimeDisplay

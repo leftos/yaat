@@ -136,9 +136,9 @@ The M11 / M12 tables above are catalog entries. Execution follows the wave group
 **Wave 1 — Surface what we already have (highest ROI, zero sim risk)**
 
 1. **M12.4** — Per-aircraft mini-debrief
-2. **M12.5** — Timeline scrubber
+2. **M12.5** — Marker overlay on the existing timeline bar (reframed during step 5 — the existing rewind UI already provides scrub controls; M12.5 adds finding/command markers and an aircraft filter)
 
-Both consume M10.7 findings and existing snapshot data. No new sim infrastructure. Pairs cleanly: each debrief block links to the relevant timeline range.
+Both consume M10.7 findings and existing infrastructure. No new sim model. Pairs cleanly: each debrief row links to the relevant time on the marker rail.
 
 **Wave 2 — Add the missing radio half**
 

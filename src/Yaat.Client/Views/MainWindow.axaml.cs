@@ -2,10 +2,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using MsBox.Avalonia;
@@ -46,6 +48,7 @@ public partial class MainWindow : Window
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
     private CancellationTokenSource? _autoConnectCts;
+    private Avalonia.Threading.DispatcherTimer? _timelineMarkerTimer;
 
     public MainWindow()
     {
@@ -57,6 +60,17 @@ public partial class MainWindow : Window
         _geometryHelper.Restore();
         _geometryHelper.SetBaseTitle(vm.WindowTitle);
         vm.PropertyChanged += OnMainWindowTitleChanged;
+
+        _timelineMarkerTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _timelineMarkerTimer.Tick += async (_, _) => await vm.RefreshTimelineMarkersAsync();
+        _timelineMarkerTimer.Start();
+        Closed += (_, _) => _timelineMarkerTimer?.Stop();
+
+        var markerOverlay = this.FindControl<ItemsControl>("TimelineMarkerOverlay");
+        if (markerOverlay is not null)
+        {
+            markerOverlay.AddHandler(PointerPressedEvent, OnTimelineMarkerPressed, RoutingStrategies.Tunnel);
+        }
 
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
@@ -1812,6 +1826,31 @@ public partial class MainWindow : Window
         else if (result.ApiWeatherId is not null)
         {
             await LoadWeatherFromApiAsync(vm, result.ApiWeatherId, result.ApiWeatherName);
+        }
+    }
+
+    private async void OnTimelineMarkerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        // Marker tick-rectangle's DataContext is the TimelineMarkerVm; walk up from the
+        // pointed visual to find the first ancestor whose DataContext matches.
+        if (e.Source is not Visual visual)
+        {
+            return;
+        }
+
+        var control = visual as Control ?? visual.GetVisualAncestors().OfType<Control>().FirstOrDefault();
+        while (control is not null)
+        {
+            if (control.DataContext is TimelineMarkerVm marker)
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    e.Handled = true;
+                    await vm.RewindToSeconds(marker.TimeSeconds);
+                }
+                return;
+            }
+            control = control.GetVisualParent() as Control;
         }
     }
 

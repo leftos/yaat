@@ -290,6 +290,92 @@ public partial class MainViewModel
         });
     }
 
+    private bool _timelineMarkerRefreshInFlight;
+
+    /// <summary>
+    /// Fetches the current session report and rebuilds <see cref="TimelineMarkers"/>.
+    /// Called by the timeline-marker poll (MainWindow code-behind) and on demand from
+    /// the Aircraft tab "Show on Timeline" cross-link. Idempotent; coalesces overlapping
+    /// requests so we don't pile up hub calls.
+    /// </summary>
+    public async Task RefreshTimelineMarkersAsync()
+    {
+        if (_timelineMarkerRefreshInFlight || !IsTimelineAvailable)
+        {
+            return;
+        }
+        _timelineMarkerRefreshInFlight = true;
+        try
+        {
+            var report = await _connection.GetSessionReportAsync();
+            if (report is null)
+            {
+                return;
+            }
+
+            var filter = TimelineFilterCallsign;
+            var rebuilt = new List<TimelineMarkerVm>(report.Timeline.Count);
+            foreach (var ev in report.Timeline)
+            {
+                if (filter is not null && !ev.Callsigns.Any(c => string.Equals(c, filter, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+                rebuilt.Add(
+                    new TimelineMarkerVm
+                    {
+                        Id = ev.Id,
+                        TimeSeconds = ev.StartedAtSeconds,
+                        Severity = ev.Severity,
+                        Title = ev.Title,
+                        Category = ev.Category,
+                        Callsigns = [.. ev.Callsigns],
+                    }
+                );
+            }
+
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                TimelineMarkers.Clear();
+                foreach (var m in rebuilt)
+                {
+                    TimelineMarkers.Add(m);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Timeline marker refresh failed");
+        }
+        finally
+        {
+            _timelineMarkerRefreshInFlight = false;
+        }
+    }
+
+    /// <summary>
+    /// Apply a per-aircraft filter to the timeline markers and rewind to that aircraft's
+    /// spawn time. Called by the Session Report's Aircraft tab "Show on Timeline" button
+    /// (M12.4 → M12.5 cross-link).
+    /// </summary>
+    public async Task ShowAircraftOnTimelineAsync(string callsign, double spawnedAtSeconds)
+    {
+        TimelineFilterCallsign = callsign;
+        await RefreshTimelineMarkersAsync();
+        if (spawnedAtSeconds > 0 && spawnedAtSeconds <= TimelineMaximum)
+        {
+            await RewindToSeconds(spawnedAtSeconds);
+        }
+    }
+
+    [RelayCommand]
+    private void ClearTimelineFilter()
+    {
+        TimelineFilterCallsign = null;
+        // Fire-and-forget — the marker list will rebuild without the filter.
+        _ = RefreshTimelineMarkersAsync();
+    }
+
     private static bool IsLocalServer(string url)
     {
         return url.Contains("localhost", StringComparison.OrdinalIgnoreCase) || url.Contains("127.0.0.1", StringComparison.Ordinal);
