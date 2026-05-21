@@ -291,6 +291,7 @@ public partial class MainViewModel
     }
 
     private bool _timelineMarkerRefreshInFlight;
+    private bool _timelineMarkerRefreshPending;
 
     // Bounded command-marker buffer. Sized to a few hours' worth of busy session traffic
     // (~1 command/aircraft/minute × 30 aircraft × 60 min = 1,800); older entries drop off.
@@ -342,13 +343,20 @@ public partial class MainViewModel
     /// <summary>
     /// Fetches the current session report and rebuilds <see cref="TimelineMarkers"/>.
     /// Called by the timeline-marker poll (MainWindow code-behind) and on demand from
-    /// the Aircraft tab "Show on Timeline" cross-link. Idempotent; coalesces overlapping
-    /// requests so we don't pile up hub calls.
+    /// the Aircraft tab "Show on Timeline" cross-link. Idempotent; if another refresh is
+    /// already in flight when a new request arrives, the request is queued so that the
+    /// filter state observed at call time gets a refresh pass — preventing the Aircraft tab
+    /// click from silently waiting for the next 5 s poll.
     /// </summary>
     public async Task RefreshTimelineMarkersAsync()
     {
-        if (_timelineMarkerRefreshInFlight || !IsTimelineAvailable)
+        if (!IsTimelineAvailable)
         {
+            return;
+        }
+        if (_timelineMarkerRefreshInFlight)
+        {
+            _timelineMarkerRefreshPending = true;
             return;
         }
         _timelineMarkerRefreshInFlight = true;
@@ -410,6 +418,16 @@ public partial class MainViewModel
         finally
         {
             _timelineMarkerRefreshInFlight = false;
+        }
+
+        // If a refresh request arrived while this one was in flight (typically the user
+        // clicking "Show on Timeline" between the in-flight call and its completion), run
+        // one more pass against the latest filter state. The flag is read-and-clear so a
+        // pile-up of requests collapses to a single follow-up.
+        if (_timelineMarkerRefreshPending)
+        {
+            _timelineMarkerRefreshPending = false;
+            await RefreshTimelineMarkersAsync();
         }
     }
 
