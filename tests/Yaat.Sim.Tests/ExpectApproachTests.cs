@@ -137,6 +137,22 @@ public class ExpectApproachTests
     }
 
     [Fact]
+    public void Eapp_SetsDestinationRunwayFromResolvedApproach()
+    {
+        var aircraft = MakeAircraft();
+        var navDb = MakeNavDb();
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        Assert.Null(aircraft.Procedure.DestinationRunway);
+
+        var cmd = new ExpectApproachCommand("ILS28R", null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("28R", aircraft.Procedure.DestinationRunway);
+    }
+
+    [Fact]
     public void Eapp_ResolvesShorthandId()
     {
         var aircraft = MakeAircraft();

@@ -115,11 +115,13 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// EAPP should set ExpectedApproach but should NOT set DestinationRunway
-    /// (it's an expectation, not a clearance).
+    /// EAPP sets both ExpectedApproach AND DestinationRunway from the resolved approach.
+    /// "Expect ILS 30" telegraphs that the arrival runway will be 30, which loads the
+    /// active STAR's runway transition (HOPTA → ALLXX → CRSEN on WNDSR2 RW30 etc.)
+    /// without needing a separate RWY assignment.
     /// </summary>
     [Fact]
-    public void Eapp_SetsExpectedApproach_DoesNotSetDestinationRunway()
+    public void Eapp_SetsExpectedApproach_AndDestinationRunway()
     {
         var recording = LoadRecording();
         var engine = BuildEngine();
@@ -134,9 +136,9 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("USC28");
         Assert.NotNull(aircraft);
 
-        // Clear the scenario-set ExpectedApproach to test EAPP independently
+        // Clear the scenario-set ExpectedApproach so EAPP's own write is the only source.
         aircraft.Approach.Expected = null;
-        Assert.Null(aircraft.Procedure.DestinationRunway);
+        aircraft.Procedure.DestinationRunway = null;
 
         var result = engine.SendCommand("USC28", "EAPP I30");
 
@@ -146,6 +148,6 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
 
         Assert.True(result.Success, $"EAPP should succeed. Got: {result.Message}");
         Assert.Equal("I30", aircraft.Approach.Expected);
-        Assert.Null(aircraft.Procedure.DestinationRunway);
+        Assert.Equal("30", aircraft.Procedure.DestinationRunway);
     }
 }

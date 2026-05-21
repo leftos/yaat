@@ -585,8 +585,12 @@ public static class CommandDispatcher
                 {
                     return new CommandResult(false, eappResolved.Error);
                 }
-                var (eappProc, _, _) = eappResolved;
+                var (eappProc, eappRunway, _) = eappResolved;
                 aircraft.Approach.Expected = eappProc.ApproachId;
+                // Telling a pilot to expect "ILS 30" implies the arrival runway is 30. Set
+                // DestinationRunway so the active STAR can load its runway transition (and
+                // anything else that keys off the assigned runway) without a separate RWY.
+                aircraft.Procedure.DestinationRunway = eappRunway.Designator;
                 return Ok($"Expecting {eappProc.ApproachId} approach");
             }
 
