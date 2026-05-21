@@ -69,7 +69,11 @@ public partial class MainWindow : Window
         var markerOverlay = this.FindControl<ItemsControl>("TimelineMarkerOverlay");
         if (markerOverlay is not null)
         {
-            markerOverlay.AddHandler(PointerPressedEvent, OnTimelineMarkerPressed, RoutingStrategies.Tunnel);
+            // Bubble (not Tunnel): the marker template's Border is the deepest visual; we
+            // want its DataContext-bearing element to be the first thing we look at. With
+            // Tunnel, any future addition inside the overlay subtree (context menus, tooltip
+            // surfaces) would also trip this handler before reaching its target.
+            markerOverlay.AddHandler(PointerPressedEvent, OnTimelineMarkerPressed, RoutingStrategies.Bubble);
         }
 
         _windowProfileService = new WindowProfileService(vm.Preferences);
@@ -1831,8 +1835,10 @@ public partial class MainWindow : Window
 
     private async void OnTimelineMarkerPressed(object? sender, PointerPressedEventArgs e)
     {
-        // Marker tick-rectangle's DataContext is the TimelineMarkerVm; walk up from the
-        // pointed visual to find the first ancestor whose DataContext matches.
+        // Only act when the pressed visual sits inside a marker template (DataContext =
+        // TimelineMarkerVm). Anything else routed up to the overlay — empty marker-rail
+        // background, future context-menu surfaces, etc. — gets ignored without setting
+        // e.Handled so the event continues to bubble.
         if (e.Source is not Visual visual)
         {
             return;
