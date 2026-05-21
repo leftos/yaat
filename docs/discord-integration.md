@@ -4,7 +4,6 @@
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `discord-push.yml` | Push to `main` | Posts commit list embed to `DISCORD_WEBHOOK_URL` |
 | `discord-docs.yml` | Push to `main` (INSTALL/README/GETTING_STARTED/USER_GUIDE/COMMANDS/SOLO_TRAINING/comparison docs) + manual | Clears + reposts doc content to dedicated channels via bot token; large reference docs post ToC only |
 
 ## Discord Bot (`tools/discord-bot/`)
