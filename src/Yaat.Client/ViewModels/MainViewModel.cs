@@ -175,9 +175,12 @@ public partial class MainViewModel : ObservableObject
     private bool _isSessionSettingsOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ElapsedTimeDisplay))]
+    [NotifyPropertyChangedFor(nameof(TimelineMaximum))]
     private double _scenarioElapsedSeconds;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TimelineMaximum))]
     private bool _isPlaybackMode;
 
     [ObservableProperty]
@@ -193,6 +196,8 @@ public partial class MainViewModel : ObservableObject
     private bool _isExportIndeterminate = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TapeEndDisplay))]
+    [NotifyPropertyChangedFor(nameof(TimelineMaximum))]
     private double _playbackTapeEnd;
 
     public double TimelineMaximum => IsPlaybackMode ? PlaybackTapeEnd : ScenarioElapsedSeconds;
