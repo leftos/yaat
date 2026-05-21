@@ -56,6 +56,10 @@ out/
 .turbo/
 .gradle/
 
+# Auto-update 2026-05-21: added .opencode/, .rustling-tulip/
+.opencode/
+.rustling-tulip/
+
 [SearchableFiles.include]
 *
 
