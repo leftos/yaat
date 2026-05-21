@@ -1,0 +1,61 @@
+{
+  "id": "01HZWNDSR2DEMOSHOWROUTEKOA",
+  "name": "Demo | WNDSR2 arrival 40nm from OAK (Show Route)",
+  "artccId": "ZOA",
+  "primaryAirportId": "OAK",
+  "studentPositionId": "01GEAS6JN7VA6A676WY55NY2DT",
+  "autoDeleteMode": "None",
+  "initializationTriggers": [
+    { "id": "01HZWNDSR2INIT0000000000001", "command": "SQALL" }
+  ],
+  "aircraftGenerators": [],
+  "aircraft": [
+    {
+      "id": "01HZWNDSR2AIRCRAFT0000000001",
+      "aircraftId": "SWA1234",
+      "aircraftType": "B738",
+      "transponderMode": "C",
+      "startingConditions": {
+        "type": "Coordinates",
+        "coordinates": { "lat": 38.366644, "lon": -122.430768 },
+        "altitude": 22000,
+        "speed": 280,
+        "heading": 160,
+        "navigationPath": "WEBRR"
+      },
+      "onAltitudeProfile": false,
+      "flightplan": {
+        "rules": "IFR",
+        "departure": "KDEN",
+        "destination": "KOAK",
+        "cruiseAltitude": 36000,
+        "cruiseSpeed": 460,
+        "route": "RBUCL WNDSR2",
+        "remarks": "/V/ DEMO WNDSR2 arrival",
+        "aircraftType": "B738/L"
+      },
+      "presetCommands": [
+        { "id": "01HZWNDSR2CMD0000000000001", "command": "JARR WNDSR2 WEBRR", "timeOffset": 0 },
+        { "id": "01HZWNDSR2CMD0000000000002", "command": "EAPP I30", "timeOffset": 0 }
+      ],
+      "spawnDelay": 0,
+      "airportId": "OAK",
+      "difficulty": "Easy",
+      "autoTrackConditions": {
+        "positionId": "01GEAS6JN7VA6A676WY55NY2DT",
+        "handoffDelay": 0
+      }
+    }
+  ],
+  "atc": [
+    {
+      "id": "01HZWNDSR2ATC0000000000001",
+      "artccId": "ZOA",
+      "facilityId": "NCT",
+      "positionId": "01GEAS6JN7VA6A676WY55NY2DT",
+      "autoConnect": true,
+      "autoTrackAirportIds": ["OAK"]
+    }
+  ],
+  "flightStripConfigurations": []
+}
