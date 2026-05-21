@@ -87,6 +87,13 @@ public sealed class SoloTrainingEvaluator
     private readonly List<SafetyAlertProof> _safetyAlertProofs = [];
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
 
+    // Debrief cache. BuildReport runs every 2-5 seconds in production while the inputs
+    // (active aircraft + completed records + timeline findings) usually haven't changed.
+    // A cheap structural hash of the inputs skips the O(n×m) rebuild and per-row record
+    // allocation when nothing relevant changed.
+    private long _lastDebriefHash;
+    private IReadOnlyList<AircraftDebriefData>? _lastDebriefs;
+
     public void RecordControllerCommand(
         AircraftState aircraft,
         CompoundCommand command,
@@ -334,14 +341,19 @@ public sealed class SoloTrainingEvaluator
         );
     }
 
-    private static IReadOnlyList<AircraftDebriefData> BuildAircraftDebriefs(
-        IReadOnlyList<SoloTrainingEvent> timeline,
-        AircraftDebriefContext debriefContext
-    )
+    private IReadOnlyList<AircraftDebriefData> BuildAircraftDebriefs(IReadOnlyList<SoloTrainingEvent> timeline, AircraftDebriefContext debriefContext)
     {
         if (debriefContext.ActiveAircraft.Count == 0 && debriefContext.CompletedAircraft.Count == 0)
         {
+            _lastDebriefs = null;
+            _lastDebriefHash = 0;
             return [];
+        }
+
+        long hash = ComputeDebriefInputsHash(timeline, debriefContext);
+        if (_lastDebriefs is not null && _lastDebriefHash == hash)
+        {
+            return _lastDebriefs;
         }
 
         // Group findings by participating callsign. SoloTrainingEvent.Callsigns lists every
@@ -399,7 +411,71 @@ public sealed class SoloTrainingEvaluator
 
         // Sort by spawn time so the timeline reads chronologically.
         results.Sort((a, b) => a.SpawnedAtSeconds.CompareTo(b.SpawnedAtSeconds));
+        _lastDebriefs = results;
+        _lastDebriefHash = hash;
         return results;
+    }
+
+    // Structural hash over the inputs that affect debrief output. Cheap to compute; if
+    // it matches the previous call, the cached result list can be reused. Misses any
+    // field that doesn't contribute to debrief output, which is intentional — flight-plan
+    // amendments etc. don't change anything the Aircraft tab renders.
+    private static long ComputeDebriefInputsHash(IReadOnlyList<SoloTrainingEvent> timeline, AircraftDebriefContext debriefContext)
+    {
+        // FNV-1a 64-bit basis / prime. Order-sensitive within each input list; we don't
+        // need order-independence since the inputs are produced in a stable order.
+        unchecked
+        {
+            const ulong FnvOffset = 14695981039346656037UL;
+            const ulong FnvPrime = 1099511628211UL;
+            ulong h = FnvOffset;
+
+            h = Combine(h, (ulong)debriefContext.ActiveAircraft.Count);
+            foreach (var ac in debriefContext.ActiveAircraft)
+            {
+                h = CombineString(h, ac.Callsign);
+                h = CombineString(h, ac.Cid);
+                h = Combine(h, (ulong)ac.CompletionReason);
+                h = CombineString(h, ac.CompletionDetail);
+                h = Combine(h, BitConverter.DoubleToUInt64Bits(ac.SpawnedAtSeconds));
+                h = Combine(h, BitConverter.DoubleToUInt64Bits(ac.CompletedAtSeconds ?? double.NaN));
+            }
+
+            h = Combine(h, (ulong)debriefContext.CompletedAircraft.Count);
+            foreach (var rec in debriefContext.CompletedAircraft)
+            {
+                h = CombineString(h, rec.Callsign);
+                h = Combine(h, BitConverter.DoubleToUInt64Bits(rec.CompletedAtSeconds));
+                h = Combine(h, (ulong)rec.Reason);
+            }
+
+            h = CombineString(h, debriefContext.PrimaryAirportId);
+
+            h = Combine(h, (ulong)timeline.Count);
+            foreach (var ev in timeline)
+            {
+                h = CombineString(h, ev.Id);
+                h = Combine(h, (ulong)ev.Severity);
+                h = Combine(h, ev.IsActive ? 1UL : 0UL);
+            }
+
+            return (long)h;
+
+            static ulong Combine(ulong acc, ulong v) => (acc ^ v) * FnvPrime;
+            static ulong CombineString(ulong acc, string? s)
+            {
+                if (s is null)
+                {
+                    return Combine(acc, 0);
+                }
+                ulong h2 = acc;
+                foreach (var ch in s)
+                {
+                    h2 = (h2 ^ ch) * FnvPrime;
+                }
+                return h2;
+            }
+        }
     }
 
     private static AircraftDebriefData BuildDebriefForActive(
@@ -601,6 +677,8 @@ public sealed class SoloTrainingEvaluator
         _wakeAdvisoryProofs.Clear();
         _safetyAlertProofs.Clear();
         _sameRunwayTracker.Reset();
+        _lastDebriefs = null;
+        _lastDebriefHash = 0;
     }
 
     internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace)

@@ -234,6 +234,41 @@ public class AircraftDebriefAggregatorTests
     }
 
     [Fact]
+    public void BuildReport_SecondCallWithSameInputs_ReusesCachedDebriefList()
+    {
+        // Production polls every 2-5 s; without caching the aggregator rebuilds every row
+        // and re-allocates the AircraftDebriefData records each call. Identity check is the
+        // only way to confirm the cache short-circuited (record equality would pass even
+        // on a rebuild).
+        var evaluator = new SoloTrainingEvaluator();
+        var ac = MakeAircraft("N123AB", departure: "OAK", destination: "RNO");
+        var context = new AircraftDebriefContext([ac], [], "OAK");
+
+        var first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        var second = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+
+        Assert.Same(first.AircraftDebriefs, second.AircraftDebriefs);
+    }
+
+    [Fact]
+    public void BuildReport_AfterCompletionChange_RebuildsDebriefs()
+    {
+        // Mutate the aircraft's completion state between calls — cache must invalidate.
+        var evaluator = new SoloTrainingEvaluator();
+        var ac = MakeAircraft("N123AB", departure: "OAK", destination: "OAK");
+        var context = new AircraftDebriefContext([ac], [], "OAK");
+
+        var first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        ac.CompletedAtSeconds = 200;
+        ac.CompletionReason = CompletionReason.Landed;
+        ac.CompletionDetail = "28R";
+        var second = evaluator.BuildReport(true, 250, EmptyApproachReport(250), context);
+
+        Assert.NotSame(first.AircraftDebriefs, second.AircraftDebriefs);
+        Assert.Equal(CompletionReason.Landed, second.AircraftDebriefs.Single().CompletionReason);
+    }
+
+    [Fact]
     public void BuildReport_ActiveAndCompletedSameCallsign_PrefersActive()
     {
         var evaluator = new SoloTrainingEvaluator();
