@@ -108,7 +108,7 @@ public sealed class LandingPhase : Phase
     public LandingPlan? Plan => _plan;
 
     /// <summary>Current sub-state. Read-only except from within this class.</summary>
-    public State CurrentState { get; private set; } = State.StabilizedApproach;
+    public State CurrentState { get; set; } = State.StabilizedApproach;
 
     // Cross-tick state
     private bool _canGoAround;
