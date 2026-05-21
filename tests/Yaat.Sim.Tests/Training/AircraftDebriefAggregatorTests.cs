@@ -196,6 +196,44 @@ public class AircraftDebriefAggregatorTests
     }
 
     [Fact]
+    public void BuildReport_TwoCompletedSameCallsign_KeepsMostRecent()
+    {
+        // Delete + respawn + land of the same callsign leaves two records in the registry;
+        // the Aircraft tab should only show the most recent run.
+        var evaluator = new SoloTrainingEvaluator();
+        var older = new CompletedAircraftRecord(
+            "N123AB",
+            "C172",
+            "100",
+            FiledDeparture: "OAK",
+            FiledDestination: "OAK",
+            SpawnedAtSeconds: 10,
+            CompletedAtSeconds: 120,
+            Reason: CompletionReason.Landed,
+            Detail: "28R"
+        );
+        var newer = new CompletedAircraftRecord(
+            "N123AB",
+            "C172",
+            "100",
+            FiledDeparture: "OAK",
+            FiledDestination: "OAK",
+            SpawnedAtSeconds: 300,
+            CompletedAtSeconds: 450,
+            Reason: CompletionReason.Landed,
+            Detail: "10L"
+        );
+        var context = new AircraftDebriefContext([], [older, newer], "OAK");
+
+        var report = evaluator.BuildReport(true, 500, EmptyApproachReport(500), context);
+
+        var row = Assert.Single(report.AircraftDebriefs);
+        Assert.Equal(450.0, row.CompletedAtSeconds);
+        Assert.Equal("10L", row.CompletionDetail);
+        Assert.Equal(300.0, row.SpawnedAtSeconds);
+    }
+
+    [Fact]
     public void BuildReport_ActiveAndCompletedSameCallsign_PrefersActive()
     {
         var evaluator = new SoloTrainingEvaluator();

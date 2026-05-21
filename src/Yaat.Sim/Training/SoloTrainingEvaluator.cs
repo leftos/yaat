@@ -375,14 +375,25 @@ public sealed class SoloTrainingEvaluator
 
         // Completed-and-removed aircraft come from SimulationWorld's registry. Skip any
         // callsign that's also active (the live entry wins — possible during a same-callsign
-        // respawn after a removal).
+        // respawn after a removal). Within the completed list, dedupe by callsign keeping
+        // the highest CompletedAtSeconds: if a controller deletes an aircraft, respawns the
+        // same callsign, and lands it again, the registry holds two records; the user only
+        // wants to see the most recent run on the Aircraft tab.
         var liveCallsigns = new HashSet<string>(debriefContext.ActiveAircraft.Select(a => a.Callsign), StringComparer.OrdinalIgnoreCase);
+        var latestByCallsign = new Dictionary<string, CompletedAircraftRecord>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in debriefContext.CompletedAircraft)
         {
             if (liveCallsigns.Contains(record.Callsign))
             {
                 continue;
             }
+            if (!latestByCallsign.TryGetValue(record.Callsign, out var existing) || record.CompletedAtSeconds > existing.CompletedAtSeconds)
+            {
+                latestByCallsign[record.Callsign] = record;
+            }
+        }
+        foreach (var record in latestByCallsign.Values)
+        {
             results.Add(BuildDebriefForCompleted(record, debriefContext.PrimaryAirportId, findingsByCallsign));
         }
 
