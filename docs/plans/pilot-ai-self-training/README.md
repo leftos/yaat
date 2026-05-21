@@ -99,6 +99,75 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 | [x] | **M10.6** | [m10.6-scenario-pack.md](m10.6-scenario-pack.md) | Solo training USER_GUIDE + scenario-author notes + cleanup |
 | [x] | **M10.7** | [m10.7-session-report-separation-scoring.md](m10.7-session-report-separation-scoring.md) | Live Session Report + FAA-grounded airborne, runway, wake, and advisory scoring |
 
+## Next phase — Realism + Scoring
+
+Brainstormed 2026-05-21. Two categories carved out of a broader "make self-training better" exploration; other categories (curriculum / scaffolding, variability, practice tools) were noted but not yet planned. Each stub captures intent only — flesh out the subplan before implementing.
+
+### M11 — Pilot behavior realism
+
+| | Milestone | Subplan | Summary |
+|---|---|---|---|
+| [ ] | **M11.1** | [m11.1-variable-pilot-competence.md](m11.1-variable-pilot-competence.md) | Per-aircraft pilot skill bucket (student / normal / sharp) driving readback completeness, latency, precision |
+| [ ] | **M11.2** | [m11.2-pilot-initiated-requests.md](m11.2-pilot-initiated-requests.md) | Pilots ask for things: lower, direct, ride reports, deviations |
+| [ ] | **M11.3** | [m11.3-readback-errors.md](m11.3-readback-errors.md) | Occasional partial / wrong readbacks the controller is expected to catch |
+| [ ] | **M11.4** | [m11.4-stepped-on-transmissions.md](m11.4-stepped-on-transmissions.md) | Two aircraft key up at once; controller must request retransmission |
+| [ ] | **M11.5** | [m11.5-frequency-stuck-pilot.md](m11.5-frequency-stuck-pilot.md) | Occasional pilot doesn't check on after handoff |
+| [ ] | **M11.6** | [m11.6-nordo-lost-comms.md](m11.6-nordo-lost-comms.md) | Pilot loses radio, squawks 7600, executes lost-comms procedure |
+| [ ] | **M11.7** | [m11.7-pireps.md](m11.7-pireps.md) | Pilot reports on weather / turbulence / tops |
+| [ ] | **M11.8** | [m11.8-ga-vs-airline-cadence.md](m11.8-ga-vs-airline-cadence.md) | Operator-class-aware speech cadence and formality |
+| [ ] | **M11.9** | [m11.9-trainee-fos.md](m11.9-trainee-fos.md) | Subtle two-pilot dynamics — slower readbacks, occasional captain correction |
+
+### M12 — Scoring & feedback expansion
+
+| | Milestone | Subplan | Summary |
+|---|---|---|---|
+| [ ] | **M12.1** | [m12.1-efficiency-score.md](m12.1-efficiency-score.md) | Vectoring miles vs great-circle, altitude profile vs filed, fuel-burn proxy |
+| [ ] | **M12.2** | [m12.2-phraseology-grading.md](m12.2-phraseology-grading.md) | Per-transmission 7110.65 form score (element order, niner, decimals, altitudes) |
+| [ ] | **M12.3** | [m12.3-rules-of-thumb-compliance.md](m12.3-rules-of-thumb-compliance.md) | Wake spacing on final, no-turns-below-400, hold-short readback enforcement |
+| [ ] | **M12.4** | [m12.4-per-aircraft-mini-debrief.md](m12.4-per-aircraft-mini-debrief.md) | Single line per handoff / landing: what went well, what went sideways |
+| [ ] | **M12.5** | [m12.5-timeline-scrubber.md](m12.5-timeline-scrubber.md) | Debrief view scrubbing snapshots with actions, conflicts, events overlaid |
+| [ ] | **M12.6** | [m12.6-par-scoring.md](m12.6-par-scoring.md) | Per-scenario "par" line — measure runs against a curated good run |
+| [ ] | **M12.7** | [m12.7-achievements-badges.md](m12.7-achievements-badges.md) | Persistent unlocks giving self-trainers reasons to come back |
+
+### Recommended sequence
+
+The M11 / M12 tables above are catalog entries. Execution follows the wave grouping below — surfaces visible wins early, pays foundational costs only where they unlock the next layer, and defers items that need a "yes" before investing.
+
+**Wave 1 — Surface what we already have (highest ROI, zero sim risk)**
+
+1. **M12.4** — Per-aircraft mini-debrief
+2. **M12.5** — Timeline scrubber
+
+Both consume M10.7 findings and existing snapshot data. No new sim infrastructure. Pairs cleanly: each debrief block links to the relevant timeline range.
+
+**Wave 2 — Add the missing radio half**
+
+3. **M11.2** — Pilot-initiated requests
+
+Standalone, additive. Reuses the M10.4 `PilotProactive` ticker and the M10.3.5 frequency queue. Single biggest "the radio feels alive" win.
+
+**Wave 3 — Proficiency foundation, then exploit it**
+
+4. **M11.1** — Variable pilot competence (first slice: readback completeness only)
+5. **M11.3** — Realistic readback errors
+
+M11.1's first slice reuses M10.3.5's activity-aware shortening. M11.3 is the highest-value single training item — depends on M11.1 and pays the state-divergence architectural cost once.
+
+**Wave 4 — Expand scoring axes (each enriches M12.4 automatically)**
+
+6. **M12.1** — Efficiency score
+7. **M12.3** — Rules-of-thumb compliance (no-turn-below-400 anytime; hold-short verification needs M11.3)
+8. **M12.2** — Phraseology grading
+
+**Wave 5 — Motivate + flavor**
+
+9. **M12.6** — Par scoring (depends on M12.1)
+10. **M11.8** — GA vs airline cadence
+
+**Wave 6 — Confirm value before building**
+
+Paused until we know they earn their keep: M12.7 (achievements), M11.7 (PIREPs), M11.5 (freq-stuck), M11.4 (stepped-on), M11.9 (trainee FOs), M11.6 (NORDO — already explicitly deferred).
+
 ## Decisions committed
 
 - **`SoloTrainingMode` gates everything.** All pilot behavior is preference-gated so instructor-mode users see zero behavior change.
