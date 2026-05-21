@@ -85,9 +85,15 @@ public static class ContactCommandHandler
 
     private static void Route(AircraftState aircraft, DispatchContext ctx, string pilotSpeech, string warningText)
     {
+        // Mark frequency change in both solo and RPO modes. Track ownership and comms
+        // are independent (an auto-track to departure does not mean the pilot is on
+        // departure's freq yet), so behavior that depends on "the controller has actually
+        // handed comms off" — e.g. InitialClimbPhase releasing a radar-vectors SID heading
+        // hold — must key off this flag rather than Track.Owner.
+        aircraft.HasLeftStudentFrequency = true;
+
         if (ctx.SoloTrainingMode)
         {
-            aircraft.HasLeftStudentFrequency = true;
             PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
             return;
         }

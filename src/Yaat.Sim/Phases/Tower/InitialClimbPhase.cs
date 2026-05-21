@@ -360,34 +360,35 @@ public sealed class InitialClimbPhase : Phase
     }
 
     /// <summary>
-    /// Manages the RV SID heading hold state machine using the tower position from
-    /// PhaseContext to distinguish tower ownership from departure/other ownership:
+    /// Manages the RV SID heading hold state machine, keyed off comms transfer rather than
+    /// track ownership (the two are independent: a HOO or auto-track does not move comms,
+    /// FAA 7110.65 §7-6-11). The controller must explicitly hand the aircraft off via CT/FCA
+    /// — which sets <see cref="AircraftState.HasLeftStudentFrequency"/> — before the heading
+    /// hold releases:
     /// <list type="bullet">
-    ///   <item>While owned by tower (or unowned): fly the published heading indefinitely.</item>
-    ///   <item>When owned by a non-tower TCP (handoff or auto-track): start 5s timer.</item>
-    ///   <item>After 5s: load nav route ("vectored" to first fix).</item>
+    ///   <item>While the controller still has comms: fly the published heading indefinitely.</item>
+    ///   <item>After CT/FCA (HasLeftStudentFrequency flips true): start 5s post-handoff timer.</item>
+    ///   <item>After 5s: load nav route (pilot has retuned and is now flying the route).</item>
     /// </list>
+    /// Any explicit nav/heading command (D, H, etc.) clears the phase via CanAcceptCommand
+    /// regardless of this state machine — a trained RPO can issue direct-to-fix without ever
+    /// calling for the contact-departure handoff.
     /// </summary>
     private void UpdateRvSidHeadingHold(PhaseContext ctx)
     {
-        var currentOwner = ctx.Aircraft.Track.Owner;
-        bool ownedByTower = (currentOwner is null) || (ctx.TowerPosition is not null && currentOwner == ctx.TowerPosition);
-
-        if (ownedByTower)
+        if (!ctx.Aircraft.HasLeftStudentFrequency)
         {
-            // Tower still owns it (or untracked) — hold heading, reset any accidental timer.
+            // Controller still has comms — hold heading, reset any accidental timer.
             _rvSidHandoffElapsed = 0;
             ctx.Targets.TargetTrueHeading = _departureHeading;
             return;
         }
 
-        // Owned by a non-tower TCP — accumulate post-handoff time.
         if (_rvSidHandoffElapsed == 0)
         {
             Log.LogDebug(
-                "[InitialClimb] {Callsign}: RV SID track now owned by {Owner}, starting {Delay}s delay before vectoring to route",
+                "[InitialClimb] {Callsign}: RV SID comms handed off, starting {Delay}s delay before vectoring to route",
                 ctx.Aircraft.Callsign,
-                currentOwner!.Callsign,
                 RvSidPostHandoffDelaySec
             );
         }

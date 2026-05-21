@@ -168,9 +168,12 @@ public class AircraftState
     public bool HasControllerAcknowledgedInitialContact { get; set; }
 
     /// <summary>
-    /// Set after solo-training CT/FCA releases the aircraft from the student's frequency.
-    /// Snapshot-serialized so session-report advisory scoring does not re-score aircraft
-    /// after replay/rewind restores post-transfer state.
+    /// Set whenever the controller issues CT or FCA — i.e. the aircraft has been told to
+    /// leave the controller's frequency. Set in both solo training and RPO modes; track
+    /// ownership transfers (HOO/auto-track) do NOT set this, because radar identity and
+    /// comms are independent (FAA 7110.65 §7-6-11). Snapshot-serialized so replays / rewinds
+    /// restore post-transfer state without re-firing dependent behavior (solo evaluator's
+    /// advisory scoring; InitialClimbPhase's radar-vectors SID release).
     /// </summary>
     public bool HasLeftStudentFrequency { get; set; }
 
