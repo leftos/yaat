@@ -15,7 +15,8 @@ VALIDATION_REPO = "leftos/yaat-server"
 # GITHUB_WEBHOOK_SECRET       - secret for GitHub webhook signature verification
 # GITHUB_APP_ID               - GitHub App ID (from app settings > General)
 # GITHUB_APP_PRIVATE_KEY      - GitHub App private key (PEM format, generate from app settings > Private keys)
-# GITHUB_APP_INSTALLATION_ID  - Installation ID (from app settings > Installations > click your repo)
+# GITHUB_APP_INSTALLATION_ID  - Installation ID for leftos/yaat (issue sync)
+# VALIDATION_APP_INSTALLATION_ID (optional) - separate installation ID for leftos/yaat-server if not on the same install
 
 [[r2_buckets]]
 binding = "ATTACHMENTS"

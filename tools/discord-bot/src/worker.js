@@ -22,8 +22,8 @@ const TRACKING_FORUMS = {
   "track-feature-request": "1479890009153605724",
 };
 
-// Cached installation token (valid for ~1 hour, regenerated per worker invocation)
-let cachedInstallationToken = null;
+// Per-repo installation tokens (valid for ~1 hour, regenerated per worker invocation)
+const cachedInstallationTokens = new Map();
 
 // Status labels → display text, emoji, and whether they represent a terminal (closed) state
 const STATUS_LABELS = {
@@ -1096,8 +1096,8 @@ async function runValidationTrigger({ artcc, channelId, env, appId, interactionT
 }
 
 async function triggerValidationWorkflow(artcc, env) {
-  const token = await getGitHubToken(env);
   const repo = env.VALIDATION_REPO || env.GITHUB_REPO;
+  const token = await getGitHubToken(env, repo);
   const res = await fetch(
     `https://api.github.com/repos/${repo}/actions/workflows/discord-scenario-validation.yml/dispatches`,
     {
@@ -1119,15 +1119,53 @@ async function triggerValidationWorkflow(artcc, env) {
 
 // --- GitHub App authentication ---
 
-async function getGitHubToken(env) {
-  if (cachedInstallationToken) return cachedInstallationToken;
-
+async function createAppJwt(env) {
   const now = Math.floor(Date.now() / 1000);
   const payload = { iat: now - 60, exp: now + 600, iss: env.GITHUB_APP_ID };
-  const jwt = await createJWT(payload, env.GITHUB_APP_PRIVATE_KEY);
+  return createJWT(payload, env.GITHUB_APP_PRIVATE_KEY);
+}
+
+async function resolveInstallationId(repo, env, jwt) {
+  const defaultRepo = env.GITHUB_REPO;
+  if (repo === defaultRepo && env.GITHUB_APP_INSTALLATION_ID) {
+    return env.GITHUB_APP_INSTALLATION_ID;
+  }
+
+  const validationRepo = env.VALIDATION_REPO || "";
+  if (repo === validationRepo && env.VALIDATION_APP_INSTALLATION_ID) {
+    return env.VALIDATION_APP_INSTALLATION_ID;
+  }
+
+  const res = await fetch(`https://api.github.com/repos/${repo}/installation`, {
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "yaat-discord-bot",
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `GitHub App is not installed on ${repo} (${res.status}). ` +
+        `Install the app on that repository with Actions: Read and write. ${text}`,
+    );
+  }
+
+  const data = await res.json();
+  return String(data.id);
+}
+
+async function getGitHubToken(env, repo = env.GITHUB_REPO) {
+  const cached = cachedInstallationTokens.get(repo);
+  if (cached) {
+    return cached;
+  }
+
+  const jwt = await createAppJwt(env);
+  const installationId = await resolveInstallationId(repo, env, jwt);
 
   const res = await fetch(
-    `https://api.github.com/app/installations/${env.GITHUB_APP_INSTALLATION_ID}/access_tokens`,
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
       headers: {
@@ -1143,8 +1181,8 @@ async function getGitHubToken(env) {
   }
 
   const data = await res.json();
-  cachedInstallationToken = data.token;
-  return cachedInstallationToken;
+  cachedInstallationTokens.set(repo, data.token);
+  return data.token;
 }
 
 async function createJWT(payload, pemKey) {

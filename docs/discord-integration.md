@@ -17,7 +17,7 @@ Cloudflare Worker (JS, no framework) deployed as `yaat-discord-bot`. State in KV
 - Channel IDs: [`tools/discord-bot/validation-channels.json`](tools/discord-bot/validation-channels.json)
 - Bot `wrangler.toml` `[vars]` `VALIDATION_REPO = "leftos/yaat-server"` (issues/comments still use `GITHUB_REPO`)
 - GitHub secret on **yaat-server**: `DISCORD_BOT_TOKEN`
-- GitHub App on the worker must be installed on **leftos/yaat-server** with **Actions: Read and write**
+- GitHub App must be installed on **leftos/yaat-server** with **Actions: Read and write** (same installation as yaat, or a second install — the worker resolves the correct installation per repo). If dispatch returns 404, add yaat-server to the app under GitHub → Settings → Applications → your app → Configure
 
 **Slash commands** (restricted to `DISCORD_ALLOWED_USER_ID`):
 - `/create-issue` — creates GitHub issue labeled `bug` from forum thread

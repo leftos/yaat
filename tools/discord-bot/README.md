@@ -26,7 +26,7 @@ Cloudflare Worker that bridges Discord forum threads and GitHub issues.
 
 ### 2. GitHub App (issue sync + validation workflow dispatch)
 
-The worker uses a GitHub App installation token (not a PAT). Install the app on **leftos/yaat** and **leftos/yaat-server**; yaat-server needs **Actions: Read and write** for `workflow_dispatch`.
+The worker uses a GitHub App installation token (not a PAT). Install the app on **leftos/yaat** and **leftos/yaat-server** (either add yaat-server to the existing installation or install separately). yaat-server needs **Actions: Read and write** for `workflow_dispatch`. A 404 on dispatch means the app cannot see yaat-server — fix under GitHub → your app → Configure → Repository access.
 
 ```bash
 npx wrangler secret put GITHUB_APP_ID
