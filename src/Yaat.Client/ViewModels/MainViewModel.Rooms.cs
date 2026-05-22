@@ -408,8 +408,11 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            StatusText = "Connection lost — reconnecting...";
-            AddSystemEntry($"Connection lost to {_connectedServerUrl}, attempting to reconnect");
+            StatusText = IsServerRestarting ? "Server restarting — reconnecting when back online..." : "Connection lost — reconnecting...";
+            if (!IsServerRestarting)
+            {
+                AddSystemEntry($"Connection lost to {_connectedServerUrl}, attempting to reconnect");
+            }
         });
     }
 
@@ -417,46 +420,78 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
-            if (ActiveRoomId is null)
-            {
-                return;
-            }
+            await TryRejoinRoomAfterReconnectAsync();
+        });
+    }
 
+    private async Task TryRejoinRoomAfterReconnectAsync()
+    {
+        var roomId = ActiveRoomId ?? _preferences.LastActiveRoomId;
+        if (string.IsNullOrWhiteSpace(roomId) && !string.IsNullOrWhiteSpace(_preferences.VatsimCid))
+        {
             try
             {
-                var state = await _connection.JoinRoomAsync(
-                    ActiveRoomId,
-                    _preferences.VatsimCid,
-                    _preferences.UserInitials,
-                    _preferences.ArtccId,
-                    Yaat.Sim.ClientKind.Main
-                );
-
-                if (state is not null)
-                {
-                    ApplyRoomState(state);
-                    StatusText = "Reconnected to room";
-                    AddSystemEntry($"Reconnected to {_connectedServerUrl}");
-                }
-                else
-                {
-                    StatusText = "Room no longer active";
-                    ClearRoomState();
-                    await RefreshRoomListAsync();
-                    ShowRoomList = true;
-                }
+                var found = await _connection.FindRoomForMyCidAsync(_preferences.VatsimCid);
+                roomId = found?.RoomId;
             }
             catch (Exception ex)
             {
-                _log.LogError(ex, "Rejoin room after reconnect failed");
+                _log.LogError(ex, "FindRoomForMyCid after reconnect failed");
             }
-        });
+        }
+
+        if (string.IsNullOrWhiteSpace(roomId))
+        {
+            if (IsServerRestarting)
+            {
+                StatusText = "Server restarted — waiting for your session to become available";
+            }
+
+            return;
+        }
+
+        try
+        {
+            var state = await _connection.JoinRoomAsync(
+                roomId,
+                _preferences.VatsimCid,
+                _preferences.UserInitials,
+                _preferences.ArtccId,
+                Yaat.Sim.ClientKind.Main
+            );
+
+            if (state is not null)
+            {
+                ApplyRoomState(state);
+                IsServerRestarting = false;
+                StatusText = "Reconnected to room";
+                AddSystemEntry($"Reconnected to {_connectedServerUrl}");
+            }
+            else
+            {
+                IsServerRestarting = false;
+                StatusText = "Room no longer active";
+                ClearRoomState();
+                await RefreshRoomListAsync();
+                ShowRoomList = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Rejoin room after reconnect failed");
+        }
     }
 
     private void OnConnectionClosed(Exception? error)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            if (IsServerRestarting)
+            {
+                StatusText = "Server restarting — session will resume when the server is back";
+                return;
+            }
+
             var reason = error is not null
                 ? $"Connection to {_connectedServerUrl} lost — {error.Message}"
                 : $"Connection to {_connectedServerUrl} closed";
@@ -469,11 +504,82 @@ public partial class MainViewModel
         });
     }
 
+    private void OnServerRestarting(DateTime restartAt, string reason, int drainSeconds)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (ActiveRoomId is not null)
+            {
+                _preferences.LastActiveRoomId = ActiveRoomId;
+            }
+
+            IsServerRestarting = true;
+            StatusText = $"Server restarting for maintenance — session resumes in ~{drainSeconds}s";
+            AddSystemEntry($"Server restart scheduled ({reason}). Your session will be preserved.");
+        });
+    }
+
+    private void OnServerRestartReady()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            StatusText = "Server restart ready — reconnecting shortly...";
+        });
+    }
+
+    private void OnServerRestartComplete(List<RestoredRoomInfoDto> rooms)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            if (!IsConnected)
+            {
+                return;
+            }
+
+            await TryRejoinRoomAfterReconnectAsync();
+        });
+    }
+
+    private void OnRoomAvailableForCid(string roomId)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            if (!IsConnected || ActiveRoomId is not null)
+            {
+                return;
+            }
+
+            try
+            {
+                var state = await _connection.JoinRoomAsync(
+                    roomId,
+                    _preferences.VatsimCid,
+                    _preferences.UserInitials,
+                    _preferences.ArtccId,
+                    Yaat.Sim.ClientKind.Main
+                );
+
+                if (state is not null)
+                {
+                    ApplyRoomState(state);
+                    IsServerRestarting = false;
+                    StatusText = "Joined restored room";
+                    ShowRoomList = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Auto-join on RoomAvailableForCid failed");
+            }
+        });
+    }
+
     // --- Room state helpers ---
 
     private void ApplyRoomState(RoomStateDto state)
     {
         ActiveRoomId = state.RoomId;
+        _preferences.LastActiveRoomId = state.RoomId;
         ActiveRoomName = $"({state.CreatorArtccId}) {state.CreatorInitials}'s Room";
 
         if (state.ScenarioId is not null)

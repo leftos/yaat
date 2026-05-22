@@ -800,6 +800,8 @@ src/Yaat.Server/
   Simulation/
     TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Weather, Engine, GroupName, ConsolidationState, LineNumbers, AircraftAssignments
     TrainingRoomManager.cs     # Room registry + client→room + CID→room mapping + admin tracking
+
+See [session-persistence.md](session-persistence.md) for planned-restart room checkpoints (yaat-server `Simulation/Persistence/`).
     RoomEngine.cs              # Per-room facade: tick, commands, scenario, broadcast, consolidation
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps

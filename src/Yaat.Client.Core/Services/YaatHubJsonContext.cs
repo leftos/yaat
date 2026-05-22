@@ -57,6 +57,8 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(RoomStateDto))]
 [JsonSerializable(typeof(List<TrainingRoomInfoDto>))]
 [JsonSerializable(typeof(TrainingRoomInfoDto))]
+[JsonSerializable(typeof(List<RestoredRoomInfoDto>))]
+[JsonSerializable(typeof(RestoredRoomInfoDto))]
 [JsonSerializable(typeof(LoadScenarioResultDto))]
 [JsonSerializable(typeof(ScenarioSummaryDto))]
 [JsonSerializable(typeof(ScenarioSummaryDto[]))]

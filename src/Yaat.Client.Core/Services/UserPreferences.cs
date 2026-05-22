@@ -71,6 +71,16 @@ public sealed class UserPreferences
     public string VatsimCid => _data.VatsimCid;
     public string UserInitials => _data.UserInitials;
     public string ArtccId => _data.ArtccId;
+
+    public string? LastActiveRoomId
+    {
+        get => _data.LastActiveRoomId;
+        set
+        {
+            _data.LastActiveRoomId = value;
+            Save();
+        }
+    }
     public bool IsAdminMode => _data.IsAdminMode;
     public string AdminPassword => _data.AdminPassword;
     public string TrainingKey => _data.TrainingKey;
@@ -1282,6 +1292,7 @@ public sealed class UserPreferences
         public List<SavedWindowProfile> WindowProfiles { get; set; } = [];
         public bool ShowOnlyActiveAircraft { get; set; }
         public bool ShowTimelineBar { get; set; }
+        public string? LastActiveRoomId { get; set; }
         public string? LastScenarioFolder { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];

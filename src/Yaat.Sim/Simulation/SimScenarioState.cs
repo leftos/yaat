@@ -191,5 +191,6 @@ public sealed class SimScenarioState
                         })
                         .ToList()
                     : null,
+            CoordinationChannels = CoordinationChannelSnapshotMapper.ToSnapshotDictionary(CoordinationChannels),
         };
 }

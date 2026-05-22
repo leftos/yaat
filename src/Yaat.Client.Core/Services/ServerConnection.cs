@@ -46,6 +46,9 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
     public event Action<List<StripItemDto>>? StripItemsChanged;
     public event Action<string>? RoomAvailableForCid;
+    public event Action<DateTime, string, int>? ServerRestarting;
+    public event Action? ServerRestartReady;
+    public event Action<List<RestoredRoomInfoDto>>? ServerRestartComplete;
 
     /// <summary>
     /// Strip-side projection of <see cref="ScenarioLoaded"/> +
@@ -149,6 +152,15 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         _connection.On<FlightStripsStateDto>("FlightStripsStateChanged", dto => FlightStripsStateChanged?.Invoke(dto));
         _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
         _connection.On<string>("RoomAvailableForCid", roomId => RoomAvailableForCid?.Invoke(roomId));
+
+        _connection.On<DateTime, string, int>(
+            "ServerRestarting",
+            (restartAt, reason, drainSeconds) => ServerRestarting?.Invoke(restartAt, reason, drainSeconds)
+        );
+
+        _connection.On("ServerRestartReady", () => ServerRestartReady?.Invoke());
+
+        _connection.On<List<RestoredRoomInfoDto>>("ServerRestartComplete", rooms => ServerRestartComplete?.Invoke(rooms));
 
         _connection.Reconnecting += error =>
         {
@@ -821,6 +833,8 @@ public record TrainingRoomInfoDto(
     double ElapsedSeconds,
     int AircraftCount
 );
+
+public record RestoredRoomInfoDto(string RoomId, string? ScenarioName, double ElapsedSeconds, int AircraftCount);
 
 public record RoomStateDto(
     string RoomId,

@@ -513,7 +513,12 @@ public partial class MainViewModel : ObservableObject
 
     public bool IsInRoom => ActiveRoomId is not null;
 
-    public bool CanExecuteInRoom => IsConnected && IsInRoom;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanExecuteInRoom))]
+    [NotifyCanExecuteChangedFor(nameof(SendCommandCommand))]
+    private bool _isServerRestarting;
+
+    public bool CanExecuteInRoom => IsConnected && IsInRoom && !IsServerRestarting;
 
     public bool HasScenario => ActiveScenarioId is not null;
 
@@ -1025,6 +1030,10 @@ public partial class MainViewModel : ObservableObject
         _connection.Reconnecting += OnReconnecting;
         _connection.Reconnected += OnReconnected;
         _connection.Closed += OnConnectionClosed;
+        _connection.ServerRestarting += OnServerRestarting;
+        _connection.ServerRestartReady += OnServerRestartReady;
+        _connection.ServerRestartComplete += OnServerRestartComplete;
+        _connection.RoomAvailableForCid += OnRoomAvailableForCid;
         _connection.TerminalEntryReceived += OnTerminalEntry;
         _connection.PilotTransmissionReceived += OnPilotTransmissionReceived;
         _connection.RoomMemberChanged += OnRoomMemberChanged;

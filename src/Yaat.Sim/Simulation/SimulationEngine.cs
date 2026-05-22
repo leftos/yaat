@@ -252,6 +252,8 @@ public sealed class SimulationEngine
                     );
                 }
             }
+
+            CoordinationChannelSnapshotMapper.RestoreChannels(Scenario.CoordinationChannels, scenarioDto.CoordinationChannels);
         }
 
         // Reset engine-level state, then restore from snapshot if available
