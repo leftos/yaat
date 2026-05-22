@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.3.3-beta [2026/05/22]
+
+### Highlights
+- Changing the expected approach runway now updates the STAR transition on the navigation route instead of leaving fixes from the previous runway.
+- Re-issuing approach, runway, or routing commands no longer leaves obsolete STAR or approach fixes stacked on the route.
+- Assigning a runway to an airborne arrival refreshes the STAR transition; changing destination clears arrival routing without canceling departure taxi.
 
 ### Fixed
 - `EAPP` for a different runway removes STAR fixes from the prior runway transition instead of leaving the old path in the route.
