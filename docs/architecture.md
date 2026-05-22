@@ -37,7 +37,7 @@
 
 - **Sim tests**: `tests/Yaat.Sim.Tests/` — commands, phases, physics, parsers, nav data
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
-- **Test data**: `tests/Yaat.Sim.Tests/TestData/` — real NavData.dat, FAACIFP18.gz, airport GeoJSON
+- **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON. Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
 - **Shared loader**: `TestVnasData.EnsureInitialized()` — always use this, never synthetic stubs
 
 ## Root Scripts
@@ -598,6 +598,8 @@ FaaAircraftDataService.cs      # Downloads FAA ACD xlsx, parses all columns, cac
 
 # Data/Vnas/
 VnasDataService.cs             # Downloads NavData protobuf + specs; serial-based cache
+NavDataPathResolver.cs         # Test/offline NavData.dat resolve: vNAS cache, download, TestData fallback
+CifpPathResolver.cs            # Current AIRAC CIFP: cache, FAA download, bundled gz fallback
 AiracCycle.cs                  # AIRAC cycle calculator (epoch Jan 23 2025, 28-day)
 VnasConfig.cs                  # Config API DTO
 CacheManifest.cs               # Cache manifest tracking serials

@@ -58,8 +58,8 @@ public static class TestVnasData
                     return _navigationDatabase;
                 }
 
-                var path = Path.Combine(_testDataDir, "NavData.dat");
-                if (!File.Exists(path))
+                var path = ResolveNavDataPath();
+                if (path is null || !File.Exists(path))
                 {
                     return null;
                 }
@@ -73,12 +73,19 @@ public static class TestVnasData
                     return null;
                 }
 
+                var bundledGz = Path.Combine(_testDataDir, "FAACIFP18.gz");
+                string? supplementaryCifp = null;
+                if (File.Exists(bundledGz))
+                {
+                    supplementaryCifp = CifpPathResolver.ResolveSupplementaryBundledPath(new CifpResolveOptions(BundledGzPath: bundledGz));
+                }
+
                 // Use the default artccsBaseDir (null) so NavigationDatabase loads bundled
                 // per-ARTCC data from AppContext.BaseDirectory/Data/ARTCCs — the Yaat.Sim csproj
                 // copies that folder into the test output directory. This gives tests access to
                 // OAK30NUM, TOLLPLAZA, etc. which are needed when CommandParser.Parse resolves
                 // DCT args (e.g. PhraseologyMapper's rule validator).
-                _navigationDatabase = new NavigationDatabase(navData, cifpPath);
+                _navigationDatabase = new NavigationDatabase(navData, cifpPath, supplementaryCifpFilePath: supplementaryCifp);
                 return _navigationDatabase;
             }
         }
@@ -103,6 +110,25 @@ public static class TestVnasData
         }
     }
 
+    private static string? ResolveNavDataPath()
+    {
+        var allowDownload = !IsNavDataDownloadSkipped();
+        return NavDataPathResolver.CachedPath
+            ?? NavDataPathResolver.EnsureCurrent(
+                new NavDataResolveOptions(
+                    BundledPath: Path.Combine(_testDataDir, "NavData.dat"),
+                    BundledManifestPath: Path.Combine(_testDataDir, "navdata-manifest.json"),
+                    AllowDownload: allowDownload
+                )
+            );
+    }
+
+    private static bool IsNavDataDownloadSkipped()
+    {
+        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_NAVDATA_DOWNLOAD");
+        return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string? ResolveCifpPath()
     {
         if (_procedureDbAttempted)
@@ -112,24 +138,24 @@ public static class TestVnasData
 
         _procedureDbAttempted = true;
 
-        // Try bundled gzipped CIFP in TestData first (works in CI)
-        var bundledGz = Path.Combine(_testDataDir, "FAACIFP18.gz");
-        if (File.Exists(bundledGz))
-        {
-            _cifpPath = DecompressGzip(bundledGz);
-            return _cifpPath;
-        }
+        var allowDownload = !IsDownloadSkipped();
+        _cifpPath =
+            CifpPathResolver.CachedPath
+            ?? CifpPathResolver.EnsureCurrentCycle(
+                new CifpResolveOptions(
+                    BundledGzPath: Path.Combine(_testDataDir, "FAACIFP18.gz"),
+                    BundledManifestPath: Path.Combine(_testDataDir, "cifp-manifest.json"),
+                    AllowDownload: allowDownload
+                )
+            );
 
-        // Fall back to system CIFP cache
-        var cacheDir = YaatPaths.Combine("cache", "cifp");
-        if (!Directory.Exists(cacheDir))
-        {
-            return null;
-        }
-
-        var cifpFile = Directory.EnumerateFiles(cacheDir, "FAACIFP18-*").OrderDescending().FirstOrDefault();
-        _cifpPath = cifpFile;
         return _cifpPath;
+    }
+
+    private static bool IsDownloadSkipped()
+    {
+        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
+        return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DecompressGzip(string gzPath)

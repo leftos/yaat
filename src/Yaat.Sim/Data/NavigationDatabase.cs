@@ -44,8 +44,10 @@ public sealed class NavigationDatabase
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpApproachProcedure>> _approachCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _supplementarySidCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _cifpFilePath;
+    private readonly string? _supplementaryCifpFilePath;
 
     private static readonly ILogger Log = SimLog.CreateLogger("NavigationDatabase");
 
@@ -66,9 +68,9 @@ public sealed class NavigationDatabase
     /// <paramref name="artccsBaseDir"/> overrides the per-ARTCC user-data root (custom fixes,
     /// fix pronunciations, taxi route presets); pass an empty string to skip loading entirely.
     /// </summary>
-    public static void Initialize(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null)
+    public static void Initialize(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null, string? supplementaryCifpFilePath = null)
     {
-        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir);
+        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir, supplementaryCifpFilePath);
     }
 
     /// <summary>
@@ -101,9 +103,15 @@ public sealed class NavigationDatabase
     /// <c>{AppContext.BaseDirectory}/Data/ARTCCs</c>; pass an empty string to skip loading
     /// per-ARTCC data entirely.
     /// </summary>
-    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null)
+    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null, string? supplementaryCifpFilePath = null)
     {
         _cifpFilePath = cifpFilePath;
+        _supplementaryCifpFilePath =
+            supplementaryCifpFilePath is { } supplementary
+            && File.Exists(supplementary)
+            && !string.Equals(supplementary, cifpFilePath, StringComparison.OrdinalIgnoreCase)
+                ? supplementary
+                : null;
         artccsBaseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
 
         BuildIndex(navData);
@@ -839,7 +847,28 @@ public sealed class NavigationDatabase
 
     public CifpSidProcedure? GetSid(string airportCode, string sidId)
     {
-        var sids = GetSids(airportCode);
+        var match = FindSidInList(GetSids(airportCode), sidId);
+        if (match is not null)
+        {
+            return match;
+        }
+
+        if (_supplementaryCifpFilePath is null)
+        {
+            return null;
+        }
+
+        match = FindSidInList(GetSupplementarySids(airportCode), sidId);
+        if (match is not null)
+        {
+            Log.LogWarning("SID {SidId} at {Airport} resolved from supplementary CIFP (absent from current FAA cycle)", sidId, airportCode);
+        }
+
+        return match;
+    }
+
+    private static CifpSidProcedure? FindSidInList(IReadOnlyList<CifpSidProcedure> sids, string sidId)
+    {
         var exact = sids.FirstOrDefault(s => s.ProcedureId.Equals(sidId, StringComparison.OrdinalIgnoreCase));
         if (exact is not null)
         {
@@ -1557,6 +1586,17 @@ public sealed class NavigationDatabase
     {
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseSids(_cifpFilePath, icao);
+    }
+
+    private IReadOnlyList<CifpSidProcedure> GetSupplementarySids(string normalizedAirport)
+    {
+        return _supplementarySidCache.GetOrAdd(normalizedAirport, LoadSupplementarySids);
+    }
+
+    private IReadOnlyList<CifpSidProcedure> LoadSupplementarySids(string normalizedAirport)
+    {
+        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        return CifpParser.ParseSids(_supplementaryCifpFilePath!, icao);
     }
 
     private IReadOnlyList<CifpStarProcedure> LoadStars(string normalizedAirport)

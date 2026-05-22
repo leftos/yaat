@@ -1097,7 +1097,7 @@ public partial class MainViewModel : ObservableObject
             await vnasData.InitializeAsync();
 
             using var cifpService = new CifpDataService();
-            await cifpService.InitializeAsync();
+            await cifpService.InitializeAsync(CifpDataService.CreateDefaultOptions());
 
             if (vnasData.NavData is null || cifpService.CifpFilePath is null)
             {
@@ -1105,7 +1105,11 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            NavigationDatabase.Initialize(vnasData.NavData, cifpService.CifpFilePath);
+            NavigationDatabase.Initialize(
+                vnasData.NavData,
+                cifpService.CifpFilePath,
+                supplementaryCifpFilePath: cifpService.SupplementaryCifpFilePath
+            );
             var navDb = NavigationDatabase.Instance;
 
             _commandInput.NavDbReady = true;

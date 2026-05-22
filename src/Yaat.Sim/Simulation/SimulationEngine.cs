@@ -1353,6 +1353,8 @@ public sealed class SimulationEngine
         if (amendment.Route is not null)
         {
             ac.FlightPlan.Route = amendment.Route;
+            DepartureClearanceHandler.RefreshStoredDepartureClearance(ac);
+            DepartureClearanceHandler.RefreshPendingInitialClimbPhases(ac);
         }
         if (amendment.Remarks is not null)
         {

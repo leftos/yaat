@@ -64,6 +64,12 @@ public sealed class DepartureClearanceInfo
     public double? SidDepartureHeadingMagnetic { get; init; }
 
     /// <summary>
+    /// When true, initial climb holds runway heading until DER + IFR min turn altitude before
+    /// applying <see cref="SidDepartureHeadingMagnetic"/>.
+    /// </summary>
+    public bool RvSidDeferHeadingUntilMinAlt { get; init; }
+
+    /// <summary>
     /// Pre-resolved pattern runway for cross-runway closed traffic departures.
     /// Set by the dispatcher so TaxiingPhase doesn't need NavigationDatabase.
     /// </summary>
@@ -86,6 +92,7 @@ public sealed class DepartureClearanceInfo
             DepartureRoute = DepartureRoute?.Select(t => t.ToSnapshot()).ToList(),
             DepartureSidId = DepartureSidId,
             SidDepartureHeadingMagnetic = SidDepartureHeadingMagnetic,
+            RvSidDeferHeadingUntilMinAlt = RvSidDeferHeadingUntilMinAlt,
             PatternRunway = PatternRunway?.ToSnapshot(),
             PreClearedHoldShortNodeIds = PreClearedHoldShortNodeIds?.ToList(),
         };
@@ -99,6 +106,7 @@ public sealed class DepartureClearanceInfo
             DepartureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList(),
             DepartureSidId = dto.DepartureSidId,
             SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
+            RvSidDeferHeadingUntilMinAlt = dto.RvSidDeferHeadingUntilMinAlt,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
             PreClearedHoldShortNodeIds = dto.PreClearedHoldShortNodeIds,
         };

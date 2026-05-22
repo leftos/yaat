@@ -26,6 +26,7 @@ public static class Program
         bool listStars = false;
         string? starId = null;
         bool jsonOutput = false;
+        bool offline = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -65,6 +66,9 @@ public static class Program
                 case "--json":
                     jsonOutput = true;
                     break;
+                case "--offline":
+                    offline = true;
+                    break;
                 case "-h":
                 case "--help":
                     PrintUsage();
@@ -82,7 +86,7 @@ public static class Program
             return 2;
         }
 
-        cifpPath ??= FindDefaultCifp();
+        cifpPath ??= FindDefaultCifp(offline);
         if (cifpPath is null)
         {
             Console.Error.WriteLine("CIFP file not found. Pass --cifp <path> or run from the yaat repo.");
@@ -806,18 +810,28 @@ public static class Program
         return decompressedPath;
     }
 
-    private static string? FindDefaultCifp()
+    private static string? FindDefaultCifp(bool offline)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
             if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
             {
-                var bundled = Path.Combine(dir.FullName, "tests", "Yaat.Sim.Tests", "TestData", "FAACIFP18.gz");
-                return File.Exists(bundled) ? bundled : null;
+                var testData = Path.Combine(dir.FullName, "tests", "Yaat.Sim.Tests", "TestData");
+                var bundledGz = Path.Combine(testData, "FAACIFP18.gz");
+                var manifest = Path.Combine(testData, "cifp-manifest.json");
+                return CifpPathResolver.EnsureCurrentCycle(
+                    new CifpResolveOptions(
+                        BundledGzPath: File.Exists(bundledGz) ? bundledGz : null,
+                        BundledManifestPath: File.Exists(manifest) ? manifest : null,
+                        AllowDownload: !offline
+                    )
+                );
             }
+
             dir = dir.Parent;
         }
+
         return null;
     }
 
@@ -836,7 +850,8 @@ public static class Program
         Console.WriteLine("  --star <id>                  Show full parsed detail for one STAR (base-name fallback)");
         Console.WriteLine();
         Console.WriteLine("Options:");
-        Console.WriteLine("  --cifp <path>                CIFP file (.dat or .gz). Defaults to tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz");
+        Console.WriteLine("  --cifp <path>                CIFP file (.dat or .gz). Default: current AIRAC from FAA cache (download once per cycle)");
+        Console.WriteLine("  --offline                    Use bundled/cache only; do not download from FAA");
         Console.WriteLine("  --json                       Output as JSON");
         Console.WriteLine();
         Console.WriteLine("Examples:");

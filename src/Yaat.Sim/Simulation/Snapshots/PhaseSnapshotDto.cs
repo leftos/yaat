@@ -47,6 +47,7 @@ public sealed class DepartureClearanceDto
     public List<NavigationTargetDto>? DepartureRoute { get; init; }
     public string? DepartureSidId { get; init; }
     public double? SidDepartureHeadingMagnetic { get; init; }
+    public bool RvSidDeferHeadingUntilMinAlt { get; init; }
     public RunwayInfoDto? PatternRunway { get; init; }
     public List<int>? PreClearedHoldShortNodeIds { get; init; }
 }
@@ -517,6 +518,7 @@ public sealed class InitialClimbPhaseDto : PhaseDto
     public required bool VfrTurnApplied { get; init; } = false;
     public required bool RvSidActive { get; init; } = false;
     public required double RvSidHandoffElapsed { get; init; } = 0.0;
+    public bool RvSidDeferHeadingUntilMinAlt { get; init; }
 }
 
 public sealed class LineUpPhaseDto : PhaseDto

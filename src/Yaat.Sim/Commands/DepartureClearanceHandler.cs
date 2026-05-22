@@ -9,7 +9,12 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Commands;
 
-internal sealed record DepartureRouteResult(List<NavigationTarget> Targets, string? SidId, double? DepartureHeadingMagnetic = null);
+internal sealed record DepartureRouteResult(
+    List<NavigationTarget> Targets,
+    string? SidId,
+    double? DepartureHeadingMagnetic = null,
+    bool RvSidDeferHeadingUntilMinAlt = false
+);
 
 internal static class DepartureClearanceHandler
 {
@@ -278,6 +283,11 @@ internal static class DepartureClearanceHandler
             }
         }
 
+        // Assign runway before SID resolution — TryResolveSidFromCifp selects the
+        // runway transition (e.g. RW28B) and reads the VM heading from that leg.
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Procedure.DepartureRunway = runway.Designator;
+
         // Pre-resolve navigation targets for route-based departures
         var routeResult = ResolveDepartureRoute(departure, aircraft);
 
@@ -288,9 +298,7 @@ internal static class DepartureClearanceHandler
             patternRunway = ResolvePatternRunway(ctDep, aircraft);
         }
 
-        // Set runway and store departure clearance for TaxiingPhase to consume
-        aircraft.Phases!.AssignedRunway = runway;
-        aircraft.Procedure.DepartureRunway = runway.Designator;
+        // Store departure clearance for TaxiingPhase to consume
         aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
         {
             Type = clearanceType,
@@ -299,6 +307,7 @@ internal static class DepartureClearanceHandler
             DepartureRoute = routeResult?.Targets,
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
+            RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
             PatternRunway = patternRunway,
             PreClearedHoldShortNodeIds = preClearedIds.Count > 0 ? preClearedIds : null,
         };
@@ -353,6 +362,7 @@ internal static class DepartureClearanceHandler
                 DepartureRoute = routeResult?.Targets,
                 DepartureSidId = routeResult?.SidId,
                 SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
+                RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
                 IsVfr = aircraft.FlightPlan.IsVfr,
                 CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
             };
@@ -758,6 +768,7 @@ internal static class DepartureClearanceHandler
         if (IsRadarVectorsSid(rwLegs, sid.CommonLegs))
         {
             double? heading = ExtractRadarVectorsHeading(orderedLegs);
+            bool deferHeading = RvSidTransitionDefersHeadingAssignment(rwLegs);
             var rvTargets = new List<NavigationTarget>();
 
             if (hasEnrouteTransition)
@@ -771,7 +782,7 @@ internal static class DepartureClearanceHandler
 
             AppendPostSidEnrouteFixes(rvTargets, routeTokens, sid, rvTargets.Count > 0 ? rvTargets[^1].Name : null);
             StripNearDepartureTargets(rvTargets, aircraft.FlightPlan.Departure);
-            return new DepartureRouteResult(rvTargets, null, heading);
+            return new DepartureRouteResult(rvTargets, null, heading, deferHeading);
         }
 
         // Convert SID legs to NavigationTargets with constraints
@@ -806,6 +817,53 @@ internal static class DepartureClearanceHandler
         }
 
         return lastCoreLeg.PathTerminator is CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.VI;
+    }
+
+    /// <summary>
+    /// True when the runway transition climbs on the runway course (CA / track-to-altitude)
+    /// before the terminating VM/VA/VI vectors leg — IFR pilots fly runway heading until
+    /// ≥400 ft AGL, then the published vectors heading.
+    /// </summary>
+    internal static bool RvSidTransitionDefersHeadingAssignment(IReadOnlyList<CifpLeg> runwayTransitionLegs)
+    {
+        if (runwayTransitionLegs.Count < 2)
+        {
+            return false;
+        }
+
+        int vectorsLegIndex = -1;
+        for (int i = runwayTransitionLegs.Count - 1; i >= 0; i--)
+        {
+            if (runwayTransitionLegs[i].PathTerminator is CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.VI)
+            {
+                vectorsLegIndex = i;
+                break;
+            }
+        }
+
+        if (vectorsLegIndex <= 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < vectorsLegIndex; i++)
+        {
+            var leg = runwayTransitionLegs[i];
+            if (
+                leg.PathTerminator
+                is CifpPathTerminator.CA
+                    or CifpPathTerminator.FA
+                    or CifpPathTerminator.VA
+                    or CifpPathTerminator.TF
+                    or CifpPathTerminator.CF
+                    or CifpPathTerminator.Other
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1058,6 +1116,77 @@ internal static class DepartureClearanceHandler
     }
 
     /// <summary>
+    /// Re-resolves SID route/heading on a stored departure clearance after a flight-plan
+    /// route amendment (e.g. NIMI5 → NIMI6) while the aircraft is still taxiing.
+    /// Also refreshes any pending <see cref="InitialClimbPhase"/> in the tower chain.
+    /// </summary>
+    internal static void RefreshStoredDepartureClearance(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.DepartureClearance is not { } stored)
+        {
+            return;
+        }
+
+        var routeResult = ResolveDepartureRoute(stored.Departure, aircraft);
+        aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
+        {
+            Type = stored.Type,
+            Departure = stored.Departure,
+            AssignedAltitude = stored.AssignedAltitude,
+            DepartureRoute = routeResult?.Targets,
+            DepartureSidId = routeResult?.SidId,
+            SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
+            RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? stored.RvSidDeferHeadingUntilMinAlt,
+            PatternRunway = stored.PatternRunway,
+            PreClearedHoldShortNodeIds = stored.PreClearedHoldShortNodeIds,
+        };
+
+        if (routeResult is not null)
+        {
+            RefreshPendingInitialClimbPhases(aircraft, stored.Departure, stored.AssignedAltitude, routeResult);
+        }
+    }
+
+    /// <summary>
+    /// Re-resolves RV SID heading / enroute targets on pending <see cref="InitialClimbPhase"/> instances
+    /// after a route amendment (e.g. empty route at first CTO, then NIMI6 filed seconds later).
+    /// </summary>
+    internal static void RefreshPendingInitialClimbPhases(AircraftState aircraft)
+    {
+        if (aircraft.Phases is null)
+        {
+            return;
+        }
+
+        var routeResult = ResolveDepartureRoute(new DefaultDeparture(), aircraft);
+        if (routeResult is null)
+        {
+            return;
+        }
+
+        var pending = aircraft.Phases.Phases.OfType<InitialClimbPhase>().Where(p => p.Status == PhaseStatus.Pending).ToList();
+        foreach (var climb in pending)
+        {
+            DepartureInstruction departure = climb.Departure ?? new DefaultDeparture();
+            SetInitialClimbProperties(climb, departure, climb.AssignedAltitude, routeResult, aircraft);
+        }
+    }
+
+    private static void RefreshPendingInitialClimbPhases(
+        AircraftState aircraft,
+        DepartureInstruction departure,
+        int? assignedAltitude,
+        DepartureRouteResult routeResult
+    )
+    {
+        var pending = aircraft.Phases!.Phases.OfType<InitialClimbPhase>().Where(p => p.Status == PhaseStatus.Pending).ToList();
+        foreach (var climb in pending)
+        {
+            SetInitialClimbProperties(climb, departure, assignedAltitude, routeResult, aircraft);
+        }
+    }
+
+    /// <summary>
     /// Sets properties on a pending InitialClimbPhase. Since init properties
     /// are set via object initializer, we use reflection-free approach by
     /// replacing the phase in the list.
@@ -1085,6 +1214,7 @@ internal static class DepartureClearanceHandler
             DepartureRoute = routeResult?.Targets,
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
+            RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
             IsVfr = aircraft.FlightPlan.IsVfr,
             CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
         };

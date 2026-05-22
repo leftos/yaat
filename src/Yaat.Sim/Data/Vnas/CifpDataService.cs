@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Vnas;
@@ -10,76 +9,55 @@ namespace Yaat.Sim.Data.Vnas;
 /// </summary>
 public sealed class CifpDataService : IDisposable
 {
-    private const string CifpBaseUrl = "https://aeronav.faa.gov/Upload_313-d/cifp/";
-
     private static readonly ILogger Log = SimLog.CreateLogger<CifpDataService>();
 
-    private readonly HttpClient _http;
-    private readonly string _cacheDir;
-
     /// <summary>
-    /// Path to the extracted FAACIFP18 text file, or null if
+    /// Path to the extracted FAACIFP18 text file for the current AIRAC cycle, or null if
     /// download/extraction failed.
     /// </summary>
     public string? CifpFilePath { get; private set; }
 
-    public CifpDataService()
+    /// <summary>
+    /// Optional bundled supplementary CIFP (retired procedures absent from the current cycle).
+    /// Differs from <see cref="CifpFilePath"/> when the primary file is a downloaded cycle.
+    /// </summary>
+    public string? SupplementaryCifpFilePath { get; private set; }
+
+    public CifpDataService() { }
+
+    public Task InitializeAsync() => InitializeAsync(options: null);
+
+    public async Task InitializeAsync(CifpResolveOptions? options)
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        options ??= CreateDefaultOptions();
+        CifpFilePath = await CifpPathResolver.EnsureCurrentCycleAsync(options).ConfigureAwait(false);
 
-        _cacheDir = YaatPaths.Combine("cache", "cifp");
-    }
-
-    public async Task InitializeAsync()
-    {
-        Directory.CreateDirectory(_cacheDir);
-
-        var cycleId = AiracCycle.GetCurrentCycleId();
-        var cachePath = Path.Combine(_cacheDir, $"FAACIFP18-{cycleId}");
-
-        if (File.Exists(cachePath))
+        var supplementary = CifpPathResolver.ResolveSupplementaryBundledPath(options);
+        if (supplementary is not null && CifpFilePath is not null && string.Equals(supplementary, CifpFilePath, StringComparison.OrdinalIgnoreCase))
         {
-            Log.LogInformation("CIFP data cached for cycle {Cycle}", cycleId);
-            CifpFilePath = cachePath;
-            return;
+            supplementary = null;
         }
 
-        var cycleDate = AiracCycle.GetCycleDate(cycleId);
-        var dateStr = cycleDate.ToString("yyMMdd");
-        var url = $"{CifpBaseUrl}CIFP_{dateStr}.zip";
+        SupplementaryCifpFilePath = supplementary;
 
-        try
+        if (CifpFilePath is not null)
         {
-            Log.LogInformation("Downloading CIFP data from {Url}", url);
-
-            var zipBytes = await _http.GetByteArrayAsync(url);
-
-            using var zipStream = new MemoryStream(zipBytes);
-            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
-
-            var cifpEntry = archive.Entries.FirstOrDefault(e => e.Name.StartsWith("FAACIFP", StringComparison.Ordinal));
-
-            if (cifpEntry is null)
-            {
-                Log.LogWarning("FAACIFP file not found in zip archive");
-                return;
-            }
-
-            await using var entryStream = cifpEntry.Open();
-            await using var fileStream = File.Create(cachePath);
-            await entryStream.CopyToAsync(fileStream);
-
-            CifpFilePath = cachePath;
-            Log.LogInformation("CIFP data cached for cycle {Cycle} ({Size:N0} bytes)", cycleId, new FileInfo(cachePath).Length);
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning(ex, "Failed to download CIFP data; " + "approach gate warnings will use defaults");
+            Log.LogInformation(
+                "CIFP data ready for cycle {Cycle}{Supplementary}",
+                CifpPathResolver.ResolvedCycleId ?? AiracCycle.GetCurrentCycleId(),
+                SupplementaryCifpFilePath is not null ? " (supplementary bundle for retired procedures)" : ""
+            );
         }
     }
 
-    public void Dispose()
-    {
-        _http.Dispose();
-    }
+    /// <summary>
+    /// Default resolve options for client/server: download/cache current AIRAC only.
+    /// Supplementary bundled CIFP is not wired here — tests pass an explicit
+    /// <see cref="CifpResolveOptions.BundledGzPath"/> via <see cref="Testing.TestVnasData"/>.
+    /// To enable retired-procedure lookup in production, ship <c>FAACIFP18.gz</c> under the app
+    /// <c>Data/</c> folder (or pass custom <see cref="CifpResolveOptions"/> at startup).
+    /// </summary>
+    public static CifpResolveOptions CreateDefaultOptions() => new(AllowDownload: true);
+
+    public void Dispose() { }
 }

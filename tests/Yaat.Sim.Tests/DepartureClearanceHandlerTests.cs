@@ -1143,6 +1143,71 @@ public class DepartureClearanceHandlerTests
     }
 
     [Fact]
+    public void RefreshStoredDepartureClearance_AfterRouteAmend_UpdatesRvHeading()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var rwy28R = Runway28R();
+        var destHs = new HoldShortPoint
+        {
+            NodeId = 10,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "28R",
+        };
+        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        ac.FlightPlan.Departure = "KOAK";
+        ac.FlightPlan.Route = "NIMI5 OAK SAC MOD";
+        ac.FlightPlan.FlightRules = "IFR";
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.ClearedForTakeoff, new DefaultDeparture(), null);
+        Assert.Equal(315.0, ac.Phases!.DepartureClearance!.SidDepartureHeadingMagnetic);
+
+        ac.FlightPlan.Route = "OAK6 OAK SYRAH";
+        DepartureClearanceHandler.RefreshStoredDepartureClearance(ac);
+
+        Assert.Equal(278.2, ac.Phases.DepartureClearance!.SidDepartureHeadingMagnetic);
+    }
+
+    [Theory]
+    [InlineData("NIMI6 OAK SAC MOD", 315.0)]
+    [InlineData("OAK6 OAK SYRAH", 278.2)]
+    public void StoreDepartureClearanceDuringTaxi_RvSid_StoresPublishedHeadingBeforeRouteResolve(string route, double expectedHeadingMag)
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        var destHs = new HoldShortPoint
+        {
+            NodeId = 10,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "28R",
+        };
+        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        ac.FlightPlan.Departure = "KOAK";
+        ac.FlightPlan.Route = route;
+        ac.FlightPlan.FlightRules = "IFR";
+        ac.Phases!.AssignedRunway = null;
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.ClearedForTakeoff, new DefaultDeparture(), null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
+        Assert.NotNull(ac.Phases.DepartureClearance);
+        Assert.Equal(expectedHeadingMag, ac.Phases.DepartureClearance!.SidDepartureHeadingMagnetic);
+    }
+
+    [Fact]
     public void StoreDepartureClearanceDuringTaxi_RecordsOnlyHoldShortsItPreCleared()
     {
         var rwy33 = Runway33();

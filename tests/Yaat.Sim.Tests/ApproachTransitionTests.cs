@@ -87,9 +87,9 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        // SFO I19L has CCR transition (CCR → UPEND → BERKS) and common legs starting at BERKS.
+        // SFO I19L has UPEND transition (UPEND → BERKS) and common legs starting at BERKS.
         // An aircraft with BERKS in its NavigationRoute (from ALWYS3 STAR) should NOT match
-        // the CCR transition — it's already heading to the approach.
+        // the UPEND transition — it's already heading to the approach.
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
         Assert.True(procedure.Transitions.Count > 0, "I19L should have transitions");
@@ -533,23 +533,23 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        // SFO I19L has the CCR transition. An aircraft with CCR in its route
+        // SFO I19L has the UPEND transition. An aircraft with UPEND in its route
         // (not in NavigationRoute — already consumed) should match that transition.
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
-        Assert.True(procedure.Transitions.ContainsKey("CCR"), "I19L should have CCR transition");
+        Assert.True(procedure.Transitions.ContainsKey("UPEND"), "I19L should have UPEND transition");
 
-        var ccrTransition = procedure.Transitions["CCR"];
-        var legNames = ccrTransition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
-        output.WriteLine($"CCR transition legs: {string.Join(" → ", legNames)}");
+        var upendTransition = procedure.Transitions["UPEND"];
+        var legNames = upendTransition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
+        output.WriteLine($"UPEND transition legs: {string.Join(" → ", legNames)}");
 
-        // Aircraft route includes CCR — should match CCR transition
-        var aircraft = MakeAircraft(route: "SJC V334 CCR");
+        // Aircraft route includes UPEND — should match UPEND transition
+        var aircraft = MakeAircraft(route: "SJC V334 UPEND");
 
         var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         Assert.NotNull(result);
-        Assert.Equal("CCR", result.Name);
+        Assert.Equal("UPEND", result.Name);
     }
 
     [Fact]
@@ -561,17 +561,17 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        // SFO I19L with CCR transition. Aircraft with no route and no NavRoute,
-        // heading roughly toward CCR — fallback should pick nearest transition IAF ahead.
+        // SFO I19L with UPEND transition. Aircraft with no route and no NavRoute,
+        // heading roughly toward UPEND — fallback should pick nearest transition IAF ahead.
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
-        // Position northeast of SFO, heading southwest — CCR should be roughly ahead
+        // Position northeast of SFO, heading southwest — UPEND should be roughly ahead
         var aircraft = MakeAircraft(route: "", heading: 250, lat: 38.0, lon: -122.0);
 
         var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
-        // Should find some transition via fallback (CCR is the only one and should be ahead)
+        // Should find some transition via fallback (UPEND is the only one and should be ahead)
         output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
         Assert.NotNull(result);
     }
@@ -614,8 +614,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         output.WriteLine($"Fix names ({names.Count}): {string.Join(", ", names)}");
 
-        // Should include CCR transition fixes
-        Assert.Contains("CCR", names);
+        // Should include UPEND transition fixes
+        Assert.Contains("UPEND", names);
 
         // Should include common leg fixes (before MAP)
         var commonFixNames = procedure
@@ -694,8 +694,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
-        // Aircraft with CCR in route → should select CCR transition
-        var aircraft = MakeAircraft(route: "SJC V334 CCR", destinationRunway: "19L", heading: 320, lat: 37.5, lon: -122.1);
+        // Aircraft with UPEND in route → should select UPEND transition
+        var aircraft = MakeAircraft(route: "SJC V334 UPEND", destinationRunway: "19L", heading: 320, lat: 37.5, lon: -122.1);
         var cmd = new ClearedApproachCommand("I19L", "KSFO", false, null, null, null, null, null, null, null, null);
 
         var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
@@ -710,12 +710,12 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         var fixNames = navPhase.Fixes.Select(f => f.Name).ToList();
         output.WriteLine($"Approach fixes: {string.Join(" → ", fixNames)}");
 
-        // Should include CCR (from transition)
-        Assert.Contains("CCR", fixNames);
+        // Should include UPEND (from transition)
+        Assert.Contains("UPEND", fixNames);
 
         // Boundary fix should not be duplicated
-        var ccrTransition = procedure.Transitions["CCR"];
-        var lastTransitionFix = ccrTransition.Legs.LastOrDefault(l => !string.IsNullOrEmpty(l.FixIdentifier))?.FixIdentifier;
+        var upendTransition = procedure.Transitions["UPEND"];
+        var lastTransitionFix = upendTransition.Legs.LastOrDefault(l => !string.IsNullOrEmpty(l.FixIdentifier))?.FixIdentifier;
         var firstCommonFix = procedure.CommonLegs.FirstOrDefault(l => !string.IsNullOrEmpty(l.FixIdentifier))?.FixIdentifier;
         if (
             lastTransitionFix is not null

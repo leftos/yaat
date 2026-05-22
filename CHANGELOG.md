@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- Radar-vectors SID departures cleared with `CTO` during taxi hold the published vectors heading instead of turning direct to enroute fixes when the assigned runway was not set at clearance time.
+- Radar-vectors departures on transitions with climb-before-vectors legs hold runway heading until 400 ft AGL, then apply the published vectors course.
+- Amending a flight plan to add a runway-specific SID after an early `CTO` refreshes the stored departure clearance and vectors heading.
+
 ### Added
 - Training sessions now survive planned server restarts. When the server announces a restart, an amber banner appears at the top of the main, radar, and ground windows with a live countdown ("Server restarting for planned maintenance — session resumes in ~30s"), command input freezes, and the active room id is remembered. After the server comes back, the client auto-rejoins to the same room with the scenario paused at the moment of save (aircraft, route, phase, strips, ASDEX, ERAM, line numbers, and in-flight RD/RDH coordination items intact); the banner briefly flashes green ("Reconnected to your room — session resumed at T+182s") then dismisses. The droplet deploy script (`deploy-to-droplet.ps1`) opts in by default — pass `-SkipSessionSave` for an emergency deploy that drops active rooms.
 

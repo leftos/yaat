@@ -12,6 +12,9 @@ using Yaat.Sim.Testing;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
+/// KOAK radar-vectors SIDs (NIMI*, OAK6): CIFP heading extraction, version fallback, CTO propagation, and RV hold semantics.
+/// </summary>
+/// <summary>
 /// E2E tests for NIMI departure (KOAK) — a radar-vectors SID published with a
 /// 315° departure heading on every runway transition. Validates that:
 ///   (1) YAAT extracts the published 315° heading from the CIFP VM leg
@@ -50,10 +53,11 @@ public class NimiRadarVectorsSidTests
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan
             {
-                Departure = "OAK",
-                Destination = "SAC",
+                Departure = "KOAK",
+                Destination = "KSAC",
                 Route = sidRoute,
                 CruiseAltitude = 11000,
+                FlightRules = "IFR",
             },
         };
         ac.Phases = new PhaseList
@@ -69,6 +73,12 @@ public class NimiRadarVectorsSidTests
     [InlineData("30", 300.0)]
     public void NIMI5_FromCifp_ExtractsPublished315Heading(string runwayDesignator, double runwayHeading)
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
         var ac = MakeOakDeparture("NIMI5 OAK V6 SAC", runwayDesignator, runwayHeading);
 
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
@@ -83,6 +93,13 @@ public class NimiRadarVectorsSidTests
     [Fact]
     public void NIMI6_BaseNameFallback_ResolvesToSameProcedureAsNIMI5()
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
         // Real-world failure mode: flight plan filed on NIMI5, FAA amendment cycle
         // publishes NIMI6 (or vice versa). NavigationDatabase.GetSid's
         // StripTrailingDigits fallback must catch the version skew and return the
@@ -102,6 +119,13 @@ public class NimiRadarVectorsSidTests
     [Fact]
     public void NIMI_HeadingSurvivesAcrossManyVersionSkews()
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
         // The fallback must not be brittle to which specific number is currently
         // in the cycle: any "NIMIn" should resolve to whichever NIMI exists.
         foreach (var name in new[] { "NIMI1", "NIMI4", "NIMI5", "NIMI6", "NIMI9" })
@@ -113,9 +137,66 @@ public class NimiRadarVectorsSidTests
         }
     }
 
+    [Theory]
+    [InlineData("28R", 280.0, 278.2)]
+    public void OAK6_FromCifp_ExtractsPublishedRvHeadingOn28R(string runwayDesignator, double runwayHeading, double expectedHeading)
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        var ac = MakeOakDeparture("OAK6 OAK SYRAH", runwayDesignator, runwayHeading);
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedHeading, result.DepartureHeadingMagnetic);
+    }
+
+    [Fact]
+    public void OAK6_ClearedForTakeoff_PropagatesHeadingToInitialClimbPhase()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        var ac = MakeOakDeparture("OAK6 OAK SYRAH", "28R", 280.0);
+
+        var holding = new HoldingInPositionPhase();
+        ac.Phases!.Add(holding);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            assignedAltitude: 5000,
+            Logger
+        );
+
+        Assert.True(result.Success);
+
+        var initialClimb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        Assert.NotNull(initialClimb);
+        Assert.Equal(278.2, initialClimb.SidDepartureHeadingMagnetic);
+        Assert.Null(initialClimb.DepartureSidId);
+    }
+
     [Fact]
     public void NIMI5_ClearedForTakeoff_PropagatesHeadingToInitialClimbPhase()
     {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
         // Full clearance pipeline: CTO from holding-in-position → InsertTowerPhasesAfterCurrent
         // → ResolveDepartureRoute → InitialClimbPhase.SidDepartureHeadingMagnetic = 315.
         // The HoldingInPositionPhase path is used here (rather than HoldingShortPhase)
@@ -172,10 +253,11 @@ public class NimiRadarVectorsSidTests
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan
             {
-                Departure = "OAK",
-                Destination = "SAC",
+                Departure = "KOAK",
+                Destination = "KSAC",
                 Route = "NIMI5 OAK V6 SAC",
                 CruiseAltitude = 11000,
+                FlightRules = "IFR",
             },
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };

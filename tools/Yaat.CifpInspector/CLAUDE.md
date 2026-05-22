@@ -12,7 +12,7 @@ Yaat.CifpInspector is a CLI tool for inspecting parsed CIFP (Coded Instrument Fl
 # Build (from repo root or this directory)
 dotnet build
 
-# Run — defaults to FAACIFP18.gz from tests/Yaat.Sim.Tests/TestData/
+# Run — defaults to current AIRAC CIFP (FAA cache download once per cycle; see CifpPathResolver)
 dotnet run --project tools/Yaat.CifpInspector -- --airport KSFO --list-approaches
 dotnet run --project tools/Yaat.CifpInspector -- --airport KSFO --approach R10L
 dotnet run --project tools/Yaat.CifpInspector -- --airport KCCR --final-course S19R
@@ -39,4 +39,4 @@ The `--final-course` command mirrors the strategies in `FinalApproachCourseExtra
 
 ## CIFP File Resolution
 
-If `--cifp` is not provided, the tool walks up from its binary directory looking for `yaat.slnx`, then uses `tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz`. Gzip files are decompressed to a temp file and cached.
+If `--cifp` is not provided, the tool uses `CifpPathResolver` (current AIRAC cycle from `%LOCALAPPDATA%/yaat/cache/cifp/`, downloading from FAA if missing). Pass `--offline` to use only the bundled `TestData/FAACIFP18.gz` and existing cache. Set `YAAT_SKIP_CIFP_DOWNLOAD=1` in tests for the same offline behavior.

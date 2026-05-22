@@ -68,6 +68,7 @@ public sealed class InitialClimbPhase : Phase
             VfrTurnApplied = _deferredTurnApplied,
             RvSidActive = _rvSidActive,
             RvSidHandoffElapsed = _rvSidHandoffElapsed,
+            RvSidDeferHeadingUntilMinAlt = RvSidDeferHeadingUntilMinAlt,
         };
 
     public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
@@ -83,6 +84,7 @@ public sealed class InitialClimbPhase : Phase
             CruiseAltitude = dto.CruiseAltitude,
             DepartureSidId = dto.DepartureSidId,
             SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
+            RvSidDeferHeadingUntilMinAlt = dto.RvSidDeferHeadingUntilMinAlt,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
@@ -123,6 +125,11 @@ public sealed class InitialClimbPhase : Phase
     /// <summary>Magnetic heading from a radar vectors SID (e.g. 315° from NIMI5 VM leg).</summary>
     public double? SidDepartureHeadingMagnetic { get; init; }
 
+    /// <summary>
+    /// Hold runway heading until DER + IFR 400 ft AGL before applying the published RV vectors heading.
+    /// </summary>
+    public bool RvSidDeferHeadingUntilMinAlt { get; init; }
+
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
@@ -153,15 +160,15 @@ public sealed class InitialClimbPhase : Phase
         if (isRvSid)
         {
             _rvSidActive = true;
-            ctx.Targets.TargetTrueHeading = _departureHeading;
         }
 
         // Defer the assigned departure turn until the aircraft is past the DER AND at
         // a safe minimum altitude. VFR uses pattern altitude − 300 ft (AIM 4-3-2); IFR
         // uses field elevation + 400 ft (TERPS criterion — IFR ODP design assumes no
-        // turns below 400 ft above DER). Without deferral the aircraft rolls into the
-        // assigned bank at Vr at very low AGL.
-        bool deferTurn = DepartureRequiresTurn() && ctx.Runway is not null;
+        // turns below 400 ft above DER). RV SIDs with a CA/track leg before the VM leg
+        // also defer the vectors heading until that gate (runway heading until ~400 ft AGL).
+        bool rvDeferVectorsHeading = isRvSid && RvSidDeferHeadingUntilMinAlt && ctx.Runway is not null;
+        bool deferTurn = ctx.Runway is not null && (DepartureRequiresTurn() || rvDeferVectorsHeading);
         if (deferTurn)
         {
             _deferredTurnApplied = false;
@@ -171,8 +178,16 @@ public sealed class InitialClimbPhase : Phase
             _deferredTurnAltitude = IsVfr
                 ? _fieldElevation + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - VfrPatternAltMarginFt
                 : _fieldElevation + IfrTurnAglFloor;
+            if (rvDeferVectorsHeading)
+            {
+                ctx.Targets.TargetTrueHeading = _runwayHeading;
+            }
+            else if (isRvSid)
+            {
+                ctx.Targets.TargetTrueHeading = _departureHeading;
+            }
         }
-        else if (!_rvSidActive)
+        else if (!isRvSid)
         {
             // No runway info or a non-turning departure: apply heading + nav immediately.
             _deferredTurnApplied = true;
@@ -181,6 +196,7 @@ public sealed class InitialClimbPhase : Phase
         else
         {
             _deferredTurnApplied = true;
+            ctx.Targets.TargetTrueHeading = _departureHeading;
         }
 
         // Activate SID procedure state (via mode ON by default for departures)
@@ -232,8 +248,8 @@ public sealed class InitialClimbPhase : Phase
         // RV SID uses altitude-only completion (heading is managed by the hold logic above).
         // Non-RV departures with an explicit heading or altitude gate complete on those.
         // Otherwise fall back to self-clear at 1500 AGL.
-        bool headingDone =
-            _rvSidActive || _departureHeading is null || ctx.Aircraft.TrueHeading.AbsAngleTo(_departureHeading.Value) < HeadingToleranceDeg;
+        TrueHeading? headingTarget = _rvSidActive && !_deferredTurnApplied && RvSidDeferHeadingUntilMinAlt ? _runwayHeading : _departureHeading;
+        bool headingDone = _rvSidActive || headingTarget is null || ctx.Aircraft.TrueHeading.AbsAngleTo(headingTarget.Value) < HeadingToleranceDeg;
 
         bool altitudeDone = _phaseCompletionAltitude is null || ctx.Aircraft.Altitude >= _phaseCompletionAltitude.Value;
 
@@ -380,7 +396,7 @@ public sealed class InitialClimbPhase : Phase
         {
             // Controller still has comms — hold heading, reset any accidental timer.
             _rvSidHandoffElapsed = 0;
-            ctx.Targets.TargetTrueHeading = _departureHeading;
+            ctx.Targets.TargetTrueHeading = ActiveRvSidHoldHeading();
             return;
         }
 
@@ -409,8 +425,18 @@ public sealed class InitialClimbPhase : Phase
         else
         {
             // Still in post-handoff delay — continue holding heading.
-            ctx.Targets.TargetTrueHeading = _departureHeading;
+            ctx.Targets.TargetTrueHeading = ActiveRvSidHoldHeading();
         }
+    }
+
+    private TrueHeading? ActiveRvSidHoldHeading()
+    {
+        if (!_deferredTurnApplied && RvSidDeferHeadingUntilMinAlt)
+        {
+            return _runwayHeading;
+        }
+
+        return _departureHeading;
     }
 
     private TrueHeading? ResolveDepartureHeading(PhaseContext ctx)
