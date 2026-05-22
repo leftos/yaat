@@ -8,9 +8,9 @@ using Yaat.Sim.Phases;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Builds the polyline + optional vector-tail segments that the radar's "Show Route" overlay
-/// draws for an aircraft. Pure helpers — no UI dependency beyond <see cref="DrawnWaypoint"/>
-/// and <see cref="VectorTail"/>.
+/// Builds the polyline + optional vector-tail segments that the radar's "Show flight path"
+/// overlay draws for an aircraft. Pure helpers — no UI dependency beyond
+/// <see cref="DrawnWaypoint"/> and <see cref="VectorTail"/>.
 ///
 /// Two segments may exist per aircraft:
 /// <list type="bullet">
