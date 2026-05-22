@@ -10,6 +10,8 @@ Cloudflare Worker that bridges Discord forum threads and GitHub issues.
 
 **GitHub → Discord:** When an issue is labeled (in progress, completed, won't fix, not a bug, duplicate), closed, or reopened, a status update is posted back to the Discord thread.
 
+**Scenario validation:** In each ARTCC validation channel, a pinned **Run Validation** button (or `/validate`) dispatches `discord-scenario-validation.yml` on **leftos/yaat-server** (`VALIDATION_REPO` in `wrangler.toml`). Weekly cron and on-demand runs post parse reports; the workflow also ensures the pinned button exists.
+
 ## Setup
 
 ### 1. Create a Discord Application
@@ -22,11 +24,15 @@ Cloudflare Worker that bridges Discord forum threads and GitHub issues.
    - Bot Permissions: `Read Message History`, `Send Messages`
    - Copy the generated URL and open it to invite the bot to your server
 
-### 2. Create a GitHub PAT
+### 2. GitHub App (issue sync + validation workflow dispatch)
 
-1. Go to https://github.com/settings/tokens → **Generate new token (classic)**
-2. Scope: `repo`
-3. Copy the token
+The worker uses a GitHub App installation token (not a PAT). Install the app on **leftos/yaat** and **leftos/yaat-server**; yaat-server needs **Actions: Read and write** for `workflow_dispatch`.
+
+```bash
+npx wrangler secret put GITHUB_APP_ID
+npx wrangler secret put GITHUB_APP_PRIVATE_KEY
+npx wrangler secret put GITHUB_APP_INSTALLATION_ID
+```
 
 ### 3. Get your Discord User ID
 
@@ -49,7 +55,6 @@ Copy the `id` from the output into `wrangler.toml` under `[[kv_namespaces]]`.
 # Set secrets
 npx wrangler secret put DISCORD_PUBLIC_KEY
 npx wrangler secret put DISCORD_BOT_TOKEN
-npx wrangler secret put GITHUB_TOKEN
 npx wrangler secret put DISCORD_ALLOWED_USER_ID
 npx wrangler secret put GITHUB_WEBHOOK_SECRET    # any random string, e.g. openssl rand -hex 20
 
@@ -98,3 +103,17 @@ The following GitHub labels trigger Discord notifications when applied:
 Closing an issue also posts a status and archives the thread (✅ for completed, 🚫 for not planned). Reopening posts 🔄 Reopened, removes the emoji prefix, and unarchives the thread.
 
 Create these labels in GitHub if they don't exist yet.
+
+## Scenario validation channels
+
+Channel IDs live in [`validation-channels.json`](validation-channels.json). After deploy:
+
+```bash
+# All ARTCC channels
+DISCORD_BOT_TOKEN=<token> pnpm run setup-validation-buttons
+
+# Single channel
+DISCORD_BOT_TOKEN=<token> pnpm run setup-validation-buttons -- --artcc ZOA
+```
+
+The yaat-server workflow runs this automatically after posting results. Copy `DISCORD_BOT_TOKEN` to the **yaat-server** repo secrets (`gh secret set DISCORD_BOT_TOKEN -R leftos/yaat-server`).

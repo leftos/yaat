@@ -621,7 +621,7 @@ ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting 
 ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
 ScenarioIdentity.cs            # Shared scenario ID fallback hashing/normalization for server load and sim replay
-ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by CLI tool + client
+ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by client + yaat-server CLI
                                # ScenarioValidationResult, PresetParseFailure, ProcedureIssue, ProcedureIssueKind records
                                # Detects outdated procedure versions (VersionChanged) and missing procedures (NotFound)
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult

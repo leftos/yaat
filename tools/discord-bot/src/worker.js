@@ -1,3 +1,5 @@
+import { VALIDATION_CHANNELS } from "./validation-channels.js";
+
 // Discord interaction types
 const PING = 1;
 const APPLICATION_COMMAND = 2;
@@ -18,30 +20,6 @@ const R2_PUBLIC_URL = "https://pub-1f460757f70f46d8b557747a4d0ffe0d.r2.dev";
 const TRACKING_FORUMS = {
   "track-issue": "1479888529222795355",
   "track-feature-request": "1479890009153605724",
-};
-
-// Validation channel ID → ARTCC code
-const VALIDATION_CHANNELS = {
-  "1481824000479854756": "ZAB",
-  "1481824003520860220": "ZAU",
-  "1481824006779699251": "ZBW",
-  "1481824009971826891": "ZDC",
-  "1481824013893374043": "ZDV",
-  "1481824017076982003": "ZFW",
-  "1481824020554055751": "ZHU",
-  "1481824024144252968": "ZID",
-  "1481824027298500609": "ZJX",
-  "1481824030372921458": "ZKC",
-  "1481824033518391307": "ZLA",
-  "1481824036907516075": "ZLC",
-  "1481824040153911539": "ZMA",
-  "1481824043211685989": "ZME",
-  "1481824046776848384": "ZMP",
-  "1481824050387882014": "ZNY",
-  "1481824053521285253": "ZOA",
-  "1481824056645783716": "ZOB",
-  "1481824060508864573": "ZSE",
-  "1481824063994462268": "ZTL",
 };
 
 // Cached installation token (valid for ~1 hour, regenerated per worker invocation)
@@ -149,9 +127,13 @@ async function handleDiscordInteraction(request, env, ctx) {
       }
 
       ctx.waitUntil(
-        triggerValidationWorkflow(artcc, env)
-          .then(() => env.THREAD_ISSUES.put(cooldownKey, "1", { expirationTtl: 300 }))
-          .catch((err) => console.error("Failed to trigger validation workflow:", err)),
+        runValidationTrigger({
+          artcc,
+          channelId,
+          env,
+          appId: interaction.application_id,
+          interactionToken: interaction.token,
+        }),
       );
 
       return ephemeral(`Validation triggered for ${artcc}. Results will appear here shortly.`);
@@ -222,9 +204,13 @@ async function handleDiscordInteraction(request, env, ctx) {
       }
 
       ctx.waitUntil(
-        triggerValidationWorkflow(artcc, env)
-          .then(() => env.THREAD_ISSUES.put(cooldownKey, "1", { expirationTtl: 300 }))
-          .catch((err) => console.error("Failed to trigger validation workflow:", err)),
+        runValidationTrigger({
+          artcc,
+          channelId,
+          env,
+          appId: interaction.application_id,
+          interactionToken: interaction.token,
+        }),
       );
 
       return jsonResponse({
@@ -1093,6 +1079,21 @@ async function grantMemberRole(guildId, userId, env) {
 }
 
 // --- Validation workflow trigger ---
+
+async function runValidationTrigger({ artcc, channelId, env, appId, interactionToken }) {
+  const cooldownKey = `validate-cooldown:${channelId}`;
+  try {
+    await triggerValidationWorkflow(artcc, env);
+    await env.THREAD_ISSUES.put(cooldownKey, "1", { expirationTtl: 300 });
+  } catch (err) {
+    console.error("Failed to trigger validation workflow:", err);
+    const detail = err instanceof Error ? err.message : String(err);
+    await editOriginalResponse(appId, interactionToken, {
+      content: `Failed to start validation for ${artcc}: ${detail}`,
+      flags: 64,
+    });
+  }
+}
 
 async function triggerValidationWorkflow(artcc, env) {
   const token = await getGitHubToken(env);

@@ -2,10 +2,12 @@
   "name": "yaat-discord-bot",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "register": "node src/register.js"
+    "register": "node src/register.js",
+    "setup-validation-buttons": "node scripts/ensure-validation-buttons.js"
   },
   "devDependencies": {
     "wrangler": "4.71.0"
