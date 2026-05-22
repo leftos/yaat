@@ -64,6 +64,14 @@ The YAAT window has three areas:
 
 The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather), Room (members/students), View (pop-out windows), and Settings.
 
+#### Planned server maintenance
+
+When the server restarts for a planned deploy or upgrade, YAAT saves your active training room and pauses the scenario. An **amber banner** appears at the top of the main, radar, and ground windows with a live countdown (for example, "Server restarting for planned maintenance — session resumes in ~30s"). **Command input is disabled** while the countdown runs.
+
+After the server is back, the client **automatically rejoins the same room**. A short **green confirmation** appears (for example, "Reconnected to your room — session resumed at T+182s"), then the banner dismisses. Aircraft, routes, phases, strips, ASDEX/ERAM layout, line numbers, and in-flight coordination items are restored from the save point; the scenario stays **paused** at the moment of the restart so you can resume when ready.
+
+This applies only to **planned** restarts announced by the server. An unexpected crash does not restore the session. Operators deploying the hosted server can read [docs/session-persistence.md](docs/session-persistence.md).
+
 ### Tabs and Pop-Out
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)

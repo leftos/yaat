@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.4-beta [2026/05/22]
 
 ### Fixed
 - Radar-vectors SID departures cleared with `CTO` during taxi hold the published vectors heading instead of turning direct to enroute fixes when the assigned runway was not set at clearance time.
