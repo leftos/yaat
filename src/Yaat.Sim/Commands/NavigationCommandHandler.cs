@@ -479,6 +479,43 @@ internal static class NavigationCommandHandler
             return;
         }
 
+        // When the expected approach runway changes (EAPP), drop fixes that belong only to
+        // another runway transition on this STAR. Otherwise the route keeps, e.g., WNDSR2
+        // RW28B's AAAME after EAPP I30 appends ALLXX/CRSEN — the pilot flies the wrong path.
+        var newTransitionFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var leg in transition.Legs)
+        {
+            if (!string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                newTransitionFixes.Add(leg.FixIdentifier);
+            }
+        }
+
+        var staleTransitionFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var otherTransition in star.RunwayTransitions.Values)
+        {
+            if (ReferenceEquals(otherTransition, transition))
+            {
+                continue;
+            }
+
+            foreach (var leg in otherTransition.Legs)
+            {
+                if (
+                    !string.IsNullOrEmpty(leg.FixIdentifier)
+                    && !newTransitionFixes.Contains(leg.FixIdentifier)
+                )
+                {
+                    staleTransitionFixes.Add(leg.FixIdentifier);
+                }
+            }
+        }
+
+        if (staleTransitionFixes.Count > 0)
+        {
+            aircraft.Targets.NavigationRoute.RemoveAll(t => staleTransitionFixes.Contains(t.Name));
+        }
+
         var present = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
         var newLegs = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && !present.Contains(l.FixIdentifier)).ToList();
         if (newLegs.Count == 0)

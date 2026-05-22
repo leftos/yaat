@@ -176,6 +176,42 @@ public class ExpectApproachTests
     }
 
     [Fact]
+    public void Eapp_ChangingRunway_RemovesStaleRunwayTransitionFixes()
+    {
+        // WNDSR2 RW28B ends at AAAME; RW30 ends at ALLXX/CRSEN. If the route already
+        // contains the 28B transition and the controller issues EAPP I30, AAAME must not
+        // remain — otherwise the pilot flies the wrong path after the runway change.
+        TestVnasData.EnsureInitialized();
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+        NavigationDatabase.SetInstance(navDb);
+
+        var aircraft = MakeAircraft();
+        aircraft.Procedure.ActiveStarId = "WNDSR2";
+        aircraft.Procedure.DestinationRunway = "28B";
+
+        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "AAAME" })
+        {
+            var pos = navDb.GetFixPosition(name)!.Value;
+            aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
+        }
+
+        var cmd = new ExpectApproachCommand("I30", null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, $"EAPP I30 should succeed. Got: {result.Message}");
+        Assert.Equal("30", aircraft.Procedure.DestinationRunway);
+
+        var names = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
+        Assert.DoesNotContain("AAAME", names);
+        Assert.Contains("ALLXX", names);
+        Assert.Contains("CRSEN", names);
+    }
+
+    [Fact]
     public void Eapp_SetsDestinationRunwayFromResolvedApproach()
     {
         var aircraft = MakeAircraft();
