@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Training sessions now survive planned server restarts. When the server announces a restart, the client shows a banner, freezes command input, and remembers the active room; after the server comes back, the client auto-rejoins to the same room with the scenario paused at the moment of save (aircraft, route, phase, strips, ASDEX, ERAM, line numbers, and in-flight RD/RDH coordination items intact). The droplet deploy script (`deploy-to-droplet.ps1`) opts in by default — pass `-SkipSessionSave` for an emergency deploy that drops active rooms.
+
 ## v0.3.3-beta [2026/05/22]
 
 ### Highlights
