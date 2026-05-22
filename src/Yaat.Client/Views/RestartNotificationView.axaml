@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yaat.Client.ViewModels"
+             x:Class="Yaat.Client.Views.RestartNotificationView"
+             x:DataType="vm:MainViewModel">
+    <Border Background="{Binding RestartBannerBackground}"
+            BorderBrush="#FFB347"
+            BorderThickness="0,0,0,1"
+            Padding="12,6"
+            IsVisible="{Binding IsRestartBannerVisible}">
+        <Grid ColumnDefinitions="Auto,*">
+            <TextBlock Grid.Column="0"
+                       Text="⚠"
+                       FontSize="14"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"
+                       Foreground="#FFE0A8" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding RestartBannerText}"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       Foreground="#FFF1D6"
+                       TextWrapping="Wrap" />
+        </Grid>
+    </Border>
+</UserControl>

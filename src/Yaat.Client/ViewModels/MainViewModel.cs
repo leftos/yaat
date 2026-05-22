@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -519,6 +520,37 @@ public partial class MainViewModel : ObservableObject
     private bool _isServerRestarting;
 
     public bool CanExecuteInRoom => IsConnected && IsInRoom && !IsServerRestarting;
+
+    /// <summary>Visible state of the top-of-window restart banner.</summary>
+    public enum RestartBanner
+    {
+        Hidden,
+        Draining,
+        Disconnected,
+        Restored,
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRestartBannerVisible))]
+    [NotifyPropertyChangedFor(nameof(RestartBannerBackground))]
+    private RestartBanner _restartBannerKind = RestartBanner.Hidden;
+
+    [ObservableProperty]
+    private string _restartBannerText = "";
+
+    public bool IsRestartBannerVisible => RestartBannerKind != RestartBanner.Hidden;
+
+    public string RestartBannerBackground =>
+        RestartBannerKind switch
+        {
+            RestartBanner.Restored => "#1F4D2E", // muted green
+            _ => "#7A4A0A", // amber for Draining / Disconnected
+        };
+
+    // Drain countdown + auto-dismiss timer (one per banner episode).
+    private DispatcherTimer? _restartBannerTimer;
+    private DateTime _restartTargetUtc;
+    private DateTime _restartBannerHideAtUtc;
 
     public bool HasScenario => ActiveScenarioId is not null;
 

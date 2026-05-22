@@ -167,6 +167,9 @@
             </MenuItem>
         </Menu>
 
+        <!-- Server-restart banner (top, amber/green; visible only during planned restart) -->
+        <views:RestartNotificationView DockPanel.Dock="Top" />
+
         <!-- Timeline bar -->
         <Border DockPanel.Dock="Top"
                 BorderBrush="#3F3F46"

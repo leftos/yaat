@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
@@ -462,10 +463,20 @@ public partial class MainViewModel
 
             if (state is not null)
             {
+                var wasRestart = IsServerRestarting;
                 ApplyRoomState(state);
                 IsServerRestarting = false;
                 StatusText = "Reconnected to room";
                 AddSystemEntry($"Reconnected to {_connectedServerUrl}");
+                if (wasRestart)
+                {
+                    var elapsed = (int)Math.Round(state.ElapsedSeconds);
+                    ShowRestartBannerThenAutoDismiss(
+                        RestartBanner.Restored,
+                        $"Reconnected to your room — session resumed at T+{elapsed}s",
+                        TimeSpan.FromSeconds(5)
+                    );
+                }
             }
             else
             {
@@ -474,6 +485,7 @@ public partial class MainViewModel
                 ClearRoomState();
                 await RefreshRoomListAsync();
                 ShowRoomList = true;
+                HideRestartBanner();
             }
         }
         catch (Exception ex)
@@ -489,6 +501,7 @@ public partial class MainViewModel
             if (IsServerRestarting)
             {
                 StatusText = "Server restarting — session will resume when the server is back";
+                ShowRestartBanner(RestartBanner.Disconnected, "Server restarting — waiting for it to come back…");
                 return;
             }
 
@@ -516,6 +529,7 @@ public partial class MainViewModel
             IsServerRestarting = true;
             StatusText = $"Server restarting for maintenance — session resumes in ~{drainSeconds}s";
             AddSystemEntry($"Server restart scheduled ({reason}). Your session will be preserved.");
+            StartRestartBannerCountdown(restartAt, drainSeconds);
         });
     }
 
@@ -524,6 +538,8 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             StatusText = "Server restart ready — reconnecting shortly...";
+            // Drain finished; switch the banner to "waiting for server".
+            ShowRestartBanner(RestartBanner.Disconnected, "Server restarting — waiting for it to come back…");
         });
     }
 
@@ -871,4 +887,66 @@ public partial class MainViewModel
             menu.Items.Add(unassignItem);
         }
     }
+
+    // --- Restart banner helpers ---
+
+    private void StartRestartBannerCountdown(DateTime restartAtUtc, int drainSeconds)
+    {
+        _restartTargetUtc = restartAtUtc;
+        ShowRestartBanner(RestartBanner.Draining, FormatDrainText(drainSeconds));
+        EnsureRestartBannerTimer();
+    }
+
+    private void ShowRestartBanner(RestartBanner kind, string text)
+    {
+        RestartBannerKind = kind;
+        RestartBannerText = text;
+    }
+
+    private void ShowRestartBannerThenAutoDismiss(RestartBanner kind, string text, TimeSpan after)
+    {
+        ShowRestartBanner(kind, text);
+        _restartBannerHideAtUtc = DateTime.UtcNow.Add(after);
+        EnsureRestartBannerTimer();
+    }
+
+    private void HideRestartBanner()
+    {
+        RestartBannerKind = RestartBanner.Hidden;
+        RestartBannerText = "";
+        _restartBannerTimer?.Stop();
+    }
+
+    private void EnsureRestartBannerTimer()
+    {
+        if (_restartBannerTimer is not null)
+        {
+            _restartBannerTimer.Start();
+            return;
+        }
+
+        _restartBannerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _restartBannerTimer.Tick += (_, _) => TickRestartBanner();
+        _restartBannerTimer.Start();
+    }
+
+    private void TickRestartBanner()
+    {
+        if (RestartBannerKind == RestartBanner.Draining)
+        {
+            var remaining = (int)Math.Max(0, Math.Ceiling((_restartTargetUtc - DateTime.UtcNow).TotalSeconds));
+            RestartBannerText = FormatDrainText(remaining);
+            return;
+        }
+
+        if (RestartBannerKind == RestartBanner.Restored && DateTime.UtcNow >= _restartBannerHideAtUtc)
+        {
+            HideRestartBanner();
+        }
+    }
+
+    private static string FormatDrainText(int remainingSeconds) =>
+        remainingSeconds > 0
+            ? $"Server restarting for planned maintenance — session resumes in ~{remainingSeconds}s. Commands disabled."
+            : "Server restarting now — session will resume when it comes back. Commands disabled.";
 }

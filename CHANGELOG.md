@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Added
-- Training sessions now survive planned server restarts. When the server announces a restart, the client shows a banner, freezes command input, and remembers the active room; after the server comes back, the client auto-rejoins to the same room with the scenario paused at the moment of save (aircraft, route, phase, strips, ASDEX, ERAM, line numbers, and in-flight RD/RDH coordination items intact). The droplet deploy script (`deploy-to-droplet.ps1`) opts in by default — pass `-SkipSessionSave` for an emergency deploy that drops active rooms.
+- Training sessions now survive planned server restarts. When the server announces a restart, an amber banner appears at the top of the main, radar, and ground windows with a live countdown ("Server restarting for planned maintenance — session resumes in ~30s"), command input freezes, and the active room id is remembered. After the server comes back, the client auto-rejoins to the same room with the scenario paused at the moment of save (aircraft, route, phase, strips, ASDEX, ERAM, line numbers, and in-flight RD/RDH coordination items intact); the banner briefly flashes green ("Reconnected to your room — session resumed at T+182s") then dismisses. The droplet deploy script (`deploy-to-droplet.ps1`) opts in by default — pass `-SkipSessionSave` for an emergency deploy that drops active rooms.
 
 ## v0.3.3-beta [2026/05/22]
 
