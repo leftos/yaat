@@ -47,3 +47,50 @@ Any change touching aviation logic needs the aviation realism review flow from `
 Run `tools/setup-codex.ps1 -WhatIf` to preview local Codex setup, then `tools/setup-codex.ps1` to create local skill junctions and register MCP servers. The setup script writes only user-local Codex state and never commits tokens.
 
 Use `tools/codex-yaat.ps1` to launch Codex from the YAAT repo while adding `..\yaat-server` as an extra readable/writable directory. The wrapper intentionally does not set model or reasoning flags so `~/.codex/config.toml` remains authoritative.
+
+## Cursor Cloud specific instructions
+
+### Repository layout
+
+Both repos live under `/agent/repos/` as siblings:
+- `/agent/repos/yaat` — client + Yaat.Sim shared library
+- `/agent/repos/yaat-server` — ASP.NET Core server (references `../yaat/src/Yaat.Sim/`)
+
+### Git LFS
+
+Test data bundles (`tests/Yaat.Sim.Tests/TestData/*.zip`) are stored in Git LFS. After cloning or fetching, run `git lfs pull` in the yaat repo to download real zip data — otherwise ~58 simulation tests fail with `InvalidDataException` (the files are LFS pointer stubs).
+
+### Building
+
+Both repos use `.slnx` solution format and target `net10.0`. The `wasm-tools` workload is required for the `Yaat.VStrips.Web` project — run `dotnet workload restore` from the yaat repo root if the workload is missing.
+
+Standard build/test commands from `CLAUDE.md` apply. Key commands:
+- `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log`
+- `timeout 120 dotnet test 2>&1 | tee .tmp/test.log`
+- `pwsh tools/test-all.ps1` for cross-repo verification
+
+### Running the server
+
+```bash
+cd /agent/repos/yaat-server
+dotnet run --project src/Yaat.Server 2>&1 | tee .tmp/server-run.log
+```
+
+The dev profile (`launchSettings.json`) binds to **port 5130** (`http://localhost:5130`), not port 5000 (which is the production/Docker default). The client's auto-connect default is `http://localhost:5000`, so when connecting the client, use `http://localhost:5130`.
+
+### Running the client
+
+```bash
+cd /agent/repos/yaat
+DISPLAY=:1 dotnet run --project src/Yaat.Client
+```
+
+The client is an Avalonia desktop GUI app. It requires a display server (`DISPLAY=:1` is available on the Cloud VM). When connecting, set the server URL to `http://localhost:5130`, provide a VATSIM CID (e.g. `1234567`), initials, and ARTCC (e.g. `ZOA`).
+
+### Lint checks
+
+- `dotnet format style --verify-no-changes` — style check (per-repo)
+- `dotnet format analyzers --verify-no-changes` — analyzer check (per-repo)
+- `csharpier check <repo-path>` — CSharpier formatting check (global tool)
+
+Do NOT run bare `dotnet format`; always use `dotnet format style` or `dotnet format analyzers` separately.
