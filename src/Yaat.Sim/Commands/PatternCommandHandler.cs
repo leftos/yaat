@@ -69,7 +69,7 @@ internal static class PatternCommandHandler
 
             aircraft.Phases ??= new PhaseList();
             aircraft.Phases.AssignedRunway = resolved;
-            aircraft.Procedure.DestinationRunway = resolved.Designator;
+            NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, resolved.Designator);
         }
 
         if (aircraft.Phases?.AssignedRunway is null)
@@ -402,7 +402,7 @@ internal static class PatternCommandHandler
         );
 
         var phases = new PhaseList { AssignedRunway = runway };
-        aircraft.Procedure.DestinationRunway = runway.Designator;
+        NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
         phases.LandingClearance = aircraft.Phases.LandingClearance;
         phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
         // Stamp the commanded pattern direction so a subsequent go-around preserves
@@ -518,7 +518,7 @@ internal static class PatternCommandHandler
 
             aircraft.Phases ??= new PhaseList();
             aircraft.Phases.AssignedRunway = resolved;
-            aircraft.Procedure.DestinationRunway = resolved.Designator;
+            NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, resolved.Designator);
             // Changing runway clears altitude override — different runway, different TPA
             aircraft.Pattern.AltitudeOverrideFt = null;
         }
@@ -702,7 +702,7 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases = phases;
-        aircraft.Procedure.DestinationRunway = runway.Designator;
+        NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
         aircraft.Phases.Start(ctx);
     }
 
@@ -1329,7 +1329,7 @@ internal static class PatternCommandHandler
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         if (runway is not null)
         {
-            aircraft.Procedure.DestinationRunway = runway.Designator;
+            NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
         }
 
         aircraft.Phases.Add(phase);

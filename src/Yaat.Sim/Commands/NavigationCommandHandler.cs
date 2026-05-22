@@ -454,6 +454,62 @@ internal static class NavigationCommandHandler
     }
 
     /// <summary>
+    /// Fix names that appear only on runway transitions other than <paramref name="selectedTransition"/>.
+    /// </summary>
+    internal static HashSet<string> CollectExclusiveRunwayTransitionFixes(CifpStarProcedure star, CifpTransition selectedTransition)
+    {
+        var selectedFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var leg in selectedTransition.Legs)
+        {
+            if (!string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                selectedFixes.Add(leg.FixIdentifier);
+            }
+        }
+
+        var exclusive = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var otherTransition in star.RunwayTransitions.Values)
+        {
+            if (ReferenceEquals(otherTransition, selectedTransition))
+            {
+                continue;
+            }
+
+            foreach (var leg in otherTransition.Legs)
+            {
+                if (!string.IsNullOrEmpty(leg.FixIdentifier) && !selectedFixes.Contains(leg.FixIdentifier))
+                {
+                    exclusive.Add(leg.FixIdentifier);
+                }
+            }
+        }
+
+        return exclusive;
+    }
+
+    /// <summary>
+    /// Removes nav-route targets that belong exclusively to non-selected STAR runway transitions.
+    /// </summary>
+    internal static void RemoveStaleStarRunwayTransitionFixes(AircraftState aircraft, CifpStarProcedure star, CifpTransition selectedTransition)
+    {
+        var stale = CollectExclusiveRunwayTransitionFixes(star, selectedTransition);
+        if (stale.Count > 0)
+        {
+            aircraft.Targets.NavigationRoute.RemoveAll(t => stale.Contains(t.Name));
+        }
+    }
+
+    /// <summary>
+    /// Sets <see cref="AircraftProcedure.DestinationRunway"/> and extends the active STAR route
+    /// for that runway (scrubbing fixes from other runway transitions first).
+    /// </summary>
+    internal static void SyncDestinationRunwayWithActiveStar(AircraftState aircraft, string runwayDesignator)
+    {
+        aircraft.Procedure.DestinationRunway = runwayDesignator;
+        ExtendActiveStarWithRunwayTransition(aircraft, runwayDesignator);
+    }
+
+    /// <summary>
     /// Extends an aircraft's active NavigationRoute with the runway-transition fixes for the
     /// given <paramref name="runwayDesignator"/> on its active STAR. No-op when the aircraft
     /// has no active STAR, no destination airport, or the STAR has no transition for the
@@ -479,42 +535,7 @@ internal static class NavigationCommandHandler
             return;
         }
 
-        // When the expected approach runway changes (EAPP), drop fixes that belong only to
-        // another runway transition on this STAR. Otherwise the route keeps, e.g., WNDSR2
-        // RW28B's AAAME after EAPP I30 appends ALLXX/CRSEN — the pilot flies the wrong path.
-        var newTransitionFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var leg in transition.Legs)
-        {
-            if (!string.IsNullOrEmpty(leg.FixIdentifier))
-            {
-                newTransitionFixes.Add(leg.FixIdentifier);
-            }
-        }
-
-        var staleTransitionFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var otherTransition in star.RunwayTransitions.Values)
-        {
-            if (ReferenceEquals(otherTransition, transition))
-            {
-                continue;
-            }
-
-            foreach (var leg in otherTransition.Legs)
-            {
-                if (
-                    !string.IsNullOrEmpty(leg.FixIdentifier)
-                    && !newTransitionFixes.Contains(leg.FixIdentifier)
-                )
-                {
-                    staleTransitionFixes.Add(leg.FixIdentifier);
-                }
-            }
-        }
-
-        if (staleTransitionFixes.Count > 0)
-        {
-            aircraft.Targets.NavigationRoute.RemoveAll(t => staleTransitionFixes.Contains(t.Name));
-        }
+        RemoveStaleStarRunwayTransitionFixes(aircraft, star, transition);
 
         var present = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
         var newLegs = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && !present.Contains(l.FixIdentifier)).ToList();
@@ -937,6 +958,7 @@ internal static class NavigationCommandHandler
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
+        aircraft.Targets.NavigationRoute.Clear();
 
         // Clear existing phases
         if (aircraft.Phases is not null)
@@ -944,6 +966,8 @@ internal static class NavigationCommandHandler
             var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
+
+        ApproachCommandHandler.ClearPendingApproach(aircraft);
 
         // Build phase sequence: InterceptCourse → FinalApproach → Landing
         var interceptPhase = new InterceptCoursePhase

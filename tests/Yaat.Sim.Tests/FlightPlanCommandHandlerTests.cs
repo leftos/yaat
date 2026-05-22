@@ -1,6 +1,10 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Tests;
 
@@ -146,5 +150,92 @@ public class FlightPlanCommandHandlerTests
 
         Assert.False(result.Success);
         Assert.Equal("KSFO", aircraft.FlightPlan.Destination);
+    }
+
+    [Fact]
+    public void TryChangeDestination_NewAirport_ClearsArrivalProcedureState()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var navDb = TestVnasData.NavigationDb;
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        if (hirmoPos is null)
+        {
+            return;
+        }
+
+        var aircraft = new AircraftState
+        {
+            Callsign = "N123",
+            AircraftType = "B738",
+            FlightPlan = new AircraftFlightPlan { Destination = "KSFO" },
+            Procedure = new AircraftProcedure { ActiveStarId = "EMZOH4", DestinationRunway = "12" },
+        };
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
+        aircraft.Approach.Expected = "H12-Z";
+        var rwy12 = TestRunwayFactory.Make(designator: "12", airportId: "OAK", heading: 120, thresholdLat: 37.73, thresholdLon: -122.22);
+        aircraft.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = new ApproachClearance
+            {
+                ApproachId = "H12-Z",
+                AirportCode = "KOAK",
+                RunwayId = "12",
+                FinalApproachCourse = rwy12.TrueHeading,
+            },
+            AssignedRunway = rwy12,
+        };
+
+        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "OAK");
+
+        Assert.True(result.Success);
+        Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
+        Assert.Null(aircraft.Procedure.ActiveStarId);
+        Assert.Null(aircraft.Procedure.DestinationRunway);
+        Assert.Null(aircraft.Approach.Expected);
+        Assert.Null(aircraft.Approach.PendingClearance);
+        Assert.Empty(aircraft.Targets.NavigationRoute);
+    }
+
+    [Fact]
+    public void TryChangeDestination_NewAirport_PreservesDepartureTaxiPhase()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var aircraft = new AircraftState
+        {
+            Callsign = "N123",
+            AircraftType = "B738",
+            TrueHeading = new TrueHeading(280),
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KSFO" },
+            Procedure = new AircraftProcedure { ActiveStarId = "EMZOH4", DestinationRunway = "28R" },
+        };
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new TaxiingPhase());
+        aircraft.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = aircraft,
+                Targets = aircraft.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+
+        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "KOAK");
+
+        Assert.True(result.Success);
+        Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
+        Assert.Null(aircraft.Procedure.ActiveStarId);
+        Assert.Null(aircraft.Procedure.DestinationRunway);
+        Assert.IsType<TaxiingPhase>(aircraft.Phases!.CurrentPhase);
     }
 }

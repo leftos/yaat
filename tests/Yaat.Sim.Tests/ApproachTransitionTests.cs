@@ -224,6 +224,141 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Capp_SecondDeferred_DifferentRunwayApproach_ReplacesPriorTailAtAllxx()
+    {
+        // STAR to HIRMO (28B path), deferred CAPP H12-Z, then EAPP I30 + deferred CAPP H30-Z at ALLXX.
+        // The second clearance must replace the H12-Z approach tail after ALLXX, not stack on it.
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        if (navDb.GetApproach("KOAK", "H12-Z") is null || navDb.GetApproach("KOAK", "H30-Z") is null)
+        {
+            output.WriteLine("KOAK H12-Z/H30-Z not available, skipping");
+            return;
+        }
+
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        var allxxPos = navDb.GetFixPosition("ALLXX");
+        Assert.NotNull(hirmoPos);
+        Assert.NotNull(allxxPos);
+
+        var aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
+        aircraft.Procedure.ActiveStarId = "WNDSR2";
+        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "HIRMO" })
+        {
+            var pos = navDb.GetFixPosition(name)!.Value;
+            aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
+        }
+
+        var cappH12 = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        Assert.True(ApproachCommandHandler.TryClearedApproach(cappH12, aircraft).Success, "H12-Z deferred");
+        Assert.Equal("H12-Z", aircraft.Approach.PendingClearance!.Clearance.ApproachId);
+
+        int hirmoIdx = aircraft.Targets.NavigationRoute.ToList().FindIndex(t => t.Name == "HIRMO");
+        var h12Tail = aircraft.Targets.NavigationRoute.Skip(hirmoIdx + 1).Select(t => t.Name).ToList();
+        Assert.NotEmpty(h12Tail);
+
+        var eapp = new ExpectApproachCommand("I30", null);
+        Assert.True(CommandDispatcher.Dispatch(eapp, aircraft, TestDispatch.Context(Random.Shared)).Success);
+        aircraft.Procedure.DestinationRunway = "30";
+
+        int allxxIdxBeforeH30 = aircraft.Targets.NavigationRoute.ToList().FindIndex(t => t.Name == "ALLXX");
+        Assert.True(allxxIdxBeforeH30 >= 0);
+        foreach (NavigationTarget staleTarget in aircraft.Targets.NavigationRoute.Skip(hirmoIdx + 1).ToList())
+        {
+            aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = staleTarget.Name, Position = staleTarget.Position });
+        }
+
+        var cappH30 = new ClearedApproachCommand("H30-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        Assert.True(ApproachCommandHandler.TryClearedApproach(cappH30, aircraft).Success, "H30-Z deferred");
+        Assert.Equal("H30-Z", aircraft.Approach.PendingClearance!.Clearance.ApproachId);
+
+        var reference = MakeAircraft(destination: "KOAK", destinationRunway: "30", heading: 280, lat: 37.75, lon: -122.35);
+        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "ALLXX" })
+        {
+            var pos = navDb.GetFixPosition(name)!.Value;
+            reference.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
+        }
+
+        Assert.True(ApproachCommandHandler.TryClearedApproach(cappH30, reference).Success);
+        var expectedTail = reference
+            .Targets.NavigationRoute.Skip(reference.Targets.NavigationRoute.ToList().FindIndex(t => t.Name == "ALLXX") + 1)
+            .Select(t => t.Name)
+            .ToList();
+        var actualTail = aircraft.Targets.NavigationRoute.Skip(allxxIdxBeforeH30 + 1).Select(t => t.Name).ToList();
+        Assert.Equal(expectedTail, actualTail);
+    }
+
+    [Fact]
+    public void Capp_SecondDeferred_RemovesInjectedStaleTailAfterConnectingFix()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        if (hirmoPos is null || navDb.GetApproach("KOAK", "H12-Z") is null)
+        {
+            output.WriteLine("KOAK H12-Z / HIRMO not available, skipping");
+            return;
+        }
+
+        var aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
+
+        var first = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        Assert.True(ApproachCommandHandler.TryClearedApproach(first, aircraft).Success);
+
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget { Name = "STALE_TAIL", Position = new LatLon(hirmoPos.Value.Lat + 0.01, hirmoPos.Value.Lon) }
+        );
+
+        var second = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        Assert.True(ApproachCommandHandler.TryClearedApproach(second, aircraft).Success);
+
+        var names = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
+        Assert.DoesNotContain("STALE_TAIL", names);
+        int hirmoIdx = names.IndexOf("HIRMO");
+        Assert.True(hirmoIdx >= 0);
+        Assert.True(names.Count > hirmoIdx + 1, "Expected a fresh approach tail after HIRMO");
+    }
+
+    [Fact]
+    public void Capp_ImmediateAfterDeferred_ClearsPendingClearance()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        if (hirmoPos is null || navDb.GetApproach("KOAK", "H12-Z") is null)
+        {
+            return;
+        }
+
+        var aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
+
+        var deferred = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        Assert.True(ApproachCommandHandler.TryClearedApproach(deferred, aircraft).Success);
+        Assert.NotNull(aircraft.Approach.PendingClearance);
+
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(320);
+        var immediate = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        Assert.True(ApproachCommandHandler.TryClearedApproach(immediate, aircraft).Success);
+
+        Assert.Null(aircraft.Approach.PendingClearance);
+        Assert.NotNull(aircraft.Phases);
+    }
+
+    [Fact]
     public void Capp_OnAssignedHeading_ActivatesImmediately()
     {
         var navDb = GetNavDb();

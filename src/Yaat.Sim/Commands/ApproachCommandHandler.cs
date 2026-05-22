@@ -1649,6 +1649,12 @@ public static class ApproachCommandHandler
             return;
         }
 
+        // Superseding deferred CAPP: drop the prior approach tail after the STAR connecting fix.
+        if (insertAfter + 1 < route.Count)
+        {
+            route.RemoveRange(insertAfter + 1, route.Count - insertAfter - 1);
+        }
+
         // Convert approach fixes after the connecting fix to NavigationTargets and insert
         var newTargets = new List<NavigationTarget>();
         for (int i = 1; i < approachFixes.Count; i++)
@@ -1736,6 +1742,48 @@ public static class ApproachCommandHandler
         return fixes;
     }
 
+    /// <summary>Clears a deferred approach clearance so it cannot activate after an immediate approach.</summary>
+    internal static void ClearPendingApproach(AircraftState aircraft)
+    {
+        aircraft.Approach.PendingClearance = null;
+    }
+
+    /// <summary>
+    /// Clears arrival procedure state when the destination airport or routing context is superseded
+    /// (e.g. APT to a new airport). Does not clear departure-only fields such as <see cref="AircraftProcedure.DepartureRunway"/>,
+    /// and does not tear down ground-departure phases (taxi, lineup, takeoff) when the aircraft is not in an
+    /// arrival-approach context.
+    /// </summary>
+    internal static void ClearArrivalProcedureState(AircraftState aircraft)
+    {
+        bool hadArrivalApproach =
+            aircraft.Approach.PendingClearance is not null
+            || aircraft.Phases?.ActiveApproach is not null
+            || IsArrivalApproachPhase(aircraft.Phases?.CurrentPhase);
+
+        if (hadArrivalApproach && aircraft.Phases is not null)
+        {
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            aircraft.Phases.Clear(ctx);
+        }
+
+        ClearPendingApproach(aircraft);
+        aircraft.Approach.Expected = null;
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Procedure.DestinationRunway = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaFloor = null;
+        aircraft.Approach.HasReportedFieldInSight = false;
+        aircraft.Approach.HasReportedTrafficInSight = false;
+        Phases.AirborneFollowHelper.ClearFollowState(aircraft);
+        aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
+    }
+
+    private static bool IsArrivalApproachPhase(Phase? phase) =>
+        phase is ApproachNavigationPhase or InterceptCoursePhase or FinalApproachPhase or HoldingPatternPhase or ProcedureTurnPhase;
+
     private static void ClearExistingPhases(AircraftState aircraft)
     {
         if (aircraft.Phases is not null)
@@ -1748,6 +1796,8 @@ public static class ApproachCommandHandler
         aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.StarViaFloor = null;
+
+        ClearPendingApproach(aircraft);
 
         // Clear visual approach state
         aircraft.Approach.HasReportedFieldInSight = false;

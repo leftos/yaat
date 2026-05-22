@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Superseding `CAPP`, `EAPP`, `RWY`, `DCT`, `APT`, or `JFAC` drops stale STAR and approach fixes from the navigation route instead of stacking them.
+- Airborne `RWY` assigns the arrival runway and refreshes the STAR transition; `APT` to a new airport clears arrival routing without canceling departure taxi.
+
 ## v0.3.2-beta [2026/05/21]
 
 ### Highlights

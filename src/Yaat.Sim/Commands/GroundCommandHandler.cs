@@ -746,7 +746,32 @@ internal static class GroundCommandHandler
 
         aircraft.Phases ??= new PhaseList();
         aircraft.Phases.AssignedRunway = runway;
-        aircraft.Procedure.DepartureRunway = runway.Designator;
+
+        bool arrivalContext =
+            !aircraft.IsOnGround
+            || (
+                aircraft.Procedure.ActiveStarId is not null
+                && !string.IsNullOrEmpty(aircraft.FlightPlan.Destination)
+                && aircraft.Phases.DepartureClearance is null
+            );
+
+        if (arrivalContext)
+        {
+            NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
+            if (
+                aircraft.Approach.PendingClearance is { } pending
+                && pending.Clearance.RunwayId is not null
+                && !pending.Clearance.RunwayId.Equals(runway.Designator, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                ApproachCommandHandler.ClearPendingApproach(aircraft);
+            }
+        }
+        else
+        {
+            aircraft.Procedure.DepartureRunway = runway.Designator;
+        }
+
         return CommandDispatcher.Ok($"Runway {runway.Designator}");
     }
 

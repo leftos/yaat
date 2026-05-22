@@ -820,6 +820,20 @@ internal static class FlightCommandHandler
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.StarViaFloor = null;
 
+        if (
+            aircraft.Procedure.ActiveStarId is { } starId
+            && aircraft.Procedure.DestinationRunway is { } destRwy
+            && !string.IsNullOrEmpty(aircraft.FlightPlan.Destination)
+        )
+        {
+            var star = NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, starId);
+            var transition = star is not null ? NavigationCommandHandler.LookupRunwayTransition(star.RunwayTransitions, destRwy) : null;
+            if (star is not null && transition is not null)
+            {
+                NavigationCommandHandler.RemoveStaleStarRunwayTransitionFixes(aircraft, star, transition);
+            }
+        }
+
         return true;
     }
 

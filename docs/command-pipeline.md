@@ -104,6 +104,14 @@ Handlers don't move aircraft directly — they write to `ControlTargets` (the au
 - `FlightCommandHandler.HandleAltitude(...)` → `ac.Targets.TargetAltitude = …`.
 - `NavigationCommandHandler.HandleDirectTo(fix)` → updates `ac.Targets.NavigationRoute`.
 
+**Navigation route supersession:** When a controller instruction replaces routing context, stale procedure fixes are removed from `NavigationRoute` rather than left appended:
+
+- **EAPP / RWY (arrival)** — `ExtendActiveStarWithRunwayTransition` drops fixes exclusive to other STAR runway transitions before appending the new transition.
+- **Deferred CAPP** — a second clearance replaces the approach tail after the STAR connecting fix (not `InsertRange` on top of the old tail).
+- **Immediate CAPP / JAPP / JFAC / PTAC** — `ClearExistingPhases` clears `PendingClearance` so an old deferred clearance cannot activate when the route empties; **JFAC** also clears the queued route.
+- **DCT on active STAR** — `TryPreserveProcedure` truncates before the fix, then scrubs other-runway-transition fixes when `DestinationRunway` is set.
+- **APT (destination change)** — `ClearArrivalProcedureState` clears STAR, pending approach, expected approach, and the live route when the airport changes.
+
 `FlightPhysics.Update` reads `ControlTargets` next tick and turns/climbs/accelerates accordingly. See [tick-loop.md](tick-loop.md).
 
 ## `DispatchContext` — bundled call-site state

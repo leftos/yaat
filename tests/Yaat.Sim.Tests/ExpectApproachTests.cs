@@ -228,6 +228,37 @@ public class ExpectApproachTests
     }
 
     [Fact]
+    public void Dct_OnStar_Truncation_RemovesStaleOtherRunwayTransitionFixes()
+    {
+        TestVnasData.EnsureInitialized();
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+        NavigationDatabase.SetInstance(navDb);
+
+        var aircraft = MakeAircraft();
+        aircraft.Procedure.ActiveStarId = "WNDSR2";
+        aircraft.Procedure.DestinationRunway = "30";
+
+        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "AAAME" })
+        {
+            var pos = navDb.GetFixPosition(name)!.Value;
+            aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
+        }
+
+        var hopta = navDb.GetFixPosition("HOPTA")!.Value;
+        var cmd = new DirectToCommand([new ResolvedFix("HOPTA", hopta.Lat, hopta.Lon)], []);
+        var result = FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes: false);
+
+        Assert.True(result.Success);
+        var names = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
+        Assert.DoesNotContain("AAAME", names);
+        Assert.Equal("HOPTA", names[0]);
+    }
+
+    [Fact]
     public void Eapp_ResolvesShorthandId()
     {
         var aircraft = MakeAircraft();

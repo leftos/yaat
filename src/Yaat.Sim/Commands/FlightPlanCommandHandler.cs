@@ -29,6 +29,12 @@ internal static class FlightPlanCommandHandler
             return new CommandResult(false, $"Unknown airport {input.Trim().ToUpperInvariant()}");
         }
 
+        string? previous = aircraft.FlightPlan.Destination;
+        if (!string.IsNullOrEmpty(previous) && !previous.Equals(canonical, StringComparison.OrdinalIgnoreCase))
+        {
+            ApproachCommandHandler.ClearArrivalProcedureState(aircraft);
+        }
+
         aircraft.FlightPlan.Destination = canonical;
         return new CommandResult(true, $"Destination changed to {canonical}");
     }

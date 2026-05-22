@@ -299,6 +299,42 @@ public class ApproachClearanceTests
     }
 
     [Fact]
+    public void Jfac_ClearsNavigationRouteAndPendingApproach()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null || navDb.GetApproach("KOAK", "H12-Z") is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        Assert.NotNull(hirmoPos);
+
+        var aircraft = MakeAircraft(destination: "KOAK");
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
+        var rwy12 = MakeRunway("12", "OAK", 120);
+        aircraft.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = new ApproachClearance
+            {
+                ApproachId = "H12-Z",
+                AirportCode = "KOAK",
+                RunwayId = "12",
+                FinalApproachCourse = rwy12.TrueHeading,
+            },
+            AssignedRunway = rwy12,
+        };
+
+        var cmd = new JoinFinalApproachCourseCommand("H12-Z");
+        var result = NavigationCommandHandler.DispatchJfac(cmd, aircraft);
+
+        Assert.True(result.Success);
+        Assert.Empty(aircraft.Targets.NavigationRoute);
+        Assert.Null(aircraft.Approach.PendingClearance);
+    }
+
+    [Fact]
     public void Jfac_ClearsExistingPhases()
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");

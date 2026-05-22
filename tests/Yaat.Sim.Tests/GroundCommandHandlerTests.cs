@@ -1118,6 +1118,90 @@ public class GroundCommandHandlerTests
         Assert.NotNull(ac.Phases);
         Assert.NotNull(ac.Phases!.AssignedRunway);
         Assert.Equal("28R", ac.Phases.AssignedRunway!.Designator);
+        Assert.Equal("28R", ac.Procedure.DepartureRunway);
+        Assert.Null(ac.Procedure.DestinationRunway);
+    }
+
+    [Fact]
+    public void TryAssignRunway_AirborneArrival_SetsDestinationRunwayNotDeparture()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase.SetInstance(navDb);
+
+        var ac = new AircraftState
+        {
+            Callsign = "N456",
+            AircraftType = "B738",
+            Position = new LatLon(37.75, -122.35),
+            TrueHeading = new TrueHeading(280),
+            Altitude = 5000,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+            Procedure = new AircraftProcedure { ActiveStarId = "WNDSR2" },
+        };
+        ac.Phases = new PhaseList();
+
+        var result = GroundCommandHandler.TryAssignRunway(ac, "30");
+
+        Assert.True(result.Success);
+        Assert.Equal("30", ac.Procedure.DestinationRunway);
+        Assert.Null(ac.Procedure.DepartureRunway);
+
+        var names = ac.Targets.NavigationRoute.Select(t => t.Name).ToList();
+        Assert.Contains("HOPTA", names);
+        Assert.Contains("ALLXX", names);
+        Assert.Contains("CRSEN", names);
+        Assert.Equal(names.IndexOf("HOPTA") + 1, names.IndexOf("ALLXX"));
+        Assert.Equal(names.IndexOf("ALLXX") + 1, names.IndexOf("CRSEN"));
+        Assert.DoesNotContain("AAAME", names);
+    }
+
+    [Fact]
+    public void TryAssignRunway_AirborneArrival_ClearsPendingWhenRunwayMismatches()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(TestVnasData.NavigationDb);
+
+        var ac = new AircraftState
+        {
+            Callsign = "N789",
+            AircraftType = "B738",
+            Position = new LatLon(37.75, -122.35),
+            TrueHeading = new TrueHeading(280),
+            Altitude = 5000,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+            Procedure = new AircraftProcedure { ActiveStarId = "WNDSR2" },
+        };
+        ac.Phases = new PhaseList();
+        var rwy12 = TestRunwayFactory.Make(designator: "12", airportId: "OAK", heading: 120, thresholdLat: 37.73, thresholdLon: -122.22);
+        ac.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = new ApproachClearance
+            {
+                ApproachId = "H12-Z",
+                AirportCode = "KOAK",
+                RunwayId = "12",
+                FinalApproachCourse = rwy12.TrueHeading,
+            },
+            AssignedRunway = rwy12,
+        };
+
+        var result = GroundCommandHandler.TryAssignRunway(ac, "30");
+
+        Assert.True(result.Success);
+        Assert.Null(ac.Approach.PendingClearance);
     }
 
     [Fact]
