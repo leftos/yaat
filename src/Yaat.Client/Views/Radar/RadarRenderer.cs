@@ -115,6 +115,7 @@ public sealed class RadarRenderer : IDisposable
     private readonly SKPaint[] _pathWaypointPaints;
     private readonly SKPaint[] _pathLabelPaints;
     private readonly SKPaint[] _pathLeaderPaints;
+    private readonly SKPaint[] _pathTailPaints;
 
     public RadarRenderer()
     {
@@ -134,6 +135,7 @@ public sealed class RadarRenderer : IDisposable
         _pathWaypointPaints = new SKPaint[colors.Length];
         _pathLabelPaints = new SKPaint[colors.Length];
         _pathLeaderPaints = new SKPaint[colors.Length];
+        _pathTailPaints = new SKPaint[colors.Length];
 
         for (int i = 0; i < colors.Length; i++)
         {
@@ -166,6 +168,18 @@ public sealed class RadarRenderer : IDisposable
                 Style = SKPaintStyle.Stroke,
                 IsAntialias = true,
                 PathEffect = SKPathEffect.CreateDash([6, 4], 0),
+            };
+            _pathTailPaints[i] = new SKPaint
+            {
+                // Vector-tail arrow off the end of a procedure leg or pure-vector aircraft.
+                // Stays dashed (signals "projected, not confirmed route"), but at full alpha
+                // and matching the polyline's stroke width so it reads as part of the same
+                // segment rather than as a faint hint.
+                Color = colors[i],
+                StrokeWidth = 2,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+                PathEffect = SKPathEffect.CreateDash([10, 5], 0),
             };
         }
     }
@@ -379,6 +393,7 @@ public sealed class RadarRenderer : IDisposable
             var wpPaint = _pathWaypointPaints[paintIdx];
             var labelPaint = _pathLabelPaints[paintIdx];
             var leaderPaint = _pathLeaderPaints[paintIdx];
+            var tailPaint = _pathTailPaints[paintIdx];
 
             // Dashed leader from aircraft to first waypoint — only for the segment that
             // represents what the aircraft is currently flying (ancillary segments like the
@@ -416,7 +431,7 @@ public sealed class RadarRenderer : IDisposable
             // the segment has no waypoints — pure-vector aircraft).
             if (entry.Tail is { } tail)
             {
-                DrawVectorTail(canvas, vp, tail, leaderPaint, linePaint);
+                DrawVectorTail(canvas, vp, tail, tailPaint, linePaint);
             }
         }
     }
@@ -432,11 +447,12 @@ public sealed class RadarRenderer : IDisposable
         var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
         canvas.DrawLine(sx, sy, ex, ey, linePaint);
 
-        // Small arrowhead at the tip — isoceles triangle rotated to the line's screen-space
+        // Arrowhead at the tip — isoceles triangle rotated to the line's screen-space
         // direction (mapping may rotate north relative to true), so the head reads correctly
-        // even when the map is non-north-up.
-        const float arrowLen = 10f;
-        const float arrowHalfWidth = 5f;
+        // even when the map is non-north-up. Sized to read clearly without dominating the
+        // 2 px dashed line beneath it.
+        const float arrowLen = 14f;
+        const float arrowHalfWidth = 7f;
         float dx = ex - sx;
         float dy = ey - sy;
         float len = MathF.Sqrt((dx * dx) + (dy * dy));
