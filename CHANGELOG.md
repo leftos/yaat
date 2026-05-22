@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.3.2-beta [2026/05/21]
+
+### Highlights
+- Session Report now has an **Aircraft** tab — one row per aircraft that passed through your airspace, with operation, filed route, status, finding counts, and a one-line coaching note. Rows stay listed after landing, handoff, or drop.
+- **Finding and command markers** on the rewind timeline bar — color-coded ticks (red Safety, amber Warning, blue Coach) for findings, plus grey ticks for every dispatched command. Click any marker to rewind. From the Aircraft tab, "Show on Timeline" filters the rail to a single callsign and jumps to its spawn time.
+- `EAPP` now assigns the destination runway and extends the active STAR — telling a pilot to "expect ILS 30" sets arrival runway 30 and threads the STAR's runway-transition fixes into the live route, matching real-world phraseology.
+- **"Show flight path"** now draws procedure vector tails and expected approaches on the radar — a 5 nm arrow off the last STAR fix for radar-vector procedures (WNDSR2, NIMI5, …), and a separate IAF/transition → FAF → threshold line for any aircraft with `EAPP` set but not yet cleared.
 
 ### Added
 - Session Report → **Aircraft** tab — one row per aircraft that has entered the session, showing operation (Departure/Arrival/Transit), filed route, spawn/completion times, status (Active / Landed RW / Handed off …), finding counts broken out by severity, and a one-line coaching note. Aircraft stay listed in the tab after landing, handoff, or drop so you can review every aircraft that passed through your airspace.

@@ -192,7 +192,7 @@ After liftoff, the assigned departure turn is deferred until the aircraft is pas
 | PTAC | — | `PTAC 280 025 ILS30` | YAAT-only — position/turn/altitude/cleared; supports PH/PA for present heading/altitude, optional approach ID. `PTACF` is the forced variant. |
 | CAPP heading intercept | — | `CAPP ILS28R` (on vectored aircraft) | YAAT-only — bare CAPP on vectored aircraft intercepts on present heading (implied PTAC) |
 | Rich approach forms | — | `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL ILS28R` | YAAT-only — combines navigation + clearance |
-| Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach for DCT fix programming feature |
+| Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach, assigns `DestinationRunway`, programs approach fixes for DCT, and extends an active STAR with the runway transition |
 | Visual approach | — | `CVA 28R` (+ LEFT/RIGHT/FOLLOW) | YAAT-only |
 | Follow (airborne VFR) | — | `FOLLOW [callsign]`/`FOL` | YAAT-only — VFR-only, requires traffic-in-sight proof (`RTIS`/`RTISF` in RPO mode, structured `RTIS` in solo training). Callsign argument is **optional**: bare `FOLLOW` defaults to the most recently reported in-sight traffic. From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Altitude held per controller assignment. |
 | Report field in sight | — | `RFIS 11 18` / `RFIS` | YAAT-only — structured form required in solo training; bare shorthand is RPO-only |

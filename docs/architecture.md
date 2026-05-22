@@ -167,6 +167,7 @@ Services/
   UrlLauncher.cs                # Static: opens HTTPS URLs in OS default browser (Process.Start with UseShellExecute)
   CallsignPrefixResolver.cs     # Pure resolver: partial callsign prefix → unique aircraft or list of matching candidates. Used by MainViewModel.SendCommandAsync to disambiguate `N12` when multiple aircraft match.
   WindowProfileService.cs       # Saves/restores named window arrangements: per-window geometry + dock/pop-out state + DataGrid column layout. Persists to UserPreferences; surfaced via View → Window Profiles.
+  ShownRouteBuilder.cs          # Pure builder for the radar "Show flight path" overlay. Produces a multi-segment path: published route + procedure vector tail (5 nm arrow off the last STAR fix on FM/VM/VA legs) + the expected approach line (IAF/transition → FAF → threshold, FAC extended back 5 nm when no transition is named).
 
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
@@ -176,6 +177,8 @@ ViewModels/
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)
+  MainViewModel.Timeline.cs     # Partial: rewind timeline markers — color-coded finding ticks (red Safety, amber Warning, blue Coach) + grey command ticks; periodic refresh, click-to-rewind, hover details, per-aircraft filter from the Session Report Aircraft tab.
+  TimelineMarkerVm.cs           # Per-marker view-model: timestamp, kind, severity, title, callsign, canonical command (commands only).
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
@@ -206,7 +209,8 @@ Views/
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
-  SessionReportWindow.axaml.cs  # Live solo-training session report: score, coaching notes, separation timeline, approach/runway grids
+  SessionReportWindow.axaml.cs  # Live solo-training session report: score, coaching notes, separation timeline, approach/runway grids, per-aircraft debrief tab with "Show on Timeline" cross-link
+  TimelineMarkerCanvas.cs       # SkiaSharp canvas overlaying TimelineMarkerVm ticks above the rewind scrub slider; finding markers above, command markers slightly lower; supports hit-testing and hover tooltips.
   ManageWindowProfilesDialog.axaml(.cs)  # View → Window Profiles dialog: list saved profiles, switch, rename, delete
   SaveWindowProfileDialog.axaml(.cs)     # Name-entry dialog for saving the current window arrangement as a new profile
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
@@ -335,6 +339,8 @@ HoldDirective.cs               # Structured ground-hold directive: HoldKind { Ho
                                # tests the pair relationship for the conflict detector.
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
 Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
+Training/AircraftCompletion.cs     # Per-aircraft lifecycle stamps: spawn time, completion time, completion reason (Landed / Handed off / Dropped / Departed), filed route + operation classification used by the Session Report Aircraft tab.
+Training/AircraftDebriefCoachingTemplates.cs  # Pure templates: one-line coaching note per completion reason + severity profile, consumed when aggregating per-aircraft debrief blocks from existing findings.
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation

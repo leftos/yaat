@@ -239,7 +239,10 @@ Open **Scenario > Session Report** during a room session. In Solo Training Mode,
 - coaching notes,
 - event timeline,
 - approach outcomes,
-- runway statistics.
+- runway statistics,
+- per-aircraft debrief on the **Aircraft** tab — one row per aircraft that has passed through your airspace, with operation, filed route, spawn/completion times, status, finding counts by severity, and a one-line coaching note. Click **Show on Timeline** to filter the main timeline marker rail to that callsign and rewind to its spawn time.
+
+The main window's rewind timeline bar also shows color-coded markers for findings (red Safety, amber Warning, blue Coach) and grey ticks for each dispatched command. Click a marker to rewind to that moment; hover for details.
 
 The Session Report is not the same as CRC conflict alerts. CRC alerts remain controller-facing alerts. Session Report rows are coaching and debrief material generated from YAAT's scoring model.
 
