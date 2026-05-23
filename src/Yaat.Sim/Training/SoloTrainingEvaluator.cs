@@ -417,9 +417,10 @@ public sealed class SoloTrainingEvaluator
     }
 
     // Structural hash over the inputs that affect debrief output. Cheap to compute; if
-    // it matches the previous call, the cached result list can be reused. Misses any
-    // field that doesn't contribute to debrief output, which is intentional — flight-plan
-    // amendments etc. don't change anything the Aircraft tab renders.
+    // it matches the previous call, the cached result list can be reused. Must cover
+    // every field BuildDebriefForActive / BuildDebriefForCompleted consume — including
+    // AircraftType and FlightPlan.Departure/Destination, which drive OperationKind
+    // classification and the displayed route.
     private static long ComputeDebriefInputsHash(IReadOnlyList<SoloTrainingEvent> timeline, AircraftDebriefContext debriefContext)
     {
         // FNV-1a 64-bit basis / prime. Order-sensitive within each input list; we don't
