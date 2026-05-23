@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Session Report **Aircraft** tab now refreshes the Operation column (Departure / Arrival / Transit), filed route, and aircraft type the moment a flight plan is amended — previously the row stayed on the pre-amend values until some other aircraft event happened to invalidate the cache.
+- A planned-restart prepare that fails partway through (disk full, I/O error, retry after a prior failure) no longer destroys prior session checkpoints or leaves rooms stuck paused. The server now writes checkpoints to a sibling staging directory and only swaps them into the live path after every room saves; on any failure, the live directory is left intact and paused rooms resume automatically.
+
 ## v0.3.4-beta [2026/05/22]
 
 ### Fixed
