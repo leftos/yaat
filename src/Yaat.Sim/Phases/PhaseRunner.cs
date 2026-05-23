@@ -1,4 +1,5 @@
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Phases;
@@ -135,6 +136,19 @@ public static class PhaseRunner
                 bool nextTouchAndGo = current is GoAroundPhase ga ? !ga.NextLandingFullStop : true;
                 var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, sizeOv, altOv, airportRunways, nextTouchAndGo);
                 phases.Phases.AddRange(nextCircuit);
+
+                // Consume the one-shot EXT pre-arm set by EXT during T/G or pre-T/G
+                // FinalApproach. The first UpwindPhase of the new circuit gets
+                // IsExtended=true; the flag clears after consumption.
+                if (ctx.Aircraft.Pattern.ExtendNextUpwind)
+                {
+                    var firstUpwind = nextCircuit.OfType<UpwindPhase>().FirstOrDefault();
+                    if (firstUpwind is not null)
+                    {
+                        firstUpwind.IsExtended = true;
+                    }
+                    ctx.Aircraft.Pattern.ExtendNextUpwind = false;
+                }
 
                 // Clear landing clearance — RPO must re-clear each approach
                 phases.LandingClearance = null;

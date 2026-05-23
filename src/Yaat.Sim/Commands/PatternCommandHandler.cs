@@ -758,6 +758,15 @@ internal static class PatternCommandHandler
         var currentLeg = GetCurrentPatternLeg(aircraft.Phases?.CurrentPhase);
         if (currentLeg is not { } current)
         {
+            // EXT UPWIND from a non-pattern-leg phase (HoldingShort, LineUp, Takeoff,
+            // InitialClimb, FinalApproach pre-T/G, TouchAndGo): arm the upcoming Upwind
+            // either directly in the queue or, if the next circuit hasn't been appended
+            // yet, via the AircraftPattern.ExtendNextUpwind one-shot flag. EXT CROSSWIND
+            // / EXT DOWNWIND keep the original rejection — scope decision in plan.
+            if (leg == PatternEntryLeg.Upwind && TryArmNextUpwind(aircraft) is { } armed)
+            {
+                return armed;
+            }
             return new CommandResult(false, "Extend applies on upwind, crosswind, or downwind");
         }
 
@@ -801,8 +810,84 @@ internal static class PatternCommandHandler
             case BasePhase:
                 return new CommandResult(false, "Extend not allowed on base leg");
             default:
+                // Bare EXT from a non-pattern-leg phase: same upcoming-Upwind arm path
+                // used by EXT UPWIND. This is the common case where the user wants to
+                // extend the next upwind during a touch-and-go ground roll.
+                if (TryArmNextUpwind(aircraft) is { } armed)
+                {
+                    return armed;
+                }
                 return new CommandResult(false, "Extend applies on upwind, crosswind, or downwind");
         }
+    }
+
+    /// <summary>
+    /// Pre-arm extension on the upcoming Upwind for an aircraft not currently on a pattern
+    /// leg. Two layers:
+    ///   1. Pending UpwindPhase already in the queue (initial circuit after CTO MRT, or
+    ///      already-appended next circuit) → set IsExtended directly.
+    ///   2. No pending UpwindPhase but a touch-and-go cycle is in progress (the auto-cycle
+    ///      block in PhaseRunner.Tick will append the next circuit when the current cycle
+    ///      terminator completes) → set the one-shot AircraftPattern.ExtendNextUpwind flag.
+    /// Returns null when no pre-arm is possible (caller falls back to its rejection text).
+    /// </summary>
+    private static CommandResult? TryArmNextUpwind(AircraftState aircraft)
+    {
+        if (TryFindNextPendingPhase<UpwindPhase>(aircraft) is { } pendingUpwind)
+        {
+            pendingUpwind.IsExtended = true;
+            Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending UpwindPhase already in queue", aircraft.Callsign);
+            return CommandDispatcher.Ok("Extend upwind");
+        }
+
+        if (WillAppendNextCircuit(aircraft))
+        {
+            aircraft.Pattern.ExtendNextUpwind = true;
+            Log.LogDebug("[ExtendPattern] {Callsign}: set ExtendNextUpwind flag — next circuit not yet queued", aircraft.Callsign);
+            return CommandDispatcher.Ok("Extend upwind (queued for next circuit)");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when PhaseRunner's auto-cycle block will append a new circuit after the
+    /// current/pending cycle terminator completes. Mirrors the gate at PhaseRunner.Tick
+    /// (wasCycleTerminator + IsComplete + TrafficDirection + AssignedRunway).
+    /// </summary>
+    private static bool WillAppendNextCircuit(AircraftState aircraft)
+    {
+        var phases = aircraft.Phases;
+        if (phases is null)
+        {
+            return false;
+        }
+        if (phases.AssignedRunway is null)
+        {
+            return false;
+        }
+        if (aircraft.Pattern.TrafficDirection is null && phases.TrafficDirection is null)
+        {
+            return false;
+        }
+
+        // Any pending or active cycle terminator means PhaseRunner will append the next
+        // circuit when that terminator completes. GoAroundPhase only auto-cycles when
+        // ReenterPattern is true.
+        for (int i = phases.CurrentIndex; i < phases.Phases.Count; i++)
+        {
+            var p = phases.Phases[i];
+            if (p is TouchAndGoPhase or StopAndGoPhase or LowApproachPhase)
+            {
+                return true;
+            }
+            if (p is GoAroundPhase ga && ga.ReenterPattern)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static PatternEntryLeg? GetCurrentPatternLeg(Phase? phase)

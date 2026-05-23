@@ -25,12 +25,22 @@ public class AircraftPattern
     /// </summary>
     public PatternDirection? TrafficDirection { get; set; }
 
+    /// <summary>
+    /// Set by EXT (bare or EXT UPWIND) when issued during a non-pattern-leg phase
+    /// (FinalApproach/TouchAndGo/etc.) for an aircraft cycling in the pattern. Consumed
+    /// by PhaseRunner the next time it appends a circuit: the first UpwindPhase of the
+    /// new circuit gets IsExtended=true and this flag is cleared. Single-shot; cleared
+    /// by MNA for symmetry.
+    /// </summary>
+    public bool ExtendNextUpwind { get; set; }
+
     public AircraftPatternDto ToSnapshot() =>
         new()
         {
             SizeOverrideNm = SizeOverrideNm,
             AltitudeOverrideFt = AltitudeOverrideFt,
             TrafficDirection = TrafficDirection.HasValue ? (byte)TrafficDirection.Value : null,
+            ExtendNextUpwind = ExtendNextUpwind ? true : null,
         };
 
     public static AircraftPattern FromSnapshot(AircraftPatternDto dto) =>
@@ -39,5 +49,6 @@ public class AircraftPattern
             SizeOverrideNm = dto.SizeOverrideNm,
             AltitudeOverrideFt = dto.AltitudeOverrideFt,
             TrafficDirection = dto.TrafficDirection.HasValue ? (PatternDirection)dto.TrafficDirection.Value : null,
+            ExtendNextUpwind = dto.ExtendNextUpwind ?? false,
         };
 }
