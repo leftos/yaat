@@ -435,6 +435,9 @@ public sealed class SoloTrainingEvaluator
             {
                 h = CombineString(h, ac.Callsign);
                 h = CombineString(h, ac.Cid);
+                h = CombineString(h, ac.AircraftType);
+                h = CombineString(h, ac.FlightPlan.Departure);
+                h = CombineString(h, ac.FlightPlan.Destination);
                 h = Combine(h, (ulong)ac.CompletionReason);
                 h = CombineString(h, ac.CompletionDetail);
                 h = Combine(h, BitConverter.DoubleToUInt64Bits(ac.SpawnedAtSeconds));

@@ -251,6 +251,22 @@ public class AircraftDebriefAggregatorTests
     }
 
     [Fact]
+    public void BuildReport_AfterFlightPlanAmend_RebuildsDebriefs()
+    {
+        var evaluator = new SoloTrainingEvaluator();
+        var ac = MakeAircraft("N123AB", departure: "SFO", destination: "OAK");
+        var context = new AircraftDebriefContext([ac], [], "OAK");
+
+        var first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        ac.FlightPlan.Departure = "OAK";
+        var second = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+
+        Assert.NotSame(first.AircraftDebriefs, second.AircraftDebriefs);
+        Assert.Equal(OperationKind.Arrival, first.AircraftDebriefs.Single().Operation);
+        Assert.Equal(OperationKind.Departure, second.AircraftDebriefs.Single().Operation);
+    }
+
+    [Fact]
     public void BuildReport_AfterCompletionChange_RebuildsDebriefs()
     {
         // Mutate the aircraft's completion state between calls — cache must invalidate.
