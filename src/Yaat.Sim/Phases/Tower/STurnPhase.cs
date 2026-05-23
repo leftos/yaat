@@ -136,7 +136,17 @@ public sealed class STurnPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        return CommandAcceptance.ClearsPhase;
+        // S-turns manage only heading (lateral dimension). Altitude and speed
+        // adjustments are additive — let them pass through to normal dispatch
+        // without cancelling the spacing maneuver.
+        return cmd switch
+        {
+            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
+            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
+            _ => CommandAcceptance.ClearsPhase,
+        };
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

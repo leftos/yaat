@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -864,6 +865,32 @@ public class PatternCommandHandlerTests
         var sturn = (STurnPhase)ac.Phases.CurrentPhase;
         Assert.Equal(TurnDirection.Left, sturn.InitialDirection);
         Assert.Equal(3, sturn.Count);
+    }
+
+    [Theory]
+    [InlineData("CM 004", 400)]
+    [InlineData("DM 020", 2000)]
+    public void STurn_VerticalCommand_DoesNotClearPhase(string verticalCmd, int expectedAlt)
+    {
+        var ac = MakeAircraft();
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
+        ac.Phases.Add(new DownwindPhase { Waypoints = wp });
+        ac.Phases.Add(new BasePhase { Waypoints = wp });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var sturnResult = PatternCommandHandler.TryMakeSTurns(ac, TurnDirection.Left, 3);
+        Assert.True(sturnResult.Success);
+        Assert.IsType<STurnPhase>(ac.Phases.CurrentPhase);
+        var sturnPhase = ac.Phases.CurrentPhase!;
+
+        var parsed = CommandParser.ParseCompound(verticalCmd, ac.FlightPlan.Route);
+        Assert.True(parsed.IsSuccess, $"{verticalCmd} parse failed: {parsed.Reason}");
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+
+        Assert.True(result.Success, $"{verticalCmd}: {result.Message}");
+        Assert.Same(sturnPhase, ac.Phases.CurrentPhase);
+        Assert.Equal(expectedAlt, ac.Targets.AssignedAltitude);
     }
 
     // -------------------------------------------------------------------------

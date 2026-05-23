@@ -60,6 +60,51 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         Assert.IsType<MakeTurnPhase>(ac.Phases.CurrentPhase);
     }
 
+    [Theory]
+    [InlineData("CM 004", 400)]
+    [InlineData("DM 020", 2000)]
+    public void MakeTurn_VerticalCommand_DoesNotClearPhase(string verticalCmd, int expectedAlt)
+    {
+        var ac = MakeAirborneAircraft();
+
+        var r360Parse = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
+        Assert.True(r360Parse.IsSuccess, $"R360 parse failed: {r360Parse.Reason}");
+        var r360Result = CommandDispatcher.DispatchCompound(r360Parse.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        Assert.True(r360Result.Success, $"R360 dispatch failed: {r360Result.Message}");
+        Assert.IsType<MakeTurnPhase>(ac.Phases?.CurrentPhase);
+        var turnPhase = ac.Phases!.CurrentPhase!;
+
+        var parsed = CommandParser.ParseCompound(verticalCmd, ac.FlightPlan.Route);
+        Assert.True(parsed.IsSuccess, $"{verticalCmd} parse failed: {parsed.Reason}");
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+
+        output.WriteLine($"{verticalCmd}: Success={result.Success} Message={result.Message}");
+        Assert.True(result.Success, $"{verticalCmd}: {result.Message}");
+        Assert.Same(turnPhase, ac.Phases?.CurrentPhase);
+        Assert.Equal(expectedAlt, ac.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void MakeTurn_SpeedCommand_DoesNotClearPhase()
+    {
+        var ac = MakeAirborneAircraft();
+
+        var r360 = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
+        var r360Result = CommandDispatcher.DispatchCompound(r360.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        Assert.True(r360Result.Success);
+        var turnPhase = ac.Phases?.CurrentPhase;
+        Assert.IsType<MakeTurnPhase>(turnPhase);
+
+        var parsed = CommandParser.ParseCompound("SPD 90", ac.FlightPlan.Route);
+        Assert.True(parsed.IsSuccess, $"SPD 90 parse failed: {parsed.Reason}");
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+
+        output.WriteLine($"SPD 90: Success={result.Success} Message={result.Message}");
+        Assert.True(result.Success, $"SPD 90: {result.Message}");
+        Assert.Same(turnPhase, ac.Phases?.CurrentPhase);
+        Assert.Equal(90, ac.Targets.AssignedSpeed);
+    }
+
     [Fact]
     public void MakeTurn_WithExistingPhases_StillWorks()
     {
