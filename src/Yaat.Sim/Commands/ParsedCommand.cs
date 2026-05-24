@@ -284,6 +284,22 @@ public record MakeLeftSTurnsCommand(int Count = 2) : ParsedCommand;
 
 public record MakeRightSTurnsCommand(int Count = 2) : ParsedCommand;
 
+/// <summary>
+/// OFL / OFFSETL: aircraft on upwind/crosswind/downwind doglegs ~30° left of
+/// current pattern heading, acquires a parallel track offset
+/// <see cref="OffsetNm"/> NM to the left of the original ground track, then
+/// resumes the leg heading. Null offset uses the default 0.5 NM.
+/// </summary>
+public record OffsetLeftPatternCommand(double? OffsetNm = null) : ParsedCommand;
+
+/// <summary>
+/// OFR / OFFSETR: aircraft on upwind/crosswind/downwind doglegs ~30° right of
+/// current pattern heading, acquires a parallel track offset
+/// <see cref="OffsetNm"/> NM to the right of the original ground track, then
+/// resumes the leg heading. Null offset uses the default 0.5 NM.
+/// </summary>
+public record OffsetRightPatternCommand(double? OffsetNm = null) : ParsedCommand;
+
 public record Plan270Command : ParsedCommand;
 
 public record CircleAirportCommand : ParsedCommand;

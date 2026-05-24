@@ -364,6 +364,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Pattern size | `PS 1.5` | `PATTSIZE` | — |
 | S-turns (init L) | `MLS` | — | — |
 | S-turns (init R) | `MRS` | — | — |
+| Offset pattern L | `OFL` | `OFFSETL` | `OFL [nm]` |
+| Offset pattern R | `OFR` | `OFFSETR` | `OFR [nm]` |
 | Circle airport | `CA` | `CIRCLE` | — |
 
 ### Track Operations
@@ -692,6 +694,8 @@ Pattern-entry verbs (`ELD`, `ERD`, `ELB`, `ERB`, `EF`, `ELC`, `ERC`) require the
 | `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset) |
 | `MLS` / `MRS` | S-turns on final, initial left/right (default 2 turns) |
 | `MLS 3` / `MRS 4` | S-turns with specified count |
+| `OFL` / `OFR` | Offset pattern left/right (default 0.5 NM perpendicular to current pattern heading) |
+| `OFL 0.3` / `OFR 1.0` | Offset N NM (range 0.1–1.5) — one-shot lateral dogleg + parallel hold for in-pattern spacing |
 | `CA` / `CIRCLE` | Circle the airport |
 | `FOLLOW UAL123` | Follow traffic (VFR): pursue lead and auto-join its pattern when close |
 | `FOLLOW` | Follow the most recently reported in-sight traffic (bare form — no callsign needed) |
@@ -704,6 +708,8 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 `P270` plans a 270° turn at the next pattern turn point without executing immediately. The turn direction is automatically determined from the traffic pattern direction (left 270 for left traffic, right 270 for right traffic). Use `NO270` to cancel.
 
 `PS` sets the pattern downwind offset distance. The crosswind extension and base extension scale proportionally. The override persists across pattern circuits.
+
+`OFL` / `OFR` apply a one-shot lateral offset to the current pattern leg (upwind, crosswind, downwind, or base — not final; use `MLS`/`MRS` for final-leg spacing). The aircraft doglegs ~30° from the current pattern heading in the requested direction, acquires a parallel track offset by the specified distance, then resumes parallel flight. Direction is relative to the aircraft's current heading (`OFR` on left downwind for 28L widens the pattern, away from the runway). Offset state lives on the active phase only — it discards on the next leg transition, so the next downstream leg resumes from the aircraft's actual offset position (a wider downwind naturally produces a longer base; an offset on base pushes the final-intercept point further out). Default offset is 0.5 NM (range 0.1–1.5 NM). Useful for in-pattern spacing when a faster aircraft is closing on slower traffic ahead and `EXT` isn't enough.
 
 **Pattern direction persistence** — `MLT` / `MRT` / `CTO MLT` / `CTO MRT` / `GA MLT` / `GA MRT` set a persistent pattern-direction intent on the aircraft. The intent survives heading vectors (`FH` / `TR` / `TL`) that clear queued phases, and is **not** overridden by a single-approach clearance like `ERB 28L` / `ELB 28R` / `EF 28L`. After a touch-and-go on the single-approach side, the auto-cycled next circuit reverts to the persistent MLT/MRT direction. `CLAND` (full-stop) and `LAHSO` clear the persistent intent; the aircraft auto-exits the runway after touchdown.
 

@@ -1203,6 +1203,54 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"S-turns, initial {dirStr}, {count} turns");
     }
 
+    /// <summary>
+    /// OFL/OFR: dogleg perpendicular to current pattern heading, acquire a parallel
+    /// track offset <paramref name="offsetNm"/> NM to the left or right, then hold
+    /// parallel. State lives on the active phase; discarded on phase completion.
+    /// Allowed on upwind/crosswind/downwind/base. Rejected on final (use MLS/MRS
+    /// for final-leg spacing) and when no pattern leg is active.
+    /// </summary>
+    internal static CommandResult TryOffsetPattern(AircraftState aircraft, TurnDirection direction, double? offsetNm)
+    {
+        const double DefaultOffsetNm = 0.5;
+        const double MinOffsetNm = 0.1;
+        const double MaxOffsetNm = 1.5;
+
+        double resolved = offsetNm ?? DefaultOffsetNm;
+        if (resolved < MinOffsetNm || resolved > MaxOffsetNm)
+        {
+            return new CommandResult(false, $"Pattern offset must be between {MinOffsetNm:G} and {MaxOffsetNm:G} NM");
+        }
+
+        if (aircraft.Phases is null || aircraft.Phases.IsComplete)
+        {
+            return new CommandResult(false, "Pattern offset applies on upwind, crosswind, downwind, or base");
+        }
+
+        var state = new PatternLateralOffsetState { TargetNm = resolved, Direction = direction };
+
+        switch (aircraft.Phases.CurrentPhase)
+        {
+            case DownwindPhase dw:
+                dw.LateralOffset = state;
+                break;
+            case UpwindPhase up:
+                up.LateralOffset = state;
+                break;
+            case CrosswindPhase cw:
+                cw.LateralOffset = state;
+                break;
+            case BasePhase bp:
+                bp.LateralOffset = state;
+                break;
+            default:
+                return new CommandResult(false, "Pattern offset applies on upwind, crosswind, downwind, or base");
+        }
+
+        var dirStr = direction == TurnDirection.Left ? "left" : "right";
+        return CommandDispatcher.Ok($"Offset {dirStr} {resolved:G} NM");
+    }
+
     internal static CommandResult TryMakeTurn(AircraftState aircraft, TurnDirection direction, double degrees)
     {
         var dirStr = direction == TurnDirection.Left ? "left" : "right";

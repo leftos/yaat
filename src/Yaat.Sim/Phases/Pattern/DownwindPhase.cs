@@ -41,6 +41,14 @@ public sealed class DownwindPhase : Phase
     /// </summary>
     public bool ShortApproachArmed { get; set; }
 
+    /// <summary>
+    /// Active lateral offset state set by OFL/OFR. While non-null, OnTick overrides
+    /// <c>TargetTrueHeading</c> via <see cref="PatternLateralOffsetHelper"/> to
+    /// dogleg perpendicular to the leg, then hold a parallel track once acquired.
+    /// Discarded when the phase completes — no carry-over into BasePhase.
+    /// </summary>
+    public PatternLateralOffsetState? LateralOffset { get; set; }
+
     public override string Name => "Downwind";
     public override bool ManagesSpeed => true;
 
@@ -134,6 +142,21 @@ public sealed class DownwindPhase : Phase
         // pattern-phase follower doesn't keep a stale follow target after the
         // lead despawns or lands.
         AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
+        // OFL/OFR lateral dogleg + parallel hold. Reference point must be ON the
+        // downwind track (not the runway centerline) — abeam-the-threshold is the
+        // canonical on-track waypoint. Runs every tick while active so the heading
+        // target tracks acquisition; downstream completion logic (abeam, base-turn)
+        // uses along-track distance and is unaffected by the perpendicular offset.
+        if (LateralOffset is not null && Waypoints is not null)
+        {
+            ctx.Targets.TargetTrueHeading = PatternLateralOffsetHelper.ComputeTargetHeading(
+                ctx,
+                _downwindHeading,
+                new LatLon(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon),
+                LateralOffset
+            );
+        }
 
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
 
@@ -414,6 +437,9 @@ public sealed class DownwindPhase : Phase
             AltitudeFloor = _altitudeFloor,
             MidfieldBroadcastIssued = _midfieldBroadcastIssued,
             ShortApproachArmed = ShortApproachArmed,
+            LateralOffsetTargetNm = LateralOffset?.TargetNm,
+            LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
+            LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
         };
 
     public static DownwindPhase FromSnapshot(DownwindPhaseDto dto)
@@ -423,6 +449,14 @@ public sealed class DownwindPhase : Phase
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             IsExtended = dto.IsExtended,
             ShortApproachArmed = dto.ShortApproachArmed,
+            LateralOffset = dto.LateralOffsetTargetNm is { } target
+                ? new PatternLateralOffsetState
+                {
+                    TargetNm = target,
+                    Direction = (TurnDirection)(dto.LateralOffsetDirection ?? 0),
+                    Acquired = dto.LateralOffsetAcquired,
+                }
+                : null,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

@@ -65,6 +65,8 @@ public enum CanonicalCommandType
     Cancel270,
     MakeLeftSTurns,
     MakeRightSTurns,
+    OffsetLeftPattern,
+    OffsetRightPattern,
     Plan270,
 
     // Hold commands

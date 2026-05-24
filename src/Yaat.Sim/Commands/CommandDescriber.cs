@@ -79,6 +79,8 @@ public static class CommandDescriber
             Cancel270Command => CanonicalCommandType.Cancel270,
             MakeLeftSTurnsCommand => CanonicalCommandType.MakeLeftSTurns,
             MakeRightSTurnsCommand => CanonicalCommandType.MakeRightSTurns,
+            OffsetLeftPatternCommand => CanonicalCommandType.OffsetLeftPattern,
+            OffsetRightPatternCommand => CanonicalCommandType.OffsetRightPattern,
             Plan270Command => CanonicalCommandType.Plan270,
             CircleAirportCommand => CanonicalCommandType.CircleAirport,
             TouchAndGoCommand => CanonicalCommandType.TouchAndGo,
@@ -470,6 +472,8 @@ public static class CommandDescriber
             Cancel270Command => "NO270",
             MakeLeftSTurnsCommand mls => mls.Count != 2 ? $"MLS {mls.Count}" : "MLS",
             MakeRightSTurnsCommand mrs => mrs.Count != 2 ? $"MRS {mrs.Count}" : "MRS",
+            OffsetLeftPatternCommand ofl => ofl.OffsetNm is { } nm ? $"OFL {nm:G}" : "OFL",
+            OffsetRightPatternCommand ofr => ofr.OffsetNm is { } nm ? $"OFR {nm:G}" : "OFR",
             Plan270Command => "P270",
             CircleAirportCommand => "CA",
             TouchAndGoCommand => "TG",
@@ -724,6 +728,8 @@ public static class CommandDescriber
             Cancel270Command => "Cancel 270",
             MakeLeftSTurnsCommand mls => $"S-turns, initial left, {mls.Count}",
             MakeRightSTurnsCommand mrs => $"S-turns, initial right, {mrs.Count}",
+            OffsetLeftPatternCommand ofl => $"Offset pattern left {ofl.OffsetNm ?? 0.5:G} NM",
+            OffsetRightPatternCommand ofr => $"Offset pattern right {ofr.OffsetNm ?? 0.5:G} NM",
             Plan270Command => "Plan 270 at next turn",
             CircleAirportCommand => "Circle airport",
             TouchAndGoCommand => "Cleared touch-and-go",
@@ -878,6 +884,8 @@ public static class CommandDescriber
                 or Cancel270Command
                 or MakeLeftSTurnsCommand
                 or MakeRightSTurnsCommand
+                or OffsetLeftPatternCommand
+                or OffsetRightPatternCommand
                 or Plan270Command
                 or PatternSizeCommand
                 or MakeLeft360Command

@@ -679,6 +679,8 @@ public static class CommandParser
             PatternSize when arg is not null => PR.Ok(ParsePatternSize(arg)),
             MakeLeftSTurns => PR.Ok(ParseSTurns(arg, TurnDirection.Left)),
             MakeRightSTurns => PR.Ok(ParseSTurns(arg, TurnDirection.Right)),
+            OffsetLeftPattern => PR.Ok(ParseOffsetPattern(arg, TurnDirection.Left)),
+            OffsetRightPattern => PR.Ok(ParseOffsetPattern(arg, TurnDirection.Right)),
             Plan270 when arg is null => PR.Ok(new Plan270Command()),
             MakeLeft360 when arg is null => PR.Ok(new MakeLeft360Command()),
             MakeRight360 when arg is null => PR.Ok(new MakeRight360Command()),
@@ -2181,6 +2183,21 @@ public static class CommandParser
         }
 
         return new UnsupportedCommand($"{(direction == TurnDirection.Left ? "MLS" : "MRS")} {arg}");
+    }
+
+    private static ParsedCommand ParseOffsetPattern(string? arg, TurnDirection direction)
+    {
+        if (arg is null || arg.Trim().Length == 0)
+        {
+            return direction == TurnDirection.Left ? new OffsetLeftPatternCommand() : new OffsetRightPatternCommand();
+        }
+
+        if (double.TryParse(arg.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double nm))
+        {
+            return direction == TurnDirection.Left ? new OffsetLeftPatternCommand(nm) : new OffsetRightPatternCommand(nm);
+        }
+
+        return new UnsupportedCommand($"{(direction == TurnDirection.Left ? "OFL" : "OFR")} {arg}");
     }
 
     private static (BlockCondition Condition, string Remainder)? ParseAtfnCondition(string input)

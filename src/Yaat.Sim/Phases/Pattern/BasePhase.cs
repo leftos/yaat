@@ -27,6 +27,13 @@ public sealed class BasePhase : Phase
     /// </summary>
     public double? FinalDistanceNm { get; set; }
 
+    /// <summary>
+    /// Active lateral offset state set by OFL/OFR. On base, the dogleg pushes
+    /// the final intercept point further out (cross-track-from-centerline grows,
+    /// so the turn-final condition fires later). See <see cref="DownwindPhase.LateralOffset"/>.
+    /// </summary>
+    public PatternLateralOffsetState? LateralOffset { get; set; }
+
     public override string Name => "Base";
     public override bool ManagesSpeed => true;
 
@@ -120,6 +127,19 @@ public sealed class BasePhase : Phase
         // DownwindPhase.OnTick for the full rationale.
         AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
+        // OFL/OFR lateral dogleg. Reference point: base-turn (start of base
+        // track). The acquired offset extends the final-intercept distance
+        // because cross-track-from-centerline grows.
+        if (LateralOffset is not null && Waypoints is not null)
+        {
+            ctx.Targets.TargetTrueHeading = PatternLateralOffsetHelper.ComputeTargetHeading(
+                ctx,
+                Waypoints.BaseHeading,
+                new LatLon(Waypoints.BaseTurnLat, Waypoints.BaseTurnLon),
+                LateralOffset
+            );
+        }
+
         // Follow speed adjustment — pass the phase baseline, never the previous
         // tick's adjusted target, so the +MaxSpeedAdjustKts clamp can't compound.
         if (ctx.Targets.TargetSpeed is not null)
@@ -190,6 +210,9 @@ public sealed class BasePhase : Phase
             ThresholdLat = _thresholdLat,
             ThresholdLon = _thresholdLon,
             FinalHeadingDeg = _finalHeading.Degrees,
+            LateralOffsetTargetNm = LateralOffset?.TargetNm,
+            LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
+            LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
         };
 
     public static BasePhase FromSnapshot(BasePhaseDto dto)
@@ -198,6 +221,14 @@ public sealed class BasePhase : Phase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             FinalDistanceNm = dto.FinalDistanceNm,
+            LateralOffset = dto.LateralOffsetTargetNm is { } target
+                ? new PatternLateralOffsetState
+                {
+                    TargetNm = target,
+                    Direction = (TurnDirection)(dto.LateralOffsetDirection ?? 0),
+                    Acquired = dto.LateralOffsetAcquired,
+                }
+                : null,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

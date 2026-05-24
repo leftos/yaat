@@ -552,6 +552,28 @@ public static class CommandRegistry
                 ["MRS"],
                 [O(null, [], "Make S-turns, initial turn right"), O("Count", [R("count", "number of turns")], "Make N S-turns, initial turn right")]
             ),
+            Cmd(
+                OffsetLeftPattern,
+                "Offset Pattern Left",
+                "Pattern",
+                false,
+                ["OFL", "OFFSETL"],
+                [
+                    O(null, [], "Dogleg left, hold 0.5 NM left of current pattern heading"),
+                    O("OffsetNm", [R("offsetNm", "0.1-2.0 NM")], "Dogleg left, hold N NM left of current pattern heading"),
+                ]
+            ),
+            Cmd(
+                OffsetRightPattern,
+                "Offset Pattern Right",
+                "Pattern",
+                false,
+                ["OFR", "OFFSETR"],
+                [
+                    O(null, [], "Dogleg right, hold 0.5 NM right of current pattern heading"),
+                    O("OffsetNm", [R("offsetNm", "0.1-2.0 NM")], "Dogleg right, hold N NM right of current pattern heading"),
+                ]
+            ),
             Bare(Plan270, "Plan 270 at Next Turn", "Pattern", false, ["P270", "PLAN270"]),
             Bare(CircleAirport, "Circle Airport", "Pattern", false, ["CA", "CIRCLE"]),
         ];

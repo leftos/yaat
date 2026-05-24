@@ -661,6 +661,9 @@ public sealed class BasePhaseDto : PhaseDto
     public required double ThresholdLat { get; init; }
     public required double ThresholdLon { get; init; }
     public required double FinalHeadingDeg { get; init; }
+    public double? LateralOffsetTargetNm { get; init; }
+    public int? LateralOffsetDirection { get; init; }
+    public bool LateralOffsetAcquired { get; init; }
 }
 
 public sealed class CrosswindPhaseDto : PhaseDto
@@ -670,6 +673,9 @@ public sealed class CrosswindPhaseDto : PhaseDto
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }
     public required double CrosswindHeadingDeg { get; init; }
+    public double? LateralOffsetTargetNm { get; init; }
+    public int? LateralOffsetDirection { get; init; }
+    public bool LateralOffsetAcquired { get; init; }
 }
 
 public sealed class DownwindPhaseDto : PhaseDto
@@ -685,6 +691,9 @@ public sealed class DownwindPhaseDto : PhaseDto
     public required double AltitudeFloor { get; init; }
     public required bool MidfieldBroadcastIssued { get; init; } = false;
     public bool ShortApproachArmed { get; init; }
+    public double? LateralOffsetTargetNm { get; init; }
+    public int? LateralOffsetDirection { get; init; }
+    public bool LateralOffsetAcquired { get; init; }
 }
 
 public sealed class UpwindPhaseDto : PhaseDto
@@ -695,6 +704,9 @@ public sealed class UpwindPhaseDto : PhaseDto
     public required double TargetLon { get; init; }
     public required double UpwindHeadingDeg { get; init; }
     public required double MinTurnAltitude { get; init; } = 0.0;
+    public double? LateralOffsetTargetNm { get; init; }
+    public int? LateralOffsetDirection { get; init; }
+    public bool LateralOffsetAcquired { get; init; }
 }
 
 public sealed class VfrFollowPhaseDto : PhaseDto

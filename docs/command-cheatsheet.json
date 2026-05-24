@@ -148,6 +148,7 @@
         { "verb": "NO270", "aliases": [], "description": "Cancel 270" },
         { "verb": "PS", "aliases": ["pattsize"], "description": "Pattern size multiplier" },
         { "verb": "MLS / MRS", "aliases": [], "description": "S-turns (initial L / R) [count]" },
+        { "verb": "OFL / OFR", "aliases": ["offsetl", "offsetr"], "description": "Offset pattern L/R [nm], default 0.5 — in-pattern lateral spacing" },
         { "verb": "CA", "aliases": ["circle"], "description": "Circle airport" }
       ],
       "notes": []

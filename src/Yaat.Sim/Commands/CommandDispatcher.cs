@@ -373,6 +373,8 @@ public static class CommandDispatcher
                 or PatternSizeCommand
                 or MakeLeftSTurnsCommand
                 or MakeRightSTurnsCommand
+                or OffsetLeftPatternCommand
+                or OffsetRightPatternCommand
                 or Plan270Command
                 or Cancel270Command
                 or TouchAndGoCommand
@@ -1289,6 +1291,10 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryMakeSTurns(aircraft, TurnDirection.Left, mls.Count);
             case MakeRightSTurnsCommand mrs:
                 return PatternCommandHandler.TryMakeSTurns(aircraft, TurnDirection.Right, mrs.Count);
+            case OffsetLeftPatternCommand ofl:
+                return PatternCommandHandler.TryOffsetPattern(aircraft, TurnDirection.Left, ofl.OffsetNm);
+            case OffsetRightPatternCommand ofr:
+                return PatternCommandHandler.TryOffsetPattern(aircraft, TurnDirection.Right, ofr.OffsetNm);
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 

@@ -28,6 +28,11 @@ public sealed class UpwindPhase : Phase
     /// </summary>
     public bool IsExtended { get; set; }
 
+    /// <summary>
+    /// Active lateral offset state set by OFL/OFR. See <see cref="DownwindPhase.LateralOffset"/>.
+    /// </summary>
+    public PatternLateralOffsetState? LateralOffset { get; set; }
+
     public override string Name => "Upwind";
     public override bool ManagesSpeed => true;
 
@@ -73,6 +78,17 @@ public sealed class UpwindPhase : Phase
         // DownwindPhase so a pattern-phase follower doesn't keep a stale follow
         // target after the lead despawns or lands during the climb-out.
         AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
+        // OFL/OFR lateral dogleg. Reference point: departure end of runway.
+        if (LateralOffset is not null && Waypoints is not null)
+        {
+            ctx.Targets.TargetTrueHeading = PatternLateralOffsetHelper.ComputeTargetHeading(
+                ctx,
+                _upwindHeading,
+                new LatLon(Waypoints.DepartureEndLat, Waypoints.DepartureEndLon),
+                LateralOffset
+            );
+        }
 
         if (IsExtended)
         {
@@ -154,6 +170,9 @@ public sealed class UpwindPhase : Phase
             TargetLon = _targetLon,
             UpwindHeadingDeg = _upwindHeading.Degrees,
             MinTurnAltitude = _minTurnAltitude,
+            LateralOffsetTargetNm = LateralOffset?.TargetNm,
+            LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
+            LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
         };
 
     public static UpwindPhase FromSnapshot(UpwindPhaseDto dto)
@@ -162,6 +181,14 @@ public sealed class UpwindPhase : Phase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             IsExtended = dto.IsExtended,
+            LateralOffset = dto.LateralOffsetTargetNm is { } target
+                ? new PatternLateralOffsetState
+                {
+                    TargetNm = target,
+                    Direction = (TurnDirection)(dto.LateralOffsetDirection ?? 0),
+                    Acquired = dto.LateralOffsetAcquired,
+                }
+                : null,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
