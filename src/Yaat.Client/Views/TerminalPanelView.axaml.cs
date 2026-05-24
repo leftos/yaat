@@ -20,6 +20,7 @@ public partial class TerminalPanelView : UserControl
     private ScrollViewer? _scrollViewer;
     private bool _autoScroll = true;
     private bool _isScrollingProgrammatically;
+    private string _lastSearchText = string.Empty;
 
     public TerminalPanelView()
     {
@@ -146,9 +147,20 @@ public partial class TerminalPanelView : UserControl
 
     private void OnFilterChanged()
     {
-        if (DataContext is MainViewModel vm)
+        if (DataContext is not MainViewModel vm)
         {
-            RebuildDocument(vm);
+            return;
+        }
+
+        var newSearch = vm.TerminalSearchText ?? string.Empty;
+        var searchJustCleared = _lastSearchText.Length > 0 && newSearch.Length == 0;
+        _lastSearchText = newSearch;
+
+        RebuildDocument(vm);
+
+        if (searchJustCleared)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(ScrollToBottom, Avalonia.Threading.DispatcherPriority.Background);
         }
     }
 

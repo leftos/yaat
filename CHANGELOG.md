@@ -11,6 +11,7 @@
 - Radar-vectors SID departures cleared with a bare `CTO` (no altitude assignment) now hold the published vectors heading all the way through the initial climb instead of dropping the hold around 400 ft AGL and turning direct to the first enroute route fix.
 - Chained `EXT` / `EXT UPWIND` after a tower command (e.g. `COPT; EXT UPWIND` on final approach) now arms the upcoming upwind instead of being silently dropped.
 - `DCT VPCBT; ERB 28R` and `AT VPCBT ERB 28R` no longer reject at typing time — deferred commands check feasibility when the trigger fires.
+- Terminal panel filter box is wider, and clearing it now scrolls back to the bottom instead of jumping to the top.
 
 ## v0.3.5-beta [2026/05/23]
 
