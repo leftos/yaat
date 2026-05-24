@@ -3,6 +3,7 @@ namespace Yaat.Sim.Simulation.Snapshots;
 public sealed class AircraftGhostTrackDto
 {
     public required bool IsUnsupported { get; init; }
+    public bool IsOverlay { get; init; }
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
     public string? AirportId { get; init; }

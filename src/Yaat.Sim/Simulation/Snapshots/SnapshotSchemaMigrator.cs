@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 8;
+    public const int CurrentSchemaVersion = 9;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -72,6 +72,11 @@ public static class SnapshotSchemaMigrator
         //   No data transformation — older snapshots default to spawn-at-0 / not-completed,
         //   which makes time-on-frequency report from session start and shows the aircraft
         //   as Active in the debrief tab until current-session lifecycle hooks fire.
+        // V8→V9: Added AircraftGhostTrackDto.IsOverlay so the operator-facing Aircraft List
+        //   can keep ghost overlays on real scenario aircraft visible while still hiding
+        //   pure phantom DA/VP data blocks. No data transformation — older snapshots
+        //   default to false; for replay correctness that is the safe choice because the
+        //   field only affects the YAAT Aircraft List filter, not simulation behavior.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

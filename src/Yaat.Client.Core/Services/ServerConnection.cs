@@ -752,6 +752,11 @@ public record AircraftDto(
     string? ExitingRunwayId = null,
     string FiledAircraftType = "",
     bool IsUnsupported = false,
+    // True when the ghost overlay sits on top of a real aircraft active in the scenario
+    // (AID + slew). False for pure phantom STARS data blocks created by DA/VP typing
+    // against a callsign with no aircraft body. The Aircraft List filter only hides
+    // rows that are IsUnsupported && !IsGhostOverlay.
+    bool IsGhostOverlay = false,
     bool HasActiveTaxiRoute = false,
     // Hold-state mirror of AircraftGroundOps.Hold. HoldKind is null/empty when free
     // to move, "HoldPosition" for unconditional HOLD, "GiveWay" for a controller

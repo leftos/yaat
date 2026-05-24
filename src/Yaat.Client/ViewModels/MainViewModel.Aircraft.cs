@@ -107,10 +107,11 @@ public partial class MainViewModel
             {
                 var wasDelayed = existing.IsDelayed;
                 var wasUnsupported = existing.IsUnsupported;
+                var wasGhostOverlay = existing.IsGhostOverlay;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
                 ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
-                if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported)
+                if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported || existing.IsGhostOverlay != wasGhostOverlay)
                 {
                     RefreshAircraftView();
                 }
@@ -159,10 +160,11 @@ public partial class MainViewModel
             {
                 var wasDelayed = existing.IsDelayed;
                 var wasUnsupported = existing.IsUnsupported;
+                var wasGhostOverlay = existing.IsGhostOverlay;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
                 ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
-                if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported)
+                if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported || existing.IsGhostOverlay != wasGhostOverlay)
                 {
                     RefreshAircraftView();
                 }

@@ -612,15 +612,18 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Predicate backing <see cref="AircraftView"/>'s filter. STARS unsupported data
-    /// blocks created by CRC <c>DA</c>/<c>VP</c> typing (<see cref="AircraftModel.IsUnsupported"/>)
-    /// are always hidden from the operator-facing list — they have no real aircraft
-    /// body and would otherwise display "No altitude asgn". Delayed-spawn aircraft are
-    /// hidden only when the "Show only active" toggle is on.
+    /// Predicate backing <see cref="AircraftView"/>'s filter. Phantom STARS data blocks
+    /// created by CRC <c>DA</c>/<c>VP</c> typing (<see cref="AircraftModel.IsUnsupported"/>
+    /// without <see cref="AircraftModel.IsGhostOverlay"/>) are always hidden from the
+    /// operator-facing list — they have no real aircraft body and would otherwise display
+    /// "No altitude asgn". Ghost overlays attached to real scenario aircraft via AID+slew
+    /// (<c>IsUnsupported &amp;&amp; IsGhostOverlay</c>) stay visible so the operator can
+    /// still track the underlying aircraft. Delayed-spawn aircraft are hidden only when
+    /// the "Show only active" toggle is on.
     /// </summary>
     public static bool IsAircraftVisible(AircraftModel ac, bool showOnlyActive, string filter)
     {
-        if (ac.IsUnsupported)
+        if (ac.IsUnsupported && !ac.IsGhostOverlay)
         {
             return false;
         }

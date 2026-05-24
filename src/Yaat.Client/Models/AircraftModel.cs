@@ -158,14 +158,24 @@ public partial class AircraftModel : ObservableObject
     public bool IsDelayed => Status.StartsWith("Delayed", StringComparison.Ordinal);
 
     /// <summary>
-    /// True for STARS unsupported data blocks created by CRC <c>DA</c> / <c>VP</c> typing
-    /// for callsigns with no real aircraft body. The Aircraft List filters these out
-    /// (see <c>MainViewModel.IsAircraftVisible</c>); STARS scope and flight strips still
-    /// render them via their own DTO paths. Clears when the ghost is upgraded to a real
-    /// aircraft, at which point the row reappears in the list automatically.
+    /// True for any aircraft whose STARS representation is a stationary ghost (no live
+    /// surveillance motion). Set in two cases: (1) phantom data blocks created by CRC
+    /// <c>DA</c>/<c>VP</c> typing for callsigns with no real aircraft body, and (2) ghost
+    /// overlays attached to real scenario aircraft via AID+slew. The Aircraft List filter
+    /// uses this together with <see cref="IsGhostOverlay"/> to hide only the phantoms.
     /// </summary>
     [ObservableProperty]
     private bool _isUnsupported;
+
+    /// <summary>
+    /// True when <see cref="IsUnsupported"/> is set because a ghost overlay was attached
+    /// to an existing scenario aircraft (AID+slew). Distinguishes the overlay-on-real
+    /// case from a pure phantom data block so the Aircraft List can keep the row visible.
+    /// Clears when the ghost is dropped or auto-merges as the aircraft crosses the STARS
+    /// floor.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isGhostOverlay;
 
     private static string FormatStatus(string status)
     {
@@ -706,6 +716,7 @@ public partial class AircraftModel : ObservableObject
             ExitingRunwayId = dto.ExitingRunwayId,
             CrossingRunwayId = dto.CrossingRunwayId,
             IsUnsupported = dto.IsUnsupported,
+            IsGhostOverlay = dto.IsGhostOverlay,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.ComputeSmartStatus();
@@ -778,6 +789,7 @@ public partial class AircraftModel : ObservableObject
         ExitingRunwayId = dto.ExitingRunwayId;
         CrossingRunwayId = dto.CrossingRunwayId;
         IsUnsupported = dto.IsUnsupported;
+        IsGhostOverlay = dto.IsGhostOverlay;
         DistanceFromFix = computeDistance?.Invoke(this);
         ComputeSmartStatus();
     }

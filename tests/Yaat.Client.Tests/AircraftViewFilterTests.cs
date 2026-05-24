@@ -6,29 +6,42 @@ namespace Yaat.Client.Tests;
 
 /// <summary>
 /// Tests for the predicate that backs <c>MainViewModel.AircraftView.Filter</c>.
-/// STARS unsupported data blocks created by CRC <c>DA</c>/<c>VP</c> typing must be
-/// hidden from the operator-facing Aircraft List even though they are broadcast
-/// to the client (so STARS scope and flight strips can render them).
+/// Phantom STARS data blocks created by CRC <c>DA</c>/<c>VP</c> typing (callsigns
+/// with no real aircraft body) must be hidden from the operator-facing Aircraft List
+/// even though they are broadcast to the client. Ghost overlays attached to real
+/// scenario aircraft (AID+slew) must remain visible — the aircraft is still flying.
 /// </summary>
 public class AircraftViewFilterTests
 {
-    private static AircraftModel Model(bool isUnsupported = false, string status = "Active", string callsign = "N123AB")
+    private static AircraftModel Model(bool isUnsupported = false, bool isGhostOverlay = false, string status = "Active", string callsign = "N123AB")
     {
         return new AircraftModel
         {
             Callsign = callsign,
             AircraftType = "C172",
             IsUnsupported = isUnsupported,
+            IsGhostOverlay = isGhostOverlay,
             Status = status,
         };
     }
 
     [Fact]
-    public void Filter_HidesUnsupportedGhostTracks_RegardlessOfShowOnlyActive()
+    public void Filter_HidesUnsupportedPhantoms_RegardlessOfShowOnlyActive()
     {
         var ac = Model(isUnsupported: true);
         Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: ""));
         Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: ""));
+    }
+
+    [Fact]
+    public void Filter_IncludesGhostOverlaysOnRealAircraft_RegardlessOfShowOnlyActive()
+    {
+        // Real scenario aircraft with an AID+slew ghost overlay attached. STARS shows
+        // the pinned ghost position; the YAAT Aircraft List must keep the row visible
+        // so the operator can still track the underlying aircraft.
+        var ac = Model(isUnsupported: true, isGhostOverlay: true);
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: ""));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: ""));
     }
 
     [Fact]
