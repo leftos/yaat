@@ -693,7 +693,9 @@ public static class CommandDispatcher
             case EnterFinalCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
+                    // EF has no L/R in its verb — let TryEnterPattern infer from runway
+                    // (28R parallel to 28L → Right, single runway → Left).
+                    requestedDirection: null,
                     PatternEntryLeg.Final,
                     runwayId: cmd.RunwayId,
                     finalDistanceNm: null
@@ -1250,7 +1252,9 @@ public static class CommandDispatcher
             case EnterFinalCommand ef:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
+                    // EF has no L/R in its verb — let TryEnterPattern infer from runway
+                    // (28R parallel to 28L → Right, single runway → Left).
+                    requestedDirection: null,
                     PatternEntryLeg.Final,
                     runwayId: ef.RunwayId,
                     finalDistanceNm: null

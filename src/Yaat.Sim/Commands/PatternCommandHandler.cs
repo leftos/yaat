@@ -33,7 +33,7 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryEnterPattern(
         AircraftState aircraft,
-        PatternDirection direction,
+        PatternDirection? requestedDirection,
         PatternEntryLeg entryLeg,
         string? runwayId,
         double? finalDistanceNm
@@ -80,6 +80,15 @@ internal static class PatternCommandHandler
         var runway = aircraft.Phases.AssignedRunway;
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool touchAndGo = aircraft.Phases.TrafficDirection is not null;
+
+        // EF (Enter Final) doesn't carry an L/R in its verb, so the dispatcher passes
+        // null. Defer to the runway's natural pattern direction: 28R with 28L present
+        // → Right; 28L with 28R present → Left; single runway → FAA default Left
+        // (AIM 4-3-3). Without this, EF on a close parallel like OAK 28R would stamp
+        // the wrong side and any subsequent COPT/TouchAndGo or GoAround circuit would
+        // fly the downwind over the parallel runway. ELD/ERD/ELB/ERB/ELC/ERC pass an
+        // explicit L/R that reflects the controller's verb and bypasses the inference.
+        PatternDirection direction = requestedDirection ?? GoAroundHelper.InferDefaultPatternDirection(runway) ?? PatternDirection.Left;
 
         // Parallel-runway sidestep (7110.65 §4-8-7, AIM §5-4-19). When EF targets a
         // runway parallel to the one the aircraft is currently flying FinalApproach on,
