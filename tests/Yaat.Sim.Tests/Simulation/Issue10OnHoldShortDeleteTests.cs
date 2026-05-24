@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue10-on-hold-short-delete-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/0ee0513aa9f0.zip";
     private const string Callsign = "N569SX";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

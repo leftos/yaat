@@ -24,7 +24,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class AdctDuringInitialClimbTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/adct-cancels-initial-climb-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/0ee0513aa9f0.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

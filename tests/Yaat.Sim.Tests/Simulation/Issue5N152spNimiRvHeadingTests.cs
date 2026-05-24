@@ -32,7 +32,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue5N152spNimiRvHeadingTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue5-n152sp-nimi6-rv-sid-not-held-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/0ee0513aa9f0.zip";
     private const string Callsign = "N152SP";
     private const double NimiRvHeadingMag = 315.0;
 

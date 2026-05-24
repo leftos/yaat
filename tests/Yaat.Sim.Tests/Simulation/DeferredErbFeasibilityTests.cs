@@ -31,7 +31,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class DeferredErbFeasibilityTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/s2-oak4-deferred-erb-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/0ee0513aa9f0.zip";
     private const string Callsign = "N2BP";
 
     // The user typed both rejected commands between t=1290 (after RTIS) and
