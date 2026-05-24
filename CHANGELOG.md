@@ -12,6 +12,7 @@
 - `EXT` (and `EXT UPWIND`) now arm the upcoming upwind when issued during a touch-and-go ground roll, pre-T/G final approach, or pre-takeoff.
 - Issuing `CM`/`DM`/`SPD` to an aircraft mid-orbit (after `R360`/`L360`/`R270`/`L270`) or mid-S-turn (`ST`) no longer cancels the turn — altitude and speed clearances now apply alongside the lateral maneuver instead of tearing it down.
 - `EF` on a parallel runway defaults to the side that keeps the downwind clear of the sibling (28R → right, 28L → left), so subsequent `COPT` or auto-go-around cycles stop overflying the parallel.
+- Aircraft taxied to a destination runway via an angled connector (e.g. OAK W1 to RWY 30) no longer end up on the runway centerline during taxi, so the follow-up `CTO` lines up and rolls instead of stalling at the threshold.
 
 ## v0.3.4-beta [2026/05/22]
 

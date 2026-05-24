@@ -183,17 +183,23 @@ internal static class TaxiVariantResolver
 
         for (int i = segmentCountBeforeLastTw; i < segments.Count; i++)
         {
-            int nodeId = i == segmentCountBeforeLastTw ? segments[i].FromNodeId : segments[i].ToNodeId;
+            // First iteration probes the segment's FromNodeId (the entry into the
+            // last taxiway); branchSegmentIndex = i means segments[i..] are removed
+            // and the variant walk starts from FromNodeId. Subsequent iterations
+            // probe ToNodeId — to keep the segment ending at the branch we must use
+            // i + 1 so segments[0..i] survive and segments[i+1..] are removed.
+            bool isFirst = i == segmentCountBeforeLastTw;
+            int nodeId = isFirst ? segments[i].FromNodeId : segments[i].ToNodeId;
 
             if (layout.NodeHasEdgeTo(nodeId, chosenVariant))
             {
                 branchNodeId = nodeId;
-                branchSegmentIndex = i;
+                branchSegmentIndex = isFirst ? i : i + 1;
                 break;
             }
 
             // Also check ToNodeId for first segment
-            if (i == segmentCountBeforeLastTw)
+            if (isFirst)
             {
                 if (layout.NodeHasEdgeTo(segments[i].ToNodeId, chosenVariant))
                 {
@@ -241,8 +247,18 @@ internal static class TaxiVariantResolver
             segments.RemoveRange(branchSegmentIndex, segments.Count - branchSegmentIndex);
         }
 
-        // Walk the variant from the branch point
-        bool walked = TaxiPathfinder.WalkTaxiway(layout, branchNodeId, chosenVariant, segments, out int endNodeId, new WalkOptions());
+        // Walk the variant from the branch point. StopAtRunwayId is mandatory:
+        // without it the walk runs past the destination runway hold-short and onto
+        // the runway centerline (TaxiwayIntersection end of the variant), stranding
+        // the aircraft when LineUpPhase later tries to plan from on-centerline.
+        bool walked = TaxiPathfinder.WalkTaxiway(
+            layout,
+            branchNodeId,
+            chosenVariant,
+            segments,
+            out int endNodeId,
+            new WalkOptions { StopAtRunwayId = destinationRunway }
+        );
         Log.LogDebug(
             "[Variant] AutoExtend: walked {Variant} from #{Branch} → #{End}, success={Walked}",
             chosenVariant,

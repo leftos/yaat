@@ -1317,6 +1317,78 @@ public class TaxiPathfinderTests
         );
     }
 
+    /// <summary>
+    /// Regression: TAXI ... RWY 30 via W → W1 must terminate at the runway
+    /// hold-short, not on the runway centerline. Previously,
+    /// TaxiVariantResolver.AutoExtendVariant called WalkTaxiway without
+    /// StopAtRunwayId, so the W1 walk ran past node 41 (RunwayHoldShort 30/12)
+    /// to node 42 (TaxiwayIntersection on the runway centerline). Aircraft
+    /// reaching that pose got stuck because LineUpGeometry can't plan a path
+    /// from on-centerline / divergent-heading.
+    /// </summary>
+    [Fact]
+    public void OAK_TaxiBW_ToRunway30_TerminatesAtHoldShort()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        TaxiRoute? route = null;
+        string? failReason = null;
+
+        var bEdges = layout.Edges.Where(e => e.MatchesTaxiway("B")).ToList();
+        Assert.True(bEdges.Count > 0, "Should have B edges");
+
+        var triedNodes = new HashSet<int>();
+        foreach (var edge in bEdges)
+        {
+            foreach (int nodeId in new[] { edge.Nodes[0].Id, edge.Nodes[1].Id })
+            {
+                if (!triedNodes.Add(nodeId))
+                {
+                    continue;
+                }
+
+                route = TaxiPathfinder.ResolveExplicitPath(
+                    layout,
+                    nodeId,
+                    ["B", "W"],
+                    out failReason,
+                    new ExplicitPathOptions { DestinationRunway = "30" }
+                );
+
+                if (route is not null)
+                {
+                    break;
+                }
+            }
+
+            if (route is not null)
+            {
+                break;
+            }
+        }
+
+        Assert.NotNull(route);
+
+        int terminalId = route.Segments[^1].ToNodeId;
+        Assert.True(layout.Nodes.TryGetValue(terminalId, out var terminalNode), $"Terminal node #{terminalId} missing from layout");
+
+        Assert.True(
+            terminalNode.Type == GroundNodeType.RunwayHoldShort,
+            $"Route must terminate at a RunwayHoldShort node, not on the runway. "
+                + $"Terminal node #{terminalId} is {terminalNode.Type} "
+                + $"at ({terminalNode.Position.Lat:F6}, {terminalNode.Position.Lon:F6})."
+        );
+
+        Assert.True(
+            terminalNode.RunwayId is { } terminalRwy && terminalRwy.Contains("30"),
+            $"Terminal hold-short #{terminalId} must be for runway 30, but RunwayId={terminalNode.RunwayId?.ToString() ?? "(null)"}"
+        );
+    }
+
     [Fact]
     public void OAK_TaxiDF_CrossesRunway15_33()
     {
