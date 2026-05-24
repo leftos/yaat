@@ -430,7 +430,7 @@ Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChan
                                     # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports. Called from yaat-server's RoomEngine APT handler.
 
 # Phases/ — clearance-gated behavior
-Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance, ManagesSpeed (suppresses auto schedule)
+Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance, OnCommandAccepted (release internal state machines on accept), ManagesSpeed (suppresses auto schedule)
 Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, DepartureClearance, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
 Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerPosition for RV SID heading hold

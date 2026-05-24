@@ -49,14 +49,30 @@ public class PhaseAcceptanceAuditTests
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
     }
 
+    /// <summary>
+    /// InitialClimb accepts lateral instructions (heading + direct-to families)
+    /// additively as well. The CTO-assigned climb-to altitude continues to drive
+    /// the phase; the controller's lateral instruction takes effect immediately
+    /// just as a real pilot would expect during the initial climb after takeoff.
+    /// </summary>
     [Theory]
     [InlineData(CanonicalCommandType.FlyHeading)]
     [InlineData(CanonicalCommandType.TurnLeft)]
+    [InlineData(CanonicalCommandType.TurnRight)]
+    [InlineData(CanonicalCommandType.RelativeLeft)]
+    [InlineData(CanonicalCommandType.RelativeRight)]
+    [InlineData(CanonicalCommandType.FlyPresentHeading)]
+    [InlineData(CanonicalCommandType.ForceHeading)]
     [InlineData(CanonicalCommandType.DirectTo)]
-    public void InitialClimbPhase_HeadingNavCommands_ClearPhase(CanonicalCommandType cmd)
+    [InlineData(CanonicalCommandType.AppendDirectTo)]
+    [InlineData(CanonicalCommandType.TurnLeftDirectTo)]
+    [InlineData(CanonicalCommandType.TurnRightDirectTo)]
+    [InlineData(CanonicalCommandType.ForceDirectTo)]
+    [InlineData(CanonicalCommandType.AppendForceDirectTo)]
+    public void InitialClimbPhase_LateralCommands_Allowed(CanonicalCommandType cmd)
     {
         var phase = new InitialClimbPhase();
-        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(cmd));
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
     }
 
     /// <summary>

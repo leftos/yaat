@@ -274,10 +274,14 @@ public sealed class InitialClimbPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // Altitude and speed adjustments are additive: they update the climb
-        // targets without disturbing the heading guidance baked into the
-        // takeoff clearance (the deferred VFR turn per AIM 4-3-2, or the
-        // published RV SID heading hold).
+        // Altitude, speed, and lateral (heading/direct) instructions are all
+        // additive: they update the corresponding control targets without
+        // tearing down the climb. The CTO-assigned altitude continues to
+        // drive the phase until reached; heading and route amendments take
+        // effect immediately just as a controller would expect during the
+        // initial climb after takeoff. OnCommandAccepted releases the RV SID
+        // heading hold and the deferred-turn gate when needed so the phase's
+        // own state machines don't clobber the controller's instruction.
         return cmd switch
         {
             CanonicalCommandType.ClimbMaintain
@@ -286,9 +290,46 @@ public sealed class InitialClimbPhase : Phase
             or CanonicalCommandType.Mach
             or CanonicalCommandType.ReduceToFinalApproachSpeed
             or CanonicalCommandType.ResumeNormalSpeed
-            or CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
+            or CanonicalCommandType.DeleteSpeedRestrictions
+            or CanonicalCommandType.DirectTo
+            or CanonicalCommandType.AppendDirectTo
+            or CanonicalCommandType.TurnLeftDirectTo
+            or CanonicalCommandType.TurnRightDirectTo
+            or CanonicalCommandType.ForceDirectTo
+            or CanonicalCommandType.AppendForceDirectTo
+            or CanonicalCommandType.FlyHeading
+            or CanonicalCommandType.TurnLeft
+            or CanonicalCommandType.TurnRight
+            or CanonicalCommandType.RelativeLeft
+            or CanonicalCommandType.RelativeRight
+            or CanonicalCommandType.FlyPresentHeading
+            or CanonicalCommandType.ForceHeading => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
+    {
+        // Heading-family commands set Targets.TargetTrueHeading directly. If the
+        // RV SID heading hold is still active, OnTick would re-apply the published
+        // hold heading on the next tick and clobber the controller's instruction.
+        // Same for the deferred-turn gate: once the controller vectors manually,
+        // the auto-apply of the assigned departure turn is no longer wanted.
+        bool isHeadingCommand =
+            cmd
+            is CanonicalCommandType.FlyHeading
+                or CanonicalCommandType.TurnLeft
+                or CanonicalCommandType.TurnRight
+                or CanonicalCommandType.RelativeLeft
+                or CanonicalCommandType.RelativeRight
+                or CanonicalCommandType.FlyPresentHeading
+                or CanonicalCommandType.ForceHeading;
+
+        if (isHeadingCommand)
+        {
+            _rvSidActive = false;
+            _deferredTurnApplied = true;
+        }
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)

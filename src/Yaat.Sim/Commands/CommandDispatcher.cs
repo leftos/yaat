@@ -1121,7 +1121,10 @@ public static class CommandDispatcher
             return PhaseShouldBeCleared;
         }
 
-        // Allowed but not a tower command — shouldn't normally reach here
+        // Allowed but not a tower command. Notify the phase so it can release any
+        // internal state machines (e.g., RV SID heading hold) that would otherwise
+        // clobber the controller-issued change on the next tick.
+        currentPhase.OnCommandAccepted(cmdType, BuildMinimalContext(aircraft, ctx.GroundLayout));
         return null;
     }
 

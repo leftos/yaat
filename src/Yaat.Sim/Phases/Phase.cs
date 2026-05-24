@@ -51,6 +51,14 @@ public abstract class Phase
     }
 
     /// <summary>
+    /// Called after the dispatcher accepts a command (CanAcceptCommand returned Allowed)
+    /// and before the command handler runs. Override to release internal state machines
+    /// that would otherwise fight a controller-issued change (e.g., a heading hold that
+    /// re-applies every tick and would clobber an external FlyHeading).
+    /// </summary>
+    public virtual void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx) { }
+
+    /// <summary>
     /// Override to define clearance requirements for this phase.
     /// </summary>
     protected virtual List<ClearanceRequirement> CreateRequirements()

@@ -6,6 +6,7 @@
 - `RES, CROSS <rwy>` while holding short of a different runway now pre-clears the upcoming crossing instead of failing with "Not holding short".
 - The Strips workspace now outlines the currently-selected bay button in white so it's obvious at a glance which bay drives the rack area.
 - Aircraft active in the scenario stay in the Aircraft List when a student drops a ghost track on them in CRC STARS (AID + slew).
+- Issuing `ADCT`/`DCT`/`H`/`TL`/`TR` during initial climb no longer cancels the climb — heading and route amendments now apply alongside the CTO-assigned altitude.
 
 ## v0.3.5-beta [2026/05/23]
 
