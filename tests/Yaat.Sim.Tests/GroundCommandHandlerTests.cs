@@ -424,9 +424,16 @@ public class GroundCommandHandlerTests
     }
 
     [Fact]
-    public void TryCrossRunway_FromHoldingShort_RunwayMismatch_Fails()
+    public void TryCrossRunway_FromHoldingShort_RunwayMismatch_NotInRoute_Fails()
     {
+        // When in HoldingShortPhase at 28R/10L but the requested runway (01L)
+        // doesn't match and is not an upcoming hold-short in the taxi route,
+        // CROSS falls through to the route pre-clear path and reports that
+        // there's no hold-short for 01L. (When 01L *is* an upcoming hold-short,
+        // the comma form RES, CROSS 01L pre-clears it — see
+        // N7ljResCrossCommaFormTests for that scenario.)
         var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("28R/10L");
         ac.Phases = new PhaseList();
         var holdPhase = new HoldingShortPhase(
             new HoldShortPoint

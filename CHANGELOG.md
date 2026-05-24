@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `RES, CROSS <rwy>` while holding short of a different runway now pre-clears the upcoming crossing instead of failing with "Not holding short".
+
 ## v0.3.5-beta [2026/05/23]
 
 ### Highlights
