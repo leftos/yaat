@@ -16,6 +16,15 @@
             <Setter Property="BorderBrush" Value="#808080"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
+        <!-- Selected own bay: thick white outline on top of the solid grey
+             fill, matching CRC's CD button in docs/crc/img/header.png so the
+             controller can tell at a glance which bay drives the rack area.
+             External bays cannot be selected (SelectBayAsync returns early
+             for them), so this only fires on own bays in practice. -->
+        <Style Selector="Button.selected">
+            <Setter Property="BorderBrush" Value="White"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="36,*">
@@ -100,6 +109,7 @@
                                 FontFamily="{StaticResource MonoFont}"
                                 FontSize="11"
                                 Classes.external="{Binding IsExternal}"
+                                Classes.selected="{Binding IsSelected}"
                                 Click="OnBayButtonClick"
                                 Loaded="OnBayButtonLoaded"/>
                     </DataTemplate>

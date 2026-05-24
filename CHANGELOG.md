@@ -4,6 +4,7 @@
 
 ### Fixed
 - `RES, CROSS <rwy>` while holding short of a different runway now pre-clears the upcoming crossing instead of failing with "Not holding short".
+- The Strips workspace now outlines the currently-selected bay button in white so it's obvious at a glance which bay drives the rack area.
 
 ## v0.3.5-beta [2026/05/23]
 
