@@ -220,7 +220,7 @@ public static class CommandDispatcher
                 }
 
                 // If the just-applied block installed pattern phases (e.g. ERD), any
-                // subsequent SA/MNA blocks would otherwise sit in the queue forever
+                // subsequent SA/MNA/EXT blocks would otherwise sit in the queue forever
                 // — UpdateCommandQueue short-circuits while a phase is active. Apply
                 // them immediately via the tower path so they arm the pending leg.
                 if (aircraft.Phases?.CurrentPhase is { } postApplyPhase)
@@ -234,7 +234,7 @@ public static class CommandDispatcher
                         }
 
                         var parsedCmd = block.ParsedCommands[0];
-                        if (parsedCmd is not (MakeShortApproachCommand or MakeNormalApproachCommand))
+                        if (parsedCmd is not (MakeShortApproachCommand or MakeNormalApproachCommand or ExtendPatternCommand))
                         {
                             break;
                         }
@@ -842,11 +842,13 @@ public static class CommandDispatcher
 
     /// <summary>
     /// True when a parsed block in a compound, occurring after a tower-handled
-    /// first block (e.g. <c>ERD 28R</c>), can be applied immediately rather than
-    /// enqueued. These commands modify the just-installed pattern phases (arming a
-    /// pending downwind for short approach, etc.) and would otherwise sit in the
-    /// command queue forever — <see cref="FlightPhysics"/>.UpdateCommandQueue
-    /// short-circuits while any phase is active.
+    /// first block (e.g. <c>ERD 28R</c> or <c>COPT</c>), can be applied immediately
+    /// rather than enqueued. These commands modify the just-installed or pending
+    /// pattern phases (arming a pending downwind for short approach, extending the
+    /// current or upcoming upwind, etc.) and would otherwise sit in the command
+    /// queue forever — <see cref="FlightPhysics"/>.UpdateCommandQueue short-
+    /// circuits while any phase is active, so the chained modifier would never
+    /// run before its target moment.
     /// </summary>
     private static bool IsImmediatePhaseModifierBlock(ParsedBlock block)
     {
@@ -855,7 +857,7 @@ public static class CommandDispatcher
             return false;
         }
 
-        return block.Commands[0] is MakeShortApproachCommand or MakeNormalApproachCommand;
+        return block.Commands[0] is MakeShortApproachCommand or MakeNormalApproachCommand or ExtendPatternCommand;
     }
 
     private static bool IsPatternEntryWithRunway(ParsedCommand cmd)

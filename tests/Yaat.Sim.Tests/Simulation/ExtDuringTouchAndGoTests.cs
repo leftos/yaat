@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -176,6 +178,169 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
 
         // Layer 1 path → flag stays false because we mutated the queued phase directly.
         Assert.False(aircraft.Pattern.ExtendNextUpwind);
+    }
+
+    [Fact]
+    public void CoptThenExtUpwind_DuringFinalApproach_ArmsNextUpwind()
+    {
+        // Reproduction of the S2-OAK-4 bug: the controller issued `COPT; EXT UPWIND`
+        // to an aircraft on FinalApproach during a closed-pattern T/G cycle. COPT
+        // applied (touch-and-go ending stayed in place) but the chained EXT UPWIND
+        // was silently dropped — the next upwind ran for ~10 s before turning
+        // crosswind. Root cause: `IsImmediatePhaseModifierBlock` only whitelisted
+        // SA/MNA, so the EXT block was enqueued and never fired while phases were
+        // active (UpdateCommandQueue short-circuits with an active phase).
+        var recording = RecordingLoader.Load(RecordingPath);
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 540);
+
+        var aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Contains(aircraft.Phases!.Phases, p => p is TouchAndGoPhase);
+
+        var result = engine.SendCommand(Callsign, "COPT; EXT UPWIND");
+        output.WriteLine($"COPT; EXT UPWIND result: Success={result.Success}, Message={result.Message}");
+
+        Assert.True(result.Success, $"COPT; EXT UPWIND should succeed but got: {result.Message}");
+        Assert.True(
+            aircraft.Pattern.ExtendNextUpwind,
+            "ExtendNextUpwind flag should be set immediately after dispatch — without the fix the EXT block sits enqueued"
+        );
+
+        UpwindPhase? newUpwind = null;
+        for (int dt = 1; dt <= 180; dt++)
+        {
+            engine.ReplayOneSecond();
+            var ac = engine.FindAircraft(Callsign);
+            Assert.NotNull(ac);
+            if (ac.Phases?.CurrentPhase is UpwindPhase up)
+            {
+                newUpwind = up;
+                break;
+            }
+        }
+
+        Assert.NotNull(newUpwind);
+        Assert.True(newUpwind!.IsExtended, "First Upwind of the next circuit should have IsExtended=true (consumed from flag)");
+        Assert.False(aircraft.Pattern.ExtendNextUpwind, "Flag should be cleared after consumption");
+    }
+
+    [Fact]
+    public void CoptThenBareExt_DuringFinalApproach_ArmsNextUpwind()
+    {
+        // Same chained-command bug as CoptThenExtUpwind, but with bare EXT (no leg
+        // arg). Bare EXT on a non-pattern-leg phase routes through TryExtendCurrentLeg
+        // → default branch → TryArmNextUpwind, identical end-state to EXT UPWIND.
+        // Without the IsImmediatePhaseModifierBlock fix, the EXT block is enqueued
+        // and never fires while T/G + new circuit phases are continuously active.
+        var recording = RecordingLoader.Load(RecordingPath);
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 540);
+
+        var aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
+
+        var result = engine.SendCommand(Callsign, "COPT; EXT");
+        output.WriteLine($"COPT; EXT result: Success={result.Success}, Message={result.Message}");
+
+        Assert.True(result.Success, $"COPT; EXT should succeed but got: {result.Message}");
+        Assert.True(aircraft.Pattern.ExtendNextUpwind, "ExtendNextUpwind flag should be set immediately");
+
+        UpwindPhase? newUpwind = null;
+        for (int dt = 1; dt <= 180; dt++)
+        {
+            engine.ReplayOneSecond();
+            var ac = engine.FindAircraft(Callsign);
+            Assert.NotNull(ac);
+            if (ac.Phases?.CurrentPhase is UpwindPhase up)
+            {
+                newUpwind = up;
+                break;
+            }
+        }
+
+        Assert.NotNull(newUpwind);
+        Assert.True(newUpwind!.IsExtended);
+        Assert.False(aircraft.Pattern.ExtendNextUpwind);
+    }
+
+    [Fact]
+    public void ErdThenExtBare_NoPreExistingPhase_ExtendsJustInstalledDownwind()
+    {
+        // Covers the mirror guard at CommandDispatcher.cs:237 — the path that
+        // applies when the aircraft has no active phase before the compound and
+        // the first block (ERD here) installs pattern phases. Subsequent blocks
+        // need the same immediate-modifier whitelist or they sit in the queue
+        // until phases clear. Without the fix, EXT remains enqueued and the
+        // just-installed Downwind is never marked extended.
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        // Place the aircraft right at the right-pattern downwind abeam point so
+        // ERD installs Downwind as the current phase immediately (no upstream
+        // PatternEntryPhase / MidfieldCrossingPhase). That way the assertion can
+        // inspect the just-installed Downwind directly.
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
+        var ac = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "C172",
+            Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon),
+            // Downwind heading is the reciprocal of the runway heading.
+            TrueHeading = wp.FinalHeading.ToReciprocal(),
+            Altitude = wp.PatternAltitude,
+            IndicatedAirspeed = 90,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                Destination = "OAK",
+                FlightRules = "VFR",
+                HasFlightPlan = true,
+            },
+        };
+        // No pre-existing PhaseList — exercises the "no current phase" branch in
+        // DispatchCompoundCore (skips DispatchWithPhase entirely, falls into the
+        // ApplyBlock + post-apply tower-modifier loop at line 222–254).
+
+        var parseResult = CommandParser.ParseCompound("ERD 28R; EXT", ac.FlightPlan.Route);
+        Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
+
+        var dispatchResult = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
+        output.WriteLine($"ERD 28R; EXT result: Success={dispatchResult.Success}, Message={dispatchResult.Message}");
+
+        Assert.True(dispatchResult.Success, $"ERD 28R; EXT should succeed but got: {dispatchResult.Message}");
+
+        // ERD installs Downwind → Base → FinalApproach → Landing; Downwind becomes
+        // the current phase. The chained EXT must be applied immediately so
+        // Downwind.IsExtended is set before any tick runs.
+        var downwind = ac.Phases?.CurrentPhase as DownwindPhase;
+        Assert.NotNull(downwind);
+        Assert.True(
+            downwind!.IsExtended,
+            "Downwind installed by ERD should have IsExtended=true after the chained EXT — without the fix the EXT block stays unapplied in the queue"
+        );
     }
 
     [Fact]
