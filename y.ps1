@@ -518,6 +518,9 @@ No admin password resolved. Tried:
             $zips = @(Get-ChildItem $ckptDir -Filter '*.checkpoint.zip' -ErrorAction SilentlyContinue)
             Write-Host ("  on disk: {0} file(s) in {1}" -f $zips.Count, $ckptDir) -ForegroundColor Gray
         }
+        # Stash the resolved password so callers (e.g. Invoke-RestartLoop) can reuse it
+        # for /shutdown without round-tripping through Resolve-AdminPassword again.
+        $opts.Password = $pw
         return $opts
     }
 
@@ -531,8 +534,9 @@ function Invoke-RestartLoop {
     $opts = Invoke-PrepareRestart  # exits non-zero on its own failure paths
 
     Write-Section "POST $($opts.Url)/shutdown"
+    $shutdownHeaders = @{ 'X-Yaat-Admin-Password' = $opts.Password }
     try {
-        Invoke-RestMethod -Uri "$($opts.Url)/shutdown" -Method Post -TimeoutSec 10 | Out-Null
+        Invoke-RestMethod -Uri "$($opts.Url)/shutdown" -Method Post -Headers $shutdownHeaders -TimeoutSec 10 | Out-Null
         Write-Host '  shutdown requested' -ForegroundColor Green
     } catch {
         Write-Warning "shutdown POST raised: $_  (server may have died before responding -- ok)"

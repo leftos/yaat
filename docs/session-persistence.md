@@ -5,9 +5,9 @@ YAAT can preserve active training rooms across a **planned** server process rest
 ## Operator flow
 
 1. Authenticate as admin on the training hub (`AdminAuthenticate`).
-2. Call `AdminPrepareRestart(drainSeconds)` — broadcasts `ServerRestarting` to all lobby clients, pauses every loaded scenario, waits for the drain window, then writes one ZIP checkpoint per room with an active scenario under `%LOCALAPPDATA%/yaat/session-checkpoints/` (override via `Yaat:SessionCheckpointPath`).
+2. Call `AdminPrepareRestart(drainSeconds)` — broadcasts `ServerRestarting` to all lobby clients, pauses every loaded scenario, waits for the drain window, then writes one ZIP checkpoint per room with an active scenario into `<SessionCheckpointPath>/current/` (default root: `%LOCALAPPDATA%/yaat/session-checkpoints/`). Staging, backup, and post-restore archive directories are siblings of `current/` inside the same root.
 3. Wait for `ServerRestartReady` on clients (or server log: "Prepared restart").
-4. `POST /shutdown` (or stop the process). Without a prior prepare, `/shutdown` returns 400 unless `?force=true`.
+4. `POST /shutdown` with header `X-Yaat-Admin-Password: <password>` (or stop the process). Without a prior prepare, `/shutdown` returns 400 unless `?force=true`. Without the password header, `/shutdown` returns 401.
 5. Start the server. `SessionRestoreHostedService` reloads checkpoints (default max age 24h, `Yaat:SessionCheckpointMaxAgeHours`), recreates rooms with the **same `RoomId`**, and broadcasts `ServerRestartComplete`.
 6. Clients reconnect (SignalR auto-reconnect), call `FindRoomForMyCid` / `JoinRoom`, and receive full `RoomStateDto` plus strip initial state.
 
@@ -36,10 +36,10 @@ Restore applies the final snapshot directly (no replay-from-zero). Coordination 
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `SessionCheckpointPath` | `%LOCALAPPDATA%/yaat/session-checkpoints` | Checkpoint directory |
+| `SessionCheckpointPath` | `%LOCALAPPDATA%/yaat/session-checkpoints` | Checkpoint root. The runtime writes the live set to `<this>/current/`, with `.staging-*/`, `.old-*/`, and `restored-*/` as siblings inside. Safe to point at a Docker bind volume mount root — the root itself is never renamed. |
 | `SessionCheckpointMaxAgeHours` | `24` | Skip stale checkpoints on restore |
 | `PrepareRestartDrainSeconds` | `30` | Default drain when hub arg is `0` |
-| `SessionCheckpointArchiveKeepCount` | `3` | Retained `session-checkpoints-restored-*` dirs after restore |
+| `SessionCheckpointArchiveKeepCount` | `3` | Retained `restored-*` dirs after restore |
 
 ## CRC
 
