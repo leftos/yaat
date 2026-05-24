@@ -33,7 +33,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/taxi-cto-sequential-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/c0c9f6aa6cb7.zip";
     private const string Callsign = "N152SP";
 
     /// <summary>Snapshot timestamp just before the <c>TAXI E RWY 28R; CTO MRT</c> dispatch at t=607.</summary>

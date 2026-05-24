@@ -31,7 +31,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/157le-cto-mlt-runway-30-stuck-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/c0c9f6aa6cb7.zip";
     private const string Callsign = "N157LE";
 
     /// <summary>

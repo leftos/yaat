@@ -29,7 +29,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/s2-oak-3-ext-during-touch-and-go-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/c0c9f6aa6cb7.zip";
     private const string Callsign = "N172SP";
 
     private SimulationEngine? BuildEngine()
