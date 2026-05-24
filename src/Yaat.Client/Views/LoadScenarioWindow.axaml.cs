@@ -183,9 +183,7 @@ public partial class LoadScenarioWindow : Window
         }
 
         var facilitySel = _artccFacilityFilter.SelectedItem as string;
-        var filtered = _allArtccItems
-            .Where(i => facilitySel is null or "All" || i.Facility == facilitySel)
-            .ToList();
+        var filtered = _allArtccItems.Where(i => facilitySel is null or "All" || i.Facility == facilitySel).ToList();
 
         _artccScenarioList.ItemsSource = filtered;
         _artccScenarioList.SelectedItem = null;

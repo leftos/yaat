@@ -511,6 +511,7 @@ public partial class RadarView : UserControl
         _canvas.SelectedOverrideColor = ParseHexColor(prefs.SelectedColor);
         _canvas.EuroScopeMode = prefs.EuroScopeMode;
         _canvas.FlashNoLandingClearance = prefs.FlashNoLandingClearance;
+        _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
         _canvas.DatablockTextSize = prefs.RadarDatablockFontSize;
         Flyouts.FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
     }

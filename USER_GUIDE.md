@@ -392,6 +392,15 @@ The preview shows a turn-anticipation arc (standard rate, radius derived from cu
 
 For a primary-source reference on the EuroScope conventions this mode mirrors, see [`docs/euroscope/pseudopilot.md`](docs/euroscope/pseudopilot.md).
 
+#### Speech Bubbles
+
+Enable **Settings > Display > Overlays > "Show speech bubbles for SAY and pilot transmissions"** to overlay a transient bubble below the aircraft's datablock whenever a SAY-family command (`SAY`, `SAYF`, `SALT`, `SHDG`, `SPOS`, `SSPD`, `SMACH`, `SEAPP`) or an RPO pilot transmission (clear-of-runway, midfield position report, "have N123 in sight", etc.) is reported for that aircraft. The bubble auto-clears after a few seconds — duration scales with text length (4 s floor, 12 s ceiling) so short calls don't blink and long position reports stay long enough to read. A new transmission for the same aircraft replaces the previous bubble.
+
+- **Click a bubble** to dismiss it early. Click-and-drag still pans the map normally — only a deliberate click clears the bubble.
+- **Render order** — aircraft with an active bubble are drawn on top of neighbors, so the bubble and its datablock are never obscured by overlapping datablocks.
+- **Off by default** (opt-in). Disabled entirely in solo-training mode, where the pilot voice TTS already plays the transmission audibly.
+- **Works on the Ground view too** — same pref, same rendering.
+
 Video maps load automatically from the vNAS data API based on your [ARTCC](#glossary) ID.
 
 **Per-scenario persistence** — Radar view settings (maps, center, zoom, range rings, PTL, brightness, lock) are saved independently for each scenario.

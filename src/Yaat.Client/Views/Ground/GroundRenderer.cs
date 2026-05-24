@@ -251,14 +251,62 @@ public sealed class GroundRenderer : IDisposable
         Typeface = PlatformHelper.MonospaceTypefaceBold,
     };
 
+    // Bubble pill paints — mirror the radar palette so SAY overlays read the same on both views.
+    private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
+    private static readonly SKColor SpeechBubbleBorderColor = new(80, 220, 140);
+
+    private readonly SKPaint _bubbleFillPaint = new()
+    {
+        Color = SpeechBubbleFillColor,
+        Style = SKPaintStyle.Fill,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _bubbleBorderPaint = new()
+    {
+        Color = SpeechBubbleBorderColor,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _bubbleTextPaint = new()
+    {
+        TextSize = 12,
+        Color = SKColors.White,
+        IsAntialias = true,
+        SubpixelText = true,
+        Typeface = PlatformHelper.MonospaceTypefaceBold,
+    };
+
     /// <summary>
     /// Datablock text size in pixels. Updated from UserPreferences.GroundDatablockFontSize.
     /// </summary>
     public float DatablockTextSize
     {
         get => _dataBlockTextPaint.TextSize;
-        set => _dataBlockTextPaint.TextSize = value;
+        set
+        {
+            _dataBlockTextPaint.TextSize = value;
+            _bubbleTextPaint.TextSize = value;
+        }
     }
+
+    /// <summary>
+    /// When true, aircraft with an active <see cref="AircraftModel.SpeechBubble"/> have their
+    /// datablock re-rendered on top of neighboring datablocks, plus a transient bubble pill
+    /// painted below it. Driven by the <c>ShowSpeechBubbles</c> user preference.
+    /// </summary>
+    public bool ShowSpeechBubbles { get; set; }
+
+    /// <summary>
+    /// Per-aircraft bubble rect captured during the last DrawDataBlocks pass. Populated only
+    /// when <see cref="ShowSpeechBubbles"/> is on and the aircraft has an active bubble.
+    /// Consumed by GroundCanvas hit-testing for the click-to-dismiss behavior.
+    /// </summary>
+    public IReadOnlyDictionary<string, SKRect> LastBubbleRects => _lastBubbleRects;
+
+    private readonly Dictionary<string, SKRect> _lastBubbleRects = [];
 
     /// <summary>
     /// Base label text size in pixels (taxi-label baseline). Runway labels render at base+2,
@@ -1771,64 +1819,248 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlySet<string>? hiddenDataBlockCallsigns
     )
     {
+        // Two-pass render so bubbled aircraft's datablock + bubble paint above neighbors.
+        // List allocated only when bubbles are enabled.
+        _lastBubbleRects.Clear();
+        List<AircraftModel>? deferred = null;
+        var now = ShowSpeechBubbles ? DateTime.UtcNow : default;
+
         foreach (var ac in aircraft)
         {
-            bool isAirborne = !ac.IsOnGround;
-            if (isAirborne && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
+            if (ShowSpeechBubbles && IsBubbleActive(ac.SpeechBubble, now))
             {
+                deferred ??= new List<AircraftModel>();
+                deferred.Add(ac);
                 continue;
             }
+            DrawOneDataBlock(
+                canvas,
+                vp,
+                ac,
+                selectedAircraft,
+                dataBlockOffsets,
+                airportCenterLat,
+                airportCenterLon,
+                airportElevation,
+                highlightedCallsigns,
+                hiddenDataBlockCallsigns,
+                drawBubble: false
+            );
+        }
 
-            bool isSelected = ac == selectedAircraft;
-            bool isHidden = hiddenDataBlockCallsigns is not null && hiddenDataBlockCallsigns.Contains(ac.Callsign);
-            if (isHidden && !isSelected)
+        if (deferred is not null)
+        {
+            foreach (var ac in deferred)
             {
-                continue;
-            }
-
-            var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-
-            SKPoint offset = DataBlockLayout.DefaultOffset;
-            if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
-            {
-                offset = customOffset;
-            }
-
-            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);
-
-            bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
-            var dbColor =
-                isHighlighted ? SKColors.Cyan
-                : isSelected ? _aircraftColor
-                : _datablockTextColor;
-
-            _dataBlockTextPaint.Color = dbColor;
-            canvas.DrawRect(layout.Rect, _dataBlockBgPaint);
-
-            if (isSelected)
-            {
-                _dataBlockLeaderPaint.Color = _aircraftColor;
-                canvas.DrawRect(layout.Rect, _dataBlockLeaderPaint);
-            }
-
-            var leaderEnd = ClampToBlockEdge(sx, sy, layout.Rect);
-            _dataBlockLeaderPaint.Color = dbColor;
-            canvas.DrawLine(sx, sy, leaderEnd.X, leaderEnd.Y, _dataBlockLeaderPaint);
-
-            canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockTextPaint);
-            canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, _dataBlockTextPaint);
-            int row = 2;
-            if (layout.Line3.Length > 0)
-            {
-                canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
-                row++;
-            }
-
-            if (layout.Line4.Length > 0)
-            {
-                canvas.DrawText(layout.Line4, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
+                DrawOneDataBlock(
+                    canvas,
+                    vp,
+                    ac,
+                    selectedAircraft,
+                    dataBlockOffsets,
+                    airportCenterLat,
+                    airportCenterLon,
+                    airportElevation,
+                    highlightedCallsigns,
+                    hiddenDataBlockCallsigns,
+                    drawBubble: true
+                );
             }
         }
+    }
+
+    private static bool IsBubbleActive(AircraftSpeechBubble? bubble, DateTime now) => bubble is not null && bubble.ExpiresAt > now;
+
+    private void DrawOneDataBlock(
+        SKCanvas canvas,
+        MapViewport vp,
+        AircraftModel ac,
+        AircraftModel? selectedAircraft,
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        double airportCenterLat,
+        double airportCenterLon,
+        double airportElevation,
+        IReadOnlySet<string>? highlightedCallsigns,
+        IReadOnlySet<string>? hiddenDataBlockCallsigns,
+        bool drawBubble
+    )
+    {
+        bool isAirborne = !ac.IsOnGround;
+        if (isAirborne && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
+        {
+            return;
+        }
+
+        bool isSelected = ac == selectedAircraft;
+        bool isHidden = hiddenDataBlockCallsigns is not null && hiddenDataBlockCallsigns.Contains(ac.Callsign);
+        if (isHidden && !isSelected)
+        {
+            return;
+        }
+
+        var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+
+        SKPoint offset = DataBlockLayout.DefaultOffset;
+        if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+        {
+            offset = customOffset;
+        }
+
+        var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);
+
+        bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
+        var dbColor =
+            isHighlighted ? SKColors.Cyan
+            : isSelected ? _aircraftColor
+            : _datablockTextColor;
+
+        _dataBlockTextPaint.Color = dbColor;
+        canvas.DrawRect(layout.Rect, _dataBlockBgPaint);
+
+        if (isSelected)
+        {
+            _dataBlockLeaderPaint.Color = _aircraftColor;
+            canvas.DrawRect(layout.Rect, _dataBlockLeaderPaint);
+        }
+
+        var leaderEnd = ClampToBlockEdge(sx, sy, layout.Rect);
+        _dataBlockLeaderPaint.Color = dbColor;
+        canvas.DrawLine(sx, sy, leaderEnd.X, leaderEnd.Y, _dataBlockLeaderPaint);
+
+        canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockTextPaint);
+        canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, _dataBlockTextPaint);
+        int row = 2;
+        if (layout.Line3.Length > 0)
+        {
+            canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
+            row++;
+        }
+
+        if (layout.Line4.Length > 0)
+        {
+            canvas.DrawText(layout.Line4, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
+        }
+
+        if (drawBubble && ac.SpeechBubble is { } bubble)
+        {
+            var bubbleRect = DrawSpeechBubble(canvas, layout.Rect, bubble.Text);
+            if (bubbleRect is { } r)
+            {
+                _lastBubbleRects[ac.Callsign] = r;
+            }
+        }
+    }
+
+    private const int SpeechBubbleMaxLineChars = 36;
+    private const int SpeechBubbleMaxLines = 3;
+
+    private SKRect? DrawSpeechBubble(SKCanvas canvas, SKRect anchor, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        var lines = WrapBubbleText(text);
+        if (lines.Count == 0)
+        {
+            return null;
+        }
+
+        float lineH = _bubbleTextPaint.TextSize + 2;
+        float maxLineWidth = 0;
+        foreach (var line in lines)
+        {
+            float w = _bubbleTextPaint.MeasureText(line);
+            if (w > maxLineWidth)
+            {
+                maxLineWidth = w;
+            }
+        }
+
+        const float pad = 4f;
+        const float gap = 4f;
+        float left = anchor.Left;
+        float top = anchor.Bottom + gap;
+        float right = left + maxLineWidth + 2 * pad;
+        float bottom = top + lines.Count * lineH + 2 * pad - 2;
+        var rect = new SKRect(left, top, right, bottom);
+
+        canvas.DrawRoundRect(rect, 3f, 3f, _bubbleFillPaint);
+        canvas.DrawRoundRect(rect, 3f, 3f, _bubbleBorderPaint);
+
+        float textX = left + pad;
+        float baseline = top + pad + _bubbleTextPaint.TextSize;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            canvas.DrawText(lines[i], textX, baseline + i * lineH, _bubbleTextPaint);
+        }
+
+        return rect;
+    }
+
+    private static List<string> WrapBubbleText(string text)
+    {
+        var lines = new List<string>();
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var current = new System.Text.StringBuilder();
+        foreach (var word in words)
+        {
+            if (word.Length >= SpeechBubbleMaxLineChars)
+            {
+                if (current.Length > 0)
+                {
+                    lines.Add(current.ToString());
+                    current.Clear();
+                    if (lines.Count >= SpeechBubbleMaxLines)
+                    {
+                        break;
+                    }
+                }
+                lines.Add(word[..Math.Min(SpeechBubbleMaxLineChars, word.Length)]);
+                if (lines.Count >= SpeechBubbleMaxLines)
+                {
+                    break;
+                }
+                continue;
+            }
+
+            int prospective = current.Length + (current.Length > 0 ? 1 : 0) + word.Length;
+            if (prospective > SpeechBubbleMaxLineChars)
+            {
+                lines.Add(current.ToString());
+                current.Clear();
+                if (lines.Count >= SpeechBubbleMaxLines)
+                {
+                    break;
+                }
+            }
+            if (current.Length > 0)
+            {
+                current.Append(' ');
+            }
+            current.Append(word);
+        }
+        if (current.Length > 0 && lines.Count < SpeechBubbleMaxLines)
+        {
+            lines.Add(current.ToString());
+        }
+
+        if (lines.Count == SpeechBubbleMaxLines)
+        {
+            int totalUsed = lines.Sum(l => l.Length) + (lines.Count - 1);
+            if (totalUsed < text.Length)
+            {
+                var last = lines[^1];
+                if (last.Length >= SpeechBubbleMaxLineChars - 1)
+                {
+                    last = last[..(SpeechBubbleMaxLineChars - 1)];
+                }
+                lines[^1] = last + "…";
+            }
+        }
+
+        return lines;
     }
 
     private static bool IsAirborneVisible(AircraftModel ac, double airportCenterLat, double airportCenterLon, double airportElevation)
@@ -1951,5 +2183,8 @@ public sealed class GroundRenderer : IDisposable
         _bgPaint.Dispose();
         _debugLabelPaint.Dispose();
         _debugEdgeLabelPaint.Dispose();
+        _bubbleFillPaint.Dispose();
+        _bubbleBorderPaint.Dispose();
+        _bubbleTextPaint.Dispose();
     }
 }

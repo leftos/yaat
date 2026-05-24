@@ -80,7 +80,37 @@ public partial class MainViewModel
             {
                 _pilotSpeechAlerts.PlayDing();
             }
+
+            MaybeAttachSpeechBubble(kind, dto.Callsign, dto.Message);
         });
+    }
+
+    /// <summary>
+    /// When the user has opted in to speech bubbles (Settings → Display → Overlays) and the
+    /// session is not in solo-training mode (where TTS already covers pilot transmissions),
+    /// attach a transient bubble to the matching aircraft for SAY-family and RPO pilot-speech
+    /// entries. The radar and ground renderers pick it up on the next frame. A second message
+    /// for the same callsign replaces the existing bubble (single slot, no queue). Unknown
+    /// callsigns are dropped silently. Gating is delegated to <see cref="AircraftSpeechBubble.TryBuild"/>
+    /// so the predicate can be unit-tested without fabricating a full view-model.
+    /// </summary>
+    private void MaybeAttachSpeechBubble(TerminalEntryKind kind, string callsign, string message)
+    {
+        if (string.IsNullOrEmpty(callsign))
+        {
+            return;
+        }
+        var bubble = AircraftSpeechBubble.TryBuild(_preferences.ShowSpeechBubbles, SessionSoloTrainingMode, kind, message, DateTime.UtcNow);
+        if (bubble is null)
+        {
+            return;
+        }
+        var aircraft = FindAircraft(callsign);
+        if (aircraft is null)
+        {
+            return;
+        }
+        aircraft.SpeechBubble = bubble;
     }
 
     private void OnPilotTransmissionReceived(PilotTransmissionBroadcastDto dto)

@@ -260,13 +260,7 @@ public partial class MainViewModel
         try
         {
             var soloGoAround = _preferences.GetSoloGoAroundProbability(apiScenarioId);
-            var result = await _connection.LoadScenarioByIdAsync(
-                apiScenarioId,
-                _preferences.TrainingKey,
-                100,
-                100,
-                soloGoAround
-            );
+            var result = await _connection.LoadScenarioByIdAsync(apiScenarioId, _preferences.TrainingKey, 100, 100, soloGoAround);
 
             if (result.AccessDeniedReason is { } reason)
             {

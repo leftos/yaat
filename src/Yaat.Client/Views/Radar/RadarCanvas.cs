@@ -136,6 +136,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
     private int _nextZOrder = 1;
 
+    // Click-to-dismiss state for the opt-in speech bubble. On press inside a bubble, record
+    // the callsign + position; on release, if the pointer barely moved, clear the bubble.
+    // A real drag (pan, datablock reposition) exceeds the threshold and leaves the bubble alone.
+    private string? _bubblePressCallsign;
+    private Point _bubblePressPos;
+    private const double BubbleClickMaxMovementSq = 25.0;
+
     public IReadOnlyList<AircraftModel>? Aircraft
     {
         get => GetValue(AircraftProperty);
@@ -358,6 +365,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public bool ShowSpeechBubbles
+    {
+        get => _renderer.ShowSpeechBubbles;
+        set
+        {
+            _renderer.ShowSpeechBubbles = value;
+            MarkDirty();
+        }
+    }
+
     public float DatablockTextSize
     {
         get => _renderer.DatablockTextSize;
@@ -369,6 +386,48 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     }
 
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _renderer.LastEuroScopeTags;
+
+    public IReadOnlyDictionary<string, SKRect> LastBubbleRects => _renderer.LastBubbleRects;
+
+    private void DismissSpeechBubble(string callsign)
+    {
+        if (Aircraft is null)
+        {
+            return;
+        }
+        foreach (var ac in Aircraft)
+        {
+            if (ac.Callsign == callsign && ac.SpeechBubble is not null)
+            {
+                ac.SpeechBubble = null;
+                MarkDirty();
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns the aircraft whose speech bubble contains <paramref name="screenPos"/>, or null.
+    /// Used by <see cref="OnPointerPressed"/> / <see cref="OnPointerReleased"/> to implement
+    /// the click-to-dismiss gesture for opt-in speech bubbles.
+    /// </summary>
+    public AircraftModel? FindBubbleAircraftAtPoint(Point screenPos)
+    {
+        if (Aircraft is null || LastBubbleRects.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var ac in Aircraft)
+        {
+            if (LastBubbleRects.TryGetValue(ac.Callsign, out var rect) && rect.Contains((float)screenPos.X, (float)screenPos.Y))
+            {
+                return ac;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>True while a heading-vector interaction is in progress (cursor preview drawing).</summary>
     public bool IsHeadingModeActive => _renderer.HeadingPreview is not null;
@@ -963,7 +1022,19 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 return;
             }
 
-            EmptySpaceClicked?.Invoke();
+            // Speech-bubble click-to-dismiss: record the press but don't dismiss yet — let
+            // pan/drag still initiate via base.OnPointerPressed below. Release-side checks
+            // pointer movement and commits the dismiss only when the user really clicked.
+            var bubbleAc = FindBubbleAircraftAtPoint(pos);
+            if (bubbleAc is not null)
+            {
+                _bubblePressCallsign = bubbleAc.Callsign;
+                _bubblePressPos = pos;
+            }
+            else
+            {
+                EmptySpaceClicked?.Invoke();
+            }
         }
 
         base.OnPointerPressed(e);
@@ -1055,6 +1126,21 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             _dragCallsign = null;
             e.Handled = true;
             return;
+        }
+
+        // Bubble click-to-dismiss: commit only when pointer barely moved. If the user dragged
+        // (panned the map) the bubble stays — they didn't "click" it.
+        if (_bubblePressCallsign is not null && e.InitialPressMouseButton == MouseButton.Left)
+        {
+            var releasePos = e.GetPosition(this);
+            var dx = releasePos.X - _bubblePressPos.X;
+            var dy = releasePos.Y - _bubblePressPos.Y;
+            if (dx * dx + dy * dy <= BubbleClickMaxMovementSq)
+            {
+                DismissSpeechBubble(_bubblePressCallsign);
+                e.Handled = true;
+            }
+            _bubblePressCallsign = null;
         }
 
         if (_rightButtonDown && e.InitialPressMouseButton == MouseButton.Right)

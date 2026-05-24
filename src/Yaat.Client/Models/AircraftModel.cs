@@ -646,6 +646,15 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private SmartStatusSeverity _smartStatusSeverity = SmartStatusSeverity.Normal;
 
+    /// <summary>
+    /// Opt-in transient overlay populated by <see cref="ViewModels.MainViewModel"/> when a
+    /// SAY-family or RPO pilot-speech terminal entry arrives. The radar / ground renderers
+    /// draw this near the aircraft and drop it once <c>ExpiresAt</c> has passed. Never set
+    /// from <see cref="AircraftDto"/> — purely client-side.
+    /// </summary>
+    [ObservableProperty]
+    private AircraftSpeechBubble? _speechBubble;
+
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         var model = new AircraftModel

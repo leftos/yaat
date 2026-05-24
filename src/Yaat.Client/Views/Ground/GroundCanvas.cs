@@ -173,6 +173,54 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             MarkDirty();
         }
     }
+
+    public bool ShowSpeechBubbles
+    {
+        get => _renderer.ShowSpeechBubbles;
+        set
+        {
+            _renderer.ShowSpeechBubbles = value;
+            MarkDirty();
+        }
+    }
+
+    public IReadOnlyDictionary<string, SKRect> LastBubbleRects => _renderer.LastBubbleRects;
+
+    public AircraftModel? FindBubbleAircraftAtPoint(Point screenPos)
+    {
+        if (Aircraft is null || LastBubbleRects.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var ac in Aircraft)
+        {
+            if (LastBubbleRects.TryGetValue(ac.Callsign, out var rect) && rect.Contains((float)screenPos.X, (float)screenPos.Y))
+            {
+                return ac;
+            }
+        }
+
+        return null;
+    }
+
+    private void DismissSpeechBubble(string callsign)
+    {
+        if (Aircraft is null)
+        {
+            return;
+        }
+        foreach (var ac in Aircraft)
+        {
+            if (ac.Callsign == callsign && ac.SpeechBubble is not null)
+            {
+                ac.SpeechBubble = null;
+                MarkDirty();
+                return;
+            }
+        }
+    }
+
     private int? _hoveredNodeId;
     private string? _hoveredRunwayEnd;
     private bool _initialFitDone;
@@ -188,6 +236,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private readonly HashSet<string> _hiddenDataBlockCallsigns = [];
     private readonly HashSet<string> _shownDataBlockCallsigns = [];
     private bool _startWithAllHidden;
+
+    // Click-to-dismiss state for opt-in speech bubbles. See RadarCanvas for the same pattern.
+    private string? _bubblePressCallsign;
+    private Point _bubblePressPos;
+    private const double BubbleClickMaxMovementSq = 25.0;
 
     public GroundLayoutDto? Layout
     {
@@ -880,7 +933,18 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 }
             }
 
-            EmptySpaceClicked?.Invoke();
+            // Speech-bubble click-to-dismiss: record the press but let pan still initiate.
+            // Release-side checks pointer movement and only dismisses on a genuine click.
+            var bubbleAc = FindBubbleAircraftAtPoint(pos);
+            if (bubbleAc is not null)
+            {
+                _bubblePressCallsign = bubbleAc.Callsign;
+                _bubblePressPos = pos;
+            }
+            else
+            {
+                EmptySpaceClicked?.Invoke();
+            }
         }
 
         base.OnPointerPressed(e);
@@ -894,6 +958,19 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             _dragCallsign = null;
             e.Handled = true;
             return;
+        }
+
+        if (_bubblePressCallsign is not null && e.InitialPressMouseButton == MouseButton.Left)
+        {
+            var releasePos = e.GetPosition(this);
+            var dx = releasePos.X - _bubblePressPos.X;
+            var dy = releasePos.Y - _bubblePressPos.Y;
+            if (dx * dx + dy * dy <= BubbleClickMaxMovementSq)
+            {
+                DismissSpeechBubble(_bubblePressCallsign);
+                e.Handled = true;
+            }
+            _bubblePressCallsign = null;
         }
 
         base.OnPointerReleased(e);

@@ -1305,5 +1305,6 @@ public partial class GroundView : UserControl
 
         _canvas.DatablockTextSize = prefs.GroundDatablockFontSize;
         _canvas.LabelTextSize = prefs.GroundLabelFontSize;
+        _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
     }
 }

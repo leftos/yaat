@@ -248,6 +248,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.FlashNoLandingClearance = value;
     }
 
+    public bool ShowSpeechBubbles
+    {
+        get => _targetRenderer.ShowSpeechBubbles;
+        set => _targetRenderer.ShowSpeechBubbles = value;
+    }
+
     public float DatablockTextSize
     {
         get => _targetRenderer.DatablockTextSize;
@@ -255,6 +261,8 @@ public sealed class RadarRenderer : IDisposable
     }
 
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _targetRenderer.LastEuroScopeTags;
+
+    public IReadOnlyDictionary<string, SKRect> LastBubbleRects => _targetRenderer.LastBubbleRects;
 
     /// <summary>
     /// When non-null, the radar draws an active heading-vector preview for the named aircraft

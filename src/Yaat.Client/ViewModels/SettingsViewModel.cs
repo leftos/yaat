@@ -150,6 +150,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _flashNoLandingClearance;
 
     [ObservableProperty]
+    private bool _showSpeechBubbles;
+
+    [ObservableProperty]
     private bool _autoClearedToLandGnd;
 
     [ObservableProperty]
@@ -525,6 +528,7 @@ public partial class SettingsViewModel : ObservableObject
         _validateDctFixes = _preferences.ValidateDctFixes;
         _euroScopeMode = _preferences.EuroScopeMode;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
+        _showSpeechBubbles = _preferences.ShowSpeechBubbles;
         _autoClearedToLandGnd = _preferences.AutoClearedToLandGnd;
         _autoClearedToLandTwr = _preferences.AutoClearedToLandTwr;
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
@@ -644,6 +648,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
+        _preferences.SetShowSpeechBubbles(ShowSpeechBubbles);
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
@@ -1409,6 +1414,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnGroundHideDataBlocksByDefaultChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnFlashNoLandingClearanceChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnShowSpeechBubblesChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     // ---------- CUDA backend install ----------
 

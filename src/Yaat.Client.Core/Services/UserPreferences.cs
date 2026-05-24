@@ -145,6 +145,7 @@ public sealed class UserPreferences
     public bool ValidateDctFixes => _data.ValidateDctFixes;
     public bool EuroScopeMode => _data.EuroScopeMode;
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
+    public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -573,6 +574,12 @@ public sealed class UserPreferences
     public void SetFlashNoLandingClearance(bool enabled)
     {
         _data.FlashNoLandingClearance = enabled;
+        Save();
+    }
+
+    public void SetShowSpeechBubbles(bool enabled)
+    {
+        _data.ShowSpeechBubbles = enabled;
         Save();
     }
 
@@ -1299,6 +1306,7 @@ public sealed class UserPreferences
         public bool ValidateDctFixes { get; set; }
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
+        public bool ShowSpeechBubbles { get; set; }
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

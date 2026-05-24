@@ -80,7 +80,9 @@ public static class ScenarioRatingClassifier
         return required switch
         {
             ScenarioRatingTier.Ungated => true,
-            ScenarioRatingTier.S3 => unlocked.Contains(ScenarioRatingTier.S3) || unlocked.Contains(ScenarioRatingTier.C1) || unlocked.Contains(ScenarioRatingTier.I1),
+            ScenarioRatingTier.S3 => unlocked.Contains(ScenarioRatingTier.S3)
+                || unlocked.Contains(ScenarioRatingTier.C1)
+                || unlocked.Contains(ScenarioRatingTier.I1),
             ScenarioRatingTier.C1 => unlocked.Contains(ScenarioRatingTier.C1) || unlocked.Contains(ScenarioRatingTier.I1),
             ScenarioRatingTier.I1 => unlocked.Contains(ScenarioRatingTier.I1),
             _ => false,
