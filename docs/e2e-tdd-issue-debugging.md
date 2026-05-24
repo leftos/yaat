@@ -515,30 +515,15 @@ All test data lives in `tests/Yaat.Sim.Tests/TestData/`.
 | `oak.geojson` | OAK airport ground layout |
 | `sfo.geojson` | SFO airport ground layout |
 
-### Recordings
+### Recordings folder
 
-| File | Issue | Aircraft | Bug |
-|------|-------|----------|-----|
-| `issue58-jstar-intermediate-fix-recording.json` | #58 | KFB7 | JSTAR intermediate fix joining — backwards STAR route |
-| `issue58-star-180-recording.json` | #58 | SWA797 | NavigationPath STAR token causes 180 reversal |
-| `issue62-altitude-profile-recording.json` | #62 | — | onAltitudeProfile flag ignored, DVIA not working |
-| `issue67-procedure-version-recording.json` | #67 | — | Outdated STAR version (BDEGA3 → BDEGA4) |
-| `issue67-dvia-recording.json` | #67 | — | DVIA constraints not applied without runway suffix |
-| `issue70-route-following-recording.json` | #70 | EVA18 | Fix-to-fix routing ignored (PIRAT → SAU) |
-| `issue74-capp-wrong-transition-recording.json` | #74 | UAL238 | CAPP picks CCR transition via BERKS false positive |
-| `issue77-alwys-descent-recording.json` | #77 | SKW5456 | ALWYS3 STAR descent — AtOrAbove constraint not triggering descent |
-| `issue134-oak-runway-exit-recording.json` | #134 | N70CS | OAK 28L runway exit picks intermediate routing vertex instead of real taxiway |
-| `issue-l360-stalls-recording.yaat-bug-report-bundle.zip` | — | N44444 | L360/R360 stalled at 1° because `MakeTurnPhase` never re-issued `TargetTrueHeading` after the snap cleared `PreferredTurnDirection` |
-| `oak-taxi-recording.json` | — | NKS2904 | OAK taxi routing baseline |
-| `oak-ga-spawn-turnaround-recording.yaat-bug-report-bundle.zip` | — | N346G, N172SP | OAK GA parking spawn — pathfinder picks an arc whose exit tangent is opposite the next route segment, forcing a 270° CW spiral |
-| `oak-prefer-later-onside-exit-recording.yaat-bug-report-bundle.zip` | — | N805FM | OAK 28R landing — preferred-side hold-short occupied; planner falls back to off-side at the same exit instead of skipping forward to the next on-side option |
-| `n427mx-elb-long-base-descent-recording.yaat-bug-report-bundle.zip` | — | N427MX | OAK ELB 28L issued ~9 nm SE at 1400 ft — `BasePhase.OnStart` only lowered `midAlt` to GS-at-rollout for short finals, so long bases descended to half-TPA (509 ft) far before glide path |
-| `oak-taxi-jc-spin-recording.yaat-bug-report-bundle.zip` | — | N70CS | OAK `TAXI J C HS 28R` after landing 28L — `BuildSpeedConstraints` looked at per-corner turn only, missing the cumulative turn distributed across a fillet-split chord chain (~80° over 158 ft on J around intersection 387). Aircraft entered the chain at 30 kts with no slowdown, couldn't turn fast enough per chord, ended up cross-tracked, and pure-pursuit settled into a stable orbit around target node 383 |
-| `mr270-dct-wrong-direction-recording.yaat-bug-report-bundle.zip` | — | N172SP | OAK 28R `CTO MR270 014; DCT OAK30NUM VPMID` — InitialClimb's deferred VFR turn set `PreferredTurnDirection=Right`. Phase exits at `HeadingToleranceDeg=1.0°`, but `UpdateHeading`'s snap that normally clears the bias requires `<0.5°`, so the Right preference leaks past phase exit. When the queued DCT activates, `UpdateNavigation` writes a new bearing-to-fix and the stale Right bias forces the long way around (~219° right) instead of the short way (~83° left) to OAK30NUM. Fixed by clearing `PreferredTurnDirection` in `InitialClimbPhase.OnEnd` |
-| `n342t-follow-after-extend-recording.yaat-bug-report-bundle.zip` | — | N342T | OAK 28R Downwind — `EXT` then `FOLLOW N10194` left `DownwindPhase.IsExtended=true`, so `OnTick` kept returning `false` and the aircraft never turned base. `CheckLeadLifecycle` then cancelled FOLLOW after 30 s because the lead (on Final westbound) was naturally diverging from the follower (Downwind eastbound). Fixed by clearing `IsExtended` on FOLLOW for any pattern leg + skipping the runaway watchdog when the lead is pattern-flow-ahead on the same runway + wiring `AirborneFollowHelper` into `UpwindPhase`/`CrosswindPhase` for parity with Downwind |
-| `s1-oak-taxi-deadlock-recording.yaat-bug-report-bundle.zip` | — | SWA863 / NKS743 | OAK S1 practical exam — two aircraft routed `... U W W1 30` from different feeders converged onto taxiway U and pinned each other at gs≈0 for ~30s. Root cause: the layered detector ran convergence + closing + head-on independently, so the head-on fallback fired against an already-slowed convergence yielder and stopped the winner too. Triggered a rewrite of `GroundConflictDetector` to a single-pass pair classifier with deterministic same-edge head-on winner, self-pin recovery, and `IsHeld`-aware classification |
-| `s2-oak-3-ext-during-touch-and-go-recording.yaat-bug-report-bundle.zip` | — | N172SP | OAK 28R closed pattern — bare `EXT` issued repeatedly during `TouchAndGoPhase` (ground roll) rejected with "Extend applies on upwind, crosswind, or downwind" because `TryExtendPattern` only inspected `CurrentPhase`. Fix: when not on a pattern leg, arm the next pending `UpwindPhase` in the queue, or set the new one-shot `AircraftPattern.ExtendNextUpwind` flag for `PhaseRunner` to consume when it appends the next circuit |
-| `taxi-cto-sequential-recording.yaat-bug-report-bundle.zip` | — | N152SP | OAK `TAXI E RWY 28R; CTO MRT` — the queued CTO MRT block sat untriggered while phases were active. `UpdateCommandQueue` early-returns when a phase is active, and `ApplyReadyConditionalBlocks` breaks on the first untriggered block, so the queued CTO was never examined when TaxiingPhase advanced to HoldingShortPhase. Fixed by adding `FlightPhysics.NotifyPhaseAdvanced` (called from `PhaseRunner.Tick` after `AdvanceToNext`) that fires the head untriggered block when the new phase is a wait phase (unsatisfied `ClearanceRequirement`s) that accepts the command; also extended `CommandDispatcher.BuildApplyAction`'s lambda to route tower verbs (CTO/LUAW/TAXI/CROSS) through `TryApplyTowerCommand` when a phase is active, since `ApplyCommand` has no arm for them |
+Recordings live in `tests/Yaat.Sim.Tests/TestData/`. Install new bundles with
+`python tools/bug_bundle.py install <local-or-github-issue>` (see the **Bug Report
+Bundles** section above), which copies them into TestData with a descriptive name.
+The `consolidate-recordings` skill periodically hash-renames bundles to `<hash12>.zip`
+when duplicates are detected — names in the folder are not stable. The
+authoritative description of what a recording demonstrates lives in the test
+class doc comment (`tests/Yaat.Sim.Tests/Simulation/*.cs`), not here.
 
 ### Adding a new airport layout
 

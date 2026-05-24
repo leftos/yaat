@@ -7,7 +7,8 @@ description: "Dedupe recording .zip files in tests/Yaat.Sim.Tests/TestData via t
 
 Runs `tools/Yaat.RecordingConsolidator` to hash all `.zip` files under
 `tests/Yaat.Sim.Tests/TestData/`, collapse duplicates to a single hash-named
-file, rewrite all `.cs` references, and commit the result.
+file, rewrite `.cs` and `.md` references to keep the codebase pointing at the
+new names, and commit the result.
 
 This is **internal maintenance**. Do **not** add a CHANGELOG.md entry — the
 change is invisible to users.
@@ -28,8 +29,8 @@ dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/Te
 ```
 
 The tool deletes duplicate `.zip`s, renames the keeper to `<hash12>.zip`, and
-rewrites every matching `TestData/<name>` reference in `*.cs` files across the
-repo.
+rewrites every matching `TestData/<name>` reference in `*.cs` and `*.md`
+files across the repo (excluding `bin/`, `obj/`, and `.git/`).
 
 ## Step 3: Verify the rewrite compiled and tests still pass
 
@@ -44,12 +45,12 @@ reference by hand before committing. Do not revert the consolidation.
 ## Step 4: Commit
 
 Stage only what the tool touched — the renamed `.zip`s under `TestData/` and
-the updated `.cs` files. Per workspace rules, never use `git add -A`.
+the updated `.cs` / `.md` files. Per workspace rules, never use `git add -A`.
 
 ```bash
 git status --short                                    # confirm scope
 git add tests/Yaat.Sim.Tests/TestData/                # renamed/deleted zips
-git add $(git diff --name-only HEAD -- '*.cs')        # updated .cs files
+git add $(git diff --name-only HEAD -- '*.cs' '*.md') # updated source/doc files
 git commit -m "chore: consolidate duplicated recordings"
 ```
 
@@ -61,7 +62,7 @@ explicit path only.
 - **No CHANGELOG.md edit.** Internal cleanup is not user-visible.
 - **No branches/PRs** — commit directly to `main` per workspace rules.
 - **Do not stash unrelated work** — the consolidator only touches `TestData/`
-  zips and `.cs` references; an unrelated dirty tree is fine to leave alone.
+  zips and `.cs` / `.md` references; an unrelated dirty tree is fine to leave alone.
 - If duplicate-rename collisions occur (rare — when an existing file already
   has the hash name), the tool deletes the duplicate keeper rather than
   overwriting. Re-run after manual cleanup if you see anomalies.

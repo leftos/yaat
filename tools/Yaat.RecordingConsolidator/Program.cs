@@ -1,8 +1,7 @@
 // Yaat.RecordingConsolidator — find duplicate .zip files in TestData, consolidate to hash-named files,
-// and update all .cs references in the codebase.
+// and update all .cs and .md references in the codebase.
 
 using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 
 if (args.Length < 1)
 {
@@ -66,7 +65,13 @@ Console.WriteLine($"Found {duplicateGroups.Count} duplicate group(s):");
 Console.WriteLine();
 
 int totalRemoved = 0;
-var renames = new Dictionary<string, string>(); // old filename -> new filename (for .cs updates)
+
+// Prefixed mapping (e.g. `TestData/<old>` → `TestData/<new>`) used for source code,
+// where the rename should only fire when the name appears as a path inside a string
+// literal. Bare-name mapping (`<old>` → `<new>`) used for markdown, where the docs
+// table lists bundle filenames without the `TestData/` prefix in backticks.
+var renamesPrefixed = new Dictionary<string, string>();
+var renamesBare = new Dictionary<string, string>();
 
 foreach (var (hash, files) in duplicateGroups)
 {
@@ -79,7 +84,12 @@ foreach (var (hash, files) in duplicateGroups)
     {
         string name = Path.GetFileName(file);
         Console.WriteLine($"    - {name}");
-        renames[$"TestData/{name}"] = $"TestData/{newFileName}";
+        if (name == newFileName)
+        {
+            continue;
+        }
+        renamesPrefixed[$"TestData/{name}"] = $"TestData/{newFileName}";
+        renamesBare[name] = newFileName;
     }
 
     Console.WriteLine($"    -> consolidated to: {newFileName}");
@@ -113,19 +123,25 @@ foreach (var (hash, files) in duplicateGroups)
     }
 }
 
-// Step 3: Update .cs file references
-Console.WriteLine("Scanning .cs files for references to update...");
-var csFiles = Directory
-    .GetFiles(repoRoot, "*.cs", SearchOption.AllDirectories)
+// Step 3: Update references in source (.cs) and documentation (.md) files.
+// Docs like docs/e2e-tdd-issue-debugging.md list bundle filenames in the Recordings
+// table; missing markdown coverage leaves the table pointing at deleted files.
+Console.WriteLine("Scanning .cs and .md files for references to update...");
+var scannableFiles = new[] { "*.cs", "*.md" }
+    .SelectMany(pattern => Directory.GetFiles(repoRoot, pattern, SearchOption.AllDirectories))
     .Where(f => !f.Replace('\\', '/').Contains("/bin/"))
     .Where(f => !f.Replace('\\', '/').Contains("/obj/"))
+    .Where(f => !f.Replace('\\', '/').Contains("/.git/"))
     .ToList();
 
 int filesUpdated = 0;
-foreach (string csFile in csFiles)
+foreach (string file in scannableFiles)
 {
-    string content = File.ReadAllText(csFile);
+    string content = File.ReadAllText(file);
     string updated = content;
+
+    bool isMarkdown = file.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+    var renames = isMarkdown ? renamesBare : renamesPrefixed;
 
     foreach (var (oldRef, newRef) in renames)
     {
@@ -134,12 +150,12 @@ foreach (string csFile in csFiles)
 
     if (updated != content)
     {
-        string relPath = Path.GetRelativePath(repoRoot, csFile).Replace('\\', '/');
+        string relPath = Path.GetRelativePath(repoRoot, file).Replace('\\', '/');
         Console.WriteLine($"  Updated: {relPath}");
 
         if (!dryRun)
         {
-            File.WriteAllText(csFile, updated);
+            File.WriteAllText(file, updated);
         }
 
         filesUpdated++;
@@ -147,7 +163,7 @@ foreach (string csFile in csFiles)
 }
 
 Console.WriteLine();
-Console.WriteLine($"Summary: {duplicateGroups.Count} duplicate group(s), {totalRemoved} file(s) removed, {filesUpdated} .cs file(s) updated.");
+Console.WriteLine($"Summary: {duplicateGroups.Count} duplicate group(s), {totalRemoved} file(s) removed, {filesUpdated} source/doc file(s) updated.");
 
 if (dryRun)
 {
