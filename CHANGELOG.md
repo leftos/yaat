@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.3.6-beta [2026/05/23]
+
+### Highlights
+- Opt-in speech bubbles overlay SAY commands and RPO pilot transmissions on the Radar and Ground views — click a bubble to dismiss it.
+- `ONHS DEL` auto-deletes a landing aircraft when it reaches its post-runway hold-short; `NODEL` cancels the queue and exempts the aircraft from scenario auto-delete too.
+- Lateral commands (`ADCT`/`DCT`/`H`/`TL`/`TR`) issued during initial climb now amend the heading or route alongside the CTO-assigned altitude instead of cancelling the climb.
+- Bare `CTO` on radar-vectors SIDs holds the published vectors heading all the way through the initial climb instead of dropping the hold around 400 ft AGL.
 
 ### Added
 - Opt-in speech bubbles (Settings → Display → Overlays) overlay SAY commands and RPO pilot transmissions on the Radar and Ground views — click a bubble to dismiss it early.
