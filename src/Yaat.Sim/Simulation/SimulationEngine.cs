@@ -577,6 +577,30 @@ public sealed class SimulationEngine
         World.DrainAllApproachScores();
     }
 
+    /// <summary>
+    /// Removes any aircraft whose <see cref="AircraftGroundOps.PendingAutoDelete"/>
+    /// flag is set. Returns the callsigns that were removed. Hosting servers (e.g.
+    /// yaat-server's <c>TickProcessor.ProcessAutoDelete</c>) call this after their
+    /// per-tick post-physics step so they can fan out CRC/SignalR delete broadcasts
+    /// for each removed callsign. Standalone Yaat.Sim tests can call this directly
+    /// to observe end-to-end <c>ONHS DEL</c> behaviour without a server wrapper.
+    /// </summary>
+    public IReadOnlyList<string> SweepPendingAutoDeletes()
+    {
+        var removed = new List<string>();
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (!ac.Ground.PendingAutoDelete)
+            {
+                continue;
+            }
+
+            removed.Add(ac.Callsign);
+            World.RemoveAircraft(ac.Callsign);
+        }
+        return removed;
+    }
+
     private static string ToSayKind(PilotTransmission transmission) =>
         transmission.Kind == PilotTransmissionKind.SayReadback ? "SayReadback" : "SayPilot";
 

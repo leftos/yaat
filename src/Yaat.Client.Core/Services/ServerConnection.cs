@@ -771,7 +771,10 @@ public record AircraftDto(
     // True while the "approaching final without a landing clearance" warning has fired on
     // the current final approach and the aircraft still lacks a landing clearance. Drives
     // the flashing red "NoLndgClnc" datablock line on the radar.
-    bool NoLandingClearanceWarningActive = false
+    bool NoLandingClearanceWarningActive = false,
+    // True when a queued ONHS DEL block is armed (or per-aircraft auto-delete has been
+    // requested). Drives the small auto-delete marker in the radar / tower-cab datablock.
+    bool AutoDeletePending = false
 );
 
 public record LoadScenarioResultDto(

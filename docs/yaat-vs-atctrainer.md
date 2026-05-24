@@ -304,6 +304,8 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | FRD conditions | — | `AT SUNOL090020 FH 270` | YAAT-only |
 | Fix-Radial conditions | — | `AT SUNOL090 FH 270` (radial intercept) | YAAT-only |
 | Missed FRD warning | — | Yes — warns if aircraft passes within 5nm but misses 1.5nm threshold | YAAT-only |
+| On hold-short (post-landing) | — | `ONHS {cmd}` (currently `ONHS DEL` only) | YAAT-only — fires when the aircraft enters `HoldingAfterExit` |
+| Cancel auto-delete | `NODEL` *modifier* only | `NODEL` bare verb + `NODEL` modifier | YAAT also exposes `NODEL` as a standalone verb to strip a queued `ONHS DEL` and re-arm `AutoDeleteExempt` |
 
 ### Wait Commands
 

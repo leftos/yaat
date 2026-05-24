@@ -212,6 +212,7 @@
         { "verb": "PORT", "aliases": [], "description": "Retract pointout" },
         { "verb": "OK", "aliases": [], "description": "Acknowledge" },
         { "verb": "ONHO", "aliases": ["onh"], "description": "On handoff action" },
+        { "verb": "ONHS", "aliases": [], "description": "Condition prefix: on hold-short (e.g. `ONHS DEL`)" },
         { "verb": "CAACK", "aliases": [], "description": "Acknowledge conflict alert" },
         { "verb": "CAINH", "aliases": ["cai"], "description": "Inhibit conflict alert" },
         { "verb": "CT", "aliases": ["cont"], "description": "Contact next controller [callsign|freq|tcp]" },
@@ -313,6 +314,8 @@
       "name": "Sim Control",
       "rows": [
         { "verb": "DEL", "aliases": ["x"], "description": "Delete aircraft" },
+        { "verb": "ONHS DEL", "aliases": [], "description": "Auto-delete when aircraft reaches hold-short after landing" },
+        { "verb": "NODEL", "aliases": [], "description": "Cancel queued auto-delete; re-arm AutoDeleteExempt" },
         { "verb": "PAUSE", "aliases": ["p"], "description": "Pause simulation", "global": true },
         { "verb": "UNPAUSE", "aliases": ["u", "un"], "description": "Unpause simulation", "global": true },
         { "verb": "SIMRATE", "aliases": [], "description": "Sim rate 1-8", "global": true },

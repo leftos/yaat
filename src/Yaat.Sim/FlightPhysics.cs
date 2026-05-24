@@ -1280,6 +1280,7 @@ public static class FlightPhysics
             BlockTriggerType.DistanceFinal => IsDistanceFinalMet(aircraft, trigger),
             BlockTriggerType.OnHandoff => aircraft.Track.HandoffAccepted,
             BlockTriggerType.AtGroundEntity => IsGroundEntityReached(aircraft, trigger),
+            BlockTriggerType.EnteringHoldingAfterExit => aircraft.Phases?.CurrentPhase is Yaat.Sim.Phases.Ground.HoldingAfterExitPhase,
             _ => true,
         };
     }

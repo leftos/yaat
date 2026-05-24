@@ -161,6 +161,7 @@ public static class CommandDescriber
             CancelIfrCommand => CanonicalCommandType.CancelIfr,
             CancelLandingClearanceCommand => CanonicalCommandType.CancelLandingClearance,
             DeleteCommand => CanonicalCommandType.Delete,
+            CancelAutoDeleteCommand => CanonicalCommandType.CancelAutoDelete,
             PauseCommand => CanonicalCommandType.Pause,
             UnpauseCommand => CanonicalCommandType.Unpause,
             SimRateCommand => CanonicalCommandType.SimRate,
@@ -987,6 +988,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.Expedite
                 or CanonicalCommandType.NormalRate
                 or CanonicalCommandType.DeleteQueuedCommands
+                or CanonicalCommandType.CancelAutoDelete
                 or CanonicalCommandType.Contact
                 or CanonicalCommandType.FrequencyChangeApproved
                 or CanonicalCommandType.ClearedBravoAirspace

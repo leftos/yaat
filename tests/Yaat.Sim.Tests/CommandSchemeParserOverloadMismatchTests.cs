@@ -43,7 +43,12 @@ public class CommandSchemeParserOverloadMismatchTests : IDisposable
     /// not normal "no-arg" commands — when followed by tokens, the prefix is consumed and
     /// the remainder is parsed as a separate command. Skip them here.
     /// </summary>
-    private static readonly HashSet<CanonicalCommandType> ConditionPrefixVerbs = [CanonicalCommandType.OnHandoff, CanonicalCommandType.GiveWay];
+    private static readonly HashSet<CanonicalCommandType> ConditionPrefixVerbs =
+    [
+        CanonicalCommandType.OnHandoff,
+        CanonicalCommandType.OnHoldShort,
+        CanonicalCommandType.GiveWay,
+    ];
 
     public static IEnumerable<object[]> NoArgVerbs() =>
         CommandRegistry

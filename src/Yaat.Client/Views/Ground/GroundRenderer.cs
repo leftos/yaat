@@ -43,7 +43,8 @@ internal readonly struct DataBlockLayout
         float blockX = screenX + offset.X;
         float blockY = screenY + offset.Y;
 
-        string line1 = ac.Callsign;
+        // Suffix '*' marks aircraft pre-armed for auto-delete on hold-short (ONHS DEL).
+        string line1 = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
         string dest = ac.Destination.StartsWith('K') ? ac.Destination[1..] : ac.Destination;
         string line2 = string.IsNullOrEmpty(dest) ? ac.AircraftType : $"{ac.AircraftType} {dest}";
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";

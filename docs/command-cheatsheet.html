@@ -492,6 +492,7 @@ code {
 <div class="row" id="cmd-track-port" data-verb="port" data-aliases="" data-desc="retract pointout"><span class="verb">PORT</span><span class="alias"></span><span class="desc">Retract pointout</span></div>
 <div class="row" id="cmd-track-ok" data-verb="ok" data-aliases="" data-desc="acknowledge"><span class="verb">OK</span><span class="alias"></span><span class="desc">Acknowledge</span></div>
 <div class="row" id="cmd-track-onho" data-verb="onho" data-aliases="onh" data-desc="on handoff action"><span class="verb">ONHO</span><span class="alias">onh</span><span class="desc">On handoff action</span></div>
+<div class="row" id="cmd-track-onhs" data-verb="onhs" data-aliases="" data-desc="condition prefix: on hold-short (e.g. `onhs del`)"><span class="verb">ONHS</span><span class="alias"></span><span class="desc">Condition prefix: on hold-short (e.g. `ONHS DEL`)</span></div>
 <div class="row" id="cmd-track-caack" data-verb="caack" data-aliases="" data-desc="acknowledge conflict alert"><span class="verb">CAACK</span><span class="alias"></span><span class="desc">Acknowledge conflict alert</span></div>
 <div class="row" id="cmd-track-cainh" data-verb="cainh" data-aliases="cai" data-desc="inhibit conflict alert"><span class="verb">CAINH</span><span class="alias">cai</span><span class="desc">Inhibit conflict alert</span></div>
 <div class="row" id="cmd-track-ct" data-verb="ct" data-aliases="cont" data-desc="contact next controller [callsign|freq|tcp]"><span class="verb">CT</span><span class="alias">cont</span><span class="desc">Contact next controller [callsign|freq|tcp]</span></div>
@@ -578,6 +579,8 @@ code {
 <summary>Sim Control</summary>
 <div class="cat-body">
 <div class="row" id="cmd-sim-control-del" data-verb="del" data-aliases="x" data-desc="delete aircraft"><span class="verb">DEL</span><span class="alias">x</span><span class="desc">Delete aircraft</span></div>
+<div class="row" id="cmd-sim-control-onhs-del" data-verb="onhs del" data-aliases="" data-desc="auto-delete when aircraft reaches hold-short after landing"><span class="verb">ONHS DEL</span><span class="alias"></span><span class="desc">Auto-delete when aircraft reaches hold-short after landing</span></div>
+<div class="row" id="cmd-sim-control-nodel" data-verb="nodel" data-aliases="" data-desc="cancel queued auto-delete; re-arm autodeleteexempt"><span class="verb">NODEL</span><span class="alias"></span><span class="desc">Cancel queued auto-delete; re-arm AutoDeleteExempt</span></div>
 <div class="row global" id="cmd-sim-control-pause" data-verb="pause" data-aliases="p" data-desc="pause simulation"><span class="verb">PAUSE</span><span class="alias">p</span><span class="desc">Pause simulation</span></div>
 <div class="row global" id="cmd-sim-control-unpause" data-verb="unpause" data-aliases="u un" data-desc="unpause simulation"><span class="verb">UNPAUSE</span><span class="alias">u un</span><span class="desc">Unpause simulation</span></div>
 <div class="row global" id="cmd-sim-control-simrate" data-verb="simrate" data-aliases="" data-desc="sim rate 1-8"><span class="verb">SIMRATE</span><span class="alias"></span><span class="desc">Sim rate 1-8</span></div>

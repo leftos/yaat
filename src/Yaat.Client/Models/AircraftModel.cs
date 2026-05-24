@@ -234,6 +234,16 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private bool _noLandingClearanceWarningActive;
 
+    /// <summary>
+    /// True when a queued <c>ONHS DEL</c> block is armed on this aircraft (or the
+    /// per-aircraft <c>PendingAutoDelete</c> flag has been raised). Drives a small
+    /// marker in the radar / tower-cab datablock so controllers can see at a glance
+    /// which landing aircraft are pre-marked for auto-removal. Cleared by <c>NODEL</c>
+    /// and by the auto-delete sweep itself (the aircraft is removed shortly after).
+    /// </summary>
+    [ObservableProperty]
+    private bool _autoDeletePending;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ClearanceDisplay))]
     [NotifyPropertyChangedFor(nameof(ClearanceShorthand))]
@@ -687,6 +697,7 @@ public partial class AircraftModel : ObservableObject
             ActivePhaseIndex = dto.ActivePhaseIndex,
             LandingClearance = dto.LandingClearance,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
+            AutoDeletePending = dto.AutoDeletePending,
             ClearedRunway = dto.ClearedRunway,
             PatternDirection = dto.PatternDirection,
             NavigationRoute = dto.NavigationRoute ?? [],
@@ -760,6 +771,7 @@ public partial class AircraftModel : ObservableObject
         ActivePhaseIndex = dto.ActivePhaseIndex;
         LandingClearance = dto.LandingClearance;
         NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive;
+        AutoDeletePending = dto.AutoDeletePending;
         ClearedRunway = dto.ClearedRunway;
         PatternDirection = dto.PatternDirection;
         NavigationRoute = dto.NavigationRoute ?? [];

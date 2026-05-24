@@ -451,6 +451,8 @@ public record DistanceFinalCondition(double DistanceNm) : BlockCondition;
 
 public record OnHandoffCondition : BlockCondition;
 
+public record OnHoldShortCondition : BlockCondition;
+
 public enum GroundEntityKind
 {
     Taxiway,
@@ -819,6 +821,12 @@ public record AsdexEnableAllAlertsCommand : ParsedCommand;
 
 // Server/global commands
 public record DeleteCommand : ParsedCommand;
+
+/// <summary>
+/// Cancel any pending auto-delete on this aircraft and re-arm
+/// <see cref="AircraftGroundOps.AutoDeleteExempt"/>. Bare verb <c>NODEL</c>.
+/// </summary>
+public record CancelAutoDeleteCommand : ParsedCommand;
 
 public record PauseCommand : ParsedCommand;
 

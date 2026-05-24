@@ -71,7 +71,8 @@ public static class EuroScopeTagLayout
 
         string owner = OwnerMarker(ac);
         x = AddField(fields, TagFieldId.Owner, owner, x, y1Top, y1Bot, paint);
-        x = AddField(fields, TagFieldId.Callsign, ac.Callsign, x, y1Top, y1Bot, paint);
+        string callsign = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
+        x = AddField(fields, TagFieldId.Callsign, callsign, x, y1Top, y1Bot, paint);
         maxWidth = MathF.Max(maxWidth, x - originX);
         lineCount = 1;
 

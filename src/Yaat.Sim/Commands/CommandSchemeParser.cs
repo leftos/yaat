@@ -36,7 +36,12 @@ public static class CommandSchemeParser
         var upper = trimmed.ToUpperInvariant();
         if (!isCompound)
         {
-            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("ATFN ") || upper.StartsWith("ONHO ");
+            isCompound =
+                upper.StartsWith("LV ")
+                || upper.StartsWith("AT ")
+                || upper.StartsWith("ATFN ")
+                || upper.StartsWith("ONHO ")
+                || upper.StartsWith("ONHS ");
 
             // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
             if (!isCompound && (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW ")))
@@ -100,6 +105,7 @@ public static class CommandSchemeParser
         "AT",
         "ATFN",
         "ONHO",
+        "ONHS",
         "GIVEWAY",
         "WAIT",
     };
@@ -232,6 +238,30 @@ public static class CommandSchemeParser
             }
 
             parts.Add("ONHO");
+        }
+        else if (upper.StartsWith("ONHS "))
+        {
+            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2)
+            {
+                return null;
+            }
+
+            remaining = tokens[1];
+            var remainderUpper = remaining.ToUpperInvariant();
+
+            if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
+            {
+                var innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                if (innerCanonical is null)
+                {
+                    return null;
+                }
+
+                return $"ONHS; {innerCanonical}";
+            }
+
+            parts.Add("ONHS");
         }
 
         // Apply ExpandWait and ExpandSpeedUntil to the remainder after condition extraction

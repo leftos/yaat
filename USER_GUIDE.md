@@ -284,6 +284,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
   - *Final Approach*: "Cleared to land {rwy}", "Touch and go {rwy}", "Stop and go {rwy}", "Low approach {rwy}", "Cleared for the option {rwy}", "Go around {rwy}", "Cancel landing clearance" — runway shown in label when assigned
   - *Landing*: "Exit left", "Exit right"
   - All phases include "Delete"
+
+**Auto-delete on hold-short.** For busy tower / local scenarios where landing aircraft pile up at the post-runway hold-short, type `ONHS DEL` against the landing aircraft. The auto-delete fires the moment the aircraft transitions into the *Holding After Exit* phase (i.e., it has rolled out, taken the runway exit, and stopped at the next intersecting taxiway). The pilot still calls "clear of runway" before the delete runs. While the auto-delete is armed, the radar / Tower Cab datablock shows a trailing `*` on the callsign. Issue `NODEL` to cancel — that strips the queued auto-delete and also re-arms `AutoDeleteExempt` so scenario-level auto-delete will leave the aircraft alone too.
 - **On empty space**: left-click to deselect the current aircraft
 
 **Runway-end click target:** When an aircraft is selected, a small amber dot appears at every runway threshold. Left-click a dot to open the same "Taxi to runway" submenu produced by right-clicking a hold-short node — but anchored at the threshold, so you don't have to hunt for the right hold-short node. The submenu still offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants.

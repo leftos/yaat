@@ -746,6 +746,7 @@ public static class CommandRegistry
     private static CommandDefinition[] SimControlCommands() =>
         [
             Bare(Delete, "Delete", "Sim Control", false, ["DEL", "X"]),
+            Bare(CancelAutoDelete, "Cancel Auto-Delete", "Sim Control", false, ["NODEL"]),
             Bare(Pause, "Pause", "Sim Control", true, ["PAUSE", "P"]),
             Bare(Unpause, "Unpause", "Sim Control", true, ["UNPAUSE", "U", "UN", "UNP", "UP"]),
             Cmd(SimRate, "Sim Rate", "Sim Control", true, ["SIMRATE"], [O(null, [R("rate", "1-8")], "Set simulation speed")]),
@@ -1188,6 +1189,7 @@ public static class CommandRegistry
                 [O(null, [R("altitude", "altitude in hundreds")], "Set cruise altitude")]
             ),
             Bare(OnHandoff, "On Handoff", "Track Operations", false, ["ONHO", "ONH"]),
+            Bare(OnHoldShort, "On Hold-Short", "Track Operations", false, ["ONHS"]),
             Cmd(
                 AsdexScratchpad1,
                 "ASDE-X Scratchpad 1",

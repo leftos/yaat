@@ -132,6 +132,8 @@ public enum CanonicalCommandType
     TemporaryAltitude,
     Cruise,
     OnHandoff,
+    OnHoldShort,
+    CancelAutoDelete,
     Contact,
     FrequencyChangeApproved,
     ClearedBravoAirspace,

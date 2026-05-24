@@ -420,6 +420,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Cruise | `CRUISE 240` | `QZ` | — |
 | Pilot reported altitude | `PRA 250` / `PRA 0` (clear) | — | — |
 | On-handoff | `ONHO` | `ONH` | — |
+| On hold-short | `ONHS` | — | Condition prefix only — use as `ONHS DEL` for auto-delete on reaching the hold-short after landing. |
 
 ### ASDE-X Display State
 
@@ -469,6 +470,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Unpause | `UNPAUSE` | `U`, `UN`, `UNP`, `UP` | — |
 | Sim rate | `SIMRATE 2` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
+| Auto-delete on hold-short | `ONHS DEL` | — | Queues a delete that fires when the aircraft reaches HoldingAfterExit after landing. Datablock shows a trailing `*` while armed. |
+| Cancel auto-delete | `NODEL` | — | Strips any queued `ONHS DEL` and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
 | Delete queued commands | `DELAT` / `DELAT 2` | `CXL`, `CLR` | — |
 | Show queued commands | `SHOWAT` | — | — |
 | Say | `SAY text` | `SAYF` | — |
@@ -1158,6 +1161,21 @@ These commands don't require an aircraft selection:
 | `RDAUTO <listId>` | Toggle auto-acknowledge for a coordination list |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 |
+
+### Auto-Delete on Hold-Short
+
+For busy tower / local scenarios with a steady arrival flow, landing aircraft pile up at the post-runway hold-short and have to be manually deleted by the controller before they clog the scope. `ONHS DEL` queues a per-aircraft auto-delete that fires the moment the aircraft transitions into the `HoldingAfterExit` phase (i.e., it has rolled out, taken the runway exit, and stopped at the next intersecting taxiway).
+
+| Command | Effect |
+|---------|--------|
+| `ONHS DEL` | Queue auto-delete for this aircraft. Fires when it reaches the hold-short after landing. Bypasses `AutoDeleteExempt` (controller explicitly asked). |
+| `NODEL` | Cancel the queued auto-delete and re-arm `AutoDeleteExempt` so scenario-level auto-delete also leaves the aircraft alone. |
+
+`ONHS DEL` can be issued any time during the approach or rollout (typically during the landing rollout once an exit has been chosen). The pilot still calls "clear of runway" on phase entry before the delete fires.
+
+The radar / Tower Cab datablock shows a trailing `*` on the callsign while the auto-delete is armed, so you can see at a glance which aircraft are pre-marked. The `*` clears either when `NODEL` cancels the request or when the auto-delete itself removes the aircraft a moment later.
+
+`NODEL` as a bare verb is distinct from the `NODEL` *modifier* on `CLAND` / `LAND` / `TAXI` / `EL` / `ER` / `EXIT`. The modifier sets `AutoDeleteExempt` at the time those commands are issued; the bare verb does the same plus strips any queued `ONHS DEL` block.
 
 ### Force Override Commands
 

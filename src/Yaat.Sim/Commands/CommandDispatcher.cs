@@ -526,6 +526,20 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplyClearTurnRate(aircraft);
 
             // --- Misc ---
+            case DeleteCommand:
+                aircraft.Ground.PendingAutoDelete = true;
+                return Ok($"{aircraft.Callsign} marked for delete");
+            case CancelAutoDeleteCommand:
+            {
+                int removed = aircraft.Queue.Blocks.RemoveAll(b => b.Trigger?.Type == BlockTriggerType.EnteringHoldingAfterExit);
+                aircraft.Ground.AutoDeleteExempt = true;
+                aircraft.Ground.PendingAutoDelete = false;
+                string msg =
+                    removed > 0
+                        ? $"Auto-delete cancelled ({removed} pending {(removed == 1 ? "block" : "blocks")} cleared); aircraft will remain on the scope"
+                        : "Auto-delete cancelled; aircraft will remain on the scope";
+                return Ok(msg);
+            }
             case WaitCommand cmd:
                 return Ok($"Wait {cmd.Seconds} seconds");
             case WaitDistanceCommand cmd:
@@ -1158,6 +1172,10 @@ public static class CommandDispatcher
             CanonicalCommandType.ReportTrafficInSightForced => true,
             CanonicalCommandType.SafetyAlert => true,
             CanonicalCommandType.WakeAdvisory => true,
+            // NODEL is a pure controller bookkeeping toggle (flips AutoDeleteExempt /
+            // strips queued ONHS DEL blocks); it has no nav/altitude/speed effect and
+            // is meaningful in every phase, so bypass the phase gate.
+            CanonicalCommandType.CancelAutoDelete => true,
             _ => false,
         };
 
@@ -1847,6 +1865,16 @@ public static class CommandDispatcher
                 blockDesc = $"at {df.DistanceNm}nm final: {blockDesc}";
                 blockMsg = $"At {df.DistanceNm}nm final: {blockMsg}";
             }
+            else if (parsedBlock.Condition is OnHoldShortCondition)
+            {
+                blockDesc = $"on hold-short: {blockDesc}";
+                blockMsg = $"Once holding short: {blockMsg}";
+            }
+            else if (parsedBlock.Condition is OnHandoffCondition)
+            {
+                blockDesc = $"on handoff: {blockDesc}";
+                blockMsg = $"On handoff: {blockMsg}";
+            }
 
             var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
             var waitDist = parsedBlock.Commands.OfType<WaitDistanceCommand>().FirstOrDefault();
@@ -2063,6 +2091,7 @@ public static class CommandDispatcher
             GiveWayCondition gw => new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = gw.TargetCallsign },
             DistanceFinalCondition df => new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = df.DistanceNm },
             OnHandoffCondition => new BlockTrigger { Type = BlockTriggerType.OnHandoff },
+            OnHoldShortCondition => new BlockTrigger { Type = BlockTriggerType.EnteringHoldingAfterExit },
             _ => null,
         };
     }

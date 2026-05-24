@@ -13,6 +13,7 @@ public enum BlockTriggerType
     DistanceFinal,
     OnHandoff,
     AtGroundEntity,
+    EnteringHoldingAfterExit,
 }
 
 public class BlockTrigger

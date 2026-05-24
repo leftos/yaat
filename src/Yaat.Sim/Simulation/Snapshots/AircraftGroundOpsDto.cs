@@ -9,6 +9,7 @@ public sealed class AircraftGroundOpsDto
     public required bool IsHeld { get; init; }
     public string? GiveWayTarget { get; init; }
     public required bool AutoDeleteExempt { get; init; }
+    public bool PendingAutoDelete { get; init; }
     public required double ConflictBreakRemainingSeconds { get; init; }
     public double? SpeedLimit { get; init; }
     public double? PushbackTrueHeadingDeg { get; init; }

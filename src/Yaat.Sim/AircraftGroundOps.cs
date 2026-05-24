@@ -58,6 +58,16 @@ public class AircraftGroundOps
     public bool AutoDeleteExempt { get; set; }
 
     /// <summary>
+    /// Per-aircraft auto-delete request raised by a queued <c>ONHS DEL</c> block
+    /// (or any queued <see cref="Commands.DeleteCommand"/>) whose trigger has fired.
+    /// The hosting sweep — yaat-server's <c>TickProcessor.ProcessAutoDelete</c> in
+    /// production, the test's manual sweep in standalone Yaat.Sim tests — observes
+    /// this flag, removes the aircraft, and fires the appropriate broadcast chain.
+    /// Cleared by <see cref="Commands.CancelAutoDeleteCommand"/> (NODEL).
+    /// </summary>
+    public bool PendingAutoDelete { get; set; }
+
+    /// <summary>
     /// When true, the active TaxiingPhase raises its straight-line speed cap by
     /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/>. Cleared on the
     /// next HOLD/RES/HS command — pilots resume normal taxi after any of those.
@@ -116,6 +126,7 @@ public class AircraftGroundOps
             IsHeld = Hold is not null,
             GiveWayTarget = Hold?.YieldTarget,
             AutoDeleteExempt = AutoDeleteExempt,
+            PendingAutoDelete = PendingAutoDelete,
             ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
             SpeedLimit = SpeedLimit,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
@@ -135,6 +146,7 @@ public class AircraftGroundOps
             CurrentTaxiway = dto.CurrentTaxiway,
             Hold = HoldFromSnapshot(dto.IsHeld, dto.GiveWayTarget),
             AutoDeleteExempt = dto.AutoDeleteExempt,
+            PendingAutoDelete = dto.PendingAutoDelete,
             ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
             SpeedLimit = dto.SpeedLimit,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,

@@ -4,6 +4,8 @@
 
 ### Added
 - Opt-in speech bubbles (Settings → Display → Overlays) overlay SAY commands and RPO pilot transmissions on the Radar and Ground views — click a bubble to dismiss it early.
+- `ONHS DEL` queues an auto-delete that fires the instant a landing aircraft reaches its post-runway hold-short, with a trailing `*` on the datablock while armed.
+- `NODEL` bare verb cancels a queued `ONHS DEL` and exempts the aircraft from scenario-level auto-delete too.
 
 ### Fixed
 - `RES, CROSS <rwy>` while holding short of a different runway now pre-clears the upcoming crossing instead of failing with "Not holding short".

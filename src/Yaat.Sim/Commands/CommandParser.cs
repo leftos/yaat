@@ -32,7 +32,11 @@ public static class CommandParser
             // Check for standalone LV/AT conditions (makes it compound even without ; or ,)
             var upperCheck = trimmed.ToUpperInvariant();
             isCompound =
-                upperCheck.StartsWith("LV ") || upperCheck.StartsWith("AT ") || upperCheck.StartsWith("ATFN ") || upperCheck.StartsWith("ONHO ");
+                upperCheck.StartsWith("LV ")
+                || upperCheck.StartsWith("AT ")
+                || upperCheck.StartsWith("ATFN ")
+                || upperCheck.StartsWith("ONHO ")
+                || upperCheck.StartsWith("ONHS ");
 
             // GIVEWAY/BEHIND/GW are compound only when followed by callsign + a known ground command verb
             if (!isCompound && (upperCheck.StartsWith("GIVEWAY ") || upperCheck.StartsWith("BEHIND ") || upperCheck.StartsWith("GW ")))
@@ -223,6 +227,33 @@ public static class CommandParser
             }
 
             condition = new OnHandoffCondition();
+        }
+        else if (upper.StartsWith("ONHS "))
+        {
+            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2)
+            {
+                _lastBlockFailure = "ONHS requires a command";
+                return null;
+            }
+
+            remaining = tokens[1];
+            var remainingUpper = remaining.ToUpperInvariant();
+
+            // ONHS followed by another condition (AT/LV/ATFN) → two sequential blocks
+            if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
+            {
+                var innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                if (innerBlocks is null)
+                {
+                    return null;
+                }
+
+                var onhsBlock = new ParsedBlock(new OnHoldShortCondition(), []);
+                return [onhsBlock, .. innerBlocks];
+            }
+
+            condition = new OnHoldShortCondition();
         }
 
         if (condition is not null)
@@ -642,6 +673,7 @@ public static class CommandParser
             TurnRightDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Right),
             // Sim control
             Delete when arg is null => PR.Ok(new DeleteCommand()),
+            CancelAutoDelete when arg is null => PR.Ok(new CancelAutoDeleteCommand()),
             Pause when arg is null => PR.Ok(new PauseCommand()),
             Unpause when arg is null => PR.Ok(new UnpauseCommand()),
             SimRate => ParseInt(arg, r => new SimRateCommand(r)),
