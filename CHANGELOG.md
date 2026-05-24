@@ -8,6 +8,7 @@
 - Aircraft active in the scenario stay in the Aircraft List when a student drops a ghost track on them in CRC STARS (AID + slew).
 - Issuing `ADCT`/`DCT`/`H`/`TL`/`TR` during initial climb no longer cancels the climb — heading and route amendments now apply alongside the CTO-assigned altitude.
 - Radar datablock and tag now show the wake-turbulence class (e.g. `I/SR22`) for VFR cold-call aircraft and others without a filed flight plan type.
+- Radar-vectors SID departures cleared with a bare `CTO` (no altitude assignment) now hold the published vectors heading all the way through the initial climb instead of dropping the hold around 400 ft AGL and turning direct to the first enroute route fix.
 
 ## v0.3.5-beta [2026/05/23]
 

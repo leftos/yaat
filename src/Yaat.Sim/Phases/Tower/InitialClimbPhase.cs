@@ -245,18 +245,32 @@ public sealed class InitialClimbPhase : Phase
             ctx.Targets.TargetSpeed = appropriateSpeed;
         }
 
-        // RV SID uses altitude-only completion (heading is managed by the hold logic above).
-        // Non-RV departures with an explicit heading or altitude gate complete on those.
-        // Otherwise fall back to self-clear at 1500 AGL.
+        // RV SID hold must persist until ATC hands off comms. Without an explicit
+        // CTO-assigned altitude, the heading-met + null-altitude-gate combination
+        // would otherwise let the phase exit on the very tick the deferred turn
+        // fires (heading just snapped to the VM heading), stopping the heading
+        // hold and leaving FlightPhysics to chase whatever route fixes were
+        // loaded behind it. While _rvSidActive is true, only UpdateRvSidHeadingHold
+        // can release the phase (by flipping _rvSidActive to false after the
+        // post-handoff delay).
         TrueHeading? headingTarget = _rvSidActive && !_deferredTurnApplied && RvSidDeferHeadingUntilMinAlt ? _runwayHeading : _departureHeading;
         bool headingDone = _rvSidActive || headingTarget is null || ctx.Aircraft.TrueHeading.AbsAngleTo(headingTarget.Value) < HeadingToleranceDeg;
 
         bool altitudeDone = _phaseCompletionAltitude is null || ctx.Aircraft.Altitude >= _phaseCompletionAltitude.Value;
 
-        bool complete =
-            (_departureHeading is not null || _phaseCompletionAltitude is not null)
-                ? (headingDone && altitudeDone)
-                : ctx.Aircraft.Altitude >= _selfClearAltitude;
+        bool complete;
+        if (_rvSidActive)
+        {
+            complete = false;
+        }
+        else if (_departureHeading is not null || _phaseCompletionAltitude is not null)
+        {
+            complete = headingDone && altitudeDone;
+        }
+        else
+        {
+            complete = ctx.Aircraft.Altitude >= _selfClearAltitude;
+        }
 
         if (complete)
         {
@@ -405,7 +419,15 @@ public sealed class InitialClimbPhase : Phase
                 break;
         }
 
-        SetupDepartureNavigation(ctx);
+        // RV SID: don't load the nav route until handoff. The published procedure
+        // is a heading only; the V6 (or other enroute) expansion is the post-vector
+        // route that the pilot picks up after the controller hands them off.
+        // UpdateRvSidHeadingHold calls SetupDepartureNavigation when _rvSidActive
+        // flips to false after the post-handoff delay.
+        if (!_rvSidActive)
+        {
+            SetupDepartureNavigation(ctx);
+        }
 
         Log.LogDebug(
             "[InitialClimb] {Callsign}: departure turn applied (alt={Alt:F0}ft, hdg={Hdg}, vfr={IsVfr})",
