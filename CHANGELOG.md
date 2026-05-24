@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.3.5-beta [2026/05/23]
+
+### Highlights
+- New `OFL` / `OFR` commands dogleg a pattern aircraft 0.1–1.5 NM left or right for in-pattern spacing on upwind, crosswind, downwind, or base.
+- Sequential commands like `TAXI E RWY 28R; CTO MRT` now auto-fire the takeoff clearance when the aircraft reaches the hold-short.
+- `CM`, `DM`, and `SPD` issued mid-orbit or mid-S-turn now apply alongside the maneuver instead of cancelling it.
+- Aircraft taxied to a destination runway via an angled connector (e.g. OAK W1 to RWY 30) now line up properly so the follow-up `CTO` rolls instead of stalling.
 
 ### Added
 - `OFL` / `OFR` (`OFFSETL` / `OFFSETR`) doglegs a pattern aircraft 0.5 NM left or right (range 0.1–1.5 NM) for in-pattern spacing on upwind, crosswind, downwind, or base.

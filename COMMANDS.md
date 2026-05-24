@@ -680,7 +680,7 @@ Pattern-entry verbs (`ELD`, `ERD`, `ELB`, `ERB`, `EF`, `ELC`, `ERC`) require the
 | `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern) |
 | `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
 | `EXT` / `EXTEND` | Extend current pattern leg (upwind, crosswind, or downwind — not base) |
-| `EXT UPWIND` / `EXT UW` | Extend upwind. If aircraft has just started turning crosswind, cancels the turn and re-establishes the upwind leg. |
+| `EXT UPWIND` / `EXT UW` | Extend upwind. If aircraft has just started turning crosswind, cancels the turn and re-establishes the upwind leg. Also accepted before the upwind has begun — during a touch-and-go ground roll, on short final for a planned touch-and-go, or while holding short pre-takeoff — and arms the upcoming upwind so it extends without a second command after liftoff. |
 | `EXT CROSSWIND` / `EXT CW` | Extend crosswind. Rolls the aircraft back from downwind to crosswind if issued one leg late. |
 | `EXT DOWNWIND` / `EXT DW` | Extend downwind. Rolls the aircraft back from base to downwind if issued one leg late. Future-leg targets (e.g. `EXT DW` while still on upwind) and >1-leg rollbacks are rejected. |
 | `ELC` / `ERC` | Enter left/right crosswind |
