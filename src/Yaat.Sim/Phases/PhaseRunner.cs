@@ -50,6 +50,11 @@ public static class PhaseRunner
 
             phases.AdvanceToNext(ctx);
 
+            // Give queued sequential blocks a chance to fire now that the current
+            // phase changed (e.g. TaxiingPhase → HoldingShortPhase unlocks a queued
+            // CTO MRT). See FlightPhysics.NotifyPhaseAdvanced.
+            FlightPhysics.NotifyPhaseAdvanced(aircraft);
+
             // After a LAHSO landing, hold on the runway instead of exiting
             bool wasLahso = current is LandingPhase { StoppedForLahso: true };
             if (wasLahso && phases.LahsoHoldShort is { } lahsoTarget)

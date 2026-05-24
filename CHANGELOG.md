@@ -6,6 +6,7 @@
 - `OFL` / `OFR` (`OFFSETL` / `OFFSETR`) doglegs a pattern aircraft 0.5 NM left or right (range 0.1–1.5 NM) for in-pattern spacing on upwind, crosswind, downwind, or base.
 
 ### Fixed
+- Sequential compounds like `TAXI E RWY 28R; CTO MRT` now auto-fire the queued takeoff clearance when the aircraft reaches the hold-short.
 - Session Report **Aircraft** tab now refreshes the Operation column (Departure / Arrival / Transit), filed route, and aircraft type the moment a flight plan is amended — previously the row stayed on the pre-amend values until some other aircraft event happened to invalidate the cache.
 - A planned-restart prepare that fails partway through (disk full, I/O error, retry after a prior failure) no longer destroys prior session checkpoints or leaves rooms stuck paused. The server now writes checkpoints to a sibling staging directory and only swaps them into the live path after every room saves; on any failure, the live directory is left intact and paused rooms resume automatically.
 - `EXT` (and `EXT UPWIND`) now arm the upcoming upwind when issued during a touch-and-go ground roll, pre-T/G final approach, or pre-takeoff.

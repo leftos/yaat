@@ -80,6 +80,7 @@ internal static class GoAroundHelper
 
         ctx.Aircraft.Phases.ReplaceUpcoming(phases);
         ctx.Aircraft.Phases.AdvanceToNext(ctx);
+        FlightPhysics.NotifyPhaseAdvanced(ctx.Aircraft);
     }
 
     /// <summary>

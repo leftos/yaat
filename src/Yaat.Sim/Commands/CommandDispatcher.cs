@@ -1863,6 +1863,14 @@ public static class CommandDispatcher
     /// This is stored on the CommandBlock and executed when the block becomes active.
     /// Captures the dispatch context by reference so triggered commands see the same
     /// weather, ground layout, and aircraft lookup as the original dispatch.
+    ///
+    /// When a phase is active at apply time, tower-only verbs (CTO/LUAW/TAXI/CROSS
+    /// etc.) are routed through <see cref="TryApplyTowerCommand"/> first, mirroring
+    /// the user-typed dispatch path. Without this, queued tower verbs that re-fire
+    /// after a phase transition (e.g. <c>TAXI ... ; CTO MRT</c> firing CTO when
+    /// the aircraft reaches the hold-short) would hit the <see cref="ApplyCommand"/>
+    /// fallback, which has no arm for those verbs and returns the <c>__NO_DISPATCHER_ARM__</c>
+    /// sentinel.
     /// </summary>
     internal static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx)
     {
@@ -1876,7 +1884,43 @@ public static class CommandDispatcher
 
             foreach (var cmd in captured)
             {
-                var result = ApplyCommand(cmd, ac, ctx);
+                CommandResult? result = null;
+
+                if (ac.Phases?.CurrentPhase is { } currentPhase)
+                {
+                    var towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, ctx);
+                    if (towerResult is not null)
+                    {
+                        if (ReferenceEquals(towerResult, PhaseShouldBeCleared))
+                        {
+                            // Mirror the phase-clear sequence DispatchCompoundCore performs
+                            // once validation succeeds. We are already past validation here
+                            // (the block was enqueued via the same dispatcher).
+                            var phaseCtx = BuildMinimalContext(ac);
+                            string? clearedSummary = ac.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
+                            ac.Phases?.Clear(phaseCtx);
+                            ac.Phases = null;
+                            ac.Targets.TurnRateOverride = null;
+                            ac.Targets.HasExplicitTurnRate = false;
+                            AirborneFollowHelper.ClearFollowState(ac);
+
+                            if (clearedSummary is not null)
+                            {
+                                ac.PendingWarnings.Add($"{ac.Callsign} {clearedSummary} cancelled by {CommandDescriber.DescribeNatural(cmd)}");
+                            }
+
+                            // Now apply the tower command against the cleared phase state.
+                            result = ApplyCommand(cmd, ac, ctx);
+                        }
+                        else
+                        {
+                            result = towerResult;
+                        }
+                    }
+                }
+
+                result ??= ApplyCommand(cmd, ac, ctx);
+
                 if (!result.Success)
                 {
                     return WithRejectedCommand(result, cmd);

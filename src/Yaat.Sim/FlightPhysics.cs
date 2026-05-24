@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim;
 
@@ -1563,6 +1564,106 @@ public static class FlightPhysics
 
             block.TriggerMet = true;
             ApplyBlock(aircraft, block);
+        }
+    }
+
+    /// <summary>
+    /// Called by <see cref="Phases.PhaseRunner"/> after a phase advances to a new
+    /// current phase. If the new phase is a "wait" phase (has at least one
+    /// unsatisfied clearance requirement, e.g. HoldingShortPhase waiting on
+    /// RunwayCrossing) and the head of the command queue is an untriggered,
+    /// unapplied block whose commands the new phase accepts, fire it now. This
+    /// lets sequential compounds like <c>TAXI ... ; CTO MRT</c> auto-fire the
+    /// second block when the aircraft reaches the hold-short —
+    /// <see cref="UpdateCommandQueue"/> early-returns while a phase is active,
+    /// and <see cref="ApplyReadyConditionalBlocks"/> stops at the first
+    /// untriggered block, so without this hook the queued block would sit
+    /// untouched until the next user dispatch.
+    ///
+    /// We gate on unsatisfied requirements so transient phases (InitialClimb,
+    /// pattern legs) don't prematurely fire a queued block intended for after
+    /// the phase chain settles into its natural endpoint. Example: in
+    /// <c>CTO MR270 014; DCT OAK30NUM</c>, InitialClimbPhase accepts DCT (as
+    /// ClearsPhase), but the user means "DCT after the MR270 pattern" — not
+    /// "DCT now." InitialClimbPhase has no clearance requirement, so it skips.
+    /// HoldingShortPhase has a RunwayCrossing requirement, so TAXI;CTO does fire.
+    ///
+    /// Idempotent: applied blocks are skipped, so double-calls are safe.
+    /// </summary>
+    public static void NotifyPhaseAdvanced(AircraftState aircraft)
+    {
+        var queue = aircraft.Queue;
+        if (queue.IsComplete)
+        {
+            return;
+        }
+
+        if (aircraft.Phases?.CurrentPhase is not { } currentPhase)
+        {
+            return;
+        }
+
+        // Only fire on phases that actively wait for input (have unsatisfied
+        // clearance requirements). Transient phases that auto-advance must let
+        // the queue keep its untriggered head block.
+        bool isWaitPhase = false;
+        foreach (var req in currentPhase.Requirements)
+        {
+            if (!req.IsSatisfied)
+            {
+                isWaitPhase = true;
+                break;
+            }
+        }
+        if (!isWaitPhase)
+        {
+            return;
+        }
+
+        // Locate the head unapplied block (matches ApplyReadyConditionalBlocks's
+        // start-index logic: skip the current applied block, then look forward).
+        int startIndex = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
+        for (int i = startIndex; i < queue.Blocks.Count; i++)
+        {
+            var block = queue.Blocks[i];
+            if (block.IsApplied)
+            {
+                continue;
+            }
+
+            // Triggered blocks are handled by their own trigger pathway.
+            if (block.Trigger is not null)
+            {
+                return;
+            }
+
+            // Untriggered head block: ask the new current phase whether it accepts
+            // every command in the block. Any Rejected leaves the block queued.
+            if (block.ParsedCommands is not { Count: > 0 } parsed)
+            {
+                return;
+            }
+
+            foreach (var cmd in parsed)
+            {
+                var canonical = CommandDescriber.ToCanonicalType(cmd);
+                var acceptance = currentPhase.CanAcceptCommand(canonical);
+                if (acceptance.IsRejected)
+                {
+                    return;
+                }
+            }
+
+            Log.LogDebug(
+                "[PhaseAdvanced] {Callsign}: new wait phase {Phase} accepts queued block {Idx} ({Desc}); firing",
+                aircraft.Callsign,
+                currentPhase.GetType().Name,
+                i,
+                block.Description
+            );
+
+            ApplyBlock(aircraft, block);
+            return;
         }
     }
 
