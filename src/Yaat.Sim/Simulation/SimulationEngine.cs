@@ -82,6 +82,22 @@ public sealed class SimulationEngine
         TickCompleted?.Invoke(elapsedSeconds);
     }
 
+    /// <summary>
+    /// Fires during the post-physics drain for each <see cref="AircraftState.PendingWarnings"/>
+    /// entry produced this tick — queue-clear notices, missed AT/AT-fix conditions, deferred
+    /// commands rejected when their trigger fires, etc. Mirrors the server's
+    /// <c>TickProcessor.BroadcastWarnings</c> fan-out so non-server consumers (solo client,
+    /// tests) can react to the same per-aircraft warnings the RPO would see in the terminal
+    /// log. Default null = warnings are still drained from the aircraft (so they don't
+    /// accumulate) but otherwise discarded by this engine instance.
+    /// </summary>
+    public event Action<string, string>? WarningEmitted;
+
+    private void FireWarningEmitted(string callsign, string warning)
+    {
+        WarningEmitted?.Invoke(callsign, warning);
+    }
+
     public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)
     {
         _groundData = groundData;
@@ -528,7 +544,11 @@ public sealed class SimulationEngine
             }
         }
 
-        World.DrainAllWarnings();
+        var warnings = World.DrainAllWarnings();
+        foreach (var (callsign, warning) in warnings)
+        {
+            FireWarningEmitted(callsign, warning);
+        }
 
         var notifications = World.DrainAllNotifications();
         foreach (var (callsign, notification) in notifications)

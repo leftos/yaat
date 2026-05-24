@@ -1445,6 +1445,16 @@ public static class FlightPhysics
         if (result is not null && !result.Success)
         {
             Log.LogWarning("Triggered block failed during apply: {Message}", result.Message);
+
+            // CommandDispatcher.DryRunValidate only validates the first
+            // immediately-applied block — deferred blocks reach their handler
+            // here at trigger fire time. Surface failures so the RPO sees them
+            // in the terminal log rather than having them swallowed.
+            var src = !string.IsNullOrEmpty(block.SourceCommandText)
+                ? block.SourceCommandText
+                : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
+            var reason = !string.IsNullOrEmpty(result.Message) ? result.Message : "command failed";
+            aircraft.PendingWarnings.Add($"{aircraft.Callsign} {src}: {reason}");
         }
 
         if (result is { Success: true, Message: not null })

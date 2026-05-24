@@ -770,12 +770,33 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// Validates all commands in a compound by applying them sequentially on a
-    /// snapshot clone of the aircraft. Returns the first error, or null if all
-    /// commands are valid. The real aircraft is never mutated.
+    /// Validates the immediately-applied commands in a compound by running them
+    /// on a snapshot clone of the aircraft. Only the first block is dry-run,
+    /// and only when it has no condition — every other block is deferred:
+    /// either it has an explicit AT/LV/etc. trigger, or it sits in the queue
+    /// behind the previous block's tracked commands and only fires once the
+    /// aircraft sequences past them. By that time the aircraft is in a
+    /// different state, so dry-running deferred handlers against current
+    /// state produces false rejections (e.g. <c>DCT VPCBT; ERB 28R</c> would
+    /// reject "too close for base" at present position even though ERB would
+    /// fire at VPCBT well outside the base-entry floor).
+    ///
+    /// Syntax/parse-level errors still bubble up — the parser rejects unknown
+    /// verbs and malformed args before <see cref="DispatchCompound"/> is
+    /// called. Handler-level failures on deferred blocks surface as
+    /// <see cref="AircraftState.PendingWarnings"/> entries at the trigger
+    /// fire moment (see <see cref="FlightPhysics.ApplyBlock"/>).
     /// </summary>
     private static CommandResult? DryRunValidate(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
+        if (compound.Blocks.Count == 0 || compound.Blocks[0].Condition is not null)
+        {
+            // First block is conditional → entire compound is deferred behind a
+            // trigger. Cannot meaningfully evaluate handler feasibility against
+            // current state; fire-time evaluation owns this.
+            return null;
+        }
+
         var clone = AircraftState.FromSnapshot(aircraft.ToSnapshot(), ctx.GroundLayout);
         // Dry-run uses a deterministic RNG and disables DCT-fix validation, auto-cross-runway
         // side effects, and terminal emission. The clone is discarded; emitting SAY broadcasts
@@ -788,15 +809,13 @@ public static class CommandDispatcher
             TerminalEmitter = null,
         };
 
-        foreach (var block in compound.Blocks)
+        var firstBlock = compound.Blocks[0];
+        foreach (var cmd in firstBlock.Commands)
         {
-            foreach (var cmd in block.Commands)
+            var result = DryRunApplyCommand(cmd, clone, dryCtx);
+            if (!result.Success)
             {
-                var result = DryRunApplyCommand(cmd, clone, dryCtx);
-                if (!result.Success)
-                {
-                    return WithRejectedCommand(result, cmd);
-                }
+                return WithRejectedCommand(result, cmd);
             }
         }
 
