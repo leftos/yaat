@@ -324,12 +324,12 @@ public sealed class InitialClimbPhase : Phase
 
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
     {
-        // Heading-family commands set Targets.TargetTrueHeading directly. If the
-        // RV SID heading hold is still active, OnTick would re-apply the published
-        // hold heading on the next tick and clobber the controller's instruction.
-        // Same for the deferred-turn gate: once the controller vectors manually,
-        // the auto-apply of the assigned departure turn is no longer wanted.
-        bool isHeadingCommand =
+        // Heading and direct-to commands update Targets without clearing the phase.
+        // If the RV SID heading hold or deferred-turn gate is still active, OnTick
+        // would re-apply the published hold heading every tick (and _rvSidActive
+        // forces complete=false), leaving the aircraft stuck in InitialClimb while
+        // FlightPhysics steers along the controller's amended route.
+        bool releasesRvSidHold =
             cmd
             is CanonicalCommandType.FlyHeading
                 or CanonicalCommandType.TurnLeft
@@ -337,9 +337,15 @@ public sealed class InitialClimbPhase : Phase
                 or CanonicalCommandType.RelativeLeft
                 or CanonicalCommandType.RelativeRight
                 or CanonicalCommandType.FlyPresentHeading
-                or CanonicalCommandType.ForceHeading;
+                or CanonicalCommandType.ForceHeading
+                or CanonicalCommandType.DirectTo
+                or CanonicalCommandType.AppendDirectTo
+                or CanonicalCommandType.ForceDirectTo
+                or CanonicalCommandType.AppendForceDirectTo
+                or CanonicalCommandType.TurnLeftDirectTo
+                or CanonicalCommandType.TurnRightDirectTo;
 
-        if (isHeadingCommand)
+        if (releasesRvSidHold)
         {
             _rvSidActive = false;
             _deferredTurnApplied = true;
