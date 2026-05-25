@@ -112,4 +112,41 @@ public class NimiRvSidDctDuringClimbTests
 
         Assert.Fail("InitialClimbPhase should complete after DCT releases the RV SID hold and assigned altitude is reached.");
     }
+
+    /// <summary>
+    /// Conditional <c>AT FIX DCT</c> is enqueued at dispatch; <see cref="CommandDispatcher.BuildApplyAction"/>
+    /// must call <see cref="Phase.OnCommandAccepted"/> when the block fires, not only on immediate dispatch.
+    /// </summary>
+    [Fact]
+    public void AtFixDct_WhenQueuedBlockFires_ReleasesRvSidActive()
+    {
+        TestVnasData.EnsureInitialized();
+        var (phase, ac, _) = BuildRvSidClimbHarness();
+
+        var parsed = CommandParser.ParseCompound("AT FESIK DCT SUNOL");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+
+        var dispatch = CommandDispatcher.DispatchCompound(
+            parsed.Value!,
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false)
+        );
+        Assert.True(dispatch.Success, dispatch.Message);
+
+        var dtoBefore = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        Assert.True(dtoBefore.RvSidActive, "RV SID hold should remain until the conditional block fires.");
+
+        var block = Assert.Single(ac.Queue.Blocks);
+        Assert.NotNull(block.ApplyAction);
+        Assert.NotNull(block.Trigger);
+
+        var applyResult = block.ApplyAction!(ac);
+        Assert.True(applyResult.Success, applyResult.Message);
+
+        var dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        Assert.False(
+            dtoAfter.RvSidActive,
+            "AT-fix DCT firing from the queue must release _rvSidActive the same as an immediate DCT."
+        );
+    }
 }
