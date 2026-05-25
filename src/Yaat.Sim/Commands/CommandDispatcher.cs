@@ -1156,11 +1156,36 @@ public static class CommandDispatcher
             return PhaseShouldBeCleared;
         }
 
-        // Allowed but not a tower command. Notify the phase so it can release any
-        // internal state machines (e.g., RV SID heading hold) that would otherwise
-        // clobber the controller-issued change on the next tick.
-        currentPhase.OnCommandAccepted(cmdType, BuildMinimalContext(aircraft, ctx.GroundLayout));
+        // Allowed but not a tower command — release phase-internal state before apply.
+        NotifyPhaseCommandAccepted(aircraft, firstCmd, currentPhase, ctx);
         return null;
+    }
+
+    /// <summary>
+    /// Notifies the active phase that a command was accepted without clearing it.
+    /// Used on immediate dispatch (<see cref="DispatchWithPhase"/>) and when a queued
+    /// block fires (<see cref="BuildApplyAction"/>).
+    /// </summary>
+    private static void NotifyPhaseCommandAccepted(AircraftState aircraft, ParsedCommand cmd, Phase currentPhase, DispatchContext ctx)
+    {
+        if (cmd is UnsupportedCommand)
+        {
+            return;
+        }
+
+        var cmdType = CommandDescriber.ToCanonicalType(cmd);
+        if (IsPhaseTransparentCommand(cmdType) || IsSimControlBypass(cmdType))
+        {
+            return;
+        }
+
+        var acceptance = currentPhase.CanAcceptCommand(cmdType);
+        if (acceptance.IsRejected || acceptance.ClearsThePhase)
+        {
+            return;
+        }
+
+        currentPhase.OnCommandAccepted(cmdType, BuildMinimalContext(aircraft, ctx.GroundLayout));
     }
 
     private static bool IsPhaseTransparentCommand(CanonicalCommandType cmd) =>
@@ -1973,6 +1998,13 @@ public static class CommandDispatcher
                             result = towerResult;
                         }
                     }
+                }
+
+                // Queued blocks (AT/LV/etc.) reach handlers here at trigger-fire time.
+                // Mirror DispatchWithPhase so lateral amendments release RV SID holds.
+                if (result is null && ac.Phases?.CurrentPhase is { } phaseForNotify)
+                {
+                    NotifyPhaseCommandAccepted(ac, cmd, phaseForNotify, ctx);
                 }
 
                 result ??= ApplyCommand(cmd, ac, ctx);
