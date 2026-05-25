@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.7-beta [2026/05/25]
+
+### Fixed
+- `DCT`/`ADCT`/`FDCT`/`AFDCT`/`TRDCT`/`TLDCT` (including queued `AT FIX`/`LV` variants) during an RV SID initial climb now amends the route instead of trapping the aircraft in the climb.
+- Planned-restart session save now works when the checkpoint directory is a volume mount point — the swap stays inside a subdirectory so the mount point itself is never renamed.
+- A server crash between the checkpoint swap's two renames recovers on the next start instead of deleting the orphaned data and losing the session.
+
 ## v0.3.6-beta [2026/05/23]
 
 ### Highlights
