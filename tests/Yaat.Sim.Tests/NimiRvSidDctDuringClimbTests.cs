@@ -18,7 +18,16 @@ public class NimiRvSidDctDuringClimbTests
 {
     private const double ExpectedRvHeading = 315.0;
 
-    private static (InitialClimbPhase Phase, AircraftState Aircraft, PhaseContext Ctx) BuildRvSidClimbHarness()
+    // Mirrors what InsertTowerPhasesAfterCurrent builds for a CTO whose CIFP path
+    // resolves to a radar-vectors SID: route fixes from the CIFP plus the VM-leg
+    // magnetic heading, with DefaultDeparture as the controller's clearance instruction
+    // (the RV vector comes from SidDepartureHeadingMagnetic, not from Departure).
+    // <paramref name="deferUntilMinAlt"/> selects between the two RV SID variants:
+    //  - false: published VM leg with no CA-leg gate. _rvSidActive=true, _deferredTurnApplied=true,
+    //    target heading set to the RV vector immediately.
+    //  - true : CA-leg-before-VM-leg gating. _rvSidActive=true, _deferredTurnApplied=false,
+    //    runway heading held until past DER + 400 ft AGL, then VM heading applies.
+    private static (InitialClimbPhase Phase, AircraftState Aircraft, PhaseContext Ctx) BuildRvSidClimbHarness(bool deferUntilMinAlt = false)
     {
         const double fieldElev = 6.0;
         var runway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280.0, elevationFt: fieldElev);
@@ -47,6 +56,7 @@ public class NimiRvSidDctDuringClimbTests
             DepartureRoute = [new NavigationTarget { Name = "FESIK", Position = new LatLon(38.2, -121.5) }],
             DepartureSidId = null,
             SidDepartureHeadingMagnetic = ExpectedRvHeading,
+            RvSidDeferHeadingUntilMinAlt = deferUntilMinAlt,
             IsVfr = false,
             CruiseAltitude = 11000,
         };
@@ -144,9 +154,45 @@ public class NimiRvSidDctDuringClimbTests
         Assert.True(applyResult.Success, applyResult.Message);
 
         var dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
-        Assert.False(
-            dtoAfter.RvSidActive,
-            "AT-fix DCT firing from the queue must release _rvSidActive the same as an immediate DCT."
+        Assert.False(dtoAfter.RvSidActive, "AT-fix DCT firing from the queue must release _rvSidActive the same as an immediate DCT.");
+    }
+
+    /// <summary>
+    /// RV SID with a CA leg before the VM leg (<c>RvSidDeferHeadingUntilMinAlt = true</c>):
+    /// the aircraft holds runway heading until past DER + 400 ft AGL, then transitions to
+    /// the VM heading. DCT issued before the gate releases must still clear both
+    /// <c>_rvSidActive</c> AND the deferred-turn gate so the phase isn't trapped waiting
+    /// for a vector transition that the controller has now overridden.
+    /// </summary>
+    [Fact]
+    public void DctDuringDeferredRvSidHold_AlsoReleasesDeferredTurnGate()
+    {
+        TestVnasData.EnsureInitialized();
+        var (phase, ac, ctx) = BuildRvSidClimbHarness(deferUntilMinAlt: true);
+
+        var dtoBefore = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        Assert.True(dtoBefore.RvSidActive, "Precondition: RV SID hold active.");
+        Assert.False(dtoBefore.VfrTurnApplied, "Precondition: deferred-turn gate is still armed (CA-before-VM).");
+
+        var parsed = CommandParser.ParseCompound("DCT FESIK");
+        Assert.True(parsed.IsSuccess);
+
+        var dispatch = CommandDispatcher.DispatchCompound(
+            parsed.Value!,
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false)
+        );
+        Assert.True(dispatch.Success, dispatch.Message);
+
+        // Run one sub-tick so OnTick sees the post-OnCommandAccepted state.
+        phase.OnTick(ctx);
+        FlightPhysics.Update(ac, 1.0, _ => null);
+
+        var dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        Assert.False(dtoAfter.RvSidActive, "DCT must release _rvSidActive even in the CA-before-VM variant.");
+        Assert.True(
+            dtoAfter.VfrTurnApplied,
+            "DCT must clear the deferred-turn gate; otherwise OnTick would still try to apply the published RV vector on reaching 400 ft AGL."
         );
     }
 }

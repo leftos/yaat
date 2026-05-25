@@ -1165,6 +1165,15 @@ public static class CommandDispatcher
     /// Notifies the active phase that a command was accepted without clearing it.
     /// Used on immediate dispatch (<see cref="DispatchWithPhase"/>) and when a queued
     /// block fires (<see cref="BuildApplyAction"/>).
+    ///
+    /// The Unsupported / phase-transparent / sim-control-bypass guards below are
+    /// load-bearing for the <see cref="BuildApplyAction"/> path — queued blocks reach
+    /// this helper without the pre-filtering that <see cref="DispatchWithPhase"/>
+    /// applies earlier (<see cref="UnsupportedCommand"/> reject at the top, then
+    /// <see cref="IsPhaseTransparentCommand"/> and <see cref="IsSimControlBypass"/>
+    /// short-circuits). For the immediate-dispatch caller they are redundant but
+    /// harmless; do not remove them without also collapsing the BuildApplyAction
+    /// invocation back into its own filter.
     /// </summary>
     private static void NotifyPhaseCommandAccepted(AircraftState aircraft, ParsedCommand cmd, Phase currentPhase, DispatchContext ctx)
     {
