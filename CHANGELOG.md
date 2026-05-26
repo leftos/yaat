@@ -10,6 +10,7 @@
 ### Fixed
 - A rejected `DCT`/`ADCT`/`FDCT` (e.g. to an unprogrammed fix) issued during an RV SID initial climb no longer drops the published vectors heading hold — the hold now stays engaged when the route amendment is rejected.
 - Misheard NATO suffix letters in GA tail numbers (Whisper's "gulf" for "golf") no longer truncate the callsign; "november three four six gulf" resolves to N346G.
+- Tower and pattern clearances now accept runway-prefixed phrasing — "runway 28R cleared for takeoff" matches the same as "cleared for takeoff runway 28R" (CTO, CLAND, LUAW, TG, LAHSO, MLT/MRT, ELD/ERD/ELB/ERB).
 
 ## v0.3.7-beta [2026/05/25]
 

@@ -25,6 +25,42 @@ public class PhraseologyMapperTraceTests
     }
 
     [Fact]
+    public void RunwayPrefixed_ClearedForTakeoff_Matches_Rule_That_Captures_Runway()
+    {
+        // FAA 7110.65 3-9-9 phraseology: "RUNWAY 28R, cleared for takeoff" — runway leads the
+        // clearance. Previously the rule mapper only matched the trailing form
+        // ("cleared for takeoff runway 28R") and silently dropped the prefixed runway.
+        var ctx = MapContext.Empty with
+        {
+            AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R"] },
+        };
+        var (result, trace) = PhraseologyMapper.MapWithTrace("runway 28R cleared for takeoff", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("CTO", result!.CanonicalCommand);
+        // The trace must show the runway-prefixed rule fired so the debug view confirms the
+        // runway literal was consumed (not silently ignored).
+        Assert.Contains(trace.MatchedRulePatterns, p => p.Contains("runway") && p.Contains("cleared") && p.Contains("takeoff"));
+    }
+
+    [Theory]
+    [InlineData("runway 28R line up and wait", "LUAW")]
+    [InlineData("runway 28R position and hold", "LUAW")]
+    [InlineData("runway 28R cleared to land", "CLAND")]
+    [InlineData("runway 28R cleared for touch and go", "TG")]
+    [InlineData("runway 28R cleared to land hold short of runway 33", "LAHSO 33")]
+    [InlineData("runway 28R make left traffic", "MLT 28R")]
+    [InlineData("runway 28R make right traffic", "MRT 28R")]
+    [InlineData("runway 28R enter left downwind", "ELD 28R")]
+    [InlineData("runway 28R enter right base", "ERB 28R")]
+    public void RunwayPrefixed_TowerAndPatternClearances_Match(string transcript, string expectedCanonical)
+    {
+        var ctx = MapContext.Empty with { AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R", "33"] } };
+        var (result, _) = PhraseologyMapper.MapWithTrace(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expectedCanonical, result!.CanonicalCommand);
+    }
+
+    [Fact]
     public void Condition_Prefix_Is_Captured_In_Trace()
     {
         var ctx = new MapContext(ActiveCallsigns: [], ProgrammedFixes: ["CEPIN"]);

@@ -124,21 +124,37 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] TowerRules() =>
         [
-            // Line up and wait
+            // Line up and wait. FAA 7110.65 3-7-1 leads with the runway ("RUNWAY 28R, LINE UP AND
+            // WAIT"); the runway-suffix form mirrors ICAO. Runway capture is intentionally not
+            // reflected in the canonical — LUAW uses the aircraft's assigned takeoff runway.
+            new(["runway", "{rwy}", "line", "up", "and", "wait"], "LUAW", LineUpAndWait),
+            new(["runway", "{rwy}", "position", "and", "hold"], "LUAW", LineUpAndWait),
             new(["line", "up", "and", "wait", "runway", "{rwy}"], "LUAW", LineUpAndWait),
             new(["line", "up", "and", "wait"], "LUAW", LineUpAndWait),
             new(["position", "and", "hold"], "LUAW", LineUpAndWait), // legacy US phraseology
-            // Cleared for takeoff
+            // Cleared for takeoff. FAA 7110.65 3-9-9 leads with the runway ("RUNWAY 28R, cleared
+            // for takeoff"); ICAO phraseology trails it ("cleared for takeoff runway 28R"). The
+            // {rwy} capture is intentionally not reflected in the canonical output — CTO uses the
+            // aircraft's already-assigned takeoff runway; the runway literal is in the pattern so
+            // the rule mapper consumes the whole utterance instead of silently dropping it.
+            new(["runway", "{rwy}", "cleared", "for", "takeoff"], "CTO", ClearedForTakeoff),
+            new(["runway", "{rwy}", "clear", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["cleared", "for", "takeoff", "runway", "{rwy}"], "CTO", ClearedForTakeoff),
             new(["cleared", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["clear", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["cancel", "takeoff", "clearance"], "CTOC", CancelTakeoffClearance),
-            // Cleared to land
+            // Cleared to land. Same word-order story as CTO above — accept both runway-prefixed
+            // (US tower phraseology) and runway-suffixed (ICAO) forms.
+            new(["runway", "{rwy}", "cleared", "to", "land"], "CLAND", ClearedToLand),
+            new(["runway", "{rwy}", "clear", "to", "land"], "CLAND", ClearedToLand),
             new(["cleared", "to", "land", "runway", "{rwy}"], "CLAND", ClearedToLand),
             new(["cleared", "to", "land"], "CLAND", ClearedToLand),
             new(["clear", "to", "land"], "CLAND", ClearedToLand),
             new(["cancel", "landing", "clearance"], "CLC", CancelLandingClearance),
             // Land and hold short
+            // FAA 7110.65 3-11-2: "RUNWAY 28R, cleared to land, hold short of runway 33." Runway
+            // leads; the hold-short runway tail-anchors the clearance. Both word orders accepted.
+            new(["runway", "{rwy}", "cleared", "to", "land", "hold", "short", "of?", "runway", "{holdrwy}"], "LAHSO {holdrwy}", LandAndHoldShort),
             new(["cleared", "to", "land", "runway", "{rwy}", "hold", "short", "of?", "runway", "{holdrwy}"], "LAHSO {holdrwy}", LandAndHoldShort),
             new(["lahso", "runway", "{rwy}"], "LAHSO {rwy}", LandAndHoldShort),
             // Go around
@@ -146,7 +162,10 @@ public static class PhraseologyRules
             new(["go", "around", "make", "left", "traffic"], "GA MLT", GoAround),
             new(["go", "around", "make", "right", "traffic"], "GA MRT", GoAround),
             new(["go", "around"], "GA", GoAround),
-            // Option/touch-and-go
+            // Option/touch-and-go. Per 7110.65 3-9-7 the runway leads ("RUNWAY 28R, cleared
+            // touch and go") in US tower phraseology; runway-suffix form accepted for ICAO parity.
+            new(["runway", "{rwy}", "cleared", "for", "touch", "and", "go"], "TG", TouchAndGo),
+            new(["runway", "{rwy}", "cleared", "touch", "and", "go"], "TG", TouchAndGo),
             new(["cleared", "touch", "and", "go", "runway", "{rwy}"], "TG", TouchAndGo),
             new(["cleared", "for", "touch", "and", "go"], "TG", TouchAndGo),
             new(["cleared", "touch", "and", "go"], "TG", TouchAndGo),
@@ -297,12 +316,22 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] PatternRules() =>
         [
+            // Pattern entry. FAA 7110.65 3-10-4: "ENTER (left/right) BASE FOR RUNWAY (number)" is
+            // the standard suffix form, and pilot readbacks echo it suffix-first ("entering left
+            // downwind, runway 28R"). The runway-prefix variant ("Runway 28R, enter left
+            // downwind") is common informal controller phrasing and accepted for STT, but the
+            // suffix form must stay first so the pilot AI's verbalizer picks it on capture-count
+            // ties (PhraseologyVerbalizer.PickPreferredRule).
             new(["enter", "left", "downwind", "runway", "{rwy}"], "ELD {rwy}", EnterLeftDownwind),
             new(["enter", "right", "downwind", "runway", "{rwy}"], "ERD {rwy}", EnterRightDownwind),
+            new(["runway", "{rwy}", "enter", "left", "downwind"], "ELD {rwy}", EnterLeftDownwind),
+            new(["runway", "{rwy}", "enter", "right", "downwind"], "ERD {rwy}", EnterRightDownwind),
             new(["enter", "left", "downwind"], "ELD", EnterLeftDownwind),
             new(["enter", "right", "downwind"], "ERD", EnterRightDownwind),
             new(["enter", "left", "base", "runway", "{rwy}"], "ELB {rwy}", EnterLeftBase),
             new(["enter", "right", "base", "runway", "{rwy}"], "ERB {rwy}", EnterRightBase),
+            new(["runway", "{rwy}", "enter", "left", "base"], "ELB {rwy}", EnterLeftBase),
+            new(["runway", "{rwy}", "enter", "right", "base"], "ERB {rwy}", EnterRightBase),
             new(["enter", "left", "base"], "ELB", EnterLeftBase),
             new(["enter", "right", "base"], "ERB", EnterRightBase),
             new(["enter", "left", "crosswind"], "ELC", EnterLeftCrosswind),
@@ -310,6 +339,8 @@ public static class PhraseologyRules
             new(["enter", "final"], "EF", EnterFinal),
             new(["make", "left", "traffic", "runway", "{rwy}"], "MLT {rwy}", MakeLeftTraffic),
             new(["make", "right", "traffic", "runway", "{rwy}"], "MRT {rwy}", MakeRightTraffic),
+            new(["runway", "{rwy}", "make", "left", "traffic"], "MLT {rwy}", MakeLeftTraffic),
+            new(["runway", "{rwy}", "make", "right", "traffic"], "MRT {rwy}", MakeRightTraffic),
             new(["make", "left", "traffic"], "MLT", MakeLeftTraffic),
             new(["make", "right", "traffic"], "MRT", MakeRightTraffic),
             new(["turn", "crosswind"], "TC", TurnCrosswind),
