@@ -93,18 +93,18 @@ In this plan file, tick the chapter's checkbox in the **Per-chapter task list** 
 Order: 7110.65 first (controller-side is the bigger gap surface), AIM after. Within 7110.65, sequence by likely yield — Ch 3 (tower) and Ch 4 (TRACON) are the highest-traffic chapters.
 
 ### 7110.65 (controller-side)
-- [ ] Chapter 3 — Airport Traffic Control (tower)
-- [ ] Chapter 4 — IFR (TRACON / approach control)
-- [ ] Chapter 5 — Radar
-- [ ] Chapter 7 — Visual (visual approaches, pattern, VFR ops)
-- [ ] Chapter 2 — General Control (safety alerts, equipment status, common verbs)
-- [ ] Chapter 6 — Nonradar
-- [ ] Chapter 9 — Special Flights (helo, military, formation — edge cases; flag-and-defer expected)
+- [x] Chapter 3 — Airport Traffic Control (tower)
+- [x] Chapter 4 — IFR (TRACON / approach control)
+- [x] Chapter 5 — Radar
+- [x] Chapter 7 — Visual (visual approaches, pattern, VFR ops)
+- [x] Chapter 2 — General Control (safety alerts, equipment status, common verbs)
+- [x] Chapter 6 — Nonradar
+- [x] Chapter 9 — Special Flights (helo, military, formation — edge cases; flag-and-defer expected)
 
 ### AIM (pilot-side)
-- [ ] Chapter 4 — Air Traffic Control (pilot communications, position reports)
-- [ ] Chapter 5 — Air Traffic Procedures (departure/arrival pilot phrasings)
-- [ ] Chapter 10 — Helicopter Operations (helo pilot phrasings — edge cases)
+- [x] Chapter 4 — Air Traffic Control (pilot communications, position reports)
+- [x] Chapter 5 — Air Traffic Procedures (departure/arrival pilot phrasings)
+- [x] Chapter 10 — Helicopter Operations (helo pilot phrasings — edge cases)
 
 ## Recent work to NOT re-flag
 
