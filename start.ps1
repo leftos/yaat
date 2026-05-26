@@ -233,7 +233,21 @@ try {
         docker stop yaat-server-local 2>$null
     }
     foreach ($proc in $procs) {
-        if (!$proc.HasExited) {
+        if ($proc.HasExited) { continue }
+
+        # GUI process (Yaat.Client) — ask the window to close so OnClosing fires and any
+        # in-memory window geometry / pop-out state is flushed to preferences. Fall back
+        # to force-kill if it doesn't exit promptly. Pure-console processes (the server)
+        # have no main window — they go straight to force-kill.
+        $hasWindow = $false
+        try { $hasWindow = $proc.MainWindowHandle -ne [IntPtr]::Zero } catch { }
+
+        if ($hasWindow) {
+            [void]$proc.CloseMainWindow()
+            if (-not $proc.WaitForExit(3000)) {
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+        } else {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
         }
     }

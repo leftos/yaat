@@ -346,6 +346,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnIsTerminalDockedChanged(bool value)
     {
+        _preferences.SetPoppedOut("Terminal", !value);
         OnPropertyChanged(nameof(IsContentGridVisible));
         OnPropertyChanged(nameof(IsTabSplitterVisible));
     }
@@ -1058,6 +1059,7 @@ public partial class MainViewModel : ObservableObject
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
+        IsTerminalDocked = _preferences.IsTerminalDocked;
         // Student Strips entry pop-out state persists across restarts. Non-student
         // per-facility entries are session-scoped and always start docked.
         StripsEntries[0].IsPoppedOut = _preferences.IsVStripsPoppedOut;
@@ -2245,6 +2247,11 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Exit()
     {
+        // Mark shutdown before invoking Avalonia's Shutdown so pop-out windows' Closing
+        // handlers don't treat the cascade close as a manual user-close and clobber
+        // persisted pop-out flags. MainWindow.OnClosing sets the same flag, but Shutdown
+        // can iterate other windows before reaching MainWindow.
+        AppLifetime.MarkShuttingDown();
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Shutdown();

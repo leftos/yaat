@@ -245,6 +245,13 @@ public partial class MainWindow : Window
             OpenRadarViewWindow(vm);
         }
 
+        if (!vm.IsTerminalDocked)
+        {
+            _terminalWindow = new TerminalWindow(vm.Preferences) { DataContext = vm };
+            _terminalWindow.Closing += OnTerminalWindowClosing;
+            _terminalWindow.Show();
+        }
+
         WireStripsEntryWindows(vm);
 
         // Sync the content grid's row heights to the initial pop-out state
@@ -1224,7 +1231,7 @@ public partial class MainWindow : Window
         _stripsWindows[entry] = window;
         window.Closing += (_, _) =>
         {
-            if (!_isMainWindowClosing)
+            if (!IsClosingFromShutdown(_isMainWindowClosing))
             {
                 entry.IsPoppedOut = false;
             }
@@ -1410,9 +1417,18 @@ public partial class MainWindow : Window
         }
     }
 
+    // Pop-out close handlers revert the dock flag only when the user closed *this* window
+    // manually. During app shutdown (X-button on MainWindow, File > Exit, Velopack restart,
+    // CancelKeyPress) the pop-outs are closed by the framework and the persisted "popped
+    // out" flag must survive so the next launch restores the same layout. The local
+    // _isMainWindowClosing flag covers X-button-on-MainWindow; AppLifetime.IsShuttingDown
+    // covers every other shutdown path that may close pop-outs before MainWindow.OnClosing
+    // has a chance to fire.
+    private static bool IsClosingFromShutdown(bool isMainWindowClosing) => isMainWindowClosing || AppLifetime.IsShuttingDown;
+
     private void OnTerminalWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
+        if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsTerminalDocked = true;
         }
@@ -1421,7 +1437,7 @@ public partial class MainWindow : Window
 
     private void OnDataGridWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
+        if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsDataGridPoppedOut = false;
         }
@@ -1430,7 +1446,7 @@ public partial class MainWindow : Window
 
     private void OnGroundViewWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
+        if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsGroundViewPoppedOut = false;
         }
@@ -1439,7 +1455,7 @@ public partial class MainWindow : Window
 
     private void OnRadarViewWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
+        if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsRadarViewPoppedOut = false;
         }
@@ -2299,7 +2315,20 @@ public partial class MainWindow : Window
             }
         }
 
-        _isMainWindowClosing = !e.Cancel;
+        // Sticky: only ever set to true, never reset to false. OnClosing is async void and
+        // re-enters itself when the confirm-exit dialog is shown — Entry #1 cancels the close
+        // (e.Cancel=true), Entry #2 fires from the inner Close() with a fresh args object and
+        // correctly sets the flag. Without this guard, Entry #1 resumes after the await and
+        // overwrites the flag back to false using its stale e1.Cancel=true, which makes the
+        // child pop-out windows treat the shutdown as a manual close and clobber their
+        // popped-out state in preferences.
+        if (!e.Cancel)
+        {
+            _isMainWindowClosing = true;
+            // Mirror to the app-wide flag so pop-out windows' Closing handlers see the same
+            // signal whether the shutdown originated here (X button) or from File > Exit.
+            AppLifetime.MarkShuttingDown();
+        }
 
         if (_isMainWindowClosing && _globalKeyHook is { } hook)
         {

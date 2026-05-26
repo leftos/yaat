@@ -137,6 +137,7 @@ public sealed class UserPreferences
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
     public bool IsVStripsPoppedOut => _data.IsVStripsPoppedOut;
+    public bool IsTerminalDocked => _data.IsTerminalDocked;
     public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
     public bool ShowTimelineBar => _data.ShowTimelineBar;
     public string? LastScenarioFolder => _data.LastScenarioFolder;
@@ -433,12 +434,15 @@ public sealed class UserPreferences
 
     public void SetPoppedOut(string tabName, bool poppedOut)
     {
+        // "Terminal" has inverted semantics: the stored field is IsTerminalDocked (default
+        // true). poppedOut == true means !IsTerminalDocked.
         bool current = tabName switch
         {
             "DataGrid" => _data.IsDataGridPoppedOut,
             "GroundView" => _data.IsGroundViewPoppedOut,
             "RadarView" => _data.IsRadarViewPoppedOut,
             "VStrips" => _data.IsVStripsPoppedOut,
+            "Terminal" => !_data.IsTerminalDocked,
             _ => poppedOut,
         };
         if (current == poppedOut)
@@ -459,6 +463,9 @@ public sealed class UserPreferences
                 break;
             case "VStrips":
                 _data.IsVStripsPoppedOut = poppedOut;
+                break;
+            case "Terminal":
+                _data.IsTerminalDocked = !poppedOut;
                 break;
         }
         Save();
@@ -1075,6 +1082,7 @@ public sealed class UserPreferences
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
             IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
+            IsTerminalDocked = GetFieldOr(obj, "isTerminalDocked", true),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
@@ -1309,6 +1317,7 @@ public sealed class UserPreferences
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
         public bool IsVStripsPoppedOut { get; set; }
+        public bool IsTerminalDocked { get; set; } = true;
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
         public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
@@ -33,6 +34,13 @@ public sealed class WindowGeometryHelper
     private bool _applyingTitle;
     private bool _isRegistered;
 
+    // Debounced auto-save so position/size/state changes are persisted while the window is
+    // still alive, not only at close time. Closes the gap where a process kill (Ctrl+C in
+    // a script that uses Stop-Process -Force, OS power loss, crash, Velopack restart) would
+    // otherwise leave the saved geometry stale.
+    private static readonly TimeSpan AutoSaveDebounce = TimeSpan.FromSeconds(1.5);
+    private readonly DispatcherTimer _autoSaveTimer;
+
     public WindowGeometryHelper(Window window, UserPreferences preferences, string windowName, double defaultWidth, double defaultHeight)
     {
         _window = window;
@@ -42,6 +50,8 @@ public sealed class WindowGeometryHelper
         _defaultHeight = defaultHeight;
         _systemMenuHelper = new WindowSystemMenuHelper(window, this, preferences, windowName);
         _nativeMenuHelper = new WindowNativeMenuHelper(window, this, preferences, windowName);
+        _autoSaveTimer = new DispatcherTimer { Interval = AutoSaveDebounce };
+        _autoSaveTimer.Tick += OnAutoSaveTick;
     }
 
     /// <summary>
@@ -85,6 +95,7 @@ public sealed class WindowGeometryHelper
 
         _window.PropertyChanged += OnWindowPropertyChanged;
         _window.PositionChanged += OnPositionChanged;
+        _window.SizeChanged += OnWindowSizeChanged;
         _window.Closing += OnClosing;
         _preferences.WindowTopmostChanged += OnPreferencesWindowTopmostChanged;
         _systemMenuHelper.Attach();
@@ -283,6 +294,11 @@ public sealed class WindowGeometryHelper
         if (e.Property == Window.TopmostProperty)
         {
             ApplyTitle();
+            ScheduleAutoSave();
+        }
+        else if (e.Property == Window.WindowStateProperty)
+        {
+            ScheduleAutoSave();
         }
     }
 
@@ -293,10 +309,33 @@ public sealed class WindowGeometryHelper
             _previousNormalGeometry = _lastNormalGeometry;
             _lastNormalGeometry = CaptureCurrentGeometry();
         }
+        ScheduleAutoSave();
+    }
+
+    private void OnWindowSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (_window.WindowState == WindowState.Normal)
+        {
+            _lastNormalGeometry = CaptureCurrentGeometry();
+        }
+        ScheduleAutoSave();
+    }
+
+    private void ScheduleAutoSave()
+    {
+        _autoSaveTimer.Stop();
+        _autoSaveTimer.Start();
+    }
+
+    private void OnAutoSaveTick(object? sender, System.EventArgs e)
+    {
+        _autoSaveTimer.Stop();
+        SaveCurrentGeometry();
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        _autoSaveTimer.Stop();
         _preferences.WindowTopmostChanged -= OnPreferencesWindowTopmostChanged;
         SaveCurrentGeometry();
         Unregister();
