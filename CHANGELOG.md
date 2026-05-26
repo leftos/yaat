@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.8-beta [2026/05/26]
+
+### Fixed
+- A rejected `DCT`/`ADCT`/`FDCT` (e.g. to an unprogrammed fix) issued during an RV SID initial climb no longer drops the published vectors heading hold — the hold now stays engaged when the route amendment is rejected.
+
 ## v0.3.7-beta [2026/05/25]
 
 ### Fixed
