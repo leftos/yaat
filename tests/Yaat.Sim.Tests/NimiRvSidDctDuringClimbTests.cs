@@ -158,6 +158,30 @@ public class NimiRvSidDctDuringClimbTests
     }
 
     /// <summary>
+    /// When DCT fails at apply time (unprogrammed fix with validation on), the RV SID hold
+    /// must stay armed — <see cref="Phase.OnCommandAccepted"/> must not run before success.
+    /// </summary>
+    [Fact]
+    public void DctToUnprogrammedFix_WhenApplyFails_KeepsRvSidActive()
+    {
+        TestVnasData.EnsureInitialized();
+        var (phase, ac, _) = BuildRvSidClimbHarness();
+
+        var parsed = CommandParser.ParseCompound("DCT SUNOL");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+
+        var dispatch = CommandDispatcher.DispatchCompound(
+            parsed.Value!,
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), validateDctFixes: true)
+        );
+        Assert.False(dispatch.Success, "SUNOL is not on the filed route; DCT must fail when fix validation is on.");
+
+        var dto = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        Assert.True(dto.RvSidActive, "Failed DCT must not release the RV SID heading hold.");
+    }
+
+    /// <summary>
     /// RV SID with a CA leg before the VM leg (<c>RvSidDeferHeadingUntilMinAlt = true</c>):
     /// the aircraft holds runway heading until past DER + 400 ft AGL, then transitions to
     /// the VM heading. DCT issued before the gate releases must still clear both
