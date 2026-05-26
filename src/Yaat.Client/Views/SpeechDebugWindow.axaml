@@ -1,159 +1,504 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Yaat.Client.ViewModels"
         x:Class="Yaat.Client.Views.SpeechDebugWindow"
+        x:Name="SpeechDebugRoot"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Speech Recognition Debug"
-        Width="820"
-        Height="560"
-        MinWidth="600"
-        MinHeight="400"
+        Width="1120"
+        Height="720"
+        MinWidth="820"
+        MinHeight="540"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
 
-    <DockPanel Margin="12">
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.mono">
+            <Setter Property="FontFamily" Value="Consolas,monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBox.mono-readonly">
+            <Setter Property="FontFamily" Value="Consolas,monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <!-- Flowchart stage card. Number badge on the left, title at the top, content below. -->
+        <Style Selector="Border.stage">
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+        <Style Selector="Border.stage-skipped">
+            <Setter Property="Background" Value="#161E2D" />
+            <Setter Property="BorderBrush" Value="#2A3447" />
+        </Style>
+        <Style Selector="Border.stage-final">
+            <Setter Property="Background" Value="#102018" />
+            <Setter Property="BorderBrush" Value="#3F6F4F" />
+        </Style>
+        <Style Selector="TextBlock.stage-number">
+            <Setter Property="FontFamily" Value="Consolas,monospace" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+            <Setter Property="MinWidth" Value="22" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.stage-title">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.stage-status">
+            <Setter Property="FontFamily" Value="Consolas,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.stage-arrow">
+            <Setter Property="Text" Value="▼" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="#3F4F6F" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,2" />
+        </Style>
+    </Window.Styles>
 
+    <DockPanel Margin="16">
+
+        <!-- Header strip -->
+        <Border DockPanel.Dock="Top"
+                Classes="card"
+                Margin="0,0,0,12">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="Speech recognition debugger"
+                                   FontSize="16"
+                                   FontWeight="SemiBold" />
+                        <TextBlock x:Name="CaptureStatusText"
+                                   Text="{Binding CaptureStatus}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource SubtleTextBrush}" />
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            x:Name="SettingsButton"
+                            Content="Settings…"
+                            Margin="0,0,8,0"
+                            ToolTip.Tip="Open the Speech tab in Settings to toggle capture and adjust the MB cap." />
+                    <Button Grid.Column="2"
+                            Content="Clear history"
+                            Command="{Binding ClearHistoryCommand}" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Select all"
+                            Command="{Binding SelectAllForExportCommand}"
+                            ToolTip.Tip="Tick every row that has a saved audio sample." />
+                    <Button Content="Unselect all"
+                            Command="{Binding UnselectAllForExportCommand}" />
+                    <Button x:Name="ExportSelectedButton"
+                            Content="{Binding ExportSelectedButtonLabel}"
+                            IsEnabled="{Binding HasSelectedForExport}"
+                            ToolTip.Tip="Save the checked recordings as one .yaat-speech-sample.zip you can attach to a GitHub issue." />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Bottom button row -->
         <StackPanel DockPanel.Dock="Bottom"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,12,0,0"
                     Spacing="8">
-            <Button x:Name="ClearButton" Content="Clear history" />
             <Button x:Name="CloseButton" Content="Close" Width="80" />
         </StackPanel>
 
-        <TextBlock DockPanel.Dock="Top"
-                   Text="Shows the 20 most recent push-to-talk sessions. Most recent at the top. Click a session to see the raw transcript and canonical command output."
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource SubtleTextBrush}"
-                   FontSize="11"
-                   Margin="0,0,0,8" />
+        <!-- Master-detail body -->
+        <Grid ColumnDefinitions="340,4,*">
+            <!-- Master: session list -->
+            <Border Grid.Column="0" Classes="card" Padding="0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="Recent sessions"
+                               Classes="label"
+                               Margin="12,10,12,6" />
+                    <ListBox x:Name="SessionsListBox"
+                             ItemsSource="{Binding Rows}"
+                             SelectedItem="{Binding SelectedRow}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="6,8,10,8"
+                                        Background="Transparent">
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto">
+                                        <CheckBox Grid.Column="0" Grid.RowSpan="2"
+                                                  IsChecked="{Binding IsSelectedForExport}"
+                                                  IsEnabled="{Binding HasSavedAudio}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,4,0"
+                                                  ToolTip.Tip="Include this recording in the export bundle." />
+                                        <TextBlock Grid.Column="1" Grid.Row="0"
+                                                   Text="{Binding OutcomeGlyph}"
+                                                   Foreground="{Binding OutcomeBrush}"
+                                                   FontWeight="Bold"
+                                                   FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0" />
+                                        <TextBlock Grid.Column="2" Grid.Row="0"
+                                                   Text="{Binding TimestampDisplay}"
+                                                   FontFamily="Consolas,monospace"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12" />
+                                        <TextBlock Grid.Column="3" Grid.Row="0"
+                                                   Text="🎵"
+                                                   FontSize="11"
+                                                   IsVisible="{Binding HasSavedAudio}"
+                                                   ToolTip.Tip="Audio + pipeline trace saved to disk"
+                                                   VerticalAlignment="Center" />
 
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl x:Name="SessionsItemsControl">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Background="#2A2A2E"
-                                BorderBrush="#3F3F46"
-                                BorderThickness="1"
-                                CornerRadius="3"
-                                Padding="8"
-                                Margin="0,0,0,6">
-                            <StackPanel Spacing="4">
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding TimestampUtc, StringFormat='{}{0:HH:mm:ss}'}"
-                                               FontFamily="Consolas,monospace"
-                                               FontWeight="SemiBold"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding Outcome}"
-                                               Margin="12,0,0,0"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource SubtleTextBrush}" />
-                                    <TextBlock Grid.Column="2"
-                                               Text="{Binding TotalElapsedMs, StringFormat='total {0} ms'}"
-                                               FontFamily="Consolas,monospace"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               VerticalAlignment="Center" />
-                                </Grid>
+                                        <TextBlock Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="1"
+                                                   Text="{Binding TranscriptDisplay}"
+                                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="0,2,0,0" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
 
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Grid.Column="0"
-                                               Text="Audio:"
-                                               Width="90"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               FontSize="11" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding AudioDurationSeconds, StringFormat='{}{0:F2} s'}"
-                                               FontFamily="Consolas,monospace"
-                                               FontSize="11" />
-                                </Grid>
+            <GridSplitter Grid.Column="1"
+                          Background="Transparent"
+                          ResizeDirection="Columns" />
 
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Grid.Column="0"
-                                               Text="Transcribe:"
-                                               Width="90"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               FontSize="11" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding TranscribeElapsedMs, StringFormat='{}{0} ms'}"
-                                               FontFamily="Consolas,monospace"
-                                               FontSize="11" />
-                                </Grid>
+            <!-- Detail: selected session (or placeholder when nothing selected) -->
+            <ScrollViewer Grid.Column="2"
+                          HorizontalScrollBarVisibility="Disabled">
+                <Panel>
+                    <TextBlock Text="Select a session on the left to see its full pipeline trace."
+                               Foreground="{DynamicResource SubtleTextBrush}"
+                               Margin="20"
+                               FontSize="13"
+                               IsVisible="{Binding SelectedRow, Converter={x:Static ObjectConverters.IsNull}}" />
+                <ContentControl Content="{Binding SelectedRow}"
+                                IsVisible="{Binding SelectedRow, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <ContentControl.DataTemplates>
+                        <DataTemplate DataType="{x:Type vm:SpeechDebugSessionRow}">
+                            <StackPanel Spacing="10">
 
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Grid.Column="0"
-                                               Text="Map:"
-                                               Width="90"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               FontSize="11" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding MapElapsedMs, StringFormat='{}{0} ms'}"
-                                               FontFamily="Consolas,monospace"
-                                               FontSize="11" />
-                                </Grid>
+                                <!-- Outcome banner -->
+                                <Border Classes="card">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding OutcomeGlyph}"
+                                                       Foreground="{Binding OutcomeBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="22"
+                                                       VerticalAlignment="Center" />
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding OutcomeLabel}"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Session.TimestampUtc, StringFormat='Captured {0:HH:mm:ss} UTC'}"
+                                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                                           FontSize="11" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*">
+                                            <TextBlock Grid.Column="0" Text="Audio" Classes="label" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Session.AudioDurationSeconds, StringFormat='{}{0:F2} s'}"
+                                                       Classes="mono"
+                                                       Margin="6,0,12,0" />
+                                            <TextBlock Grid.Column="2" Text="Transcribe" Classes="label" />
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding Session.TranscribeElapsedMs, StringFormat='{}{0} ms'}"
+                                                       Classes="mono"
+                                                       Margin="6,0,12,0" />
+                                            <TextBlock Grid.Column="4" Text="Map" Classes="label" />
+                                            <TextBlock Grid.Column="5"
+                                                       Text="{Binding Session.MapElapsedMs, StringFormat='{}{0} ms'}"
+                                                       Classes="mono"
+                                                       Margin="6,0,0,0" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
 
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Grid.Column="0"
-                                               Text="Transcript:"
-                                               Width="90"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               FontSize="11" />
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding Transcript, Mode=OneWay}"
-                                             IsReadOnly="True"
-                                             BorderThickness="0"
-                                             Background="Transparent"
-                                             FontFamily="Consolas,monospace"
-                                             FontSize="11"
-                                             Padding="0" />
-                                </Grid>
+                                <!-- Pipeline flowchart: one card per stage from mic capture to final canonical -->
+                                <StackPanel Spacing="0">
 
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                    <TextBlock Grid.Column="0"
-                                               Text="Canonical:"
-                                               Width="90"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               FontSize="11" />
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding CanonicalCommand, Mode=OneWay}"
-                                             IsReadOnly="True"
-                                             BorderThickness="0"
-                                             Background="Transparent"
-                                             FontFamily="Consolas,monospace"
-                                             FontSize="11"
-                                             Padding="0" />
-                                    <TextBlock Grid.Column="2"
-                                               Text="(LLM fallback)"
-                                               IsVisible="{Binding UsedLlmFallback}"
+                                    <!-- ① Mic capture -->
+                                    <Border Classes="stage">
+                                        <StackPanel Spacing="6">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <TextBlock Grid.Column="0" Text="①" Classes="stage-number" />
+                                                <TextBlock Grid.Column="1" Text="Mic capture" Classes="stage-title" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Session.AudioDurationSeconds, StringFormat='{}{0:F2} s · 16 kHz mono'}"
+                                                           Classes="stage-status" />
+                                            </Grid>
+                                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                                        IsVisible="{Binding HasSavedAudio}">
+                                                <Button Content="▶ Play" Width="100" Click="OnPlayClick" />
+                                                <Button Content="■ Stop" Width="80" Click="OnStopClick" />
+                                                <TextBlock Text="{Binding #SpeechDebugRoot.DataContext.PlaybackStatus}"
+                                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="11" />
+                                            </StackPanel>
+                                            <TextBlock Text="No audio saved for this session. Enable 'Help improve speech recognition' in Settings to start capturing samples."
+                                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       IsVisible="{Binding !HasSavedAudio}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Classes="stage-arrow" />
+
+                                    <!-- Stages 2–5 (require a trace) -->
+                                    <StackPanel Spacing="0"
+                                                IsVisible="{Binding Session.Trace, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+                                        <!-- ② Whisper STT -->
+                                        <Border Classes="stage">
+                                            <StackPanel Spacing="6">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="②" Classes="stage-number" />
+                                                    <TextBlock Grid.Column="1" Text="Whisper transcription" Classes="stage-title" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Session.TranscribeElapsedMs, StringFormat='{}{0} ms'}"
+                                                               Classes="stage-status" />
+                                                </Grid>
+                                                <Expander Header="Biasing prompt (static ATC vocabulary)">
+                                                    <TextBox Classes="mono-readonly" Text="{Binding Session.Trace.WhisperBiasingPrompt, Mode=OneWay}" MaxHeight="200" />
+                                                </Expander>
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="Raw transcript" Classes="label" />
+                                                    <TextBox Classes="mono-readonly" Text="{Binding Session.Trace.RawTranscript, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Classes="stage-arrow" />
+
+                                        <!-- ③ Callsign extract -->
+                                        <Border Classes="stage">
+                                            <StackPanel Spacing="6">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="③" Classes="stage-number" />
+                                                    <TextBlock Grid.Column="1" Text="Callsign extract" Classes="stage-title" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Session.Trace.CallsignExtracted, FallbackValue='no callsign'}"
+                                                               Classes="stage-status" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Grid.Column="0" Text="Callsign:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Session.Trace.CallsignExtracted, FallbackValue='(none)'}" Classes="mono" Margin="6,0,0,0" />
+                                                </Grid>
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="Stripped command text" Classes="label" />
+                                                    <TextBox Classes="mono-readonly" Text="{Binding Session.Trace.CallsignStrippedTranscript, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Classes="stage-arrow" />
+
+                                        <!-- ④ Rule mapper -->
+                                        <Border Classes="stage">
+                                            <StackPanel Spacing="6">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="④" Classes="stage-number" />
+                                                    <TextBlock Grid.Column="1" Text="Rule mapper" Classes="stage-title" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Session.Trace.Rule.OutputCanonical, FallbackValue='no match'}"
+                                                               Classes="stage-status" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Grid.Column="0" Text="Normalized:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                                                    <TextBox Grid.Column="1" Classes="mono-readonly" Text="{Binding Session.Trace.Rule.NormalizedTokens, Mode=OneWay}" Margin="6,0,0,0" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding Session.Trace.Rule.ConditionPrefix, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <TextBlock Grid.Column="0" Text="Condition:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Session.Trace.Rule.ConditionPrefix}" Classes="mono" Margin="6,0,0,0" />
+                                                </Grid>
+                                                <StackPanel Spacing="2"
+                                                            IsVisible="{Binding Session.Trace.Rule.OutputCanonical, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <TextBlock Text="Matched rules" Classes="label" />
+                                                    <ItemsControl ItemsSource="{Binding Session.Trace.Rule.MatchedRulePatterns}" Margin="12,0,0,0">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding}" Classes="mono" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding Session.Trace.Rule.OutputCanonical, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <TextBlock Grid.Column="0" Text="Output:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Session.Trace.Rule.OutputCanonical}" Classes="mono" FontWeight="SemiBold" Margin="6,0,0,0" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding Session.Trace.Rule.FailureReason, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <TextBlock Grid.Column="0" Text="Result:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Session.Trace.Rule.FailureReason}" Foreground="#E0B070" Classes="mono" Margin="6,0,0,0" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Classes="stage-arrow" />
+
+                                        <!-- ⑤ LLM fallback (always shown; muted when skipped) -->
+                                        <Border Classes="stage stage-skipped"
+                                                IsVisible="{Binding Session.Trace.Llm, Converter={x:Static ObjectConverters.IsNull}}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <TextBlock Grid.Column="0" Text="⑤" Classes="stage-number" />
+                                                <TextBlock Grid.Column="1" Text="LLM fallback" Classes="stage-title" Foreground="{DynamicResource SubtleTextBrush}" />
+                                                <TextBlock Grid.Column="2" Text="skipped (rule mapper succeeded)" Classes="stage-status" />
+                                            </Grid>
+                                        </Border>
+                                        <Border Classes="stage"
+                                                IsVisible="{Binding Session.Trace.Llm, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                            <StackPanel Spacing="6">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="⑤" Classes="stage-number" />
+                                                    <TextBlock Grid.Column="1" Text="LLM fallback" Classes="stage-title" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Session.Trace.Llm.NormalizedOutput, FallbackValue='no canonical'}"
+                                                               Classes="stage-status" />
+                                                </Grid>
+                                                <Expander Header="System prompt">
+                                                    <TextBox Classes="mono-readonly" Text="{Binding Session.Trace.Llm.SystemPrompt, Mode=OneWay}" MaxHeight="240" />
+                                                </Expander>
+                                                <Expander Header="User prompt">
+                                                    <TextBox Classes="mono-readonly" Text="{Binding Session.Trace.Llm.UserPrompt, Mode=OneWay}" MaxHeight="240" />
+                                                </Expander>
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="Raw model output" Classes="label" />
+                                                    <TextBox Classes="mono-readonly" Text="{Binding Session.Trace.Llm.RawOutput, Mode=OneWay}" />
+                                                </StackPanel>
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding Session.Trace.Llm.NormalizedOutput, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <TextBlock Grid.Column="0" Text="Normalized:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Session.Trace.Llm.NormalizedOutput}" Classes="mono" FontWeight="SemiBold" Margin="6,0,0,0" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding Session.Trace.Llm.FailureReason, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <TextBlock Grid.Column="0" Text="Result:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Session.Trace.Llm.FailureReason}" Foreground="#E0B070" Classes="mono" Margin="6,0,0,0" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Classes="stage-arrow" />
+
+                                    </StackPanel>
+
+                                    <!-- ⑥ Final canonical -->
+                                    <Border Classes="stage stage-final"
+                                            IsVisible="{Binding Session.CanonicalCommand, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                        <StackPanel Spacing="6">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <TextBlock Grid.Column="0" Text="⑥" Classes="stage-number" />
+                                                <TextBlock Grid.Column="1" Text="Final canonical command" Classes="stage-title" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Session.TotalElapsedMs, StringFormat='{}{0} ms total'}"
+                                                           Classes="stage-status" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding Session.CanonicalCommand}"
+                                                       FontFamily="Consolas,monospace"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#9BD68C" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Classes="stage stage-skipped"
+                                            IsVisible="{Binding Session.CanonicalCommand, Converter={x:Static StringConverters.IsNullOrEmpty}}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <TextBlock Grid.Column="0" Text="⑥" Classes="stage-number" />
+                                            <TextBlock Grid.Column="1" Text="Final canonical command" Classes="stage-title" Foreground="{DynamicResource SubtleTextBrush}" />
+                                            <TextBlock Grid.Column="2" Text="no command produced" Classes="stage-status" />
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock Text="No pipeline trace was captured (the pipeline failed before transcription)."
                                                Foreground="{DynamicResource SubtleTextBrush}"
                                                FontSize="11"
-                                               Margin="8,0,0,0" />
-                                </Grid>
+                                               TextWrapping="Wrap"
+                                               Margin="0,8,0,0"
+                                               IsVisible="{Binding Session.Trace, Converter={x:Static ObjectConverters.IsNull}}" />
+                                </StackPanel>
 
-                                <Grid ColumnDefinitions="Auto,*"
-                                      IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                    <TextBlock Grid.Column="0"
-                                               Text="Error:"
-                                               Width="90"
-                                               Foreground="#FF6B6B"
-                                               FontSize="11" />
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding ErrorMessage, Mode=OneWay}"
-                                             IsReadOnly="True"
-                                             BorderThickness="0"
-                                             Background="Transparent"
-                                             Foreground="#FF6B6B"
-                                             FontFamily="Consolas,monospace"
-                                             FontSize="11"
-                                             Padding="0" />
-                                </Grid>
+                                <!-- Scenario context card -->
+                                <Expander Header="Scenario context">
+                                    <Border Classes="card" Margin="0,4,0,0">
+                                        <StackPanel Spacing="8"
+                                                    DataContext="{Binding Session.Trace}"
+                                                    IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Active callsigns" Classes="label" />
+                                                <TextBox Classes="mono-readonly" Text="{Binding ActiveCallsigns, Converter={x:Static vm:JoinSpaceConverter.Instance}, Mode=OneWay}" />
+                                            </StackPanel>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Programmed fixes" Classes="label" />
+                                                <TextBox Classes="mono-readonly" Text="{Binding ProgrammedFixes, Converter={x:Static vm:JoinSpaceConverter.Instance}, Mode=OneWay}" />
+                                            </StackPanel>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Available runways" Classes="label" />
+                                                <TextBox Classes="mono-readonly" Text="{Binding AvailableRunwaysByAirport, Converter={x:Static vm:RunwaysByAirportConverter.Instance}, Mode=OneWay}" />
+                                            </StackPanel>
+                                            <StackPanel Spacing="2"
+                                                        IsVisible="{Binding TaxiwayNames.Count}">
+                                                <TextBlock Text="Taxiway names" Classes="label" />
+                                                <TextBox Classes="mono-readonly" Text="{Binding TaxiwayNames, Converter={x:Static vm:JoinSpaceConverter.Instance}, Mode=OneWay}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+
+                                <!-- Actions footer -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                                    <Button Content="Export this sample…"
+                                            IsEnabled="{Binding HasSavedAudio}"
+                                            Click="OnExportSingleClick"
+                                            ToolTip.Tip="Save a .yaat-speech-sample.zip containing just this recording. Use the header buttons to bundle several at once." />
+                                    <Button Content="Delete saved sample"
+                                            IsEnabled="{Binding HasSavedAudio}"
+                                            Command="{Binding #SpeechDebugRoot.DataContext.DeleteSelectedCommand}" />
+                                </StackPanel>
+
                             </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                        </DataTemplate>
+                    </ContentControl.DataTemplates>
+                </ContentControl>
+                </Panel>
+            </ScrollViewer>
+        </Grid>
 
     </DockPanel>
 </Window>

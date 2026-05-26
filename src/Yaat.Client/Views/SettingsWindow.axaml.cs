@@ -15,17 +15,20 @@ public partial class SettingsWindow : Window
     private readonly IFilePickerService _filePicker;
 
     public SettingsWindow()
-        : this(new UserPreferences(), audioCapture: null) { }
+        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null) { }
 
     public SettingsWindow(UserPreferences preferences)
-        : this(preferences, audioCapture: null) { }
+        : this(preferences, audioCapture: null, speechSampleStore: null) { }
 
     public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture)
+        : this(preferences, audioCapture, speechSampleStore: null) { }
+
+    public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture, SpeechSampleStore? speechSampleStore)
     {
         InitializeComponent();
         _filePicker = new AvaloniaFilePickerService(this);
 
-        var vm = new SettingsViewModel(preferences, audioCapture);
+        var vm = new SettingsViewModel(preferences, audioCapture, speechSampleStore);
         DataContext = vm;
 
         new WindowGeometryHelper(this, preferences, "Settings", 560, 440).Restore();

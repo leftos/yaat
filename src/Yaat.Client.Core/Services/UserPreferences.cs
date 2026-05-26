@@ -648,6 +648,23 @@ public sealed class UserPreferences
         Save();
     }
 
+    public bool SpeechSampleCaptureEnabled => _data.SpeechSampleCaptureEnabled;
+    public int SpeechSampleCacheMaxMb => _data.SpeechSampleCacheMaxMb;
+
+    /// <summary>
+    /// Persists the opt-in speech-sample capture toggle and its on-disk size cap (in MB). When
+    /// capture is on, the speech pipeline writes every push-to-talk recording + pipeline trace
+    /// under <c>%LOCALAPPDATA%/yaat/speech-samples/</c>; <see cref="SpeechSampleCacheMaxMb"/>
+    /// bounds total disk use via FIFO eviction. Nothing is uploaded automatically — users export
+    /// individual samples from the Speech Debug window and attach them to GitHub issues by hand.
+    /// </summary>
+    public void SetSpeechSampleSettings(bool enabled, int maxMb)
+    {
+        _data.SpeechSampleCaptureEnabled = enabled;
+        _data.SpeechSampleCacheMaxMb = Math.Max(1, maxMb);
+        Save();
+    }
+
     /// <summary>
     /// Persists the audio device selection used by both microphone capture (input) and pilot
     /// TTS / notification chime playback (output). Empty string means "use the OS default
@@ -1399,6 +1416,13 @@ public sealed class UserPreferences
         public string WhisperModelSize { get; set; } = "whisper-large-turbo3";
         public string LlmModelPath { get; set; } = "qwen3.5:4b";
         public int LlmGpuLayers { get; set; } = -1;
+
+        // Opt-in speech-sample capture. When true, every push-to-talk session is persisted as
+        // {audio.wav + session.json} under %LOCALAPPDATA%/yaat/speech-samples/, FIFO-evicted to
+        // stay within SpeechSampleCacheMaxMb. Users review and export samples from the Speech
+        // Debug window; nothing is uploaded automatically.
+        public bool SpeechSampleCaptureEnabled { get; set; }
+        public int SpeechSampleCacheMaxMb { get; set; } = 50;
         public string PttKey { get; set; } = "RightCtrl";
         public string AudioInputDevice { get; set; } = "";
         public string AudioOutputDevice { get; set; } = "";

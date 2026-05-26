@@ -340,7 +340,7 @@ public static class CallsignParser
                     sb.Append(tokens[scan]);
                     scan++;
                 }
-                while (scan < tokens.Count && TryNatoToLetter(tokens[scan], out var letter))
+                while (scan < tokens.Count && TryNatoLetterOrNearMiss(tokens[scan], out var letter))
                 {
                     sb.Append(letter);
                     scan++;
@@ -458,6 +458,27 @@ public static class CallsignParser
             return false;
         }
         return NatoPhoneticAlphabet.TryGetLetter(token, out letter);
+    }
+
+    /// <summary>
+    /// Like <see cref="TryNatoToLetter"/>, but also accepts Whisper near-misses ("gulf" → "golf").
+    /// Used in the GA tail-number suffix scan because Whisper most often mishears single-syllable
+    /// suffix letters there — stopping at the first non-canonical token (current behavior) cut
+    /// "november 346 gulf" off at "N346" and dropped the suffix entirely.
+    /// </summary>
+    private static bool TryNatoLetterOrNearMiss(string token, out char letter)
+    {
+        if (TryNatoToLetter(token, out letter))
+        {
+            return true;
+        }
+        var rewritten = NatoNearMissResolver.TryResolveSingle(token);
+        if (rewritten is not null && TryNatoToLetter(rewritten, out letter))
+        {
+            return true;
+        }
+        letter = '\0';
+        return false;
     }
 
     /// <summary>

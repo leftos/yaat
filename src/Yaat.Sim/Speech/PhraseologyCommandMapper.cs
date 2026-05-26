@@ -14,4 +14,15 @@ public sealed class PhraseologyCommandMapper : ISpeechCommandMapper
         ct.ThrowIfCancellationRequested();
         return Task.FromResult(PhraseologyMapper.Map(transcript, context));
     }
+
+    /// <summary>
+    /// Trace-collecting variant. Delegates to <see cref="PhraseologyMapper.MapWithTrace"/> and
+    /// returns the result + frozen <see cref="RuleMapperTrace"/> together so the speech debug
+    /// pipeline can surface per-stage diagnostics without re-running the matcher.
+    /// </summary>
+    public Task<(MapResult? Result, RuleMapperTrace Trace)> MapWithTraceAsync(string transcript, MapContext context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(PhraseologyMapper.MapWithTrace(transcript, context));
+    }
 }

@@ -3,9 +3,12 @@ using Avalonia.Collections;
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.ViewModels;
@@ -93,6 +96,7 @@ public partial class MacroRow : ObservableObject
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly UserPreferences _preferences;
+    private readonly SpeechSampleStore? _speechSampleStore;
 
     /// <summary>
     /// Fired when any visual/display property changes (colors, brightness, tints, font size).
@@ -364,6 +368,12 @@ public partial class SettingsViewModel : ObservableObject
     private bool _autoFocusInputAfterSpeech = true;
 
     [ObservableProperty]
+    private bool _speechSampleCaptureEnabled;
+
+    [ObservableProperty]
+    private int _speechSampleCacheMaxMb = 50;
+
+    [ObservableProperty]
     private string _pttKeyDisplay = "Right Ctrl";
 
     [ObservableProperty]
@@ -478,14 +488,18 @@ public partial class SettingsViewModel : ObservableObject
     public ObservableCollection<MacroRow> MacroRows { get; } = [];
 
     public SettingsViewModel()
-        : this(new UserPreferences(), audioCapture: null) { }
+        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null) { }
 
     public SettingsViewModel(UserPreferences preferences)
-        : this(preferences, audioCapture: null) { }
+        : this(preferences, audioCapture: null, speechSampleStore: null) { }
 
     public SettingsViewModel(UserPreferences preferences, AudioCaptureService? audioCapture)
+        : this(preferences, audioCapture, speechSampleStore: null) { }
+
+    public SettingsViewModel(UserPreferences preferences, AudioCaptureService? audioCapture, SpeechSampleStore? speechSampleStore)
     {
         _preferences = preferences;
+        _speechSampleStore = speechSampleStore;
 
         // Enumerate available audio input/output devices if we have an AudioCaptureService instance
         // (passed in by MainWindow when opening Settings). Always include the system-default
@@ -554,6 +568,8 @@ public partial class SettingsViewModel : ObservableObject
         _llmModelPath = _preferences.LlmModelPath;
         _llmGpuLayers = _preferences.LlmGpuLayers;
         _autoFocusInputAfterSpeech = _preferences.AutoFocusInputAfterSpeech;
+        _speechSampleCaptureEnabled = _preferences.SpeechSampleCaptureEnabled;
+        _speechSampleCacheMaxMb = _preferences.SpeechSampleCacheMaxMb;
 
         // Resolve LM-Kit catalog selections from the saved preferences. FindById returns null when
         // the user has typed a custom file path or URI not in the catalog — we leave the dropdown
@@ -655,6 +671,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
         _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
+        _preferences.SetSpeechSampleSettings(SpeechSampleCaptureEnabled, SpeechSampleCacheMaxMb);
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
         _preferences.SetWindowTopmost("Main", MainWindowTopmost);
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
@@ -1498,5 +1515,37 @@ public partial class SettingsViewModel : ObservableObject
     private void UninstallPiperVoicePack()
     {
         PiperVoice.Uninstall();
+    }
+
+    /// <summary>
+    /// Opens the on-disk speech-samples directory in the OS file explorer. The folder may not
+    /// exist yet if the user has never enabled capture — create it on demand so the explorer
+    /// window isn't empty.
+    /// </summary>
+    [RelayCommand]
+    private void OpenSpeechSamplesFolder()
+    {
+        var path = _speechSampleStore?.RootDirectory ?? YaatPaths.Combine("speech-samples");
+        try
+        {
+            Directory.CreateDirectory(path);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppLog.CreateLogger<SettingsViewModel>().LogWarning(ex, "Failed to open speech-samples folder {Path}", path);
+        }
+    }
+
+    /// <summary>
+    /// Deletes every persisted speech sample. No prompt — the action is destructive but the
+    /// only data lost is local diagnostic samples the user already opted in to capture; we
+    /// don't gate it behind a "are you sure" dialog because the user already had to find the
+    /// button in an Expander they explicitly opened.
+    /// </summary>
+    [RelayCommand]
+    private void DeleteAllSpeechSamples()
+    {
+        _speechSampleStore?.DeleteAll();
     }
 }

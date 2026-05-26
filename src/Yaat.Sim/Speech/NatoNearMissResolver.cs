@@ -82,6 +82,16 @@ public static class NatoNearMissResolver
         return result;
     }
 
+    private static readonly IReadOnlySet<string> EmptyProtectedSet = new HashSet<string>();
+
+    /// <summary>
+    /// Single-token variant for callers that don't have a token stream — e.g.
+    /// <see cref="CallsignParser"/>'s GA tail-number path needs to rewrite a misheard suffix
+    /// letter ("gulf" → "golf") inline while scanning. Returns the canonical NATO word when
+    /// the token is an unambiguous distance-1 match, otherwise null.
+    /// </summary>
+    public static string? TryResolveSingle(string token) => TryRewrite(token, EmptyProtectedSet);
+
     private static string? TryRewrite(string token, IReadOnlySet<string> protectedWords)
     {
         if (token.Length < MinTokenLength)

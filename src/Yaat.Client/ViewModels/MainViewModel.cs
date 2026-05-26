@@ -44,10 +44,12 @@ public partial class MainViewModel : ObservableObject
     private readonly LocalLlmCallsignResolver _llmCallsignResolver;
     private readonly PhraseologyCommandMapper _ruleMapper = new();
     private readonly SpeechRecognitionService _speechService;
+    private readonly SpeechSampleStore _speechSampleStore;
 
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
     public SpeechRecognitionService SpeechService => _speechService;
+    public SpeechSampleStore SpeechSampleStore => _speechSampleStore;
     public AudioCaptureService AudioCapture => _audioCapture;
 
     private string _connectedServerUrl = "";
@@ -999,6 +1001,7 @@ public partial class MainViewModel : ObservableObject
         _llmService = new LocalLlmService(new PreferencesLlmRuntimeConfig(_preferences));
         _llmMapper = new LocalLlmCommandMapper(_llmService);
         _llmCallsignResolver = new LocalLlmCallsignResolver(_llmService);
+        _speechSampleStore = new SpeechSampleStore(_preferences);
         _speechService = new SpeechRecognitionService(
             _preferences,
             _audioCapture,
@@ -1007,7 +1010,8 @@ public partial class MainViewModel : ObservableObject
             _ruleMapper,
             _llmMapper,
             _llmCallsignResolver,
-            () => BuildSpeechContext()
+            () => BuildSpeechContext(),
+            _speechSampleStore
         );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
         _speechService.CommandReady += HandleSpeechServiceCommandReady;
@@ -1260,7 +1264,14 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private SpeechContext BuildSpeechContext(AircraftModel? contextAircraft = null)
     {
-        var snapshot = Aircraft.ToArray();
+        // Snapshot of aircraft the controller can actually talk to right now. Skip:
+        //   - delayed-spawn entries (still on the scenario timer, not on the scope)
+        //   - unsupported entries that aren't ghost overlays (typed flight plans only — no body
+        //     to issue commands to). Ghost overlays attached to a real scenario aircraft via
+        //     AID+slew stay visible because the controller is talking to the underlying jet.
+        // Filtering here keeps the rule mapper, LLM fallback, and the speech-debug capture all
+        // from advertising callsigns / runways for aircraft that aren't really "active".
+        var snapshot = Aircraft.Where(a => !a.IsDelayed && (!a.IsUnsupported || a.IsGhostOverlay)).ToArray();
         var callsigns = snapshot.Select(a => a.Callsign).Where(cs => !string.IsNullOrEmpty(cs)).ToList();
         var selected = contextAircraft ?? SelectedAircraft;
         IReadOnlyList<string> programmedFixes = [];
@@ -1326,6 +1337,16 @@ public partial class MainViewModel : ObservableObject
                 {
                     airports.Add(ac.Departure);
                 }
+            }
+            // Fallback: the airport whose ground layout the controller is currently looking at.
+            // For tower-cab scenarios at session start, aircraft may not have populated
+            // Destination/Departure on their AircraftModel yet (the server pushes those
+            // asynchronously after FP load), so the scenario's primary airport — which the user
+            // is staring at — is the obvious anchor for {rwy} validation and LLM runway recovery.
+            var layoutAirportId = Ground.DomainLayout?.AirportId;
+            if (!string.IsNullOrEmpty(layoutAirportId))
+            {
+                airports.Add(layoutAirportId);
             }
 
             foreach (var airport in airports)

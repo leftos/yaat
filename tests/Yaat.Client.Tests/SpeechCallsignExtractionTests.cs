@@ -42,6 +42,22 @@ public class SpeechCallsignExtractionTests
     }
 
     [Fact]
+    public void Us_Ga_Digits_Plus_MisheardSuffix_Recovers_FullCallsign()
+    {
+        // Whisper transcribed the suffix as "gulf" (a one-edit mishear of "golf"). The parser
+        // must still recover N346G — stopping at "N346" would leave the trailing "gulf" in the
+        // command text and cause the canonical to dispatch against a non-existent callsign.
+        // See the S2-OAK-1 bug report: "november three four six gulf runway 28R cleared for takeoff".
+        string[] active = ["N346G"];
+        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign(
+            "november three four six gulf runway two eight right cleared for takeoff",
+            active
+        );
+        Assert.Equal("N346G", callsign);
+        Assert.Equal("runway 28R cleared for takeoff", commandText);
+    }
+
+    [Fact]
     public void Unknown_Telephony_Returns_NormalizedTranscript_NullCallsign()
     {
         string[] active = ["SWA123"];

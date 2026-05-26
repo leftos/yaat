@@ -58,7 +58,23 @@ public sealed record SpeechSession(
     long TotalElapsedMs,
     SpeechSessionOutcome Outcome,
     string? ErrorMessage
-);
+)
+{
+    /// <summary>
+    /// Per-stage pipeline trace. Populated for every session that reached the transcription stage.
+    /// Null for very early failures (e.g. zero-sample buffer at <see cref="SpeechRecognitionService.StopPtt"/>).
+    /// The redesigned Speech Debug window expands the trace into a master-detail view; the opt-in
+    /// sample store also serializes it alongside the recorded audio.
+    /// </summary>
+    public SpeechSessionTrace? Trace { get; init; }
+
+    /// <summary>
+    /// Stable identifier used to correlate this in-memory session with a persisted on-disk sample
+    /// (see <c>SpeechSampleStore</c>). Null when capture was off at the time of the press, so the
+    /// debug UI can grey out the "Play audio" / "Export" affordances for that row.
+    /// </summary>
+    public string? SampleId { get; init; }
+}
 
 /// <summary>Snapshot of simulation state passed to the recognition pipeline at PTT press.</summary>
 /// <param name="ActiveCallsigns">Callsigns currently in the scenario (ICAO form).</param>
@@ -132,6 +148,7 @@ public sealed class SpeechRecognitionService : IDisposable
     private readonly ISpeechCommandMapper? _llmMapper;
     private readonly LocalLlmCallsignResolver? _callsignResolver;
     private readonly Func<SpeechContext> _contextProvider;
+    private readonly SpeechSampleStore? _sampleStore;
 
     private SpeechStatus _status = SpeechStatus.Idle;
     private CancellationTokenSource? _pendingCts;
@@ -154,7 +171,8 @@ public sealed class SpeechRecognitionService : IDisposable
         ISpeechCommandMapper ruleMapper,
         ISpeechCommandMapper? llmMapper,
         LocalLlmCallsignResolver? callsignResolver,
-        Func<SpeechContext> contextProvider
+        Func<SpeechContext> contextProvider,
+        SpeechSampleStore? sampleStore
     )
     {
         _preferences = preferences;
@@ -165,6 +183,7 @@ public sealed class SpeechRecognitionService : IDisposable
         _llmMapper = llmMapper;
         _callsignResolver = callsignResolver;
         _contextProvider = contextProvider;
+        _sampleStore = sampleStore;
     }
 
     /// <summary>Fired whenever the pipeline status changes.</summary>
@@ -320,6 +339,7 @@ public sealed class SpeechRecognitionService : IDisposable
         var usedLlmFallback = false;
         var outcome = SpeechSessionOutcome.Error;
         string? errorMessage = null;
+        SpeechSessionTrace? trace = null;
 
         var audioDurationSec = (double)samples.Length / AudioCaptureService.SampleRate;
 
@@ -341,6 +361,14 @@ public sealed class SpeechRecognitionService : IDisposable
                 // a successful recording with no audio.
                 Log.LogInformation("Whisper returned empty transcript");
                 outcome = SpeechSessionOutcome.EmptyTranscript;
+                trace = BuildTrace(
+                    ctx,
+                    rawTranscript: raw ?? string.Empty,
+                    callsignStripped: string.Empty,
+                    callsign: null,
+                    RuleMapperTrace.Empty,
+                    null
+                );
             }
             else
             {
@@ -349,7 +377,15 @@ public sealed class SpeechRecognitionService : IDisposable
 
                 SetStatus(SpeechStatus.Mapping);
                 var mapSw = Stopwatch.StartNew();
-                var mapping = await MapTranscriptAsync(transcript, ctx, _ruleMapper, _llmMapper, _callsignResolver, ct).ConfigureAwait(false);
+                var (mapping, ruleTrace, llmTrace) = await MapTranscriptWithTraceAsync(
+                        transcript,
+                        ctx,
+                        _ruleMapper,
+                        _llmMapper,
+                        _callsignResolver,
+                        ct
+                    )
+                    .ConfigureAwait(false);
                 mapSw.Stop();
                 mapMs = mapSw.ElapsedMilliseconds;
 
@@ -357,6 +393,14 @@ public sealed class SpeechRecognitionService : IDisposable
                 callsign = mapping.Callsign;
                 usedLlmFallback = mapping.UsedLlmFallback;
                 outcome = canonical is not null ? SpeechSessionOutcome.CommandAccepted : SpeechSessionOutcome.NoMappingFound;
+                trace = BuildTrace(
+                    ctx,
+                    rawTranscript: transcript,
+                    callsignStripped: mapping.CommandText,
+                    callsign: mapping.Callsign,
+                    ruleTrace,
+                    llmTrace
+                );
             }
         }
         catch (OperationCanceledException)
@@ -380,7 +424,9 @@ public sealed class SpeechRecognitionService : IDisposable
                 mapMs,
                 totalSw.ElapsedMilliseconds,
                 outcome,
-                errorMessage
+                errorMessage,
+                trace,
+                samples
             );
             CommandReady?.Invoke(new SpeechResult(transcript, null, callsign));
             return;
@@ -397,9 +443,35 @@ public sealed class SpeechRecognitionService : IDisposable
             mapMs,
             totalSw.ElapsedMilliseconds,
             outcome,
-            errorMessage
+            errorMessage,
+            trace,
+            samples
         );
         CommandReady?.Invoke(new SpeechResult(transcript, canonical, callsign));
+    }
+
+    private static SpeechSessionTrace BuildTrace(
+        SpeechContext ctx,
+        string rawTranscript,
+        string callsignStripped,
+        string? callsign,
+        RuleMapperTrace ruleTrace,
+        LlmMapperTrace? llmTrace
+    )
+    {
+        return new SpeechSessionTrace(
+            WhisperBiasingPrompt: ctx.WhisperInitialPrompt,
+            RawTranscript: rawTranscript,
+            CallsignStrippedTranscript: callsignStripped,
+            CallsignExtracted: callsign,
+            Rule: ruleTrace,
+            Llm: llmTrace,
+            ActiveCallsigns: [.. ctx.ActiveCallsigns],
+            ProgrammedFixes: [.. ctx.ProgrammedFixes],
+            AvailableRunwaysByAirport: ctx.AvailableRunways,
+            TaxiwayNames: [.. ctx.TaxiwayNames],
+            AircraftDestinations: ctx.AircraftDestinations
+        );
     }
 
     /// <summary>
@@ -414,6 +486,30 @@ public sealed class SpeechRecognitionService : IDisposable
     /// without having to construct the whole <see cref="SpeechRecognitionService"/>.
     /// </summary>
     internal static async Task<TranscriptMapResult> MapTranscriptAsync(
+        string transcript,
+        SpeechContext ctx,
+        ISpeechCommandMapper ruleMapper,
+        ISpeechCommandMapper? llmMapper,
+        LocalLlmCallsignResolver? callsignResolver,
+        CancellationToken ct
+    )
+    {
+        var (result, _, _) = await MapTranscriptWithTraceAsync(transcript, ctx, ruleMapper, llmMapper, callsignResolver, ct).ConfigureAwait(false);
+        return result;
+    }
+
+    /// <summary>
+    /// Trace-collecting variant of <see cref="MapTranscriptAsync"/>. Returns the same
+    /// <see cref="TranscriptMapResult"/> plus the rule-mapper and LLM-mapper traces so the speech
+    /// debug pipeline can surface per-stage diagnostics on every push-to-talk. The LLM trace is
+    /// null when the rule mapper succeeded (and therefore the LLM never ran). The rule trace is
+    /// always present, even on miss — it carries the failure reason.
+    ///
+    /// When a caller passes <see cref="ISpeechCommandMapper"/> implementations that don't expose
+    /// a trace-collecting overload (e.g. test stubs), the trace falls back to the empty values so
+    /// callers don't have to special-case mock mappers.
+    /// </summary>
+    internal static async Task<(TranscriptMapResult Result, RuleMapperTrace RuleTrace, LlmMapperTrace? LlmTrace)> MapTranscriptWithTraceAsync(
         string transcript,
         SpeechContext ctx,
         ISpeechCommandMapper ruleMapper,
@@ -440,8 +536,23 @@ public sealed class SpeechRecognitionService : IDisposable
 
         string? canonical = null;
         var usedLlmFallback = false;
+        RuleMapperTrace ruleTrace;
+        LlmMapperTrace? llmTrace = null;
 
-        var ruleResult = await ruleMapper.MapAsync(commandText, mapContext, ct).ConfigureAwait(false);
+        MapResult? ruleResult;
+        if (ruleMapper is PhraseologyCommandMapper phr)
+        {
+            (ruleResult, ruleTrace) = await phr.MapWithTraceAsync(commandText, mapContext, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            // Test/mock implementations of ISpeechCommandMapper don't expose the trace overload;
+            // fall back to the plain interface call and emit an empty trace so the rest of the
+            // pipeline is uniform.
+            ruleResult = await ruleMapper.MapAsync(commandText, mapContext, ct).ConfigureAwait(false);
+            ruleTrace = RuleMapperTrace.Empty with { FailureReason = ruleResult is null ? "no rule matched" : null };
+        }
+
         if (ruleResult is not null)
         {
             canonical = ruleResult.CanonicalCommand;
@@ -454,7 +565,23 @@ public sealed class SpeechRecognitionService : IDisposable
         else if (llmMapper is not null)
         {
             Log.LogInformation("Rule engine returned null, trying LLM fallback");
-            var llmResult = await llmMapper.MapAsync(commandText, mapContext, ct).ConfigureAwait(false);
+            MapResult? llmResult;
+            if (llmMapper is LocalLlmCommandMapper local)
+            {
+                (llmResult, llmTrace) = await local.MapWithTraceAsync(commandText, mapContext, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                llmResult = await llmMapper.MapAsync(commandText, mapContext, ct).ConfigureAwait(false);
+                llmTrace = new LlmMapperTrace(
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    llmResult?.CanonicalCommand,
+                    llmResult is null ? "LLM mapper returned null" : null
+                );
+            }
+
             if (llmResult is not null)
             {
                 canonical = llmResult.CanonicalCommand;
@@ -488,7 +615,7 @@ public sealed class SpeechRecognitionService : IDisposable
             Log.LogInformation("Both mappers failed; surfacing extracted callsign {Callsign} + raw command text", callsign);
         }
 
-        return new TranscriptMapResult(commandText, canonical, callsign, usedLlmFallback);
+        return (new TranscriptMapResult(commandText, canonical, callsign, usedLlmFallback), ruleTrace, llmTrace);
     }
 
     /// <summary>
@@ -541,7 +668,9 @@ public sealed class SpeechRecognitionService : IDisposable
         long mapMs,
         long totalMs,
         SpeechSessionOutcome outcome,
-        string? errorMessage
+        string? errorMessage,
+        SpeechSessionTrace? trace,
+        float[] audioSamples
     )
     {
         var session = new SpeechSession(
@@ -556,7 +685,23 @@ public sealed class SpeechRecognitionService : IDisposable
             TotalElapsedMs: totalMs,
             Outcome: outcome,
             ErrorMessage: errorMessage
-        );
+        )
+        {
+            Trace = trace,
+        };
+
+        // Opt-in persistence — store call is gated on both the preference toggle and the presence
+        // of trace data (no point persisting a session with no pipeline visibility). The store
+        // returns a sample id we splice back into the session so the debug UI can correlate the
+        // in-memory entry with the on-disk WAV for playback / export.
+        if (trace is not null && _sampleStore is not null && _preferences.SpeechSampleCaptureEnabled && audioSamples.Length > 0)
+        {
+            var sampleId = _sampleStore.Add(session, audioSamples);
+            if (sampleId is not null)
+            {
+                session = session with { SampleId = sampleId };
+            }
+        }
 
         // Collection mutation must happen on the UI thread because the debug window binds to it
         // directly. Marshal via Dispatcher.UIThread — callers already handle that this event is

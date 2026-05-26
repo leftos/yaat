@@ -52,9 +52,24 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
 
     public async Task<MapResult?> MapAsync(string transcript, MapContext context, CancellationToken ct)
     {
+        var (result, _) = await MapWithTraceAsync(transcript, context, ct).ConfigureAwait(false);
+        return result;
+    }
+
+    /// <summary>
+    /// Trace-collecting variant of <see cref="MapAsync"/>. Always returns a populated
+    /// <see cref="LlmMapperTrace"/> capturing the exact system prompt, per-call user prompt, raw
+    /// model output, and post-normalization canonical (or a failure reason on miss). The speech
+    /// debug pipeline calls this directly so the in-client debug window can surface what the LLM
+    /// actually saw and produced for any session that fell through the rule mapper.
+    /// </summary>
+    public async Task<(MapResult? Result, LlmMapperTrace Trace)> MapWithTraceAsync(string transcript, MapContext context, CancellationToken ct)
+    {
+        var systemPrompt = _systemPrompt.Value;
+
         if (string.IsNullOrWhiteSpace(transcript))
         {
-            return null;
+            return (null, new LlmMapperTrace(systemPrompt, string.Empty, string.Empty, null, "empty transcript"));
         }
 
         var userPrompt = BuildUserPrompt(transcript, context);
@@ -63,24 +78,24 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         // "AT CEPIN CAPP ILS28R", etc.) so NormalizeOutput's verb/charset checks become a cheap
         // defence-in-depth instead of the only line of defence. NEW commands automatically expand
         // the grammar because CanonicalCommandGrammar enumerates the registry at runtime.
-        var raw = await _llm.GenerateAsync(_systemPrompt.Value, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
+        var raw = await _llm.GenerateAsync(systemPrompt, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(raw))
         {
-            return null;
+            return (null, new LlmMapperTrace(systemPrompt, userPrompt, raw ?? string.Empty, null, "LLM produced empty output"));
         }
 
         var canonical = NormalizeOutput(raw);
         if (canonical is null)
         {
             Log.LogDebug("LLM output did not parse as canonical command: {Raw}", raw);
-            return null;
+            return (null, new LlmMapperTrace(systemPrompt, userPrompt, raw, null, "output failed canonical validation"));
         }
 
         // Rule engine matches are cheap enough that if the LLM echoes a rule-shaped string, we
         // trust it. We don't have a callsign extraction step here — the speech pipeline re-runs
         // CallsignParser on the transcript for the LLM path if needed.
         Log.LogInformation("LLM fallback produced canonical command: {Canonical}", canonical);
-        return new MapResult(null, canonical, 1);
+        return (new MapResult(null, canonical, 1), new LlmMapperTrace(systemPrompt, userPrompt, raw, canonical, null));
     }
 
     /// <summary>

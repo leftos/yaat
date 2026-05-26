@@ -312,7 +312,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _speechDebugWindow = new SpeechDebugWindow(vm.SpeechService, vm.Preferences);
+        _speechDebugWindow = new SpeechDebugWindow(vm.SpeechService, vm.SpeechSampleStore, vm.Preferences, vm.AudioCapture);
         _speechDebugWindow.Closed += (_, _) => _speechDebugWindow = null;
         _speechDebugWindow.Show(this);
     }
@@ -2000,7 +2000,7 @@ public partial class MainWindow : Window
         var snapshotUnassignedTintColor = vm.Preferences.UnassignedTintColor;
         var snapshotSelectedColor = vm.Preferences.SelectedColor;
 
-        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture);
+        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore);
         var settingsVm = dialog.DataContext as SettingsViewModel;
 
         // Subscribe to live preview

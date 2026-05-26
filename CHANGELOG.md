@@ -1,9 +1,15 @@
 # Changelog
 
-## v0.3.8-beta [2026/05/26]
+## Unreleased
+
+### Added
+- Opt-in capture saves push-to-talk recordings and pipeline traces locally so you can review them in the Speech Debug window and share samples with the devs.
+- Speech Debug window now shows each session as a flowchart — mic → Whisper → callsign → rule → LLM → final — with playback and per-stage detail.
+- Multi-select export bundles the recordings you tick into one `.yaat-speech-sample.zip`, with Select all / Unselect all shortcuts.
 
 ### Fixed
 - A rejected `DCT`/`ADCT`/`FDCT` (e.g. to an unprogrammed fix) issued during an RV SID initial climb no longer drops the published vectors heading hold — the hold now stays engaged when the route amendment is rejected.
+- Misheard NATO suffix letters in GA tail numbers (Whisper's "gulf" for "golf") no longer truncate the callsign; "november three four six gulf" resolves to N346G.
 
 ## v0.3.7-beta [2026/05/25]
 

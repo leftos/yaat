@@ -72,13 +72,24 @@ public static class PhraseologyMapper
 
     /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
-    /// of the transcript.
+    /// of the transcript. Equivalent to <see cref="MapWithTrace"/> with the trace discarded —
+    /// callers that need to display or persist per-stage diagnostics should call
+    /// <see cref="MapWithTrace"/> directly.
     /// </summary>
-    public static MapResult? Map(string transcript, MapContext context)
+    public static MapResult? Map(string transcript, MapContext context) => MapWithTrace(transcript, context).Result;
+
+    /// <summary>
+    /// Same matching as <see cref="Map"/>, but also returns a <see cref="RuleMapperTrace"/>
+    /// capturing the post-normalization token list, the recovered condition prefix, the rule
+    /// patterns that matched (one per emitted clause), and a short failure reason when no rule
+    /// matched. Used by the speech debug pipeline so a user can post-mortem misrecognitions
+    /// without scraping the log file.
+    /// </summary>
+    public static (MapResult? Result, RuleMapperTrace Trace) MapWithTrace(string transcript, MapContext context)
     {
         if (string.IsNullOrWhiteSpace(transcript))
         {
-            return null;
+            return (null, RuleMapperTrace.Empty with { FailureReason = "empty transcript" });
         }
 
         // Step 1: normalize spoken numbers to digits.
@@ -111,7 +122,7 @@ public static class PhraseologyMapper
 
         if (tokens.Count == 0)
         {
-            return null;
+            return (null, new RuleMapperTrace(string.Empty, null, [], null, "no tokens after filler-strip"));
         }
 
         // Step 2b: rewrite known Whisper mishears of NATO phonetic words ("tingo" → "tango",
@@ -163,6 +174,10 @@ public static class PhraseologyMapper
             );
         }
 
+        // Normalized tokens snapshot for the trace — captured here so the matcher's local mutations
+        // below don't influence what the trace reports as the "post-normalization" view.
+        var normalizedJoined = string.Join(' ', tokens);
+
         // Step 5: greedy left-to-right longest-match — two-pass over the token list.
         //
         // Pass 1 runs against the tokens as-is, so rules that use SecondPassFillers as literals
@@ -182,6 +197,7 @@ public static class PhraseologyMapper
         var matchedRulesPass1 = new List<PhraseologyRule>();
         var runwayInvalid = false;
         var (outputs, consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1, ref runwayInvalid);
+        var winningMatchedRules = matchedRulesPass1;
 
         var pass1UsedSecondPassFiller = matchedRulesPass1.Any(r => r.Pattern.Any(p => SecondPassFillers.Contains(p)));
         var inputContainsSecondPassFiller = tokens.Any(t => SecondPassFillers.Contains(t));
@@ -204,17 +220,18 @@ public static class PhraseologyMapper
             {
                 Log.LogDebug("[Speech] Pass2Wins: {Pass1Count} outputs → {Pass2Count} outputs", outputs.Count, outputsPass2.Count);
                 outputs = outputsPass2;
+                winningMatchedRules = matchedRulesPass2;
             }
         }
 
         if (runwayInvalid)
         {
-            return null;
+            return (null, new RuleMapperTrace(normalizedJoined, conditionPrefix, [], null, "runway not in scenario"));
         }
 
         if (outputs.Count == 0)
         {
-            return null;
+            return (null, new RuleMapperTrace(normalizedJoined, conditionPrefix, [], null, "no rule matched"));
         }
 
         var canonical = string.Join(", ", outputs);
@@ -223,7 +240,8 @@ public static class PhraseologyMapper
             canonical = conditionPrefix + " " + canonical;
         }
 
-        return new MapResult(callsign, canonical, outputs.Count);
+        var patterns = winningMatchedRules.Select(r => string.Join(' ', r.Pattern)).ToList();
+        return (new MapResult(callsign, canonical, outputs.Count), new RuleMapperTrace(normalizedJoined, conditionPrefix, patterns, canonical, null));
     }
 
     /// <summary>
