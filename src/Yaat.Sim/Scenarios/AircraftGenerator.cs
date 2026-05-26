@@ -18,6 +18,8 @@ public static class AircraftGenerator
     {
         [(WeightClass.Small, EngineKind.Piston)] = ["C172", "C182", "P28A", "SR22", "BE36", "C150", "C152"],
         [(WeightClass.Small, EngineKind.Turboprop)] = ["C208", "PC12", "BE20", "P180"],
+        [(WeightClass.Small, EngineKind.Jet)] = ["C25A", "C525", "C500", "C501", "C550", "C560"],
+        [(WeightClass.Large, EngineKind.Piston)] = ["AC68", "BE60", "BE58", "C421"],
         [(WeightClass.Large, EngineKind.Turboprop)] = ["AT72", "DH8C", "B190", "SF34"],
         [(WeightClass.Large, EngineKind.Jet)] = ["CRJ7", "CRJ9", "E170", "E145", "B737", "B738", "B739", "A319", "A320", "A321"],
         [(WeightClass.Heavy, EngineKind.Jet)] = ["A332", "A333", "B763", "B764", "B772", "B788", "B744"],
@@ -542,11 +544,15 @@ public static class AircraftGenerator
 
     /// <summary>
     /// Pick an aircraft type for the requested bucket, optionally constrained to types
-    /// the given airline actually operates (per <see cref="AirlineFleets"/>). Falls back
-    /// to the bucket pool when no airline is provided or the airline has no fleet entry.
-    /// If the airline operates *no* type in the bucket pool, logs a warning and uses the
-    /// bucket pool — that situation should not occur for curated airlines but stays
-    /// defensive.
+    /// the given airline actually operates (per <see cref="AirlineFleets"/>). Walks a
+    /// fallback chain (see <see cref="EnumerateBucketFallbackChain"/>) so empty buckets
+    /// — e.g. <c>Heavy+Piston</c> — degrade to the nearest neighbour rather than failing
+    /// the spawn. Same engine wins over same size: a request for a piston aircraft will
+    /// always resolve to a piston type as long as any piston bucket has entries.
+    ///
+    /// If the airline operates no type in the chosen bucket, the airline filter is
+    /// dropped on a second pass — the spawn falls back to an N-number callsign rather
+    /// than dropping the aircraft entirely.
     /// </summary>
     private static string? ResolveType(SpawnRequest request, string? airline, Random rng)
     {
@@ -555,29 +561,116 @@ public static class AircraftGenerator
             return request.ExplicitType;
         }
 
-        if (!TypeTable.TryGetValue((request.Weight, request.Engine), out var bucketTypes))
-        {
-            return null;
-        }
+        var requested = (request.Weight, request.Engine);
 
-        if (airline is null || !AirlineFleets.TryGetTypes(airline, out var fleetTypes))
+        // Exact-bucket path preserves the original airline-overlap behaviour:
+        // when the bucket exists we either pick an airline-compatible type, or
+        // (if the airline has no overlap) log a warning and use the bucket pool.
+        // We only descend into the fallback chain when the exact bucket is empty
+        // — that way airline-vs-bucket mismatches don't silently swap engine type.
+        if (TypeTable.TryGetValue(requested, out var exactBucket))
         {
-            return bucketTypes[rng.Next(bucketTypes.Length)];
-        }
+            if (airline is null || !AirlineFleets.TryGetTypes(airline, out var fleetTypes))
+            {
+                return exactBucket[rng.Next(exactBucket.Length)];
+            }
 
-        var compatible = bucketTypes.Where(t => fleetTypes.ContainsKey(t)).ToArray();
-        if (compatible.Length == 0)
-        {
+            var compatible = exactBucket.Where(t => fleetTypes.ContainsKey(t)).ToArray();
+            if (compatible.Length > 0)
+            {
+                return compatible[rng.Next(compatible.Length)];
+            }
+
             Log.LogWarning(
                 "[ArrivalGen] {Airline} fleet has no overlap with TypeTable[{Weight}+{Engine}]={Types}; using bucket pool",
                 airline,
                 request.Weight,
                 request.Engine,
-                string.Join(",", bucketTypes)
+                string.Join(",", exactBucket)
             );
+            return exactBucket[rng.Next(exactBucket.Length)];
+        }
+
+        // Exact bucket is empty — walk the fallback chain. Engine wins over size,
+        // so a Heavy+Piston request resolves to Large+Piston before any non-piston
+        // option. The airline filter is dropped here because the bucket has already
+        // diverged from the request; keeping it could pair e.g. SWA with a non-SWA
+        // type just because SWA happens to have overlap in a different bucket.
+        foreach (var bucket in EnumerateBucketFallbackChain(request.Weight, request.Engine))
+        {
+            if (!TypeTable.TryGetValue(bucket, out var bucketTypes))
+            {
+                continue;
+            }
+            LogBucketFallback(requested, bucket);
             return bucketTypes[rng.Next(bucketTypes.Length)];
         }
-        return compatible[rng.Next(compatible.Length)];
+
+        return null;
+    }
+
+    private static void LogBucketFallback((WeightClass Weight, EngineKind Engine) requested, (WeightClass Weight, EngineKind Engine) resolved)
+    {
+        if (requested.Weight == resolved.Weight && requested.Engine == resolved.Engine)
+        {
+            return;
+        }
+        Log.LogInformation(
+            "[ArrivalGen] bucket fallback: requested {ReqWeight}/{ReqEngine} resolved via {ResWeight}/{ResEngine}",
+            requested.Weight,
+            requested.Engine,
+            resolved.Weight,
+            resolved.Engine
+        );
+    }
+
+    /// <summary>
+    /// Yield bucket keys in priority order for fallback resolution:
+    /// (1) exact <c>(weight, engine)</c>, (2) same engine with other weights nearest
+    /// first, (3) same weight with other engines, (4) any remaining combinations.
+    /// Engine takes priority over size so a request for piston traffic still resolves
+    /// to a piston type when the exact size bucket is empty.
+    /// </summary>
+    internal static IEnumerable<(WeightClass Weight, EngineKind Engine)> EnumerateBucketFallbackChain(WeightClass weight, EngineKind engine)
+    {
+        yield return (weight, engine);
+
+        foreach (var w in OrderByDistance(weight))
+        {
+            if (w != weight)
+            {
+                yield return (w, engine);
+            }
+        }
+
+        foreach (var e in Enum.GetValues<EngineKind>())
+        {
+            if (e != engine)
+            {
+                yield return (weight, e);
+            }
+        }
+
+        foreach (var w in Enum.GetValues<WeightClass>())
+        {
+            if (w == weight)
+            {
+                continue;
+            }
+            foreach (var e in Enum.GetValues<EngineKind>())
+            {
+                if (e == engine)
+                {
+                    continue;
+                }
+                yield return (w, e);
+            }
+        }
+    }
+
+    private static IEnumerable<WeightClass> OrderByDistance(WeightClass center)
+    {
+        return Enum.GetValues<WeightClass>().OrderBy(w => Math.Abs((int)w - (int)center));
     }
 
     private static string GenerateCallsign(SpawnRequest request, string? airline, IReadOnlyCollection<AircraftState> existingAircraft, Random rng)
