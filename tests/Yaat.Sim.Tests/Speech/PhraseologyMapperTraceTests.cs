@@ -70,6 +70,42 @@ public class PhraseologyMapperTraceTests
         Assert.Equal("AT CEPIN", trace.ConditionPrefix);
     }
 
+    [Theory]
+    [InlineData("make straight in runway 28R", "EF 28R")]
+    [InlineData("make straight-in approach runway 28R", "EF 28R")]
+    [InlineData("runway 28R make straight in", "EF 28R")]
+    [InlineData("enter straight in runway 28R", "EF 28R")]
+    [InlineData("make straight in", "EF")]
+    public void MakeStraightIn_Matches_EnterFinal_With_Optional_Runway(string transcript, string expectedCanonical)
+    {
+        // AIM 4-3-3 / FAA 7110.65 §3-10-4: tower may direct VFR pilots to "MAKE STRAIGHT-IN
+        // (APPROACH) RUNWAY (number)". Maps to EF with the runway captured so the post-clearance
+        // pattern entry knows which final to fly. Pilot AI verbalizes EnterFinal with null RunwayId
+        // as the bare "enter final" form; that's preserved because the bare rule stays first.
+        var ctx = MapContext.Empty with
+        {
+            AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R"] },
+        };
+        var (result, _) = PhraseologyMapper.MapWithTrace(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expectedCanonical, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void MakeStraightIn_With_LandingClearance_Matches_Both_Clauses()
+    {
+        // The S2-OAK-1 test-drive transcript: tower compounds the pattern instruction with the
+        // landing clearance in one transmission. Both clauses must be captured — previously the
+        // greedy matcher dropped "make straight in runway 28R" entirely and only matched CLAND.
+        var ctx = MapContext.Empty with
+        {
+            AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R"] },
+        };
+        var (result, _) = PhraseologyMapper.MapWithTrace("make straight in runway 28R runway 28R cleared to land", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("EF 28R, CLAND", result!.CanonicalCommand);
+    }
+
     [Fact]
     public void Empty_Transcript_Returns_Trace_With_FailureReason()
     {

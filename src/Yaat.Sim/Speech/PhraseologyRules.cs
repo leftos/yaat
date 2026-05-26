@@ -336,7 +336,20 @@ public static class PhraseologyRules
             new(["enter", "right", "base"], "ERB", EnterRightBase),
             new(["enter", "left", "crosswind"], "ELC", EnterLeftCrosswind),
             new(["enter", "right", "crosswind"], "ERC", EnterRightCrosswind),
+            // Enter final / make straight-in. The bare "enter final" form stays first so the
+            // pilot AI's verbalizer picks it for null-runway readbacks (existing tests). AIM 4-3-3
+            // and FAA 7110.65 §3-10-4 phrasing: "MAKE STRAIGHT-IN [APPROACH] RUNWAY (number)" —
+            // the runway is captured into the EF canonical so the entry phase knows which final.
             new(["enter", "final"], "EF", EnterFinal),
+            new(["make", "straight", "in", "approach", "runway", "{rwy}"], "EF {rwy}", EnterFinal),
+            new(["make", "straight", "in", "runway", "{rwy}"], "EF {rwy}", EnterFinal),
+            new(["enter", "straight", "in", "runway", "{rwy}"], "EF {rwy}", EnterFinal),
+            new(["runway", "{rwy}", "make", "straight", "in", "approach"], "EF {rwy}", EnterFinal),
+            new(["runway", "{rwy}", "make", "straight", "in"], "EF {rwy}", EnterFinal),
+            new(["runway", "{rwy}", "enter", "straight", "in"], "EF {rwy}", EnterFinal),
+            new(["make", "straight", "in", "approach"], "EF", EnterFinal),
+            new(["make", "straight", "in"], "EF", EnterFinal),
+            new(["enter", "straight", "in"], "EF", EnterFinal),
             new(["make", "left", "traffic", "runway", "{rwy}"], "MLT {rwy}", MakeLeftTraffic),
             new(["make", "right", "traffic", "runway", "{rwy}"], "MRT {rwy}", MakeRightTraffic),
             new(["runway", "{rwy}", "make", "left", "traffic"], "MLT {rwy}", MakeLeftTraffic),

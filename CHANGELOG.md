@@ -11,6 +11,7 @@
 - A rejected `DCT`/`ADCT`/`FDCT` (e.g. to an unprogrammed fix) issued during an RV SID initial climb no longer drops the published vectors heading hold — the hold now stays engaged when the route amendment is rejected.
 - Misheard NATO suffix letters in GA tail numbers (Whisper's "gulf" for "golf") no longer truncate the callsign; "november three four six gulf" resolves to N346G.
 - Tower and pattern clearances now accept runway-prefixed phrasing — "runway 28R cleared for takeoff" matches the same as "cleared for takeoff runway 28R" (CTO, CLAND, LUAW, TG, LAHSO, MLT/MRT, ELD/ERD/ELB/ERB).
+- "Make straight-in" and "enter straight-in" tower instructions now parse to EF with the runway captured — both word orders, with or without the trailing "approach" (AIM 4-3-3).
 - Arrival generators no longer silently drop spawns when a scenario's weight/engine combo has no curated aircraft types (e.g. Large+Piston) — the generator falls back to the nearest engine-matching bucket so traffic keeps flowing.
 - Pop-out state (including the Terminal) and window positions now survive every app exit, including `Ctrl+C` in the launch script, File > Exit, and the confirm-exit dialog after closing with a scenario loaded.
 
