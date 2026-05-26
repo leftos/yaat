@@ -1156,8 +1156,9 @@ public static class CommandDispatcher
             return PhaseShouldBeCleared;
         }
 
-        // Allowed but not a tower command — release phase-internal state before apply.
-        NotifyPhaseCommandAccepted(aircraft, firstCmd, currentPhase, ctx);
+        // Allowed but not a tower command — phase notification is deferred to
+        // <see cref="BuildApplyAction"/> after a successful apply so a later
+        // validation/apply failure does not release internal state (e.g. RV SID hold).
         return null;
     }
 
@@ -2009,18 +2010,18 @@ public static class CommandDispatcher
                     }
                 }
 
-                // Queued blocks (AT/LV/etc.) reach handlers here at trigger-fire time.
-                // Mirror DispatchWithPhase so lateral amendments release RV SID holds.
-                if (result is null && ac.Phases?.CurrentPhase is { } phaseForNotify)
-                {
-                    NotifyPhaseCommandAccepted(ac, cmd, phaseForNotify, ctx);
-                }
-
                 result ??= ApplyCommand(cmd, ac, ctx);
 
                 if (!result.Success)
                 {
                     return WithRejectedCommand(result, cmd);
+                }
+
+                // Release phase-internal state only after the command actually applied
+                // (e.g. RV SID heading hold on a successful DCT during InitialClimb).
+                if (ac.Phases?.CurrentPhase is { } phaseForNotify)
+                {
+                    NotifyPhaseCommandAccepted(ac, cmd, phaseForNotify, ctx);
                 }
 
                 if (result.Message is not null)
