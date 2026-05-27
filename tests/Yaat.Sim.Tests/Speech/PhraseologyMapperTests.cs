@@ -171,6 +171,41 @@ public class PhraseologyMapperTests
         Assert.Equal("CVIA, CFIX CEPIN A5000", result!.CanonicalCommand.ToUpperInvariant());
     }
 
+    // --- Taxi/ground verb synonyms (FAA 7110.65 §3-7) ---
+    // The §3-7 phraseology block lists "TAXI / CONTINUE TAXIING / PROCEED VIA (route)" as
+    // synonyms, "BEHIND (traffic)" as an alternate to FOLLOW, and "HOLD FOR (reason)" /
+    // "ACROSS RUNWAY (number)" as alternate forms. Shipping all of these as STT synonyms.
+
+    [Theory]
+    [InlineData("continue taxiing via bravo charlie", "TAXI B C")]
+    [InlineData("proceed via bravo charlie", "TAXI B C")]
+    [InlineData("across runway two eight right", "CROSS 28R")]
+    [InlineData("hold for wake turbulence", "HOLD")]
+    [InlineData("hold for traffic", "HOLD")]
+    public void TaxiAndGroundSynonyms_Rules(string transcript, string expected)
+    {
+        var ctx = MapContext.Empty with
+        {
+            TaxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "B", "C" },
+        };
+        var result = PhraseologyMapper.Map(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void TaxiAndGroundSynonyms_BehindCallsign_Pattern()
+    {
+        // "Behind {callsign}" only captures a single token. The outer trailing CallsignParser
+        // swallows N-numbers and known active callsigns, so this rule serves mostly as an
+        // intermediary path before the LLM fallback. We verify the rule pattern matches an
+        // arbitrary single-token capture via the test-only matcher to keep the regression
+        // honest without depending on CallsignParser's behavior in the full pipeline.
+        var captures = PhraseologyMapper.TryMatchPatternForTests(["behind", "{callsign}"], ["behind", "ualx5321"]);
+        Assert.NotNull(captures);
+        Assert.Equal("ualx5321", captures!["callsign"]);
+    }
+
     // --- Pattern-entry APPROVED shorthand (FAA 7110.65 §3-10-1) ---
     // Controllers commonly use the bare-direction approval form when accepting a pilot's
     // request, e.g. "straight in approved" / "right traffic approved". Maps to the same

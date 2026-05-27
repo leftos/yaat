@@ -167,7 +167,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 ##### Covered
 - **Phrasing:** "TAXI/CONTINUE TAXIING/PROCEED VIA (route)"
   **Canonical:** `Taxi`
-  **Notes:** `PhraseologyRules.cs:444` covers `taxi via {path...}`; "continue/proceed" wording variants in MissingRule below.
+  **Notes:** All three synonyms covered (`PhraseologyRules.cs:484, 489-490`). "continue taxiing via {path}" and "proceed via {path}" are SttOnly aliases — pilot AI keeps reading back as "taxi via".
 - **Phrasing:** "RUNWAY (number), TAXI VIA (route)"
   **Canonical:** `Taxi`
   **Notes:** `PhraseologyRules.cs:446`.
@@ -192,26 +192,26 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "FOLLOW (traffic)" (on ground)
   **Canonical:** `FollowGround`
   **Notes:** `PhraseologyRules.cs:503` — `follow the? {callsign} on ground`.
+- **Phrasing:** "ACROSS RUNWAY (number)" (alternate to bare "CROSS RUNWAY") — without "AT taxiway" suffix
+  **Canonical:** `CrossRunway`
+  **Notes:** `PhraseologyRules.cs:548`. SttOnly alias; pilot AI keeps reading back as "cross runway". The "AT (runway/taxiway)" sub-form remains MissingCanonical below.
+- **Phrasing:** "HOLD FOR (reason)" (e.g. wake turbulence, traffic)
+  **Canonical:** `HoldPosition`
+  **Notes:** `PhraseologyRules.cs:540`. The reason is captured via `{reason...}` variadic and dropped in canonical (sim's HoldPosition doesn't carry a reason). Also at §3-9, §3-11.
+- **Phrasing:** "BEHIND (traffic)" — taxi-behind-traffic form
+  **Canonical:** `FollowGround`
+  **Notes:** `PhraseologyRules.cs:557`. Single-token callsign capture only; multi-token spoken-form callsigns fall through to the LLM fallback because mid-utterance callsign normalization isn't supported. Test: `TaxiAndGroundSynonyms_BehindCallsign_Pattern`.
 
 ##### MissingRule
-- **Phrasing:** "CONTINUE TAXIING VIA (route)" / "PROCEED VIA (route)"
-  **Canonical:** `Taxi`
-  **Notes:** rule line 444 only matches literal "taxi via"; add "continue taxiing via" and "proceed via" alternates per §3-7-2 phraseology block.
 - **Phrasing:** "ON (runway number or taxiways)" / "TO (location)" / "(direction)" — sub-forms enumerated in §3-7-2
   **Canonical:** `Taxi`
   **Notes:** variants not currently matched by `taxi via {path...}` (e.g. "taxi on Charlie", "taxi to the hangar", "taxi straight ahead"). Consider extending the Taxi tokenizer.
-- **Phrasing:** "ACROSS RUNWAY (number), AT (runway/taxiway)" — taxi-with-cross sub-form
-  **Canonical:** `CrossRunway` or `Taxi`
-  **Notes:** "across" as alternate to "cross" not in rule line 500.
-- **Phrasing:** "CROSS RUNWAY (number) AT (runway/taxiway)" — explicit at-intersection form
-  **Canonical:** `CrossRunway`
-  **Notes:** rule line 500 is bare `cross runway {rwy}`; add "at {taxiway}" tail. Same shape needed for "CROSS RUNWAY (number) AT (runway/taxiway), HOLD SHORT OF (runway)".
+- **Phrasing:** "CROSS RUNWAY (number) AT (runway/taxiway)" / "ACROSS RUNWAY (number), AT (runway/taxiway)" — explicit at-intersection form
+  **Canonical:** `??` (CrossRunway needs taxiway argument)
+  **Notes:** `CrossRunwayCommand` only carries a runway id (`ParsedCommand.cs:387`); adding the "AT (taxiway)" intersection target requires extending the canonical. Same shape needed for "CROSS RUNWAY (number) AT (runway/taxiway), HOLD SHORT OF (runway)".
 - **Phrasing:** "CROSS RUNWAY (number) AND RUNWAY (number) AT TAXIWAY (designator)" — multiple-runway crossing in single clearance
   **Canonical:** `CrossRunway`
   **Notes:** no multi-runway crossing form supported.
-- **Phrasing:** "HOLD FOR (reason)" (e.g. wake turbulence, traffic)
-  **Canonical:** `HoldPosition`
-  **Notes:** extend rule line 497 to accept "hold for {reason...}" tail. Also at §3-9, §3-11.
 - **Phrasing:** "HOLD SHORT OF (runway) APPROACH" / "HOLD SHORT OF (runway) DEPARTURE"
   **Canonical:** `HoldShort`
   **Notes:** approach/departure hold-area suffix not handled by rule line 501.
@@ -224,9 +224,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "EXIT/PROCEED/CROSS (runway/taxiway) AT (runway/taxiway) WITHOUT DELAY"
   **Canonical:** `ExitTaxiway` / `CrossRunway`
   **Notes:** "without delay" tail on exit/cross forms.
-- **Phrasing:** "BEHIND (traffic)" — taxi-behind-traffic form
-  **Canonical:** `FollowGround`
-  **Notes:** rule line 503 is `follow ... on ground`; FAA allows bare "behind (traffic)" as alternate; add "behind {callsign}" → FollowGround.
 
 ##### MissingCanonical
 - **Phrasing:** "READ BACK HOLD INSTRUCTIONS"
@@ -594,7 +591,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entirely separation procedures (Category I/II/III distance minima for float planes in sea lanes); no PHRASEOLOGY- blocks. Sea-lane operations not in YAAT scope.
 
-**Ch 3 totals:** Covered 50 · MissingRule 31 · MissingCanonical 28 · OutOfScope 50 · Phrasings 159
+**Ch 3 totals:** Covered 53 · MissingRule 27 · MissingCanonical 28 · OutOfScope 50 · Phrasings 158
 
 ### Chapter 4 — IFR (TRACON / approach control)
 
@@ -3041,17 +3038,17 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 174 |
-| MissingRule | 198 |
+| Covered | 177 |
+| MissingRule | 194 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
-| **Total phrasings audited** | **800** |
+| **Total phrasings audited** | **799** |
 
 ### Per-chapter totals
 
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
-| 7110.65 Ch 3 — Tower | 50 | 31 | 28 | 50 | 159 |
+| 7110.65 Ch 3 — Tower | 53 | 27 | 28 | 50 | 158 |
 | 7110.65 Ch 4 — IFR/TRACON | 23 | 23 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 30 | 33 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
@@ -3061,7 +3058,7 @@ All 10 chapters audited.
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **174** | **198** | **239** | **189** | **800** |
+| **Total** | **177** | **194** | **239** | **189** | **799** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 

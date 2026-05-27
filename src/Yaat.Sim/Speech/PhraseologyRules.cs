@@ -484,6 +484,10 @@ public static class PhraseologyRules
             new(["taxi", "via", "{path...}"], "TAXI {path}", Taxi),
             new(["taxi", "to?", "runway", "{rwy}", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),
             new(["runway", "{rwy}", "taxi", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),
+            // §3-7 lists "TAXI / CONTINUE TAXIING / PROCEED VIA (route)" as three synonyms. STT
+            // alternates marked SttOnly so the pilot AI keeps reading them back as "taxi via".
+            new(["continue", "taxiing", "via", "{path...}"], "TAXI {path}", Taxi, SttOnly: true),
+            new(["proceed", "via", "{path...}"], "TAXI {path}", Taxi, SttOnly: true),
             // Taxi with hold-short instruction. "runway" is optional because pilots often drop it
             // when the runway designator is already unambiguous ("hold short of 28R").
             new(["taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}"], "TAXI {path} HS {holdshort}", Taxi),
@@ -535,12 +539,22 @@ public static class PhraseologyRules
             new(["pushback", "approved", "tail", "{cardinal}"], "PUSH TAIL {cardinal}", Pushback),
             new(["pushback", "tail", "{cardinal}"], "PUSH TAIL {cardinal}", Pushback),
             new(["hold", "position"], "HOLD", HoldPosition),
+            // §3-7 "HOLD FOR (reason)" — wake turbulence, traffic, etc. The reason is captured
+            // into a variadic so the rule consumes the entire utterance; the canonical drops it
+            // because the sim's HoldPosition doesn't carry a reason argument.
+            new(["hold", "for", "{reason...}"], "HOLD", HoldPosition, SttOnly: true),
             new(["resume", "taxi"], "RES", Resume),
             new(["continue", "taxi"], "RES", Resume),
             new(["cross", "runway", "{rwy}"], "CROSS {rwy}", CrossRunway),
+            // §3-7 "ACROSS RUNWAY (number)" — alternate to "CROSS RUNWAY". SttOnly so the pilot AI
+            // keeps reading back as "cross runway".
+            new(["across", "runway", "{rwy}"], "CROSS {rwy}", CrossRunway, SttOnly: true),
             new(["hold", "short", "of?", "runway", "{rwy}"], "HS {rwy}", HoldShort),
             new(["hold", "short", "of?", "{taxiway}"], "HS {taxiway}", HoldShort),
             new(["follow", "the?", "{callsign}", "on", "ground"], "FOLLOWG {callsign}", FollowGround),
+            // §3-7 "BEHIND (traffic)" — alternate to FOLLOW. SttOnly so the pilot AI keeps the
+            // "follow … on ground" canonical readback form.
+            new(["behind", "{callsign}"], "FOLLOWG {callsign}", FollowGround, SttOnly: true),
             new(["give", "way", "to", "{callsign}"], "GIVEWAY {callsign}", GiveWay),
             new(["exit", "left"], "EL", ExitLeft),
             new(["exit", "right"], "ER", ExitRight),
