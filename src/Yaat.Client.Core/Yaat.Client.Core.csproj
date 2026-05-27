@@ -37,6 +37,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Yaat.Client.Strips\Yaat.Client.Strips.csproj" />
+    <ProjectReference Include="..\Yaat.Client.Tdls\Yaat.Client.Tdls.csproj" />
     <ProjectReference Include="..\Yaat.Sim\Yaat.Sim.csproj" />
   </ItemGroup>
 </Project>
