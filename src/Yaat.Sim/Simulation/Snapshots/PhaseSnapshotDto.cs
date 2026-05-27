@@ -315,6 +315,7 @@ public sealed class GroundNavigatorDto
     public double CurrentNodeRequiredSpeed { get; init; }
     public double MaxSpeedKts { get; init; }
     public double? NextSegmentBearing { get; init; }
+    public int TicksNearTarget { get; init; }
 }
 
 public sealed class FollowingPhaseDto : PhaseDto

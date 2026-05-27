@@ -96,10 +96,40 @@ public sealed class GroundNavigator
     /// </summary>
     private const double LookAheadCapFt = 50.0;
 
+    /// <summary>
+    /// Distance threshold (nm) for orbit detection — if the aircraft is within
+    /// this distance of the target for too long without arriving (see
+    /// <see cref="OrbitStallTicks"/>), pure-pursuit is in a limit cycle around
+    /// the target node and we force-advance the segment. Empirically calibrated
+    /// to 30 ft: orbits observed at SFO 42-4/D11/E10U/CG3 all sit at 12-33 ft
+    /// while heading rotates at near-max turn rate; a healthy slow approach at
+    /// 5 kts closes 30 ft in ~4 s, well under the timeout window.
+    /// </summary>
+    private const double OrbitDetectionNm = 30.0 / GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// Consecutive ticks (seconds) the aircraft must spend within
+    /// <see cref="OrbitDetectionNm"/> without arriving before we declare an
+    /// orbital stall and force-advance. Long enough that a legitimate slow
+    /// approach at 3 kts (5 ft/s, ~6 s to close 30 ft) clears comfortably,
+    /// short enough that the 30-90 s observed orbits get broken before they
+    /// burn the budget.
+    /// </summary>
+    private const int OrbitStallTicks = 15;
+
     public int TargetNodeId { get; private set; }
     public double TargetLat { get; set; }
     public double TargetLon { get; set; }
     public double PrevDistToTarget { get; set; } = double.MaxValue;
+
+    /// <summary>
+    /// Consecutive ticks (seconds) the aircraft has spent within
+    /// <see cref="OrbitDetectionNm"/> of the current target without arriving.
+    /// Used by <c>TickStraight</c> to detect pure-pursuit limit cycles around
+    /// a target node. Reset on segment setup and on arrival.
+    /// </summary>
+    public int TicksNearTarget { get; set; }
+
     public NavTickDiag? LastTickDiag { get; private set; }
     public double MaxSpeedKts { get; set; }
 
@@ -314,6 +344,7 @@ public sealed class GroundNavigator
         _segmentFromLat = from.Position.Lat;
         _segmentFromLon = from.Position.Lon;
         PrevDistToTarget = double.MaxValue;
+        TicksNearTarget = 0;
 
         // Entry alignment: if the aircraft heading is significantly off the
         // segment's first tangent, build a slow-turn from its current pose to
@@ -463,6 +494,7 @@ public sealed class GroundNavigator
         _segmentFromLat = fromLat;
         _segmentFromLon = fromLon;
         PrevDistToTarget = double.MaxValue;
+        TicksNearTarget = 0;
 
         if (primitive is PathPrimitiveArc arcPrim)
         {
@@ -838,7 +870,33 @@ public sealed class GroundNavigator
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
         bool straightArrived = distNm <= arrivalThresholdNm;
 
-        if (straightArrived || overshot || stalledAtThreshold)
+        // Orbit-stall detector: when pure-pursuit can't close the last few feet
+        // because the bearing-to-target rotates faster than the aircraft can
+        // turn, the aircraft enters a limit cycle around the target node. The
+        // tick-by-tick distance still decreases very slowly so the existing
+        // overshoot check (distNm > PrevDistToTarget) never fires. Track how
+        // long we've been close-but-not-arrived; force-advance once that
+        // exceeds OrbitStallTicks. Observed orbits at SFO 42-4/D11/E10U/CG3 sit
+        // 12-30 ft from target for 80-95 s — they were eating most of the time
+        // budget on short routes.
+        //
+        // Suppressed when the current target is a STOP point (hold-short or
+        // parking) or the last segment of the route: there, the aircraft must
+        // come to a precise stop AT the target, not within 30 ft of it.
+        // Force-advancing in those cases would let the aircraft drift past a
+        // hold-short or its final parking node.
+        bool suppressOrbitDetector = isLastSegment || isStopTarget;
+        if (distNm < OrbitDetectionNm && !suppressOrbitDetector)
+        {
+            TicksNearTarget++;
+        }
+        else
+        {
+            TicksNearTarget = 0;
+        }
+        bool orbitStalled = TicksNearTarget > OrbitStallTicks;
+
+        if (straightArrived || overshot || stalledAtThreshold || orbitStalled)
         {
             // Corrective nudge toward next segment bearing, bounded by turn rate.
             if (_nextSegmentBearing is { } nextBrg)
@@ -847,6 +905,7 @@ public sealed class GroundNavigator
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurn);
             }
             PrevDistToTarget = double.MaxValue;
+            TicksNearTarget = 0;
             return NavigatorResult.ArrivedAtNode;
         }
 
@@ -1388,6 +1447,7 @@ public sealed class GroundNavigator
             CurrentNodeRequiredSpeed = _currentNodeRequiredSpeed,
             MaxSpeedKts = MaxSpeedKts,
             NextSegmentBearing = _nextSegmentBearing,
+            TicksNearTarget = TicksNearTarget,
         };
 
     public static GroundNavigator FromSnapshot(GroundNavigatorDto dto) =>
@@ -1402,5 +1462,6 @@ public sealed class GroundNavigator
             _currentNodeRequiredSpeed = dto.CurrentNodeRequiredSpeed,
             MaxSpeedKts = dto.MaxSpeedKts,
             _nextSegmentBearing = dto.NextSegmentBearing,
+            TicksNearTarget = dto.TicksNearTarget,
         };
 }
