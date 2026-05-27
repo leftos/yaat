@@ -836,6 +836,13 @@ public static class CommandParser
             SeparatorMove when arg is not null => ParseSeparatorMove(arg),
             BlankCreate => PR.Ok(new BlankCreateCommand(SplitWhitespace(arg ?? ""))),
             BlankDelete when arg is not null => ParseBlankDelete(arg),
+            // vTDLS — all four are callsign-prefixed verbs.
+            // TDLSQ / TDLSW / TDLSDUMP take no args; TDLSS carries nine positional fields
+            // separated by '|' (empty between two '|' means null for that field).
+            TdlsQueue when arg is null => PR.Ok(new TdlsQueueCommand()),
+            TdlsSend when arg is not null => ParseTdlsSend(arg),
+            TdlsWilco when arg is null => PR.Ok(new TdlsWilcoCommand()),
+            TdlsDump when arg is null => PR.Ok(new TdlsDumpCommand()),
             Scratchpad1 when arg is null => PR.Ok(new Scratchpad1Command("")),
             Scratchpad1 => PR.Ok(new Scratchpad1Command(arg!.Trim().ToUpperInvariant())),
             Scratchpad2 when arg is null => PR.Ok(new Scratchpad2Command("")),
@@ -909,6 +916,7 @@ public static class CommandParser
             or SeparatorEdit
             or SeparatorMove
             or BlankDelete
+            or TdlsSend
             or Say
             or SetRemarks
             or Add when arg is null => PR.Fail($"{type} requires an argument"),
@@ -2824,6 +2832,24 @@ public static class CommandParser
         }
 
         return PR.Ok(new StripScanCommand(tokens));
+    }
+
+    // ── vTDLS send (nine positional fields separated by '|') ──────
+
+    /// <summary>
+    /// TDLSS carries the nine ClearanceDto fields in fixed order separated by '|':
+    /// Expect | Sid | Transition | Climbout | Climbvia | InitialAlt | ContactInfo | DepFreq | LocalInfo.
+    /// Empty fields between separators mean null. Exactly nine fields must be present.
+    /// </summary>
+    private static PR ParseTdlsSend(string arg)
+    {
+        var fields = arg.Split('|');
+        if (fields.Length != 9)
+        {
+            return PR.Fail($"TDLSS requires nine '|'-separated fields, got {fields.Length}");
+        }
+
+        return PR.Ok(new TdlsSendCommand(fields));
     }
 
     // ── Half-strip move / offset / slide ──────────────────────────

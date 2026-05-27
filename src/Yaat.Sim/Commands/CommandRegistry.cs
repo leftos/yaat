@@ -1087,6 +1087,45 @@ public static class CommandRegistry
                     ),
                 ]
             ),
+            // ── vTDLS ─────────────────────────────────────────────
+            Cmd(
+                TdlsQueue,
+                "Queue PDC for Aircraft",
+                "vTDLS",
+                false,
+                ["TDLSQ"],
+                [O(null, [], "Queue a Pending PDC for the aircraft's filed departure facility (auto-gen also emits this internally)")]
+            ),
+            Cmd(
+                TdlsSend,
+                "Send PDC",
+                "vTDLS",
+                false,
+                ["TDLSS"],
+                [
+                    O(
+                        null,
+                        [R("fields", "Expect|Sid|Transition|Climbout|Climbvia|InitialAlt|ContactInfo|DepFreq|LocalInfo")],
+                        "Send the queued PDC with nine '|'-separated fields (empty between separators = null)"
+                    ),
+                ]
+            ),
+            Cmd(
+                TdlsWilco,
+                "Force PDC Wilco",
+                "vTDLS",
+                false,
+                ["TDLSW"],
+                [O(null, [], "Manually mark the Sent PDC as WILCO'd (normally auto-fired)")]
+            ),
+            Cmd(
+                TdlsDump,
+                "Dump PDC",
+                "vTDLS",
+                false,
+                ["TDLSDUMP", "TDLSD"],
+                [O(null, [], "Remove the PDC from TDLS — clearance must now be given by voice. Terminal: cannot be re-added this session.")]
+            ),
             Cmd(
                 BlankCreate,
                 "Create Blank Strip",

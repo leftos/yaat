@@ -240,6 +240,12 @@ public enum CanonicalCommandType
     BlankCreate,
     BlankDelete,
 
+    // vTDLS (Pre-Departure Clearance lifecycle)
+    TdlsQueue,
+    TdlsSend,
+    TdlsWilco,
+    TdlsDump,
+
     // Turn rate
     SetTurnRate,
 

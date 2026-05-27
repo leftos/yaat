@@ -642,6 +642,18 @@ public record SeparatorEditCommand(IReadOnlyList<string> Tokens) : ParsedCommand
 // BLANK [<bay> [<rack>] [<index>]]: empty tokens → create in printer queue.
 public record BlankCreateCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
+// vTDLS commands. All four are callsign-prefixed; the server resolves the active TDLS item by
+// (facility-derived-from-filed-departure, callsign). TdlsSendCommand carries the nine
+// ClearanceDto fields in positional order (Expect, Sid, Transition, Climbout, Climbvia,
+// InitialAlt, ContactInfo, DepFreq, LocalInfo) delimited by '|'; empty fields mean null.
+public record TdlsQueueCommand : ParsedCommand;
+
+public record TdlsSendCommand(IReadOnlyList<string> Fields) : ParsedCommand;
+
+public record TdlsWilcoCommand : ParsedCommand;
+
+public record TdlsDumpCommand : ParsedCommand;
+
 // BLANKD <bay> [<rack>]: server picks any blank from the matched bay/rack and deletes it.
 public record BlankDeleteCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 

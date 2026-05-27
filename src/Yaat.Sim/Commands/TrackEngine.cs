@@ -76,6 +76,8 @@ public static class TrackEngine
                 or BlankCreateCommand
                 or BlankDeleteCommand;
 
+    public static bool IsTdlsCommand(ParsedCommand? cmd) => cmd is TdlsQueueCommand or TdlsSendCommand or TdlsWilcoCommand or TdlsDumpCommand;
+
     public static bool IsCoordinationCommand(ParsedCommand? cmd) =>
         cmd
             is CoordinationReleaseCommand

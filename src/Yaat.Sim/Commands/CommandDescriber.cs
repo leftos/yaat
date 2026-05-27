@@ -191,6 +191,10 @@ public static class CommandDescriber
             SeparatorMoveCommand => CanonicalCommandType.SeparatorMove,
             BlankCreateCommand => CanonicalCommandType.BlankCreate,
             BlankDeleteCommand => CanonicalCommandType.BlankDelete,
+            TdlsQueueCommand => CanonicalCommandType.TdlsQueue,
+            TdlsSendCommand => CanonicalCommandType.TdlsSend,
+            TdlsWilcoCommand => CanonicalCommandType.TdlsWilco,
+            TdlsDumpCommand => CanonicalCommandType.TdlsDump,
             Scratchpad1Command => CanonicalCommandType.Scratchpad1,
             Scratchpad2Command => CanonicalCommandType.Scratchpad2,
             AsdexEditCommand asdexEdit => asdexEdit.Field switch
@@ -570,6 +574,10 @@ public static class CommandDescriber
             SeparatorMoveCommand cmd => $"SEPM {cmd.StripId} {cmd.DestBayName}/{cmd.DestRack + 1}/{cmd.DestIndex + 1}",
             BlankCreateCommand cmd => FormatTokenizedCanonical("BLANK", cmd.Tokens),
             BlankDeleteCommand cmd => FormatTokenizedCanonical("BLANKD", cmd.Tokens),
+            TdlsQueueCommand => "TDLSQ",
+            TdlsSendCommand cmd => $"TDLSS {string.Join('|', cmd.Fields)}",
+            TdlsWilcoCommand => "TDLSW",
+            TdlsDumpCommand => "TDLSDUMP",
             _ => command.ToString() ?? "?",
         };
     }
