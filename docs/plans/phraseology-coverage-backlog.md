@@ -1002,14 +1002,17 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CROSS (fix) AT OR ABOVE (altitude), CLEARED (type) APPROACH"
   **Canonical:** `CrossFix` + `ClearedApproach`
   **Notes:** `PhraseologyRules.cs:128-131` + `:197-209`. The greedy multi-clause matcher chains the two as `CFIX … , CAPP …` automatically.
+- **Phrasing:** "CLEARED LOCALIZER APPROACH" / "CLEARED LOCALIZER BACK COURSE RUNWAY (number) APPROACH" / "CLEARED V-O-R RUNWAY (number) APPROACH" / "CLEARED L-D-A RUNWAY (number) APPROACH"
+  **Canonical:** `ClearedApproach`
+  **Notes:** `PhraseologyRules.cs:223-230`. Canonical encodes the type as a prefix (LOC, B for back-course, VOR, LDA); resolved by `NavigationDatabase.ResolveApproachId`. GLS variant of this same FAA listing is *not* covered yet — `TryStripTypePrefix` lacks "GLS"→'J', tracked in MissingRule below.
 
 ##### MissingRule
 - **Phrasing:** "AT (fix), CLEARED (type) APPROACH" (e.g., "At RDFSH, Cleared ILS Runway 27 Approach")
   **Canonical:** `ClearedApproach`
   **Notes:** rules don't accept "at {fix}" prefix carrying a connection-fix instruction.
-- **Phrasing:** "CLEARED LOCALIZER APPROACH" / "CLEARED LOCALIZER BACK COURSE RUNWAY (number) APPROACH" / "CLEARED V-O-R RUNWAY (number) APPROACH" / "CLEARED G-L-S APPROACH" / "CLEARED L-D-A RUNWAY (number) APPROACH"
+- **Phrasing:** "CLEARED G-L-S APPROACH" (gap from the otherwise-Covered LOC/VOR/LDA list above)
   **Canonical:** `ClearedApproach`
-  **Notes:** canonical exists; current rules only enumerate ILS / RNAV / visual variants.
+  **Notes:** `NavigationDatabase.ResolveApproachId.TryStripTypePrefix` doesn't include "GLS" in its prefix table (only ILS/LOC/RNAV/GPS/VOR/NDB/LDA/TACAN/SDF). Shipping the STT rule requires adding "GLS" → 'J' to that list first.
 - **Phrasing:** "CLEARED (ILS/LDA) APPROACH, GLIDESLOPE UNUSABLE"
   **Canonical:** `ClearedApproach`
   **Notes:** "glideslope unusable" advisory suffix not produced.
@@ -1057,7 +1060,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** advisory/info exchange.
 
-**Ch 4 totals:** Covered 22 · MissingRule 23 · MissingCanonical 55 · OutOfScope 29 · Phrasings 129
+**Ch 4 totals:** Covered 23 · MissingRule 23 · MissingCanonical 55 · OutOfScope 29 · Phrasings 130
 
 ### Chapter 5 — Radar
 
@@ -3038,18 +3041,18 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 162 |
+| Covered | 163 |
 | MissingRule | 209 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
-| **Total phrasings audited** | **799** |
+| **Total phrasings audited** | **800** |
 
 ### Per-chapter totals
 
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
 | 7110.65 Ch 3 — Tower | 39 | 42 | 28 | 50 | 159 |
-| 7110.65 Ch 4 — IFR/TRACON | 22 | 23 | 55 | 29 | 129 |
+| 7110.65 Ch 4 — IFR/TRACON | 23 | 23 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 30 | 33 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
 | 7110.65 Ch 2 — General Control | 3 | 14 | 13 | 18 | 48 |
@@ -3058,7 +3061,7 @@ All 10 chapters audited.
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **162** | **209** | **239** | **189** | **799** |
+| **Total** | **163** | **209** | **239** | **189** | **800** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 
@@ -3069,7 +3072,7 @@ Implementation sessions should pull these first — one rule addition per cluste
 - **`JoinStar`** — 7110.65 §4-7, AIM §5-4. Add `cleared (star) arrival` / `(star) arrival, (transition) transition`.
 - **`JoinAirway`** / **`JoinRadialInbound`** / **`JoinRadialOutbound`** — 7110.65 §4-4, §5-6, AIM §4-5. Add `via (airway)` / `join (airway)` / `via (NAVAID) radial` etc.
 - **`HoldingPattern`** — 7110.65 §4-6, AIM §5-3. Extend beyond bare `hold at {fix}` to full charted-hold form.
-- **`ClearedApproach`** Localizer/VOR/GLS/LDA variants — 7110.65 §4-8, AIM §5-4. Extend approach-type token alternation.
+- ~~**`ClearedApproach`** Localizer/VOR/LDA + LOC BC variants~~ — Stage 4 shipped (PhraseologyRules.cs:223-230). GLS variant of §4-8 remains MissingRule pending a `TryStripTypePrefix` "GLS"→'J' addition.
 - **`Contact`** / **`FrequencyChangeApproved`** — referenced everywhere; canonicals exist, no rules. Out-of-pilot-scope per current index but ubiquitous in FAA docs — may want product decision.
 - **`SafetyAlert`** — 7110.65 §2-1, §5-9, AIM §4-1, §5-4. Add `low altitude alert` / `traffic alert advise you turn...`.
 - **`WakeAdvisory`** — 7110.65 §2-1-20 `caution wake turbulence ...`. Canonical exists; no rule.

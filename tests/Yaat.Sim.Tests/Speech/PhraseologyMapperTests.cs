@@ -203,6 +203,25 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    // --- Approach-type variants beyond ILS/RNAV (LOC, LOC BC, VOR, LDA) ---
+    // FAA 7110.65 §4-8-1, AIM §5-4. Canonical encodes the type as a prefix on the
+    // approach ID: ILS=I, LOC=L, LOC BC=B, VOR=V, LDA=X — all resolved by
+    // NavigationDatabase.ResolveApproachId.
+
+    [Theory]
+    [InlineData("cleared localizer runway two eight right approach", "CAPP LOC28R")]
+    [InlineData("cleared localizer two eight right approach", "CAPP LOC28R")]
+    [InlineData("cleared localizer back course runway one one approach", "CAPP B11")]
+    [InlineData("cleared vor runway three four approach", "CAPP VOR34")]
+    [InlineData("cleared vor three four approach", "CAPP VOR34")]
+    [InlineData("cleared lda runway one seven left approach", "CAPP LDA17L")]
+    public void ApproachType_Variants(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- PTAC rules (combined vector + altitude + approach clearance) ---
 
     [Theory]

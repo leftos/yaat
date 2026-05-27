@@ -220,6 +220,17 @@ public static class PhraseologyRules
             new(["cleared", "ils", "{rwy}", "approach"], "CAPP ILS{rwy}", ClearedApproach),
             new(["cleared", "rnav", "runway", "{rwy}", "approach"], "CAPP RNAV{rwy}", ClearedApproach),
             new(["cleared", "rnav", "{rwy}", "approach"], "CAPP RNAV{rwy}", ClearedApproach),
+            // Approach-type variants beyond ILS/RNAV (7110.65 §4-8-1, AIM §5-4). The type
+            // prefix on the canonical approach ID is resolved by NavigationDatabase
+            // .ResolveApproachId — LOC→L, LOC BC→B, VOR→V, LDA→X.
+            new(["cleared", "localizer", "back", "course", "runway", "{rwy}", "approach"], "CAPP B{rwy}", ClearedApproach),
+            new(["cleared", "localizer", "back", "course", "{rwy}", "approach"], "CAPP B{rwy}", ClearedApproach),
+            new(["cleared", "localizer", "runway", "{rwy}", "approach"], "CAPP LOC{rwy}", ClearedApproach),
+            new(["cleared", "localizer", "{rwy}", "approach"], "CAPP LOC{rwy}", ClearedApproach),
+            new(["cleared", "vor", "runway", "{rwy}", "approach"], "CAPP VOR{rwy}", ClearedApproach),
+            new(["cleared", "vor", "{rwy}", "approach"], "CAPP VOR{rwy}", ClearedApproach),
+            new(["cleared", "lda", "runway", "{rwy}", "approach"], "CAPP LDA{rwy}", ClearedApproach),
+            new(["cleared", "lda", "{rwy}", "approach"], "CAPP LDA{rwy}", ClearedApproach),
             new(["cleared", "straight", "in", "ils", "runway", "{rwy}", "approach"], "CAPPSI ILS{rwy}", ClearedApproachStraightIn),
             new(["cleared", "straight", "in", "rnav", "runway", "{rwy}", "approach"], "CAPPSI RNAV{rwy}", ClearedApproachStraightIn),
             // Visual approach — distinct canonical (CVA, not CAPP). 7110.65 7-4-3.b:
