@@ -14,6 +14,7 @@
 - "Make straight-in" and "enter straight-in" tower instructions now parse to EF with the runway captured — both word orders, with or without the trailing "approach" (AIM 4-3-3).
 - Arrival generators no longer silently drop spawns when a scenario's weight/engine combo has no curated aircraft types (e.g. Large+Piston) — the generator falls back to the nearest engine-matching bucket so traffic keeps flowing.
 - Pop-out state (including the Terminal) and window positions now survive every app exit, including `Ctrl+C` in the launch script, File > Exit, and the confirm-exit dialog after closing with a scenario loaded.
+- TAXI right after `PUSH A FACE …` no longer makes the aircraft spin a loop when it was already pointing the right way.
 
 ## v0.3.7-beta [2026/05/25]
 

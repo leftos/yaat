@@ -849,6 +849,108 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Pick the start node for a taxi command, biased by heading. Unlike
+    /// <see cref="FindNearestNode(LatLon)"/> — which returns the absolute
+    /// nearest node and can land on the wrong branch when an aircraft rests
+    /// between graph nodes after a directional pushback (issue #161) — this
+    /// returns the nearest node within <paramref name="maxDistFt"/> that has
+    /// at least one non-RAMP, non-runway-centerline outbound edge whose
+    /// bearing is within 90° of the aircraft's <paramref name="heading"/>.
+    /// <para>
+    /// Returns null when no qualifying node exists in the radius — the caller
+    /// should fall back to <see cref="FindNearestNode(LatLon)"/>. The maximum
+    /// distance is generous because the helper is only a discriminator across
+    /// the small set of candidate nodes any near-graph aircraft has within
+    /// reach; selection is by closest-of-the-qualifying, not by absolute
+    /// nearest, so a far node with the right alignment never beats a close
+    /// one.
+    /// </para>
+    /// <para>
+    /// Aircraft positioned <em>at</em> a node (HoldingShortPhase fuselage tip
+    /// at the hold-short line, AtParkingPhase at the spot) still resolve to
+    /// that node because their forward heading aligns with the outbound edge
+    /// the route continues along — the existing-edge test admits the same
+    /// node <see cref="FindNearestNode(LatLon)"/> would have picked.
+    /// </para>
+    /// </summary>
+    public GroundNode? FindNearestNodeForTaxi(LatLon position, TrueHeading heading, double maxDistFt = 100.0)
+    {
+        double maxDistNm = maxDistFt / GeoMath.FeetPerNm;
+
+        // Below this distance the candidate node and the aircraft are
+        // effectively co-located — bearing-to-node is undefined and the
+        // existing HoldingShortPhase / AtParkingPhase behaviour (start at the
+        // node the aircraft is sitting at) must be preserved.
+        double atNodeNm = 15.0 / GeoMath.FeetPerNm;
+
+        GroundNode? best = null;
+        double bestDistNm = double.MaxValue;
+
+        foreach (var node in Nodes.Values)
+        {
+            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(position, node.Position);
+            if (dist > maxDistNm || dist >= bestDistNm)
+            {
+                continue;
+            }
+
+            // Reject candidates behind the aircraft. Skipped when essentially
+            // at the node so an aircraft parked on a hold-short still starts
+            // there even though "bearing to self" is meaningless.
+            if (dist > atNodeNm)
+            {
+                double bearingToNode = GeoMath.BearingTo(position, node.Position);
+                if (GeoMath.AbsBearingDifference(bearingToNode, heading.Degrees) >= 90.0)
+                {
+                    continue;
+                }
+            }
+
+            if (!HasHeadingAlignedTaxiEdge(node, heading))
+            {
+                continue;
+            }
+
+            bestDistNm = dist;
+            best = node;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Returns true when <paramref name="node"/> has at least one outbound
+    /// taxi edge (not RAMP, not runway centerline) whose bearing from the
+    /// node toward its neighbor is within 90° of <paramref name="heading"/>.
+    /// Used by <see cref="FindNearestNodeForTaxi"/> to reject candidate
+    /// start nodes whose only taxi connections head away from the aircraft.
+    /// </summary>
+    private static bool HasHeadingAlignedTaxiEdge(GroundNode node, TrueHeading heading)
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (edge.IsRunwayCenterline || edge.IsRamp)
+            {
+                continue;
+            }
+
+            var other = edge.OtherNode(node);
+            double bearing = GeoMath.BearingTo(node.Position, other.Position);
+            if (GeoMath.AbsBearingDifference(bearing, heading.Degrees) < 90.0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Find the nearest runway centerline node that is ahead of or abeam the
     /// aircraft along the given heading. When <paramref name="runwayDesignator"/>
     /// is provided, only considers nodes with RWY edges matching that runway.

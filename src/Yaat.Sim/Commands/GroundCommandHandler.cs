@@ -30,8 +30,12 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        // Find starting node: nearest to aircraft's current position
-        var startNode = groundLayout.FindNearestNode(aircraft.Position);
+        // Find starting node. Prefer the heading-aligned endpoint of the
+        // nearest taxi edge (handles post-pushback poses where the aircraft
+        // rests between graph nodes — see issue #161); fall back to the
+        // absolute nearest node when the aircraft is genuinely off-graph.
+        var startNode =
+            groundLayout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading) ?? groundLayout.FindNearestNode(aircraft.Position);
 
         if (startNode is null)
         {
