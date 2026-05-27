@@ -81,6 +81,10 @@ public partial class VTdlsView : UserControl
             Resources["VTdlsSelectedFg"] = new SolidColorBrush(Color.Parse("#000000"));
             Resources["VTdlsListBorder"] = new SolidColorBrush(Color.Parse("#3a3a3a"));
             Resources["VTdlsEditorTextFg"] = new SolidColorBrush(Color.Parse("#d8d8d8"));
+            // Hover: slightly lighter than list bg so the highlight reads;
+            // keep the same blue foreground so text stays legible against it.
+            Resources["VTdlsHoverBg"] = new SolidColorBrush(Color.Parse("#2a2a2a"));
+            Resources["VTdlsHoverFg"] = new SolidColorBrush(Color.Parse("#8ec5ff"));
         }
         else
         {
@@ -95,6 +99,10 @@ public partial class VTdlsView : UserControl
             Resources["VTdlsSelectedFg"] = new SolidColorBrush(Color.Parse("#ffffff"));
             Resources["VTdlsListBorder"] = new SolidColorBrush(Color.Parse("#a0a0a0"));
             Resources["VTdlsEditorTextFg"] = new SolidColorBrush(Color.Parse("#000000"));
+            // Hover: lighter shade than the white list bg so it still reads
+            // as a highlight against the white surface.
+            Resources["VTdlsHoverBg"] = new SolidColorBrush(Color.Parse("#e0e0e8"));
+            Resources["VTdlsHoverFg"] = new SolidColorBrush(Color.Parse("#0000bb"));
         }
     }
 

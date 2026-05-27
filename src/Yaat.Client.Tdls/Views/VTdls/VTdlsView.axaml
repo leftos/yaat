@@ -21,6 +21,12 @@
         <SolidColorBrush x:Key="VTdlsSelectedBg" Color="#000000"/>
         <SolidColorBrush x:Key="VTdlsSelectedFg" Color="#ffffff"/>
         <SolidColorBrush x:Key="VTdlsListBorder" Color="#a0a0a0"/>
+        <!-- Hover (pointerover) brushes — must be themed so the text stays
+             legible in dark mode. The Avalonia FluentTheme default uses a
+             light grey background + dark foreground that becomes invisible
+             on our dark list backgrounds. -->
+        <SolidColorBrush x:Key="VTdlsHoverBg" Color="#e0e0e8"/>
+        <SolidColorBrush x:Key="VTdlsHoverFg" Color="#0000bb"/>
         <!-- Editor label / heading text. Swaps to a light shade in dark mode
              via ApplyTheme so the form stays legible on dark backgrounds. -->
         <SolidColorBrush x:Key="VTdlsEditorTextFg" Color="#000000"/>
@@ -34,7 +40,18 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource VTdlsListFg}"/>
         </Style>
+        <Style Selector="ListBox.tdls > ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource VTdlsHoverBg}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsHoverFg}"/>
+        </Style>
         <Style Selector="ListBox.tdls > ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}"/>
+        </Style>
+        <!-- Selected + hover lands on its own selector in Avalonia's pseudo-class
+             chain; without this the pointerover wins and re-tints a selected
+             row back to the hover scheme. Selected has priority. -->
+        <Style Selector="ListBox.tdls > ListBoxItem:selected:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}"/>
             <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}"/>
         </Style>
