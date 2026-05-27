@@ -371,18 +371,27 @@ public class PhraseologyMapperTests
     }
 
     [Theory]
-    // "Exit left/right when able" without a taxiway — the "when able" trailing tokens silently
-    // skip via the no-match advance, leaving the bare EL/ER form.
+    // Bare "Exit left/right when able" without a taxiway — preamble tokens silent-skip when
+    // there's no taxiway to capture, leaving the bare EL/ER form.
     [InlineData("exit left when able", "EL")]
     [InlineData("exit right when able", "ER")]
     [InlineData("exit left if able", "EL")]
-    // Trailing "when able" AFTER the taxiway also works — leading rule consumes "exit left {tw}",
-    // trailing tokens silent-skip.
+    // Trailing "when able" AFTER the taxiway also works — preamble tokens silent-skip after
+    // {taxiway} is captured.
     [InlineData("exit left charlie when able", "EL C")]
     [InlineData("exit left at charlie when able", "EL C")]
-    public void ExitLeftRight_WhenAble_BareAndTrailing(string transcript, string expected)
+    // Mid-preamble between verb and taxiway, with various connectors ("on", "at", "to") and
+    // both "when" and "if" forms. Optional slots in the rule consume these inline.
+    [InlineData("exit left when able charlie", "EL C")]
+    [InlineData("exit right if able delta", "ER D")]
+    [InlineData("exit right on delta if able", "ER D")]
+    [InlineData("exit left at charlie if able", "EL C")]
+    [InlineData("exit left to alpha when able", "EL A")]
+    [InlineData("turn left when able charlie", "EL C")]
+    [InlineData("turn right if able delta", "ER D")]
+    public void ExitLeftRight_PreambleAndConnectors(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C"));
+        var result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C", "D"));
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
