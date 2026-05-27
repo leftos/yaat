@@ -87,14 +87,15 @@ The architecture/scope decisions in [`docs/plans/vtdls-emulation.md`](../plans/v
 }
 ```
 
-**Sampled coverage** (ZBW, ARTCC ID for Boston Center, parent of the four TDLS facilities upstream `vtdls.md` names):
+**Sampled coverage** (ZOA, Oakland ARTCC — five TDLS-configured Bay Area + Sacramento + Reno ATCTs under NCT TRACON):
 
 | Facility | Type        | SIDs | climbouts | climbvias | initialAlts | depFreqs | expects | contactInfos | localInfos | Mandatory fields |
 |----------|-------------|------|-----------|-----------|-------------|----------|---------|--------------|------------|------------------|
-| BDL      | Atct        | 2    | 0         | 0         | 1           | 2        | 1       | 0            | 0          | sid, expect, initialAlt, depFreq |
-| PVD      | AtctTracon  | 1    | 0         | 0         | 1           | 1        | 1       | 0            | 1          | sid, expect, initialAlt, depFreq |
-| ALB      | AtctTracon  | 1    | 0         | 0         | 1           | 2        | 1       | 0            | 0          | sid, expect, initialAlt, depFreq |
-| BOS      | Atct        | 9    | 0         | 3         | 2           | 1        | 1       | 2            | 1          | sid, expect, depFreq, contactInfo, localInfo |
+| SFO      | Atct        | 12   | 4         | 5         | 5           | 2        | 3       | 9            | 9          | expect, depFreq |
+| OAK      | Atct        | 12   | 6         | 8         | 5           | 3        | 3       | 5            | 4          | expect, depFreq |
+| SJC      | Atct        | 7    | 2         | 2         | 6           | 4        | 1       | 2            | 0          | expect, depFreq |
+| SMF      | Atct        | 5    | 7         | 3         | 5           | 4        | 3       | 6            | 2          | expect, depFreq |
+| RNO      | Atct        | 6    | 0         | 2         | 2           | 2        | 2       | 0            | 0          | sid, expect, depFreq |
 
 **Implications for the plan** (mostly confirming, one adjustment):
 - ✅ Phase 1.0.2 reduces to: extend `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with a `TdlsConfig` record class + `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration { get; set; }` on `FacilityConfig`. Mirror the four nested record types from `vatsim-vnas/data/Facilities/Tdls*.cs` (`TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig`).
@@ -103,9 +104,10 @@ The architecture/scope decisions in [`docs/plans/vtdls-emulation.md`](../plans/v
 - 🔁 **Plan adjustment**: the "Maintain" semantic name from upstream `vtdls.md` maps to the wire field `initialAlts` / `mandatoryInitialAlt` / `defaultInitialAlt`. Keep the wire naming verbatim in the DTO; the UI label can read "Maintain" per the upstream manual.
 - ❓ **Still unknown**: whether CRC's vTDLS-related WebSocket topic is named the same way as the data-api JSON keys (`tdls...`). Phase 2.3 still needs a live CRC capture or a vNAS messaging-master review.
 
-**Sample fixture** (Phase 1.0.2 will commit this to `tests/Yaat.Sim.Tests/TestData/` for offline parser tests):
-- Source: `https://data-api.vnas.vatsim.net/api/artccs/ZBW` (582 KB minified, ~4.5 MB pretty)
-- Captured by: `python tools/refresh-artcc-snapshot.py --artcc ZBW --out tests/Yaat.Sim.Tests/TestData/artcc-zbw-snapshot.json`
+**Sample fixture** (committed to `tests/Yaat.Sim.Tests/TestData/artcc-zoa-snapshot.json` for offline parser tests):
+- Source: `https://data-api.vnas.vatsim.net/api/artccs/ZOA` (~838 KB minified)
+- Captured by: `python tools/refresh-artcc-snapshot.py --artcc ZOA --out tests/Yaat.Sim.Tests/TestData/artcc-zoa-snapshot.json`
+- Parser tests: `tests/Yaat.Sim.Tests/Data/ArtccTdlsConfigParseTests.cs`
 
 ## Refresh policy
 

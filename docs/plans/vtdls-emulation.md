@@ -153,23 +153,18 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 
 **Goal**: Find where the vNAS data-api exposes TDLS configuration, build a loader, integrate with the existing config-load path. This phase is *exploratory first, code second*: it's possible TDLS config lives inside the ARTCC config response, in which case the loader is just an enrichment of `ArtccConfigService`; if it's a separate endpoint, we add a `TdlsConfigDownloader` analogous to `AirportLayoutDownloader`.
 
-**1.0.1** `docs(tdls): probe vNAS data-api for TDLS config endpoint`
-- Investigate (no code yet):
-  - GET `https://data-api.vnas.vatsim.net/api/artccs/zbw` (ZBW is referenced by upstream as a parent of four TDLS facilities — ALB/BDL/BOS/PVD — so it's a known-good probe target). Inspect the response for any TDLS/PDC config blocks.
-  - GET `https://data-api.vnas.vatsim.net/api/training/airports/KBOS/map` (Boston is one of the four TDLS facilities listed by upstream) for any TDLS-side metadata.
-  - Browse the vNAS Data Admin docs at <https://data-admin.virtualnas.net/docs/#/facilities?id=tdls-configuration> (linked from `docs/vtdls/vtdls.md`) for hints about the on-wire schema.
-  - If the API doesn't expose it directly, check vatsim-vnas (sibling repo at `..\vatsim-vnas\`) `data/` module source for TDLS DTOs.
-- Document findings in `docs/vtdls/README.md` under a new "Data-api integration" subsection: which endpoint, response shape, any quirks. Stop here for human review of the loader shape before writing code.
+**1.0.1** ✅ `docs(tdls): probe vNAS data-api for TDLS config endpoint` (committed `65da3764`)
+- Findings in `docs/vtdls/README.md` under "Data-api integration". TL;DR: TDLS lives **inside** the existing `/api/artccs/{ID}` ARTCC config response on per-facility `tdlsConfiguration` nodes — no separate endpoint. Wire format matches `..\vatsim-vnas\data\Facilities\Tdls*.cs` exactly. ARTCC IDs must be uppercase.
 
-**1.0.2** `add(tdls): TdlsConfig DTOs + TdlsConfigLoader`
-- Create `src/Yaat.Sim/Data/Vnas/TdlsConfig.cs` — record types per the model above (`TdlsConfig`, `TdlsFieldDef`, `TdlsSidConfig`, `TdlsTransitionConfig`).
-- Create `src/Yaat.Sim/Data/Vnas/TdlsConfigLoader.cs` — async loader that fetches + caches under `YaatPaths.AppDataRoot/cache/tdls/{facility}.json` (same pattern as airport ground maps). Conditional HTTP freshness check if-modified-since.
-- If TDLS lives inside ARTCC config: extend `ArtccConfigService` to parse the embedded block, and skip the separate loader.
-- Tests: `tests/Yaat.Sim.Tests/TdlsConfigLoaderTests.cs` — parses a real fixture (captured during Phase 1.0.1) + cache freshness.
+**1.0.2** ✅ `add(tdls): TdlsConfig DTOs in ArtccConfig.cs + ZOA fixture` (TBD this commit)
+- Extends `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with `TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig` classes; adds `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration` to `FacilityConfig`. Property naming follows the wire format (`InitialAlts`, not "Maintain" — UI does the rename).
+- No separate `TdlsConfigLoader` needed; `ArtccConfigService` (which already caches ARTCC responses) handles the embedded TDLS subtree.
+- Fixture: `tests/Yaat.Sim.Tests/TestData/artcc-zoa-snapshot.json` captured via `python tools/refresh-artcc-snapshot.py --artcc ZOA --out tests/Yaat.Sim.Tests/TestData/artcc-zoa-snapshot.json`.
+- Tests: `tests/Yaat.Sim.Tests/Data/ArtccTdlsConfigParseTests.cs` — walks the facility tree, asserts 5 TDLS facilities (OAK/RNO/SFO/SJC/SMF), drills into SFO + OAK shape (mandatory flags, default SID/transition resolution, nullable-default round-trip).
 
 **1.0.3** `add(tdls): wire TdlsConfig into TrainingRoom on scenario load`
-- Modify `src/Yaat.Server/Simulation/SimulationEngine.cs` (or wherever scenario load currently calls `ArtccConfigService.Load…`) — fetch TDLS configs for every TDLS-enabled facility in the loaded ARTCC and hand the result to `TdlsState.InitializeFromArtcc`.
-- Tests: integration via existing scenario-load tests + a new `tests/Yaat.Server.Tests/TdlsScenarioLoadTests.cs` asserting that loading a ZBW scenario populates `room.TdlsState.Configs` with the four facilities.
+- Modify `src/Yaat.Server/Simulation/SimulationEngine.cs` (or wherever scenario load currently calls `ArtccConfigService.Load…`) — walk the facility tree of the loaded ARTCC and hand every `tdlsConfiguration != null` node to `TdlsState.InitializeFromArtcc`.
+- Tests: integration via existing scenario-load tests + a new `tests/Yaat.Server.Tests/TdlsScenarioLoadTests.cs` asserting that loading a ZOA scenario populates `room.TdlsState.Configs` with the five NCT child facilities (OAK/RNO/SFO/SJC/SMF).
 
 ### Phase 1 — Server data model (no handlers)
 
@@ -333,9 +328,11 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 ```
 Phase 0 (docs cache) ✅
         ▼
-Phase 1.0.1 (probe data-api) ── REVIEW STOP ──┐
-                                                ▼
-Phase 1.0.2 → 1.0.3
+Phase 1.0.1 (probe data-api) ✅ ── REVIEW STOP cleared ──┐
+                                                          ▼
+Phase 1.0.2 (DTOs + ZOA fixture) ✅
+        ▼
+Phase 1.0.3 (wire into TrainingRoom)
 Phase 1.1 → 1.2 → 1.3
 Phase 2.1 (Yaat.Sim) → submodule bump in server → 2.2 → 2.3 (conditional)
 Phase 3.1 → 3.2 → 3.3
@@ -408,11 +405,11 @@ End-to-end after Phase 9 lands:
 1. Local: `pwsh tools/test-all.ps1` — green across both repos.
 2. Local server: `dotnet run --project src/Yaat.Server`. From a browser, open `http://localhost:5000/vtdls/` — vTDLS web app loads, auto-joins room for CID.
 3. YAAT Client: `dotnet run --project src/Yaat.Client`. Load a departure-heavy scenario at a TDLS-configured facility (e.g. KBOS). View → vTDLS submenu lists facilities; open a second facility's tab; pop it out; verify per-facility geometry persists across restarts.
-4. File a flight plan for N123AB out of KBOS → DCL list shows a Pending item automatically. Select the item → flight plan editor opens with nine field dropdowns pre-populated from the FE-defined defaults. Press F12 → item moves to PDC list, status Sent, ClearanceDto snapshotted; after ~3s → status Wilco, `Voice.TdlsDumped == true`, no `PendingPilotTransmissions` entry created.
+4. File a flight plan for N123AB out of KOAK → DCL list shows a Pending item automatically (OAK is one of five TDLS-configured ATCTs under ZOA's NCT TRACON). Select the item → flight plan editor opens with nine field dropdowns pre-populated from the FE-defined defaults. Press F12 → item moves to PDC list, status Sent, ClearanceDto snapshotted; after ~3s → status Wilco, `Voice.TdlsDumped == true`, no `PendingPilotTransmissions` entry created.
 5. CTO N123AB → voice readback still fires (TDLS does not suppress takeoff).
 6. F4 on the PDC item → item disappears from the list; re-creating the flight plan does NOT re-generate the entry (Dumped lockout).
 7. Wait 2+ hours sim time on a Sent item → item expires and disappears from the PDC list (TTL).
-8. Open ZBW (parent of ALB/BDL/BOS/PVD) with none of those four staffed → consolidated view shows entries from all four child facilities. Staff one child → its entries disappear from the parent view and the child's tab populates.
+8. Open NCT TRACON (parent of OAK/SFO/SJC/SMF/RNO) with none of those five staffed → consolidated view shows entries from all five child facilities. Staff one child → its entries disappear from the parent view and the child's tab populates.
 9. `prepare-restart` cycle: confirm `RoomStateSnapshotDto.Tdls` round-trips Pending + Sent items + Dumped lockout across the restart. Configs reload from data-api (not from snapshot).
 10. Reconnect a CRC client to an existing room with active TDLS items: the client's `RequestFullTdlsState` returns every item including each Sent item's `SentPayload`.
 11. Docker: `docker compose build && docker compose up -d` on yaat-server. Hit `https://{droplet}/vtdls/` — same behavior as localhost.

@@ -46,6 +46,9 @@ public class FacilityConfig
 
     [JsonPropertyName("flightStripsConfiguration")]
     public FlightStripsConfig? FlightStripsConfiguration { get; set; }
+
+    [JsonPropertyName("tdlsConfiguration")]
+    public TdlsConfig? TdlsConfiguration { get; set; }
 }
 
 public class PositionConfig
@@ -729,4 +732,116 @@ public class ExternalStripBayConfig
 
     [JsonPropertyName("bayId")]
     public string BayId { get; set; } = "";
+}
+
+public class TdlsConfig
+{
+    [JsonPropertyName("mandatorySid")]
+    public bool MandatorySid { get; set; } = true;
+
+    [JsonPropertyName("mandatoryClimbout")]
+    public bool MandatoryClimbout { get; set; }
+
+    [JsonPropertyName("mandatoryClimbvia")]
+    public bool MandatoryClimbvia { get; set; }
+
+    [JsonPropertyName("mandatoryInitialAlt")]
+    public bool MandatoryInitialAlt { get; set; }
+
+    [JsonPropertyName("mandatoryDepFreq")]
+    public bool MandatoryDepFreq { get; set; }
+
+    [JsonPropertyName("mandatoryExpect")]
+    public bool MandatoryExpect { get; set; } = true;
+
+    [JsonPropertyName("mandatoryContactInfo")]
+    public bool MandatoryContactInfo { get; set; }
+
+    [JsonPropertyName("mandatoryLocalInfo")]
+    public bool MandatoryLocalInfo { get; set; }
+
+    [JsonPropertyName("sids")]
+    public List<TdlsSidConfig> Sids { get; set; } = [];
+
+    [JsonPropertyName("climbouts")]
+    public List<TdlsClearanceValueConfig> Climbouts { get; set; } = [];
+
+    [JsonPropertyName("climbvias")]
+    public List<TdlsClearanceValueConfig> Climbvias { get; set; } = [];
+
+    [JsonPropertyName("initialAlts")]
+    public List<TdlsClearanceValueConfig> InitialAlts { get; set; } = [];
+
+    [JsonPropertyName("depFreqs")]
+    public List<TdlsClearanceValueConfig> DepFreqs { get; set; } = [];
+
+    [JsonPropertyName("expects")]
+    public List<TdlsClearanceValueConfig> Expects { get; set; } = [];
+
+    [JsonPropertyName("contactInfos")]
+    public List<TdlsClearanceValueConfig> ContactInfos { get; set; } = [];
+
+    [JsonPropertyName("localInfos")]
+    public List<TdlsClearanceValueConfig> LocalInfos { get; set; } = [];
+
+    [JsonPropertyName("defaultSidId")]
+    public string? DefaultSidId { get; set; }
+
+    [JsonPropertyName("defaultTransitionId")]
+    public string? DefaultTransitionId { get; set; }
+}
+
+public class TdlsSidConfig
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("transitions")]
+    public List<TdlsSidTransitionConfig> Transitions { get; set; } = [];
+}
+
+public class TdlsSidTransitionConfig
+{
+    /// <summary>The literal placeholder name <c>"- - - -"</c> represents the "no transition" entry (a SID with no published transitions).</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("firstRoutePoint")]
+    public string? FirstRoutePoint { get; set; }
+
+    [JsonPropertyName("defaultExpect")]
+    public string? DefaultExpect { get; set; }
+
+    [JsonPropertyName("defaultClimbout")]
+    public string? DefaultClimbout { get; set; }
+
+    [JsonPropertyName("defaultClimbvia")]
+    public string? DefaultClimbvia { get; set; }
+
+    [JsonPropertyName("defaultInitialAlt")]
+    public string? DefaultInitialAlt { get; set; }
+
+    [JsonPropertyName("defaultDepFreq")]
+    public string? DefaultDepFreq { get; set; }
+
+    [JsonPropertyName("defaultContactInfo")]
+    public string? DefaultContactInfo { get; set; }
+
+    [JsonPropertyName("defaultLocalInfo")]
+    public string? DefaultLocalInfo { get; set; }
+}
+
+public class TdlsClearanceValueConfig
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("value")]
+    public string Value { get; set; } = "";
 }
