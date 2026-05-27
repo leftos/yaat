@@ -171,6 +171,29 @@ public class PhraseologyMapperTests
         Assert.Equal("CVIA, CFIX CEPIN A5000", result!.CanonicalCommand.ToUpperInvariant());
     }
 
+    // --- Single-canonical clusters (Stage 11+) ---
+
+    [Theory]
+    // §5-6-6: "DEPART (fix) HEADING (degrees)".
+    [InlineData("depart cepin heading two seven zero", "DEPART CEPIN 270")]
+    [InlineData("depart cepin heading zero niner zero", "DEPART CEPIN 090")]
+    public void DepartFix_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
+    }
+
+    [Theory]
+    // §3-10-11 "option approved" — alternate to "cleared for the option".
+    [InlineData("option approved", "COPT")]
+    public void OptionApproved_Rule(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- Taxi/ground verb synonyms (FAA 7110.65 §3-7) ---
     // The §3-7 phraseology block lists "TAXI / CONTINUE TAXIING / PROCEED VIA (route)" as
     // synonyms, "BEHIND (traffic)" as an alternate to FOLLOW, and "HOLD FOR (reason)" /

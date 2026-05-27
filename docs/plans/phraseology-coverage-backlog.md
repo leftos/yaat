@@ -298,14 +298,14 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CLEARED FOR THE OPTION"
   **Canonical:** `ClearedForOption`
   **Notes:** `PhraseologyRules.cs:178-179`.
+- **Phrasing:** "OPTION APPROVED"
+  **Canonical:** `ClearedForOption`
+  **Notes:** `PhraseologyRules.cs:203`. SttOnly alias; pilot AI keeps reading back as "cleared for the option".
 
 ##### MissingRule
 - **Phrasing:** "CLEARED FOR TAKEOFF OR HOLD SHORT / HOLD IN POSITION / TAXI OFF THE RUNWAY (traffic)" — compound conditional takeoff clearance
   **Canonical:** `ClearedForTakeoff` (compound with `HoldShort`/`LineUpAndWait`)
   **Notes:** no compound-conditional form exists; the "or" branch may be too unusual to model directly.
-- **Phrasing:** "OPTION APPROVED"
-  **Canonical:** `ClearedForOption`
-  **Notes:** rule lines 178-179 require literal "cleared for the option"/"cleared for option"; add "option approved" alternate.
 
 ##### MissingCanonical
 - **Phrasing:** "NUMBER (landing sequence number)" — sequence call (e.g. "number two, follow Cessna…")
@@ -591,7 +591,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entirely separation procedures (Category I/II/III distance minima for float planes in sea lanes); no PHRASEOLOGY- blocks. Sea-lane operations not in YAAT scope.
 
-**Ch 3 totals:** Covered 53 · MissingRule 27 · MissingCanonical 28 · OutOfScope 50 · Phrasings 158
+**Ch 3 totals:** Covered 54 · MissingRule 26 · MissingCanonical 28 · OutOfScope 50 · Phrasings 158
 
 ### Chapter 4 — IFR (TRACON / approach control)
 
@@ -1238,11 +1238,11 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "FLY HEADING (degrees). WHEN ABLE, PROCEED DIRECT (fix)"
   **Canonical:** `FlyHeading` + `AppendDirectTo`
   **Notes:** `PhraseologyRules.cs:62-63` + `:119`.
-
-##### MissingRule
 - **Phrasing:** "DEPART (fix) HEADING (degrees)"
   **Canonical:** `DepartFix`
-  **Notes:** canonical exists; no rule.
+  **Notes:** `PhraseologyRules.cs:138`. Departure-fix heading assignment used for radar departures.
+
+##### MissingRule
 - **Phrasing:** "THIS WILL BE A NO-GYRO VECTOR" / "STOP TURN"
   **Canonical:** `??`
   **Notes:** no-gyro vectoring uses imperative TURN LEFT / TURN RIGHT / STOP TURN without a heading. Existing turn rules require a heading.
@@ -1637,7 +1637,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entire chapter is equipment/automation/display/track-ops workflow — out-of-pilot-scope per index header.
 
-**Ch 5 totals:** Covered 30 · MissingRule 33 · MissingCanonical 62 · OutOfScope 37 · Phrasings 162
+**Ch 5 totals:** Covered 31 · MissingRule 32 · MissingCanonical 62 · OutOfScope 37 · Phrasings 162
 
 ### Chapter 7 — Visual
 
@@ -3038,8 +3038,8 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 177 |
-| MissingRule | 194 |
+| Covered | 179 |
+| MissingRule | 192 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
 | **Total phrasings audited** | **799** |
@@ -3048,9 +3048,9 @@ All 10 chapters audited.
 
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
-| 7110.65 Ch 3 — Tower | 53 | 27 | 28 | 50 | 158 |
+| 7110.65 Ch 3 — Tower | 54 | 26 | 28 | 50 | 158 |
 | 7110.65 Ch 4 — IFR/TRACON | 23 | 23 | 55 | 29 | 130 |
-| 7110.65 Ch 5 — Radar | 30 | 33 | 62 | 37 | 162 |
+| 7110.65 Ch 5 — Radar | 31 | 32 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
 | 7110.65 Ch 2 — General Control | 3 | 14 | 13 | 18 | 48 |
 | 7110.65 Ch 6 — Nonradar | 1 | 1 | 12 | 9 | 23 |
@@ -3058,7 +3058,7 @@ All 10 chapters audited.
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **177** | **194** | **239** | **189** | **799** |
+| **Total** | **179** | **192** | **239** | **189** | **799** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 

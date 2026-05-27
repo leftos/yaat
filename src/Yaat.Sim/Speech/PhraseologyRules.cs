@@ -140,6 +140,9 @@ public static class PhraseologyRules
             // (altitude) AT (specified speed) KNOTS"). The trailing "{speed} knots" literal
             // anchors the second "at" so it can't be confused with the first.
             new(["cross", "{fix}", "at", "and?", "maintain?", "{alt}", "at", "{speed}", "knots"], "CFIX {fix} AT {alt} {speed}", CrossFix),
+            // FAA 7110.65 §5-6-6: "DEPART (fix) HEADING (degrees)" — departure-fix heading
+            // assignment used for radar departures off published fixes.
+            new(["depart", "{fix}", "heading", "{hdg}"], "DEPART {fix} {hdg}", DepartFix),
         ];
 
     // --- Tower (CommandRegistry.TowerCommands) ---
@@ -199,6 +202,9 @@ public static class PhraseologyRules
             new(["cleared", "low", "approach"], "LA", LowApproach),
             new(["cleared", "for", "the", "option"], "COPT", ClearedForOption),
             new(["cleared", "for", "option"], "COPT", ClearedForOption),
+            // §3-10-11 "option approved" — alternate shorthand. SttOnly so the pilot AI
+            // keeps reading back as the canonical "cleared for the option".
+            new(["option", "approved"], "COPT", ClearedForOption, SttOnly: true),
             // FAA 7110.65 §7-9-2: CLEARED THROUGH/TO ENTER/OUT OF BRAVO AIRSPACE.
             new(["cleared", "through", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
             new(["cleared", "to", "enter", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
