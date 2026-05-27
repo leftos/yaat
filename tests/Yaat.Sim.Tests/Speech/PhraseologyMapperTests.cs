@@ -171,6 +171,70 @@ public class PhraseologyMapperTests
         Assert.Equal("CVIA, CFIX CEPIN A5000", result!.CanonicalCommand.ToUpperInvariant());
     }
 
+    // --- Named-procedure forms (ClimbVia / DescendVia / JoinStar with SID/STAR names) ---
+    // FAA 7110.65 §4-5, §4-7, AIM §5-4. The SID/STAR name is multi-token in spoken English
+    // ("eagul five"); SidStarNameNormalizer collapses it via PhoneticFixMatcher fuzzy matching
+    // against base-name candidates from MapContext.Procedures.
+
+    private static readonly ProcedurePattern Eagul5Star = new("EAGUL5", ProcedureKind.Star, "EAGUL", "5");
+    private static readonly ProcedurePattern Suzan2Sid = new("SUZAN2", ProcedureKind.Sid, "SUZAN", "2");
+    private static readonly ProcedurePattern Goshi1Trans = new("GOSHI1", ProcedureKind.Star, "GOSHI", "1");
+
+    private static MapContext ProcedureContext(params ProcedurePattern[] procedures) => MapContext.Empty with { Procedures = procedures };
+
+    [Theory]
+    [InlineData("descend via the eagul five arrival", "JARR EAGUL5")]
+    [InlineData("descend via eagul five arrival", "JARR EAGUL5")]
+    // Whisper transcription variant — phonetic Levenshtein should still resolve.
+    [InlineData("descend via the eagle five arrival", "JARR EAGUL5")]
+    public void DescendViaNamed_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, ProcedureContext(Eagul5Star));
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
+    [InlineData("climb via the suzan two departure", "CVIA")]
+    [InlineData("climb via suzan two departure", "CVIA")]
+    [InlineData("climb via the suzan two departure except maintain five thousand", "CVIA 5000")]
+    public void ClimbViaNamed_DropsNameEmitsBare(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, ProcedureContext(Suzan2Sid));
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void StarBareClearance_EmitsJoinStar()
+    {
+        var result = PhraseologyMapper.Map("eagul five arrival", ProcedureContext(Eagul5Star));
+        Assert.NotNull(result);
+        Assert.Equal("JARR EAGUL5", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void StarUnknownName_FailsAndFallsThrough()
+    {
+        // "apple five arrival" has no matching procedure — the procedure-validation post-pass
+        // rejects the rule, returning null so the LLM fallback gets a shot.
+        var result = PhraseologyMapper.Map("descend via the apple five arrival", ProcedureContext(Eagul5Star));
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void StarEmptyProcedureContext_FiresUnsafely()
+    {
+        // No procedures registered — validation is skipped (mirrors runway-validation behavior).
+        // The normalizer also no-ops, so leading "{star}" captures the raw token (which after
+        // AtcNumberParser is the digit "5" — the first non-fix-like-looking thing the rule mapper
+        // sees in this transcript). Result is a nonsense JARR but no crash. Pinned here to
+        // document the fallthrough; production callers populate Procedures so this can't fire.
+        var result = PhraseologyMapper.Map("eagul five arrival", MapContext.Empty);
+        Assert.NotNull(result);
+        Assert.StartsWith("JARR ", result!.CanonicalCommand);
+    }
+
     // --- Single-canonical clusters (Stage 11+) ---
 
     [Theory]

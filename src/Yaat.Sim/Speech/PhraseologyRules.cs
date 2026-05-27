@@ -112,6 +112,28 @@ public static class PhraseologyRules
             // normalizer that doesn't exist yet — out of scope for this rule set.
             new(["climb", "via", "sid"], "CVIA", ClimbVia),
             new(["climb", "via", "sid", "except", "maintain", "{alt}"], "CVIA {alt}", ClimbVia),
+            // Climb via with explicit SID name (FAA 7110.65 §4-5: "CLIMB VIA (SID name and number)").
+            // The SID name is dropped — bare CVIA uses the aircraft's already-filed SID, and we
+            // don't model on-the-fly SID amendment as a canonical. SttOnly so the pilot AI keeps
+            // reading back as the bare "climb via sid" form. {sid} capture is validated against
+            // MapContext.Procedures so we don't emit CVIA when the spoken name isn't a real SID.
+            new(["climb", "via", "the?", "{sid}", "departure"], "CVIA", ClimbVia, SttOnly: true),
+            new(["climb", "via", "the?", "{sid}", "departure", "except", "maintain", "{alt}"], "CVIA {alt}", ClimbVia, SttOnly: true),
+            // Descend via with explicit STAR name (FAA 7110.65 §4-5, §4-7, AIM §5-4: "DESCEND VIA
+            // (STAR) ARRIVAL"). Emits JARR which routes to JoinStarCommand — the DV parser also
+            // falls through to JoinStar on non-numeric arg, so DV/JARR are interchangeable here.
+            // SttOnly because pilots typically read this back as "descending via …" pilot speech,
+            // not the controller phrasing.
+            new(["descend", "via", "the?", "{star}", "arrival"], "JARR {star}", JoinStar, SttOnly: true),
+            new(["descend", "via", "the?", "{star}", "arrival", "{transition}", "transition"], "JARR {star} {transition}", JoinStar, SttOnly: true),
+            // Bare STAR clearance (FAA 7110.65 §4-7, AIM §5-4: "(STAR name and number) ARRIVAL"
+            // and optional "(transition) TRANSITION"). Leading-capture rules are risk-bounded by
+            // the {star} procedure-validation post-pass in PhraseologyMapper — only canonical
+            // STAR names from the active scenario satisfy it.
+            new(["cleared", "{star}", "arrival"], "JARR {star}", JoinStar, SttOnly: true),
+            new(["cleared", "{star}", "arrival", "{transition}", "transition"], "JARR {star} {transition}", JoinStar, SttOnly: true),
+            new(["{star}", "arrival", "{transition}", "transition"], "JARR {star} {transition}", JoinStar, SttOnly: true),
+            new(["{star}", "arrival"], "JARR {star}", JoinStar, SttOnly: true),
         ];
 
     // --- Navigation (CommandRegistry.NavigationCommands) ---

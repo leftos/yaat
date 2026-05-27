@@ -54,6 +54,17 @@ public sealed record MapContext(IReadOnlyCollection<string> ActiveCallsigns, IRe
     /// <c>AircraftState.GroundLayout.Edges</c>, filtered to exclude runway centerlines and ramps.
     /// </summary>
     public IReadOnlySet<string> TaxiwayNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// SID and STAR patterns for the active aircraft's filed departure and destination airports
+    /// (plus the primary scenario airport as fallback). Used by <see cref="SidStarNameNormalizer"/>
+    /// to collapse multi-token spoken procedure names ("eagul five" → "EAGUL5") into single
+    /// canonical tokens before rule matching, and by <see cref="PhraseologyMapper"/>'s
+    /// procedure-capture validation post-pass to reject rule matches whose {sid}/{star} capture
+    /// isn't a known procedure. Empty when no scenario state is available — the normalizer no-ops
+    /// and the validation post-pass skips its check.
+    /// </summary>
+    public IReadOnlyList<ProcedurePattern> Procedures { get; init; } = [];
 }
 
 /// <summary>

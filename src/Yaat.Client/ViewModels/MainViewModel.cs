@@ -1357,6 +1357,7 @@ public partial class MainViewModel : ObservableObject
         // finished loading — both the rule-engine validator and the LLM fallback skip their checks
         // in that case.
         var availableRunways = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        var procedures = new List<ProcedurePattern>();
         if (navDb is not null)
         {
             var airports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1381,6 +1382,13 @@ public partial class MainViewModel : ObservableObject
             {
                 airports.Add(layoutAirportId);
             }
+
+            // SID/STAR procedure patterns for the same airport set. Used by SidStarNameNormalizer
+            // to fuzzy-collapse spoken procedure names (e.g. "eagul five" → "EAGUL5") into canonical
+            // tokens before rule matching, so phraseology rules with {sid}/{star} captures can do
+            // single-token capture against a name pilots/controllers actually pronounce as multiple
+            // tokens. Reuses PhoneticFixMatcher for variant tolerance.
+            procedures.AddRange(navDb.GetProcedurePatterns(airports));
 
             foreach (var airport in airports)
             {
@@ -1437,6 +1445,7 @@ public partial class MainViewModel : ObservableObject
             AvailableRunways = availableRunways,
             AircraftDestinations = aircraftDestinations,
             TaxiwayNames = taxiwayNames,
+            Procedures = procedures,
         };
     }
 

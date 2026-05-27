@@ -828,17 +828,17 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CROSS (fix) AT (altitude)" / "CROSS (fix) AT OR ABOVE/BELOW (altitude)"
   **Canonical:** `CrossFix`
   **Notes:** `PhraseologyRules.cs:128-131`. Also covers §4-3, §4-7, §4-8, AIM §4-4, AIM §5-3.
+- **Phrasing:** "DESCEND VIA (STAR name and number)" / "DESCEND VIA (STAR), (runway transition)" / "DESCEND VIA (STAR), landing (direction)"
+  **Canonical:** `DescendVia` / `JoinStar`
+  **Notes:** `PhraseologyRules.cs:120-128`. Maps to `JARR {star} [{transition}]` → JoinStarCommand (the DV parser also falls through to JoinStar on non-numeric arg). Spoken multi-token STAR names resolve via `SidStarNameNormalizer` + `PhoneticFixMatcher`. Also at §4-7.
+- **Phrasing:** "CLIMB VIA (SID name and number)" / "CLIMB VIA (SID), (en route transition)" / bare "CLIMB VIA SID"
+  **Canonical:** `ClimbVia`
+  **Notes:** `PhraseologyRules.cs:113-118`. Bare "CLIMB VIA SID" + "except maintain {alt}" are shipped; the named-SID variant "CLIMB VIA the {sid} DEPARTURE [except maintain {alt}]" drops the SID name (bare CVIA uses the aircraft's already-filed SID). SID-amendment (changing the filed SID) is a separate canonical and remains unmodeled.
 
 ##### MissingRule
 - **Phrasing:** "CRUISE (altitude)"
   **Canonical:** `Cruise`
   **Notes:** canonical exists in enum but no rule. Note: `Cruise` is listed under track-ops out-of-pilot-scope in the index — but the phrasing here is a controller-issued cruise altitude assignment; defer to product whether to extend.
-- **Phrasing:** "DESCEND VIA (STAR name and number)" / "DESCEND VIA (STAR), (runway transition)" / "DESCEND VIA (STAR), landing (direction)"
-  **Canonical:** `DescendVia`
-  **Notes:** canonical exists; no rule. Also at §4-7 MissingRule.
-- **Phrasing:** "CLIMB VIA (SID name and number)" / "CLIMB VIA (SID), (en route transition)" / bare "CLIMB VIA SID"
-  **Canonical:** `ClimbVia`
-  **Notes:** Bare form shipped at `PhraseologyRules.cs:113-114` (covers bare + "EXCEPT MAINTAIN {alt}"). Named-SID variants still need both a SID-name normalizer in the speech pipeline and a canonical that carries a SID-name argument (current `ClimbViaCommand` has no name field — bare CVIA uses the aircraft's already-filed SID, named forms are unmodeled SID amendment).
 
 ##### MissingCanonical
 - **Phrasing:** "MAINTAIN (altitude) UNTIL (time/fix/waypoint)" / "MAINTAIN (altitude) UNTIL (N) MILES/MINUTES PAST (fix)"
@@ -950,14 +950,14 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CROSS (fix) AT (altitude)" / "CROSS (fix) AT OR ABOVE (altitude)" / "CROSS (fix) AT FLIGHT LEVEL (level)"
   **Canonical:** `CrossFix`
   **Notes:** `PhraseologyRules.cs:128-131`. FL form normalizes to a single token via `AtcNumberParser` and matches the bare "{alt}" capture.
-
-##### MissingRule
 - **Phrasing:** "(STAR name and number) ARRIVAL" / "(STAR name and number) ARRIVAL, (transition name) TRANSITION"
   **Canonical:** `JoinStar`
-  **Notes:** canonical exists; no rule.
+  **Notes:** `PhraseologyRules.cs:124-128`. Leading {star} capture safe-guarded by procedure-validation post-pass in `PhraseologyMapper` — only known scenario STARs match.
 - **Phrasing:** "DESCEND VIA THE (STAR) ARRIVAL" / "DESCEND VIA THE (STAR) ARRIVAL, RUNWAY (number)"
-  **Canonical:** `DescendVia`
-  **Notes:** canonical exists; no rule. Also at §4-5 MissingRule.
+  **Canonical:** `DescendVia` / `JoinStar`
+  **Notes:** `PhraseologyRules.cs:120-122`. Emits `JARR {star}` (DV parser routes non-numeric arg to JoinStar). "Runway (number)" trailing variant not yet covered.
+
+##### MissingRule
 
 ##### MissingCanonical
 - **Phrasing:** "CHANGE/AMEND TRANSITION TO (runway number)" / "CHANGE TRANSITION TO (runway) TURN LEFT/RIGHT HEADING (heading) FOR VECTOR TO FINAL APPROACH COURSE"
@@ -1057,7 +1057,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** advisory/info exchange.
 
-**Ch 4 totals:** Covered 23 · MissingRule 23 · MissingCanonical 55 · OutOfScope 29 · Phrasings 130
+**Ch 4 totals:** Covered 27 · MissingRule 19 · MissingCanonical 55 · OutOfScope 29 · Phrasings 130
 
 ### Chapter 5 — Radar
 
@@ -2750,7 +2750,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 ##### MissingRule
 - **Phrasing:** §5-2-9 "Climb via SID" / "Climb via the Suzan Two departure" / "Climb via SID except maintain FL180" / "Climb via SID except cross Mkala at or above 7000"
   **Canonical:** `ClimbVia`
-  **Notes:** Bare "Climb via SID" + "except maintain {alt}" shipped at `PhraseologyRules.cs:113-114`. Named-SID variant ("Suzan Two departure") needs SID-name normalizer; "except cross {fix} at or above {alt}" composite needs Climb Via + Cross Fix chaining (CrossFix shipped). Recurring across §4-3, §4-5, AIM §4-4, AIM §5-5.
+  **Notes:** Bare + named-SID forms + "except maintain {alt}" all shipped at `PhraseologyRules.cs:113-118`. "Except cross {fix} at or above {alt}" composite chains via greedy multi-clause matcher (CrossFix shipped). Recurring across §4-3, §4-5, AIM §4-4, AIM §5-5.
 - **Phrasing:** §5-2-9 "Cleared (DP name) departure" / "Cleared Loop Six departure" (lateral SID clearance)
   **Canonical:** `??`
   **Notes:** no `ClearedSid`/`ClearedDeparture` canonical.
@@ -2881,16 +2881,17 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** `MakeRightTraffic` + `ClimbMaintain`/`DescendMaintain`
   **Notes:** `PhraseologyRules.cs:354-358`.
 
-##### MissingRule
 - **Phrasing:** "Descend via the Eagul Five arrival" / "Descend via (procedure name)"
-  **Canonical:** `DescendVia`
-  **Notes:** canonical exists; no rule. Recurring.
+  **Canonical:** `DescendVia` / `JoinStar`
+  **Notes:** `PhraseologyRules.cs:120-122` — emits `JARR {star}` via SidStarNameNormalizer fuzzy match. Recurring.
 - **Phrasing:** "Cleared Tyler One arrival, descend and maintain FL240" / STAR + descent
   **Canonical:** `JoinStar` + `DescendMaintain`
-  **Notes:** `JoinStar` canonical exists; no rule. Also at 7110.65 §4-7.
+  **Notes:** `PhraseologyRules.cs:124-128` + `:78` — chains via greedy multi-clause matcher as `JARR TYLER1, DM 24000`. Also at 7110.65 §4-7.
+
+##### MissingRule
 - **Phrasing:** "Descend via the Eagul Five arrival, except cross Vnnom at or above 12000" / "...except after Geeno, maintain 10000"
   **Canonical:** `DescendVia` + `CrossFix`
-  **Notes:** EXCEPT modifier; also at 7110.65 §4-5.
+  **Notes:** Component canonicals shipped; EXCEPT-CROSS composite test pending (similar to the ClimbVia + CrossFix EXCEPT composite at §4-5 — should work for free via greedy matcher, needs a regression test).
 - **Phrasing:** "Cancel approach clearance"
   **Canonical:** `??`
   **Notes:** no `CancelApproachClearance` in enum; closest `CancelLandingClearance`/`CancelTakeoffClearance`. Also at 7110.65 §4-8.
@@ -2975,7 +2976,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Notes:** distinct from `FlyPresentHeading`. Also at 7110.65 §4-3, §5-8, §5-10.
 - **Phrasing:** §5-5-14 "Climb via SID" / "Descend via STAR"
   **Canonical:** `ClimbVia` / `DescendVia`
-  **Notes:** ClimbVia bare form shipped at `PhraseologyRules.cs:113-114`. DescendVia STAR phrasing ("Descend via the EAGUL5 arrival") needs STAR-name normalizer before shipping. Recurring.
+  **Notes:** Both shipped (`PhraseologyRules.cs:113-128`) — ClimbVia bare + named via SidStarNameNormalizer (drops SID name), DescendVia named maps to `JARR {star}`. Recurring.
 
 ##### OutOfScope
 - **Phrasing:** §5-5-1, §5-5-2 narrative, §5-5-3, §5-5-5 pilot duties, §5-5-8, §5-5-13, §5-5-15, §5-5-16.
@@ -2989,7 +2990,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** regulatory/operational rules and visual-signal communication; emergency/IRROPS-adjacent per audit rules.
 
-**AIM Ch 5 totals:** Covered 23 · MissingRule 30 · MissingCanonical 14 · OutOfScope 6 · Phrasings 73
+**AIM Ch 5 totals:** Covered 25 · MissingRule 28 · MissingCanonical 14 · OutOfScope 6 · Phrasings 73
 
 ### Chapter 10 — Helicopter Operations
 
@@ -3038,8 +3039,8 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 180 |
-| MissingRule | 191 |
+| Covered | 186 |
+| MissingRule | 185 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
 | **Total phrasings audited** | **799** |
@@ -3049,23 +3050,24 @@ All 10 chapters audited.
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
 | 7110.65 Ch 3 — Tower | 54 | 26 | 28 | 50 | 158 |
-| 7110.65 Ch 4 — IFR/TRACON | 23 | 23 | 55 | 29 | 130 |
+| 7110.65 Ch 4 — IFR/TRACON | 27 | 19 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 31 | 32 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
 | 7110.65 Ch 2 — General Control | 4 | 13 | 13 | 18 | 48 |
 | 7110.65 Ch 6 — Nonradar | 1 | 1 | 12 | 9 | 23 |
 | 7110.65 Ch 9 — Special Flights | 0 | 0 | 20 | 8 | 28 |
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
-| AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
+| AIM Ch 5 — ATC Procedures | 25 | 28 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **180** | **191** | **239** | **189** | **799** |
+| **Total** | **186** | **185** | **239** | **189** | **799** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 
 Implementation sessions should pull these first — one rule addition per cluster closes many backlog entries:
 
 - ~~**`CrossFix`**~~ — Stage 1 shipped (PhraseologyRules.cs:128-135). Closes 7110.65 §4-5, §4-7, §4-8, §5-7 (alt+speed), §5-9 (compound w/ ClearedApproach), AIM §4-4, AIM §5-3, AIM §5-4. Composite forms with DirectTo/ClimbVia/DescendVia await Stages 2-3. Speed-only "cross {fix} at {speed}" reclassified MissingCanonical (CrossFixCommand.Altitude is non-nullable).
-- ~~**`ClimbVia`**~~ — Stage 2 bare forms shipped (PhraseologyRules.cs:113-114): "climb via SID" and "climb via SID except maintain {alt}". Closes §4-3 + AIM §4-4 fully; §4-5 / AIM §5-2 / AIM §5-5 partially (named-SID variants and "except cross" composites still need a SID-name normalizer and named amendment canonical). **`DescendVia`** still pending — "descend via the {star} arrival" needs STAR-name normalization. 7110.65 §4-5, §4-7, §5-7, AIM §5-4, §5-5.
+- ~~**`ClimbVia`**~~ — Stage 2 + named-SID variants shipped (PhraseologyRules.cs:113-118): bare "climb via SID" / "climb via SID except maintain {alt}" plus "climb via the {sid} departure [except maintain {alt}]" (SID name dropped — bare CVIA uses the aircraft's filed SID). Backed by `SidStarNameNormalizer` for fuzzy spoken-name collapse.
+- ~~**`DescendVia`** / **`JoinStar`**~~ — Named STAR forms shipped (PhraseologyRules.cs:120-128): "descend via the {star} arrival [{transition} transition]" and bare "(STAR) arrival" / "cleared (STAR) arrival" / "(STAR) arrival, (transition) transition". All map to `JARR {star} [{transition}]` → JoinStarCommand. Multi-token spoken names ("eagul five") resolve via the new normalizer + PhoneticFixMatcher (Whisper variants like "eagle" still match). Procedure-capture validation post-pass in PhraseologyMapper rejects rule matches whose {star}/{sid} isn't a real procedure in scope.
 - **`JoinStar`** — 7110.65 §4-7, AIM §5-4. Add `cleared (star) arrival` / `(star) arrival, (transition) transition`.
 - **`JoinAirway`** / **`JoinRadialInbound`** / **`JoinRadialOutbound`** — 7110.65 §4-4, §5-6, AIM §4-5. Add `via (airway)` / `join (airway)` / `via (NAVAID) radial` etc.
 - **`HoldingPattern`** — 7110.65 §4-6, AIM §5-3. Extend beyond bare `hold at {fix}` to full charted-hold form.

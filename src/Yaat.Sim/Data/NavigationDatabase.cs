@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Proto;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Data;
 
@@ -912,6 +913,68 @@ public sealed class NavigationDatabase
     {
         string normalized = NormalizeAirport(airportCode);
         return _starCache.GetOrAdd(normalized, LoadStars);
+    }
+
+    /// <summary>
+    /// Build speech-recognition patterns for every SID and STAR at the given airports.
+    /// Used by <see cref="Yaat.Sim.Speech.SidStarNameNormalizer"/> to fuzzy-match multi-token
+    /// spoken procedure names ("eagul five") against canonical IDs ("EAGUL5"). Each procedure
+    /// is split into a base portion (digits-stripped) plus the digit suffix; the base feeds
+    /// <see cref="Yaat.Sim.Speech.PhoneticFixMatcher"/> for fuzzy matching, the suffix is
+    /// matched exactly. Procedures without a digit suffix (e.g. "STRADO") use an empty suffix.
+    /// </summary>
+    public IReadOnlyList<ProcedurePattern> GetProcedurePatterns(IEnumerable<string> airportCodes)
+    {
+        var result = new List<ProcedurePattern>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var airport in airportCodes)
+        {
+            if (string.IsNullOrWhiteSpace(airport))
+            {
+                continue;
+            }
+            foreach (var sid in GetSids(airport))
+            {
+                AddProcedure(result, seen, sid.ProcedureId, ProcedureKind.Sid);
+            }
+            foreach (var star in GetStars(airport))
+            {
+                AddProcedure(result, seen, star.ProcedureId, ProcedureKind.Star);
+            }
+        }
+        return result;
+    }
+
+    private static void AddProcedure(List<ProcedurePattern> sink, HashSet<string> seen, string procedureId, ProcedureKind kind)
+    {
+        if (string.IsNullOrWhiteSpace(procedureId))
+        {
+            return;
+        }
+        // Dedupe across airports — the same procedure (by ID + kind) can appear on multiple
+        // CIFP records when an airport shares it across runway transitions.
+        var key = $"{kind}:{procedureId}";
+        if (!seen.Add(key))
+        {
+            return;
+        }
+        var (baseName, suffix) = SplitProcedureName(procedureId);
+        sink.Add(new ProcedurePattern(procedureId, kind, baseName, suffix));
+    }
+
+    private static (string BaseName, string DigitSuffix) SplitProcedureName(string procedureId)
+    {
+        var end = procedureId.Length;
+        while (end > 0 && char.IsDigit(procedureId[end - 1]))
+        {
+            end--;
+        }
+        // Guard against pathological all-digit names (shouldn't happen for SIDs/STARs but be safe).
+        if (end == 0)
+        {
+            return (procedureId, "");
+        }
+        return (procedureId[..end], procedureId[end..]);
     }
 
     public CifpApproachProcedure? GetApproach(string airportCode, string approachId)

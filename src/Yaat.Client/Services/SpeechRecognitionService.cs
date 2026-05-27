@@ -113,6 +113,17 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
     /// collapsing NATO phonetic runs in the transcript. Empty when no ground layout is loaded.
     /// </summary>
     public IReadOnlySet<string> TaxiwayNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// SID / STAR procedure patterns for every airport relevant to the active scenario
+    /// (filed departures + destinations + primary scenario airport). Passed through to
+    /// <see cref="MapContext.Procedures"/> so <see cref="SidStarNameNormalizer"/> can collapse
+    /// multi-token spoken procedure names ("eagul five") into canonical IDs ("EAGUL5") via
+    /// <see cref="PhoneticFixMatcher"/>'s fuzzy matching, and so the procedure-capture validation
+    /// post-pass in <see cref="PhraseologyMapper"/> rejects rule matches whose {sid}/{star}
+    /// capture isn't a real procedure in scope.
+    /// </summary>
+    public IReadOnlyList<ProcedurePattern> Procedures { get; init; } = [];
 }
 
 /// <summary>
@@ -532,6 +543,7 @@ public sealed class SpeechRecognitionService : IDisposable
             AvailableRunways = ctx.AvailableRunways,
             AircraftDestinations = ctx.AircraftDestinations,
             TaxiwayNames = ctx.TaxiwayNames,
+            Procedures = ctx.Procedures,
         };
 
         string? canonical = null;

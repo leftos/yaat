@@ -70,6 +70,18 @@ public static class PhraseologyMapper
     // fail the rule match cleanly so "facing south-east" falls through to the LLM fallback.
     private static readonly HashSet<string> CardinalCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "cardinal" };
 
+    // Capture names that hold a SID or STAR procedure name. After SidStarNameNormalizer collapses
+    // spoken procedure names ("eagul five" → "EAGUL5"), the post-pass in TryMatchRule validates
+    // that the captured token is a known procedure of the matching kind from MapContext.Procedures.
+    // Skipped when context.Procedures is empty (tests, headless) — mirrors the runway-validation
+    // skip behavior so existing test fixtures don't have to populate procedures to exercise unrelated
+    // rules. Production callers populate Procedures from the active aircraft's filed dep/dest CIFP.
+    private static readonly Dictionary<string, ProcedureKind> ProcedureLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["sid"] = ProcedureKind.Sid,
+        ["star"] = ProcedureKind.Star,
+    };
+
     /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
     /// of the transcript. Equivalent to <see cref="MapWithTrace"/> with the trace discarded —
@@ -172,6 +184,25 @@ public static class PhraseologyMapper
                 string.Join(' ', tokens),
                 context.TaxiwayNames.Count
             );
+        }
+
+        // Step 4c: collapse multi-token spoken SID/STAR procedure names into the canonical
+        // single-token form. Disambiguates by the trailing "arrival" / "departure" keyword so
+        // "the eagul five arrival" matches only against STAR procedures and "the suzan two
+        // departure" matches only against SID procedures.
+        if (context.Procedures.Count > 0)
+        {
+            var beforeProcedureCollapse = tokens;
+            tokens = SidStarNameNormalizer.Collapse(tokens, context.Procedures);
+            if (!beforeProcedureCollapse.SequenceEqual(tokens))
+            {
+                Log.LogDebug(
+                    "[Speech] SidStarCollapse: \"{Before}\" → \"{After}\" ({Count} procedures)",
+                    string.Join(' ', beforeProcedureCollapse),
+                    string.Join(' ', tokens),
+                    context.Procedures.Count
+                );
+            }
         }
 
         // Normalized tokens snapshot for the trace — captured here so the matcher's local mutations
@@ -466,6 +497,43 @@ public static class PhraseologyMapper
                     }
                     Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" → {Letter}", rawValue, letter);
                     captures[name] = letter;
+                }
+            }
+
+            // Post-pass: validate SID/STAR procedure captures against MapContext.Procedures.
+            // SidStarNameNormalizer collapses spoken procedure names into the canonical token
+            // before rule matching; any {sid}/{star} capture that didn't come from that collapse
+            // (raw token like "apple") would otherwise produce nonsense canonicals like "JARR APPLE"
+            // because ParseJarr doesn't validate the STAR ID. Rejecting the rule lets the LLM
+            // fallback recover from procedure mishears.
+            if (context.Procedures.Count > 0)
+            {
+                foreach (var (name, expectedKind) in ProcedureLikeCaptureNames)
+                {
+                    if (captures.TryGetValue(name, out var rawValue))
+                    {
+                        var upper = rawValue.ToUpperInvariant();
+                        var isKnown = false;
+                        foreach (var p in context.Procedures)
+                        {
+                            if (p.Kind == expectedKind && p.CanonicalName.Equals(upper, StringComparison.OrdinalIgnoreCase))
+                            {
+                                isKnown = true;
+                                break;
+                            }
+                        }
+                        if (!isKnown)
+                        {
+                            Log.LogDebug(
+                                "[Speech] ProcedureValidate: \"{Raw}\" failed — not a known {Kind} in scenario, rule rejected",
+                                rawValue,
+                                expectedKind
+                            );
+                            output = "";
+                            return false;
+                        }
+                        captures[name] = upper;
+                    }
                 }
             }
 
