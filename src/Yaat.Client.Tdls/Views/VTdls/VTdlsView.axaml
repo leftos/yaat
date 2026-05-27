@@ -21,6 +21,9 @@
         <SolidColorBrush x:Key="VTdlsSelectedBg" Color="#000000"/>
         <SolidColorBrush x:Key="VTdlsSelectedFg" Color="#ffffff"/>
         <SolidColorBrush x:Key="VTdlsListBorder" Color="#a0a0a0"/>
+        <!-- Editor label / heading text. Swaps to a light shade in dark mode
+             via ApplyTheme so the form stays legible on dark backgrounds. -->
+        <SolidColorBrush x:Key="VTdlsEditorTextFg" Color="#000000"/>
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -29,11 +32,11 @@
             <Setter Property="Padding" Value="6,1"/>
             <Setter Property="MinHeight" Value="18"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource VTdlsListFg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource VTdlsListFg}"/>
         </Style>
         <Style Selector="ListBox.tdls > ListBoxItem:selected /template/ ContentPresenter">
-            <Setter Property="Background" Value="{StaticResource VTdlsSelectedBg}"/>
-            <Setter Property="TextElement.Foreground" Value="{StaticResource VTdlsSelectedFg}"/>
+            <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}"/>
         </Style>
         <Style Selector="TextBlock.tdls-list-header">
             <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
@@ -52,14 +55,14 @@
              status indicators on the LEFT, FDIO / DCL / DATIS on the RIGHT.
              We render the facility button as the only interactive element;
              the rest are decorative parity placeholders. -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Background="{StaticResource VTdlsChromeBg}">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Background="{DynamicResource VTdlsChromeBg}">
             <Button Grid.Column="0"
                     x:Name="FacilityButton"
                     Content="{Binding FacilityId, FallbackValue='(none)'}"
                     ToolTip.Tip="Switch this window's TDLS facility"
                     Margin="4,2"
                     Padding="8,1"
-                    Background="{StaticResource VTdlsFacilityButtonBg}"
+                    Background="{DynamicResource VTdlsFacilityButtonBg}"
                     Foreground="Black"
                     BorderBrush="Black"
                     BorderThickness="1"
@@ -71,10 +74,10 @@
             <!-- Decorative parity buttons — these are real on upstream but not
                  simulated. They stay rendered so a controller's muscle memory
                  lines up with what they expect to see. -->
-            <Border Grid.Column="1" Background="{StaticResource VTdlsFacilityButtonBg}" Margin="2,4" Padding="8,1" BorderBrush="Black" BorderThickness="1">
+            <Border Grid.Column="1" Background="{DynamicResource VTdlsFacilityButtonBg}" Margin="2,4" Padding="8,1" BorderBrush="Black" BorderThickness="1">
                 <TextBlock Text="TIMS" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="Black"/>
             </Border>
-            <Border Grid.Column="2" Background="{StaticResource VTdlsFacilityButtonBg}" Margin="2,4" Padding="8,1" BorderBrush="Black" BorderThickness="1">
+            <Border Grid.Column="2" Background="{DynamicResource VTdlsFacilityButtonBg}" Margin="2,4" Padding="8,1" BorderBrush="Black" BorderThickness="1">
                 <TextBlock Text="ERAM" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="Black"/>
             </Border>
 
@@ -94,12 +97,12 @@
 
         <!-- ── DCL list (top, full width, column-wrapping) ────────────────── -->
         <Border Grid.Row="1"
-                Background="{StaticResource VTdlsListBg}"
-                BorderBrush="{StaticResource VTdlsListBorder}"
+                Background="{DynamicResource VTdlsListBg}"
+                BorderBrush="{DynamicResource VTdlsListBorder}"
                 BorderThickness="1"
                 MinHeight="180">
             <Grid RowDefinitions="22,*">
-                <Border Grid.Row="0" Background="{StaticResource VTdlsListHeaderBg}">
+                <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
                     <TextBlock Text="DCL" Classes="tdls-list-header"/>
                 </Border>
                 <!-- ItemsRepeater inside a ScrollViewer with a horizontal-wrap
@@ -137,11 +140,11 @@
 
             <!-- PDC -->
             <Border Grid.Column="0"
-                    Background="{StaticResource VTdlsListBg}"
-                    BorderBrush="{StaticResource VTdlsListBorder}"
+                    Background="{DynamicResource VTdlsListBg}"
+                    BorderBrush="{DynamicResource VTdlsListBorder}"
                     BorderThickness="1">
                 <Grid RowDefinitions="22,*">
-                    <Border Grid.Row="0" Background="{StaticResource VTdlsListHeaderBg}">
+                    <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
                         <TextBlock Text="PDC" Classes="tdls-list-header"/>
                     </Border>
                     <ListBox Grid.Row="1"
@@ -164,11 +167,11 @@
 
             <!-- CPDLC — decorative parity; never populates (VATSIM doesn't simulate CPDLC) -->
             <Border Grid.Column="1"
-                    Background="{StaticResource VTdlsListBg}"
-                    BorderBrush="{StaticResource VTdlsListBorder}"
+                    Background="{DynamicResource VTdlsListBg}"
+                    BorderBrush="{DynamicResource VTdlsListBorder}"
                     BorderThickness="1">
                 <Grid RowDefinitions="22,*">
-                    <Border Grid.Row="0" Background="{StaticResource VTdlsListHeaderBg}">
+                    <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
                         <TextBlock Text="CPDLC" Classes="tdls-list-header"/>
                     </Border>
                     <!-- Intentionally empty body — upstream renders the list as
@@ -181,8 +184,8 @@
         <!-- ── Flight-plan editor (visible only when a DCL item is selected) ── -->
         <Border Grid.Row="3"
                 IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}"
-                Background="{StaticResource VTdlsListBg}"
-                BorderBrush="{StaticResource VTdlsListBorder}"
+                Background="{DynamicResource VTdlsListBg}"
+                BorderBrush="{DynamicResource VTdlsListBorder}"
                 BorderThickness="1"
                 Padding="8">
             <Grid DataContext="{Binding Editor}"
@@ -193,55 +196,55 @@
                            FontFamily="{StaticResource MonoFont}"
                            FontWeight="Bold"
                            FontSize="12"
-                           Foreground="Black"
+                           Foreground="{DynamicResource VTdlsEditorTextFg}"
                            Margin="0,0,0,6"/>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="SID" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="SID" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <ComboBox Grid.Row="1" Grid.Column="1" Margin="2"
                           ItemsSource="{Binding Sids}"
                           SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
                           DisplayMemberBinding="{Binding Name}"
                           FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="1" Grid.Column="2" Text="Transition" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="Transition" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <ComboBox Grid.Row="1" Grid.Column="3" Margin="2"
                           ItemsSource="{Binding Transitions}"
                           SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
                           DisplayMemberBinding="{Binding Name}"
                           FontFamily="{StaticResource MonoFont}" FontSize="11"/>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Expect" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Expect" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <AutoCompleteBox Grid.Row="2" Grid.Column="1" Margin="2"
                                  ItemsSource="{Binding Expects}"
                                  Text="{Binding Expect, Mode=TwoWay}"
                                  ValueMemberBinding="{Binding Value}"
                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="2" Grid.Column="2" Text="Initial Alt" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="2" Grid.Column="2" Text="Initial Alt" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <AutoCompleteBox Grid.Row="2" Grid.Column="3" Margin="2"
                                  ItemsSource="{Binding InitialAlts}"
                                  Text="{Binding InitialAlt, Mode=TwoWay}"
                                  ValueMemberBinding="{Binding Value}"
                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
 
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="Climbout" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Climbout" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <AutoCompleteBox Grid.Row="3" Grid.Column="1" Margin="2"
                                  ItemsSource="{Binding Climbouts}"
                                  Text="{Binding Climbout, Mode=TwoWay}"
                                  ValueMemberBinding="{Binding Value}"
                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="3" Grid.Column="2" Text="Climb Via" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="3" Grid.Column="2" Text="Climb Via" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <AutoCompleteBox Grid.Row="3" Grid.Column="3" Margin="2"
                                  ItemsSource="{Binding Climbvias}"
                                  Text="{Binding Climbvia, Mode=TwoWay}"
                                  ValueMemberBinding="{Binding Value}"
                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
 
-                <TextBlock Grid.Row="4" Grid.Column="0" Text="Dep Freq" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Dep Freq" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <AutoCompleteBox Grid.Row="4" Grid.Column="1" Margin="2"
                                  ItemsSource="{Binding DepFreqs}"
                                  Text="{Binding DepFreq, Mode=TwoWay}"
                                  ValueMemberBinding="{Binding Value}"
                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="4" Grid.Column="2" Text="Contact" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="4" Grid.Column="2" Text="Contact" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <AutoCompleteBox Grid.Row="4" Grid.Column="3" Margin="2"
                                  ItemsSource="{Binding ContactInfos}"
                                  Text="{Binding ContactInfo, Mode=TwoWay}"
@@ -251,7 +254,7 @@
                 <!-- Footer row of the editor pane: Dump on the left, Send on the right
                      (matches docs/vtdls/img/flight-plan.png). Local Info shares row 5
                      so the layout stays vertically compact. -->
-                <TextBlock Grid.Row="5" Grid.Column="0" Text="Local Info" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="Black"/>
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Local Info" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                 <AutoCompleteBox Grid.Row="5" Grid.Column="1" Margin="2"
                                  ItemsSource="{Binding LocalInfos}"
                                  Text="{Binding LocalInfo, Mode=TwoWay}"
@@ -275,7 +278,7 @@
         </Border>
 
         <!-- ── Footer: clearance-type status (left) + decorative status info + Zulu clock (right) ── -->
-        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Background="{StaticResource VTdlsFooterBg}">
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Background="{DynamicResource VTdlsFooterBg}">
             <TextBlock Grid.Column="0"
                        x:Name="FooterStatus"
                        Text="CLEARANCE TYPE: PDC"
@@ -283,14 +286,14 @@
                        FontSize="11"
                        VerticalAlignment="Center"
                        Margin="8,0"
-                       Foreground="{StaticResource VTdlsFooterFg}"/>
+                       Foreground="{DynamicResource VTdlsFooterFg}"/>
             <TextBlock Grid.Column="1"
                        Text="PDC ADR SUPR: ALWAYS    CAF: ON    PDC AUTO: OFF    CPDLC AUTO: OFF"
                        FontFamily="{StaticResource MonoFont}"
                        FontSize="11"
                        VerticalAlignment="Center"
                        Margin="0,0,12,0"
-                       Foreground="{StaticResource VTdlsFooterFg}"/>
+                       Foreground="{DynamicResource VTdlsFooterFg}"/>
             <TextBlock Grid.Column="2"
                        x:Name="FooterZuluClock"
                        FontFamily="{StaticResource MonoFont}"
@@ -298,7 +301,7 @@
                        FontWeight="Bold"
                        VerticalAlignment="Center"
                        Margin="0,0,10,0"
-                       Foreground="{StaticResource VTdlsFooterFg}"/>
+                       Foreground="{DynamicResource VTdlsFooterFg}"/>
         </Grid>
 
         <!-- Disconnected banner — covers everything when offline. -->

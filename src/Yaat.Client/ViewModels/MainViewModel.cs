@@ -1075,8 +1075,13 @@ public partial class MainViewModel : ObservableObject
         // when AccessibleTdlsFacilities populates; if the room's position has
         // no TDLS facility the entry stays empty but the tab is still there
         // (mirrors the Strips behavior).
-        var studentTdlsVm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials);
+        var studentTdlsVm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
+        {
+            IsDarkMode = _preferences.IsVTdlsDarkMode,
+        };
         TdlsEntries.Add(new VTdlsDockEntryViewModel(studentTdlsVm, isStudentEntry: true));
+        // SubscribeTdlsEntry hooks both entry-level (pop-out) and VM-level
+        // (dark-mode) property changes — see MainViewModel.Tdls.cs.
         SubscribeTdlsEntry(TdlsEntries[0]);
         TdlsEntries.CollectionChanged += OnTdlsEntriesCollectionChanged;
 

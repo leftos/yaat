@@ -31,6 +31,71 @@ public partial class VTdlsView : UserControl
         AttachedToVisualTree += OnAttached;
         DetachedFromVisualTree += OnDetached;
         KeyDown += OnKeyDown;
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private VTdlsViewModel? _trackedVm;
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_trackedVm is not null)
+        {
+            _trackedVm.PropertyChanged -= OnVmPropertyChanged;
+        }
+        _trackedVm = DataContext as VTdlsViewModel;
+        if (_trackedVm is not null)
+        {
+            _trackedVm.PropertyChanged += OnVmPropertyChanged;
+            ApplyTheme(_trackedVm.IsDarkMode);
+        }
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(VTdlsViewModel.IsDarkMode) && sender is VTdlsViewModel vm)
+        {
+            Dispatcher.UIThread.Post(() => ApplyTheme(vm.IsDarkMode));
+        }
+    }
+
+    /// <summary>
+    /// Swaps the runtime brush values backing the view's <c>UserControl.Resources</c>
+    /// dictionary. Avalonia <see cref="StaticResource"/> bindings re-evaluate when
+    /// the dictionary entry is replaced, so every panel/border/label that pulls a
+    /// VTdls* brush updates automatically. Light = the realistic upstream palette
+    /// (white panels, green list headers); Dark = darker variant for use alongside
+    /// YAAT's other dark views. The controller toggles via the Facility Menu.
+    /// </summary>
+    private void ApplyTheme(bool dark)
+    {
+        if (dark)
+        {
+            Resources["VTdlsChromeBg"] = new SolidColorBrush(Color.Parse("#0a0a0a"));
+            Resources["VTdlsListHeaderBg"] = new SolidColorBrush(Color.Parse("#1c8a1c"));
+            Resources["VTdlsListBg"] = new SolidColorBrush(Color.Parse("#181818"));
+            Resources["VTdlsListFg"] = new SolidColorBrush(Color.Parse("#5aa9ff"));
+            Resources["VTdlsFooterBg"] = new SolidColorBrush(Color.Parse("#181818"));
+            Resources["VTdlsFooterFg"] = new SolidColorBrush(Color.Parse("#d8d8d8"));
+            Resources["VTdlsFacilityButtonBg"] = new SolidColorBrush(Color.Parse("#1c8a1c"));
+            Resources["VTdlsSelectedBg"] = new SolidColorBrush(Color.Parse("#5aa9ff"));
+            Resources["VTdlsSelectedFg"] = new SolidColorBrush(Color.Parse("#000000"));
+            Resources["VTdlsListBorder"] = new SolidColorBrush(Color.Parse("#3a3a3a"));
+            Resources["VTdlsEditorTextFg"] = new SolidColorBrush(Color.Parse("#d8d8d8"));
+        }
+        else
+        {
+            Resources["VTdlsChromeBg"] = new SolidColorBrush(Color.Parse("#000000"));
+            Resources["VTdlsListHeaderBg"] = new SolidColorBrush(Color.Parse("#1ec51e"));
+            Resources["VTdlsListBg"] = new SolidColorBrush(Color.Parse("#ffffff"));
+            Resources["VTdlsListFg"] = new SolidColorBrush(Color.Parse("#0000bb"));
+            Resources["VTdlsFooterBg"] = new SolidColorBrush(Color.Parse("#f0f0f0"));
+            Resources["VTdlsFooterFg"] = new SolidColorBrush(Color.Parse("#202020"));
+            Resources["VTdlsFacilityButtonBg"] = new SolidColorBrush(Color.Parse("#1ec51e"));
+            Resources["VTdlsSelectedBg"] = new SolidColorBrush(Color.Parse("#000000"));
+            Resources["VTdlsSelectedFg"] = new SolidColorBrush(Color.Parse("#ffffff"));
+            Resources["VTdlsListBorder"] = new SolidColorBrush(Color.Parse("#a0a0a0"));
+            Resources["VTdlsEditorTextFg"] = new SolidColorBrush(Color.Parse("#000000"));
+        }
     }
 
     private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
@@ -92,6 +157,19 @@ public partial class VTdlsView : UserControl
         {
             flyout.Items.Add(new MenuItem { Header = "(no TDLS facilities accessible)", IsEnabled = false });
         }
+
+        // Upstream's Facility Menu hangs the Dark Mode toggle below the
+        // facility-switcher entries — same layout here. Checkable so the user
+        // sees the current state at a glance.
+        flyout.Items.Add(new Separator());
+        var darkModeItem = new MenuItem
+        {
+            Header = "Dark Mode",
+            ToggleType = MenuItemToggleType.CheckBox,
+            IsChecked = vm.IsDarkMode,
+        };
+        darkModeItem.Click += (_, _) => vm.IsDarkMode = !vm.IsDarkMode;
+        flyout.Items.Add(darkModeItem);
 
         flyout.ShowAt(FacilityButton);
     }

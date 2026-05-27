@@ -61,6 +61,17 @@ public partial class VTdlsViewModel : ObservableObject
     [ObservableProperty]
     private TdlsFlightPlanEditorViewModel? _editor;
 
+    /// <summary>
+    /// Dark-mode toggle for the vTDLS view. Mirrors the upstream "Dark Mode" item
+    /// in the Facility Menu (see docs/vtdls/vtdls.md §Dark Mode). False = the
+    /// realistic light-themed look that controllers see in production vTDLS; true
+    /// flips list backgrounds + chrome to dark for use alongside YAAT's other dark
+    /// views. The host wires persistence via UserPreferences — this VM stays
+    /// preference-free and only owns the observable flag.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDarkMode;
+
     partial void OnSelectedItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue)
     {
         if (oldValue is not null)

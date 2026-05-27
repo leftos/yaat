@@ -138,6 +138,18 @@ public sealed class UserPreferences
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
     public bool IsVStripsPoppedOut => _data.IsVStripsPoppedOut;
     public bool IsVTdlsPoppedOut => _data.IsVTdlsPoppedOut;
+    public bool IsVTdlsDarkMode => _data.IsVTdlsDarkMode;
+
+    public void SetVTdlsDarkMode(bool enabled)
+    {
+        if (_data.IsVTdlsDarkMode == enabled)
+        {
+            return;
+        }
+        _data.IsVTdlsDarkMode = enabled;
+        Save();
+    }
+
     public bool IsTerminalDocked => _data.IsTerminalDocked;
     public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
     public bool ShowTimelineBar => _data.ShowTimelineBar;
@@ -1088,6 +1100,7 @@ public sealed class UserPreferences
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
             IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
             IsVTdlsPoppedOut = GetFieldOr(obj, "isVTdlsPoppedOut", false),
+            IsVTdlsDarkMode = GetFieldOr(obj, "isVTdlsDarkMode", false),
             IsTerminalDocked = GetFieldOr(obj, "isTerminalDocked", true),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
@@ -1324,6 +1337,7 @@ public sealed class UserPreferences
         public bool IsRadarViewPoppedOut { get; set; }
         public bool IsVStripsPoppedOut { get; set; }
         public bool IsVTdlsPoppedOut { get; set; }
+        public bool IsVTdlsDarkMode { get; set; }
         public bool IsTerminalDocked { get; set; } = true;
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];

@@ -40,12 +40,36 @@ public partial class MainViewModel
             return;
         }
 
-        var vm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials);
+        var vm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
+        {
+            IsDarkMode = _preferences.IsVTdlsDarkMode,
+        };
         var entry = new VTdlsDockEntryViewModel(vm, isStudentEntry: false);
         TdlsEntries.Add(entry);
 
         await vm.SwitchFacilityAsync(facilityId);
         await vm.RefreshAccessibleFacilitiesAsync();
+    }
+
+    private void OnTdlsDarkModeChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(VTdlsViewModel.IsDarkMode) || sender is not VTdlsViewModel changed)
+        {
+            return;
+        }
+
+        // Persist (idempotent — Save() runs only when the value actually changed).
+        _preferences.SetVTdlsDarkMode(changed.IsDarkMode);
+
+        // Fan out to every other open vTDLS tab so they stay in sync — upstream
+        // treats Dark Mode as a per-user global, not per-tab.
+        foreach (var entry in TdlsEntries)
+        {
+            if (entry.Vm.IsDarkMode != changed.IsDarkMode)
+            {
+                entry.Vm.IsDarkMode = changed.IsDarkMode;
+            }
+        }
     }
 
     /// <summary>
@@ -85,11 +109,13 @@ public partial class MainViewModel
     private void SubscribeTdlsEntry(VTdlsDockEntryViewModel entry)
     {
         entry.PropertyChanged += OnTdlsEntryPropertyChanged;
+        entry.Vm.PropertyChanged += OnTdlsDarkModeChanged;
     }
 
     private void UnsubscribeTdlsEntry(VTdlsDockEntryViewModel entry)
     {
         entry.PropertyChanged -= OnTdlsEntryPropertyChanged;
+        entry.Vm.PropertyChanged -= OnTdlsDarkModeChanged;
     }
 
     private void OnTdlsEntryPropertyChanged(object? sender, PropertyChangedEventArgs e)
