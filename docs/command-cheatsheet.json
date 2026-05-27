@@ -344,8 +344,8 @@
       "id": "chaining",
       "name": "Chaining / Conditions",
       "rows": [
-        { "verb": ";", "aliases": [], "description": "Sequential", "examples": ["CM 100 ; FH 270"] },
-        { "verb": ",", "aliases": [], "description": "Parallel", "examples": ["CM 100 , FH 270"] },
+        { "verb": ";", "aliases": ["THEN"], "description": "Sequential", "examples": ["CM 100 ; FH 270", "CM 100 THEN FH 270"] },
+        { "verb": ",", "aliases": ["AND"], "description": "Parallel", "examples": ["CM 100 , FH 270", "CM 100 AND FH 270"] },
         { "verb": "LV", "aliases": [], "description": "At altitude", "examples": ["LV 50 FH 270"] },
         { "verb": "AT", "aliases": [], "description": "At fix / altitude / ground entity", "examples": ["AT SUNOL CM 100", "AT B SPD 10", "AT $5 RNS", "AT @TERM2 FREQ 121.7", "AT B/C SPD 5"] },
         { "verb": "UNTIL", "aliases": [], "description": "Until fix/dist", "examples": ["SPD 210 UNTIL SUNOL"] }

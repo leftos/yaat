@@ -25,7 +25,8 @@ public static class CommandSchemeParser
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(input.Trim(), scheme)));
+        var aliasNormalized = NormalizeSeparatorAliases(input.Trim());
+        var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(aliasNormalized, scheme)));
         trimmed = CommaBeforeCondition.Replace(trimmed, ";");
         if (string.IsNullOrEmpty(trimmed))
         {
@@ -647,6 +648,104 @@ public static class CommandSchemeParser
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Substitutes the word aliases <c>THEN</c> for <c>;</c> and <c>AND</c> for <c>,</c> so users can
+    /// write human-readable compounds like <c>H180 AND D250 THEN CTO 28R</c>. Case-insensitive.
+    /// Skips text inside SAY/SAYF arguments so messages like <c>SAYF READING YOU LOUD AND CLEAR</c>
+    /// are preserved verbatim. SAY at block start (after <c>;</c> or input start) consumes the whole
+    /// block per the parser's literal-SAY rule; SAY after a <c>,</c> consumes only until the next
+    /// <c>,</c> or <c>;</c>.
+    /// </summary>
+    public static string NormalizeSeparatorAliases(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        var sb = new System.Text.StringBuilder(input.Length);
+        bool blockStart = true;
+        bool subCommandStart = true;
+        bool inSayArg = false;
+        bool sayBlockwide = false;
+        int i = 0;
+
+        while (i < input.Length)
+        {
+            char c = input[i];
+
+            if (c == ';')
+            {
+                sb.Append(c);
+                blockStart = true;
+                subCommandStart = true;
+                inSayArg = false;
+                sayBlockwide = false;
+                i++;
+                continue;
+            }
+
+            if (c == ',')
+            {
+                sb.Append(c);
+                subCommandStart = true;
+                if (inSayArg && !sayBlockwide)
+                {
+                    inSayArg = false;
+                }
+
+                i++;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(c))
+            {
+                sb.Append(c);
+                i++;
+                continue;
+            }
+
+            int start = i;
+            while (i < input.Length && !char.IsWhiteSpace(input[i]) && input[i] != ',' && input[i] != ';')
+            {
+                i++;
+            }
+
+            var token = input.AsSpan(start, i - start);
+
+            if (!inSayArg && token.Equals("THEN", StringComparison.OrdinalIgnoreCase))
+            {
+                sb.Append(';');
+                blockStart = true;
+                subCommandStart = true;
+            }
+            else if (!inSayArg && token.Equals("AND", StringComparison.OrdinalIgnoreCase))
+            {
+                sb.Append(',');
+                subCommandStart = true;
+            }
+            else if (
+                subCommandStart
+                && (token.Equals("SAY", StringComparison.OrdinalIgnoreCase) || token.Equals("SAYF", StringComparison.OrdinalIgnoreCase))
+            )
+            {
+                sb.Append(token);
+                inSayArg = true;
+                sayBlockwide = blockStart;
+                blockStart = false;
+                subCommandStart = false;
+            }
+            else
+            {
+                sb.Append(token);
+                blockStart = false;
+                subCommandStart = false;
+            }
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>

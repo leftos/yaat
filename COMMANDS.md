@@ -80,6 +80,8 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
   ```
   Climb to 1,400 ft and turn to 090. Then turn to 180. Then proceed direct MYCOB.
 
+- **Word aliases (`AND` / `THEN`)** — `AND` is a case-insensitive alias for `,` and `THEN` is a case-insensitive alias for `;`. Both are substituted at parse time, so `CM 014 AND FH 090 THEN FH 180` is treated exactly like `CM 014, FH 090; FH 180`. The aliases are skipped inside `SAY` / `SAYF` literal text, so `SAYF READING YOU LOUD AND CLEAR` is transmitted verbatim.
+
 ### Conditional Blocks
 
 Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific conditions instead of waiting for the previous block. Conditional blocks in a chain are watched while the earlier block continues, until YAAT reaches an ordinary untriggered block:

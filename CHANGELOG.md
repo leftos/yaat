@@ -6,6 +6,7 @@
 - Opt-in capture saves push-to-talk recordings and pipeline traces locally so you can review them in the Speech Debug window and share samples with the devs.
 - Speech Debug window now shows each session as a flowchart — mic → Whisper → callsign → rule → LLM → final — with playback and per-stage detail.
 - Multi-select export bundles the recordings you tick into one `.yaat-speech-sample.zip`, with Select all / Unselect all shortcuts.
+- Compound commands now accept `AND` as a word alias for `,` and `THEN` as a word alias for `;` (case-insensitive), so `CM 014 AND FH 090 THEN FH 180` reads the same as `CM 014, FH 090; FH 180`. Text inside `SAY` / `SAYF` is preserved verbatim.
 
 ### Fixed
 - A rejected `DCT`/`ADCT`/`FDCT` (e.g. to an unprogrammed fix) issued during an RV SID initial climb no longer drops the published vectors heading hold — the hold now stays engaged when the route amendment is rejected.

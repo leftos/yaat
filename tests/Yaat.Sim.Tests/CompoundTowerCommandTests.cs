@@ -337,4 +337,52 @@ public class CompoundTowerCommandTests
 
         Assert.False(result.Success, "Ground command while airborne should fail");
     }
+
+    // --- Word-alias separators: AND for `,`, THEN for `;` (issue #164) ---
+
+    [Fact]
+    public void ParseCompound_AndAlias_ProducesSameStructureAsComma()
+    {
+        var aliasResult = CommandParser.ParseCompound("CTO 28R, CL");
+        var aliasResult2 = CommandParser.ParseCompound("CTO 28R AND CL");
+
+        Assert.True(aliasResult.IsSuccess, $"comma form failed: {aliasResult.Reason}");
+        Assert.True(aliasResult2.IsSuccess, $"AND form failed: {aliasResult2.Reason}");
+
+        var commaBlocks = aliasResult.Value!.Blocks;
+        var andBlocks = aliasResult2.Value!.Blocks;
+
+        Assert.Equal(commaBlocks.Count, andBlocks.Count);
+        for (int b = 0; b < commaBlocks.Count; b++)
+        {
+            Assert.Equal(commaBlocks[b].Commands.Count, andBlocks[b].Commands.Count);
+            for (int c = 0; c < commaBlocks[b].Commands.Count; c++)
+            {
+                Assert.Equal(commaBlocks[b].Commands[c].GetType(), andBlocks[b].Commands[c].GetType());
+            }
+        }
+    }
+
+    [Fact]
+    public void ParseCompound_ThenAlias_ProducesSameStructureAsSemicolon()
+    {
+        var semiResult = CommandParser.ParseCompound("CTO 28R; CL");
+        var thenResult = CommandParser.ParseCompound("CTO 28R THEN CL");
+
+        Assert.True(semiResult.IsSuccess, $"semicolon form failed: {semiResult.Reason}");
+        Assert.True(thenResult.IsSuccess, $"THEN form failed: {thenResult.Reason}");
+
+        var semiBlocks = semiResult.Value!.Blocks;
+        var thenBlocks = thenResult.Value!.Blocks;
+
+        Assert.Equal(semiBlocks.Count, thenBlocks.Count);
+        for (int b = 0; b < semiBlocks.Count; b++)
+        {
+            Assert.Equal(semiBlocks[b].Commands.Count, thenBlocks[b].Commands.Count);
+            for (int c = 0; c < semiBlocks[b].Commands.Count; c++)
+            {
+                Assert.Equal(semiBlocks[b].Commands[c].GetType(), thenBlocks[b].Commands[c].GetType());
+            }
+        }
+    }
 }

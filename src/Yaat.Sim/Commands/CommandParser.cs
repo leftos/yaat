@@ -16,7 +16,8 @@ public static class CommandParser
     /// </summary>
     public static ParseResult<CompoundCommand> ParseCompound(string input, string? aircraftRoute = null, TextWriter? debugLog = null)
     {
-        var trimmed = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(input.Trim())));
+        var aliasNormalized = CommandSchemeParser.NormalizeSeparatorAliases(input.Trim());
+        var trimmed = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(aliasNormalized)));
         debugLog?.WriteLine($"[ParseCompound] input=\"{input.Trim()}\" expanded=\"{trimmed}\"");
         if (string.IsNullOrEmpty(trimmed))
         {
