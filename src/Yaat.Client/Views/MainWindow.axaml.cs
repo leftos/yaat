@@ -263,13 +263,26 @@ public partial class MainWindow : Window
         UpdateContentGridLayout(vm);
 
         // Re-validate SelectedTabIndex now that every dynamic TabItem (Strips
-        // and TDLS) is materialized. The TabControl's two-way SelectedIndex
-        // binding can clamp/reset during the AXAML-side layout pass before the
-        // dynamic tabs exist, leaving the index pointing at a popped-out tab.
-        // The TabControl renders that tab's content even though its header is
-        // hidden — visible bug was the Aircraft List columns appearing under
-        // the Strips/TDLS tabs after a session with everything popped out.
+        // and TDLS) is materialized — see EnsureSelectedTabVisible's comment.
         vm.EnsureSelectedTabVisible();
+
+        // Force the TabControl's actual SelectedIndex to match the VM.
+        // Avalonia's two-way SelectedIndex binding doesn't propagate VM->
+        // TabControl when the VM's value was set BEFORE the TabControl
+        // materialized: the TabControl initializes to SelectedIndex=0 (its
+        // own default), the binding tries to set SelectedIndex=N where N is
+        // out of range for the 3 static TabItems, the TabControl silently
+        // keeps 0, and never writes back. After the dynamic tabs are added
+        // here, the indices are in range — but adding items doesn't
+        // re-trigger the binding, so we have to push the value explicitly.
+        // Symptom without this: Aircraft List content rendered in the docked
+        // tab area even though the DataGrid tab is popped out and the only
+        // docked tabs are Strips/TDLS.
+        var tabControl = this.FindControl<TabControl>("MainTabControl");
+        if (tabControl is not null && tabControl.SelectedIndex != vm.SelectedTabIndex)
+        {
+            tabControl.SelectedIndex = vm.SelectedTabIndex;
+        }
 
         var slider = this.FindControl<Slider>("TimelineSlider");
         if (slider is not null)
