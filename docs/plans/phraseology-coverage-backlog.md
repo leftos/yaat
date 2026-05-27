@@ -353,29 +353,29 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CANCEL TAKEOFF CLEARANCE" (§3-9-11)
   **Canonical:** `CancelTakeoffClearance`
   **Notes:** `PhraseologyRules.cs:145`.
-
-##### MissingRule
 - **Phrasing:** "RUNWAY (number) SHORTENED, LINE UP AND WAIT" (§3-9-4 sub 16)
   **Canonical:** `LineUpAndWait`
-  **Notes:** "shortened" modifier between runway number and clearance not tolerated; either swallow or ignore.
+  **Notes:** "shortened" wedge silently consumed by greedy matcher's no-match advance; bare LUAW fires. Sim doesn't model runway distance available. Test: `TowerModifierWedges_Rules`.
 - **Phrasing:** "RUNWAY (number) SHORTENED, CLEARED FOR TAKEOFF" (§3-9-10 sub 7)
   **Canonical:** `ClearedForTakeoff`
-  **Notes:** same "shortened" modifier on CTO.
+  **Notes:** "shortened" wedge silent skip; bare CTO fires.
 - **Phrasing:** "RUNWAY (number) AT (taxiway designator) INTERSECTION DEPARTURE SHORTENED, CLEARED FOR TAKEOFF" (§3-9-10 sub 7)
   **Canonical:** `ClearedForTakeoff`
-  **Notes:** intersection + shortened compound modifier.
+  **Notes:** intersection + shortened wedges silent skip; bare CTO fires. Test: `TowerModifierWedges_Rules`.
 - **Phrasing:** "RUNWAY (number), FULL-LENGTH, LINE UP AND WAIT" (§3-9-4 sub 14)
   **Canonical:** `LineUpAndWait`
-  **Notes:** "full length" modifier on LUAW.
+  **Notes:** "full length" wedge silent skip; bare LUAW fires.
 - **Phrasing:** "RUNWAY (number), FULL LENGTH, CLEARED FOR TAKEOFF" (§3-9-10 sub 3)
   **Canonical:** `ClearedForTakeoff`
-  **Notes:** "full length" modifier on CTO.
+  **Notes:** "full length" wedge silent skip; bare CTO fires.
+- **Phrasing:** "RUNWAY (number), WIND (direction velocity), CLEARED FOR TAKEOFF" (§3-9-10 sub 9, USA/USN/USAF)
+  **Canonical:** `ClearedForTakeoff`
+  **Notes:** wind-advisory wedge silent skip; bare CTO fires.
+
+##### MissingRule
 - **Phrasing:** "CROSS RUNWAY (number), RUNWAY (number) CLEARED FOR TAKEOFF" (§3-9-10 sub 5)
   **Canonical:** `CrossRunway` + `ClearedForTakeoff` (compound)
   **Notes:** compound cross-then-takeoff in single utterance.
-- **Phrasing:** "RUNWAY (number), WIND (direction velocity), CLEARED FOR TAKEOFF" (§3-9-10 sub 9, USA/USN/USAF)
-  **Canonical:** `ClearedForTakeoff`
-  **Notes:** wind-advisory tail/embed; extend CTO to ignore wind insertion.
 - **Phrasing:** "RUNWAY (number), CONTINUE, TRAFFIC HOLDING IN POSITION" (§3-9-4 sub 3a)
   **Canonical:** `??` / possibly `Resume`
   **Notes:** "continue" as a pattern-continue instruction with traffic advisory; see "CONTINUE" entry under §3-10 MissingCanonical.
@@ -453,23 +453,23 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "TURN LEFT/RIGHT (taxiway/runway)" (runway-exiting instruction)
   **Canonical:** `ExitLeft` / `ExitRight`
   **Notes:** `PhraseologyRules.cs:505-508`.
+- **Phrasing:** "RUNWAY (number) SHORTENED, CLEARED TO LAND"
+  **Canonical:** `ClearedToLand`
+  **Notes:** "shortened" wedge silent skip; bare CLAND fires. Test: `TowerModifierWedges_Rules`. ("RUNWAY (number) SHORTENED, CONTINUE" form still uncovered — see CONTINUE MissingCanonical.)
+- **Phrasing:** "CHANGE TO RUNWAY (number), RUNWAY (number) CLEARED TO LAND" (landing-runway change)
+  **Canonical:** `ClearedToLand`
+  **Notes:** "change to runway X" preamble silent skip; runway-prefix CLAND rule fires on the second "runway X cleared to land". Test: `TowerModifierWedges_Rules`.
+- **Phrasing:** "NOT IN SIGHT, RUNWAY (number) CLEARED TO LAND"
+  **Canonical:** `ClearedToLand`
+  **Notes:** "not in sight" preamble silent skip; runway-prefix CLAND rule fires.
+- **Phrasing:** "RUNWAY (number), WIND (dir/vel), CLEARED TO LAND" (USA/USN/USAF mandated wind+CTL)
+  **Canonical:** `ClearedToLand`
+  **Notes:** wind wedge silent skip; bare CLAND fires. Test: `TowerModifierWedges_Rules`.
 
 ##### MissingRule
 - **Phrasing:** "STRAIGHT-IN APPROVED" / "RIGHT TRAFFIC APPROVED" (pattern-entry approval shorthand)
   **Canonical:** `EnterFinal` / `MakeRightTraffic`
   **Notes:** existing rules accept "make/enter straight-in" and "make right traffic" but not the "(direction) APPROVED" form from §3-10-1.
-- **Phrasing:** "RUNWAY (number) SHORTENED, CLEARED TO LAND" / "RUNWAY (number) SHORTENED, CONTINUE"
-  **Canonical:** `ClearedToLand`
-  **Notes:** existing CTL rule doesn't tolerate the "shortened" modifier between runway and verb; parallel to §3-9 CTO/LUAW shortened entries.
-- **Phrasing:** "CHANGE TO RUNWAY (number), RUNWAY (number) CLEARED TO LAND" (landing-runway change)
-  **Canonical:** `ClearedToLand`
-  **Notes:** existing CTL rule doesn't accept the "change to runway X" preamble; the second runway number is the operative one.
-- **Phrasing:** "NOT IN SIGHT, RUNWAY (number) CLEARED TO LAND"
-  **Canonical:** `ClearedToLand`
-  **Notes:** "not in sight" preamble not tolerated by current CTL rule.
-- **Phrasing:** "RUNWAY (number), WIND (dir/vel), CLEARED TO LAND" (USA/USN/USAF mandated wind+CTL)
-  **Canonical:** `ClearedToLand`
-  **Notes:** existing CTL rule doesn't accept an embedded wind report between runway and verb.
 - **Phrasing:** "TURN LEFT/RIGHT (taxiway), CROSS (runway), CONTACT GROUND (freq)" (compound exit+cross+handoff)
   **Canonical:** `ExitLeft`/`ExitRight` + `CrossRunway` + `Contact`
   **Notes:** ExitLeft/Right rules don't compose with the trailing "cross runway X" / "contact ground" segments in one utterance.
@@ -594,7 +594,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entirely separation procedures (Category I/II/III distance minima for float planes in sea lanes); no PHRASEOLOGY- blocks. Sea-lane operations not in YAAT scope.
 
-**Ch 3 totals:** Covered 39 · MissingRule 42 · MissingCanonical 28 · OutOfScope 50 · Phrasings 159
+**Ch 3 totals:** Covered 49 · MissingRule 32 · MissingCanonical 28 · OutOfScope 50 · Phrasings 159
 
 ### Chapter 4 — IFR (TRACON / approach control)
 
@@ -3041,8 +3041,8 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 163 |
-| MissingRule | 209 |
+| Covered | 173 |
+| MissingRule | 199 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
 | **Total phrasings audited** | **800** |
@@ -3051,7 +3051,7 @@ All 10 chapters audited.
 
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
-| 7110.65 Ch 3 — Tower | 39 | 42 | 28 | 50 | 159 |
+| 7110.65 Ch 3 — Tower | 49 | 32 | 28 | 50 | 159 |
 | 7110.65 Ch 4 — IFR/TRACON | 23 | 23 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 30 | 33 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
@@ -3061,7 +3061,7 @@ All 10 chapters audited.
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **163** | **209** | **239** | **189** | **800** |
+| **Total** | **173** | **199** | **239** | **189** | **800** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 

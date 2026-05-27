@@ -171,6 +171,31 @@ public class PhraseologyMapperTests
         Assert.Equal("CVIA, CFIX CEPIN A5000", result!.CanonicalCommand.ToUpperInvariant());
     }
 
+    // --- Tower modifier wedges (FAA 7110.65 §3-9-7, §3-9-10, §3-10-1, §3-10-2) ---
+    // Between the runway designator and the verb, controllers insert "shortened" / "full
+    // length" (runway availability) or "wind (direction) at (velocity)" (informational).
+    // These modifiers don't change the canonical command — the sim doesn't model reduced
+    // landing distance available — so the rules silently consume them.
+
+    [Theory]
+    [InlineData("runway two eight right shortened cleared for takeoff", "CTO")]
+    [InlineData("runway two eight right full length cleared for takeoff", "CTO")]
+    [InlineData("runway two eight right wind two seven zero at one five cleared for takeoff", "CTO")]
+    [InlineData("runway two eight right shortened cleared to land", "CLAND")]
+    [InlineData("runway two eight right wind two seven zero at one five cleared to land", "CLAND")]
+    [InlineData("runway two eight right shortened line up and wait", "LUAW")]
+    [InlineData("runway two eight right full length line up and wait", "LUAW")]
+    // §3-9-10 sub 7 — runway intersection departure + shortened modifier wedge.
+    [InlineData("runway two eight right at charlie five intersection departure shortened cleared for takeoff", "CTO")]
+    // §3-10 — "change to runway" preamble drops; the second runway literal anchors the verb.
+    [InlineData("change to runway two eight right runway two eight right cleared to land", "CLAND")]
+    public void TowerModifierWedges_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- Tower rules ---
 
     [Theory]
