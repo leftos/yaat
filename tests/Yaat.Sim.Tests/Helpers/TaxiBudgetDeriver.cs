@@ -16,8 +16,8 @@ namespace Yaat.Sim.Tests.Helpers;
 /// optimalDistFt   = sum of segment.DistanceNm × FeetPerNm
 /// optimalTurnDeg  = sum of (|arr - dep| within each segment) + (|dep[i+1] - arr[i]| at each join)
 /// optimalTimeSec  = sum_segments(distance / min(nominalKts, segMaxSafeSpeed)) -- arc-aware
-/// timeBudgetSec   = optimalTimeSec × TimeFudgeMultiplier + cornerCount × SecondsPerCorner
-/// turnBudgetDeg   = optimalTurnDeg × TurnFudgeMultiplier + TurnSlackDeg
+/// timeBudgetSec   = optimalTimeSec × TimeFudgeMultiplier + cornerCount × SecondsPerCorner + StartupOverheadSec
+/// turnBudgetDeg   = optimalTurnDeg + segCount × PerSegmentTurnOverheadDeg + TurnSlackDeg
 /// </code>
 ///
 /// <para>The arc-aware time floor is the key piece: jets traversing a tight
@@ -33,6 +33,16 @@ namespace Yaat.Sim.Tests.Helpers;
 /// segment can rotate the aircraft 90° with no segment join involved. A
 /// deriver that summed only join turns would under-budget such routes by 4-5×.
 /// </para>
+///
+/// <para>Turn budget uses a per-segment overhead, not a flat multiplier on
+/// optimal turn. Empirically, the navigator's pure-pursuit tracking
+/// accumulates ~15-25° of micro-correction per segment regardless of segment
+/// geometry — a 110-segment route picks up 2000° of "noise" turn even when
+/// the optimal route geometry only requires 300°. Multiplier-only budgets
+/// underflow long clean routes by 6-8×. Per-segment overhead scales with
+/// route length and cleanly separates calibration noise from genuine spins
+/// (which produce 100°+/segment of accumulated turn).
+/// </para>
 /// </summary>
 internal static class TaxiBudgetDeriver
 {
@@ -40,16 +50,23 @@ internal static class TaxiBudgetDeriver
     public const double SecondsPerCorner = 4.0;
 
     /// <summary>
-    /// Multiplier on optimal cumulative-turn. Calibrated empirically against
-    /// observed taxi behavior on OAK and SFO: optimal turn covers segment
-    /// geometry (straight joins + arc sweeps), but the navigator adds
-    /// per-corner slow-turn synthesis, pure-pursuit overshoot/correction, and
-    /// fillet-arc tangent micro-flicks that inflate the observed turn by
-    /// 1.0-1.3× over optimal on clean routes. A multiplier of 2.5 keeps a
-    /// healthy 30-65% safety margin on healthy routes while still flagging
-    /// anything that orbits — a typical spin produces 3-10× the natural turn.
+    /// Constant startup overhead added to every time budget. Covers the
+    /// parking-exit acceleration from gs=0 plus any initial slow-turn
+    /// synthesis the navigator emits before settling into nominal taxi speed.
+    /// Without this, very short routes (~300-500ft) under-budget because the
+    /// distance/speed formula assumes the aircraft is already at TaxiSpeed.
     /// </summary>
-    public const double TurnFudgeMultiplier = 2.5;
+    public const double StartupOverheadSec = 15.0;
+
+    /// <summary>
+    /// Per-segment cumulative-turn overhead added to the budget. Empirically
+    /// calibrated against observed grid runs: healthy taxi accumulates
+    /// 15-25°/segment of pure-pursuit micro-correction beyond the segment
+    /// geometry's required turn. Setting this to 30° gives a clean safety
+    /// margin on healthy routes while still flagging spins (which produce
+    /// 100°+/segment of turn relative to segments actually traversed).
+    /// </summary>
+    public const double PerSegmentTurnOverheadDeg = 30.0;
     public const double TurnSlackDeg = 60.0;
     public const double CornerAngleDeg = 30.0;
     private const double FtPerSecondsPerKt = GeoMath.FeetPerNm / 3600.0;
@@ -108,8 +125,8 @@ internal static class TaxiBudgetDeriver
             prevArrivalBrg = arr;
         }
 
-        double timeBudgetSec = (optimalTimeSec * TimeFudgeMultiplier) + (cornerCount * SecondsPerCorner);
-        double turnBudgetDeg = (optimalTurnDeg * TurnFudgeMultiplier) + TurnSlackDeg;
+        double timeBudgetSec = (optimalTimeSec * TimeFudgeMultiplier) + (cornerCount * SecondsPerCorner) + StartupOverheadSec;
+        double turnBudgetDeg = optimalTurnDeg + (route.Segments.Count * PerSegmentTurnOverheadDeg) + TurnSlackDeg;
 
         return new TaxiBudget(optimalDistFt, optimalTurnDeg, cornerCount, optimalTimeSec, timeBudgetSec, turnBudgetDeg, route);
     }
