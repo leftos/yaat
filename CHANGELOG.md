@@ -10,6 +10,9 @@
 - Bare `CROSS` (no runway argument) clears the next uncleared hold-short on the taxi route — works whether the aircraft is already holding short or still taxiing toward it. `CROSS <target>` also now accepts taxiway and intersection names, not just runways.
 - `CROSS; HOLD` halts the aircraft right after it clears the far-side runway hold bars (not at the next hold-short however far away), so ground control can pick it up between parallel runways.
 
+### Added
+- vTDLS pre-departure clearance commands (`TDLSQ`, `TDLSS`, `TDLSW`, `TDLSDUMP`) work via the command bar — queue a PDC, send with nine `|`-separated clearance fields, auto-WILCO after a few seconds, or dump terminally to fall back to voice. Pending items auto-queue for any aircraft filed at a TDLS-configured facility (e.g. OAK/SFO/SJC/SMF/RNO under ZOA's NCT). Each Send emits a terminal entry summarizing the issued fields so instructors see PDC activity inline. A graphical vTDLS tab in YAAT Client and a browser-served vTDLS web app at `/vtdls/` are coming in a follow-up.
+
 ### Removed
 - The standalone **YAAT Flight Strips** installer (`YaatVStrips-*`) is no longer published. The same view ships inside YAAT Client as the Strips tab, and the browser version at `/vstrips/` on the YAAT server stays available with no install.
 

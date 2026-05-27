@@ -334,23 +334,33 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 ```
 Phase 0 (docs cache) ✅
         ▼
-Phase 1.0.1 (probe data-api) ✅ ── REVIEW STOP cleared ──┐
-                                                          ▼
+Phase 1.0.1 (probe data-api) ✅
 Phase 1.0.2 (DTOs + ZOA fixture) ✅
-        ▼
-Phase 1.0.3 (wire into TrainingRoom)
-Phase 1.1 → 1.2 → 1.3
-Phase 2.1 (Yaat.Sim) → submodule bump in server → 2.2 → 2.3 (conditional)
-Phase 3.1 → 3.2 → 3.3
-Phase 4.1
+Phase 1.0.3 (wire into TrainingRoom) ✅
+Phase 1.1 (TdlsState) ✅
+Phase 1.2 (CRC + SignalR DTOs) ✅
+Phase 1.3 (snapshot capture/restore) ✅
+Phase 2.1 (canonical TDLS commands in Yaat.Sim) ✅
+Phase 2.2 (TdlsCommandHandler + Broadcaster + RPO terminal broadcast) ✅
+Phase 2.3 (CRC inbound) — SKIPPED; CRC has no dedicated TDLS surface
+Phase 3.1 + 3.3 (auto-WILCO scheduler + TTL expiry) ✅ — ApplyClearance(viaTdls) refactor deferred
+Phase 3.2 (manual TDLSW) ✅ — landed alongside 2.2 (handler includes manual WILCO)
+Phase 4.1 (auto-gen Pending on filed flight plan) ✅
                          ─── server build green ───
-Phase 5.1 → 5.2 → 5.3
-Phase 6.1
-Phase 7.1 → 7.2
+Phase 5.1 (Yaat.Client.Tdls scaffold) ✅
+Phase 5.2 (transport + viewmodels)
+Phase 5.3 (VTdlsView + VTdlsViewWindow)
+Phase 6.1 (Yaat.VTdls.Web WASM)
+Phase 7.1 (MainViewModel.TdlsEntries + dock VM)
+Phase 7.2 (MainWindow tab + pop-out + View menu)
                          ─── client+web build green ───
-Phase 8.1 → 8.2          (8.3 = no-op)
+Phase 8.1 (YaatHost /vtdls/ route) ✅
+Phase 8.2 (Dockerfile COPY lines)
                          ─── docker build green ───
-Phase 9.1 → 9.2 → 9.3 → 9.4
+Phase 9.1 (docs/vtdls.md)
+Phase 9.2 (USER_GUIDE + COMMANDS + cheatsheet)
+Phase 9.3 (aviation-realism review)
+Phase 9.4 (CHANGELOG) ✅ — server-side bullet landed; UI bullet TBD
 ```
 
 Each phase ends in a green build (`dotnet build -p:TreatWarningsAsErrors=true`) + green tests (`pwsh tools/test-all.ps1` per `feedback_test_all_for_full_suite`). Phases 5–7 can build in client-isolation against a fake transport before Phase 8 lights up the real server route.
