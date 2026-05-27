@@ -3,6 +3,7 @@
     <Project Path="src/Yaat.Client/Yaat.Client.csproj" />
     <Project Path="src/Yaat.Client.Core/Yaat.Client.Core.csproj" />
     <Project Path="src/Yaat.Client.Strips/Yaat.Client.Strips.csproj" />
+    <Project Path="src/Yaat.Client.Tdls/Yaat.Client.Tdls.csproj" />
     <Project Path="src/Yaat.Sim/Yaat.Sim.csproj" />
   </Folder>
   <Folder Name="/tests/">

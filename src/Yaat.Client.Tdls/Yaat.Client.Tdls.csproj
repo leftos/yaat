@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Yaat.Client.Tdls</RootNamespace>
+    <!-- MC3101: Avalonia XAML compiler can't resolve reflection binding types -->
+    <NoWarn>MC3101</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Yaat.Client" />
+    <InternalsVisibleTo Include="Yaat.Client.Core" />
+    <InternalsVisibleTo Include="Yaat.Client.Tests" />
+    <InternalsVisibleTo Include="Yaat.Client.UI.Tests" />
+    <InternalsVisibleTo Include="Yaat.VTdls.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reuse the JetBrains Mono assets already bundled in Yaat.Client.Strips. The strip
+         lib registers them at avares://Yaat.Client.Strips/Resources/Fonts; vTDLS consumes
+         the same registration via WithJetBrainsMonoFont(), so we don't re-embed the TTFs. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Yaat.Sim\Yaat.Sim.csproj" />
+    <ProjectReference Include="..\Yaat.Client.Strips\Yaat.Client.Strips.csproj" />
+  </ItemGroup>
+</Project>
