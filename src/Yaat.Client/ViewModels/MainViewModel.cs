@@ -69,6 +69,13 @@ public partial class MainViewModel : ObservableObject
     public VStripsViewModel VStrips => StripsEntries[0].Vm;
 
     /// <summary>
+    /// Short-hand for the student-facility vTDLS VM (the first entry in
+    /// <see cref="TdlsEntries"/>). Bootstrapped once in the constructor;
+    /// scenario-load handlers reach it via this property.
+    /// </summary>
+    public VTdlsViewModel VTdls => TdlsEntries[0].Vm;
+
+    /// <summary>
     /// All flight-strips instances in this client — the student-facility one
     /// at index 0 (auto-created in the constructor) plus any additional
     /// per-facility entries the user opened via the 'Open strips window…'
@@ -76,6 +83,14 @@ public partial class MainViewModel : ObservableObject
     /// <see cref="VStripsDockEntryViewModel.IsPoppedOut"/>).
     /// </summary>
     public System.Collections.ObjectModel.ObservableCollection<VStripsDockEntryViewModel> StripsEntries { get; } = [];
+
+    /// <summary>
+    /// All vTDLS instances in this client — the student-facility one at index 0
+    /// (auto-created in the constructor when the position has a TDLS-configured
+    /// facility) plus any additional per-facility entries the user opened via
+    /// the 'New vTDLS Tab…' picker. Each entry carries its own dock state.
+    /// </summary>
+    public System.Collections.ObjectModel.ObservableCollection<VTdlsDockEntryViewModel> TdlsEntries { get; } = [];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
@@ -1055,6 +1070,16 @@ public partial class MainViewModel : ObservableObject
         SubscribeStripsEntry(StripsEntries[0]);
         StripsEntries.CollectionChanged += OnStripsEntriesCollectionChanged;
 
+        // vTDLS student entry — bootstrapped now so the tab is rendered even
+        // before a scenario loads. Facility selection happens after JoinRoom
+        // when AccessibleTdlsFacilities populates; if the room's position has
+        // no TDLS facility the entry stays empty but the tab is still there
+        // (mirrors the Strips behavior).
+        var studentTdlsVm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials);
+        TdlsEntries.Add(new VTdlsDockEntryViewModel(studentTdlsVm, isStudentEntry: true));
+        SubscribeTdlsEntry(TdlsEntries[0]);
+        TdlsEntries.CollectionChanged += OnTdlsEntriesCollectionChanged;
+
         _dataGridScale = _preferences.DataGridFontSize / 12.0;
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
@@ -1063,6 +1088,7 @@ public partial class MainViewModel : ObservableObject
         // Student Strips entry pop-out state persists across restarts. Non-student
         // per-facility entries are session-scoped and always start docked.
         StripsEntries[0].IsPoppedOut = _preferences.IsVStripsPoppedOut;
+        TdlsEntries[0].IsPoppedOut = _preferences.IsVTdlsPoppedOut;
 
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;

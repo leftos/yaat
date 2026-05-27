@@ -137,6 +137,7 @@ public sealed class UserPreferences
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
     public bool IsVStripsPoppedOut => _data.IsVStripsPoppedOut;
+    public bool IsVTdlsPoppedOut => _data.IsVTdlsPoppedOut;
     public bool IsTerminalDocked => _data.IsTerminalDocked;
     public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
     public bool ShowTimelineBar => _data.ShowTimelineBar;
@@ -442,6 +443,7 @@ public sealed class UserPreferences
             "GroundView" => _data.IsGroundViewPoppedOut,
             "RadarView" => _data.IsRadarViewPoppedOut,
             "VStrips" => _data.IsVStripsPoppedOut,
+            "VTdls" => _data.IsVTdlsPoppedOut,
             "Terminal" => !_data.IsTerminalDocked,
             _ => poppedOut,
         };
@@ -463,6 +465,9 @@ public sealed class UserPreferences
                 break;
             case "VStrips":
                 _data.IsVStripsPoppedOut = poppedOut;
+                break;
+            case "VTdls":
+                _data.IsVTdlsPoppedOut = poppedOut;
                 break;
             case "Terminal":
                 _data.IsTerminalDocked = !poppedOut;
@@ -1082,6 +1087,7 @@ public sealed class UserPreferences
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
             IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
+            IsVTdlsPoppedOut = GetFieldOr(obj, "isVTdlsPoppedOut", false),
             IsTerminalDocked = GetFieldOr(obj, "isTerminalDocked", true),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
@@ -1317,6 +1323,7 @@ public sealed class UserPreferences
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
         public bool IsVStripsPoppedOut { get; set; }
+        public bool IsVTdlsPoppedOut { get; set; }
         public bool IsTerminalDocked { get; set; } = true;
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];

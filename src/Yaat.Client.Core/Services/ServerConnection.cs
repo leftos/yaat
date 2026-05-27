@@ -5,7 +5,7 @@ using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
 
-public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
+public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncDisposable
 {
     private readonly ILogger _log = AppLog.CreateLogger<ServerConnection>();
 
@@ -45,6 +45,9 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     public event Action<int, int>? ExportRecordingProgress;
     public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
     public event Action<List<StripItemDto>>? StripItemsChanged;
+    public event Action<TdlsItemDto>? TdlsItemChanged;
+    public event Action<TdlsItemRemovedDto>? TdlsItemRemoved;
+    public event Action<TdlsStateDto>? TdlsStateChanged;
     public event Action<string>? RoomAvailableForCid;
     public event Action<DateTime, string, int>? ServerRestarting;
     public event Action? ServerRestartReady;
@@ -99,6 +102,7 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
                 var chain = options.PayloadSerializerOptions.TypeInfoResolverChain;
                 chain.Insert(0, YaatHubJsonContext.Default);
                 chain.Insert(1, YaatStripsHubJsonContext.Default);
+                chain.Insert(2, YaatTdlsHubJsonContext.Default);
             })
             .Build();
 
@@ -151,6 +155,9 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
         _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
         _connection.On<FlightStripsStateDto>("FlightStripsStateChanged", dto => FlightStripsStateChanged?.Invoke(dto));
         _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
+        _connection.On<TdlsItemDto>("TdlsItemChanged", dto => TdlsItemChanged?.Invoke(dto));
+        _connection.On<TdlsItemRemovedDto>("TdlsItemRemoved", dto => TdlsItemRemoved?.Invoke(dto));
+        _connection.On<TdlsStateDto>("TdlsStateChanged", dto => TdlsStateChanged?.Invoke(dto));
         _connection.On<string>("RoomAvailableForCid", roomId => RoomAvailableForCid?.Invoke(roomId));
 
         _connection.On<DateTime, string, int>(
@@ -325,6 +332,29 @@ public sealed class ServerConnection : IStripsTransport, IAsyncDisposable
     {
         EnsureConnected();
         return await _connection!.InvokeAsync<FlightStripsConfigDto?>("GetFlightStripsConfigForFacility", facilityId);
+    }
+
+    // --- vTDLS (ITdlsTransport) ---
+
+    /// <summary>Lists facilities accessible to the room's student position that have a TDLS configuration.</summary>
+    public async Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<AccessibleFacilityDto>>("GetAccessibleTdlsFacilities");
+    }
+
+    /// <summary>Returns the TDLS bootstrap config (SIDs, transitions, dropdowns, mandatory flags) for a facility.</summary>
+    public async Task<TdlsConfigDto?> GetTdlsConfigForFacilityAsync(string facilityId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<TdlsConfigDto?>("GetTdlsConfigForFacility", facilityId);
+    }
+
+    /// <summary>Asks the server to push the room's current full TDLS state via <see cref="TdlsStateChanged"/>. Used on initial subscribe and after facility switches.</summary>
+    public async Task RequestFullTdlsStateAsync()
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("RequestFullTdlsState");
     }
 
     // --- Weather ---

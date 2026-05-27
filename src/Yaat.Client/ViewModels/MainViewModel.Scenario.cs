@@ -513,6 +513,22 @@ public partial class MainViewModel
         // broadcast path (other clients) refreshes via VStripsViewModel's
         // own subscription; the loader path goes through here instead.
         _ = VStrips.RefreshAccessibleFacilitiesAsync();
+
+        // Same bootstrap for vTDLS: populate accessible facilities, then
+        // auto-switch to the first one so the student tab renders the
+        // appropriate DCL/PDC lists without the user picking from the menu.
+        // No-op silently if the position has no TDLS-configured facility.
+        _ = BootstrapStudentTdlsAsync();
+    }
+
+    private async Task BootstrapStudentTdlsAsync()
+    {
+        await VTdls.RefreshAccessibleFacilitiesAsync();
+        var firstFacility = VTdls.AccessibleFacilities.FirstOrDefault();
+        if (firstFacility is not null)
+        {
+            await VTdls.SwitchFacilityAsync(firstFacility.FacilityId);
+        }
     }
 
     private void OnScenarioUnloaded()
