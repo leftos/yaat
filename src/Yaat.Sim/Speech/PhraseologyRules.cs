@@ -205,6 +205,10 @@ public static class PhraseologyRules
             // §3-10-11 "option approved" — alternate shorthand. SttOnly so the pilot AI
             // keeps reading back as the canonical "cleared for the option".
             new(["option", "approved"], "COPT", ClearedForOption, SttOnly: true),
+            // §2-1-20 "CAUTION WAKE TURBULENCE" — bare wake-turbulence caution. Trailing
+            // traffic description is dropped because WakeAdvisory carries no args.
+            new(["caution", "wake", "turbulence"], "CWT", WakeAdvisory),
+            new(["caution", "wake", "turbulence", "{traffic...}"], "CWT", WakeAdvisory, SttOnly: true),
             // FAA 7110.65 §7-9-2: CLEARED THROUGH/TO ENTER/OUT OF BRAVO AIRSPACE.
             new(["cleared", "through", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
             new(["cleared", "to", "enter", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),

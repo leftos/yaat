@@ -1948,6 +1948,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "Roger"
   **Canonical:** `AcknowledgePilotContact`
   **Notes:** `PhraseologyRules.cs:189`.
+- **Phrasing:** "CAUTION WAKE TURBULENCE (traffic information)" — §2-1-20
+  **Canonical:** `WakeAdvisory`
+  **Notes:** `PhraseologyRules.cs:222-223`. Trailing traffic description is captured via `{traffic...}` variadic and dropped (CWT carries no args).
 
 ##### MissingRule
 - **Phrasing:** "LOW ALTITUDE ALERT (call sign), CHECK YOUR ALTITUDE IMMEDIATELY" (+ optional MEA/MVA/MOCA/MIA appendix)
@@ -1961,9 +1964,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Notes:** canonical exists; no rule. Out-of-pilot-scope per index but used pervasively. Also at §3-9, §4-7, §5-9, §5-10, §7-6, §7-8.
 - **Phrasing:** "(Identification) CHANGE TO MY FREQUENCY (state frequency)"
   **Canonical:** `FrequencyChangeApproved`
-  **Notes:** canonical exists; no rule.
-- **Phrasing:** "CAUTION WAKE TURBULENCE (traffic information)"
-  **Canonical:** `WakeAdvisory`
   **Notes:** canonical exists; no rule.
 - **Phrasing:** "TRAFFIC, (number) O'CLOCK, (number) MILES, (direction)-BOUND, (relative movement), (type/altitude)" / "(type) (number) FEET ABOVE/BELOW YOU" / "ALTITUDE UNKNOWN"
   **Canonical:** `SafetyAlert` (or possibly a dedicated `TrafficAdvisory`)
@@ -2135,7 +2135,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** facility/staffing doctrine — no pilot-spoken phraseology.
 
-**Ch 2 totals:** Covered 3 · MissingRule 14 · MissingCanonical 13 · OutOfScope 18 · Phrasings 48
+**Ch 2 totals:** Covered 4 · MissingRule 13 · MissingCanonical 13 · OutOfScope 18 · Phrasings 48
 
 ### Chapter 6 — Nonradar
 
@@ -3038,8 +3038,8 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 179 |
-| MissingRule | 192 |
+| Covered | 180 |
+| MissingRule | 191 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
 | **Total phrasings audited** | **799** |
@@ -3052,13 +3052,13 @@ All 10 chapters audited.
 | 7110.65 Ch 4 — IFR/TRACON | 23 | 23 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 31 | 32 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
-| 7110.65 Ch 2 — General Control | 3 | 14 | 13 | 18 | 48 |
+| 7110.65 Ch 2 — General Control | 4 | 13 | 13 | 18 | 48 |
 | 7110.65 Ch 6 — Nonradar | 1 | 1 | 12 | 9 | 23 |
 | 7110.65 Ch 9 — Special Flights | 0 | 0 | 20 | 8 | 28 |
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **179** | **192** | **239** | **189** | **799** |
+| **Total** | **180** | **191** | **239** | **189** | **799** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 
@@ -3072,7 +3072,7 @@ Implementation sessions should pull these first — one rule addition per cluste
 - ~~**`ClearedApproach`** Localizer/VOR/LDA + LOC BC variants~~ — Stage 4 shipped (PhraseologyRules.cs:223-230). GLS variant of §4-8 remains MissingRule pending a `TryStripTypePrefix` "GLS"→'J' addition.
 - **`Contact`** / **`FrequencyChangeApproved`** — referenced everywhere; canonicals exist, no rules. Out-of-pilot-scope per current index but ubiquitous in FAA docs — may want product decision.
 - **`SafetyAlert`** — 7110.65 §2-1, §5-9, AIM §4-1, §5-4. Add `low altitude alert` / `traffic alert advise you turn...`.
-- **`WakeAdvisory`** — 7110.65 §2-1-20 `caution wake turbulence ...`. Canonical exists; no rule.
+- ~~**`WakeAdvisory`**~~ — Stage 9 shipped (PhraseologyRules.cs:222-223). Trailing traffic info is captured and dropped.
 
 ### High-leverage MissingCanonical proposals (need product review)
 

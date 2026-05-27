@@ -194,6 +194,18 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    [Theory]
+    // §2-1-20 "CAUTION WAKE TURBULENCE" — bare wake-turbulence caution. The trailing
+    // traffic description is captured by the variadic and dropped (CWT carries no args).
+    [InlineData("caution wake turbulence", "CWT")]
+    [InlineData("caution wake turbulence boeing seven three seven on five mile final", "CWT")]
+    public void WakeAdvisory_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- Taxi/ground verb synonyms (FAA 7110.65 §3-7) ---
     // The §3-7 phraseology block lists "TAXI / CONTINUE TAXIING / PROCEED VIA (route)" as
     // synonyms, "BEHIND (traffic)" as an alternate to FOLLOW, and "HOLD FOR (reason)" /
