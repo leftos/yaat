@@ -36,6 +36,77 @@ The architecture/scope decisions in [`docs/plans/vtdls-emulation.md`](../plans/v
 - **Facility selector / key commands** — upstream key map (F4 dump, F10 cancel, F12 send, `Ctrl+Alt+→/←` cycle facilities). **Action**: mirror in the YAAT vTDLS view.
 - **CRC ↔ server topic name + DTO field order** — upstream doesn't expose the wire protocol. **Action**: capture a real frame from CRC ↔ vTDLS before locking; ship a single `TdlsBroadcaster` constant for the topic name.
 
+## Data-api integration (Phase 1.0.1 findings)
+
+**Endpoint**: TDLS configuration is **embedded inside the existing ARTCC config response** — there is **no separate `/api/tdls/...` endpoint**. The same `GET https://data-api.vnas.vatsim.net/api/artccs/{ARTCC_ID}` call YAAT already uses for STARS / Tower Cab / ASDE-X / Flight Strips config also carries TDLS config on every facility node that has it. The loader is a one-field enrichment to `FacilityConfig` in `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs`, not a new downloader.
+
+> ⚠️ ARTCC IDs are **uppercase** on this endpoint (`ZBW` works, `zbw` 404s). The existing `tools/refresh-artcc-snapshot.py` already does this.
+
+**Path**: `root.facility` is a recursive `FacilityConfig` tree (root is the ARTCC, then `childFacilities` for TRACONs/ATCTs/etc.). Any node MAY carry a non-null `tdlsConfiguration` object; the ARTCC root typically doesn't, child ATCTs/ATCT-TRACONs do.
+
+**Wire shape** matches the vNAS source DTOs at `..\vatsim-vnas\data\Facilities\Tdls*.cs` exactly:
+
+```jsonc
+"tdlsConfiguration": {
+  "mandatorySid": true,
+  "mandatoryClimbout": false,
+  "mandatoryClimbvia": false,
+  "mandatoryInitialAlt": true,
+  "mandatoryDepFreq": true,
+  "mandatoryExpect": true,
+  "mandatoryContactInfo": false,
+  "mandatoryLocalInfo": false,
+  "sids": [
+    {
+      "name": "BLZZR6",
+      "id": "01G61DSM54F852VA15M7RFBJZ9",
+      "transitions": [
+        {
+          "name": "- - - -",                // literal placeholder = "no transition"
+          "id": "01G61DSM542W6VJWGPMHBZZ2BP",
+          "firstRoutePoint": "BLZZR",         // matches first filed waypoint after the SID
+          "defaultExpect": "10 MIN AFT DP",
+          "defaultClimbvia": "CLIMB VIA SID",
+          "defaultDepFreq": "133.0",
+          "defaultContactInfo": "CTC $FREQ TO PUSH",
+          "defaultLocalInfo": "ADV ATIS AND LOCATION"
+          // defaultClimbout, defaultInitialAlt omitted (null) for this transition
+        }
+      ]
+    }
+  ],
+  "climbouts": [],                            // [{ id, value }] — empty here
+  "climbvias": [ { "id": "...", "value": "CLIMB VIA SID" } ],
+  "initialAlts": [ { "id": "...", "value": "..." } ],
+  "depFreqs": [ ... ],
+  "expects": [ ... ],
+  "contactInfos": [ ... ],
+  "localInfos": [ ... ],
+  "defaultSidId": "01G61DTSACEE8WM6P3QFZQ0E8Y",
+  "defaultTransitionId": "01G61DTSAC93B1THQ1S49Q8V1Q"
+}
+```
+
+**Sampled coverage** (ZBW, ARTCC ID for Boston Center, parent of the four TDLS facilities upstream `vtdls.md` names):
+
+| Facility | Type        | SIDs | climbouts | climbvias | initialAlts | depFreqs | expects | contactInfos | localInfos | Mandatory fields |
+|----------|-------------|------|-----------|-----------|-------------|----------|---------|--------------|------------|------------------|
+| BDL      | Atct        | 2    | 0         | 0         | 1           | 2        | 1       | 0            | 0          | sid, expect, initialAlt, depFreq |
+| PVD      | AtctTracon  | 1    | 0         | 0         | 1           | 1        | 1       | 0            | 1          | sid, expect, initialAlt, depFreq |
+| ALB      | AtctTracon  | 1    | 0         | 0         | 1           | 2        | 1       | 0            | 0          | sid, expect, initialAlt, depFreq |
+| BOS      | Atct        | 9    | 0         | 3         | 2           | 1        | 1       | 2            | 1          | sid, expect, depFreq, contactInfo, localInfo |
+
+**Implications for the plan** (mostly confirming, one adjustment):
+- ✅ Phase 1.0.2 reduces to: extend `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with a `TdlsConfig` record class + `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration { get; set; }` on `FacilityConfig`. Mirror the four nested record types from `vatsim-vnas/data/Facilities/Tdls*.cs` (`TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig`).
+- ✅ No new download path / no new on-disk cache file. The existing `ArtccConfigResolver`/`ArtccConfigService` already handles caching of the parent ARTCC response, and the TDLS subtree rides along.
+- 🔁 **Plan adjustment**: there's **no global "which facilities have TDLS" registry** at the ARTCC root — it's strictly per-facility-node presence of `tdlsConfiguration != null`. The plan section that talks about `TdlsState.Configs` should derive the TDLS facility set by walking the facility tree, not by looking up a top-level list.
+- 🔁 **Plan adjustment**: the "Maintain" semantic name from upstream `vtdls.md` maps to the wire field `initialAlts` / `mandatoryInitialAlt` / `defaultInitialAlt`. Keep the wire naming verbatim in the DTO; the UI label can read "Maintain" per the upstream manual.
+- ❓ **Still unknown**: whether CRC's vTDLS-related WebSocket topic is named the same way as the data-api JSON keys (`tdls...`). Phase 2.3 still needs a live CRC capture or a vNAS messaging-master review.
+
+**Sample fixture** (Phase 1.0.2 will commit this to `tests/Yaat.Sim.Tests/TestData/` for offline parser tests):
+- Source: `https://data-api.vnas.vatsim.net/api/artccs/ZBW` (582 KB minified, ~4.5 MB pretty)
+- Captured by: `python tools/refresh-artcc-snapshot.py --artcc ZBW --out tests/Yaat.Sim.Tests/TestData/artcc-zbw-snapshot.json`
+
 ## Refresh policy
 
 If upstream changes, refresh by re-fetching `vtdls.md` and the `img/` files with the same paths (any new PNGs in upstream's markdown should be added to `img/` here). Update **Fetched** above. Image-path rewrite is `src="/docs/img/` → `src="img/`.
