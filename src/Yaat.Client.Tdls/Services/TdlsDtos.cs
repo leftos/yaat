@@ -53,6 +53,36 @@ public record TdlsFlightPlanInfoDto(
 
     /// <summary>Aircraft type + equipment suffix as a single display string ("B738/L").</summary>
     public string TypeAndEquipment => string.IsNullOrEmpty(EquipmentSuffix) ? AircraftType : $"{AircraftType}/{EquipmentSuffix}";
+
+    /// <summary>
+    /// Route line as upstream renders it: <c>DEP.{route}.DEST</c>. Skips the
+    /// leading dot when no departure is set so a pre-fill row never looks
+    /// like it starts with a missing token. ETE (/HHMM) is omitted because
+    /// the sim doesn't track filed ETE.
+    /// </summary>
+    public string RouteDisplay
+    {
+        get
+        {
+            var parts = new List<string>(3);
+            if (!string.IsNullOrEmpty(Departure))
+            {
+                parts.Add(Departure);
+            }
+            if (!string.IsNullOrEmpty(Route))
+            {
+                parts.Add(Route);
+            }
+            if (!string.IsNullOrEmpty(Destination))
+            {
+                parts.Add(Destination);
+            }
+            return string.Join('.', parts);
+        }
+    }
+
+    /// <summary>Remarks line as upstream renders it: <c>RMK: {remarks}</c>. Empty when no remarks are filed.</summary>
+    public string RemarksDisplay => string.IsNullOrEmpty(Remarks) ? "" : $"RMK: {Remarks}";
 }
 
 public record TdlsDumpedEntryDto(string FacilityId, string Callsign);
