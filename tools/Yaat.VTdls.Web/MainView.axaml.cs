@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
@@ -11,6 +13,9 @@ public partial class MainView : UserControl
 {
     private static readonly ILogger Log = SimLog.CreateLogger("Yaat.VTdls.Web.MainView");
 
+    /// <summary>localStorage key used to persist the vTDLS dark-mode preference across reloads.</summary>
+    private const string DarkModeStorageKey = "yaat-vtdls-dark-mode";
+
     private readonly BrowserTdlsTransport _connection = new();
     private readonly Dictionary<string, string> _queryParams;
 
@@ -20,11 +25,32 @@ public partial class MainView : UserControl
 
         _queryParams = ParseQuery(App.LocationSearch);
 
-        var vm = new VTdlsViewModel(
-            _connection,
-            sendCommand: SendCommandAsync,
-            getUserInitials: () => _queryParams.GetValueOrDefault("initials", "")
-        );
+        // Restore the dark-mode preference before the VTdlsView's AttachedToVisualTree
+        // fires its ApplyTheme(), so the editor opens in the right palette on the very
+        // first render rather than flashing light-then-dark.
+        var savedDarkMode = LoadSavedDarkMode();
+
+        var vm = new VTdlsViewModel(_connection, sendCommand: SendCommandAsync, getUserInitials: () => _queryParams.GetValueOrDefault("initials", ""))
+        {
+            IsDarkMode = savedDarkMode,
+        };
+
+        // Flip the Application-wide theme variant so the Avalonia FluentTheme
+        // brushes (ComboBox / Button / Border defaults) match the controller's
+        // dark-mode preference. Without this the outer chrome stays the
+        // Light-default light-grey while only the inner VTdls* themed brushes
+        // flip to dark — visible as light dropdowns + invisible buttons.
+        ApplyApplicationTheme(savedDarkMode);
+
+        // Persist + propagate any subsequent toggle from the Facility Menu.
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VTdlsViewModel.IsDarkMode))
+            {
+                SaveDarkMode(vm.IsDarkMode);
+                ApplyApplicationTheme(vm.IsDarkMode);
+            }
+        };
 
         var tdlsView = this.FindControl<UserControl>("TdlsView");
         if (tdlsView is not null)
@@ -44,6 +70,42 @@ public partial class MainView : UserControl
             // never run via the normal flow. Recovery hint for the
             // URL-mangled case.
             SetStatus("Missing identity in URL — reload /vtdls/ to fill in CID, initials, and ARTCC.");
+        }
+    }
+
+    private static bool LoadSavedDarkMode()
+    {
+        try
+        {
+            return string.Equals(BrowserStorage.GetItem(DarkModeStorageKey), "true", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            // localStorage can throw under private-browsing modes or strict
+            // cookie policies. Fall back to the default (light) and continue;
+            // the toggle still works in-session, it just won't persist.
+            Log.LogDebug(ex, "Reading {Key} from localStorage failed; defaulting to light", DarkModeStorageKey);
+            return false;
+        }
+    }
+
+    private static void SaveDarkMode(bool value)
+    {
+        try
+        {
+            BrowserStorage.SetItem(DarkModeStorageKey, value ? "true" : "false");
+        }
+        catch (Exception ex)
+        {
+            Log.LogDebug(ex, "Writing {Key} to localStorage failed", DarkModeStorageKey);
+        }
+    }
+
+    private static void ApplyApplicationTheme(bool dark)
+    {
+        if (Application.Current is not null)
+        {
+            Application.Current.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
         }
     }
 

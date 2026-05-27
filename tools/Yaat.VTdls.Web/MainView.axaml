@@ -2,7 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vtdls="using:Yaat.Client.Views.VTdls"
              x:Class="Yaat.VTdls.Web.MainView">
-    <Grid Background="#FFFFFF" RowDefinitions="*,Auto">
+    <!-- No explicit Background — let the Application's themed
+         SystemControlBackgroundAltHighBrush show through so the chrome behind
+         the vTDLS view tracks the user's dark-mode toggle. -->
+    <Grid RowDefinitions="*,Auto">
         <vtdls:VTdlsView Grid.Row="0" x:Name="TdlsView" />
         <!-- Status footer — gives the user visible feedback on connect /
              room state since the browser tab has no other chrome. Code-
