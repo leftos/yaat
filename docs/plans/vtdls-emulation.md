@@ -23,6 +23,12 @@ We want the same shape for vTDLS so the controller-facing experience matches wha
 - **Naming**: User-facing string is "vTDLS" (lowercase v, uppercase TDLS). Code uses `VTdls` (mirrors `VStrips`): `Yaat.Client.Tdls`, `Yaat.VTdls.Web`, route `/vtdls/`, wwwroot `wwwroot/vtdls/`, viewmodels `VTdlsViewModel` / `VTdlsDockEntryViewModel`.
 - **Multi-facility**: YAAT Client gets a vTDLS tab with multi-instance support per facility, identical to Strips — collection-driven dock entries, per-facility geometry key `"VTdlsView:{facilityId}"`. Plus a parent-facility *consolidated* selector that aggregates unstaffed child TDLS facilities into one view (upstream behavior).
 
+## RPO observability (added 2026-05-26)
+
+For instructor (RPO) usage:
+- **All TDLS items are visible to every room member.** The vTDLS tab/window shows Pending (DCL) AND Sent (PDC) items by default — no role-based filtering. RPOs can review what a student has already issued without scrubbing logs.
+- **Every TDLS PDC send emits a TerminalBroadcast** (Phase 2.2). The broadcast message is callsign + a human-readable summary of every non-null ClearanceDto field (Expect / SID / Transition / Climbout / Climbvia / Maintain / ContactInfo / DepFreq / LocalInfo). This means the instructor's terminal log shows TDLS activity inline with voice commands. Kind: new `Tdls` entry kind (preferred) or `System` with a `[TDLS]` prefix.
+
 ## Out of scope (v1)
 
 - Full DCL data-link uplink, ATIS broadcast, taxi via TDLS — explicitly not modeled.
@@ -200,7 +206,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 - Create `src/Yaat.Server/Simulation/TdlsMutations.cs` — stateless helpers: `NewItemId`, `QueuePending`, `MarkSent(itemId, clearancePayload)`, `MarkWilco(itemId)`, `Dump(itemId)`, `Expire(itemId)`, `BuildFullState`.
 - Create `src/Yaat.Server/Simulation/TdlsCommandHandler.cs` — handlers for Queue / Send / Dump. Each: validate facility config exists, mutate via `TdlsMutations`, broadcast.
   - **Queue** (TDLSQ): rejects if (facility, callsign) is in Dumped lockout. Idempotent if already Pending for same aircraft+facility.
-  - **Send** (TDLSS): requires a Pending entry; snapshot the resolved `ClearanceDto` (validated against `TdlsConfig` — mandatory fields set, values are in the dropdown). On success → Status=Sent, SentUtc=now, SentPayload=clearance, schedule auto-WILCO.
+  - **Send** (TDLSS): requires a Pending entry; snapshot the resolved `ClearanceDto` (validated against `TdlsConfig` — mandatory fields set, values are in the dropdown). On success → Status=Sent, SentUtc=now, SentPayload=clearance, schedule auto-WILCO. **Also emit a `TerminalBroadcast` to the room summarizing the sent PDC** (callsign + every non-null field of the ClearanceDto) so RPOs see in their terminal log exactly what the student issued. New `TerminalEntryKind` value (or reuse `System` with a `[TDLS]` prefix — decide per existing convention).
   - **Dump** (TDLSDUMP): removes the item from `Items`, adds (facility, callsign) to Dumped. Broadcasts a `TdlsItemRemovedDto`.
   - **WILCO**: see Phase 3.
 - Create `src/Yaat.Server/Simulation/TdlsBroadcaster.cs` — `BroadcastItemsAsync`, `BroadcastFullStateAsync`, `BroadcastRemovalAsync`, `SendInitialStateToClientAsync`. SignalR (`TdlsItemsChanged`, `TdlsStateChanged`, `TdlsItemRemoved`) + CRC topic publish. Topic name in a single constant for easy swap pending Phase 2.3 capture.
