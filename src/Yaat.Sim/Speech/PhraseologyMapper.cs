@@ -941,9 +941,11 @@ public static class PhraseologyMapper
 
     /// <summary>
     /// Sanity-check that a captured taxiway token looks like a real taxiway identifier. Real
-    /// taxiway names are 1-4 alphanumeric characters ("A", "Y", "CC", "B5", "A12"); anything
-    /// longer or with punctuation is almost certainly Whisper transcribing a regular English
-    /// word into the slot, which we reject so the LLM fallback can recover.
+    /// taxiway names are 1-2 short letters ("A", "Y", "CC", "AY") OR letter+digit alphanumerics
+    /// up to 4 chars ("B5", "A12", "GA13"). Pure-letter tokens of 3-4 chars are almost always
+    /// Whisper transcribing a regular English word into the slot ("when", "able", "look"), so we
+    /// reject them — real NATO-spoken taxiway letters get collapsed by NatoLetterNormalizer to
+    /// 1-2 chars before reaching this validation.
     /// </summary>
     private static bool IsPlausibleTaxiwayName(string token)
     {
@@ -951,14 +953,21 @@ public static class PhraseologyMapper
         {
             return false;
         }
+        var hasDigit = false;
         foreach (var c in token)
         {
             if (!char.IsLetterOrDigit(c))
             {
                 return false;
             }
+            if (char.IsDigit(c))
+            {
+                hasDigit = true;
+            }
         }
-        return true;
+        // Pure-letter taxiway names are constrained to 1-2 chars (post-NATO-collapse). Anything
+        // 3+ chars must contain at least one digit to be plausible.
+        return hasDigit || token.Length <= 2;
     }
 
     private static bool IsDigitString(string s)

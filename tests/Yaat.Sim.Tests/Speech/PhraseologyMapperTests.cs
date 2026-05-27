@@ -370,6 +370,33 @@ public class PhraseologyMapperTests
         Assert.Equal("TL 270", result!.CanonicalCommand);
     }
 
+    [Theory]
+    // "Exit left/right when able" without a taxiway — the "when able" trailing tokens silently
+    // skip via the no-match advance, leaving the bare EL/ER form.
+    [InlineData("exit left when able", "EL")]
+    [InlineData("exit right when able", "ER")]
+    [InlineData("exit left if able", "EL")]
+    // Trailing "when able" AFTER the taxiway also works — leading rule consumes "exit left {tw}",
+    // trailing tokens silent-skip.
+    [InlineData("exit left charlie when able", "EL C")]
+    [InlineData("exit left at charlie when able", "EL C")]
+    public void ExitLeftRight_WhenAble_BareAndTrailing(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C"));
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void ExitLeft_WhenAbleNoContext_DoesNotEmitNonsenseTaxiway()
+    {
+        // Regression: even without TaxiwayNames context, the taxiway sanity check must reject
+        // pure-letter 4-char captures like "when" so we get bare "EL" instead of "EL when".
+        var result = PhraseologyMapper.Map("exit left when able", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("EL", result!.CanonicalCommand);
+    }
+
     // --- Pattern-entry APPROVED shorthand (FAA 7110.65 §3-10-1) ---
     // Controllers commonly use the bare-direction approval form when accepting a pilot's
     // request, e.g. "straight in approved" / "right traffic approved". Maps to the same
