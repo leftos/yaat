@@ -1205,7 +1205,7 @@ Open **Settings** to configure:
 - **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
 - **Audio** — Input device (microphone for push-to-talk speech recognition) and output device (used for pilot text-to-speech and the SAY/warning notification chime)
-- **Speech** — STT and TTS settings, including optional solo pilot voice and the Piper voice-pack install/remove controls
+- **Speech** — STT and TTS settings, including optional solo pilot voice, the Piper voice-pack install/remove controls, and **opt-in speech-sample capture** for sharing problem cases with the devs (see [Speech recognition debugging](#speech-recognition-debugging))
 - **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, and ground labels (each independently configurable, range 8–24); command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); **No landing clearance warning** toggle (flashes a red `NoLndgClnc` line on the radar datablock for aircraft on final without a landing clearance); ground display options (start with datablocks hidden); per-window always-on-top toggles
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
 - **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode
@@ -1242,6 +1242,18 @@ Handoffs to unattended positions can be automatically accepted after a configura
 Scenarios can define an `autoDeleteMode` that removes aircraft after landing or parking. Override in **Settings > General > Auto-Delete Aircraft** (options: "Use Scenario Setting", "Never", "On Landing", "On Parking").
 
 To exempt a specific aircraft, append `NODEL` to `CLAND`, `TAXI`, `EL`, `ER`, or `EXIT` commands.
+
+#### Speech recognition debugging
+
+If push-to-talk recognition is misbehaving for you, opt-in capture saves the audio plus a per-stage trace locally so you can review what happened — and, when you find a bad one, send it to the devs as a small bundle.
+
+**Enable capture.** In **Settings → Speech**, tick **"Save my push-to-talk samples locally for review"** and pick a retention cap (10–500 MB; oldest samples drop when full). Nothing leaves your machine until you explicitly export — see below. Use **Open samples folder** to browse the on-disk store, or **Delete all saved samples** to wipe everything.
+
+**Speech Debug window.** Click the mic-status indicator (top-right of the main window) and pick **"Show speech recognition debugging…"**. The window shows recent push-to-talk sessions as a flowchart — mic → Whisper → callsign extract → rule mapper → LLM fallback → final command — with playback for any session whose audio is still on disk. Sessions appear here even with capture off (in-memory trace only); audio playback and export require capture on.
+
+**Export a bundle for the devs.** Tick the rows you want to share (only rows with saved audio are checkable), then click **Export selected…** to save a `.yaat-speech-sample.zip` bundle. The bundle includes the WAV recordings, per-stage transcripts, and active scenario context (callsigns, fixes, runways) — no other YAAT state is included. Attach the bundle to a GitHub issue and we'll feed it back into the pipeline.
+
+Use **Export this sample…** on a single session if you only want to share one.
 
 ### Window State
 

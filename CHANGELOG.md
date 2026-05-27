@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.4.0-beta [2026/05/27]
+
+### Highlights
+- New vTDLS tab and browser app for pre-departure clearances. Auto-binds to the scenario's primary airport, switches between TDLS facilities, F12 sends the PDC, and the pilot accepts silently — no voice readback required.
+- Speech recognition learned a large batch of FAA phraseology: cleared/expect LOC, LOC BC, VOR, and LDA approaches; named SID/STAR phraseology ("eagul five arrival" → EAGUL5); climb-via-SID; cross-fix altitude restrictions; pattern-entry approvals; runway-exit "turn left/right (taxiway)"; and several §3-7 taxi/ground synonyms.
+- Opt-in speech-sample capture and Speech Debug window. Saves push-to-talk recordings with full pipeline traces (mic → Whisper → callsign → rule → LLM → final); multi-select export bundles selected recordings into a `.yaat-speech-sample.zip` to send to the devs.
+- Compound commands accept `AND` and `THEN` as plain-English aliases for `,` and `;` — `CM 014 AND FH 090 THEN FH 180` works the same as the punctuation form; preserved inside `SAY` / `SAYF` text.
 
 ### Added
 - Speech-sample capture and sharing: opt-in capture saves push-to-talk recordings and pipeline traces locally, the new Speech Debug window shows each session as a flowchart (mic → Whisper → callsign → rule → LLM → final) with playback and per-stage detail, and multi-select export bundles ticked recordings into a `.yaat-speech-sample.zip` to send to the devs — please share misrecognitions and false matches so we can keep improving speech recognition.
