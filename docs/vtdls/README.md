@@ -23,7 +23,7 @@ Authoritative reference for designing YAAT's vTDLS emulation. Mirrored from the 
 
 ## How this maps to the YAAT plan
 
-The architecture/scope decisions in the approved vTDLS implementation plan (`C:\Users\Leftos\.claude\plans\plan-for-a-vtdls-witty-cascade.md`, to be promoted into `docs/plans/` before Phase 1 starts) need to be reviewed against `vtdls.md` before Phase 1 (server data model) starts. The points the plan currently leaves provisional, and what the upstream confirms:
+The architecture/scope decisions in [`docs/plans/vtdls-emulation.md`](../plans/vtdls-emulation.md) trace back to specific sections of `vtdls.md`. The points the upstream confirms (some of which the plan originally left provisional):
 
 - **Bay model** — upstream uses **per-facility *lists*** (DCL / PDC / CPDLC), not the rack-based bay layout vStrips uses. The DCL holds filed-but-not-yet-sent items; PDC holds sent-and-pending; CPDLC is empty for us. There is no "move between racks" or "offset" concept. **Action**: drop racks from `TdlsState`; model as two flat per-facility lists keyed off Status (Pending/Sent).
 - **Lifecycle** — Pending entries leave the DCL list when (a) a PDC is sent, (b) the flight plan is dumped (controller-initiated), (c) the flight plan activates on departure, or (d) two-hour timeout. Sent (PDC) entries leave when the flight plan activates on departure, or after a two-hour timeout. **Action**: add a 2-hour TTL + activate-on-departure removal to the handler.
