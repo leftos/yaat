@@ -394,9 +394,20 @@ public sealed class GroundNavigator
             _currentPrimitive = alignmentArc;
             _arcBearingFromCenterDeg = alignmentArc.StartBearingFromCenterDeg;
             _arcRemainingSweepDeg = alignmentArc.SweepDeg;
-            // Don't plan synthesis when entry alignment is in progress —
-            // we're not even on the real segment yet.
-            _plannedSynthesis = null;
+            // Plan synthesis even when entry-alignment is active: synthesis
+            // targets the segment END corner, which is independent of the
+            // segment START re-alignment. Without this, segments that need
+            // both entry-alignment (sharp start) AND tangent-entry synthesis
+            // (sharp end into a short next segment) end up with no synthesis
+            // planned -- the aircraft entry-aligns, accelerates to TaxiSpeed,
+            // and orbits at the segment end because pure-pursuit can't track
+            // the next short segment's required turn at jet speed. Observed
+            // at SFO D11 → 28R: segment 0 (parking-exit RAMP) entry-aligns
+            // 162°, then segment 0's end has a 92° turn into a 30 ft
+            // segment 1. Pre-fix: no synth planned, aircraft orbited node 31
+            // for 90 s. Post-fix: synth fires near segment 0 end, slows the
+            // aircraft to navigate the 30 ft corner cleanly.
+            _plannedSynthesis = PlanSynthesisLookahead(route, ctx, seg);
 
             Log.LogDebug(
                 "[NavV2] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
