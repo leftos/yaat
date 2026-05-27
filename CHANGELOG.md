@@ -11,7 +11,8 @@
 - `CROSS; HOLD` halts the aircraft right after it clears the far-side runway hold bars (not at the next hold-short however far away), so ground control can pick it up between parallel runways.
 
 ### Added
-- vTDLS pre-departure clearance commands (`TDLSQ`, `TDLSS`, `TDLSW`, `TDLSDUMP`) work via the command bar — queue a PDC, send with nine `|`-separated clearance fields, auto-WILCO after a few seconds, or dump terminally to fall back to voice. Pending items auto-queue for any aircraft filed at a TDLS-configured facility (e.g. OAK/SFO/SJC/SMF/RNO under ZOA's NCT). Each Send emits a terminal entry summarizing the issued fields so instructors see PDC activity inline. A graphical vTDLS tab in YAAT Client and a browser-served vTDLS web app at `/vtdls/` are coming in a follow-up.
+- vTDLS pre-departure clearance arrives as a full feature: a **vTDLS** tab next to **Strips** in YAAT Client, plus a `/vtdls/` browser app served from yaat-server. The tab opens a DCL list of Pending PDCs, a PDC list of Sent/Wilco'd ones, a nine-field flight-plan editor with mandatory-field gating, and Send/Dump buttons (also F12 / F4). Each Send still emits an RPO terminal entry summarizing the issued clearance.
+- Multi-facility vTDLS: **View → vTDLS → New vTDLS Tab…** opens any other accessible TDLS facility in its own tab (useful when working a TRACON whose ATCTs are unstaffed top-down, e.g. NCT with OAK/SFO/SJC/SMF/RNO). Each tab can be popped out into its own window with per-facility geometry persistence.
 
 ### Removed
 - The standalone **YAAT Flight Strips** installer (`YaatVStrips-*`) is no longer published. The same view ships inside YAAT Client as the Strips tab, and the browser version at `/vstrips/` on the YAAT server stays available with no install.

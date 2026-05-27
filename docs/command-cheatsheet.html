@@ -526,6 +526,15 @@ code {
 <div class="row" id="cmd-data-strips-pra" data-verb="pra" data-aliases="" data-desc="pilot reported altitude (0 = clear)"><span class="verb">PRA</span><span class="alias"></span><span class="desc">Pilot reported altitude (0 = clear)</span></div>
 </div>
 </details>
+<details class="cat" id="vtdls" data-name="vtdls (pdc)" open>
+<summary>vTDLS (PDC)</summary>
+<div class="cat-body">
+<div class="row" id="cmd-vtdls-tdlsq" data-verb="tdlsq" data-aliases="" data-desc="queue pdc (auto-fired on flight-plan filing)"><span class="verb">TDLSQ</span><span class="alias"></span><span class="desc">Queue PDC (auto-fired on flight-plan filing)</span></div>
+<div class="row" id="cmd-vtdls-tdlss" data-verb="tdlss" data-aliases="" data-desc="send pdc (9 |-separated fields)"><span class="verb">TDLSS</span><span class="alias"></span><span class="desc">Send PDC (9 |-separated fields)</span></div>
+<div class="row" id="cmd-vtdls-tdlsw" data-verb="tdlsw" data-aliases="" data-desc="force pdc wilco (auto-fires ~3s)"><span class="verb">TDLSW</span><span class="alias"></span><span class="desc">Force PDC Wilco (auto-fires ~3s)</span></div>
+<div class="row" id="cmd-vtdls-tdlsdump" data-verb="tdlsdump" data-aliases="tdlsd" data-desc="remove pdc; voice clearance required"><span class="verb">TDLSDUMP</span><span class="alias">tdlsd</span><span class="desc">Remove PDC; voice clearance required</span></div>
+</div>
+</details>
 <details class="cat" id="coordination" data-name="coordination" open>
 <summary>Coordination</summary>
 <div class="cat-body cat-body--no-alias">
@@ -628,7 +637,7 @@ code {
   const allRows = $$('.row');
   const storeKey = 'yaat-cheatsheet-collapsed-v1';
   const profileKey = 'yaat-cheatsheet-profile-v1';
-  const profiles = [{"id":"all","label":"All categories","cats":"*"},{"id":"cd","label":"GC + CD training","cats":["flight-plan","transponder","ground","helicopter","coordination","track","data-strips","broadcast","queue","chaining"]},{"id":"lc","label":"LC (Tower) training","cats":["heading","altitude-speed","navigation","transponder","tower","pattern","hold","helicopter","track","data-strips","broadcast","display","coordination","queue","chaining"]},{"id":"app","label":"APP training","cats":["heading","altitude-speed","navigation","approach","hold","track","coordination","display","data-strips","broadcast","transponder","queue","chaining"]}];
+  const profiles = [{"id":"all","label":"All categories","cats":"*"},{"id":"cd","label":"GC + CD training","cats":["flight-plan","transponder","ground","helicopter","coordination","track","data-strips","vtdls","broadcast","queue","chaining"]},{"id":"lc","label":"LC (Tower) training","cats":["heading","altitude-speed","navigation","transponder","tower","pattern","hold","helicopter","track","data-strips","broadcast","display","coordination","queue","chaining"]},{"id":"app","label":"APP training","cats":["heading","altitude-speed","navigation","approach","hold","track","coordination","display","data-strips","broadcast","transponder","queue","chaining"]}];
   let collapsed = {};
   try { collapsed = JSON.parse(localStorage.getItem(storeKey) || '{}') || {}; } catch (_) { collapsed = {}; }
   // Restore last-applied profile label (does not re-apply state on load).

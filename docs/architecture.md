@@ -89,6 +89,27 @@ Resources/Fonts/                # JetBrainsMono-Regular.ttf, JetBrainsMono-Bold.
 AppBuilderExtensions.cs         # WithJetBrainsMonoFont() — registers the embedded font collection at avares://Yaat.Client.Strips/Resources/Fonts. Called by tools/Yaat.VStrips.Web/Program.cs.
 ```
 
+## Yaat.Client.Tdls — WASM-clean vTDLS layer (`src/Yaat.Client.Tdls/`)
+
+Sibling of Yaat.Client.Strips for the vTDLS (Pre-Departure Clearance) view. Same constraints: pure Avalonia + SignalR + CommunityToolkit.Mvvm — no Avalonia.Desktop, no Velopack, no file IO. Both the embedded vTDLS tab in Yaat.Client and the browser app at `tools/Yaat.VTdls.Web` consume this assembly. ProjectReferences `Yaat.Sim` + `Yaat.Client.Strips` (the latter just for the shared JetBrains Mono font registration via `WithJetBrainsMonoFont()`).
+
+```
+Services/
+  TdlsDtos.cs                   # Client-side JSON mirrors of the server vTDLS DTOs: TdlsStatus enum, TdlsItemDto, TdlsItemRemovedDto, TdlsStateDto, ClearanceDto, TdlsConfigDto + nested SID/transition/value records. Property names match the server one-for-one so System.Text.Json round-trips without converters.
+  ITdlsTransport.cs             # Narrow contract VTdlsViewModel depends on. IsConnected + transport-state events + TdlsItemChanged/Removed/StateChanged broadcasts + GetAccessibleTdlsFacilities/GetTdlsConfigForFacility/RequestFullTdlsState RPC trio. ServerConnection (Core) and BrowserTdlsTransport (here) both implement it.
+  BrowserTdlsTransport.cs       # WASM-side ITdlsTransport. Owns its own HubConnection, wires JsonHubProtocol against YaatTdlsHubJsonContext only, exposes auto-join helpers (FindRoomForMyCidAsync, JoinRoomAsync, SendCommandAsync, ConnectAsync, RoomAvailableForCid event) needed by tools/Yaat.VTdls.Web/MainView. Browser-only DTO subsets (BrowserTdlsRoomInfoDto, BrowserTdlsJoinRoomResultDto) downscope the wire format.
+  YaatTdlsHubJsonContext.cs     # Source-generated JsonSerializerContext for the TDLS DTO subset. Inserted into the JsonHubProtocol resolver chain by both ServerConnection (alongside YaatHubJsonContext + YaatStripsHubJsonContext) and BrowserTdlsTransport (alone).
+
+ViewModels/
+  VTdlsViewModel.cs             # Root vTDLS VM; reconciles DCL (Pending) and PDC (Sent+Wilco) lists from broadcast events; surfaces accessible-facility list + Switch/Refresh. Ctor takes ITdlsTransport + send-command delegate + Func<string>? getUserInitials.
+  TdlsItemViewModel.cs          # Per-item observable: AircraftId, Status, Sequence, timestamps, SentPayload. Instance identity preserved across reconciles so Avalonia bindings stay stable.
+  TdlsFlightPlanEditorViewModel.cs # Nine-field editor; wraps a working ClearanceDto, exposes per-field dropdowns from the facility's TdlsConfigDto, applies SID+transition defaults on selection, gates Send button on mandatory-field completion.
+  VTdlsCanonicalBuilder.cs      # Build canonical TDLS commands (TDLSQ / TDLSS Expect|Sid|... | LocalInfo / TDLSW / TDLSDUMP) from UI gestures.
+
+Views/VTdls/
+  VTdlsView.axaml(.cs)          # Embedded vTDLS UserControl. Layout mirrors upstream tdls.virtualnas.net: black header chrome, DCL list on top (full width, WrapPanel Vertical column wrap), PDC + decorative empty CPDLC split 50/50 below, flight-plan editor docks at bottom when a DCL item is selected, footer with CLEARANCE TYPE status + Zulu clock. Key bindings: F4 Dump, F10 close editor, F12 Send.
+```
+
 ## Yaat.Client.Core — Shared library (`src/Yaat.Client.Core/`)
 
 Code referenced by Yaat.Client that needs Avalonia.Desktop, Velopack, or file-system access. No LM-Kit, PortAudio, or SharpHook dependencies. Project-references Yaat.Client.Strips for the strip layer. Namespace stays `Yaat.Client.*`.
@@ -120,6 +141,7 @@ ViewModels/
 Views/
   ConnectWindow.axaml.cs        # Server/room/identity entry dialog
   VStrips/VStripsViewWindow.axaml.cs # Pop-out window wrapper for VStripsView. Stays in Core because it depends on UserPreferences + WindowGeometryHelper + KeybindHelper; only the desktop hosts open this Window.
+  VTdls/VTdlsViewWindow.axaml.cs # Pop-out window wrapper for VTdlsView. Same shape as VStripsViewWindow: per-facility geometry key (`VTdlsView:{facilityId}`), first-time topmost inherited from the global `VTdlsView` default, AlwaysOnTop hotkey from UserPreferences.
 ```
 
 ## Yaat.Client — Avalonia desktop app (`src/Yaat.Client/`)
@@ -256,6 +278,20 @@ test/smoke.mjs                   # Headless WASM smoke test (Playwright).
 test/live.mjs                    # Live-server smoke test against a running yaat-server instance.
 ```
 
+## Yaat.VTdls.Web — Browser vTDLS client (`tools/Yaat.VTdls.Web/`)
+
+WebAssembly Avalonia client for the vTDLS view. Hosted by yaat-server at `/vtdls/` (mapped in `YaatHost`). Mirrors the VStrips.Web shape: references Yaat.Client.Tdls + Yaat.Client.Strips (for the shared JetBrains Mono font registration), no Avalonia.Desktop / Velopack / file IO. Identity (CID, initials, ARTCC) flows in via URL query — first-time visitors fill a landing form that redirects with the params filled in.
+
+```
+Program.cs                       # Entry point. Wires SimLog to ConsoleLineLoggerProvider. Stores window.location.search + origin on App.
+App.axaml(.cs)                   # XAML app root with the Light theme variant (upstream vTDLS is light-themed) + SubtleTextBrush/MonoFont resources.
+MainView.axaml(.cs)              # Root view. Hosts VTdlsView, handles auto-join via BrowserTdlsTransport, calls RefreshAccessibleFacilities + SwitchFacility on the first facility after JoinRoom.
+wwwroot/index.html               # WASM host page; landing form (DOM-only, no innerHTML); gates the WASM boot on identity params; localStorage key `yaat-vtdls-identity`.
+wwwroot/main.js                  # Boot script.
+wwwroot/app.css                  # Page chrome (status footer + landing form).
+runtimeconfig.template.json      # net10.0-browser runtime config.
+```
+
 ## Yaat.Sim — Shared simulation library (`src/Yaat.Sim/`)
 
 No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
@@ -294,9 +330,9 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
                                # Each primary function has scalar (double, double, double, double) and LatLon (LatLon, LatLon) overloads
                                # FootOfPerpendicular returns (LatLon Foot, double AlongNm, bool Clamped)
-ClientKind.cs                  # Static constants: Main / VStrips identify which YAAT app a SignalR client is running.
+ClientKind.cs                  # Static constants: Main / VStrips / VTdls identify which YAAT app a SignalR client is running.
                                # Sent on CreateRoom/JoinRoom; stored in RoomMember.Kind; DisplaySuffix appends e.g.
-                               # " (Flight Strips)" to terminal-broadcast verbs ("joined the room (Flight Strips)").
+                               # " (Flight Strips)" / " (vTDLS)" to terminal-broadcast verbs ("joined the room (vTDLS)").
 SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(ILoggerFactory) at startup
 SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngState record); drop-in Random replacement
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings

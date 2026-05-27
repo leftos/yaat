@@ -10,7 +10,7 @@
     {
       "id": "cd",
       "label": "GC + CD training",
-      "cats": ["flight-plan", "transponder", "ground", "helicopter", "coordination", "track", "data-strips", "broadcast", "queue", "chaining"]
+      "cats": ["flight-plan", "transponder", "ground", "helicopter", "coordination", "track", "data-strips", "vtdls", "broadcast", "queue", "chaining"]
     },
     {
       "id": "lc",
@@ -248,6 +248,17 @@
         { "verb": "TEMPALT", "aliases": ["ta", "qq"], "description": "Temporary altitude" },
         { "verb": "CRUISE", "aliases": ["qz"], "description": "Cruise altitude" },
         { "verb": "PRA", "aliases": [], "description": "Pilot reported altitude (0 = clear)" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "vtdls",
+      "name": "vTDLS (PDC)",
+      "rows": [
+        { "verb": "TDLSQ", "aliases": [], "description": "Queue PDC (auto-fired on flight-plan filing)" },
+        { "verb": "TDLSS", "aliases": [], "description": "Send PDC (9 |-separated fields)" },
+        { "verb": "TDLSW", "aliases": [], "description": "Force PDC Wilco (auto-fires ~3s)" },
+        { "verb": "TDLSDUMP", "aliases": ["tdlsd"], "description": "Remove PDC; voice clearance required" }
       ],
       "notes": []
     },

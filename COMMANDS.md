@@ -424,6 +424,19 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | On-handoff | `ONHO` | `ONH` | — |
 | On hold-short | `ONHS` | — | Condition prefix only — use as `ONHS DEL` for auto-delete on reaching the hold-short after landing. |
 
+### vTDLS (Pre-Departure Clearance)
+
+See [docs/vtdls.md](docs/vtdls.md) for the full lifecycle and pilot-side
+semantics. Queue is auto-emitted on flight-plan creation at a TDLS-
+configured facility, so controllers normally only see Send / Wilco / Dump.
+
+| Command | Primary | Aliases | Notes |
+|---------|---------|---------|-------|
+| Queue PDC | `TDLSQ` | — | Auto-fired internally; controllers rarely type this. |
+| Send PDC | `TDLSS Expect\|Sid\|Transition\|Climbout\|Climbvia\|InitialAlt\|ContactInfo\|DepFreq\|LocalInfo` | — | Nine `\|`-separated fields, empty between separators = null. Mandatory fields gated by facility config. |
+| Force PDC Wilco | `TDLSW` | — | Manually marks Sent → Wilco. Auto-fires ~3 s after Send. |
+| Dump PDC | `TDLSDUMP` | `TDLSD` | Removes the PDC; (facility, callsign) locks out further auto-queueing this session. Clearance must now be issued by voice. |
+
 ### ASDE-X Display State
 
 These mutate ASDE-X display state only; they never change the underlying scenario callsign, transponder code, aircraft type, or filed destination. CRC's ASDE-X DB editor (`Y`/`H` keys, F3/F4/F5/F12) sends the same mutations from the controller side.
@@ -1055,6 +1068,44 @@ Because of this rule, a single-token global delete like `HSD Ground` is interpre
 | `LDR 3` | Set leader line direction (1-9; `LDR 5` = default) |
 | `JRING` / `JRING ON` | Clear / set J-Ring |
 | `CONE` / `CONE ON` | Clear / set cone |
+
+#### vTDLS (Pre-Departure Clearance)
+
+Real vNAS exposes a separate web app, [vTDLS](https://tdls.virtualnas.net/),
+that controllers use to issue PDCs. YAAT emulates this as both an in-client
+tab and a browser app served from `/vtdls/` on the deployed server.
+
+**Auto-queue:** When a flight plan is filed at a TDLS-configured facility
+(e.g. KOAK, KSFO, KSJC, KSMF, KRNO under NCT), the server auto-emits a
+`TDLSQ` internally. The Pending callsign appears in the DCL list without
+controller action. Pre-files (CID with a filed plan but no active sim
+aircraft) also generate entries.
+
+**Send:** `TDLSS` ships the prepared clearance with nine `|`-separated
+fields. The vTDLS UI's flight-plan editor builds the canonical string from
+the dropdown selections. Mandatory-field validation (per facility) is
+enforced before the Send button enables — typing the canonical bypasses
+the UI but the server-side mandatory-field check still applies.
+
+| Form                                       | Effect                                                              |
+|--------------------------------------------|---------------------------------------------------------------------|
+| `TDLSS Expect\|Sid\|...`                   | Issue PDC with the nine pipe-separated fields.                      |
+| (empty between pipes)                      | Field is null on the server side.                                   |
+
+After Send: an RPO-visible terminal entry fires (`[TDLS PDC sent at OAK]
+Expect=10 MIN, SID=OAKLAND4.ALTAM, …`), and the pilot's clearance is
+applied silently — no voice readback. Roughly 3 seconds later, the server
+auto-fires `TDLSW` (Wilco). The controller can force this earlier with a
+manual `TDLSW`.
+
+**Dump:** `TDLSDUMP` (alias `TDLSD`) removes the PDC and locks out the
+(facility, callsign) pair for the rest of the session. The pilot loses the
+TDLS-silent flag, so a subsequent `CL` voice clearance behaves normally.
+
+Items time out at 2 hours after queue; the TTL sweep happens in
+`TickProcessor.ProcessTdlsExpiry`. Snapshots preserve Pending/Sent items
+and the Dumped lockout; per-facility configs are re-fetched from the vNAS
+data-api on session restore.
 
 #### Coordination (Rundown List)
 

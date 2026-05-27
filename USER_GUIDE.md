@@ -17,6 +17,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Ground View](#ground-view)
   - [Radar View](#radar-view)
   - [Flight Strips](#flight-strips)
+  - [vTDLS](#vtdls)
   - [Flight Plan Editor](#flight-plan-editor)
   - [Copying View Settings](#copying-view-settings)
 - [Scenarios and Weather](#scenarios-and-weather)
@@ -548,6 +549,36 @@ Half-strip verbs run in two modes: with no aircraft selected, every line you typ
 #### Persistence
 
 Pop-out state for the student strips entry is saved in `preferences.json` under the `VStrips` key. The popped-out window's geometry is saved separately. Bay layouts, zoom level, and selection are not persisted — they're driven by the server config and reset on each scenario load.
+
+### vTDLS
+
+The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https://tdls.virtualnas.net/) web app — the Pre-Departure Clearance (PDC) console real controllers use to issue clearances over data-link. It opens next to **Strips** under **View → vTDLS** as soon as the server tells the client which TDLS facilities the student position can access (typically the position's own ATCT, plus any consolidated child facilities when working a parent TRACON).
+
+vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle.
+
+#### Lists
+
+- **DCL** (top, full width, column-wrapping) — Pending PDCs. A callsign appears here automatically when a flight plan is filed at a TDLS-configured facility (no controller action needed, just like real life). Pre-files generate entries too.
+- **PDC** (bottom-left) — Sent and Wilco'd clearances. Items stay in this list until the aircraft activates on departure or the 2-hour TTL fires.
+- **CPDLC** (bottom-right) — Permanently empty. VATSIM does not simulate CPDLC; the panel is rendered for visual parity with upstream.
+
+#### Issuing a PDC
+
+Click a callsign in the DCL list to open the flight-plan editor at the bottom of the view. Pick a SID and transition from the dropdowns — the FE-configured defaults (Expect, Initial Alt, Dep Freq, Climbout, Contact Info, Local Info, etc.) auto-populate the empty fields. Edit any field as needed. The footer status reads **CLEARANCE TYPE: PDC** when every mandatory field is filled and **MANDATORY FIELD NOT SET — <fields>** otherwise; the **Send** button is disabled until the editor reports valid.
+
+- **Send (F12)** — issues the PDC. The pilot's clearance is applied silently (no voice readback) and RPOs in the room see a terminal entry: `[TDLS PDC sent at OAK] Expect=10 MIN, SID=OAKLAND4.ALTAM, Maintain=5000, DepFreq=120.9`. Roughly 3 seconds later the item auto-flips to Wilco.
+- **Dump (F4)** — removes the PDC. Terminal: the (facility, callsign) pair can no longer be auto-queued this session. Clearance must now be given by voice.
+- **F10** — closes the flight-plan editor without sending; the DCL entry stays.
+
+#### Multi-facility tabs
+
+- **View → vTDLS → New vTDLS Tab…** opens a picker of accessible TDLS facilities and adds a new tab. Useful when working a parent TRACON whose child ATCTs are unstaffed top-down (e.g. NCT with OAK/SFO/SJC/SMF/RNO).
+- **View → vTDLS → Pop Out vTDLS (X)** detaches a tab into its own window. The student entry can be popped out but not closed. Non-student entries get a **Close vTDLS (X)** action.
+- Each tab is titled `vTDLS (FacilityName)` so multiple tabs/windows are distinguishable.
+
+#### Persistence
+
+Pop-out state for the student vTDLS entry is saved in `preferences.json` under the `VTdls` key. Per-facility window geometry persists under `VTdlsView:{facilityId}`. Pending and Sent items survive `prepare-restart` snapshots; the Dumped lockout persists across restart too. Per-facility configs are re-fetched from the vNAS data-api on session restore.
 
 ### Flight Plan Editor
 
