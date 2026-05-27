@@ -19,6 +19,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.VStrips;
+using Yaat.Client.Views.VTdls;
 using Yaat.Sim.Data;
 using Yaat.Sim.Scenarios;
 
@@ -253,6 +254,7 @@ public partial class MainWindow : Window
         }
 
         WireStripsEntryWindows(vm);
+        WireTdlsEntryWindows(vm);
 
         // Sync the content grid's row heights to the initial pop-out state
         // since the partial methods fired before we subscribed above. Without
@@ -1347,6 +1349,226 @@ public partial class MainWindow : Window
                 if (item.Tag is Services.AccessibleFacilityDto f)
                 {
                     await vm.OpenStripsEntryForFacilityAsync(f.FacilityId);
+                }
+            };
+            submenu.Items.Add(item);
+            added++;
+        }
+
+        if (added == 0)
+        {
+            submenu.Items.Add(new MenuItem { Header = "(All accessible facilities already open)", IsEnabled = false });
+        }
+    }
+
+    // ── vTDLS entries: tabs, pop-out windows, View menu ───────
+    //
+    // One-for-one mirror of the Strips block above. Kept in lockstep so a
+    // refactor to one applies the same shape to the other.
+
+    private readonly Dictionary<VTdlsDockEntryViewModel, TabItem> _tdlsTabItems = [];
+    private readonly Dictionary<VTdlsDockEntryViewModel, VTdlsViewWindow> _tdlsWindows = [];
+
+    internal IReadOnlyDictionary<VTdlsDockEntryViewModel, VTdlsViewWindow> TdlsWindows => _tdlsWindows;
+
+    private void WireTdlsEntryWindows(MainViewModel vm)
+    {
+        foreach (var entry in vm.TdlsEntries)
+        {
+            AttachTdlsEntry(vm, entry);
+        }
+        vm.TdlsEntries.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems is not null)
+            {
+                foreach (VTdlsDockEntryViewModel added in e.NewItems)
+                {
+                    AttachTdlsEntry(vm, added);
+                }
+            }
+            if (e.OldItems is not null)
+            {
+                foreach (VTdlsDockEntryViewModel removed in e.OldItems)
+                {
+                    DetachTdlsEntry(removed);
+                }
+            }
+            RebuildTdlsSubmenu(vm);
+        };
+        RebuildTdlsSubmenu(vm);
+    }
+
+    private void AttachTdlsEntry(MainViewModel vm, VTdlsDockEntryViewModel entry)
+    {
+        var tabControl = this.FindControl<TabControl>("MainTabControl");
+        if (tabControl is not null)
+        {
+            var tab = new TabItem
+            {
+                Header = entry.TabTitle,
+                Content = new VTdlsView { DataContext = entry.Vm },
+                IsVisible = !entry.IsPoppedOut,
+            };
+            _tdlsTabItems[entry] = tab;
+            tabControl.Items.Add(tab);
+        }
+
+        entry.PropertyChanged += (_, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(VTdlsDockEntryViewModel.IsPoppedOut):
+                    if (entry.IsPoppedOut)
+                    {
+                        OpenTdlsEntryWindow(vm, entry);
+                    }
+                    else
+                    {
+                        CloseTdlsEntryWindow(entry);
+                    }
+                    if (_tdlsTabItems.TryGetValue(entry, out var t))
+                    {
+                        t.IsVisible = !entry.IsPoppedOut;
+                    }
+                    RebuildTdlsSubmenu(vm);
+                    break;
+                case nameof(VTdlsDockEntryViewModel.TabTitle):
+                    if (_tdlsTabItems.TryGetValue(entry, out var titleTab))
+                    {
+                        titleTab.Header = entry.TabTitle;
+                    }
+                    if (_tdlsWindows.TryGetValue(entry, out var titleWindow))
+                    {
+                        titleWindow.SetWindowTitle(entry.TabTitle);
+                    }
+                    RebuildTdlsSubmenu(vm);
+                    break;
+            }
+        };
+
+        if (entry.IsPoppedOut)
+        {
+            OpenTdlsEntryWindow(vm, entry);
+        }
+    }
+
+    private void DetachTdlsEntry(VTdlsDockEntryViewModel entry)
+    {
+        CloseTdlsEntryWindow(entry);
+        if (_tdlsTabItems.Remove(entry, out var tab))
+        {
+            var tabControl = this.FindControl<TabControl>("MainTabControl");
+            tabControl?.Items.Remove(tab);
+        }
+    }
+
+    private void OpenTdlsEntryWindow(MainViewModel vm, VTdlsDockEntryViewModel entry)
+    {
+        if (_tdlsWindows.ContainsKey(entry))
+        {
+            return;
+        }
+        var window = new VTdlsViewWindow(vm.Preferences, entry.Vm.FacilityId, entry.TabTitle) { DataContext = entry.Vm };
+        _tdlsWindows[entry] = window;
+        window.Closing += (_, _) =>
+        {
+            if (!IsClosingFromShutdown(_isMainWindowClosing))
+            {
+                entry.IsPoppedOut = false;
+            }
+            _tdlsWindows.Remove(entry);
+        };
+        window.Show();
+    }
+
+    private void CloseTdlsEntryWindow(VTdlsDockEntryViewModel entry)
+    {
+        if (_tdlsWindows.TryGetValue(entry, out var window))
+        {
+            _tdlsWindows.Remove(entry);
+            window.Close();
+        }
+    }
+
+    private void RebuildTdlsSubmenu(MainViewModel vm)
+    {
+        var submenu = this.FindControl<MenuItem>("TdlsSubmenu");
+        if (submenu is null)
+        {
+            return;
+        }
+
+        var items = new List<object>();
+        foreach (var entry in vm.TdlsEntries)
+        {
+            var popOut = new MenuItem
+            {
+                Header = $"Pop Out {entry.TabTitle}",
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = entry.IsPoppedOut,
+                Tag = entry,
+            };
+            popOut.Click += (_, _) =>
+            {
+                if (popOut.Tag is VTdlsDockEntryViewModel e)
+                {
+                    e.IsPoppedOut = !e.IsPoppedOut;
+                }
+            };
+            items.Add(popOut);
+
+            if (!entry.IsStudentEntry)
+            {
+                var close = new MenuItem { Header = $"Close {entry.TabTitle}", Tag = entry };
+                close.Click += (_, _) =>
+                {
+                    if (close.Tag is VTdlsDockEntryViewModel e)
+                    {
+                        vm.CloseTdlsEntryCommand.Execute(e);
+                    }
+                };
+                items.Add(close);
+            }
+        }
+        items.Add(new Separator());
+        var newTabItem = new MenuItem { Header = "_New vTDLS Tab..." };
+        newTabItem.Items.Add(new MenuItem { Header = "(Loading...)", IsEnabled = false });
+        newTabItem.SubmenuOpened += OnNewTdlsTabSubmenuOpened;
+        items.Add(newTabItem);
+
+        submenu.ItemsSource = items;
+    }
+
+    private void OnNewTdlsTabSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not MenuItem submenu || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+        submenu.Items.Clear();
+
+        var studentVm = vm.TdlsEntries.FirstOrDefault()?.Vm;
+        if (studentVm is null || studentVm.AccessibleFacilities.Count == 0)
+        {
+            submenu.Items.Add(new MenuItem { Header = "(No accessible TDLS facilities)", IsEnabled = false });
+            return;
+        }
+
+        var existingIds = vm.TdlsEntries.Select(x => x.Vm.FacilityId).Where(id => !string.IsNullOrEmpty(id)).ToHashSet(System.StringComparer.Ordinal);
+        var added = 0;
+        foreach (var facility in studentVm.AccessibleFacilities)
+        {
+            if (existingIds.Contains(facility.FacilityId))
+            {
+                continue;
+            }
+            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
+            var item = new MenuItem { Header = header, Tag = facility };
+            item.Click += async (_, _) =>
+            {
+                if (item.Tag is Services.AccessibleFacilityDto f)
+                {
+                    await vm.OpenTdlsEntryForFacilityAsync(f.FacilityId);
                 }
             };
             submenu.Items.Add(item);

@@ -70,6 +70,11 @@
                 <MenuItem Header="_Strips"
                           x:Name="StripsSubmenu"
                           IsEnabled="{Binding IsInRoom}" />
+                <!-- vTDLS submenu — populated by RebuildTdlsSubmenu in
+                     code-behind, mirroring the Strips submenu shape. -->
+                <MenuItem Header="v_TDLS"
+                          x:Name="TdlsSubmenu"
+                          IsEnabled="{Binding IsInRoom}" />
                 <Separator />
                 <MenuItem Header="Show _Timeline Bar"
                           ToggleType="CheckBox"
