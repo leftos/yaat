@@ -45,6 +45,9 @@ public partial class TdlsItemViewModel : ObservableObject
     private ClearanceDto? _sentPayload;
 
     [ObservableProperty]
+    private TdlsFlightPlanInfoDto? _flightPlan;
+
+    [ObservableProperty]
     private bool _isSelected;
 
     public TdlsItemViewModel(TdlsItemDto dto)
@@ -66,5 +69,6 @@ public partial class TdlsItemViewModel : ObservableObject
         WilcoUtc = dto.WilcoUtc;
         ExpiresUtc = dto.ExpiresUtc;
         SentPayload = dto.SentPayload;
+        FlightPlan = dto.FlightPlan;
     }
 }

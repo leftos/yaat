@@ -22,6 +22,9 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     public string Callsign { get; }
 
+    /// <summary>Read-only filed flight-plan snapshot rendered above the dropdowns. Null when the aircraft has no filed plan yet (pre-filing window).</summary>
+    public TdlsFlightPlanInfoDto? FlightPlan { get; }
+
     /// <summary>SIDs offered by the facility. Display via <c>Name</c>; the canonical command uses <c>Id</c>.</summary>
     public ObservableCollection<TdlsSidDto> Sids { get; } = [];
 
@@ -74,10 +77,11 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// <summary>Human-readable list of mandatory fields that are still blank — drives the footer status string.</summary>
     public string MissingMandatoryFieldNames => string.Join(", ", EnumerateMissingMandatoryFields());
 
-    public TdlsFlightPlanEditorViewModel(string callsign, TdlsConfigDto config, ClearanceDto? seed)
+    public TdlsFlightPlanEditorViewModel(string callsign, TdlsConfigDto config, ClearanceDto? seed, TdlsFlightPlanInfoDto? flightPlan)
     {
         Callsign = callsign;
         _config = config;
+        FlightPlan = flightPlan;
 
         foreach (var sid in config.Sids)
         {
@@ -113,16 +117,20 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
 
         // Initial SID + transition come from either the existing Pending
-        // item's pre-filled clearance (if any) or the facility's defaults.
+        // item's pre-filled clearance (if any), the filed-route's first SID
+        // token (best-effort match against config.Sids by name), or the
+        // facility's defaults — in that priority order.
         // Phase 1 — populate the dropdown selections WITHOUT firing the
         // default-propagation hooks; otherwise selected-changed callbacks
         // overwrite the seed before we get a chance to copy its values in.
         _suppressDefaults = true;
         try
         {
-            _selectedSid = ResolveSid(seed?.Sid ?? config.DefaultSidId);
+            var (filedSidId, filedTransitionId) = MatchSidFromFiledRoute(config, flightPlan?.Route);
+
+            _selectedSid = ResolveSid(seed?.Sid ?? filedSidId ?? config.DefaultSidId);
             RebuildTransitions(_selectedSid);
-            _selectedTransition = ResolveTransition(_selectedSid, seed?.Transition ?? config.DefaultTransitionId);
+            _selectedTransition = ResolveTransition(_selectedSid, seed?.Transition ?? filedTransitionId ?? config.DefaultTransitionId);
 
             Expect = seed?.Expect;
             Climbout = seed?.Climbout;
@@ -206,6 +214,48 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     /// <summary>Invoked when the user presses Send (or F12). VTdlsViewModel hands the clearance off to the canonical builder.</summary>
     public Func<ClearanceDto, Task>? OnSendRequested { get; set; }
+
+    /// <summary>
+    /// Best-effort match of the filed route's leading SID token (e.g. "OAK6") against the
+    /// facility config's SID names. Returns the matched SID id + optionally a transition id
+    /// resolved by matching the route's second token against transition <c>FirstRoutePoint</c>
+    /// values. Returns (null, null) when no match is found — the caller falls through to the
+    /// facility's <c>DefaultSidId</c>.
+    /// </summary>
+    internal static (string? SidId, string? TransitionId) MatchSidFromFiledRoute(TdlsConfigDto config, string? route)
+    {
+        if (string.IsNullOrWhiteSpace(route))
+        {
+            return (null, null);
+        }
+        var tokens = route.Split([' ', '.', '+'], StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return (null, null);
+        }
+
+        // Some flight plans encode SID + transition as "SID.TRANS" (e.g. "OAK6.OAK").
+        // Walk the first token's '.' components alongside the route tokens so both
+        // "OAK6 OAK V107 LAX" and "OAK6.OAK V107 LAX" route in the same path.
+        var firstParts = tokens[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var sidToken = firstParts[0];
+        var transitionHint =
+            firstParts.Length > 1 ? firstParts[1]
+            : tokens.Length > 1 ? tokens[1]
+            : null;
+
+        var sid = config.Sids.FirstOrDefault(s => string.Equals(s.Name, sidToken, StringComparison.OrdinalIgnoreCase));
+        if (sid is null)
+        {
+            return (null, null);
+        }
+
+        var transition = transitionHint is null
+            ? null
+            : sid.Transitions.FirstOrDefault(t => string.Equals(t.FirstRoutePoint, transitionHint, StringComparison.OrdinalIgnoreCase));
+
+        return (sid.Id, transition?.Id);
+    }
 
     private TdlsSidDto? ResolveSid(string? sidId) =>
         sidId is null ? null : _config.Sids.FirstOrDefault(s => string.Equals(s.Id, sidId, StringComparison.Ordinal));

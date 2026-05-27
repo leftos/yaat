@@ -85,7 +85,10 @@ public partial class VTdlsViewModel : ObservableObject
             // post-send and immutable — the controller can only dump or wait.
             if (newValue.Status == TdlsStatus.Pending && Config is not null)
             {
-                Editor = new TdlsFlightPlanEditorViewModel(newValue.AircraftId, Config, seed: null) { OnSendRequested = OnEditorSendRequested };
+                Editor = new TdlsFlightPlanEditorViewModel(newValue.AircraftId, Config, seed: null, flightPlan: newValue.FlightPlan)
+                {
+                    OnSendRequested = OnEditorSendRequested,
+                };
             }
             else
             {

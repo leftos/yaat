@@ -197,16 +197,42 @@
                 Padding="8">
             <StackPanel DataContext="{Binding Editor}" Orientation="Vertical">
 
-                <!-- Flight-plan header strip. Pre-populate from the filed plan
-                     is wired up by the read-only header view (separate task);
-                     for now we render just the callsign so the editor still
-                     identifies which aircraft is being cleared. -->
-                <TextBlock Text="{Binding Callsign, StringFormat='FLIGHT PLAN — {0}'}"
-                           FontFamily="{StaticResource MonoFont}"
-                           FontWeight="Bold"
-                           FontSize="12"
-                           Foreground="{DynamicResource VTdlsEditorTextFg}"
-                           Margin="0,0,0,6"/>
+                <!-- Flight-plan header strip — labels match docs/vtdls/vtdls.md
+                     §Flight Plan Layout (fields A-H). Read-only; amendments
+                     happen through the radar client (per upstream: "Flight
+                     plans cannot be amended through TDLS"). Empty fields
+                     render blank rather than a placeholder so the strip
+                     mirrors what a controller actually sees in real vTDLS. -->
+                <Border BorderBrush="{DynamicResource VTdlsListBorder}"
+                        BorderThickness="0,0,0,1"
+                        Padding="0,0,0,6"
+                        Margin="0,0,0,6">
+                    <StackPanel Orientation="Vertical">
+                        <Grid ColumnDefinitions="Auto,8,*,12,Auto,8,Auto" Margin="0,0,0,2">
+                            <TextBlock Grid.Column="0" Text="{Binding Callsign}" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding FlightPlan.Route, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Grid.Column="4" Text="{Binding FlightPlan.AssignedBeaconCode, StringFormat='BCN \{0:D4\}', FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="6" Text="{Binding FlightPlan.CruiseFlightLevel, StringFormat='FL\{0:000\}', FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,4,Auto,12,Auto,4,Auto,12,Auto,4,*">
+                            <TextBlock Grid.Column="0" Text="DEP" Opacity="0.7" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding FlightPlan.Departure, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="4" Text="DEST" Opacity="0.7" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="6" Text="{Binding FlightPlan.Destination, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="8" Text="TYPE" Opacity="0.7" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <StackPanel Grid.Column="10" Orientation="Horizontal">
+                                <TextBlock Text="{Binding FlightPlan.AircraftType, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                                <TextBlock Text="{Binding FlightPlan.EquipmentSuffix, StringFormat='/\{0\}', FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            </StackPanel>
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,4,*,12,Auto,4,Auto" Margin="0,1,0,0">
+                            <TextBlock Grid.Column="0" Text="RMK" Opacity="0.7" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding FlightPlan.Remarks, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Grid.Column="4" Text="CID" Opacity="0.7" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                            <TextBlock Grid.Column="6" Text="{Binding FlightPlan.Cid, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
                 <!-- Row 1: Expect (alone — first field in the upstream order). -->
                 <Grid ColumnDefinitions="120,200,*" Margin="0,0,0,4">

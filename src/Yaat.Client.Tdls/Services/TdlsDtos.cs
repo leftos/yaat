@@ -28,8 +28,32 @@ public record TdlsItemDto(
     DateTime? SentUtc,
     DateTime? WilcoUtc,
     DateTime ExpiresUtc,
-    ClearanceDto? SentPayload
+    ClearanceDto? SentPayload,
+    TdlsFlightPlanInfoDto? FlightPlan
 );
+
+// Read-only snapshot of the filed flight plan that the vTDLS editor's
+// header strip renders next to the dropdowns (docs/vtdls/vtdls.md §Flight
+// Plan Layout, fields A-H). Resolved server-side at DTO-build time so
+// amendments through the radar client are picked up automatically.
+public record TdlsFlightPlanInfoDto(
+    int? AssignedBeaconCode,
+    string Departure,
+    string Destination,
+    string Route,
+    string AircraftType,
+    string EquipmentSuffix,
+    string Remarks,
+    string Cid,
+    int CruiseAltitude
+)
+{
+    /// <summary>Cruise altitude divided by 100 — what the upstream "FL" indicator displays in the editor header.</summary>
+    public int CruiseFlightLevel => CruiseAltitude / 100;
+
+    /// <summary>Aircraft type + equipment suffix as a single display string ("B738/L").</summary>
+    public string TypeAndEquipment => string.IsNullOrEmpty(EquipmentSuffix) ? AircraftType : $"{AircraftType}/{EquipmentSuffix}";
+}
 
 public record TdlsDumpedEntryDto(string FacilityId, string Callsign);
 

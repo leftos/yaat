@@ -60,7 +60,7 @@ public class TdlsFlightPlanEditorViewModelTests
     [Fact]
     public void Constructor_AppliesTransitionDefaults_WhenNoSeed()
     {
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null);
 
         // The constructor seeds SelectedSid + SelectedTransition from the
         // facility defaults. Transition defaults apply during construction so
@@ -77,7 +77,7 @@ public class TdlsFlightPlanEditorViewModelTests
     public void IsSendEnabled_False_WhenMandatoryFieldMissing()
     {
         var cfg = BuildConfig(mandatoryExpect: true);
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null);
 
         // Wipe Expect — that's mandatory in this config; Send must lock.
         editor.Expect = null;
@@ -104,7 +104,7 @@ public class TdlsFlightPlanEditorViewModelTests
             DepFreq: "121.4"
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null);
 
         Assert.Equal("20 MIN", editor.Expect);
         Assert.Equal("7000", editor.InitialAlt);
@@ -112,9 +112,80 @@ public class TdlsFlightPlanEditorViewModelTests
     }
 
     [Fact]
+    public void FiledRoute_PrepopulatesSidAndTransition_FromLeadingTokens()
+    {
+        // "OAK6 OAK V107 LAX" — leading token matches SID name; second token
+        // matches transition FirstRoutePoint. Both dropdowns should snap to
+        // the filed values without any explicit seed.
+        var cfg = BuildConfig();
+        var fp = new TdlsFlightPlanInfoDto(
+            AssignedBeaconCode: 501,
+            Departure: "KOAK",
+            Destination: "KLAX",
+            Route: "OAKLAND4 ALTAM V107 LAX",
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "1234567",
+            CruiseAltitude: 35000
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp);
+
+        Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
+        Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
+    }
+
+    [Fact]
+    public void FiledRoute_DottedSidTransitionForm_AlsoMatches()
+    {
+        // "OAKLAND4.ALTAM V107 LAX" — common ATC route notation for SID+transition.
+        var cfg = BuildConfig();
+        var fp = new TdlsFlightPlanInfoDto(
+            AssignedBeaconCode: 501,
+            Departure: "KOAK",
+            Destination: "KLAX",
+            Route: "OAKLAND4.ALTAM V107 LAX",
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "1234567",
+            CruiseAltitude: 35000
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp);
+
+        Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
+        Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
+    }
+
+    [Fact]
+    public void FiledRoute_UnknownSidFallsBackToDefault()
+    {
+        var cfg = BuildConfig();
+        var fp = new TdlsFlightPlanInfoDto(
+            AssignedBeaconCode: null,
+            Departure: "KOAK",
+            Destination: "KLAX",
+            Route: "NOTAREAL4 V107 LAX",
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "",
+            CruiseAltitude: 0
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: fp);
+
+        // Falls back to the facility's DefaultSidId (and its default transition).
+        Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
+        Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
+    }
+
+    [Fact]
     public void ToClearanceDto_RoundTripsCurrentEditorState()
     {
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null);
 
         var clearance = editor.ToClearanceDto();
 
