@@ -182,168 +182,200 @@
         </Grid>
 
         <!-- ── Flight-plan editor (visible only when a DCL item is selected) ──
-             Layout mirrors docs/vtdls/img/flight-plan.png and the field order
-             documented in §Selecting PDC Field Values: Expect, then SID /
-             Transition / Climb out / Climb via / Maintain, then Contact info /
-             Departure frequency, then Local info. Buttons: Dump bottom-left,
-             Cancel + Send bottom-right. All dropdowns are ComboBoxes —
-             "Only values predefined by the Facility Engineer may be selected"
-             (upstream §Selecting PDC Field Values). -->
+             Mirrors docs/vtdls/img/flight-plan.png pixel-for-pixel as closely
+             as Avalonia allows. Upstream uses NO inline labels next to the
+             dropdowns — only DEP FREQ is labeled — and the read-only header
+             fields A-H are positioned in three columns with no captions
+             (controllers learn the field positions). The Expect dropdown sits
+             on the same row as H (cruise FL), indented to align with B/E. -->
         <Border Grid.Row="3"
                 IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}"
                 Background="{DynamicResource VTdlsListBg}"
                 BorderBrush="{DynamicResource VTdlsListBorder}"
                 BorderThickness="1"
-                Padding="8">
+                Padding="10">
             <StackPanel DataContext="{Binding Editor}" Orientation="Vertical">
 
-                <!-- Flight-plan header strip — matches the position of fields
-                     A-H in docs/vtdls/img/flight-plan.png:
-                       Row 1:  A (callsign, bold)            B C (beacon + route + /HHMM ETE)
-                       Row 2:  D (type/equip)  E (proposed dep time)     F (remarks, right-aligned)
-                       Row 3:  G (CID)  H (cruise FL)
-                     Read-only; amendments happen through the radar client
-                     ("Flight plans cannot be amended through TDLS"). -->
-                <StackPanel Orientation="Vertical" Margin="0,0,0,10">
-                    <Grid ColumnDefinitions="60,Auto,8,*,8,Auto" Margin="0,0,0,2">
-                        <TextBlock Grid.Column="0" Text="{Binding Callsign}" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <TextBlock Grid.Column="1" Text="{Binding FlightPlan.AssignedBeaconCode, StringFormat='\{0:D4\}', FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="3" Text="{Binding FlightPlan.RouteDisplay, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="60,Auto,16,Auto,16,*" Margin="0,0,0,2">
-                        <TextBlock Grid.Column="0" Text="{Binding FlightPlan.TypeAndEquipment, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <TextBlock Grid.Column="1" Text="" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <TextBlock Grid.Column="5" Text="{Binding FlightPlan.RemarksDisplay, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}" TextTrimming="CharacterEllipsis" TextAlignment="Right"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="60,Auto" Margin="0,0,0,2">
-                        <TextBlock Grid.Column="0" Text="{Binding FlightPlan.Cid, FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <TextBlock Grid.Column="1" Text="{Binding FlightPlan.CruiseFlightLevel, StringFormat='\{0:000\}', FallbackValue=''}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    </Grid>
-                </StackPanel>
+                <!-- Header block. Four rows; columns are A/D/G/H (~100px),
+                     B/E/(blank)/Expect-dropdown (~190px Auto), C/F (* — F is
+                     right-aligned, C overflows with ellipsis on narrow panes).
+                     The Expect dropdown shares its row with the cruise FL
+                     (H) value, exactly like the upstream screenshot. -->
+                <Grid ColumnDefinitions="100,190,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,0,0,12">
+                    <!-- Row 0: A B C -->
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{Binding Callsign}"
+                               FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="13"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1"
+                               Text="{Binding FlightPlan.AssignedBeaconCode, StringFormat='\{0:D4\}', FallbackValue=''}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="0" Grid.Column="2"
+                               Text="{Binding FlightPlan.RouteDisplay, FallbackValue=''}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
 
-                <!-- Dropdown row 1: SID | Transition (the two narrow pickers
-                     occupy the top-left, matching upstream's flight-plan.png
-                     where SSOXS6 + "- - - -" sit alone above the wider row). -->
-                <Grid ColumnDefinitions="2*,2*,11*" Margin="0,0,0,4">
-                    <StackPanel Grid.Column="0" Margin="2,0">
-                        <TextBlock Text="SID" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding Sids}"
-                                  SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
-                                  DisplayMemberBinding="{Binding Name}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Margin="2,0">
-                        <TextBlock Text="Transition" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding Transitions}"
-                                  SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
-                                  DisplayMemberBinding="{Binding Name}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
+                    <!-- Row 1: D E F — F right-aligned for "RMK: ..." -->
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{Binding FlightPlan.TypeAndEquipment, FallbackValue=''}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <!-- E: proposed departure time. Not tracked by the sim yet;
+                         left blank so the layout still has the upstream slot. -->
+                    <TextBlock Grid.Row="1" Grid.Column="1"
+                               Text=""
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2"
+                               Text="{Binding FlightPlan.RemarksDisplay, FallbackValue=''}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"
+                               HorizontalAlignment="Right"
+                               TextTrimming="CharacterEllipsis"/>
+
+                    <!-- Row 2: G — CID alone -->
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{Binding FlightPlan.Cid, FallbackValue=''}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+
+                    <!-- Row 3: H (cruise FL) + Expect dropdown -->
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{Binding FlightPlan.CruiseFlightLevel, StringFormat='\{0:000\}', FallbackValue=''}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"
+                               VerticalAlignment="Center"/>
+                    <ComboBox Grid.Row="3" Grid.Column="1"
+                              ItemsSource="{Binding Expects}"
+                              SelectedValue="{Binding Expect, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              Margin="0,2,4,0"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Expect"/>
                 </Grid>
 
-                <!-- Dropdown row 2: Expect | Climb out | Climb via | Maintain.
-                     Climb via takes the lion's share (~50%) because it carries
-                     the long "CLIMB VIA SID EXCEPT MAINTAIN FLxxx" phrasing.
-                     Width ratios match docs/vtdls/img/flight-plan.png. -->
-                <Grid ColumnDefinitions="2*,2*,7*,2*" Margin="0,0,0,4">
-                    <StackPanel Grid.Column="0" Margin="2,0">
-                        <TextBlock Text="Expect" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding Expects}"
-                                  SelectedValue="{Binding Expect, Mode=TwoWay}"
-                                  SelectedValueBinding="{Binding Value}"
-                                  DisplayMemberBinding="{Binding Value}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Margin="2,0">
-                        <TextBlock Text="Climb out" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding Climbouts}"
-                                  SelectedValue="{Binding Climbout, Mode=TwoWay}"
-                                  SelectedValueBinding="{Binding Value}"
-                                  DisplayMemberBinding="{Binding Value}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" Margin="2,0">
-                        <TextBlock Text="Climb via" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding Climbvias}"
-                                  SelectedValue="{Binding Climbvia, Mode=TwoWay}"
-                                  SelectedValueBinding="{Binding Value}"
-                                  DisplayMemberBinding="{Binding Value}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="3" Margin="2,0">
-                        <TextBlock Text="Maintain" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding InitialAlts}"
-                                  SelectedValue="{Binding InitialAlt, Mode=TwoWay}"
-                                  SelectedValueBinding="{Binding Value}"
-                                  DisplayMemberBinding="{Binding Value}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
+                <!-- Dropdown row 5: SID | Transition | Climb out | Climb via |
+                     Maintain. Width ratios measured from upstream screenshot:
+                     SSOXS6 ≈ - - - - ≈ Maintain (1x) ; Climb out (2x) ;
+                     Climb via dominates (6x) for "CLIMB VIA SID EXCEPT
+                     MAINTAIN FLxxx". No inline labels — controllers learn
+                     the field positions, like upstream. -->
+                <Grid ColumnDefinitions="1*,1*,2*,6*,1*" Margin="0,0,0,8">
+                    <ComboBox Grid.Column="0" Margin="0,0,4,0"
+                              ItemsSource="{Binding Sids}"
+                              SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
+                              DisplayMemberBinding="{Binding Name}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="SID"/>
+                    <ComboBox Grid.Column="1" Margin="0,0,4,0"
+                              ItemsSource="{Binding Transitions}"
+                              SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
+                              DisplayMemberBinding="{Binding Name}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Transition"/>
+                    <ComboBox Grid.Column="2" Margin="0,0,4,0"
+                              ItemsSource="{Binding Climbouts}"
+                              SelectedValue="{Binding Climbout, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Climb out"/>
+                    <ComboBox Grid.Column="3" Margin="0,0,4,0"
+                              ItemsSource="{Binding Climbvias}"
+                              SelectedValue="{Binding Climbvia, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Climb via"/>
+                    <ComboBox Grid.Column="4"
+                              ItemsSource="{Binding InitialAlts}"
+                              SelectedValue="{Binding InitialAlt, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Maintain"/>
                 </Grid>
 
-                <!-- Dropdown row 3: Contact info on the left (~40%), gap, then
-                     Departure frequency tucked on the right (~15%), mirroring
-                     the "CTC 121.65 TO PUSH … DEP FREQ 133.0" line in the
-                     upstream screenshot. -->
-                <Grid ColumnDefinitions="4*,7*,2*" Margin="0,0,0,4">
-                    <StackPanel Grid.Column="0" Margin="2,0">
-                        <TextBlock Text="Contact info" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding ContactInfos}"
-                                  SelectedValue="{Binding ContactInfo, Mode=TwoWay}"
-                                  SelectedValueBinding="{Binding Value}"
-                                  DisplayMemberBinding="{Binding Value}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" Margin="2,0">
-                        <TextBlock Text="Departure frequency" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding DepFreqs}"
-                                  SelectedValue="{Binding DepFreq, Mode=TwoWay}"
-                                  SelectedValueBinding="{Binding Value}"
-                                  DisplayMemberBinding="{Binding Value}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
+                <!-- Dropdown row 6: Contact info on the left (~25%), large
+                     gap, then "DEP FREQ" label + dropdown right-aligned (~12%).
+                     DEP FREQ is the ONE inline label upstream renders. -->
+                <Grid ColumnDefinitions="3*,7*,Auto,Auto" Margin="0,0,0,8">
+                    <ComboBox Grid.Column="0"
+                              ItemsSource="{Binding ContactInfos}"
+                              SelectedValue="{Binding ContactInfo, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Contact info"/>
+                    <TextBlock Grid.Column="2"
+                               Text="DEP FREQ"
+                               Margin="0,0,6,0"
+                               VerticalAlignment="Center"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <ComboBox Grid.Column="3" MinWidth="100"
+                              ItemsSource="{Binding DepFreqs}"
+                              SelectedValue="{Binding DepFreq, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Departure frequency"/>
                 </Grid>
 
-                <!-- Dropdown row 4: Local info, ~40% width matching the
-                     narrower "- - - -" pill in the upstream screenshot. -->
-                <Grid ColumnDefinitions="4*,9*" Margin="0,0,0,8">
-                    <StackPanel Grid.Column="0" Margin="2,0">
-                        <TextBlock Text="Local info" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                        <ComboBox ItemsSource="{Binding LocalInfos}"
-                                  SelectedValue="{Binding LocalInfo, Mode=TwoWay}"
-                                  SelectedValueBinding="{Binding Value}"
-                                  DisplayMemberBinding="{Binding Value}"
-                                  HorizontalAlignment="Stretch"
-                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                    </StackPanel>
+                <!-- Dropdown row 7: Local info (~25% wide, left-aligned). -->
+                <Grid ColumnDefinitions="3*,10*" Margin="0,0,0,8">
+                    <ComboBox Grid.Column="0"
+                              ItemsSource="{Binding LocalInfos}"
+                              SelectedValue="{Binding LocalInfo, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"
+                              ToolTip.Tip="Local info"/>
                 </Grid>
 
-                <!-- Buttons row: Dump bottom-left, Cancel + Send bottom-right. -->
-                <Grid ColumnDefinitions="*,*">
-                    <Button Grid.Column="0" Content="Dump (F4)"
+                <!-- Buttons row: Dump bottom-left, Edit + Cancel + Send
+                     bottom-right (Edit is a disabled placeholder — upstream
+                     uses it for re-opening a Sent PDC in read-only mode,
+                     which isn't implemented yet). Big top margin to match
+                     the vertical breathing room in the upstream screenshot. -->
+                <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,0">
+                    <Button Grid.Column="0" Content="Dump"
                             Click="OnDumpClick"
                             HorizontalAlignment="Left"
                             FontFamily="{StaticResource MonoFont}" FontSize="11"
-                            Padding="10,2"/>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancel (F10)"
+                            Padding="12,3"
+                            ToolTip.Tip="Dump (F4) — remove this PDC and lock the aircraft out for the session"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <Button Content="Edit"
+                                IsEnabled="False"
+                                FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                Padding="12,3"
+                                ToolTip.Tip="Re-open a Sent PDC for review (not yet implemented)"/>
+                        <Button Content="Cancel"
                                 Click="OnCancelClick"
                                 FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                Margin="0,0,6,0"
-                                Padding="10,2"/>
-                        <Button Content="Send (F12)"
+                                Padding="12,3"
+                                ToolTip.Tip="Cancel (F10) — close the editor without sending"/>
+                        <Button Content="Send"
                                 Command="{Binding SendCommand}"
                                 IsEnabled="{Binding IsSendEnabled}"
                                 FontFamily="{StaticResource MonoFont}" FontSize="11"
                                 FontWeight="Bold"
-                                Padding="10,2"/>
+                                Padding="12,3"
+                                ToolTip.Tip="Send (F12) — issue the PDC to the pilot"/>
                     </StackPanel>
                 </Grid>
             </StackPanel>
