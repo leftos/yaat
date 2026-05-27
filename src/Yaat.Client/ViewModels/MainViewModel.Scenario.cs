@@ -525,8 +525,11 @@ public partial class MainViewModel
 
     private async Task BootstrapStudentTdlsAsync(string? primaryAirportId)
     {
-        await VTdls.RefreshAccessibleFacilitiesAsync();
-        var preferred = ResolvePreferredTdlsFacility(primaryAirportId);
+        // Use the returned list directly — AccessibleFacilities is updated via
+        // Dispatcher.InvokeAsync inside RefreshAccessibleFacilitiesAsync, but
+        // we don't want to race even that bookkeeping.
+        var facilities = await VTdls.RefreshAccessibleFacilitiesAsync();
+        var preferred = ResolvePreferredTdlsFacility(facilities, primaryAirportId);
         if (preferred is not null)
         {
             await VTdls.SwitchFacilityAsync(preferred);
@@ -539,28 +542,26 @@ public partial class MainViewModel
     /// OAK facility serves KOAK; SFO facility serves KSFO; etc.). Falls back to
     /// the first accessible TDLS facility, then null when none are available.
     /// </summary>
-    private string? ResolvePreferredTdlsFacility(string? primaryAirportId)
+    private static string? ResolvePreferredTdlsFacility(IReadOnlyList<Services.AccessibleFacilityDto> facilities, string? primaryAirportId)
     {
-        if (VTdls.AccessibleFacilities.Count == 0)
+        if (facilities.Count == 0)
         {
             return null;
         }
 
         if (!string.IsNullOrEmpty(primaryAirportId))
         {
-            // vNAS facility ids drop the leading K (KOAK → OAK). Try the bare
-            // form first, then the full id, then a case-insensitive match.
             var bare = primaryAirportId.StartsWith('K') && primaryAirportId.Length == 4 ? primaryAirportId[1..] : primaryAirportId;
             var match =
-                VTdls.AccessibleFacilities.FirstOrDefault(f => string.Equals(f.FacilityId, bare, StringComparison.OrdinalIgnoreCase))
-                ?? VTdls.AccessibleFacilities.FirstOrDefault(f => string.Equals(f.FacilityId, primaryAirportId, StringComparison.OrdinalIgnoreCase));
+                facilities.FirstOrDefault(f => string.Equals(f.FacilityId, bare, StringComparison.OrdinalIgnoreCase))
+                ?? facilities.FirstOrDefault(f => string.Equals(f.FacilityId, primaryAirportId, StringComparison.OrdinalIgnoreCase));
             if (match is not null)
             {
                 return match.FacilityId;
             }
         }
 
-        return VTdls.AccessibleFacilities[0].FacilityId;
+        return facilities[0].FacilityId;
     }
 
     private void OnScenarioUnloaded()

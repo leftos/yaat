@@ -141,13 +141,22 @@ public partial class VTdlsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Pulls the list of facilities the current room's position can open vTDLS windows for. Called from the host on JoinRoom.</summary>
-    public async Task RefreshAccessibleFacilitiesAsync()
+    /// <summary>
+    /// Pulls the list of facilities the current room's position can open vTDLS
+    /// windows for and populates <see cref="AccessibleFacilities"/>. Returns the
+    /// freshly fetched list directly so callers (e.g. scenario bootstrap)
+    /// don't race the Dispatcher post that updates the observable collection.
+    /// Empty list on transport failure (logged at Warning).
+    /// </summary>
+    public async Task<List<AccessibleFacilityDto>> RefreshAccessibleFacilitiesAsync()
     {
         try
         {
             var facilities = await _transport.GetAccessibleTdlsFacilitiesAsync();
-            Dispatcher.UIThread.Post(() =>
+            // InvokeAsync (not Post) so the caller can safely read AccessibleFacilities
+            // on completion. The synchronous return value is the authoritative copy
+            // regardless of which thread the caller is on.
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 AccessibleFacilities.Clear();
                 foreach (var f in facilities)
@@ -155,10 +164,12 @@ public partial class VTdlsViewModel : ObservableObject
                     AccessibleFacilities.Add(f);
                 }
             });
+            return facilities;
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to fetch accessible TDLS facilities");
+            return [];
         }
     }
 
