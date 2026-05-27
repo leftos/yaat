@@ -268,8 +268,7 @@
                                VerticalAlignment="Center"/>
                     <ComboBox Grid.Row="3" Grid.Column="1"
                               ItemsSource="{Binding Expects}"
-                              SelectedValue="{Binding Expect, Mode=TwoWay}"
-                              SelectedValueBinding="{Binding Value}"
+                              SelectedItem="{Binding SelectedExpect}"
                               DisplayMemberBinding="{Binding Value}"
                               HorizontalAlignment="Stretch"
                               Margin="0,2,4,0"
@@ -300,24 +299,21 @@
                               ToolTip.Tip="Transition"/>
                     <ComboBox Grid.Column="2" Margin="0,0,4,0"
                               ItemsSource="{Binding Climbouts}"
-                              SelectedValue="{Binding Climbout, Mode=TwoWay}"
-                              SelectedValueBinding="{Binding Value}"
+                              SelectedItem="{Binding SelectedClimbout}"
                               DisplayMemberBinding="{Binding Value}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb out"/>
                     <ComboBox Grid.Column="3" Margin="0,0,4,0"
                               ItemsSource="{Binding Climbvias}"
-                              SelectedValue="{Binding Climbvia, Mode=TwoWay}"
-                              SelectedValueBinding="{Binding Value}"
+                              SelectedItem="{Binding SelectedClimbvia}"
                               DisplayMemberBinding="{Binding Value}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb via"/>
                     <ComboBox Grid.Column="4"
                               ItemsSource="{Binding InitialAlts}"
-                              SelectedValue="{Binding InitialAlt, Mode=TwoWay}"
-                              SelectedValueBinding="{Binding Value}"
+                              SelectedItem="{Binding SelectedInitialAlt}"
                               DisplayMemberBinding="{Binding Value}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
@@ -330,8 +326,7 @@
                 <Grid ColumnDefinitions="3*,7*,Auto,Auto" Margin="0,0,0,8">
                     <ComboBox Grid.Column="0"
                               ItemsSource="{Binding ContactInfos}"
-                              SelectedValue="{Binding ContactInfo, Mode=TwoWay}"
-                              SelectedValueBinding="{Binding Value}"
+                              SelectedItem="{Binding SelectedContactInfo}"
                               DisplayMemberBinding="{Binding Value}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
@@ -344,8 +339,7 @@
                                Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                     <ComboBox Grid.Column="3" MinWidth="100"
                               ItemsSource="{Binding DepFreqs}"
-                              SelectedValue="{Binding DepFreq, Mode=TwoWay}"
-                              SelectedValueBinding="{Binding Value}"
+                              SelectedItem="{Binding SelectedDepFreq}"
                               DisplayMemberBinding="{Binding Value}"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Departure frequency"/>
@@ -355,8 +349,7 @@
                 <Grid ColumnDefinitions="3*,10*" Margin="0,0,0,8">
                     <ComboBox Grid.Column="0"
                               ItemsSource="{Binding LocalInfos}"
-                              SelectedValue="{Binding LocalInfo, Mode=TwoWay}"
-                              SelectedValueBinding="{Binding Value}"
+                              SelectedItem="{Binding SelectedLocalInfo}"
                               DisplayMemberBinding="{Binding Value}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"

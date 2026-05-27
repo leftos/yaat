@@ -14,6 +14,13 @@ namespace Yaat.Client.ViewModels;
 ///
 /// Owned by <see cref="VTdlsViewModel"/>; created fresh per selected item so the
 /// editor state doesn't bleed across selections.
+///
+/// Bindings: every value-typed dropdown binds <c>SelectedItem</c> to a
+/// <see cref="TdlsClearanceValueDto"/>? property (not <c>SelectedValue</c> +
+/// <c>SelectedValueBinding</c>). The latter is fragile in Avalonia.Browser —
+/// the WASM ComboBox displays the matched item correctly but the two-way
+/// write-back from SelectedValue to the bound string property doesn't fire,
+/// leaving the VM thinking the field is unset while the dropdown shows a value.
 /// </summary>
 public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 {
@@ -46,25 +53,75 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     private TdlsSidTransitionDto? _selectedTransition;
 
     [ObservableProperty]
-    private string? _expect;
+    [NotifyPropertyChangedFor(nameof(Expect))]
+    private TdlsClearanceValueDto? _selectedExpect;
 
     [ObservableProperty]
-    private string? _climbout;
+    [NotifyPropertyChangedFor(nameof(Climbout))]
+    private TdlsClearanceValueDto? _selectedClimbout;
 
     [ObservableProperty]
-    private string? _climbvia;
+    [NotifyPropertyChangedFor(nameof(Climbvia))]
+    private TdlsClearanceValueDto? _selectedClimbvia;
 
     [ObservableProperty]
-    private string? _initialAlt;
+    [NotifyPropertyChangedFor(nameof(InitialAlt))]
+    private TdlsClearanceValueDto? _selectedInitialAlt;
 
     [ObservableProperty]
-    private string? _contactInfo;
+    [NotifyPropertyChangedFor(nameof(ContactInfo))]
+    private TdlsClearanceValueDto? _selectedContactInfo;
 
     [ObservableProperty]
-    private string? _localInfo;
+    [NotifyPropertyChangedFor(nameof(LocalInfo))]
+    private TdlsClearanceValueDto? _selectedLocalInfo;
 
     [ObservableProperty]
-    private string? _depFreq;
+    [NotifyPropertyChangedFor(nameof(DepFreq))]
+    private TdlsClearanceValueDto? _selectedDepFreq;
+
+    /// <summary>String facade kept for ClearanceDto round-trips and test assertions. Reads SelectedExpect.Value; the setter resolves the matching item in <see cref="Expects"/> (null if no match).</summary>
+    public string? Expect
+    {
+        get => SelectedExpect?.Value;
+        set => SelectedExpect = ResolveItem(Expects, value);
+    }
+
+    public string? Climbout
+    {
+        get => SelectedClimbout?.Value;
+        set => SelectedClimbout = ResolveItem(Climbouts, value);
+    }
+
+    public string? Climbvia
+    {
+        get => SelectedClimbvia?.Value;
+        set => SelectedClimbvia = ResolveItem(Climbvias, value);
+    }
+
+    public string? InitialAlt
+    {
+        get => SelectedInitialAlt?.Value;
+        set => SelectedInitialAlt = ResolveItem(InitialAlts, value);
+    }
+
+    public string? ContactInfo
+    {
+        get => SelectedContactInfo?.Value;
+        set => SelectedContactInfo = ResolveItem(ContactInfos, value);
+    }
+
+    public string? LocalInfo
+    {
+        get => SelectedLocalInfo?.Value;
+        set => SelectedLocalInfo = ResolveItem(LocalInfos, value);
+    }
+
+    public string? DepFreq
+    {
+        get => SelectedDepFreq?.Value;
+        set => SelectedDepFreq = ResolveItem(DepFreqs, value);
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSendEnabled))]
@@ -132,6 +189,8 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             RebuildTransitions(_selectedSid);
             _selectedTransition = ResolveTransition(_selectedSid, seed?.Transition ?? filedTransitionId ?? config.DefaultTransitionId);
 
+            // Field setters drop through to the matching SelectedXxxItem via
+            // ResolveItem against the per-field ObservableCollection.
             Expect = seed?.Expect;
             Climbout = seed?.Climbout;
             Climbvia = seed?.Climbvia;
@@ -181,32 +240,32 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         RecomputeCanSend();
     }
 
-    partial void OnExpectChanged(string? value) => RecomputeCanSend();
+    partial void OnSelectedExpectChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
-    partial void OnClimboutChanged(string? value) => RecomputeCanSend();
+    partial void OnSelectedClimboutChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
-    partial void OnClimbviaChanged(string? value) => RecomputeCanSend();
+    partial void OnSelectedClimbviaChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
-    partial void OnInitialAltChanged(string? value) => RecomputeCanSend();
+    partial void OnSelectedInitialAltChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
-    partial void OnContactInfoChanged(string? value) => RecomputeCanSend();
+    partial void OnSelectedContactInfoChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
-    partial void OnLocalInfoChanged(string? value) => RecomputeCanSend();
+    partial void OnSelectedLocalInfoChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
-    partial void OnDepFreqChanged(string? value) => RecomputeCanSend();
+    partial void OnSelectedDepFreqChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
     /// <summary>Builds the current clearance state as a <see cref="ClearanceDto"/> for the canonical command builder.</summary>
     public ClearanceDto ToClearanceDto() =>
         new(
-            Expect: Expect,
+            Expect: SelectedExpect?.Value,
             Sid: SelectedSid?.Id,
             Transition: SelectedTransition?.Id,
-            Climbout: Climbout,
-            Climbvia: Climbvia,
-            InitialAlt: InitialAlt,
-            ContactInfo: ContactInfo,
-            LocalInfo: LocalInfo,
-            DepFreq: DepFreq
+            Climbout: SelectedClimbout?.Value,
+            Climbvia: SelectedClimbvia?.Value,
+            InitialAlt: SelectedInitialAlt?.Value,
+            ContactInfo: SelectedContactInfo?.Value,
+            LocalInfo: SelectedLocalInfo?.Value,
+            DepFreq: SelectedDepFreq?.Value
         );
 
     [RelayCommand(CanExecute = nameof(IsSendEnabled))]
@@ -265,6 +324,9 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             ? sid?.Transitions.FirstOrDefault()
             : sid?.Transitions.FirstOrDefault(t => string.Equals(t.Id, transitionId, StringComparison.Ordinal));
 
+    private static TdlsClearanceValueDto? ResolveItem(IEnumerable<TdlsClearanceValueDto> items, string? wantedValue) =>
+        wantedValue is null ? null : items.FirstOrDefault(i => string.Equals(i.Value, wantedValue, StringComparison.Ordinal));
+
     private void RebuildTransitions(TdlsSidDto? sid)
     {
         Transitions.Clear();
@@ -286,14 +348,35 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
         // Only overwrite when the destination is currently empty — the
         // controller may already have hand-edited a value, and a transition
-        // change shouldn't clobber that.
-        Expect ??= transition.DefaultExpect;
-        Climbout ??= transition.DefaultClimbout;
-        Climbvia ??= transition.DefaultClimbvia;
-        InitialAlt ??= transition.DefaultInitialAlt;
-        DepFreq ??= transition.DefaultDepFreq;
-        ContactInfo ??= transition.DefaultContactInfo;
-        LocalInfo ??= transition.DefaultLocalInfo;
+        // change shouldn't clobber that. Setters resolve string -> SelectedItem.
+        if (SelectedExpect is null)
+        {
+            Expect = transition.DefaultExpect;
+        }
+        if (SelectedClimbout is null)
+        {
+            Climbout = transition.DefaultClimbout;
+        }
+        if (SelectedClimbvia is null)
+        {
+            Climbvia = transition.DefaultClimbvia;
+        }
+        if (SelectedInitialAlt is null)
+        {
+            InitialAlt = transition.DefaultInitialAlt;
+        }
+        if (SelectedDepFreq is null)
+        {
+            DepFreq = transition.DefaultDepFreq;
+        }
+        if (SelectedContactInfo is null)
+        {
+            ContactInfo = transition.DefaultContactInfo;
+        }
+        if (SelectedLocalInfo is null)
+        {
+            LocalInfo = transition.DefaultLocalInfo;
+        }
     }
 
     private void RecomputeCanSend() => CanSend = EnumerateMissingMandatoryFields().Count == 0;
@@ -305,31 +388,31 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         {
             missing.Add("SID");
         }
-        if (_config.MandatoryExpect && string.IsNullOrWhiteSpace(Expect))
+        if (_config.MandatoryExpect && SelectedExpect is null)
         {
             missing.Add("Expect");
         }
-        if (_config.MandatoryClimbout && string.IsNullOrWhiteSpace(Climbout))
+        if (_config.MandatoryClimbout && SelectedClimbout is null)
         {
             missing.Add("Climb out");
         }
-        if (_config.MandatoryClimbvia && string.IsNullOrWhiteSpace(Climbvia))
+        if (_config.MandatoryClimbvia && SelectedClimbvia is null)
         {
             missing.Add("Climb via");
         }
-        if (_config.MandatoryInitialAlt && string.IsNullOrWhiteSpace(InitialAlt))
+        if (_config.MandatoryInitialAlt && SelectedInitialAlt is null)
         {
             missing.Add("Maintain");
         }
-        if (_config.MandatoryDepFreq && string.IsNullOrWhiteSpace(DepFreq))
+        if (_config.MandatoryDepFreq && SelectedDepFreq is null)
         {
             missing.Add("Departure frequency");
         }
-        if (_config.MandatoryContactInfo && string.IsNullOrWhiteSpace(ContactInfo))
+        if (_config.MandatoryContactInfo && SelectedContactInfo is null)
         {
             missing.Add("Contact info");
         }
-        if (_config.MandatoryLocalInfo && string.IsNullOrWhiteSpace(LocalInfo))
+        if (_config.MandatoryLocalInfo && SelectedLocalInfo is null)
         {
             missing.Add("Local info");
         }

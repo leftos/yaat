@@ -48,9 +48,15 @@ public class TdlsFlightPlanEditorViewModelTests
             ],
             Climbouts: [],
             Climbvias: [],
-            InitialAlts: [new TdlsClearanceValueDto("5000", "5000")],
-            DepFreqs: [new TdlsClearanceValueDto("120.9", "120.9")],
-            Expects: [new TdlsClearanceValueDto("10MIN", "10 MIN")],
+            // Multiple entries per field so the seed/hand-edited values used
+            // by Seed_NonNullClearanceSkipsTransitionDefaults find a matching
+            // dropdown item. Upstream rule: "Only values predefined by the
+            // Facility Engineer may be selected" — values not in the config
+            // are dropped on the way in, which is enforced now that we bind
+            // SelectedItem (not a free string).
+            InitialAlts: [new TdlsClearanceValueDto("5000", "5000"), new TdlsClearanceValueDto("7000", "7000")],
+            DepFreqs: [new TdlsClearanceValueDto("120.9", "120.9"), new TdlsClearanceValueDto("121.4", "121.4")],
+            Expects: [new TdlsClearanceValueDto("10MIN", "10 MIN"), new TdlsClearanceValueDto("20MIN", "20 MIN")],
             ContactInfos: [],
             LocalInfos: [],
             DefaultSidId: "OAKLAND4",
@@ -71,6 +77,23 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("5000", editor.InitialAlt);
         Assert.Equal("120.9", editor.DepFreq);
         Assert.True(editor.IsSendEnabled);
+    }
+
+    [Fact]
+    public void Constructor_PrePopulatedMandatoryField_DoesNotReportMissing()
+    {
+        // Regression for the Avalonia ComboBox SelectedValue/SelectedValueBinding
+        // bug: the dropdown displayed "120.9" but the VM thought DepFreq was empty,
+        // surfacing as "MANDATORY FIELD NOT SET — Departure frequency" with the
+        // Send button greyed out. After the SelectedItem refactor, an item picked
+        // by ApplyTransitionDefaults registers as set immediately.
+        var cfg = BuildConfig(mandatorySid: true, mandatoryExpect: true, mandatoryDepFreq: true);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null);
+
+        Assert.NotNull(editor.SelectedDepFreq);
+        Assert.Equal("120.9", editor.SelectedDepFreq?.Value);
+        Assert.True(editor.IsSendEnabled);
+        Assert.DoesNotContain("Departure frequency", editor.MissingMandatoryFieldNames);
     }
 
     [Fact]
