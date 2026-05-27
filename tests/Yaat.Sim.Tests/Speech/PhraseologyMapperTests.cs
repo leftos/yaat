@@ -160,6 +160,17 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    [Fact]
+    public void ClimbVia_PlusCrossFix_ExceptModifierChainsViaGreedyMatcher()
+    {
+        // FAA 7110.65 §4-5: "CLIMB VIA SID, EXCEPT CROSS (fix) (revised altitude)".
+        // The greedy multi-clause matcher should parse the bare CV rule plus the CrossFix rule
+        // as two adjacent clauses joined by ", ", with "except" skipped as an unmatched filler.
+        var result = PhraseologyMapper.Map("climb via sid except cross cepin at or above five thousand", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("CVIA, CFIX CEPIN A5000", result!.CanonicalCommand.ToUpperInvariant());
+    }
+
     // --- Tower rules ---
 
     [Theory]
