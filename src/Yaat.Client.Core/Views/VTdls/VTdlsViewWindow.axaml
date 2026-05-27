@@ -1,0 +1,12 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vtdls="using:Yaat.Client.Views.VTdls"
+        x:Class="Yaat.Client.Views.VTdls.VTdlsViewWindow"
+        Icon="avares://Yaat.Client.Core/Resources/icon.png"
+        Title="vTDLS">
+
+    <!-- DataContext is the scoped VTdlsViewModel (set by the host code when
+         creating the window) — directly, not via a VTdls sub-path. -->
+    <vtdls:VTdlsView />
+
+</Window>
