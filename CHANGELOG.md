@@ -15,6 +15,7 @@
 - Arrival generators no longer silently drop spawns when a scenario's weight/engine combo has no curated aircraft types (e.g. Large+Piston) — the generator falls back to the nearest engine-matching bucket so traffic keeps flowing.
 - Pop-out state (including the Terminal) and window positions now survive every app exit, including `Ctrl+C` in the launch script, File > Exit, and the confirm-exit dialog after closing with a scenario loaded.
 - TAXI right after `PUSH A FACE …` no longer makes the aircraft spin a loop when it was already pointing the right way.
+- `PUSH <taxiway>` now positions the aircraft on the taxiway itself instead of stopping short on the curved fillet from the parking ramp.
 
 ## v0.3.7-beta [2026/05/25]
 

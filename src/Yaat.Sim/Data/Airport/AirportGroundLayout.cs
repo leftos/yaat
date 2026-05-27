@@ -1877,10 +1877,14 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Only count straight GroundEdges, not GroundArcs. A node connected to the
+            // requested taxiway only via fillet arcs (e.g. the curved entry from a RAMP
+            // into T5B) is not a useful pushback target — the aircraft center would
+            // stop on the curve instead of on the taxiway proper. Issue #162.
             bool hasMatchingEdge = false;
             foreach (var edge in node.Edges)
             {
-                if (!edge.IsRunwayCenterline && edge.MatchesTaxiway(taxiwayName))
+                if (edge is GroundEdge straight && !straight.IsRunwayCenterline && straight.MatchesTaxiway(taxiwayName))
                 {
                     hasMatchingEdge = true;
                     break;
@@ -1914,17 +1918,24 @@ public sealed class AirportGroundLayout
 
         foreach (var edge in node.Edges)
         {
-            if (edge.IsRunwayCenterline)
+            // Skip arcs — only straight GroundEdges define a meaningful taxiway bearing.
+            // An arc's chord bearing is not the taxiway's direction. Issue #162.
+            if (edge is not GroundEdge straight)
             {
                 continue;
             }
 
-            if (!edge.MatchesTaxiway(taxiwayName))
+            if (straight.IsRunwayCenterline)
             {
                 continue;
             }
 
-            var otherNode = edge.OtherNode(node);
+            if (!straight.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            var otherNode = straight.OtherNode(node);
 
             double bearing = GeoMath.BearingTo(node.Position, otherNode.Position);
             double diff = GeoMath.AbsBearingDifference(bearing, preferredBearing);
