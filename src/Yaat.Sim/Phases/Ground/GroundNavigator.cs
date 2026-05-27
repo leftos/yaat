@@ -265,7 +265,7 @@ public sealed class GroundNavigator
     /// multiple sub-segments each well under 60°).
     /// </para>
     /// </summary>
-    private const double EntryAlignmentThresholdDeg = 60.0;
+    private const double EntryAlignmentThresholdDeg = 45.0;
 
     /// <summary>
     /// When entry-alignment is active, this holds the segment's real primitive,
