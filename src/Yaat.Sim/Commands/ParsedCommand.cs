@@ -375,7 +375,16 @@ public record HoldPositionCommand : ParsedCommand;
 /// </summary>
 public record ResumeCommand(IReadOnlyList<string> CrossRunways, IReadOnlyList<string> HoldShorts) : ParsedCommand;
 
-public record CrossRunwayCommand(string RunwayId) : ParsedCommand;
+/// <summary>
+/// Cross a runway. When <see cref="RunwayId"/> is non-null, the named runway is
+/// cleared (immediate satisfaction if currently holding short of it, otherwise
+/// pre-clearing the matching upcoming hold-short on the taxi route). When null
+/// (bare <c>CROSS</c>), the very next uncleared hold-short on the route is
+/// cleared — works whether the aircraft is currently holding short or still
+/// taxiing toward it. Bare form clears exactly one hold-short, so the aircraft
+/// still stops at any subsequent hold-shorts.
+/// </summary>
+public record CrossRunwayCommand(string? RunwayId) : ParsedCommand;
 
 public record HoldShortCommand(string Target) : ParsedCommand;
 

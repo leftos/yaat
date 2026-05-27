@@ -531,6 +531,249 @@ public class GroundCommandHandlerTests
         Assert.False(result.Success);
     }
 
+    // --- Named CROSS for taxiway/intersection holds ---
+
+    [Fact]
+    public void TryCrossRunway_NamedTaxiway_FromHoldingShort_Succeeds()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        var holdPhase = new HoldingShortPhase(
+            new HoldShortPoint
+            {
+                NodeId = 3,
+                Reason = HoldShortReason.ExplicitHoldShort,
+                TargetName = "B",
+            }
+        );
+        ac.Phases.Add(holdPhase);
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 0,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.Start(ctx);
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand("B"));
+
+        Assert.True(result.Success);
+        Assert.Contains("B", result.Message!);
+    }
+
+    [Fact]
+    public void TryCrossRunway_NamedTaxiway_PreClearInRoute_MarksHoldShortCleared()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "A", 0.1)],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "B",
+                },
+            ],
+        };
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand("B"));
+
+        Assert.True(result.Success);
+        Assert.True(ac.Ground.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
+    }
+
+    // --- Bare CROSS (no runway argument) ---
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromHoldingShort_RunwayCrossing_Succeeds()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        var holdPhase = new HoldingShortPhase(
+            new HoldShortPoint
+            {
+                NodeId = 3,
+                Reason = HoldShortReason.RunwayCrossing,
+                TargetName = "28R/10L",
+            }
+        );
+        ac.Phases.Add(holdPhase);
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 0,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.Start(ctx);
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(null));
+
+        Assert.True(result.Success);
+        Assert.Contains("28R/10L", result.Message!);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromHoldingShort_TaxiwayExplicit_Succeeds()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        var holdPhase = new HoldingShortPhase(
+            new HoldShortPoint
+            {
+                NodeId = 3,
+                Reason = HoldShortReason.ExplicitHoldShort,
+                TargetName = "B",
+            }
+        );
+        ac.Phases.Add(holdPhase);
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 0,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.Start(ctx);
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(null));
+
+        Assert.True(result.Success);
+        Assert.Contains("B", result.Message!);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromHoldingShort_DestinationRunway_Fails()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        var holdPhase = new HoldingShortPhase(
+            new HoldShortPoint
+            {
+                NodeId = 3,
+                Reason = HoldShortReason.DestinationRunway,
+                TargetName = "28R/10L",
+            }
+        );
+        ac.Phases.Add(holdPhase);
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 0,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.Start(ctx);
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(null));
+
+        Assert.False(result.Success);
+        Assert.Contains("LUAW", result.Message!);
+        Assert.Contains("CTO", result.Message!);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromTaxi_ClearsFirstUnclearedHoldShortOnly()
+    {
+        var ac = MakeGroundAircraft();
+        // Two runway crossings ahead — bare CROSS should clear only the first.
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "A", 0.1), MakeSegment(2, 3, "A", 0.1)],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28L/10R",
+                },
+                new HoldShortPoint
+                {
+                    NodeId = 3,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28R/10L",
+                },
+            ],
+        };
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(null));
+
+        Assert.True(result.Success);
+        Assert.Contains("28L/10R", result.Message!);
+        Assert.True(ac.Ground.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
+        Assert.False(ac.Ground.AssignedTaxiRoute.HoldShortPoints[1].IsCleared);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromTaxi_NextIsDestinationRunway_Fails()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "A", 0.1)],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28R/10L",
+                },
+            ],
+        };
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(null));
+
+        Assert.False(result.Success);
+        Assert.Contains("LUAW", result.Message!);
+        Assert.Contains("CTO", result.Message!);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromTaxi_NoUnclearedHoldShorts_Fails()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "A", 0.1)],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28R/10L",
+                    IsCleared = true,
+                },
+            ],
+        };
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(null));
+
+        Assert.False(result.Success);
+        Assert.Contains("No upcoming hold-short", result.Message!);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromTaxi_NoRoute_Fails()
+    {
+        var ac = MakeGroundAircraft();
+        // No route assigned, not holding short
+
+        var result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(null));
+
+        Assert.False(result.Success);
+    }
+
     // -------------------------------------------------------------------------
     // TryHoldShort
     // -------------------------------------------------------------------------

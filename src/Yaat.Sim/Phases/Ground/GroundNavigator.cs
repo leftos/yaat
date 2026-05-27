@@ -338,7 +338,15 @@ public sealed class GroundNavigator
         double sweepRad = headingDelta * Math.PI / 180.0;
         double alignmentChordFt = 2.0 * alignmentRadiusFt * Math.Sin(sweepRad / 2.0);
         double segmentLengthFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
-        bool segmentLongEnough = segmentLengthFt > 2.0 * alignmentChordFt;
+        // Segment must accommodate the slow-turn chord plus a small pure-pursuit
+        // recovery margin. The chord is the straight-line displacement during
+        // the alignment arc; after the swap to the real segment primitive,
+        // pure-pursuit handles the remainder. Factor 1.2 covers numerical drift
+        // (segments slightly shorter than chord overshoot the target node);
+        // anything tighter than that risks an orbit, anything looser starves
+        // tight-ramp jet exits (e.g. OAK JSX1 RAMP, 38 ft segment vs C700's
+        // 31.5 ft chord for a 78° turn).
+        bool segmentLongEnough = segmentLengthFt > 1.2 * alignmentChordFt;
 
         if (headingDelta > EntryAlignmentThresholdDeg && segmentLongEnough)
         {

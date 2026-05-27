@@ -497,19 +497,21 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Parses CROSS runway.
+    /// Parses CROSS [runway]. Bare CROSS (no argument) produces
+    /// <c>CrossRunwayCommand(null)</c>, which clears the next uncleared
+    /// hold-short on the route. CROSS &lt;runway&gt; targets a specific runway.
     /// </summary>
     internal static PR ParseCross(string? arg)
     {
         if (arg is null)
         {
-            return PR.Fail("CROSS requires a runway");
+            return PR.Ok(new CrossRunwayCommand(null));
         }
 
         var runway = arg.Trim().ToUpperInvariant();
         if (runway.Length == 0)
         {
-            return PR.Fail("CROSS requires a runway");
+            return PR.Ok(new CrossRunwayCommand(null));
         }
 
         return PR.Ok(new CrossRunwayCommand(runway));

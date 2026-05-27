@@ -7,6 +7,8 @@
 - Speech Debug window now shows each session as a flowchart — mic → Whisper → callsign → rule → LLM → final — with playback and per-stage detail.
 - Multi-select export bundles the recordings you tick into one `.yaat-speech-sample.zip`, with Select all / Unselect all shortcuts.
 - Compound commands now accept `AND` as a word alias for `,` and `THEN` as a word alias for `;` (case-insensitive), so `CM 014 AND FH 090 THEN FH 180` reads the same as `CM 014, FH 090; FH 180`. Text inside `SAY` / `SAYF` is preserved verbatim.
+- Bare `CROSS` (no runway argument) clears the next uncleared hold-short on the taxi route — works whether the aircraft is already holding short or still taxiing toward it. `CROSS <target>` also now accepts taxiway and intersection names, not just runways.
+- `CROSS; HOLD` halts the aircraft right after it clears the far-side runway hold bars (not at the next hold-short however far away), so ground control can pick it up between parallel runways.
 
 ### Fixed
 - A rejected `DCT`/`ADCT`/`FDCT` (e.g. to an unprogrammed fix) issued during an RV SID initial climb no longer drops the published vectors heading hold — the hold now stays engaged when the route amendment is rejected.
@@ -17,6 +19,7 @@
 - Pop-out state (including the Terminal) and window positions now survive every app exit, including `Ctrl+C` in the launch script, File > Exit, and the confirm-exit dialog after closing with a scenario loaded.
 - TAXI right after `PUSH A FACE …` no longer makes the aircraft spin a loop when it was already pointing the right way.
 - `PUSH <taxiway>` now positions the aircraft on the taxiway itself instead of stopping short on the curved fillet from the parking ramp.
+- Large jets at OAK JSX1 (and other tight nose-in parking spots) no longer orbit the ramp endpoint forever when taxiing — the slow-turn alignment now fires for the narrower segments these spots use.
 
 ## v0.3.7-beta [2026/05/25]
 

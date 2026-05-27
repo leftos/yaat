@@ -960,12 +960,17 @@ internal static class GroundCommandHandler
 
     internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross)
     {
-        // Currently holding short AT the requested runway: satisfy the clearance now.
-        if (
-            aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase
-            && holdPhase.HoldShort.TargetName is not null
-            && RunwayIdentifier.Parse(holdPhase.HoldShort.TargetName).Contains(cross.RunwayId)
-        )
+        if (cross.RunwayId is null)
+        {
+            return TryCrossNextHoldShort(aircraft);
+        }
+
+        var target = cross.RunwayId;
+
+        // Currently holding short AT the requested target: satisfy the clearance now.
+        // Target match works for both runway designators (e.g. CROSS 28R against
+        // "28R/10L") and taxiway/intersection names (e.g. CROSS B against "B").
+        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase && HoldShortTargetMatches(holdPhase.HoldShort.TargetName, target))
         {
             if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway)
             {
@@ -973,19 +978,119 @@ internal static class GroundCommandHandler
             }
 
             holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
-            return CommandDispatcher.Ok($"Cross {cross.RunwayId}");
+            return CommandDispatcher.Ok($"Cross {target}");
         }
 
-        // Either not holding short, or holding short of a *different* runway:
-        // pre-clear the matching upcoming hold-short in the taxi route. Shares
-        // dest-runway protection and route-match validation with RES CROSS X.
-        var preClear = TryPreClearRouteCrossings(aircraft, [cross.RunwayId]);
-        if (!preClear.Success)
+        // Either not holding short, or holding short of a different target:
+        // pre-clear matching upcoming hold-short(s) on the taxi route. Accepts
+        // both runway designators and taxiway/intersection names.
+        var route = aircraft.Ground.AssignedTaxiRoute;
+        if (route is null)
         {
-            return preClear;
+            return new CommandResult(false, "No taxi route assigned");
         }
 
-        return CommandDispatcher.Ok($"Cross {cross.RunwayId}");
+        bool matchedAny = false;
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (!HoldShortTargetMatches(hs.TargetName, target))
+            {
+                continue;
+            }
+
+            if (hs.Reason == HoldShortReason.DestinationRunway)
+            {
+                return new CommandResult(false, $"Cannot cross destination runway {hs.TargetName}; use LUAW or CTO");
+            }
+
+            matchedAny = true;
+        }
+
+        if (!matchedAny)
+        {
+            return new CommandResult(false, $"No hold-short for {target} in taxi route");
+        }
+
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (HoldShortTargetMatches(hs.TargetName, target) && hs.Reason != HoldShortReason.DestinationRunway)
+            {
+                hs.IsCleared = true;
+            }
+        }
+
+        return CommandDispatcher.Ok($"Cross {target}");
+    }
+
+    /// <summary>
+    /// Whether a hold-short target name matches a CROSS argument. Accepts both
+    /// runway designators (parsed via <see cref="RunwayIdentifier"/>, so
+    /// <c>28R</c> matches <c>28R/10L</c>) and taxiway/intersection names
+    /// (case-insensitive string equality, so <c>B</c> matches <c>B</c>).
+    /// </summary>
+    private static bool HoldShortTargetMatches(string? targetName, string arg)
+    {
+        if (targetName is null)
+        {
+            return false;
+        }
+
+        if (RunwayIdentifier.Parse(targetName).Contains(arg))
+        {
+            return true;
+        }
+
+        return string.Equals(targetName, arg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Bare <c>CROSS</c> (no runway argument). Clears exactly one — the next
+    /// uncleared hold-short — either the current <see cref="HoldingShortPhase"/>
+    /// or the first uncleared point on the taxi route. Rejects when that
+    /// hold-short is the destination runway (use CTO/LUAW) and when there is no
+    /// remaining uncleared hold-short.
+    /// </summary>
+    private static CommandResult TryCrossNextHoldShort(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase)
+        {
+            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway)
+            {
+                return new CommandResult(false, $"Cannot cross destination runway {holdPhase.HoldShort.TargetName}; use LUAW or CTO");
+            }
+
+            holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
+            return CommandDispatcher.Ok($"Cross {holdPhase.HoldShort.TargetName ?? "next hold-short"}");
+        }
+
+        var route = aircraft.Ground.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return new CommandResult(false, "No taxi route assigned");
+        }
+
+        HoldShortPoint? next = null;
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (!hs.IsCleared)
+            {
+                next = hs;
+                break;
+            }
+        }
+
+        if (next is null)
+        {
+            return new CommandResult(false, "No upcoming hold-short to cross");
+        }
+
+        if (next.Reason == HoldShortReason.DestinationRunway)
+        {
+            return new CommandResult(false, $"Cannot cross destination runway {next.TargetName}; use LUAW or CTO");
+        }
+
+        next.IsCleared = true;
+        return CommandDispatcher.Ok($"Cross {next.TargetName ?? "next hold-short"}");
     }
 
     internal static CommandResult TryHoldShort(AircraftState aircraft, HoldShortCommand hs, AirportGroundLayout? groundLayout)

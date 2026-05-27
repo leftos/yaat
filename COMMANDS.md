@@ -255,7 +255,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Taxi | `TAXI S T U` | — | — |
 | Hold position | `HOLD` | `HP` | — |
 | Resume taxi | `RES` | `RESUME` | `RES CROSS 28R 28L HS 20` |
-| Cross runway | `CROSS 28L` | — | — |
+| Cross runway/HS | `CROSS 28L` | `CROSS` (bare) | `CROSS; HOLD` |
 | Hold short | `HS B` | — | — |
 | Assign runway | `RWY 30` | — | — |
 | Exit left | `EL` | `EXITL` | — |
@@ -527,8 +527,10 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `RES CROSS 28R 28L` | Resume taxi AND pre-clear listed crossings on the rest of the route (unordered set). Hold-shorts for any runway NOT in the list still stop the aircraft until a fresh CROSS. Fails the whole command if a listed runway has no matching upcoming crossing, or if it appears only as the destination runway. |
 | `RES HS 20` / `RES HS B` | Resume taxi AND add a hold-short further on the route. Runway targets promote an existing crossing to explicit (survives AutoCross); taxiway targets add a new hold-short at the first matching intersection. Fails the whole command if the target doesn't appear anywhere on the upcoming route. |
 | `RES CROSS 28R 28L HS 20` | Combine both modifiers in one command. CROSS and HS are independent and can appear in either order. |
+| `CROSS` | Bare — clear the next uncleared hold-short on the route, runway or taxiway, whether the aircraft is already holding short or still taxiing toward it. Clears exactly one hold-short; the aircraft still stops at any subsequent ones. |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
 | `CROSS B` | Cross taxiway B (clears hold-short) |
+| `CROSS; HOLD` | Bare CROSS plus chained HOLD: cross the runway and halt right after clearing the far-side hold bars (HOLD fires only when CrossingRunwayPhase completes). |
 | `HS B` | Hold short at the next intersection with taxiway B |
 | `HS 28L` | Hold short at the next runway 28L crossing |
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |

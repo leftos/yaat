@@ -14,6 +14,7 @@ public sealed class CommandBlockDto
     public required bool TriggerMet { get; init; }
     public required double TriggerClosestApproach { get; init; }
     public required bool TriggerMissed { get; init; }
+    public bool TriggerCrossingObserved { get; init; }
     public required bool IsWaitBlock { get; init; }
     public required double WaitRemainingSeconds { get; init; }
     public required double WaitRemainingDistanceNm { get; init; }

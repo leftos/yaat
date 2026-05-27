@@ -400,4 +400,30 @@ public class GroundParserTests
         var cmd = CommandParser.Parse(input);
         Assert.False(cmd.IsSuccess);
     }
+
+    // --- CROSS ---
+
+    [Fact]
+    public void Cross_BareNoArgument()
+    {
+        var cmd = CommandParser.Parse("CROSS");
+        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        Assert.Null(cross.RunwayId);
+    }
+
+    [Fact]
+    public void Cross_NamedRunway()
+    {
+        var cmd = CommandParser.Parse("CROSS 28R");
+        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        Assert.Equal("28R", cross.RunwayId);
+    }
+
+    [Fact]
+    public void Cross_NamedRunwayLowercase_UppercasesArgument()
+    {
+        var cmd = CommandParser.Parse("CROSS 28r");
+        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        Assert.Equal("28R", cross.RunwayId);
+    }
 }

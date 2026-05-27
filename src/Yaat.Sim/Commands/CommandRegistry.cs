@@ -669,7 +669,14 @@ public static class CommandRegistry
                 [O(null, [], "Resume taxi")],
                 [Mod("CROSS", "runway", true), Mod("HS", "taxiway/runway", true)]
             ),
-            Cmd(CrossRunway, "Cross Runway", "Ground", false, ["CROSS"], [O(null, [R("runway", "runway designator")], "Cross runway")]),
+            Cmd(
+                CrossRunway,
+                "Cross Runway",
+                "Ground",
+                false,
+                ["CROSS"],
+                [O(null, [], "Cross next hold-short"), O(null, [R("runway", "runway designator")], "Cross runway")]
+            ),
             Cmd(HoldShort, "Hold Short", "Ground", false, ["HS"], [O(null, [R("taxiway", "taxiway/runway")], "Hold short of taxiway or runway")]),
             Cmd(
                 AssignRunway,

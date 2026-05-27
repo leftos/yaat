@@ -1117,7 +1117,7 @@ public static class FlightPhysics
         {
             if (block.Trigger is not null && !block.TriggerMet)
             {
-                block.TriggerMet = IsTriggerMet(aircraft, block.Trigger, aircraftLookup);
+                block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
                 if (!block.TriggerMet)
                 {
                     TrackFrdMiss(aircraft, block);
@@ -1160,7 +1160,7 @@ public static class FlightPhysics
                 break;
             }
 
-            block.TriggerMet = IsTriggerMet(aircraft, block.Trigger, aircraftLookup);
+            block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
             if (!block.TriggerMet)
             {
                 TrackFrdMiss(aircraft, block);
@@ -1261,8 +1261,9 @@ public static class FlightPhysics
         return true;
     }
 
-    private static bool IsTriggerMet(AircraftState aircraft, BlockTrigger trigger, Func<string, AircraftState?>? aircraftLookup)
+    private static bool IsTriggerMet(AircraftState aircraft, CommandBlock block, Func<string, AircraftState?>? aircraftLookup)
     {
+        var trigger = block.Trigger!;
         return trigger.Type switch
         {
             BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
@@ -1281,8 +1282,32 @@ public static class FlightPhysics
             BlockTriggerType.OnHandoff => aircraft.Track.HandoffAccepted,
             BlockTriggerType.AtGroundEntity => IsGroundEntityReached(aircraft, trigger),
             BlockTriggerType.EnteringHoldingAfterExit => aircraft.Phases?.CurrentPhase is Yaat.Sim.Phases.Ground.HoldingAfterExitPhase,
+            BlockTriggerType.AfterRunwayCrossing => IsAfterRunwayCrossingMet(aircraft, block),
             _ => true,
         };
+    }
+
+    /// <summary>
+    /// Latches when the aircraft enters <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>,
+    /// fires once it has exited that phase — regardless of what phase comes
+    /// next. The latch is the load-bearing piece: it distinguishes the
+    /// pre-crossing armed state (where the aircraft is still in
+    /// <see cref="Yaat.Sim.Phases.Ground.HoldingShortPhase"/> or
+    /// <see cref="Yaat.Sim.Phases.Ground.TaxiingPhase"/> heading toward the
+    /// crossing) from the post-crossing fired state (where the aircraft may
+    /// land directly in HoldingShortPhase of the next parallel runway with no
+    /// taxiing gap, as at OAK 28R→28L on taxiway B).
+    /// </summary>
+    private static bool IsAfterRunwayCrossingMet(AircraftState aircraft, CommandBlock block)
+    {
+        var phase = aircraft.Phases?.CurrentPhase;
+        if (phase is Yaat.Sim.Phases.Ground.CrossingRunwayPhase)
+        {
+            block.TriggerCrossingObserved = true;
+            return false;
+        }
+
+        return block.TriggerCrossingObserved;
     }
 
     private static bool IsGroundEntityReached(AircraftState aircraft, BlockTrigger trigger)

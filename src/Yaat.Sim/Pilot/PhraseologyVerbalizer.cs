@@ -230,7 +230,7 @@ public static class PhraseologyVerbalizer
             MakeRightTrafficCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
 
             // Ground
-            CrossRunwayCommand c => Map("rwy", SpellRunway(c.RunwayId)),
+            CrossRunwayCommand c when c.RunwayId is { } r => Map("rwy", SpellRunway(r)),
             HoldShortCommand h => Map("holdshort", SpellRunway(h.Target)),
             AssignRunwayCommand a => Map("rwy", SpellRunway(a.RunwayId)),
             ExitTaxiwayCommand e => Map("taxiway", SpellTaxiway(e.Taxiway)),

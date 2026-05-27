@@ -14,6 +14,16 @@ public enum BlockTriggerType
     OnHandoff,
     AtGroundEntity,
     EnteringHoldingAfterExit,
+
+    /// <summary>
+    /// Fires once the aircraft has fully crossed a runway via
+    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/> — i.e. it has
+    /// entered the phase at least once and is no longer in it. Used to defer
+    /// blocks chained after <c>CROSS</c> (e.g. <c>CROSS; HOLD</c>) so they fire
+    /// when the crossing is complete, not while still holding short of the
+    /// runway or mid-crossing.
+    /// </summary>
+    AfterRunwayCrossing,
 }
 
 public class BlockTrigger
@@ -114,7 +124,15 @@ public class TrackedCommand
 
 public class CommandBlock
 {
-    public BlockTrigger? Trigger { get; init; }
+    /// <summary>
+    /// Trigger that gates when this block's commands apply. Normally set by the
+    /// dispatcher at construction time from a parsed <see cref="BlockCondition"/>
+    /// (LV, AT, ATFN, etc.). <c>internal set</c> covers the auto-attach case
+    /// where the dispatcher tags subsequent untriggered blocks with a synthetic
+    /// trigger (e.g. <see cref="BlockTriggerType.AfterRunwayCrossing"/> after a
+    /// CROSS that cleared a runway hold-short).
+    /// </summary>
+    public BlockTrigger? Trigger { get; internal set; }
     public List<TrackedCommand> Commands { get; init; } = [];
     public bool IsApplied { get; set; }
     public bool TriggerMet { get; set; }
@@ -157,6 +175,16 @@ public class CommandBlock
     public double TriggerClosestApproach { get; set; } = double.MaxValue;
     public bool TriggerMissed { get; set; }
 
+    /// <summary>
+    /// Latched state for <see cref="BlockTriggerType.AfterRunwayCrossing"/>:
+    /// set to <c>true</c> the first tick the aircraft is observed in
+    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/> so the trigger
+    /// fires once the aircraft has exited that phase, not just because the
+    /// aircraft happens to be in (e.g.) TaxiingPhase at dispatch time before
+    /// the crossing has begun.
+    /// </summary>
+    public bool TriggerCrossingObserved { get; set; }
+
     public bool IsWaitBlock { get; init; }
     public double WaitRemainingSeconds { get; set; }
     public double WaitRemainingDistanceNm { get; set; }
@@ -195,6 +223,7 @@ public class CommandBlock
             TriggerMet = TriggerMet,
             TriggerClosestApproach = TriggerClosestApproach,
             TriggerMissed = TriggerMissed,
+            TriggerCrossingObserved = TriggerCrossingObserved,
             IsWaitBlock = IsWaitBlock,
             WaitRemainingSeconds = WaitRemainingSeconds,
             WaitRemainingDistanceNm = WaitRemainingDistanceNm,
@@ -213,6 +242,7 @@ public class CommandBlock
             TriggerMet = dto.TriggerMet,
             TriggerClosestApproach = dto.TriggerClosestApproach,
             TriggerMissed = dto.TriggerMissed,
+            TriggerCrossingObserved = dto.TriggerCrossingObserved,
             IsWaitBlock = dto.IsWaitBlock,
             WaitRemainingSeconds = dto.WaitRemainingSeconds,
             WaitRemainingDistanceNm = dto.WaitRemainingDistanceNm,

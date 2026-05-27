@@ -83,6 +83,11 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
+        // Capture the active phase before dispatch so post-clear logic (e.g.
+        // auto-attaching the AfterRunwayCrossing trigger when CROSS clears a
+        // runway hold-short) can inspect it after the phase has been cleared.
+        var currentPhaseBeforeDispatch = aircraft.Phases?.CurrentPhase;
+
         // Phase interaction: check if aircraft has active phases
         bool shouldClearPhases = false;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
@@ -135,10 +140,12 @@ public static class CommandDispatcher
                         }
                     }
 
+                    int firstRemainingIdx = aircraft.Queue.Blocks.Count;
                     var remainingMessages =
                         remainingBlocks.Count > 0
                             ? EnqueueBlocks(new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText }, 0, aircraft, ctx)
                             : new List<string>();
+                    AttachAfterRunwayCrossingTriggerForToweredFirstBlock(compound, aircraft, firstRemainingIdx, currentPhaseBeforeDispatch);
                     aircraft.Queue.Blocks.AddRange(phasePreserved);
 
                     var combinedMessages = new List<string> { result.Message ?? "" };
@@ -193,6 +200,7 @@ public static class CommandDispatcher
 
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
         var messages = EnqueueBlocks(compound, 0, aircraft, ctx);
+        AttachAfterRunwayCrossingTrigger(compound, aircraft, firstNewBlockIdx, currentPhaseBeforeDispatch);
         aircraft.Queue.Blocks.AddRange(preserved);
 
         // Apply the first NEW block immediately (if no trigger).
@@ -891,6 +899,118 @@ public static class CommandDispatcher
         }
 
         return block.Commands[0] is MakeShortApproachCommand or MakeNormalApproachCommand or ExtendPatternCommand;
+    }
+
+    /// <summary>
+    /// When a compound starts with <c>CROSS</c> and that CROSS clears (or is
+    /// about to clear) a runway hold-short, retroactively tag the subsequent
+    /// untriggered blocks with <see cref="BlockTriggerType.AfterRunwayCrossing"/>
+    /// so they fire only after the aircraft has rolled past the far-side
+    /// runway hold bars (i.e. <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>
+    /// has run and completed). Without this, an untriggered <c>HOLD</c> block
+    /// would sit in the queue forever (UpdateCommandQueue short-circuits while
+    /// any phase is active and the post-CROSS phase chain auto-appends a
+    /// TaxiingPhase without an intervening null gap).
+    /// </summary>
+    private static void AttachAfterRunwayCrossingTrigger(
+        CompoundCommand compound,
+        AircraftState aircraft,
+        int firstNewBlockIdx,
+        Phase? phaseBeforeDispatch
+    )
+    {
+        if (compound.Blocks.Count <= 1)
+        {
+            return;
+        }
+
+        if (compound.Blocks[0].Commands.Count == 0 || compound.Blocks[0].Commands[0] is not CrossRunwayCommand)
+        {
+            return;
+        }
+
+        if (!WillProduceRunwayCrossing(phaseBeforeDispatch))
+        {
+            return;
+        }
+
+        var trigger = new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing };
+        for (int i = firstNewBlockIdx + 1; i < aircraft.Queue.Blocks.Count; i++)
+        {
+            var block = aircraft.Queue.Blocks[i];
+            if (block.Trigger is not null)
+            {
+                // User provided an explicit trigger (LV / AT / ATFN / …) — respect it.
+                continue;
+            }
+
+            block.Trigger = trigger;
+        }
+    }
+
+    /// <summary>
+    /// Variant of <see cref="AttachAfterRunwayCrossingTrigger"/> for the
+    /// tower-handled-first-block branch in <see cref="DispatchCompound"/>: there
+    /// the original compound's first block (CROSS) was already applied via
+    /// <see cref="TryApplyTowerCommand"/> and never made it into the queue —
+    /// only the remaining blocks reached <see cref="EnqueueBlocks"/>. We still
+    /// need to tag them with the post-crossing trigger when the original-first
+    /// block was a runway-crossing CROSS.
+    /// </summary>
+    private static void AttachAfterRunwayCrossingTriggerForToweredFirstBlock(
+        CompoundCommand originalCompound,
+        AircraftState aircraft,
+        int firstRemainingIdx,
+        Phase? phaseBeforeDispatch
+    )
+    {
+        if (originalCompound.Blocks.Count == 0 || originalCompound.Blocks[0].Commands.Count == 0)
+        {
+            return;
+        }
+
+        if (originalCompound.Blocks[0].Commands[0] is not CrossRunwayCommand)
+        {
+            return;
+        }
+
+        if (!WillProduceRunwayCrossing(phaseBeforeDispatch))
+        {
+            return;
+        }
+
+        var trigger = new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing };
+        for (int i = firstRemainingIdx; i < aircraft.Queue.Blocks.Count; i++)
+        {
+            var block = aircraft.Queue.Blocks[i];
+            if (block.Trigger is not null)
+            {
+                continue;
+            }
+            block.Trigger = trigger;
+        }
+    }
+
+    /// <summary>
+    /// True when the aircraft was holding short of a runway (either implicit
+    /// <see cref="HoldShortReason.RunwayCrossing"/> or explicit-but-runway-named
+    /// <see cref="HoldShortReason.ExplicitHoldShort"/>) immediately before
+    /// dispatch. A <c>CROSS</c> against such a hold-short will produce a
+    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>.
+    /// </summary>
+    private static bool WillProduceRunwayCrossing(Phase? phase)
+    {
+        if (phase is not HoldingShortPhase hp)
+        {
+            return false;
+        }
+
+        if (hp.HoldShort.Reason == HoldShortReason.DestinationRunway)
+        {
+            return false;
+        }
+
+        return hp.HoldShort.TargetName is { Length: > 0 } target && target.Length > 0 && char.IsAsciiDigit(target[0]);
     }
 
     private static bool IsPatternEntryWithRunway(ParsedCommand cmd)
