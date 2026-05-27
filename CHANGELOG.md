@@ -13,6 +13,7 @@
 - Speech recognition now understands "climb via SID" and "climb via SID except maintain (altitude)" (FAA 7110.65 §4-3, §4-5, AIM §4-4). Pilot AI reads these back as the same phrasing.
 - Speech recognition now understands "cleared (localizer / localizer back course / V-O-R / L-D-A) (runway) approach" phraseology (FAA 7110.65 §4-8). Previously only ILS and RNAV approach-type variants were recognized; the GLS variant is still pending.
 - Speech recognition now tolerates the adverbial wedges controllers insert before takeoff / land clearances: "runway 28R shortened, cleared for takeoff", "runway 28R, full length, cleared to land", "runway 28R, wind 270 at 15, cleared to land", "runway 28R at C5 intersection departure, shortened, cleared for takeoff", and the landing-runway-change preamble "change to runway 28R, runway 28R cleared to land" (FAA 7110.65 §3-9-7/10, §3-10). The modifiers are silently consumed; the sim doesn't model reduced landing distance.
+- Speech recognition now understands the pattern-entry approval shorthand "straight in approved", "left traffic approved", "right traffic approved" (FAA 7110.65 §3-10-1).
 
 ### Added
 - vTDLS pre-departure clearance arrives as a full feature: a **vTDLS** tab next to **Strips** in YAAT Client, plus a `/vtdls/` browser app served from yaat-server. The tab opens a DCL list of Pending PDCs, a PDC list of Sent/Wilco'd ones, a nine-field flight-plan editor with mandatory-field gating, and Send/Dump buttons (also F12 / F4). Each Send still emits an RPO terminal entry summarizing the issued clearance.

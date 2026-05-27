@@ -171,6 +171,22 @@ public class PhraseologyMapperTests
         Assert.Equal("CVIA, CFIX CEPIN A5000", result!.CanonicalCommand.ToUpperInvariant());
     }
 
+    // --- Pattern-entry APPROVED shorthand (FAA 7110.65 §3-10-1) ---
+    // Controllers commonly use the bare-direction approval form when accepting a pilot's
+    // request, e.g. "straight in approved" / "right traffic approved". Maps to the same
+    // canonicals as the longer "make right traffic" / "enter straight-in" forms.
+
+    [Theory]
+    [InlineData("straight in approved", "EF")]
+    [InlineData("right traffic approved", "MRT")]
+    [InlineData("left traffic approved", "MLT")]
+    public void PatternEntryApproved_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- Tower modifier wedges (FAA 7110.65 §3-9-7, §3-9-10, §3-10-1, §3-10-2) ---
     // Between the runway designator and the verb, controllers insert "shortened" / "full
     // length" (runway availability) or "wind (direction) at (velocity)" (informational).

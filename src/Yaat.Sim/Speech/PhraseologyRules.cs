@@ -389,6 +389,13 @@ public static class PhraseologyRules
             new(["runway", "{rwy}", "make", "right", "traffic"], "MRT {rwy}", MakeRightTraffic),
             new(["make", "left", "traffic"], "MLT", MakeLeftTraffic),
             new(["make", "right", "traffic"], "MRT", MakeRightTraffic),
+            // Pattern-entry APPROVED shorthand (FAA 7110.65 §3-10-1). Controllers respond to a
+            // pilot's pattern-entry request with the bare-direction approval form. Marked
+            // SttOnly so the pilot AI's verbalizer doesn't pick "approved" over the canonical
+            // "make right traffic" / "enter straight-in" forms above.
+            new(["straight", "in", "approved"], "EF", EnterFinal, SttOnly: true),
+            new(["left", "traffic", "approved"], "MLT", MakeLeftTraffic, SttOnly: true),
+            new(["right", "traffic", "approved"], "MRT", MakeRightTraffic, SttOnly: true),
             new(["turn", "crosswind"], "TC", TurnCrosswind),
             new(["turn", "downwind"], "TD", TurnDownwind),
             new(["turn", "base"], "TB", TurnBase),

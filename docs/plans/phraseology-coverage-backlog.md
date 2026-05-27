@@ -465,11 +465,11 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "RUNWAY (number), WIND (dir/vel), CLEARED TO LAND" (USA/USN/USAF mandated wind+CTL)
   **Canonical:** `ClearedToLand`
   **Notes:** wind wedge silent skip; bare CLAND fires. Test: `TowerModifierWedges_Rules`.
+- **Phrasing:** "STRAIGHT-IN APPROVED" / "RIGHT TRAFFIC APPROVED" / "LEFT TRAFFIC APPROVED" (pattern-entry approval shorthand)
+  **Canonical:** `EnterFinal` / `MakeRightTraffic` / `MakeLeftTraffic`
+  **Notes:** `PhraseologyRules.cs:392-394`. SttOnly so the verbalizer keeps emitting "make right traffic" / "enter straight-in" as the canonical pilot readback.
 
 ##### MissingRule
-- **Phrasing:** "STRAIGHT-IN APPROVED" / "RIGHT TRAFFIC APPROVED" (pattern-entry approval shorthand)
-  **Canonical:** `EnterFinal` / `MakeRightTraffic`
-  **Notes:** existing rules accept "make/enter straight-in" and "make right traffic" but not the "(direction) APPROVED" form from §3-10-1.
 - **Phrasing:** "TURN LEFT/RIGHT (taxiway), CROSS (runway), CONTACT GROUND (freq)" (compound exit+cross+handoff)
   **Canonical:** `ExitLeft`/`ExitRight` + `CrossRunway` + `Contact`
   **Notes:** ExitLeft/Right rules don't compose with the trailing "cross runway X" / "contact ground" segments in one utterance.
@@ -594,7 +594,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entirely separation procedures (Category I/II/III distance minima for float planes in sea lanes); no PHRASEOLOGY- blocks. Sea-lane operations not in YAAT scope.
 
-**Ch 3 totals:** Covered 49 · MissingRule 32 · MissingCanonical 28 · OutOfScope 50 · Phrasings 159
+**Ch 3 totals:** Covered 50 · MissingRule 31 · MissingCanonical 28 · OutOfScope 50 · Phrasings 159
 
 ### Chapter 4 — IFR (TRACON / approach control)
 
@@ -3041,8 +3041,8 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 173 |
-| MissingRule | 199 |
+| Covered | 174 |
+| MissingRule | 198 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
 | **Total phrasings audited** | **800** |
@@ -3051,7 +3051,7 @@ All 10 chapters audited.
 
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
-| 7110.65 Ch 3 — Tower | 49 | 32 | 28 | 50 | 159 |
+| 7110.65 Ch 3 — Tower | 50 | 31 | 28 | 50 | 159 |
 | 7110.65 Ch 4 — IFR/TRACON | 23 | 23 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 30 | 33 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
@@ -3061,7 +3061,7 @@ All 10 chapters audited.
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **173** | **199** | **239** | **189** | **800** |
+| **Total** | **174** | **198** | **239** | **189** | **800** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 
