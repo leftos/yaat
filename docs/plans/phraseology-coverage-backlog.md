@@ -828,6 +828,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CLIMB AND MAINTAIN (altitude)" / "DESCEND AND MAINTAIN (altitude)"
   **Canonical:** `ClimbMaintain` / `DescendMaintain`
   **Notes:** `PhraseologyRules.cs:73, 78`.
+- **Phrasing:** "CROSS (fix) AT (altitude)" / "CROSS (fix) AT OR ABOVE/BELOW (altitude)"
+  **Canonical:** `CrossFix`
+  **Notes:** `PhraseologyRules.cs:128-131`. Also covers §4-3, §4-7, §4-8, AIM §4-4, AIM §5-3.
 
 ##### MissingRule
 - **Phrasing:** "CRUISE (altitude)"
@@ -839,9 +842,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CLIMB VIA (SID name and number)" / "CLIMB VIA (SID), (en route transition)" / bare "CLIMB VIA SID"
   **Canonical:** `ClimbVia`
   **Notes:** canonical exists; no rule. Also at §4-3 MissingCanonical (same root issue).
-- **Phrasing:** "CROSS (fix) AT (altitude)" / "CROSS (fix) AT OR ABOVE/BELOW (altitude)"
-  **Canonical:** `CrossFix`
-  **Notes:** canonical exists; no rule. Also at §4-3, §4-7, §4-8.
 
 ##### MissingCanonical
 - **Phrasing:** "MAINTAIN (altitude) UNTIL (time/fix/waypoint)" / "MAINTAIN (altitude) UNTIL (N) MILES/MINUTES PAST (fix)"
@@ -950,6 +950,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "DESCEND AND MAINTAIN (altitude)" / "MAINTAIN (altitude)"
   **Canonical:** `DescendMaintain` / `ClimbMaintain`
   **Notes:** `PhraseologyRules.cs:78-90`.
+- **Phrasing:** "CROSS (fix) AT (altitude)" / "CROSS (fix) AT OR ABOVE (altitude)" / "CROSS (fix) AT FLIGHT LEVEL (level)"
+  **Canonical:** `CrossFix`
+  **Notes:** `PhraseologyRules.cs:128-131`. FL form normalizes to a single token via `AtcNumberParser` and matches the bare "{alt}" capture.
 
 ##### MissingRule
 - **Phrasing:** "(STAR name and number) ARRIVAL" / "(STAR name and number) ARRIVAL, (transition name) TRANSITION"
@@ -958,9 +961,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "DESCEND VIA THE (STAR) ARRIVAL" / "DESCEND VIA THE (STAR) ARRIVAL, RUNWAY (number)"
   **Canonical:** `DescendVia`
   **Notes:** canonical exists; no rule. Also at §4-5 MissingRule.
-- **Phrasing:** "CROSS (fix) AT (altitude)" / "CROSS (fix) AT OR ABOVE (altitude)" / "CROSS (fix) AT FLIGHT LEVEL (level)"
-  **Canonical:** `CrossFix`
-  **Notes:** canonical exists; no rule. Also at §4-3, §4-5, §4-8.
 
 ##### MissingCanonical
 - **Phrasing:** "CHANGE/AMEND TRANSITION TO (runway number)" / "CHANGE TRANSITION TO (runway) TURN LEFT/RIGHT HEADING (heading) FOR VECTOR TO FINAL APPROACH COURSE"
@@ -999,14 +999,14 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CANCEL APPROACH CLEARANCE"
   **Canonical:** `CancelLandingClearance`
   **Notes:** closest existing canonical is tower's `CancelLandingClearance` (`PhraseologyRules.cs:153`); see MissingRule below for "cancel approach clearance" wording.
+- **Phrasing:** "CROSS (fix) AT OR ABOVE (altitude), CLEARED (type) APPROACH"
+  **Canonical:** `CrossFix` + `ClearedApproach`
+  **Notes:** `PhraseologyRules.cs:128-131` + `:197-209`. The greedy multi-clause matcher chains the two as `CFIX … , CAPP …` automatically.
 
 ##### MissingRule
 - **Phrasing:** "AT (fix), CLEARED (type) APPROACH" (e.g., "At RDFSH, Cleared ILS Runway 27 Approach")
   **Canonical:** `ClearedApproach`
   **Notes:** rules don't accept "at {fix}" prefix carrying a connection-fix instruction.
-- **Phrasing:** "CROSS (fix) AT OR ABOVE (altitude), CLEARED (type) APPROACH"
-  **Canonical:** `CrossFix` + `ClearedApproach`
-  **Notes:** compound — `CrossFix` canonical exists but no rule; compound with cleared-approach unparsed.
 - **Phrasing:** "CLEARED LOCALIZER APPROACH" / "CLEARED LOCALIZER BACK COURSE RUNWAY (number) APPROACH" / "CLEARED V-O-R RUNWAY (number) APPROACH" / "CLEARED G-L-S APPROACH" / "CLEARED L-D-A RUNWAY (number) APPROACH"
   **Canonical:** `ClearedApproach`
   **Notes:** canonical exists; current rules only enumerate ILS / RNAV / visual variants.
@@ -1057,7 +1057,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** advisory/info exchange.
 
-**Ch 4 totals:** Covered 17 · MissingRule 26 · MissingCanonical 57 · OutOfScope 29 · Phrasings 129
+**Ch 4 totals:** Covered 20 · MissingRule 23 · MissingCanonical 57 · OutOfScope 29 · Phrasings 129
 
 ### Chapter 5 — Radar
 
@@ -1304,6 +1304,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "Delete speed restrictions."
   **Canonical:** `DeleteSpeedRestrictions`
   **Notes:** `PhraseologyRules.cs:99-100`.
+- **Phrasing:** "Cross (fix) at and maintain (altitude) at (speed) knots." (combined fix+alt+speed crossing)
+  **Canonical:** `CrossFix`
+  **Notes:** `PhraseologyRules.cs:135`. Verbalized as "cross … at and maintain … at … knots" with `SpeedWords` colloquial form.
 
 ##### MissingRule
 - **Phrasing:** "Maintain present speed."
@@ -1312,12 +1315,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "Reduce speed twenty knots." (relative delta)
   **Canonical:** `Speed`
   **Notes:** existing `Speed` rules expect absolute target; no relative-delta rule.
-- **Phrasing:** "Cross (fix) at and maintain (altitude) at (speed) knots." (combined fix+alt+speed crossing)
-  **Canonical:** `CrossFix`
-  **Notes:** canonical exists, no rule with speed argument. Also at §4-3, §4-5, §4-7, §4-8, §5-6.
-- **Phrasing:** "Cross (fix) at (speed)." (fix-crossing speed only)
-  **Canonical:** `CrossFix`
-  **Notes:** speed-at-fix variant.
 - **Phrasing:** "Maintain (speed) until (fix), then (additional instructions)."
   **Canonical:** `??`
   **Notes:** conditional speed-until-fix.
@@ -1329,6 +1326,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Notes:** reverse of `DeleteSpeedRestrictions`.
 
 ##### MissingCanonical
+- **Phrasing:** "Cross (fix) at (speed)." (fix-crossing speed only, no altitude)
+  **Canonical:** `??` (CrossFix needs speed-only variant)
+  **Notes:** reclassified from MissingRule: `CrossFixCommand.Altitude` is non-nullable in `ParsedCommand.cs:733`, so the speed-only form needs a canonical extension (new field or new command). Also at AIM §5-3 UM55/56/57.
 - **Phrasing:** "Maintain (speed) knots or greater." / "Maintain (speed) knots or less."
   **Canonical:** `??`
   **Notes:** one-sided speed bound; current `Speed` is absolute.
@@ -1391,6 +1391,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "Contact tower (frequency)."
   **Canonical:** `Contact`
   **Notes:** `Contact` canonical exists; out-of-pilot-scope per index — see MissingRule for "monitor" variants.
+- **Phrasing:** "Cross (fix) at or above (altitude). Cleared ILS runway (rwy) approach." (cross-at-or-above + approach)
+  **Canonical:** `CrossFix` + `ClearedApproach`
+  **Notes:** `PhraseologyRules.cs:128-131` + `:197-209`. The greedy multi-clause matcher chains them as `CFIX … , CAPP …` automatically. Also at §4-8.
 
 ##### MissingRule
 - **Phrasing:** "(Ident) (distance) miles from the airport, (distance) miles right/left of course, say intentions."
@@ -1399,9 +1402,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "Turn (left/right) heading (degrees), maintain (altitude) until established on the localizer." (standalone vector + crossing-altitude, no approach clearance)
   **Canonical:** `TurnLeft` + `ClimbMaintain`/`DescendMaintain`
   **Notes:** PTAC requires trailing "cleared ... approach"; "until established on the localizer" trigger uncovered.
-- **Phrasing:** "Cross (fix) at or above (altitude). Cleared ILS runway (rwy) approach." (cross-at-or-above + approach)
-  **Canonical:** `CrossFix` + `ClearedApproach`
-  **Notes:** `CrossFix` no rule; PTAC doesn't include CrossFix prefix. Also at §4-8.
 - **Phrasing:** "Cleared direct (fix), cross (fix) at or above (altitude), cleared RNAV runway (rwy) approach."
   **Canonical:** `DirectTo` + `CrossFix` + `ClearedApproach`
   **Notes:** composite; pieces could chain via `;` but no STT rule chains them.
@@ -1637,7 +1637,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entire chapter is equipment/automation/display/track-ops workflow — out-of-pilot-scope per index header.
 
-**Ch 5 totals:** Covered 28 · MissingRule 36 · MissingCanonical 61 · OutOfScope 37 · Phrasings 162
+**Ch 5 totals:** Covered 30 · MissingRule 33 · MissingCanonical 62 · OutOfScope 37 · Phrasings 162
 
 ### Chapter 7 — Visual
 
@@ -2615,6 +2615,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §4-4-13 "CLEARED FOR IMMEDIATE TAKEOFF"
   **Canonical:** `ClearedForTakeoff`
   **Notes:** "immediate" is adverbial; bare CTO covered at `:140-144`.
+- **Phrasing:** §4-4-10-a-5 "cross Lakeview VOR at six thousand" / "cross {fix} at {alt}"
+  **Canonical:** `CrossFix`
+  **Notes:** `PhraseologyRules.cs:128-131`. Recurring everywhere.
 
 ##### MissingRule
 - **Phrasing:** §4-4-3-d-3 "cruise (altitude)"
@@ -2626,9 +2629,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §4-4-12-f-5 "descend via the TYLER One arrival"
   **Canonical:** `DescendVia`
   **Notes:** canonical exists; no rule. Also at 7110.65 §4-5, §4-7.
-- **Phrasing:** §4-4-10-a-5 "cross Lakeview VOR at six thousand" / "cross {fix} at {alt}"
-  **Canonical:** `CrossFix`
-  **Notes:** canonical exists; no rule. Recurring everywhere.
 - **Phrasing:** §4-4-14-b Pilot acceptance of visual separation: "{callsign} in sight, will maintain visual separation"
   **Canonical:** `ReportTrafficInSight` (?)
   **Notes:** pilot-side readback wording diverges from controller-side `report traffic in sight`.
@@ -2718,7 +2718,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** workflow/equipment/flight-planning background.
 
-**AIM Ch 4 totals:** Covered 32 · MissingRule 29 · MissingCanonical 21 · OutOfScope 10 · Phrasings 92
+**AIM Ch 4 totals:** Covered 33 · MissingRule 28 · MissingCanonical 21 · OutOfScope 10 · Phrasings 92
 
 ### Chapter 5 — Air Traffic Procedures
 
@@ -2792,6 +2792,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §5-3-1 §1 UM116 "Resume normal speed"
   **Canonical:** `ResumeNormalSpeed`
   **Notes:** `PhraseologyRules.cs:98`.
+- **Phrasing:** §5-3-1 §1 UM46/UM49 "Cross (position) at (altitude)" / "at and maintain (altitude)"
+  **Canonical:** `CrossFix`
+  **Notes:** `PhraseologyRules.cs:128-131`. Recurring.
 
 ##### MissingRule
 - **Phrasing:** §5-3-1 §2 "Contact (facility) (frequency)" (with optional "at (time/fix/altitude)" trigger)
@@ -2821,15 +2824,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §5-3-1 §1 UM135 "Confirm assigned altitude" / UM134 "Confirm speed"
   **Canonical:** `SayAltitude` / `SaySpeed` (near-synonyms)
   **Notes:** rule aliases.
-- **Phrasing:** §5-3-1 §1 UM46/UM49 "Cross (position) at (altitude)" / "at and maintain (altitude)"
-  **Canonical:** `CrossFix`
-  **Notes:** canonical exists; no rule. Recurring.
 - **Phrasing:** §5-3-1 §1 UM51/52/53 "Cross (position) at (time)" / "at or before/after (time)"
   **Canonical:** `??`
   **Notes:** time-based crossing; also at 7110.65 §6-4.
-- **Phrasing:** §5-3-1 §1 UM55/56/57 "Cross (position) at (speed)" / "at or less/greater than (speed)"
-  **Canonical:** `CrossFix` (extended)
-  **Notes:** speed-constraint variant.
 - **Phrasing:** §5-3-8 §9 Holding clearance components (direction from fix, radial/course, leg length, EFC time)
   **Canonical:** `HoldingPattern`
   **Notes:** canonical exists; rules cover only "hold at {fix}" + turns. Also at 7110.65 §4-6.
@@ -2841,6 +2838,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Notes:** advisory cap. Also at 7110.65 §4-6.
 
 ##### MissingCanonical
+- **Phrasing:** §5-3-1 §1 UM55/56/57 "Cross (position) at (speed)" / "at or less/greater than (speed)"
+  **Canonical:** `??` (CrossFix speed-only extension)
+  **Notes:** `CrossFixCommand.Altitude` is non-nullable (`ParsedCommand.cs:733`); speed-only crossing needs a canonical extension. Also at 7110.65 §5-7.
 - **Phrasing:** §5-3-1 §1 CPDLC altimeter-setting uplinks, IC validation, TOC, ABRR
   **Canonical:** `??`
   **Notes:** data-link, not voice.
@@ -2864,7 +2864,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Notes:** `PhraseologyRules.cs:250-312`.
 - **Phrasing:** "Cross Redding VOR at or above 5000, cleared VOR runway 34 approach"
   **Canonical:** `CrossFix` + `ClearedApproach`
-  **Notes:** PTAC covers core; CrossFix prefix is MissingRule (see other sections).
+  **Notes:** `PhraseologyRules.cs:128-131` + `:197-209`. Greedy multi-clause matcher chains the two automatically as `CFIX … , CAPP …`. VOR/LDA/Localizer approach-type variants still MissingRule.
 - **Phrasing:** "Cleared approach" (generic)
   **Canonical:** `ClearedApproach`
   **Notes:** `PhraseologyRules.cs:208-209`.
@@ -2989,7 +2989,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** regulatory/operational rules and visual-signal communication; emergency/IRROPS-adjacent per audit rules.
 
-**AIM Ch 5 totals:** Covered 22 · MissingRule 32 · MissingCanonical 13 · OutOfScope 6 · Phrasings 73
+**AIM Ch 5 totals:** Covered 23 · MissingRule 30 · MissingCanonical 14 · OutOfScope 6 · Phrasings 73
 
 ### Chapter 10 — Helicopter Operations
 
@@ -3038,9 +3038,9 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 152 |
-| MissingRule | 219 |
-| MissingCanonical | 239 |
+| Covered | 159 |
+| MissingRule | 210 |
+| MissingCanonical | 241 |
 | OutOfScope | 189 |
 | **Total phrasings audited** | **799** |
 
@@ -3049,22 +3049,22 @@ All 10 chapters audited.
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
 | 7110.65 Ch 3 — Tower | 39 | 42 | 28 | 50 | 159 |
-| 7110.65 Ch 4 — IFR/TRACON | 17 | 26 | 57 | 29 | 129 |
-| 7110.65 Ch 5 — Radar | 28 | 36 | 61 | 37 | 162 |
+| 7110.65 Ch 4 — IFR/TRACON | 20 | 23 | 57 | 29 | 129 |
+| 7110.65 Ch 5 — Radar | 30 | 33 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
 | 7110.65 Ch 2 — General Control | 3 | 14 | 13 | 18 | 48 |
 | 7110.65 Ch 6 — Nonradar | 1 | 1 | 12 | 9 | 23 |
 | 7110.65 Ch 9 — Special Flights | 0 | 0 | 20 | 8 | 28 |
-| AIM Ch 4 — ATC | 32 | 29 | 21 | 10 | 92 |
-| AIM Ch 5 — ATC Procedures | 22 | 32 | 13 | 6 | 73 |
+| AIM Ch 4 — ATC | 33 | 28 | 21 | 10 | 92 |
+| AIM Ch 5 — ATC Procedures | 23 | 30 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **152** | **219** | **239** | **189** | **799** |
+| **Total** | **159** | **210** | **241** | **189** | **799** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 
 Implementation sessions should pull these first — one rule addition per cluster closes many backlog entries:
 
-- **`CrossFix`** — appears across 7110.65 §4-3, §4-5, §4-7, §4-8, §5-6, §5-7, §5-9, AIM §4-4, AIM §5-3, AIM §5-4. Add `cross {fix} at {alt}` + `at or above/below {alt}` variants.
+- ~~**`CrossFix`**~~ — Stage 1 shipped (PhraseologyRules.cs:128-135). Closes 7110.65 §4-5, §4-7, §4-8, §5-7 (alt+speed), §5-9 (compound w/ ClearedApproach), AIM §4-4, AIM §5-3, AIM §5-4. Composite forms with DirectTo/ClimbVia/DescendVia await Stages 2-3. Speed-only "cross {fix} at {speed}" reclassified MissingCanonical (CrossFixCommand.Altitude is non-nullable).
 - **`ClimbVia`** / **`DescendVia`** — 7110.65 §4-3, §4-5, §4-7, §5-7, AIM §4-4, §5-2, §5-4, §5-5. Add `climb via {sid}` / `climb via sid` / `descend via {star}` / `descend via the {star} arrival`.
 - **`JoinStar`** — 7110.65 §4-7, AIM §5-4. Add `cleared (star) arrival` / `(star) arrival, (transition) transition`.
 - **`JoinAirway`** / **`JoinRadialInbound`** / **`JoinRadialOutbound`** — 7110.65 §4-4, §5-6, AIM §4-5. Add `via (airway)` / `join (airway)` / `via (NAVAID) radial` etc.

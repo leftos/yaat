@@ -118,6 +118,21 @@ public static class PhraseologyRules
             new(["turn", "right", "direct", "to?", "{fix}"], "TRDCT {fix}", TurnRightDirectTo, PilotShortcuts: ["right direct {fix}"]),
             new(["when", "able", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo, PilotShortcuts: ["when able direct {fix}"]),
             new(["after", "{current}", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo),
+            // Cross-fix altitude restrictions. FAA 7110.65 §4-5-7, §5-7-5, AIM §4-4-10, §5-3-1.
+            // The bare "cross {fix} at {alt}" form is declared first so it wins the verbalizer's
+            // first-declared tiebreaker for AltType=At with no speed. AT-OR-ABOVE / AT-OR-BELOW
+            // are marked SttOnly because the verbalizer short-circuits those altType values
+            // before consulting these rules (PhraseologyVerbalizer.Verbalize). Flight-level
+            // forms ("at flight level two five zero") are normalized to a single digit token by
+            // AtcNumberParser so they match "{alt}" directly without a dedicated rule.
+            new(["cross", "{fix}", "at", "{alt}"], "CFIX {fix} AT {alt}", CrossFix),
+            new(["cross", "{fix}", "at", "and?", "maintain", "{alt}"], "CFIX {fix} AT {alt}", CrossFix),
+            new(["cross", "{fix}", "at", "or", "above", "{alt}"], "CFIX {fix} A{alt}", CrossFix, SttOnly: true),
+            new(["cross", "{fix}", "at", "or", "below", "{alt}"], "CFIX {fix} B{alt}", CrossFix, SttOnly: true),
+            // Combined altitude + speed crossing (7110.65 §5-7-5: "CROSS (fix) AT AND MAINTAIN
+            // (altitude) AT (specified speed) KNOTS"). The trailing "{speed} knots" literal
+            // anchors the second "at" so it can't be confused with the first.
+            new(["cross", "{fix}", "at", "and?", "maintain?", "{alt}", "at", "{speed}", "knots"], "CFIX {fix} AT {alt} {speed}", CrossFix),
         ];
 
     // --- Tower (CommandRegistry.TowerCommands) ---

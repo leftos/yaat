@@ -124,6 +124,20 @@ public static class PhraseologyVerbalizer
             return $"maintain at or below {AltitudeWords(atOrBelow.Altitude)}";
         }
 
+        // CrossFix AtOrAbove/AtOrBelow render directly because PickPreferredRule would
+        // tiebreak by declaration order and always pick the first 2-capture rule (the bare
+        // "at" form), which doesn't carry the modifier in its template. Bare "at" falls
+        // through to the rule-driven path below.
+        if (cmd is CrossFixCommand { AltType: CrossFixAltitudeType.AtOrAbove } cfAbove)
+        {
+            return $"cross {SpellFix(cfAbove.FixName)} at or above {AltitudeWords(cfAbove.Altitude)}";
+        }
+
+        if (cmd is CrossFixCommand { AltType: CrossFixAltitudeType.AtOrBelow } cfBelow)
+        {
+            return $"cross {SpellFix(cfBelow.FixName)} at or below {AltitudeWords(cfBelow.Altitude)}";
+        }
+
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
         if (!RulesByType.TryGetValue(canonicalType, out var rules))
         {
@@ -214,6 +228,7 @@ public static class PhraseologyVerbalizer
             TurnRightDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
             ExpectApproachCommand e => Map("rwy", SpellApproach(e.ApproachId)),
             JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", SpellApproach(id)),
+            CrossFixCommand cf => CrossFixArgs(cf),
 
             // Tower
             LandAndHoldShortCommand l => Map("crossrwy", SpellRunway(l.CrossingRunwayId)),
@@ -256,6 +271,16 @@ public static class PhraseologyVerbalizer
     private static IReadOnlyDictionary<string, string> Map(string k, string v) => new Dictionary<string, string> { [k] = v };
 
     private static IReadOnlyDictionary<string, string> Empty() => new Dictionary<string, string>(0);
+
+    private static IReadOnlyDictionary<string, string> CrossFixArgs(CrossFixCommand cf)
+    {
+        var dict = new Dictionary<string, string> { ["fix"] = SpellFix(cf.FixName), ["alt"] = AltitudeWords(cf.Altitude) };
+        if (cf.Speed is int s)
+        {
+            dict["speed"] = SpeedWords(s);
+        }
+        return dict;
+    }
 
     /// <summary>
     /// Renders a <see cref="PhraseologyRule.Pattern"/> as a spoken English string.

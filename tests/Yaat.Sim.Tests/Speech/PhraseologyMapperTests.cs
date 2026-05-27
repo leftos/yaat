@@ -100,6 +100,50 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
     }
 
+    // --- Cross-fix altitude restrictions ---
+    // FAA 7110.65 §4-5-7 / §5-7 / AIM §4-4-10 / §5-3-1: "CROSS (fix) AT (altitude)", with
+    // AT OR ABOVE/BELOW modifiers and the AIM "at and maintain" variant. Flight-level forms
+    // are normalized to a single digit token by AtcNumberParser, so they match the basic
+    // "{alt}" capture without a dedicated rule.
+
+    [Theory]
+    [InlineData("cross cepin at five thousand", "CFIX CEPIN AT 5000")]
+    [InlineData("cross cepin at and maintain five thousand", "CFIX CEPIN AT 5000")]
+    [InlineData("cross cepin at maintain five thousand", "CFIX CEPIN AT 5000")]
+    [InlineData("cross cepin at flight level two five zero", "CFIX CEPIN AT 25000")]
+    [InlineData("cross cepin at or above five thousand", "CFIX CEPIN A5000")]
+    [InlineData("cross cepin at or below five thousand", "CFIX CEPIN B5000")]
+    [InlineData("cross cepin at or above flight level two five zero", "CFIX CEPIN A25000")]
+    [InlineData("cross cepin at and maintain five thousand at two five zero knots", "CFIX CEPIN AT 5000 250")]
+    [InlineData("cross cepin at five thousand at two five zero knots", "CFIX CEPIN AT 5000 250")]
+    public void CrossFix_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
+    }
+
+    [Fact]
+    public void CrossFix_RunwayCrossWins_NoFixMisparse()
+    {
+        // Regression guard: ground-side "cross runway 28R" must keep mapping to CROSS (taxi),
+        // not be hijacked by the new "cross {fix} at {alt}" rule with {fix}="runway".
+        var result = PhraseologyMapper.Map("cross runway two eight right", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("CROSS 28R", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void CrossFix_PlusClearedApproach_CompoundsViaGreedyMatcher()
+    {
+        // §4-8 / §5-9 / AIM §5-4: "Cross (fix) at or above (altitude), cleared (type) approach."
+        // The greedy multi-clause matcher should consume CrossFix then ClearedApproach as
+        // two adjacent clauses joined by ", " — no special compound rule needed.
+        var result = PhraseologyMapper.Map("cross cepin at or above five thousand cleared ils runway two eight right approach", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("CFIX CEPIN A5000, CAPP ILS28R", result!.CanonicalCommand.ToUpperInvariant());
+    }
+
     // --- Tower rules ---
 
     [Theory]

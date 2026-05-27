@@ -2,11 +2,20 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
 
 public class PhraseologyVerbalizerTests
 {
+    public PhraseologyVerbalizerTests()
+    {
+        // CrossFix readback walks SpellFix → NavigationDatabase to resolve fix pronunciations
+        // and navaid names. Pin the singleton up-front so the class doesn't race against any
+        // other test class also populating it.
+        TestVnasData.EnsureInitialized();
+    }
+
     // --- Altitude ---
 
     [Fact]
@@ -380,6 +389,51 @@ public class PhraseologyVerbalizerTests
     {
         var result = PhraseologyVerbalizer.Verbalize(new MakeRightTrafficCommand("28R", null));
         Assert.Equal("make right traffic runway two eight right", result);
+    }
+
+    // --- CrossFix ---
+    // CEPIN is a real intersection in OAK-area test data with a published pronunciation
+    // override of "seppin" (Data/ARTCCs/ZOA/FixPronunciations/ambiguous.json) — that's what
+    // SpellFix returns and what pilots actually say on frequency.
+
+    [Fact]
+    public void Verbalize_CrossFix_At_ReadsBackBasicForm()
+    {
+        var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.At, null);
+        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        Assert.Equal("cross seppin at five thousand", result);
+    }
+
+    [Fact]
+    public void Verbalize_CrossFix_AtOrAbove_ReadsBackWithModifier()
+    {
+        var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.AtOrAbove, null);
+        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        Assert.Equal("cross seppin at or above five thousand", result);
+    }
+
+    [Fact]
+    public void Verbalize_CrossFix_AtOrBelow_ReadsBackWithModifier()
+    {
+        var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.AtOrBelow, null);
+        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        Assert.Equal("cross seppin at or below five thousand", result);
+    }
+
+    [Fact]
+    public void Verbalize_CrossFix_AtFlightLevel_UsesFlightLevelForm()
+    {
+        var cmd = new CrossFixCommand("CEPIN", 0, 0, 25000, CrossFixAltitudeType.At, null);
+        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        Assert.Equal("cross seppin at flight level two five zero", result);
+    }
+
+    [Fact]
+    public void Verbalize_CrossFix_WithSpeed_UsesAndMaintainSpeedForm()
+    {
+        var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.At, 250);
+        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        Assert.Equal("cross seppin at and maintain five thousand at two fifty knots", result);
     }
 
     // --- SttOnly rules must NOT leak into pilot speech ---
