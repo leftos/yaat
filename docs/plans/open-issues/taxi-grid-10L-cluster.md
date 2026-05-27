@@ -4,36 +4,29 @@ After calibrating the `TaxiBudgetDeriver` to use per-segment turn overhead inste
 
 ## Status
 
-- Grid: **1209/1221 passing** (98.7%)
+- Grid: **1210/1221 passing** (99.1%)
 - Smoke: 25/25 passing (per-PR baseline)
 - All remaining failures are **"did NOT arrive in time budget"**; zero turn-budget failures
-- All 12 are **SFO jets (B738)**. OAK is now 100% green.
+- All 11 are **SFO jets (B738)**. OAK is now 100% green.
 
 ## Three buckets
 
-### Bucket A — Slow-creep parking-exit spin (3 cases, real bugs)
+### Bucket A — Slow-creep parking-exit spin (root cause identified, 1 of 3 fixed)
 
-Aircraft barely leaves the parking spot after 87-110s; gs stays ~2 kts; accumulated turn 1632°-1913°. Matches the "endless spin" pattern the suite was designed to catch.
+**Root cause:** `AirportGroundLayout.FindNearestNodeForTaxi` unconditionally skipped Parking/Helipad nodes when resolving the TAXI startNode. For aircraft parked at SFO 42-4 (node 1047), this forced startNode to fillet vertex 801 (~92ft away) — putting the route's first segment off-line from the aircraft's actual position. Combined with a 77° entry-alignment slow-turn and the short 10L route's low downstream speed cap, the aircraft couldn't pure-pursuit-converge onto segment 0 and orbited node 2719 indefinitely (1632° accumulated turn at ~2 kts).
 
-| Pair | Path / Optimal | Turn | Seg | gs |
-|---|---|---|---|---|
-| `SFO_42-4-to-10L_jet` | 542 / 2037 ft | 1632° | 0/11 | 1.9 |
-| `SFO_CG2-to-10L_jet`  | 757 / 2173 ft | 1890° | 5/21 | 1.9 |
-| `SFO_CG3-to-10L_jet`  | 837 / 2307 ft | 1913° | 7/22 | 2.7 |
+**Fix landed (commit pending):** `FindNearestNodeForTaxi` now considers parking nodes when the aircraft is essentially at one (≤15ft). It prefers a co-located non-parking neighbor (e.g. the phase-d-shorten endpoint at near-zero distance) when one exists, otherwise returns the parking node itself so the route's first segment IS the parking-exit RAMP edge.
 
-**Common features:**
-- B738 (jet) on a ramp parking spot
-- Route starts with a `Fillet:phase-d-shorten` RAMP edge, followed by tight fillet arcs (~50ft radius, maxSafe ~10kt)
-- 42-4's first arc: node `2718 → 2719`, 50ft radius, 46° sweep
-- CG2: heading 346° → first edge bearing 52° (66° turn at exit)
-- CG3: heading 346° → first edge bearing 132° (146° turn at exit!)
+| Pair | Status | Notes |
+|---|---|---|
+| `SFO_42-4-to-10L_jet` | **FIXED** | No co-located neighbor → uses parking node 1047 directly; route correctly starts at the parking-exit RAMP. |
+| `SFO_CG2-to-10L_jet`  | partial — still fails | Now uses co-located 2726 (2 ft away). Aircraft now reaches seg 8/20 at gs=30 instead of slow-creeping at seg 5/21. Failure mode shifted from spin to wander. |
+| `SFO_CG3-to-10L_jet`  | partial — still fails | Now uses co-located 2730 (6 ft away). Aircraft still slow-creeps at gs=2.7. The pathfinder's natural route from 1051 went via 2733 (84ft) skipping 2730 entirely — forcing startNode to 2730 may route the aircraft through a different (sub-optimal) path. |
 
-**Hypotheses (in order of likelihood):**
-1. Slow-turn synthesis + tight arc geometry causes the aircraft to creep with maximum turn rate but minimal forward progress
-2. Fillet arc tangent computed wrong direction at parking endpoint (the `Fillet arcs have a natural-forward bezier direction` memory drawer)
-3. B738 nose-wheel-min clamping interacts with the 50ft arc radius
-
-**Next investigation:** Add `TickRecorder` capture for one pair, visualize with `LayoutInspector --ticks --html`, look for the `[NavV2] Synth geometry tight` warnings.
+**CG2/CG3 outstanding:** the co-located neighbor strategy that fixed 42-4 doesn't cleanly fix CG2/CG3 — the natural A* route from the parking node skips the co-located fillet endpoint entirely, but using the co-located endpoint as startNode forces routing through it. Possible next steps:
+1. Use the parking node directly even when a co-located neighbor exists (let the pathfinder include or skip the parking-exit edge as it sees fit).
+2. Investigate why the pathfinder picks the longer 84ft edge (1051→2733) over the shorter 6ft edge (1051→2730) — A* should prefer the shorter combined cost.
+3. Look at whether the slow-turn-synthesis lookahead is over-engaging on the first arc after parking exit.
 
 ### Bucket B — Active wandering, 10L destinations (5 cases)
 

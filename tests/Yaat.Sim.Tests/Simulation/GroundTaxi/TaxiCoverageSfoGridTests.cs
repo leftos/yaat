@@ -124,7 +124,18 @@ public class TaxiCoverageSfoGridTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Warning).InitializeSimLog();
+        var logBuilder = SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Warning);
+        // When YAAT_TAXI_TICK_RECORD is set (see TaxiCoverageRunner), also
+        // enable navigator/phase debug logging so the captured run includes
+        // internal navigator transitions for diagnosis.
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("YAAT_TAXI_TICK_RECORD")))
+        {
+            logBuilder = logBuilder
+                .EnableCategory("GroundNavigator", LogLevel.Debug)
+                .EnableCategory("TaxiingPhase", LogLevel.Debug)
+                .EnableCategory("GroundCommandHandler", LogLevel.Debug);
+        }
+        logBuilder.InitializeSimLog();
         return new SimulationEngine(groundData);
     }
 }

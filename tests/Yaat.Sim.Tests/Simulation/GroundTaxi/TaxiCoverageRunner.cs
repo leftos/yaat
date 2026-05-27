@@ -151,6 +151,13 @@ internal static class TaxiCoverageRunner
     /// asserts arrival within time, cumulative turn within budget, and no
     /// stall window outside a legitimate stop. Skips with diagnostic output
     /// when the pathfinder produces no route.
+    ///
+    /// <para>When the <c>YAAT_TAXI_TICK_RECORD</c> environment variable matches
+    /// the pair ID (or is set to <c>"*"</c> for all pairs), per-tick aircraft
+    /// state is captured via <see cref="TickRecorder"/> and written to
+    /// <c>&lt;repo&gt;/.tmp/taxi-coverage-&lt;pairId&gt;.json</c>. Visualize with
+    /// <c>LayoutInspector --ticks &lt;json&gt; --html &lt;out.html&gt;</c>.
+    /// </para>
     /// </summary>
     public static void Run(
         Func<SimulationEngine?> engineFactory,
@@ -187,6 +194,8 @@ internal static class TaxiCoverageRunner
             PrimaryAirportId = pair.AirportId,
             AutoCrossRunway = true,
         };
+
+        using var recorder = MaybeAttachRecorder(engine, pair, aircraft.Callsign, output);
 
         string command = BuildTaxiCommand(pair);
         var result = engine.SendCommand(aircraft.Callsign, command);
@@ -231,6 +240,23 @@ internal static class TaxiCoverageRunner
         );
 
         output.WriteLine($"OK {pair.PairId}: arrived in {observedTicks}s. {evaluator.DiagnosticSummary()}");
+    }
+
+    private static IDisposable? MaybeAttachRecorder(SimulationEngine engine, TaxiPair pair, string callsign, ITestOutputHelper output)
+    {
+        string? envFilter = Environment.GetEnvironmentVariable("YAAT_TAXI_TICK_RECORD");
+        if (string.IsNullOrEmpty(envFilter))
+        {
+            return null;
+        }
+        if (envFilter != "*" && !string.Equals(envFilter, pair.PairId, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        string repoRoot = TickRecorder.FindRepoRoot();
+        string outPath = Path.Combine(repoRoot, ".tmp", $"taxi-coverage-{pair.PairId}.json");
+        output.WriteLine($"TICK-RECORDING enabled for {pair.PairId} → {outPath}");
+        return TickRecorder.Attach(engine, outPath, callsign);
     }
 
     private static AircraftState SpawnAircraft(TaxiPair pair, GroundNode origin, AirportGroundLayout layout)
