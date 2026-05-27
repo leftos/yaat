@@ -2,15 +2,11 @@
 # Start yaat-server and yaat-client side by side.
 # Kill all processes on Ctrl-C.
 # Build sequentially first — both projects share Yaat.Sim.
-# Usage: ./start.sh [--pull] [--docker] [--client-only] [--server-only] [--vstrips] [--vstrips-web] [--scenario <id>] [--sync <url>]
+# Usage: ./start.sh [--pull] [--docker] [--client-only] [--server-only] [--vstrips-web] [--scenario <id>] [--sync <url>]
 #
 # --sync <url>      Sync local yaat repo to the commit pinned by a remote server,
 #                   then build and run client-only. Example:
 #                     ./start.sh --sync https://yaat1.leftos.dev
-# --vstrips         Also launch the standalone Yaat.VStrips desktop client alongside
-#                   the main client, autoconnecting to the same server. Combine with
-#                   --client-only or --sync to launch vStrips against an existing
-#                   server. Ignored with --server-only.
 # --vstrips-web     Publish the Yaat.VStrips.Web (WASM) bundle into
 #                   yaat-server/wwwroot/vstrips/ so http://<server>/vstrips/
 #                   serves the live web client. Off by default to keep
@@ -28,7 +24,6 @@ PULL=false
 DOCKER=false
 CLIENT_ONLY=false
 SERVER_ONLY=false
-VSTRIPS=false
 VSTRIPS_WEB=false
 RELEASE=false
 SCENARIO=""
@@ -39,7 +34,6 @@ while [[ $# -gt 0 ]]; do
         --docker) DOCKER=true; shift ;;
         --client-only) CLIENT_ONLY=true; shift ;;
         --server-only) SERVER_ONLY=true; shift ;;
-        --vstrips) VSTRIPS=true; shift ;;
         --vstrips-web) VSTRIPS_WEB=true; shift ;;
         --release) RELEASE=true; shift ;;
         --scenario) SCENARIO="$2"; shift 2 ;;
@@ -138,11 +132,6 @@ if ! $SERVER_ONLY; then
     dotnet build "$CLIENT_DIR/src/Yaat.Client" -c "$CONFIGURATION" -v q
 fi
 
-if $VSTRIPS && ! $SERVER_ONLY; then
-    echo "Building yaat-vstrips ($CONFIGURATION)..."
-    dotnet build "$CLIENT_DIR/tools/Yaat.VStrips" -c "$CONFIGURATION" -v q
-fi
-
 # Publish the WASM web vStrips client into yaat-server/wwwroot/vstrips/ so
 # /vstrips/ serves the live bundle when the server runs. The project's
 # CopyToServerWwwroot AfterTargets="Publish" target does the cross-repo copy.
@@ -228,16 +217,6 @@ if ! $SERVER_ONLY; then
         dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/src/Yaat.Client" -- "${CLIENT_ARGS[@]}" &
     else
         dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/src/Yaat.Client" &
-    fi
-    PIDS+=($!)
-fi
-
-if $VSTRIPS && ! $SERVER_ONLY; then
-    echo "Starting yaat-vstrips..."
-    if [[ -n "$AUTOCONNECT_URL" ]]; then
-        dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/tools/Yaat.VStrips" -- --autoconnect "$AUTOCONNECT_URL" &
-    else
-        dotnet run --no-build -c "$CONFIGURATION" --project "$CLIENT_DIR/tools/Yaat.VStrips" &
     fi
     PIDS+=($!)
 fi

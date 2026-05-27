@@ -1,15 +1,11 @@
 ﻿# Start yaat-server and yaat-client side by side.
 # Kill all processes on Ctrl-C.
 # Build sequentially first -- both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStrips] [-VStripsWeb] [-Release] [-Scenario <id>] [-Sync <url>]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStripsWeb] [-Release] [-Scenario <id>] [-Sync <url>]
 #
 # -Sync <url>     Sync local yaat repo to the commit pinned by a remote server,
 #                 then build and run client-only. Example:
 #                   .\start.ps1 -Sync https://yaat1.leftos.dev
-# -VStrips        Also launch the standalone Yaat.VStrips desktop client alongside
-#                 the main client, autoconnecting to the same server. Combine with
-#                 -ClientOnly or -Sync to launch vStrips against an existing
-#                 server. Ignored with -ServerOnly.
 # -VStripsWeb     Publish the Yaat.VStrips.Web (WASM) bundle into
 #                 yaat-server\wwwroot\vstrips\ so http://<server>/vstrips/ serves
 #                 the live web client. Off by default to keep iteration fast --
@@ -25,7 +21,6 @@ param(
     [switch]$Docker,
     [switch]$ClientOnly,
     [switch]$ServerOnly,
-    [switch]$VStrips,
     [switch]$VStripsWeb,
     [switch]$Release,
     [string]$Scenario,
@@ -133,12 +128,6 @@ if (-not $ServerOnly) {
     if ($LASTEXITCODE -ne 0) { Write-Error "Client build failed"; exit 1 }
 }
 
-if ($VStrips -and -not $ServerOnly) {
-    Write-Host "Building yaat-vstrips ($Configuration)..."
-    dotnet build "$ClientDir\tools\Yaat.VStrips" -c $Configuration -v q
-    if ($LASTEXITCODE -ne 0) { Write-Error "vStrips build failed"; exit 1 }
-}
-
 # Publish the WASM web vStrips client into yaat-server\wwwroot\vstrips\ so
 # /vstrips/ serves the live bundle when the server runs. The project's
 # CopyToServerWwwroot AfterTargets="Publish" target does the cross-repo copy.
@@ -212,15 +201,6 @@ if (-not $ServerOnly) {
         $clientArgs += " --scenario $Scenario"
     }
     $procs += Start-Process -PassThru -NoNewWindow dotnet $clientArgs
-}
-
-if ($VStrips -and -not $ServerOnly) {
-    Write-Host "Starting yaat-vstrips..."
-    $vstripsArgs = "run --no-build -c $Configuration --project `"$ClientDir\tools\Yaat.VStrips`""
-    if ($autoconnectUrl) {
-        $vstripsArgs += " -- --autoconnect $autoconnectUrl"
-    }
-    $procs += Start-Process -PassThru -NoNewWindow dotnet $vstripsArgs
 }
 
 Write-Host "PIDs: $($procs.Id -join ', ')"

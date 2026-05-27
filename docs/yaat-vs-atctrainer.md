@@ -469,9 +469,9 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 - Ground and Radar view settings saved independently per scenario
 - Copy View Settings From... to reuse across scenarios
 
-### Standalone vStrips App
-- `tools/Yaat.VStrips` — independent flight strip display client for students
-- 109 MB self-contained executable (no simulation engine, no speech processing)
+### Browser vStrips App
+- `tools/Yaat.VStrips.Web` — WASM strip view served by yaat-server at `/vstrips/`
+- No install required; opens in any browser
 - Runs alongside CRC while YAAT awaits vNAS vStrips approval
 - Auto-departure/arrival strip printing
 

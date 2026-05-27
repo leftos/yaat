@@ -557,8 +557,7 @@ reconciles via `ReconcileFullState`/`ReconcileItems`, and emits every
 user action as a canonical command through `_sendCommand`. Supports
 drag/drop, keyboard shortcuts, and offset/offset-reverse annotation.
 
-A **standalone Yaat.VStrips app** ships as a ~109 MB binary, cloned from
-the shared `src/Yaat.Sim` core with a thin Avalonia UI. It uses
-`Yaat.Client.Core` (no LM-Kit dependency), connects via `VStripsViewModel`
-to the same `FlightStrips` topic as the main client, and renders the
-identical `StripItemDto` payloads.
+The same view is also served as a browser app at `/vstrips/` from
+the yaat-server via the `tools/Yaat.VStrips.Web` WASM bundle, which
+references only `Yaat.Client.Strips` and talks to the server through
+its own SignalR `HubConnection`.

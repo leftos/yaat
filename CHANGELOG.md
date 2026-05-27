@@ -10,6 +10,9 @@
 - Bare `CROSS` (no runway argument) clears the next uncleared hold-short on the taxi route — works whether the aircraft is already holding short or still taxiing toward it. `CROSS <target>` also now accepts taxiway and intersection names, not just runways.
 - `CROSS; HOLD` halts the aircraft right after it clears the far-side runway hold bars (not at the next hold-short however far away), so ground control can pick it up between parallel runways.
 
+### Removed
+- The standalone **YAAT Flight Strips** installer (`YaatVStrips-*`) is no longer published. The same view ships inside YAAT Client as the Strips tab, and the browser version at `/vstrips/` on the YAAT server stays available with no install.
+
 ### Fixed
 - A rejected `DCT`/`ADCT`/`FDCT` (e.g. to an unprogrammed fix) issued during an RV SID initial climb no longer drops the published vectors heading hold — the hold now stays engaged when the route amendment is rejected.
 - Misheard NATO suffix letters in GA tail numbers (Whisper's "gulf" for "golf") no longer truncate the callsign; "november three four six gulf" resolves to N346G.

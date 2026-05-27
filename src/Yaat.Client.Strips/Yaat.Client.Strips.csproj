@@ -13,7 +13,6 @@
     <InternalsVisibleTo Include="Yaat.Client.Core" />
     <InternalsVisibleTo Include="Yaat.Client.Tests" />
     <InternalsVisibleTo Include="Yaat.Client.UI.Tests" />
-    <InternalsVisibleTo Include="Yaat.VStrips" />
     <InternalsVisibleTo Include="Yaat.VStrips.Web" />
   </ItemGroup>
 

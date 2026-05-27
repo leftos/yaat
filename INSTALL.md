@@ -23,8 +23,6 @@ The **installers** register YAAT with your OS and keep themselves up to date aut
 
 The **portable** archives unzip to a folder containing the YAAT executable and its native dependencies (SkiaSharp, Avalonia, LM-Kit). They don't install anything, don't auto-update, and are handy for USB sticks or locked-down machines. Unzip the folder anywhere and run the executable inside. On Linux the AppImage already runs without install, so it's both the recommended installer *and* the portable form.
 
-A separate **YAAT Flight Strips** download (`YaatVStrips-*`) is also available — it's a standalone flight-strips UI for students who want to replace vStrips without installing the full trainer.
-
 ### Step 2: Run the installer (or the portable)
 
 **Windows installer:** double-click `YaatClient-<ver>-win-Setup.exe`. Windows SmartScreen may warn that the installer is unsigned — click **More info** → **Run anyway**. YAAT appears in the Start menu when the install finishes.

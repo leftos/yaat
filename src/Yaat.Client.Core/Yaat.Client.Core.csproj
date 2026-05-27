@@ -12,7 +12,6 @@
     <InternalsVisibleTo Include="Yaat.Client" />
     <InternalsVisibleTo Include="Yaat.Client.Tests" />
     <InternalsVisibleTo Include="Yaat.Client.UI.Tests" />
-    <InternalsVisibleTo Include="Yaat.VStrips" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,8 +24,6 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
     <!-- Transitive via Avalonia.FreeDesktop 11.3.13 (>= 0.21.2); pin to patched 0.21.3 (GHSA-xrw6-gwf8-vvr9). -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
-    <!-- UpdateService lives in Core so both Yaat.Client and Yaat.VStrips can construct
-         their own per-app updater (with distinct Velopack channels). -->
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
 

@@ -6,9 +6,7 @@ using Yaat.Client.Logging;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Checks for app updates via GitHub Releases using Velopack. Both Yaat.Client and
-/// Yaat.VStrips construct their own UpdateService with distinct Velopack channels
-/// so each app downloads its own installer from a shared GitHub release.
+/// Checks for app updates via GitHub Releases using Velopack.
 /// </summary>
 public sealed class UpdateService
 {
@@ -18,9 +16,8 @@ public sealed class UpdateService
 
     /// <summary>
     /// Constructs an updater that reads release metadata from leftos/yaat releases.
-    /// Pass an explicit channel (e.g., "vstrips-win") for apps packed with a
-    /// non-default Velopack channel; pass null to use the platform default channel
-    /// ("win"/"osx"/"linux"), which is what Yaat.Client uses.
+    /// Pass an explicit channel for apps packed with a non-default Velopack channel;
+    /// pass null to use the platform default channel ("win"/"osx"/"linux").
     /// </summary>
     public UpdateService(string? channel)
     {

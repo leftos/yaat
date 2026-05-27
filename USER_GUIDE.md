@@ -415,9 +415,7 @@ When weather is loaded, wind and altimeter are displayed in the top-left corner 
 
 The **Strips** tab is a YAAT-side reimplementation of CRC's vStrips. It renders the same flight-strip bays, racks, drag/drop, and keyboard shortcuts a real vStrips client would, so an instructor can push, annotate, and manage strips without students needing CRC's vStrips open.
 
-Strip state is owned by the server and broadcast to every client in the room — including any real CRC + vStrips clients connected to the same room. Mutations from CRC, the embedded tab, and the standalone [Yaat.VStrips](tools/Yaat.VStrips/README.md) app all converge on the same authoritative state.
-
-> A standalone build of this same view ships separately as **YAAT Flight Strips** (`YaatVStrips-*`). It connects to a YAAT server in the same way and is intended for trainees who want a vStrips-equivalent without installing the full trainer. See [tools/Yaat.VStrips/USER_GUIDE.md](tools/Yaat.VStrips/USER_GUIDE.md).
+Strip state is owned by the server and broadcast to every client in the room — including any real CRC + vStrips clients connected to the same room. Mutations from CRC and the embedded tab all converge on the same authoritative state. The same view is also available in any browser at `/vstrips/` on the server (no install required), backed by the WASM [`Yaat.VStrips.Web`](tools/Yaat.VStrips.Web/) bundle.
 
 #### Opening the tab
 

@@ -102,11 +102,10 @@ public partial class MainViewModel
     /// Tools → Open Strips in Browser. Builds <c>{server}/vstrips/?cid=&amp;
     /// initials=&amp;artcc=&amp;room=</c> from the live connection state and
     /// shells out to the user's default browser via
-    /// <see cref="ProcessStartInfo.UseShellExecute"/> — same pattern as
-    /// <c>Yaat.VStrips.StandaloneViewModel.OpenInBrowserAsync</c>. Lets the
-    /// instructor pop the WASM strips client into a CRC tab without juggling
-    /// extra processes. Gated on <see cref="IsConnected"/> because the URL
-    /// only points at a real server while we're connected.
+    /// <see cref="ProcessStartInfo.UseShellExecute"/>. Lets the instructor pop
+    /// the WASM strips client into a CRC tab without juggling extra processes.
+    /// Gated on <see cref="IsConnected"/> because the URL only points at a real
+    /// server while we're connected.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanOpenStripsInBrowser))]
     private Task OpenStripsInBrowserAsync()

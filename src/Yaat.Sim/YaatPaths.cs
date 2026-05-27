@@ -7,7 +7,6 @@ namespace Yaat.Sim;
 //
 // Each app calls Initialize(appDirName) at startup before any path access:
 //   Yaat.Client → "yaat"
-//   Yaat.VStrips → "yaat-vstrips"
 // The env var, when set, takes precedence over the configured dir name —
 // tests get a fully isolated temp directory regardless of which app is running.
 public static class YaatPaths

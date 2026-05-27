@@ -27,7 +27,7 @@ Pre-built installers and portable archives are published on the [Releases page](
 | Linux    | `YaatClient-<ver>-linux.AppImage` | (the AppImage is itself portable) |
 | macOS    | `YaatClient-<ver>-osx-Setup.pkg` | `YaatClient-<ver>-osx-Portable.zip` |
 
-A second installer, **YAAT Flight Strips** (`YaatVStrips-*`), ships the flight-strips UI on its own for students who want to replace vStrips but don't need the full trainer.
+Flight strips are also available in any browser at `/vstrips/` on the YAAT server (no install — just open the URL).
 
 **Just want to point CRC at YAAT?** The standalone [`yaat-crc-config`](tools/yaat-crc-config/README.md) tool (~200 KB single binary, no install) adds the YAAT environments to CRC's `DevEnvironments.json` for students who only want to observe a YAAT session. Download it from the [`crc-config-v*` releases](https://github.com/leftos/yaat/releases?q=crc-config-v).
 
