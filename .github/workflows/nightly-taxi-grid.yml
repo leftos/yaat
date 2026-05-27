@@ -1,0 +1,53 @@
+name: Nightly Taxi Grid
+
+# Runs the parametric every-parking taxi grid at OAK (piston) and SFO (jet)
+# against the TaxiBudgetEvaluator guards. ~1200 cases per run, ~10s real
+# time. Surfaces taxi-spin / tight-geometry regressions across the entire
+# field — the per-PR CI only covers curated smoke pairs.
+#
+# Triggers: 06:00 UTC daily (after typical EU/US development pushes) and
+# on-demand via workflow_dispatch.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  taxi-grid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          lfs: true
+
+      - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
+        with:
+          dotnet-version: "10.0.x"
+          dotnet-quality: "ga"
+
+      # The grid lives in Yaat.Sim.Tests, which doesn't pull in the WASM
+      # tooling the full solution needs. Restore + build just that project
+      # to keep the runtime tight.
+      - name: Restore
+        run: dotnet restore tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj
+
+      - name: Build
+        run: dotnet build tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --no-restore --configuration Release /warnaserror
+
+      - name: Run nightly grid
+        run: dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --no-build --configuration Release --filter "Category=Nightly" --logger "trx;LogFileName=nightly-taxi-grid.trx" --logger "console;verbosity=normal"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: nightly-taxi-grid-results
+          path: "**/TestResults/*.trx"
+          retention-days: 30

@@ -48,8 +48,12 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --configuration Release /warnaserror
 
+      # `Category=Nightly` is the trait on TaxiCoverage{Oak,Sfo}GridTests
+      # (parametric every-parking sweeps, ~1200 cases). Per-PR CI runs
+      # everything else; the .github/workflows/nightly-taxi-grid.yml
+      # workflow runs the Nightly grid on a schedule.
       - name: Test
-        run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.trx"
+        run: dotnet test --no-build --configuration Release --filter "Category!=Nightly" --logger "trx;LogFileName=results.trx"
 
       - name: Trigger yaat-server CI
         if: github.event_name == 'push'
