@@ -297,6 +297,9 @@ public partial class SettingsViewModel : ObservableObject
     private string _terminalChatColor = TerminalColorScheme.DefaultChat;
 
     [ObservableProperty]
+    private string _terminalTdlsColor = TerminalColorScheme.DefaultTdls;
+
+    [ObservableProperty]
     private int _groundSatelliteImageBrightness = 50;
 
     [ObservableProperty]
@@ -711,7 +714,8 @@ public partial class SettingsViewModel : ObservableObject
                 TerminalPilotSpeechColor,
                 TerminalWarningColor,
                 TerminalErrorColor,
-                TerminalChatColor
+                TerminalChatColor,
+                TerminalTdlsColor
             )
         );
         _preferences.SetGroundLayerSettings(
@@ -1346,6 +1350,7 @@ public partial class SettingsViewModel : ObservableObject
         TerminalWarningColor = t.Warning;
         TerminalErrorColor = t.Error;
         TerminalChatColor = t.Chat;
+        TerminalTdlsColor = t.Tdls;
     }
 
     /// <summary>
@@ -1417,6 +1422,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnTerminalErrorColorChanged(string value) => VisualSettingsChanged?.Invoke();
 
     partial void OnTerminalChatColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalTdlsColorChanged(string value) => VisualSettingsChanged?.Invoke();
 
     partial void OnDataGridFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 

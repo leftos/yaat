@@ -17,6 +17,13 @@ public enum TerminalEntryKind
     /// sim-initiated speech, not on the controller's own AS-prefix SAY-class verbs.
     /// </summary>
     PilotSpeech,
+
+    /// <summary>
+    /// vTDLS PDC delivery. Mirrors the ACARS message format the pilot's client receives so
+    /// instructors see exactly what the student sent. Separate from System so it can be
+    /// colored, filtered, and (eventually) routed to a dedicated channel toggle.
+    /// </summary>
+    Tdls,
 }
 
 public sealed class TerminalEntry

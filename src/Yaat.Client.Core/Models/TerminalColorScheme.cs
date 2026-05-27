@@ -14,7 +14,8 @@ public sealed record TerminalColorScheme(
     string PilotSpeech,
     string Warning,
     string Error,
-    string Chat
+    string Chat,
+    string Tdls
 )
 {
     public const string DefaultCommand = "#FFFFFF";
@@ -26,8 +27,15 @@ public sealed record TerminalColorScheme(
     public const string DefaultError = "#FF0000";
     public const string DefaultChat = "#00FFFF";
 
+    /// <summary>
+    /// Default vTDLS color — bright amber, matching real-world ACARS terminals which display
+    /// text on a dark amber/yellow phosphor. Distinct from Say/PilotSpeech (green) and Chat
+    /// (cyan) so PDC traffic is visually identifiable in the room's terminal log at a glance.
+    /// </summary>
+    public const string DefaultTdls = "#FFB000";
+
     public static TerminalColorScheme Default { get; } =
-        new(DefaultCommand, DefaultResponse, DefaultSystem, DefaultSay, DefaultPilotSpeech, DefaultWarning, DefaultError, DefaultChat);
+        new(DefaultCommand, DefaultResponse, DefaultSystem, DefaultSay, DefaultPilotSpeech, DefaultWarning, DefaultError, DefaultChat, DefaultTdls);
 
     public string For(TerminalEntryKind kind) =>
         kind switch
@@ -40,6 +48,7 @@ public sealed record TerminalColorScheme(
             TerminalEntryKind.Warning => Warning,
             TerminalEntryKind.Error => Error,
             TerminalEntryKind.Chat => Chat,
+            TerminalEntryKind.Tdls => Tdls,
             _ => DefaultCommand,
         };
 }

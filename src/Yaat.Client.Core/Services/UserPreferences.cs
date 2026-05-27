@@ -341,7 +341,8 @@ public sealed class UserPreferences
             _data.TerminalPilotSpeechColor,
             _data.TerminalWarningColor,
             _data.TerminalErrorColor,
-            _data.TerminalChatColor
+            _data.TerminalChatColor,
+            _data.TerminalTdlsColor
         );
 
     /// <summary>Raised after <see cref="SetTerminalColors"/> persists; subscribers refresh terminal styling.</summary>
@@ -769,6 +770,7 @@ public sealed class UserPreferences
         _data.TerminalWarningColor = scheme.Warning;
         _data.TerminalErrorColor = scheme.Error;
         _data.TerminalChatColor = scheme.Chat;
+        _data.TerminalTdlsColor = scheme.Tdls;
         Save();
         TerminalColorsChanged?.Invoke();
     }
@@ -1172,6 +1174,7 @@ public sealed class UserPreferences
             TerminalWarningColor = GetFieldOr(obj, "terminalWarningColor", TerminalColorScheme.DefaultWarning),
             TerminalErrorColor = GetFieldOr(obj, "terminalErrorColor", TerminalColorScheme.DefaultError),
             TerminalChatColor = GetFieldOr(obj, "terminalChatColor", TerminalColorScheme.DefaultChat),
+            TerminalTdlsColor = GetFieldOr(obj, "terminalTdlsColor", TerminalColorScheme.DefaultTdls),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
             AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
@@ -1422,6 +1425,7 @@ public sealed class UserPreferences
         public string TerminalWarningColor { get; set; } = TerminalColorScheme.DefaultWarning;
         public string TerminalErrorColor { get; set; } = TerminalColorScheme.DefaultError;
         public string TerminalChatColor { get; set; } = TerminalColorScheme.DefaultChat;
+        public string TerminalTdlsColor { get; set; } = TerminalColorScheme.DefaultTdls;
         public string SignatureHelpPlacement { get; set; } = "Above";
         public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;
